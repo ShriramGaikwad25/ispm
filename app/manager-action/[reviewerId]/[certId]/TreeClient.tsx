@@ -436,22 +436,22 @@ const TreeClient: React.FC<TreeClientProps> = ({ reviewerId, certId }) => {
               );
 
               const mapped = data.map((item) => {
-                const info: EntitlementInfo = item.entityEntitlements ?? {
-                  entitlementName: "",
-                  entitlementDescription: "",
-                };
-                const ai = item.aiassist ?? {};
+                // const info: EntitlementInfo = item.entityEntitlements ?? {
+                //   entitlementName: "",
+                //   entitlementDescription: "",
+                // };
+                // const ai = item.aiassist ?? {};
                 return {
-                  entitlementName: info.entitlementName ?? "",
-                  entitlementDescription: info.entitlementDescription ?? "",
-                  recommendation: ai.Recommendation ?? "",
-                  accessedWithinAMonth: ai.accessedWithinAMonth ?? "",
-                  itemRisk: item.itemRisk ?? "",
-                  percAccessInSameDept: ai.percAccessInSameDept ?? "",
-                  percAccessWithSameJobtitle:
-                    ai.percAccessWithSameJobtitle ?? "",
-                  percAccessWithSameManager: ai.percAccessWithSameManager ?? "",
-                  actionInLastReview: ai.Recommendation ?? "",
+                  // entitlementName: info.entitlementName ?? "",
+                  // entitlementDescription: info.entitlementDescription ?? "",
+                  // recommendation: ai.Recommendation ?? "",
+                  // accessedWithinAMonth: ai.accessedWithinAMonth ?? "",
+                  // itemRisk: item.itemRisk ?? "",
+                  // percAccessInSameDept: ai.percAccessInSameDept ?? "",
+                  // percAccessWithSameJobtitle:
+                  //   ai.percAccessWithSameJobtitle ?? "",
+                  // percAccessWithSameManager: ai.percAccessWithSameManager ?? "",
+                  // actionInLastReview: ai.Recommendation ?? "",
                 };
               });
 
