@@ -580,7 +580,7 @@ export default function AppOwner() {
               <div className="space-x-2 p-2">
                 {/* <button className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md text-sm">Certify</button>
             <button className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-1 rounded-md text-sm">Remove</button> */}
-                <ActionButtons />
+                {/* <ActionButtons api={params.api} selectedRows={[params.data]} /> */}
               </div>
             </div>
             <p className="text-xs text-gray-500 mt-1">
