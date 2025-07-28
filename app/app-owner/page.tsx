@@ -158,8 +158,8 @@ export default function AppOwner() {
 
   const [comment, setComment] = useState("");
 
-  const handleInputChange = (e) => {
-    setComment(e.target.value);
+  const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setComment(event.target.value);
   };
   const handleSelect = (category: string, index: number) => {
     setSelected((prev) => ({
