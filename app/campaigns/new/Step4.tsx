@@ -117,8 +117,8 @@ const Step4: React.FC<StepProps> = ({
 
   useEffect(() => {
     if (!watch("authenticationSignOff")) {
-      setValue("options", null);
-      setValue("userAttribute", null);
+      setValue("options", undefined);
+      setValue("userAttribute", undefined);
     }
   }, [watch("authenticationSignOff"), setValue]);
 
