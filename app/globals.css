@@ -1,0 +1,144 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --foreground-rgb: 255, 255, 255;
+    --background-start-rgb: 0, 0, 0;
+    --background-end-rgb: 0, 0, 0;
+  }
+}
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 214, 219, 220;
+  --background-end-rgb: 255, 255, 255;
+}
+
+/** DataTable custom css**/
+html,
+body {
+  /* font-family: 'Your New Font Name', sans-serif; */
+    font-family: Arial, Helvetica, sans-serif; /* Default font */
+
+  /* Or if using a custom font family defined in tailwind.config.js */
+/* Assuming 'font-sans' is configured in tailwind.config.js */
+}
+body {
+  @apply overflow-hidden max-h-screen;
+}
+.level_1 + .no_level {
+  @apply border-white border-t;
+}
+.level_1 td:first-child {
+  @apply left-6.5 relative;
+}
+
+.no_level td:first-child {
+  @apply left-12.5 relative;
+}
+.no_level td:first-child:before {
+  content: " ";
+  @apply absolute bg-[#F4F5FA] block w-[23px] h-[65px] -mt-4.5 -ml-9;
+}
+
+.no_level.group-last-row {
+  @apply border-white border-b;
+}
+
+.row-pagination {
+  @apply relative h-[74px];
+
+  td {
+    @apply bg-[#F4F5FA] left-6.5 absolute right-0;
+  }
+}
+.no_level.group-last-row td:first-child:before {
+  @apply -mt-3.5;
+}
+.no_level.group-last-row.group-first-row {
+  @apply border-b border-b-blue-300;
+
+  td:first-child:before {
+    @apply -mt-4;
+  }
+}
+.no_level.group-first-row td:first-child,
+.level_1.group-first-row td:first-child {
+  @apply rounded-tl-lg;
+}
+
+.no_level.group-last-row td:first-child,
+.level_1.group-last-row td:first-child {
+  @apply rounded-bl-lg;
+}
+
+.form-input {
+  @apply w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500;
+}
+
+.ag-details-row {
+  @apply !pr-0 !pt-0 !pb-0;
+}
+.ag-selection-checkbox {
+  @apply !mr-0;
+}
+.ag-row:hover {
+  @apply !bg-[#E5EEFC];
+}
+.ag-cell-focus {
+  @apply !border-0;
+}
+
+.ag-checked {
+  @apply !bg-[#0275ff];
+}
+.ag-row-group-expanded {
+  @apply border-b-0;
+}
+.ag-header-cell-comp-wrapper {
+  @apply font-bold text-[#1759e4];
+}
+.ag-header,
+div[role="row"] {
+  @apply !bg-[#fff] !border-0;
+}
+
+.account-table-detail,
+.entitlement-table-detail {
+  .ag-root-wrapper {
+    @apply !border-2 border-white !border-r-0 rounded-tr-none  rounded-br-none;
+  }
+  .ag-details-row,
+  .ag-root,
+  .ag-header,
+  div[role="row"] {
+    @apply !bg-[#F4F5FA] !border-0;
+  }
+  .ag-paging-panel {
+    @apply !border-t-0;
+  }
+}
+.account-table-detail {
+  .ag-root-wrapper {
+    @apply !bg-[#F4F5FA] border-0;
+  }
+}
+.entitlement-table-detail {
+  .ag-details-row,
+  .ag-root,
+  .ag-header,
+  div[role="row"],
+  .ag-root-wrapper {
+    @apply !bg-[#ECEEF8];
+  }
+}
+.ag-main > .ag-root-wrapper > .ag-paging-panel {
+  /* hide top pagination */
+  @apply !hidden;
+}
