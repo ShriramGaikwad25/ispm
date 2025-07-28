@@ -29,6 +29,7 @@ import DateInput from "@/components/DatePicker";
 import { AgGridReact } from "ag-grid-react";
 import "@/lib/ag-grid-setup";
 import CustomMultiSelect from "@/components/CustomMultiSelect";
+import { IDetailCellRendererParams } from "ag-grid-enterprise";
 
 const validationSchema = yup.object().shape({
   // Notifications
@@ -170,7 +171,7 @@ const Step4: React.FC<StepProps> = ({
     };
   }, []);
 
-  const CustomDetailRenderer = (props) => {
+  const CustomDetailRenderer = (props:IDetailCellRendererParams) => {
     const { campaign, reviewer } = props.data;
     return (
       <div style={{ padding: "5%", backgroundColor: "whitesmoke" }}>
