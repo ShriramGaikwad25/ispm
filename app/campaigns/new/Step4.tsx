@@ -29,7 +29,8 @@ import DateInput from "@/components/DatePicker";
 import { AgGridReact } from "ag-grid-react";
 import "@/lib/ag-grid-setup";
 import CustomMultiSelect from "@/components/CustomMultiSelect";
-import { IDetailCellRendererParams } from "ag-grid-enterprise";
+import { ColDef, IDetailCellRendererParams } from "ag-grid-enterprise";
+
 
 const validationSchema = yup.object().shape({
   // Notifications
@@ -153,7 +154,7 @@ const Step4: React.FC<StepProps> = ({
     },
   ];
 
-  const columnDefs = [
+ const columnDefs: ColDef[] = useMemo(() => [
     {
       headerName: "Notifications",
       field: "name",
@@ -163,7 +164,7 @@ const Step4: React.FC<StepProps> = ({
       suppressMenu: true, // Suppress column menu (3-dot icon)
       suppressFiltersToolPanel: true,
     },
-  ];
+  ],[]);
   const defaultColDef = useMemo(() => {
     return {
       width: 440,
@@ -412,7 +413,7 @@ const Step4: React.FC<StepProps> = ({
                 />
               </div>
 
-              {watch("options") === "userAttribute" && (
+              {/* {watch("options") === "userAttribute" && (
                 <div>
                   <span className={`flex items-center ${asterisk}`}>
                     Select Attribute
@@ -425,7 +426,7 @@ const Step4: React.FC<StepProps> = ({
                     {...register("userAttribute")}
                   />
                 </div>
-              )}
+              )} */}
             </div>
           )}
         </dd>
