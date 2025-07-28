@@ -17,7 +17,7 @@ import {
 import { PaginatedResponse } from "@/types/api";
 
 // const reviewerId = "S276692"; // You can make this dynamic later
-const reviewerId = "0089414b-fb84-4fba-8a30-afc7386eab49"
+const reviewerId = "0089414b-fb84-4fba-8a30-afc7386eab49";
 
 const Home: React.FC = () => {
   const [gridApi, setGridApi] = useState<GridApi | null>(null);
@@ -31,16 +31,15 @@ const Home: React.FC = () => {
   const [pageNumber, setPageNumber] = useState(1); // Default page number
   const [totalItems, setTotalItems] = useState(0); // Total items from the server
   const [totalPages, setTotalPages] = useState(1); // Total pages from the server
+  const [authChecked, setAuthChecked] = useState(false);
 
   const { data, error } = useCertifications(
     reviewerId,
     defaultPageSize,
     pageNumber
   );
-    const [authChecked, setAuthChecked] = useState(false);
 
-
-    useEffect(() => {
+  useEffect(() => {
     const isAuthenticated = localStorage.getItem("authenticated");
     if (!isAuthenticated) {
       router.push("/");
@@ -51,15 +50,16 @@ const Home: React.FC = () => {
 
   const certificationData =
     data as unknown as PaginatedResponse<CertificationRow>;
+
   useEffect(() => {
     if (certificationData) {
       const mapped = certificationData.items.map(
         (item: RawCertification): CertificationRow => {
-          const certInfo = item.reviewerCertificationInfo;
-          const actionInfo = item.reviewerCertificateActionInfo;
+          const certInfo = item.reviewerCertificationInfo?.[0]; // Fix here
+          const actionInfo = item.reviewerCertificateActionInfo?.[0];
           return {
-            id: `${item.reviewerId}-${item.certificationId}`, // Generate a unique id
-            taskId: item.campaignId ?? "", // Map campaignId to taskId
+            id: `${item.reviewerId}-${item.certificationId}`,
+            taskId: item.campaignId ?? "",
             reviewerId: item.reviewerId,
             certificationId: item.certificationId,
             campaignId: item.campaignId,
@@ -83,13 +83,12 @@ const Home: React.FC = () => {
     }
   }, [certificationData]);
 
-
-
   const handlePageChange = (newPage: number) => {
     if (newPage !== pageNumber) {
       setPageNumber(newPage);
     }
   };
+
   const handleRowClick = (e: RowClickedEvent<CertificationRow>) => {
     const clickedReviewerId = e.data?.reviewerId;
     const clickedCertificationId = e.data?.certificationId;
@@ -99,6 +98,7 @@ const Home: React.FC = () => {
       );
     }
   };
+
   return (
     <>
       {error && (
@@ -152,7 +152,7 @@ const Home: React.FC = () => {
           setGridApi(params.api);
           params.api.sizeColumnsToFit();
         }}
-        pagination={false} // Disable client-side pagination
+        pagination={false}
         paginationPageSize={defaultPageSize}
         paginationPageSizeSelector={pageSizeSelector}
         cacheBlockSize={defaultPageSize}
