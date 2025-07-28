@@ -2,7 +2,6 @@
 
 import React, { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Tabs from "@/components/tabs";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { AgGridReact } from "ag-grid-react";
 import { AgGridReact as AgGridReactType } from "ag-grid-react";
@@ -10,9 +9,7 @@ import "@/lib/ag-grid-setup";
 import {
   ColDef,
   ICellRendererParams,
-  RowClickedEvent,
 } from "ag-grid-enterprise";
-import ActionButtons from "@/components/agTable/ActionButtons";
 import HorizontalTabs from "@/components/HorizontalTabs";
 import Accordion from "@/components/Accordion";
 import ProgressDonutChart from "@/components/ProgressDonutChart";
@@ -109,11 +106,7 @@ export default function ManageCampaigns() {
     []
   );
 
-  const rowSelection = useMemo(() => {
-    return {
-      mode: "multiRow",
-    };
-  }, []);
+const rowSelection = useMemo<"single" | "multiple">(() => "multiple", []);
   // const handleRowClick = (e: RowClickedEvent) => {
   //   const campaignId = e.data.id;
   //   router.push(`/campaigns/manage-campaigns/${campaignId}`);
