@@ -45,27 +45,17 @@ export const stageSchema = yup.object().shape({
 //   stages: yup.array().of(stageSchema).min(1).required("At least one stage is required"),
 // });
 
-const validationSchema = yup.object().shape({
-  multiStageReview: yup.boolean(),
-  stages: yup
-    .array()
-    .of(
-      yup.object().shape({
-        reviewer: yup.string().required("Reviewer is required"),
-        duration: yup.string().required("Duration is required"),
-        // add other field validations here...
-      })
-    )
-    .test(
-      "at-least-two-stages",
-      "At least two stages are required for multi-stage review",
-      function (value) {
-        const { multiStageReview } = this.parent;
-        if (multiStageReview) {
-          return value && value.length >= 2;
-        }
-        return true;
-      }
-    ),
+const validationSchema = yup.object({
+  multiStageReview: yup.boolean().required(),
+  stages: yup.array().of(
+    yup.object({
+      reviewer: yup.string().required("Reviewer is required"),
+      duration: yup.string().required("Duration is required"),
+      nextReviewerAction: yup.boolean(),
+      reviewerlistIsChecked: yup.boolean(),
+      genericExpression: yup.array().of(yup.string()),
+      customReviewerlist: yup.string().nullable(),
+    })
+  ),
 });
 export default validationSchema;
