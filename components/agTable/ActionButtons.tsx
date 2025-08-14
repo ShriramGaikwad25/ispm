@@ -1,7 +1,7 @@
 "use client";
 import { GridApi } from "ag-grid-enterprise";
 import { createPortal } from "react-dom";
-import { CircleCheck, CircleOff, Edit2Icon, MoreVertical } from "lucide-react";
+import { CircleCheck, CircleOff, CircleX, Edit2Icon, MoreVertical } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { optionsForRemidiate, revokeOption } from "@/utils/utils";
 import Select from "react-select";
@@ -12,12 +12,18 @@ import ProxyActionModal from "../ProxyActionModal";
 interface ActionButtonsProps<T> {
   api: GridApi;
   selectedRows: T[];
+  context: "user" | "account" | "entitlement";
+  reviewerId: string;
+  certId: string;
   viewChangeEnable?: boolean;
 }
 
 const ActionButtons = <T,>({
   api,
   selectedRows,
+  context,
+  reviewerId,
+  certId,
   viewChangeEnable
 }: ActionButtonsProps<T>) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -27,66 +33,107 @@ const ActionButtons = <T,>({
     top: number;
     left: number;
   }>({ top: 0, left: 0 });
-
-  // const usersData = [
-  //   { id: 1, username: "john_doe", email: "john@example.com", role: "admin" },
-  //   {
-  //     id: 2,
-  //     username: "jane_smith",
-  //     email: "jane@example.com",
-  //     role: "editor",
-  //   },
-  //   { id: 3, username: "alex_king", email: "alex@example.com", role: "viewer" },
-  // ];
-
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [changeAccountOwner, setChangeAccountOwner] = useState(false);
   const [sendForApproval, setSendForApproval] = useState(false);
   const [modifyAccessChecked, setModifyAccessChecked] = useState(false);
   const [immediateRevokeChecked, setImmediateRevokeChecked] = useState(false);
-  const [modifyAccessSelectedOption, setModifyAccessSelectedOption] =
-    useState(null);
+  const [modifyAccessSelectedOption, setModifyAccessSelectedOption] = useState(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [revokeSelection, setRevokeSelection] = useState(null);
   const [comment, setComment] = useState("");
   const [reviewerType, setReviewerType] = useState(null);
   const [selectedOwner, setSelectedOwner] = useState<User | Group | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
+  // API call to update actions
+  const updateActions = async (actionType: string, justification: string) => {
+    const payload: any = {
+      useraction: [],
+      accountAction: [],
+      entitlementAction: [],
+    };
+
+    if (context === "user") {
+      payload.useraction = selectedRows.map((row: any) => ({
+        userId: row.id,
+        actionType,
+        justification,
+      }));
+    } else if (context === "account") {
+      payload.accountAction = selectedRows.map((row: any) => ({
+        actionType,
+        lineItemId: row.lineItemId,
+        justification,
+      }));
+    } else if (context === "entitlement") {
+      payload.entitlementAction = [
+        {
+          actionType,
+          lineItemIds: selectedRows.map((row: any) => row.lineItemId),
+          justification,
+        },
+      ];
+    }
+
+    try {
+      const response = await fetch(
+        `https://preview.keyforge.ai/certification/api/v1/CERTTEST/updateAction/${reviewerId}/${certId}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      // Update grid with new status
+      api.applyTransaction({
+        update: selectedRows.map((row) => ({ ...row, status: actionType })),
+      });
+      setError(null);
+      return result;
+    } catch (err) {
+      setError(`Failed to update actions: ${err.message}`);
+      console.error("API error:", err);
+      throw err;
+    }
+  };
 
   const handleChangeAccountOwner = (checked: boolean) => {
-   setChangeAccountOwner(checked);
-  if (checked) {
-    setIsModalOpen(true);
-  } else {
-    setSelectedOwner(null); // ✅ Clear selected owner on toggle NO
-  }
+    setChangeAccountOwner(checked);
+    if (checked) {
+      setIsModalOpen(true);
+    } else {
+      setSelectedOwner(null);
+    }
   };
 
-  // Bulk Approve
-  const handleApprove = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!api || !selectedRows || selectedRows.length === 0) return;
-    api.applyTransaction({
-      update: selectedRows.map((row) => ({ ...row, status: "Approved" })),
-    });
-  };
-
-  //Bulk Revoke
-  const handleRevoke = (e: React.MouseEvent) => {
+  const handleApprove = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!api || selectedRows.length === 0) return;
-    api.applyTransaction({
-      update: selectedRows.map((row) => ({ ...row, status: "Revoked" })),
-    });
+    await updateActions("Approve", comment || "Approved via UI");
   };
 
-  //Bulk Comment
+  const handleRevoke = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!api || selectedRows.length === 0) return;
+    await updateActions("Reject", comment || "Revoked via UI");
+  };
+
   const handleComment = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (selectedRows.length === 0) return;
-    alert(`Adding comment for ${selectedRows.length} selected rows`);
+    alert(`Comment added: ${comment || "No comment provided"} for ${selectedRows.length} rows`);
   };
+
   const toggleMenu = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsMenuOpen((prev) => !prev);
@@ -99,6 +146,7 @@ const ActionButtons = <T,>({
       });
     }
   };
+
   const handleClickOutside = (event: MouseEvent) => {
     if (
       menuRef.current &&
@@ -116,24 +164,17 @@ const ActionButtons = <T,>({
     } else {
       document.removeEventListener("mousedown", handleClickOutside);
     }
-
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isMenuOpen]);
 
   const openModal = () => {
     setIsModalOpen(true);
-    setIsMenuOpen(false); // close dropdown when modal opens
+    setIsMenuOpen(false);
   };
-
-  // const closeModal = () => {
-  //   setIsModalOpen(false);
-  //   setSelectedAttribute("");
-  //   setSearchValue("");
-  // };
 
   const openSidebar = () => {
     setIsSidebarOpen(true);
-    setIsMenuOpen(false); // Optional: close dropdown when sidebar opens
+    setIsMenuOpen(false);
   };
 
   const closeSidebar = () => {
@@ -142,17 +183,18 @@ const ActionButtons = <T,>({
 
   return (
     <div className="flex space-x-4 h-full items-center">
-      <button onClick={handleApprove} title="Approve">
+      {error && <div className="text-red-500 text-sm">{error}</div>}
+      <button onClick={handleApprove} title="Approve" aria-label="Approve selected rows">
         <CircleCheck
-          className="cursor-pointer  hover:opacity-80"
-          color="#5C48DF"
+          className="cursor-pointer hover:opacity-80"
+          color="#1c821cff"
           strokeWidth="1"
           size="32"
         />
       </button>
 
-      <button onClick={handleRevoke} title="Revoke">
-        <CircleOff
+      <button onClick={handleRevoke} title="Revoke" aria-label="Revoke selected rows">
+        <CircleX
           className="cursor-pointer hover:opacity-80 transform rotate-90"
           color="#FF2D55"
           strokeWidth="1"
@@ -160,7 +202,7 @@ const ActionButtons = <T,>({
         />
       </button>
 
-      <button onClick={handleComment} title="Comment">
+      <button onClick={handleComment} title="Comment" aria-label="Add comment">
         <svg
           width="30"
           height="30"
@@ -175,12 +217,12 @@ const ActionButtons = <T,>({
       </button>
 
       {viewChangeEnable && (
-        <button onClick={handleComment} title="Change view">
+        <button onClick={handleComment} title="Change view" aria-label="Change view">
           <svg
             width="32"
             height="30.118"
             viewBox="0 0 32 30.118"
-            className="cursor-pointer hover:opacity-80 transfrom scale-[0.6]"
+            className="cursor-pointer hover:opacity-80 transform scale-[0.6]"
           >
             <path
               fill="#35353A"
@@ -190,20 +232,14 @@ const ActionButtons = <T,>({
         </button>
       )}
 
-      {/* Dropdown */}
       <button
         ref={menuButtonRef}
         onClick={toggleMenu}
         title="More Actions"
-        className={`cursor-pointer rounded-sm hover:opacity-80 ${
-          isMenuOpen ? "bg-[#6D6E73]/20" : ""
-        }`}
+        className={`cursor-pointer rounded-sm hover:opacity-80 ${isMenuOpen ? "bg-[#6D6E73]/20" : ""}`}
+        aria-label="More actions"
       >
-        <MoreVertical
-          color="#35353A"
-          size="32"
-          className="transfrom scale-[0.6]"
-        />
+        <MoreVertical color="#35353A" size="32" className="transform scale-[0.6]" />
       </button>
       <div className="relative flex items-center">
         {isMenuOpen &&
@@ -240,10 +276,7 @@ const ActionButtons = <T,>({
             document.body
           )}
       </div>
-      {/* <ProxyActionModal
-        isModalOpen={isModalOpen}
-        closeModal={() => setIsModalOpen(false)}
-      /> */}
+
       <ProxyActionModal
         isModalOpen={isModalOpen}
         closeModal={() => setIsModalOpen(false)}
@@ -269,18 +302,15 @@ const ActionButtons = <T,>({
           setIsModalOpen(false);
         }}
       />
+
       {isSidebarOpen &&
         createPortal(
           <div className="fixed inset-0 z-50 flex h-[calc(100%-4rem)] top-17">
-            {/* Backdrop */}
             <div className="flex-1 bg-black/40" onClick={closeSidebar} />
-
             <div className="max-w-3xl mx-auto p-2 bg-white shadow-lg rounded-xl border border-gray-200 space-y-6 text-sm">
               <div>
                 <h2 className="text-lg font-semibold">Remediate action</h2>
               </div>
-
-              {/* User and Role */}
               <div className="flex items-center space-x-4 p-3 bg-gray-50 rounded-md">
                 <div className="flex-1">
                   <p className="font-medium">Derrick Watson</p>
@@ -294,15 +324,7 @@ const ActionButtons = <T,>({
                   <p className="text-gray-500">AWS - IAM role</p>
                 </div>
               </div>
-
-              {/* Mark as Elevated Access */}
               <div className="items-center space-x-4 p-2 bg-gray-50 rounded-md">
-                {/* <div>
-                  <h2 className="font-semibold text-base">
-                    Mark as Elevated Access
-                  </h2>
-                </div> */}
-
                 <div className="mt-4 flex gap-5">
                   <span>Change Account Owner</span>
                   <span className="flex gap-2 items-center">
@@ -331,7 +353,6 @@ const ActionButtons = <T,>({
                     }}
                   />
                 </div>
-
                 <div className="mt-4 flex gap-14">
                   <span>Send For Approval</span>
                   <span className="flex gap-2 items-center">
@@ -344,13 +365,17 @@ const ActionButtons = <T,>({
                   </span>
                 </div>
                 <div className="mt-6 flex justify-center">
-                  <Buttons className="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700">
+                  <Buttons
+                    onClick={async () => {
+                      await updateActions("Approve", comment || "Saved via Remediate");
+                      closeSidebar();
+                    }}
+                    className="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700"
+                  >
                     Save Action
                   </Buttons>
                 </div>
               </div>
-
-              {/* Modify Access */}
               <div
                 className={`items-center space-x-4 p-2 rounded-md ${
                   immediateRevokeChecked ? "bg-gray-200" : "bg-gray-50"
@@ -367,7 +392,6 @@ const ActionButtons = <T,>({
                     />
                     <h2 className="font-semibold">Modify Access</h2>
                   </label>
-
                   {modifyAccessChecked && (
                     <Buttons
                       onClick={() => setShowConfirmation(true)}
@@ -382,7 +406,6 @@ const ActionButtons = <T,>({
                     </Buttons>
                   )}
                 </div>
-
                 {modifyAccessChecked && (
                   <div className="mt-2">
                     <span className="flex items-center m-2">
@@ -394,14 +417,8 @@ const ActionButtons = <T,>({
                       value={modifyAccessSelectedOption}
                       onChange={setModifyAccessSelectedOption}
                       styles={{
-                        control: (base) => ({
-                          ...base,
-                          fontSize: "0.875rem",
-                        }),
-                        menu: (base) => ({
-                          ...base,
-                          fontSize: "0.875rem",
-                        }),
+                        control: (base) => ({ ...base, fontSize: "0.875rem" }),
+                        menu: (base) => ({ ...base, fontSize: "0.875rem" }),
                       }}
                     />
                   </div>
@@ -429,7 +446,6 @@ const ActionButtons = <T,>({
                     </div>
                   </div>
                 )}
-
                 {showConfirmation && (
                   <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
                     <div className="bg-white p-6 rounded-md shadow-md max-w-sm space-y-4">
@@ -444,15 +460,10 @@ const ActionButtons = <T,>({
                           Cancel
                         </button>
                         <button
-                          onClick={() => {
-                            // TODO: handle the confirm action
+                          onClick={async () => {
+                            await updateActions("Approve", comment || "Modified access");
                             setShowConfirmation(false);
                             setModifyAccessSelectedOption(null);
-
-                            console.log(
-                              "Confirmed with:",
-                              modifyAccessSelectedOption
-                            );
                           }}
                           className="px-3 py-1 text-sm bg-blue-600 text-white rounded"
                         >
@@ -463,8 +474,6 @@ const ActionButtons = <T,>({
                   </div>
                 )}
               </div>
-
-              {/* Immediate Revoke */}
               <div
                 className={`items-center space-x-4 p-2 rounded-md ${
                   modifyAccessChecked ? "bg-gray-200" : "bg-gray-50"
@@ -479,9 +488,7 @@ const ActionButtons = <T,>({
                       onChange={(e) => {
                         const checked = e.target.checked;
                         setImmediateRevokeChecked(checked);
-
                         if (!checked) {
-                          // Reset all related states
                           setRevokeSelection(null);
                           setReviewerType(null);
                           setComment("");
@@ -492,18 +499,13 @@ const ActionButtons = <T,>({
                     />
                     <h2 className="font-semibold">Immediate Revoke</h2>
                   </label>
-
                   {immediateRevokeChecked && (
                     <Buttons
                       disabled={!revokeSelection}
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            "Are you sure you want to revoke access?"
-                          )
-                        ) {
+                      onClick={async () => {
+                        if (window.confirm("Are you sure you want to revoke access?")) {
+                          await updateActions("Reject", comment || "Immediate revoke");
                           setRevokeSelection(null);
-                          // Add other logic like API call here
                         }
                       }}
                       className={`rounded-sm p-2 ${
@@ -516,7 +518,6 @@ const ActionButtons = <T,>({
                     </Buttons>
                   )}
                 </div>
-
                 {immediateRevokeChecked && (
                   <div className="mt-2">
                     <span className="flex items-center m-2">Options</span>
@@ -532,37 +533,28 @@ const ActionButtons = <T,>({
                     />
                   </div>
                 )}
-                {immediateRevokeChecked &&
-                  revokeSelection?.value === "Revoke post approval" && (
-                    <div className="mt-2">
-                      <span className="flex items-center m-2">
-                        Select Reviewer
-                      </span>
-                      <Select
-                        options={[
-                          {
-                            label: "2nd level reviewer",
-                            value: "second_level",
-                          },
-                          { label: "Select custom user", value: "custom_user" },
-                        ]}
-                        value={reviewerType}
-                        onChange={(selected) => {
-                          setReviewerType(selected);
-                          if (selected?.value === "custom_user") {
-                            setIsModalOpen(true);
-                          }
-                        }}
-                        styles={{
-                          control: (base) => ({
-                            ...base,
-                            fontSize: "0.875rem",
-                          }),
-                          menu: (base) => ({ ...base, fontSize: "0.875rem" }),
-                        }}
-                      />
-                    </div>
-                  )}
+                {immediateRevokeChecked && revokeSelection?.value === "Revoke post approval" && (
+                  <div className="mt-2">
+                    <span className="flex items-center m-2">Select Reviewer</span>
+                    <Select
+                      options={[
+                        { label: "2nd level reviewer", value: "second_level" },
+                        { label: "Select custom user", value: "custom_user" },
+                      ]}
+                      value={reviewerType}
+                      onChange={(selected) => {
+                        setReviewerType(selected);
+                        if (selected?.value === "custom_user") {
+                          setIsModalOpen(true);
+                        }
+                      }}
+                      styles={{
+                        control: (base) => ({ ...base, fontSize: "0.875rem" }),
+                        menu: (base) => ({ ...base, fontSize: "0.875rem" }),
+                      }}
+                    />
+                  </div>
+                )}
                 {immediateRevokeChecked && (
                   <div className="mt-2">
                     <span className="flex items-center m-2">Comments</span>
@@ -587,18 +579,6 @@ const ActionButtons = <T,>({
                   </div>
                 )}
               </div>
-
-              {/* Comment */}
-              {/* <div className="pt-4">
-                <input
-                  type="text"
-                  placeholder="Add a comment"
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-                />
-                <button className="mt-4 bg-gray-200 hover:bg-gray-300 text-sm px-3 py-1 rounded-lg">
-                  Publish
-                </button>
-              </div> */}
             </div>
           </div>,
           document.body

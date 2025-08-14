@@ -11,12 +11,26 @@ interface NavigationProps {
 
 export function Navigation({ isOpen }: NavigationProps) {
   const pathname = usePathname();
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
 
   return (
-    <div className={`h-full bg-[#15274E] z-[99] transition-all duration-150 ease-in-out transform ${isCollapsed ? 'w-[65px]' : 'w-[210px]'}`}>
+    <div 
+      className={`h-full bg-[#15274E] z-[99] transition-all duration-150 ease-in-out transform ${isCollapsed ? 'w-[65px]' : 'w-[210px]'}`}
+      onMouseEnter={() => {
+        if (isCollapsed) {
+          setIsCollapsed(false);
+          if (isOpen) isOpen(false);
+        }
+      }}
+      onMouseLeave={() => {
+        if (!isCollapsed) {
+          setIsCollapsed(true);
+          if (isOpen) isOpen(true);
+        }
+      }}
+    >
       <div className='bg-[#27685b] flex items-center justify-between p-2.5 border-b border-[#060E1F] h-[45px] relative'>
-        <div className={`text-white font-bold text-2xl ${!isCollapsed ? 'p-3' : ''}`}>
+        <div className={`text-white font-bold text-xl ${!isCollapsed ? 'p-3' : ''}`}>
           ISPM
         </div>
         {/* Collapse Toggle Button */}

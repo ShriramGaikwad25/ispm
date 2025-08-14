@@ -30,10 +30,7 @@ const CustomPagination: React.FC<CustomPaginationProps> = ({
 
   return (
     <div className="flex justify-between items-center">
-      <span className="text-gray-700">
-        {startRow} - {endRow} of {totalItems}
-      </span>
-      <div className="flex items-center">
+      <div className="flex items-center space-x-2">
         <button
           className={`p-2 cursor-pointer ${
             currentPage === 1 ? "text-gray-400" : "text-blue-600"
@@ -43,8 +40,14 @@ const CustomPagination: React.FC<CustomPaginationProps> = ({
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
-        <div className="w-9 h-9 mx-2 flex items-center justify-center">
-          {currentPage} / {totalPages}
+        <div className="flex flex-row items-center justify-center">
+          <span className="w-9 h-9 flex items-center justify-center">
+            {currentPage}
+          </span>
+          <span className="mx-1">/</span>
+          <span className="w-9 h-9 flex items-center justify-center">
+            {totalPages}
+          </span>
         </div>
         <button
           className={`p-2 cursor-pointer ${

@@ -1,6 +1,4 @@
 import React, { useState } from "react";
-import DonutChart from "./DonutChart";
-import HorizontalBarChart from "./HorizontalBarChart";
 import ProgressDonutChart from "./ProgressDonutChart";
 import VennChart from "./VennChart";
 import FilterPanel from "./FilterPannel";
@@ -11,15 +9,16 @@ interface DataItem {
   color?: string;
 }
 
-const ChartComponent = () => {
+const ChartAppOwnerComponent = () => {
   const data: Record<string, DataItem[]> = {
     InteractiveFilters: [
-      { label: "Over Privileged Users", value: 0 },
-      { label: "Dormant Access", value: 0 },
+      { label: "Elevated Accounts", value: 0 },
+      { label: "Orphan Accounts", value: 0 },
+      { label: "Terminated user accounts", value: 0 },
+      { label: "Dormant Accounts", value: 0 },
+      { label: "New Access", value: 0 },
+      { label: "Over Privileged users", value: 0 },
       { label: "Compliance Violations", value: 0 },
-      { label: "High Risk Entities", value: 0 },
-      { label: "New/Delta Access", value: 0 },
-      {label: "Access Anamoly", value:0}
     ],
   };
   const [selected, setSelected] = useState<{ [key: string]: number | null }>(
@@ -53,7 +52,7 @@ const ChartComponent = () => {
         </div>
         <HorizontalBarChart />
       </div> */}
-      <div className="mt-4">
+      <div className="">
         <FilterPanel
           data={data}
           selected={selected}
@@ -111,4 +110,4 @@ const ChartComponent = () => {
 };
 */
 
-export default ChartComponent;
+export default ChartAppOwnerComponent;

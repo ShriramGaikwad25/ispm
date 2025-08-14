@@ -46,3 +46,31 @@ export const columnDefs: ColDef[] = [
     ),
   },
 ];
+
+export const activeColumnDefs: ColDef[] = [
+  { headerName: "Campaign Name", field: "certificationName" },
+  { headerName: "Type", field: "type" },
+  { headerName: "Owner", field: "owner" },
+  { headerName: "Progress", field: "progress" },
+  { headerName: "Due In", field: "dueIn" },
+  { headerName: "Estimated time to completion", field: "Estimated time to completion" },
+  { headerName: "Description", field: "description" },
+  { headerName: "Tags", field: "tags" },
+  { headerName: "Create On", field: "createdOn" },
+  {
+    headerName: "Actions",
+    width: 200,
+    cellRenderer: (params: ActionCellRendererParams) => (
+      <ActionButtons api={params.api} selectedRows={[params.data]} />
+    ),
+  },
+];
+
+export const expiredColumnDefs: ColDef[] = [
+  { headerName: "Campaign Name", field: "certificationName" },
+  { headerName: "Type", field: "type" },
+  { headerName: "Owner", field: "owner" },
+  { headerName: "Assigned On", field: "assignedOn" },
+  { headerName: "Completed On", field: "CompletedOn" },
+  { headerName: "Reports", field: "reports" },
+];

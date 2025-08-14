@@ -42,17 +42,32 @@ export interface CertificationRow {
 
 export interface UserRowData {
   id: string;
+  username?: string;
+  userid?: string;
+  userStatus?: string;
+  manager?: string;
+  department?: string;
+  JobTitle?: string;
+  userType?: 'Internal' | 'External';
   certificationId: string;
   taskId: string;
-  UserName?: string;
-  UserID?: string;
-  JobTitle?: string;
-  Risk?: string;
+  lineItemId?: string;
+  entitlementName?: string;
+  status?: string;
   numOfApplicationsCertified?: number;
   numOfRolesCertified?: number;
   numOfEntitlementsCertified?: number;
-  profileChange?: boolean;
-  SoDConflicts?: boolean;
-  addedAccounts?: boolean;
-  addedEntitlements?: boolean;
+  profileChange?: string;
+  SoDConflicts?: string;
+  addedAccounts?: string;
+  addedEntitlements?: string;
+  user?: string;
+  risk?: string;
+  applicationName?: string;
+  lastLogin?: string;
+  recommendation?: string;
+  entitlementDescription?: string;
+  accessedWithinAMonth?: string;
+  itemRisk?: string;
+  entitlementType?: string;
 }

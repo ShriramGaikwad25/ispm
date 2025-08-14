@@ -20,7 +20,7 @@ export function Header() {
     };
   }, []);
   return (
-    <header className="top-0 z-50 w-full border-b border-gray-300  bg-[#F4F5FA]">
+    <header className="top-0 z-50 w-full">
       <div className="flex h-[45px] px-6 items-center">
         {/* Mobile Menu Button */}
           <button onClick={() => setIsOpen(true)} className="md:hidden p-2 rounded-md hover:bg-gray-200 focus:outline-none">

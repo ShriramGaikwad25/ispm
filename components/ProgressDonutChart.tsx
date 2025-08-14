@@ -7,6 +7,7 @@ import {
   ChartData,
 } from "chart.js";
 import ChartDataLabels from "chartjs-plugin-datalabels";
+import { color } from "chart.js/helpers";
 
 // Register Chart.js components
 ChartJS.register(ArcElement, Tooltip, Legend, ChartDataLabels);
@@ -14,7 +15,7 @@ ChartJS.register(ArcElement, Tooltip, Legend, ChartDataLabels);
 const ProgressSummaryChart = () => {
   // Data for the donut chart
   const data = {
-    labels: ["Undecided", "Approved", "Rejected", "Revoked", "Other"],
+    labels: ["Pending", "Approved", "Revoked", "Delegated", "Other"],
     datasets: [
       {
         data: [30, 30, 15, 15, 10], // Percentage values
@@ -54,16 +55,13 @@ const ProgressSummaryChart = () => {
           usePointStyle: true,
           padding: 20,
         },
-      }, // Hide default legend
+      }, 
       datalabels: {
-        color: "#000",
+        color: "#fafafa",
         font: { weight: "bold" as const },
-        formatter: (
-          value: number,
-          context: { chart: { data: ChartData }; dataIndex: number }
-        ) => `${context.chart.data.labels?.[context.dataIndex]} \n ${value}%`,
-        anchor: "end" as const,
-        align: "end" as const,
+
+        // anchor: "end" as const,
+        // align: "end" as const,
         offset: 0,
         clip: false,
       },

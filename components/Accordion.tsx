@@ -10,9 +10,10 @@ interface AccordionProps {
   iconSize?:number;
   iconClass?:string;
   open?:boolean;
+  onToggle?: () => void;
 }
 
-const Accordion = ({ headerText, children, iconSize, title, iconClass, open }: AccordionProps) => {
+const Accordion = ({ headerText, children, iconSize, title, iconClass, open, onToggle  }: AccordionProps) => {
   const [isOpen, setIsOpen] = useState(open ?? true);
 
     useEffect(() => {
@@ -22,8 +23,11 @@ const Accordion = ({ headerText, children, iconSize, title, iconClass, open }: A
   }, [open]);
 
   const handleToggle = () => {
-    setIsOpen((prev) => !prev);
-  };
+    if (onToggle) {
+      onToggle();
+    } else {
+      setIsOpen((prev) => !prev);
+    }  };
   return (
     <div className="transition-all duration-150 ease-in-out transform min-h-8"> 
       <button

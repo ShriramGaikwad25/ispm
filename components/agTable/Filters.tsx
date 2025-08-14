@@ -20,19 +20,19 @@ const Filters = ({
   columns?: string[];
   appliedFilter?: (filters: string[]) => void;
 }) => {
-  const [selectedFilters, setSelectedFilters] = useState<string[]>([statusOptions[0]]);
+  const [selectedFilter, setSelectedFilter] = useState<string>(statusOptions[0]);
 
-  // Handle AG Grid filtering when selectedFilters change
+  // Handle AG Grid filtering when selectedFilter changes
   useEffect(() => {
     if (!gridApi || !columns) return;
 
     columns.forEach((colId) => {
       const filterInstance = gridApi.getFilterInstance(colId);
       if (filterInstance) {
-        if (selectedFilters.length > 0) {
+        if (selectedFilter) {
           filterInstance.setModel({
             filterType: "set",
-            values: selectedFilters,
+            values: [selectedFilter],
           });
         } else {
           filterInstance.setModel(null); // Clear filter
@@ -41,40 +41,36 @@ const Filters = ({
       }
     });
 
-    appliedFilter?.(selectedFilters);
-  }, [selectedFilters, gridApi, columns, appliedFilter]);
+    appliedFilter?.([selectedFilter]);
+  }, [selectedFilter, gridApi, columns, appliedFilter]);
 
   const toggleFilter = (status: string) => {
-    setSelectedFilters((prev) =>
-      prev.includes(status)
-        ? prev.filter((item) => item !== status)
-        : [...prev, status]
-    );
+    setSelectedFilter(status);
   };
 
   const clearFilters = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setSelectedFilters([]);
+    setSelectedFilter("");
   };
 
   return (
     <div className="relative">
-      {selectedFilters.length > 0 && (
+      {selectedFilter && (
         <span
           title="Clear Filters"
           className="rounded-full bg-red-700 absolute -top-1 -left-1 w-4 h-4 text-[11px] text-white text-center z-10"
         >
-          {selectedFilters.length}
+          1
         </span>
       )}
 
       <Dropdown
         Icon={
-          selectedFilters.length > 0
+          selectedFilter
             ? () => (
                 <div className="flex h-8 items-center gap-2 px-2">
                   <FilterX />
-                  <small>{selectedFilters.join(", ")}</small>
+                  <small>{selectedFilter}</small>
                   <span
                     title="Clear Filters"
                     className="rounded-full bg-red-600"
@@ -86,14 +82,14 @@ const Filters = ({
             : Filter
         }
         className={`min-w-9 h-9 flex items-center justify-center ${
-          selectedFilters.length ? "bg-[#6D6E73]/20" : ""
+          selectedFilter ? "bg-[#6D6E73]/20" : ""
         }`}
       >
         <li className="px-4 pb-2 border-b border-b-gray-300 font-semibold mb-2">
           Filter by Status
         </li>
         {statusOptions.map((status) => {
-          const isSelected = selectedFilters.includes(status);
+          const isSelected = selectedFilter === status;
           return (
             <li
               key={status}

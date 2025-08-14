@@ -1,41 +1,44 @@
 import { LineItemDetail } from "@/types/lineItem";
 import { PaginatedResponse } from "@/types/api";
 
-// const BASE_URL = "https://lab.kapitalai.io/certification/api/v1/ASRODEV";
-// const BASE_URL = "http://localhost:8095/certification/api/v1/ASRODEV";
 const BASE_URL = "https://preview.keyforge.ai/certification/api/v1/CERTTEST";
 
-// Generic fetch with headers + pagination
 export async function fetchApi<T>(
   endpoint: string,
   pageSize?: number,
-  pageNumber?: number
+  pageNumber?: number,
+  options: RequestInit = {}
 ): Promise<T> {
-  const url = new URL(endpoint);
+  try {
+    const url = new URL(endpoint);
 
-  if (pageSize !== undefined) {
-    url.searchParams.append("pageSize", pageSize.toString());
+    if (pageSize !== undefined) {
+      url.searchParams.append("pageSize", pageSize.toString());
+    }
+
+    if (pageNumber !== undefined) {
+      url.searchParams.append("pageNumber", pageNumber.toString());
+    }
+
+    const headers = {
+      "Content-Type": "application/json",
+      "X-Requested-With": "XMLHttpRequest",
+      ...options.headers,
+    };
+
+    const res = await fetch(url.toString(), { ...options, headers });
+
+    if (!res.ok) {
+      const errorBody = await res.text();
+      throw new Error(
+        `Fetch failed: ${res.status} ${res.statusText}\n${errorBody}`
+      );
+    }
+
+    return res.json();
+  } catch (error) {
+    throw new Error(`API request failed: ${error.message}`);
   }
-
-  if (pageNumber !== undefined) {
-    url.searchParams.append("pageNumber", pageNumber.toString());
-  }
-
-  const headers = {
-    "Content-Type": "application/json",
-    "X-Requested-With": "XMLHttpRequest",
-  };
-
-  const res = await fetch(url.toString(), { headers }); // ✅ fixed
-
-  if (!res.ok) {
-    const errorBody = await res.text();
-    throw new Error(
-      `Fetch failed: ${res.status} ${res.statusText}\n${errorBody}`
-    );
-  }
-
-  return res.json();
 }
 
 export async function getCertifications<T>(
@@ -65,7 +68,10 @@ export async function getAccessDetails<T>(
   pageSize?: number,
   pageNumber?: number
 ): Promise<PaginatedResponse<T>> {
-  const finalPart = all ? "All" : taskId ?? "";
+  if (!taskId && !all) {
+    throw new Error("Either taskId or all must be provided");
+  }
+  const finalPart = all ? "All" : taskId!;
   const endpoint = `${BASE_URL}/getAccessDetails/${reviewerId}/${certId}/${finalPart}`;
   return fetchApi(endpoint, pageSize, pageNumber);
 }
@@ -89,4 +95,22 @@ export async function getLineItemDetails(
   if (Array.isArray(response)) return response;
 
   return [];
+}
+
+interface UpdateActionPayload {
+  useraction?: Array<{ userId: string; actionType: "Approve" | "Reject"; justification: string }>;
+  accountAction?: Array<{ lineItemId: string; actionType: "Approve" | "Reject"; justification: string }>;
+  entitlementAction?: Array<{ lineItemIds: string[]; actionType: "Approve" | "Reject"; justification: string }>;
+}
+
+export async function updateAction(
+  reviewerId: string,
+  certId: string,
+  payload: UpdateActionPayload
+): Promise<void> {
+  const endpoint = `${BASE_URL}/updateAction/${reviewerId}/${certId}`;
+  await fetchApi(endpoint, undefined, undefined, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
