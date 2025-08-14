@@ -1,18 +1,17 @@
 /* Target only the Accounts table (detail grid) */
-.account-table-detail .ag-group-expanded,
+/* .account-table-detail .ag-group-expanded,
 .account-table-detail .ag-group-contracted {
   display: none !important;
 }
 
 .account-table-detail .ag-cell-wrapper {
-  padding-left: -4px !important; /* Adjust padding for cell wrapper */
+  padding-left: -4px !important; 
 }
 
-/* Optional: shrink checkbox size */
 .account-table-detail .ag-checkbox-input-wrapper {
   transform: scale(0.85);
 }
 
 .account-table-detail .ag-cell-no-padding {
   padding-left: 0px !important;
-}
+} */

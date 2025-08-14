@@ -1,7 +1,5 @@
 "use client";
 import React, { useState } from 'react';
-import { Scatter } from 'react-chartjs-2';
-import { MatrixController, TreemapController } from 'chartjs-chart-treemap';
 
 // Sample dataset with anomaly scoring
 const sampleData = [
