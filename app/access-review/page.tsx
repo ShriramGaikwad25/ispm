@@ -19,7 +19,6 @@ import { Header } from "@/components/Header";
 
 const reviewerId = "0089414b-fb84-4fba-8a30-afc7386eab49";
 
-
 const AccessReview: React.FC = () => {
   const [gridApi, setGridApi] = useState<GridApi | null>(null);
   const [rowData, setRowData] = useState<UserRowData[]>([]);
@@ -35,7 +34,7 @@ const AccessReview: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [filterStatus, setFilterStatus] = useState<string>("All");
 
-    const [headerInfo, setHeaderInfo] = useState({
+  const [headerInfo, setHeaderInfo] = useState({
     campaignName: "",
     generatedOn: "",
     dueDate: "",
@@ -48,17 +47,21 @@ const AccessReview: React.FC = () => {
     pageNumber
   );
   const [authChecked, setAuthChecked] = useState(false);
-  
 
   useEffect(() => {
-    const isAuthenticated = localStorage.getItem("authenticated");
-    if (!isAuthenticated) {
-      router.push("/");
-    } else {
-      setAuthChecked(true);
+    if (typeof window !== "undefined") {
+      const isAuthenticated = localStorage.getItem("authenticated");
+      if (!isAuthenticated) {
+        router.push("/");
+      } else {
+        setAuthChecked(true);
+      }
     }
   }, [router]);
-  
+
+  if (!authChecked) {
+    return <div>Loading...</div>;
+  }
 
   const certificationData =
     data as unknown as PaginatedResponse<CertificationRow>;
@@ -95,15 +98,12 @@ const AccessReview: React.FC = () => {
       setTotalPages(certificationData.total_pages || 1);
     }
   }, [certificationData]);
-  
 
   useEffect(() => {
     if (filterStatus === "All") {
       setFilteredRowData(rowData);
     } else {
-      setFilteredRowData(
-        rowData.filter((row) => row.status === filterStatus)
-      );
+      setFilteredRowData(rowData.filter((row) => row.status === filterStatus));
     }
   }, [rowData, filterStatus]);
 
@@ -207,10 +207,6 @@ const AccessReview: React.FC = () => {
 };
 
 export default AccessReview;
-
-
-
-
 
 // "use client";
 // import React, { useEffect, useState } from "react";
