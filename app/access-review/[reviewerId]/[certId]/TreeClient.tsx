@@ -239,7 +239,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
     () => [
       {
         headerComponent: () => "Users",
-        field: "username",
+        field: "fullName",
         headerName: "User",
         width: 520,
         cellRenderer: "agGroupCellRenderer",
