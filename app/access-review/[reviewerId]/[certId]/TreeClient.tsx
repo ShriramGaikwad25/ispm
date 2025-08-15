@@ -28,14 +28,11 @@ import { getLineItemDetails } from "@/lib/api";
 import { EntitlementInfo } from "@/types/lineItem";
 import { UserRowData } from "@/types/certification";
 import { Flag, User } from "lucide-react";
-// import "./TreeClient.css"
-// Register AG Grid Enterprise modules (if not already done in ag-grid-setup)
+import Import from "@/components/agTable/Import";
 import { MasterDetailModule } from "ag-grid-enterprise";
 import { ModuleRegistry } from "ag-grid-community";
-import Import from "@/components/agTable/Import";
 ModuleRegistry.registerModules([MasterDetailModule]);
 
-// UserPopup component remains unchanged
 interface UserPopupProps {
   username: string;
   userId: string;
@@ -92,7 +89,6 @@ const UserPopup: React.FC<UserPopupProps> = ({
   );
 };
 
-// Custom Detail Cell Renderer for Entitlement Description
 const DetailCellRenderer = (props: IDetailCellRendererParams) => {
   const { data } = props;
   return (
@@ -152,6 +148,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
       const delta = task.deltaChanges || {};
 
       console.log(`Delta Changes for task ${task.taskId}:`, delta);
+      const fullName = userInfo.firstname + userInfo.lastname;
+      console.log(fullName);
 
       return {
         id: task.taskId,
@@ -159,6 +157,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
         certificationId: certId,
         taskId: task.taskId,
         jobtitle: userInfo.jobtitle,
+        numOfApplications: access.numOfApplications,
+        numOfEntitlements: access.numOfEntitlements,
         numOfApplicationsCertified: access.numOfApplicationsCertified,
         numOfRolesCertified: access.numOfRolesCertified,
         numOfEntitlementsCertified: access.numOfEntitlementsCertified,
@@ -166,6 +166,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
         SoDConflicts: delta.SoDConflicts || [],
         addedAccounts: delta.addedAccounts || [],
         addedEntitlements: delta.addedEntitlements || [],
+        fullName: fullName,
       };
     });
 
@@ -301,7 +302,37 @@ const TreeClient: React.FC<TreeClientProps> = ({
       },
       { field: "jobtitle", headerName: "Job Title", width: 450 },
       { field: "profileChange", headerName: "Delta Change", width: 450 },
-      { field: "progress", headerName: "Progress", width: 250 },
+      {
+        field: "progress",
+        headerName: "Progress",
+        width: 250,
+        cellRenderer: (params: ICellRendererParams) => {
+          const {
+            numOfApplications = 0,
+            numOfEntitlements = 0,
+            numOfApplicationsCertified = 0,
+            numOfEntitlementsCertified = 0,
+          } = params.data || {};
+          const totalItems = numOfApplications + numOfEntitlements;
+          const totalCertified =
+            numOfApplicationsCertified + numOfEntitlementsCertified;
+          const progress =
+            totalItems > 0
+              ? Math.round((totalCertified / totalItems) * 100)
+              : 0;
+          return (
+            <div className="flex items-center h-full">
+              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                <div
+                  className="bg-blue-600 h-2.5 rounded-full"
+                  style={{ width: `${progress}%` }}
+                ></div>
+              </div>
+              <span className="ml-2">{progress}%</span>
+            </div>
+          );
+        },
+      },
       { field: "aiAssist", headerName: "AI Assist", width: 250 },
       {
         colId: "actionColumn",
@@ -309,7 +340,15 @@ const TreeClient: React.FC<TreeClientProps> = ({
         width: 315,
         headerComponent: () => null,
         cellRenderer: (params: ICellRendererParams) => {
-          return <ActionButtons api={params.api} selectedRows={params.data} />;
+          return (
+            <ActionButtons
+              api={params.api}
+              selectedRows={[params.data]}
+              context="user"
+              reviewerId={reviewerId}
+              certId={certId}
+            />
+          );
         },
         suppressMenu: true,
         sortable: false,
@@ -485,7 +524,13 @@ const TreeClient: React.FC<TreeClientProps> = ({
             headerComponent: () => null,
             cellRenderer: (params: ICellRendererParams) => {
               return (
-                <ActionButtons api={params.api} selectedRows={params.data} />
+                <ActionButtons
+                  api={params.api}
+                  selectedRows={[params.data]}
+                  context="user"
+                  reviewerId={reviewerId}
+                  certId={certId}
+                />
               );
             },
             suppressMenu: true,
@@ -493,7 +538,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
             filter: false,
             resizable: false,
           },
-          // Additional columns (hidden by default)
           { field: "risk", headerName: "A/C Risk", width: 150, hide: true },
           {
             field: "itemRisk",
@@ -598,7 +642,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
                 percAccessWithSameManager: ai.percAccessWithSameManager ?? "",
                 actionInLastReview: ai.Recommendation ?? "",
                 isNew: addedEntitlements.includes(info.entitlementName),
-                // Assume other fields
                 appTag: item.appTag || "SOX",
                 appRisk: item.appRisk || "Low",
                 appType: item.appType || "",

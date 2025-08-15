@@ -9,6 +9,18 @@ import ToggleSwitch from "../ToggleSwitch";
 import Buttons from "react-multi-date-picker/components/button";
 import ProxyActionModal from "../ProxyActionModal";
 
+interface User {
+  username: string;
+  email: string;
+  role: string;
+}
+
+interface Group {
+  name: string;
+  email: string;
+  role: string;
+}
+
 interface ActionButtonsProps<T> {
   api: GridApi;
   selectedRows: T[];
@@ -16,15 +28,17 @@ interface ActionButtonsProps<T> {
   reviewerId: string;
   certId: string;
   viewChangeEnable?: boolean;
+  onActionSuccess?: () => void; // Callback to notify parent of success
 }
 
-const ActionButtons = <T,>({
+const ActionButtons = <T extends { status?: string }>({
   api,
   selectedRows,
   context,
   reviewerId,
   certId,
-  viewChangeEnable
+  viewChangeEnable,
+  onActionSuccess,
 }: ActionButtonsProps<T>) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -46,14 +60,20 @@ const ActionButtons = <T,>({
   const [reviewerType, setReviewerType] = useState(null);
   const [selectedOwner, setSelectedOwner] = useState<User | Group | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [lastAction, setLastAction] = useState<string | null>(null);
+
+  // Determine if all selected rows have the same status
+  const rowStatus = selectedRows.length > 0 ? selectedRows[0].status : null;
+  const isApproved = rowStatus === "Approved";
+  const isRejected = rowStatus === "Rejected";
 
   // API call to update actions
-  const updateActions = async (actionType: string, justification: string) => {
-    const payload: any = {
-      useraction: [],
-      accountAction: [],
-      entitlementAction: [],
-    };
+const updateActions = async (actionType: string, justification: string) => {
+  const payload: any = {
+    useraction: [],
+    accountAction: [],
+    entitlementAction: [],
+  };
 
     if (context === "user") {
       payload.useraction = selectedRows.map((row: any) => ({
@@ -93,19 +113,25 @@ const ActionButtons = <T,>({
         throw new Error(`HTTP error! Status: ${response.status}`);
       }
 
-      const result = await response.json();
       // Update grid with new status
       api.applyTransaction({
         update: selectedRows.map((row) => ({ ...row, status: actionType })),
       });
+      setLastAction(actionType);
       setError(null);
-      return result;
+      if (onActionSuccess) {
+        onActionSuccess(); // Notify parent of success
+      }
+      return await response.json();
     } catch (err) {
       setError(`Failed to update actions: ${err.message}`);
       console.error("API error:", err);
       throw err;
     }
   };
+  useEffect(() => {
+  setLastAction(null);
+}, [selectedRows]);
 
   const handleChangeAccountOwner = (checked: boolean) => {
     setChangeAccountOwner(checked);
@@ -184,25 +210,44 @@ const ActionButtons = <T,>({
   return (
     <div className="flex space-x-4 h-full items-center">
       {error && <div className="text-red-500 text-sm">{error}</div>}
-      <button onClick={handleApprove} title="Approve" aria-label="Approve selected rows">
-        <CircleCheck
-          className="cursor-pointer hover:opacity-80"
-          color="#1c821cff"
-          strokeWidth="1"
-          size="32"
-        />
-      </button>
+    <button
+      onClick={handleApprove}
+      title="Approve"
+      aria-label="Approve selected rows"
+      className={`p-1 rounded transition-colors duration-200 ${
+        lastAction === "Approve" ? "bg-green-500" : "hover:bg-green-100"
+      }`}
+    >
+      <CircleCheck
+        className="cursor-pointer"
+        color="#1c821cff"
+        strokeWidth="1"
+        size="32"
+        fill={lastAction === "Approve" ? "#1c821cff" : "none"}
+      />
+    </button>
 
-      <button onClick={handleRevoke} title="Revoke" aria-label="Revoke selected rows">
+      <button
+        onClick={handleRevoke}
+        title="Revoke"
+        aria-label="Revoke selected rows"
+        className={`p-1 rounded ${isRejected ? "bg-red-100" : ""}`}
+      >
         <CircleX
           className="cursor-pointer hover:opacity-80 transform rotate-90"
           color="#FF2D55"
           strokeWidth="1"
           size="32"
+          fill={isRejected ? "#FF2D55" : "none"}
         />
       </button>
 
-      <button onClick={handleComment} title="Comment" aria-label="Add comment">
+      <button
+        onClick={handleComment}
+        title="Comment"
+        aria-label="Add comment"
+        className="p-1 rounded"
+      >
         <svg
           width="30"
           height="30"
@@ -217,7 +262,12 @@ const ActionButtons = <T,>({
       </button>
 
       {viewChangeEnable && (
-        <button onClick={handleComment} title="Change view" aria-label="Change view">
+        <button
+          onClick={handleComment}
+          title="Change view"
+          aria-label="Change view"
+          className="p-1 rounded"
+        >
           <svg
             width="32"
             height="30.118"
@@ -313,9 +363,9 @@ const ActionButtons = <T,>({
               </div>
               <div className="flex items-center space-x-4 p-3 bg-gray-50 rounded-md">
                 <div className="flex-1">
-                  <p className="font-medium">Derrick Watson</p>
+                  <p className="font-medium">{selectedRows[0]?.username || "N/A"}</p>
                   <p className="text-gray-500">
-                    Derrick.Watson@conductorone.com - User - SSO
+                    {(selectedRows[0] as any)?.email || "N/A"} - User - SSO
                   </p>
                 </div>
                 <span className="text-gray-400">→</span>

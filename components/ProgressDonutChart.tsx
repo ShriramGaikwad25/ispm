@@ -15,7 +15,7 @@ ChartJS.register(ArcElement, Tooltip, Legend, ChartDataLabels);
 const ProgressSummaryChart = () => {
   // Data for the donut chart
   const data = {
-    labels: ["Pending", "Approved", "Revoked", "Delegated", "Other"],
+    labels: ["Pending", "Approved", "Revoked", "Delegated", "Remediated"],
     datasets: [
       {
         data: [30, 30, 15, 15, 10], // Percentage values
