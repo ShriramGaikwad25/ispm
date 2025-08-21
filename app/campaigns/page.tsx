@@ -3,19 +3,32 @@
 import React, { useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Tabs from "@/components/tabs";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import {
+  CheckCircleIcon,
+  ChevronDown,
+  ChevronRight,
+  DeleteIcon,
+  DownloadIcon,
+  EyeIcon,
+  Trash2,
+} from "lucide-react";
 import Link from "next/link";
 import { AgGridReact } from "ag-grid-react";
 import { AgGridReact as AgGridReactType } from "ag-grid-react";
 import "@/lib/ag-grid-setup";
-import { ColDef, ICellRendererParams, RowClickedEvent } from "ag-grid-enterprise";
+import {
+  ColDef,
+  ICellRendererParams,
+  RowClickedEvent,
+} from "ag-grid-enterprise";
 import ActionButtons from "@/components/agTable/ActionButtons";
 
 const campData = [
   {
     id: 1,
     campaignName: "Quarterly Access Review",
-    description: "Review user permissions and access levels across departments.",
+    description:
+      "Review user permissions and access levels across departments.",
     instances: 150,
     progress: "75%",
     expiryDate: "2025-04-15",
@@ -24,7 +37,8 @@ const campData = [
   {
     id: 2,
     campaignName: "Finance Role Audit",
-    description: "Verify finance department users have appropriate access rights.",
+    description:
+      "Verify finance department users have appropriate access rights.",
     instances: 75,
     progress: "50%",
     expiryDate: "2025-05-01",
@@ -33,7 +47,8 @@ const campData = [
   {
     id: 3,
     campaignName: "MFA Compliance Check",
-    description: "Ensure all employees have enabled Multi-Factor Authentication.",
+    description:
+      "Ensure all employees have enabled Multi-Factor Authentication.",
     instances: 200,
     progress: "90%",
     expiryDate: "2025-03-30",
@@ -54,23 +69,77 @@ export default function Campaigns() {
   const gridRef = useRef<AgGridReactType>(null);
   const router = useRouter();
 
-  const columnDefs = useMemo<ColDef[]>(() => [
-    { headerName: "Campaign Name", field: "campaignName" },
-    { headerName: "Description", field: "description", flex: 2 },
-    { headerName: "Instances", field: "instances", flex: 1.5 },
-    { headerName: "Progress", field: "progress", flex: 1.5 },
-    { headerName: "Expiry Date", field: "expiryDate", flex: 2 },
-    { headerName: "Owner", field: "owner", flex: 1 },
-    {
-      field: 'actions',
-      headerName: 'Actions',
-      width: 200,
-      cellRenderer: (params: ICellRendererParams) => {
-        const selectedRows = params.api.getSelectedNodes().map(n => n.data);
-        return <ActionButtons selectedRows={selectedRows} api={params.api} />;
+  const columnDefs = useMemo<ColDef[]>(
+    () => [
+      { headerName: "Campaign Name", field: "campaignName" },
+      { headerName: "Description", field: "description", flex: 2 },
+      { headerName: "Instances", field: "instances", flex: 1 },
+      { headerName: "Progress", field: "progress", flex: 1.5 },
+      { headerName: "Expiry Date", field: "expiryDate", flex: 1.5 },
+      { headerName: "Owner", field: "owner", flex: 1 },
+      {
+        field: "actions",
+        headerName: "Actions",
+        width: 250,
+        cellRenderer: (params: ICellRendererParams) => {
+          const selectedRows = params.api.getSelectedNodes().map((n) => n.data);
+          return (
+            <div className="flex space-x-4 h-full items-center">
+              <button
+                title="Download"
+                aria-label="Sign off selected rows"
+                className="p-1 rounded transition-colors duration-200"
+              >
+                <DownloadIcon
+                  className="curser-pointer"
+                  strokeWidth="1"
+                  size="24"
+                  color="#6f3d1cff"
+                />
+              </button>
+              <button
+                title="View"
+                aria-label="Sign off selected rows"
+                className="p-1 rounded transition-colors duration-200"
+              >
+                <EyeIcon
+                  className="curser-pointer"
+                  strokeWidth="1"
+                  size="24"
+                  color="#4a10ebff"
+                />
+              </button>
+              {/* <button
+                title="Delete"
+                aria-label="Sign off selected rows"
+                className="p-1 rounded transition-colors duration-200"
+              >
+                <Trash2
+                  className="curser-pointer"
+                  strokeWidth="1"
+                  size="24"
+                  color="#eb1010ff"
+                />
+              </button> */}
+              <button
+                title="Sign Off"
+                aria-label="Sign off selected rows"
+                className="p-1 rounded transition-colors duration-200"
+              >
+                <CheckCircleIcon
+                  className="curser-pointer"
+                  strokeWidth="1"
+                  size="24"
+                  color="#e73c3cff"
+                />
+              </button>
+            </div>
+          );
+        },
       },
-    },
-  ], []);
+    ],
+    []
+  );
 
   const handleRowClick = (e: RowClickedEvent) => {
     const campaignId = e.data.id;
@@ -130,10 +199,10 @@ export default function Campaigns() {
             ‘Create’ button at the top of this page.
           </p>
         </h1>
-        <div className="pt-4">
+        <div className="pt-4 px-4 sm:px-6 md:px-8">
           <Link
             href="/campaigns/new"
-            className="bg-[#15274E] text-white p-3 rounded-sm text-sm cursor-pointer"
+            className="inline-block bg-[#15274E] text-white py-2 px-4 sm:py-3 sm:px-6 rounded-sm text-sm sm:text-base font-medium text-center w-full sm:w-auto hover:bg-[#1a3399] transition-colors duration-200"
           >
             Create Cert Definition
           </Link>

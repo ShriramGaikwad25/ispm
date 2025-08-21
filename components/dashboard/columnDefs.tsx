@@ -27,39 +27,39 @@ interface ActionCellRendererParams {
   data: CertificationData;
 }
 
-export const columnDefs: ColDef[] = [
-  { headerName: "Certification Type", field: "certificationType" },
-  { headerName: "Reviewer ID", field: "reviewerId" },
-  { headerName: "Created On", field: "certificationCreatedOn" },
-  { headerName: "Expiration", field: "certificationExpiration" },
-  { headerName: "Status", field: "status" },
-  { headerName: "Signed Off", field: "certificationSignedOff" },
-  { headerName: "Requester", field: "certificateRequester" },
-  { headerName: "Completed %", field: "percentageCompleted" },
-  { headerName: "Total Actions", field: "totalActions" },
-  { headerName: "Actions Completed", field: "totalActionsCompleted" },
-  {
-    headerName: "Actions",
-    width: 200,
-    cellRenderer: (params: ActionCellRendererParams) => (
-      <ActionButtons api={params.api} selectedRows={[params.data]} />
-    ),
-  },
-];
+// export const columnDefs: ColDef[] = [
+//   { headerName: "Certification Type", field: "certificationType" },
+//   { headerName: "Reviewer ID", field: "reviewerId" },
+//   { headerName: "Created On", field: "certificationCreatedOn" },
+//   { headerName: "Expiration", field: "certificationExpiration" },
+//   { headerName: "Status", field: "status" },
+//   { headerName: "Signed Off", field: "certificationSignedOff" },
+//   { headerName: "Requester", field: "certificateRequester" },
+//   { headerName: "Completed %", field: "percentageCompleted" },
+//   { headerName: "Total Actions", field: "totalActions" },
+//   { headerName: "Actions Completed", field: "totalActionsCompleted" },
+//   {
+//     headerName: "Actions",
+//     width: 200,
+//     cellRenderer: (params: ActionCellRendererParams) => (
+//       <ActionButtons api={params.api} selectedRows={[params.data]} />
+//     ),
+//   },
+// ];
 
 export const activeColumnDefs: ColDef[] = [
-  { headerName: "Campaign Name", field: "certificationName" },
-  { headerName: "Type", field: "type" },
-  { headerName: "Owner", field: "owner" },
-  { headerName: "Progress", field: "progress" },
-  { headerName: "Due In", field: "dueIn" },
-  { headerName: "Estimated time to completion", field: "Estimated time to completion" },
-  { headerName: "Description", field: "description" },
-  { headerName: "Tags", field: "tags" },
-  { headerName: "Create On", field: "createdOn" },
+  { headerName: "Campaign Name", field: "certificationName",width:350 },
+  { headerName: "Type", field: "type",width:250 },
+  { headerName: "Owner", field: "owner",width:250 },
+  { headerName: "Progress", field: "progress",width:250 },
+  { headerName: "Due In", field: "dueIn",width:250 },
+  { headerName: "Estimated time to completion", field: "Estimated time to completion",width:250,hide: true  },
+  { headerName: "Description", field: "description",width:250,hide: true  },
+  { headerName: "Tags", field: "tags",width:250,hide: true  },
+  { headerName: "Create On", field: "createdOn",width:250 },
   {
     headerName: "Actions",
-    width: 200,
+    width: 250,
     cellRenderer: (params: ActionCellRendererParams) => (
       <ActionButtons api={params.api} selectedRows={[params.data]} />
     ),

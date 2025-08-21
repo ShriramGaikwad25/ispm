@@ -27,7 +27,7 @@ import { useCertificationDetails, fetchAccessDetails } from "@/hooks/useApi";
 import { getLineItemDetails } from "@/lib/api";
 import { EntitlementInfo } from "@/types/lineItem";
 import { UserRowData } from "@/types/certification";
-import { Flag, User } from "lucide-react";
+import { CheckCircleIcon, Flag, User, UserCheckIcon } from "lucide-react";
 import Import from "@/components/agTable/Import";
 import { MasterDetailModule } from "ag-grid-enterprise";
 import { ModuleRegistry } from "ag-grid-community";
@@ -94,9 +94,9 @@ const DetailCellRenderer = (props: IDetailCellRendererParams) => {
   return (
     <div className="flex p-4 bg-gray-50 border-t border-gray-200 ml-10">
       <div className="flex flex-row items-center gap-2">
-        <span className="font-bold text-md text-[#1759e4]">
+        {/* <span className="font-bold text-md text-[#1759e4]">
           Entitlement Description:
-        </span>
+        </span> */}
         <span className="text-gray-800">{data.entitlementDescription}</span>
       </div>
     </div>
@@ -119,7 +119,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const [detailGridApis, setDetailGridApis] = useState<Map<string, GridApi>>(
     new Map()
   );
-  const [expandedUsername, setExpandedUsername] = useState<string | null>(null);
+  const [expandedFullName, setExpandedFullName] = useState<string | null>(null);
   const [expandedUserRowId, setExpandedUserRowId] = useState<string | null>(
     null
   );
@@ -201,13 +201,13 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const onRowGroupOpened = (params: any) => {
     const node = params.node;
     const isExpanded = node.expanded;
-    const username = node.data?.username;
+    const fullName = node.data?.fullName;
     const taskId = node.data?.id;
 
-    console.log("User row group opened:", { username, taskId, isExpanded });
+    console.log("User row group opened:", { fullName, taskId, isExpanded });
 
     if (isExpanded) {
-      setExpandedUsername(username || null);
+      setExpandedFullName(fullName || null);
       setExpandedUserRowId(taskId || null);
       if (typeof onRowExpand === "function") {
         onRowExpand();
@@ -228,7 +228,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
         gridApiRef.current.refreshCells();
       }
     } else {
-      setExpandedUsername(null);
+      setExpandedFullName(null);
       setExpandedUserRowId(null);
     }
   };
@@ -301,7 +301,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
         },
       },
       { field: "jobtitle", headerName: "Job Title", width: 450 },
-      { field: "profileChange", headerName: "Delta Change", width: 450 },
+      { field: "department", headerName: "Department", width: 450 },
       {
         field: "progress",
         headerName: "Progress",
@@ -347,6 +347,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
               context="user"
               reviewerId={reviewerId}
               certId={certId}
+              onActionSuccess={() => window.location.reload()}
             />
           );
         },
@@ -374,7 +375,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
           {
             field: "user",
             headerName: "A/C ID",
-            width: 250,
+            width: 200,
             cellRenderer: (params: ICellRendererParams) => {
               const { user, accountType, SoDConflicts } = params.data || {};
               const typeLabel = accountType || "Regular";
@@ -476,7 +477,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
           {
             field: "recommendation",
             headerName: "AI Assist",
-            width: 150,
+            width: 120,
             cellRenderer: (params: ICellRendererParams) => {
               const { recommendation, accessedWithinAMonth } =
                 params.data || {};
@@ -667,21 +668,21 @@ const TreeClient: React.FC<TreeClientProps> = ({
       {error && (
         <div style={{ color: "red", padding: 10 }}>{String(error)}</div>
       )}
-      {expandedUsername && (
+      {expandedFullName && (
         <div className="bg-blue-100 text-blue-800 px-4 py-2 rounded mb-3 font-medium flex items-center justify-between transition-all duration-300 animate-fade-in">
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
             <div className="flex items-center space-x-1">
               <span>
                 Expanded User:{" "}
-                <span className="font-semibold">{expandedUsername}</span>
+                <span className="font-semibold">{expandedFullName}</span>
               </span>
               <button
                 onClick={() => {
                   console.log("Closing user:", {
-                    username: expandedUsername,
+                    fullName: expandedFullName,
                     rowId: expandedUserRowId,
                   });
-                  setExpandedUsername(null);
+                  setExpandedFullName(null);
                   setExpandedUserRowId(null);
                   if (gridApiRef.current && expandedUserRowId) {
                     console.log("User grid API available");
@@ -738,6 +739,18 @@ const TreeClient: React.FC<TreeClientProps> = ({
           <Filters gridApi={gridApiRef} />
           <Import gridApi={gridApiRef.current} />
           <Exports gridApi={gridApiRef.current} />
+          <button
+            title="Sign Off"
+            aria-label="Sign off selected rows"
+            className="p-1 rounded transition-colors duration-200"
+          >
+            <CheckCircleIcon
+              className="curser-pointer"
+              strokeWidth="1"
+              size="24"
+              color="#e73c3cff"
+            />
+          </button>
           <ColumnSettings
             columnDefs={columnDefs}
             gridApi={gridApiRef.current}

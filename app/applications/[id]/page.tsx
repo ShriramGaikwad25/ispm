@@ -9,6 +9,7 @@ import { useMemo, useRef, useState } from "react";
 import "@/lib/ag-grid-setup";
 import Exports from "@/components/agTable/Exports";
 import EditReassignButtons from "@/components/agTable/EditReassignButtons";
+import ActionButtons from "@/components/agTable/ActionButtons";
 
 interface DataItem {
   label: string;
@@ -16,8 +17,7 @@ interface DataItem {
   color?: string;
 }
 
-const data:Record<string, DataItem[]> = {
-
+const data: Record<string, DataItem[]> = {
   accountSummary: [
     { label: "Regular Accounts", value: 0 },
     { label: "Elevated Accounts", value: 0 },
@@ -36,6 +36,19 @@ const data:Record<string, DataItem[]> = {
   ],
 };
 
+const dataAccount: Record<string, DataItem[]> = {
+  accountSummary: [
+    { label: "Regular Accounts", value: 0 },
+    { label: "Elevated Accounts", value: 0 },
+    { label: "Orphan Accounts", value: 0 },
+    { label: "Terminated User Accounts", value: 0 },
+  ],
+  accountActivity: [
+    { label: "Active in past 30 days", value: 0 },
+    { label: "Active in past 30-60 days", value: 0 },
+    { label: "Active in past more than 90 days", value: 0 },
+  ],
+};
 export default function ApplicationDetailPage() {
   const [tabIndex, setTabIndex] = useState(1);
   const gridApiRef = useRef<GridApi | null>(null);
@@ -144,115 +157,185 @@ export default function ApplicationDetailPage() {
   ];
 
   const rowData2 = [
-  {
-    "Ent ID": "ENT201",
-    "Ent Name": "Server Admin",
-    "Ent Description": "Administrative access to on-premises server infrastructure",
-    "Total Assignments": 8,
-    "Last Sync": "2025-07-13T12:00:00Z",
-    "Requestable": "Yes",
-    "Certifiable": "Yes",
-    "Risk": "High",
-    "SOD Check": "Passed",
-    "Hierarchy": "Top-level",
-    "Pre- Requisite": "Server Admin Training",
-    "Pre-Requisite Details": "Completion of Windows Server Admin course",
-    "Revoke on Disable": "Yes",
-    "Shared Pwd": "No",
-    "Capability/Technical Scope": "Manage server configurations and updates",
-    "Business Objective": "Maintain server uptime and security",
-    "Compliance Type": "ISO 27001",
-    "Access Scope": "Global",
-    "Last Reviewed on": "2025-06-25",
-    "Reviewed": "Yes",
-    "Dynamic Tag": "Infrastructure",
-    "MFA Status": "Enabled",
-    "Review Schedule": "Quarterly",
-    "Ent Owner": "Emily Carter",
-    "Created On": "2024-03-10"
-  },
-  {
-    "Ent ID": "ENT202",
-    "Ent Name": "HR Viewer",
-    "Ent Description": "Read-only access to HR system reports",
-    "Total Assignments": 20,
-    "Last Sync": "2025-07-12T15:30:00Z",
-    "Requestable": "No",
-    "Certifiable": "No",
-    "Risk": "Low",
-    "SOD Check": "Not Required",
-    "Hierarchy": "Low-level",
-    "Pre- Requisite": "None",
-    "Pre-Requisite Details": "N/A",
-    "Revoke on Disable": "Yes",
-    "Shared Pwd": "Yes",
-    "Capability/Technical Scope": "View employee data and reports",
-    "Business Objective": "Support HR analytics",
-    "Compliance Type": "GDPR",
-    "Access Scope": "Departmental",
-    "Last Reviewed on": "2025-05-15",
-    "Reviewed": "No",
-    "Dynamic Tag": "HR",
-    "MFA Status": "Disabled",
-    "Review Schedule": "Annual",
-    "Ent Owner": "Mark Thompson",
-    "Created On": "2024-08-01"
-  }
-];
+    {
+      "Ent ID": "ENT201",
+      "Ent Name": "Server Admin",
+      "Ent Description":
+        "Administrative access to on-premises server infrastructure",
+      "Total Assignments": 8,
+      "Last Sync": "2025-07-13T12:00:00Z",
+      Requestable: "Yes",
+      Certifiable: "Yes",
+      Risk: "High",
+      "SOD Check": "Passed",
+      Hierarchy: "Top-level",
+      "Pre- Requisite": "Server Admin Training",
+      "Pre-Requisite Details": "Completion of Windows Server Admin course",
+      "Revoke on Disable": "Yes",
+      "Shared Pwd": "No",
+      "Capability/Technical Scope": "Manage server configurations and updates",
+      "Business Objective": "Maintain server uptime and security",
+      "Compliance Type": "ISO 27001",
+      "Access Scope": "Global",
+      "Last Reviewed on": "2025-06-25",
+      Reviewed: "Yes",
+      "Dynamic Tag": "Infrastructure",
+      "MFA Status": "Enabled",
+      "Review Schedule": "Quarterly",
+      "Ent Owner": "Emily Carter",
+      "Created On": "2024-03-10",
+    },
+    {
+      "Ent ID": "ENT202",
+      "Ent Name": "HR Viewer",
+      "Ent Description": "Read-only access to HR system reports",
+      "Total Assignments": 20,
+      "Last Sync": "2025-07-12T15:30:00Z",
+      Requestable: "No",
+      Certifiable: "No",
+      Risk: "Low",
+      "SOD Check": "Not Required",
+      Hierarchy: "Low-level",
+      "Pre- Requisite": "None",
+      "Pre-Requisite Details": "N/A",
+      "Revoke on Disable": "Yes",
+      "Shared Pwd": "Yes",
+      "Capability/Technical Scope": "View employee data and reports",
+      "Business Objective": "Support HR analytics",
+      "Compliance Type": "GDPR",
+      "Access Scope": "Departmental",
+      "Last Reviewed on": "2025-05-15",
+      Reviewed: "No",
+      "Dynamic Tag": "HR",
+      "MFA Status": "Disabled",
+      "Review Schedule": "Annual",
+      "Ent Owner": "Mark Thompson",
+      "Created On": "2024-08-01",
+    },
+  ];
 
-  const columnDefs = useMemo<ColDef[]>(
-    () => [
-      {
-        field: "account",
-        headerName: "Account",
-        flex: 2,
-        cellRenderer: "agGroupCellRenderer",
+  const [columnDefs, setColumnDefs] = useState<ColDef[]>([
+    {
+      field: "accountId",
+      headerName: "Account ID",
+      cellRenderer: "agGroupCellRenderer",
+      cellRendererParams: {
+        suppressExpand: true,
+        innerRenderer: (params: ICellRendererParams) => {
+          const { accountType } = params.data || {};
+          const accountTypeLabel = accountType ? `(${accountType})` : "";
+          return (
+            <div className="flex items-center space-x-2">
+              <div
+                className="flex flex-col gap-0 cursor-pointer hover:underline"
+                // onClick={openModal}
+              >
+                <span className="text-gray-800 font-bold text-[14px]">
+                  {params.value}{" "}
+                  {accountType && (
+                    <span
+                      className="text-[#175AE4] font-normal"
+                      title={`Account Type: ${accountType}`}
+                    >
+                      {accountTypeLabel}
+                    </span>
+                  )}
+                </span>
+              </div>
+            </div>
+          );
+        },
       },
-      {
-        field: "accountStatus",
-        headerName: "Account Status",
-        flex: 2,
-        sortable: true,
-        filter: true,
+      cellClass: "ag-cell-no-padding",
+    },
+    {
+      field: "risk",
+      headerName: "Risk",
+      width: 100,
+      cellRenderer: (params: ICellRendererParams) => {
+        const userName = params.value;
+        const risk = params.data?.risk;
+        const riskColor =
+          risk === "High" ? "red" : risk === "Medium" ? "orange" : "green";
+        return <span style={{ color: riskColor }}>{userName}</span>;
       },
-      {
-        field: "accountType",
-        headerName: "Account Type",
-        flex: 2,
-        sortable: true,
-        filter: true,
+    },
+    {
+      field: "Display Name",
+      headerName: "Display Name",
+      cellRenderer: (params: ICellRendererParams) => {
+        const { userType } = params.data || {};
+        const userTypeLabel = userType ? `(${userType})` : "";
+        return (
+          <div
+            className="flex flex-col gap-0 cursor-pointer hover:underline"
+            // onClick={openModal}
+          >
+            <span className="text-gray-800">
+              {/* {params.value}{" "}
+              {userType && (
+                <span
+                  className="text-[#175AE4] font-normal"
+                  title={`User Type: ${userType}`}
+                >
+                  {userTypeLabel}
+                </span>
+              )} */}
+            </span>
+          </div>
+        );
       },
-      {
-        field: "discoveryDate",
-        headerName: "Discovery Date",
-        flex: 2,
-        sortable: true,
-        filter: true,
-      },
-      {
-        field: "externalDomain",
-        headerName: "External Domain",
-        flex: 2,
-        sortable: true,
-        filter: true,
-      },
-      {
-        field: "userStatus",
-        headerName: "User Status",
-        flex: 2,
-        sortable: true,
-        filter: true,
-      },
-      {
-        field: "user",
-        headerName: "User",
-        flex: 2,
-        sortable: true,
-        filter: true,
-      },
-    ],
-    []
-  );
+    },
+    {
+      field: "entitlementName",
+      headerName: "Entitlement Name",
+      enableRowGroup: true,
+      cellRenderer: (params: ICellRendererParams) => (
+        <div className="flex flex-col gap-0">
+          <span className="text-gray-800">{params.value}</span>
+        </div>
+      ),
+    },
+    {
+      field: "lastLogin",
+      headerName: "Last Login Date",
+      enableRowGroup: true,
+      cellRenderer: (params: ICellRendererParams) => (
+        <div className="flex flex-col gap-0">
+          <span className="text-gray-800">{params.value}</span>
+        </div>
+      ),
+    },
+    {
+      field: "lastaction",
+      headerName: "Last Action Review",
+
+    },
+    { field: "Account Type", headerName: "Account Type", flex: 2, hide: true },
+    { field: "User Status", headerName: "User Status", flex: 2, hide: true },
+    { field: "User ID", headerName: "User ID", flex: 2, hide: true },
+    { field: "User Manager", headerName: "User Manager", flex: 2, hide: true },
+    { field: "User Dept", headerName: "User Dept", flex: 2, hide: true },
+    { field: "Job Title", headerName: "Job Title", flex: 2, hide: true },
+    {
+      field: "Access Grant Date",
+      headerName: "Access Grant Date",
+      flex: 2,
+      hide: true,
+    },
+    { field: "User Type", headerName: "User Type", flex: 2, hide: true },
+    {
+      field: "Entitlement Type",
+      headerName: "Entitlement Type",
+      flex: 2,
+      hide: true,
+    },
+    {
+      field: "syncDate",
+      headerName: "Sync Date",
+
+    },
+  ]);
 
   const colDefs = useMemo<ColDef[]>(
     () => [
@@ -345,9 +428,11 @@ export default function ApplicationDetailPage() {
       {
         field: "actionColumn",
         headerName: "Action",
-        flex:2,
+        flex: 2,
         cellRenderer: (params: ICellRendererParams) => {
-          return <EditReassignButtons api={params.api} selectedRows={params.data} />;
+          return (
+            <EditReassignButtons api={params.api} selectedRows={params.data} />
+          );
         },
         suppressMenu: true,
         sortable: false,
@@ -403,7 +488,79 @@ export default function ApplicationDetailPage() {
                 iconClass="absolute top-2 right-0 rounded-full text-white bg-purple-800"
                 title="Expand/Collapse"
               >
-                <ChartComponent />
+                <div className="grid grid-cols-4 gap-10 p-2">
+                  {Object.entries(dataAccount).map(([category, items]) => (
+                    <div key={category}>
+                      <div className="flex justify-between items-center mb-2 border-b border-gray-300 pb-2 p-4">
+                        <h3 className="font-semibold text-sm capitalize">
+                          {category.replace(/([A-Z])/g, " $1")}
+                        </h3>
+                        <button
+                          onClick={() => {
+                            setSelected((prev) => ({
+                              ...prev,
+                              [category]: null,
+                            }));
+                          }}
+                          className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                        >
+                          Clear
+                          {selected[category] !== undefined &&
+                          selected[category] !== null ? (
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-3 w-3 text-blue-600"
+                              viewBox="0 0 24 24"
+                              fill="currentColor"
+                            >
+                              <path d="M3 4a1 1 0 011-1h16a1 1 0 01.8 1.6l-5.6 7.5V18a1 1 0 01-.45.84l-4 2.5A1 1 0 019 20.5v-8.4L3.2 5.6A1 1 0 013 4z" />
+                            </svg>
+                          ) : (
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-3 w-3 text-blue-600"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M3 4a1 1 0 011-1h16a1 1 0 01.8 1.6l-5.6 7.5V18a1 1 0 01-.45.84l-4 2.5A1 1 0 019 20.5v-8.4L3.2 5.6A1 1 0 013 4z"
+                              />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+
+                      <div className="space-y-2 pl-8 pr-8">
+                        {items.map((item, index) => (
+                          <div
+                            key={index}
+                            className={`flex text-sm relative items-center p-3 rounded-sm cursor-pointer transition-all ${
+                              selected[category] === index
+                                ? "bg-[#6574BD] text-white"
+                                : "bg-[#F0F2FC] hover:bg-[#e5e9f9]"
+                            } ${item.color || ""}`}
+                            onClick={() => handleSelect(category, index)}
+                          >
+                            <span>{item.label}</span>
+                            <span
+                              className={`font-semibold absolute -right-2 bg-white border p-1 text-[12px]  rounded-sm ${
+                                selected[category] === index
+                                  ? "border-[#6574BD] text-[#6574BD]"
+                                  : "border-[#e5e9f9]"
+                              }`}
+                            >
+                              {item.value}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </Accordion>
             </div>
             <div className="flex justify-end mb-4 relative z-10 pt-10">
@@ -530,6 +687,12 @@ export default function ApplicationDetailPage() {
           </div>
         );
       },
+    },
+    {
+      label: "Sampling",
+      icon: ChevronDown,
+      iconOff: ChevronRight,
+      component: () => <p>Coming Soon...</p>,
     },
   ];
 

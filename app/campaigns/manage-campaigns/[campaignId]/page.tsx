@@ -6,16 +6,14 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { AgGridReact } from "ag-grid-react";
 import { AgGridReact as AgGridReactType } from "ag-grid-react";
 import "@/lib/ag-grid-setup";
-import {
-  ColDef,
-  ICellRendererParams,
-} from "ag-grid-enterprise";
+import { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 import HorizontalTabs from "@/components/HorizontalTabs";
 import Accordion from "@/components/Accordion";
 import ProgressDonutChart from "@/components/ProgressDonutChart";
 import VerticalBarChart from "@/components/VerticalBarChart";
 import ChampaignActionButton from "@/components/agTable/ChampaignActionButton";
 import AuditorsCorner from "../AuditorsCorner";
+import Revocations from "./Revocations";
 
 const campData = [
   {
@@ -106,7 +104,7 @@ export default function ManageCampaigns() {
     []
   );
 
-const rowSelection = useMemo<"single" | "multiple">(() => "multiple", []);
+  const rowSelection = useMemo<"single" | "multiple">(() => "multiple", []);
   // const handleRowClick = (e: RowClickedEvent) => {
   //   const campaignId = e.data.id;
   //   router.push(`/campaigns/manage-campaigns/${campaignId}`);
@@ -114,13 +112,7 @@ const rowSelection = useMemo<"single" | "multiple">(() => "multiple", []);
 
   const tabsData = [
     {
-      label: "About Campaign",
-      icon: ChevronDown,
-      iconOff: ChevronRight,
-      component: () => <p>Coming Soon...</p>,
-    },
-    {
-      label: "Monitor Campaign",
+      label: "Manage",
       icon: ChevronDown,
       iconOff: ChevronRight,
       component: () => {
@@ -148,15 +140,6 @@ const rowSelection = useMemo<"single" | "multiple">(() => "multiple", []);
               title="Expand/Collapse"
             >
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="">
-                  <div className="flex justify-between p-4">
-                    <h2 className="text-lg text-gray-700">
-                      Total Entitlements
-                    </h2>
-                  </div>
-                  <ProgressDonutChart />
-                </div>
-
                 <div className="">
                   <div className="flex justify-between p-4">
                     <h2 className="text-lg text-gray-700"></h2>
@@ -214,6 +197,14 @@ const rowSelection = useMemo<"single" | "multiple">(() => "multiple", []);
                     </tbody>
                   </table>
                 </div>
+                <div className="">
+                  <div className="flex justify-between p-4">
+                    <h2 className="text-lg text-gray-700">
+                      Total Entitlements
+                    </h2>
+                  </div>
+                  <ProgressDonutChart />
+                </div>
               </div>
             </Accordion>
             <AgGridReact
@@ -241,6 +232,12 @@ const rowSelection = useMemo<"single" | "multiple">(() => "multiple", []);
       icon: ChevronDown,
       iconOff: ChevronRight,
       component: () => <AuditorsCorner />,
+    },
+    {
+      label: "Revocations",
+      icon: ChevronDown,
+      iconOff: ChevronRight,
+      component: () => <Revocations />,
     },
   ];
 

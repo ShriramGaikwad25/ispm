@@ -19,7 +19,6 @@
 
 // const reviewerId = "0089414b-fb84-4fba-8a30-afc7386eab49";
 
-
 // const AccessReview: React.FC = () => {
 //   const [gridApi, setGridApi] = useState<GridApi | null>(null);
 //   const [rowData, setRowData] = useState<UserRowData[]>([]);
@@ -48,7 +47,6 @@
 //     pageNumber
 //   );
 //   const [authChecked, setAuthChecked] = useState(false);
-  
 
 //   useEffect(() => {
 //     const isAuthenticated = localStorage.getItem("authenticated");
@@ -58,7 +56,6 @@
 //       setAuthChecked(true);
 //     }
 //   }, [router]);
-  
 
 //   const certificationData =
 //     data as unknown as PaginatedResponse<CertificationRow>;
@@ -95,7 +92,6 @@
 //       setTotalPages(certificationData.total_pages || 1);
 //     }
 //   }, [certificationData]);
-  
 
 //   useEffect(() => {
 //     if (filterStatus === "All") {
@@ -208,20 +204,21 @@
 
 // export default AccessReview;
 
-
-
-
-
 "use client";
 import React, { useEffect, useState } from "react";
 import { AgGridReact } from "ag-grid-react";
 import "@/lib/ag-grid-setup";
 import { useRouter } from "next/navigation";
-import { columnDefs, defaultColDef } from "@/components/dashboard/columnDefs";
+import { defaultColDef } from "@/components/dashboard/columnDefs";
 import SelectAll from "@/components/agTable/SelectAll";
 import CustomPagination from "@/components/agTable/CustomPagination";
 import ColumnSettings from "@/components/agTable/ColumnSettings";
-import { GridApi, GetRowIdParams, RowClickedEvent, ColDef } from "ag-grid-community";
+import {
+  GridApi,
+  GetRowIdParams,
+  RowClickedEvent,
+  ColDef,
+} from "ag-grid-community";
 import { useCertifications } from "@/hooks/useApi";
 import {
   CertificationRow,
@@ -231,23 +228,84 @@ import {
 import { PaginatedResponse } from "@/types/api";
 import { Header } from "@/components/Header";
 import ActionButtons from "@/components/agTable/ActionButtons";
+import {
+  CheckCircleIcon,
+  ClipboardIcon,
+  DownloadIcon,
+  UserIcon,
+  UserRoundCheckIcon,
+} from "lucide-react";
 
 // Define column definitions for Active and Expired statuses
 const activeColumnDefs: ColDef[] = [
-  { headerName: "Campaign Name", field: "certificationName" },
-  { headerName: "Type", field: "certificationType" }, // Updated to match CertificationRow
-  { headerName: "Owner", field: "certificateRequester" }, // Updated to match CertificationRow
-  { headerName: "Progress", field: "percentageCompleted" }, // Updated to match CertificationRow
-  { headerName: "Due In", field: "certificationExpiration" }, // Updated to match CertificationRow
-  { headerName: "Estimated time to completion", field: "estimatedTimeToCompletion" }, // Adjust field if available
-  { headerName: "Description", field: "description" }, // Adjust field if available
-  { headerName: "Tags", field: "tags" }, // Adjust field if available
-  { headerName: "Create On", field: "certificationCreatedOn" }, // Updated to match CertificationRow
+  { headerName: "Campaign Name", field: "certificationName", width: 250 },
+  { headerName: "Type", field: "certificationType", width: 150 },
+  { headerName: "Owner", field: "reviewerName", width: 150 },
+  { headerName: "Progress", field: "progress", width: 150 },
+  { headerName: "Due In", field: "dueIn", width: 250 },
+  {
+    headerName: "Estimated time to completion",
+    field: "Estimated time to completion",
+    width: 250,
+    hide: true,
+  },
+  { headerName: "Description", field: "description", width: 250, hide: true },
+  { headerName: "Tags", field: "tags", width: 250, hide: true },
+  { headerName: "Create On", field: "certificationCreatedOn", width: 250 },
   {
     headerName: "Actions",
-    width: 200,
+    width: 250,
     cellRenderer: (params: any) => (
-      <ActionButtons api={params.api} selectedRows={[params.data]} />
+      <div className="flex space-x-4 h-full items-center">
+        {/* {error && <div className="text-red-500 text-sm">{error}</div>} */}
+        <button
+          // onClick={handleReassign}
+          title="Reassign"
+          aria-label="Reassign selected rows"
+          className="p-1 rounded transition-colors duration-200"
+        >
+          <UserRoundCheckIcon
+            className="cursor-pointer"
+            color="#b146ccff"
+            strokeWidth="1"
+            size="32"
+          />
+        </button>
+        <button
+          // onClick={handleClaimRelease}
+          title={"Release/Claim"}
+          // aria-label={`${isClaimed ? "Release" : "Claim"} selected rows`}
+          className="py-1 rounded transition-colors duration-200"
+        >
+          <ClipboardIcon
+            className="curser-pointer"
+            strokeWidth="1"
+            size="32"
+            color="#ca7e2cff"
+          />
+          {/* {isClaimed ? "Release" : "Claim"} */}
+        </button>
+        <button
+          // onClick={handleSignOff}
+          title="Sign Off"
+          aria-label="Sign off selected rows"
+          className="p-1 rounded transition-colors duration-200"
+        >
+          <CheckCircleIcon
+            className="curser-pointer"
+            strokeWidth="1"
+            size="32"
+            color="#e73c3cff"
+          />
+        </button>
+        <button
+          title="Download Excel"
+          aria-label="Sign off selected rows"
+          className="p-1 rounded transition-colors duration-200"
+        >
+          <DownloadIcon className="curser-pointer" strokeWidth="1" size="32" />
+        </button>
+      </div>
     ),
   },
 ];
@@ -259,6 +317,8 @@ const expiredColumnDefs: ColDef[] = [
   { headerName: "Assigned On", field: "certificationCreatedOn" }, // Updated to match CertificationRow
   { headerName: "Completed On", field: "certificationSignedOff" }, // Adjust if there's a specific completed date field
   { headerName: "Reports", field: "reports" }, // Adjust field if available
+    { headerName: "Description", field: "description", width: 250, hide: true },
+  { headerName: "Tags", field: "tags", width: 250, hide: true },
 ];
 
 const reviewerId = "0089414b-fb84-4fba-8a30-afc7386eab49";
@@ -277,7 +337,8 @@ const AccessReview: React.FC = () => {
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [filterStatus, setFilterStatus] = useState<string>("All");
-  const [currentColumnDefs, setCurrentColumnDefs] = useState<ColDef[]>(columnDefs);
+  const [currentColumnDefs, setCurrentColumnDefs] =
+    useState<ColDef[]>(activeColumnDefs);
 
   const [headerInfo, setHeaderInfo] = useState({
     campaignName: "",
@@ -286,7 +347,11 @@ const AccessReview: React.FC = () => {
     daysLeft: 0,
   });
 
-  const { data, error } = useCertifications(reviewerId, defaultPageSize, pageNumber);
+  const { data, error } = useCertifications(
+    reviewerId,
+    defaultPageSize,
+    pageNumber
+  );
   const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
@@ -299,7 +364,8 @@ const AccessReview: React.FC = () => {
     }
   }, [router]);
 
-  const certificationData = data as unknown as PaginatedResponse<CertificationRow>;
+  const certificationData =
+    data as unknown as PaginatedResponse<CertificationRow>;
   useEffect(() => {
     if (certificationData) {
       const mapped = certificationData.items.map(
@@ -340,7 +406,7 @@ const AccessReview: React.FC = () => {
     } else if (filterStatus === "Expired") {
       setCurrentColumnDefs(expiredColumnDefs);
     } else {
-      setCurrentColumnDefs(columnDefs); // Default for "All" and "Preview"
+      setCurrentColumnDefs(activeColumnDefs); // Default for "All" and "Preview"
     }
   }, [filterStatus]);
 
@@ -362,7 +428,9 @@ const AccessReview: React.FC = () => {
     const clickedReviewerId = e.data?.reviewerId;
     const clickedCertificationId = e.data?.certificationId;
     if (clickedReviewerId && clickedCertificationId) {
-      router.push(`/access-review/${clickedReviewerId}/${clickedCertificationId}`);
+      router.push(
+        `/access-review/${clickedReviewerId}/${clickedCertificationId}`
+      );
     }
   };
 
@@ -391,7 +459,7 @@ const AccessReview: React.FC = () => {
             onChange={handleFilterChange}
             className="border rounded-md w-60 p-2 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="All">All</option>
+            {/* <option value="All">All</option> */}
             <option value="Active">Active</option>
             <option value="Expired">Expired</option>
             <option value="Preview">Preview</option>

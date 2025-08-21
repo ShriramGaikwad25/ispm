@@ -120,9 +120,11 @@ const updateActions = async (actionType: string, justification: string) => {
       setLastAction(actionType);
       setError(null);
       if (onActionSuccess) {
-        onActionSuccess(); // Notify parent of success
+        onActionSuccess();
+        // window.location.reload();
       }
       return await response.json();
+      
     } catch (err) {
       setError(`Failed to update actions: ${err.message}`);
       console.error("API error:", err);

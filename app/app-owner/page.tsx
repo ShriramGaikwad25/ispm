@@ -16,11 +16,11 @@ import {
   FirstDataRenderedEvent,
 } from "ag-grid-enterprise";
 import ActionButtons from "@/components/agTable/ActionButtons";
-import { AlertTriangle, CheckCircle, MailIcon } from "lucide-react";
+import { AlertTriangle, CheckCircle, CheckCircleIcon, MailIcon } from "lucide-react";
 import RightSidebar from "@/components/RightSideBar";
 import Accordion from "@/components/Accordion";
 import ChartAppOwnerComponent from "@/components/ChartForAppOwner";
-import './AppOwner.css'
+import "./AppOwner.css";
 
 // Register AG Grid Enterprise modules (if not already done in ag-grid-setup)
 import { MasterDetailModule } from "ag-grid-enterprise";
@@ -141,7 +141,9 @@ const DetailCellRenderer = (props: IDetailCellRendererParams) => {
   return (
     <div className="flex p-4 bg-gray-50 border-t border-gray-200 ml-10">
       <div className="flex flex-row items-center gap-2">
-        <span className="font-bold text-md text-[#1759e4]">Entitlement Description:-</span>
+        <span className="font-bold text-md text-[#1759e4]">
+          Entitlement Description:-
+        </span>
         <span className="text-gray-800">{data.entitlementDescription}</span>
       </div>
     </div>
@@ -149,7 +151,9 @@ const DetailCellRenderer = (props: IDetailCellRendererParams) => {
 };
 
 export default function AppOwner() {
-  const [selected, setSelected] = useState<{ [key: string]: number | null }>({});
+  const [selected, setSelected] = useState<{ [key: string]: number | null }>(
+    {}
+  );
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [groupByColumn, setGroupByColumn] = useState<string | null>(null);
   const [isGridReady, setIsGridReady] = useState(false);
@@ -157,7 +161,9 @@ export default function AppOwner() {
   const defaultPageSize = pageSizeSelector[0];
   const [pageNumber, setPageNumber] = useState(1);
   const gridApiRef = useRef<GridApi | null>(null);
-  const [detailGridApis, setDetailGridApis] = useState<Map<string, GridApi>>(new Map());
+  const [detailGridApis, setDetailGridApis] = useState<Map<string, GridApi>>(
+    new Map()
+  );
   const [comment, setComment] = useState("");
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -192,15 +198,15 @@ export default function AppOwner() {
     []
   );
 
-const autoGroupColumnDef = useMemo<ColDef>(
-  () => ({
-    minWidth: 200,
-    cellRendererParams: {
-      suppressExpand: true, // Hide the arrow for dynamic group column
-    },
-  }),
-  []
-);
+  const autoGroupColumnDef = useMemo<ColDef>(
+    () => ({
+      minWidth: 200,
+      cellRendererParams: {
+        suppressExpand: true, // Hide the arrow for dynamic group column
+      },
+    }),
+    []
+  );
 
   const detailCellRenderer = useCallback(DetailCellRenderer, []);
 
@@ -208,7 +214,7 @@ const autoGroupColumnDef = useMemo<ColDef>(
     {
       field: "accountId",
       headerName: "Account ID",
-      cellRenderer: "agGroupCellRenderer", 
+      cellRenderer: "agGroupCellRenderer",
       cellRendererParams: {
         suppressExpand: true,
         innerRenderer: (params: ICellRendererParams) => {
@@ -336,9 +342,19 @@ const autoGroupColumnDef = useMemo<ColDef>(
     { field: "User Manager", headerName: "User Manager", flex: 2, hide: true },
     { field: "User Dept", headerName: "User Dept", flex: 2, hide: true },
     { field: "Job Title", headerName: "Job Title", flex: 2, hide: true },
-    { field: "Access Grant Date", headerName: "Access Grant Date", flex: 2, hide: true },
+    {
+      field: "Access Grant Date",
+      headerName: "Access Grant Date",
+      flex: 2,
+      hide: true,
+    },
     { field: "User Type", headerName: "User Type", flex: 2, hide: true },
-    { field: "Entitlement Type", headerName: "Entitlement Type", flex: 2, hide: true },
+    {
+      field: "Entitlement Type",
+      headerName: "Entitlement Type",
+      flex: 2,
+      hide: true,
+    },
     {
       field: "actions",
       headerName: "Actions",
@@ -478,6 +494,18 @@ const autoGroupColumnDef = useMemo<ColDef>(
             color="#35353A"
             className="transform scale-[.6]"
           />
+          <button
+            title="Sign Off"
+            aria-label="Sign off selected rows"
+            className="p-1 rounded transition-colors duration-200"
+          >
+            <CheckCircleIcon  
+              className="curser-pointer"
+              strokeWidth="1"
+              size="24"
+              color="#e73c3cff"
+            />
+          </button>
           <ColumnSettings
             columnDefs={columnDefs}
             gridApi={gridApiRef.current}
