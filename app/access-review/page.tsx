@@ -331,7 +331,7 @@ const AccessReview: React.FC = () => {
     new Map()
   );
   const router = useRouter();
-  const pageSizeSelector = [5, 10, 20, 50, 100];
+  const pageSizeSelector = [10, 20, 50, 100];
   const defaultPageSize = pageSizeSelector[0];
   const [pageNumber, setPageNumber] = useState(1);
   const [totalItems, setTotalItems] = useState(0);

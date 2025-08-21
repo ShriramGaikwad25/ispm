@@ -308,7 +308,7 @@ export default function ApplicationDetailPage() {
     },
     {
       field: "lastaction",
-      headerName: "Last Action Review",
+      headerName: "Last Access Review",
 
     },
     { field: "Account Type", headerName: "Account Type", flex: 2, hide: true },

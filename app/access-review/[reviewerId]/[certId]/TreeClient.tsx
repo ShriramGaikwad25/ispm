@@ -125,7 +125,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
   );
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
 
-  const pageSizeSelector = [5, 10, 20, 50, 100];
+  const pageSizeSelector = [10, 20, 50, 100];
   const defaultPageSize = pageSizeSelector[0];
   const [pageNumber, setPageNumber] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
@@ -241,7 +241,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
         headerComponent: () => "Users",
         field: "fullName",
         headerName: "User",
-        width: 520,
+        width: 600,
         cellRenderer: "agGroupCellRenderer",
         cellRendererParams: {
           suppressCount: true,
@@ -301,7 +301,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
         },
       },
       { field: "jobtitle", headerName: "Job Title", width: 450 },
-      { field: "department", headerName: "Department", width: 450 },
+      { field: "department", headerName: "Department", width: 400 },
       {
         field: "progress",
         headerName: "Progress",
@@ -335,10 +335,9 @@ const TreeClient: React.FC<TreeClientProps> = ({
       },
       { field: "aiAssist", headerName: "AI Assist", width: 250 },
       {
-        colId: "actionColumn",
-        headerName: "Action",
-        width: 315,
-        headerComponent: () => null,
+        headerName: "Actions",
+        width: 500,
+        // headerComponent: () => null,
         cellRenderer: (params: ICellRendererParams) => {
           return (
             <ActionButtons
@@ -375,7 +374,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
           {
             field: "user",
             headerName: "A/C ID",
-            width: 200,
+            width: 180,
             cellRenderer: (params: ICellRendererParams) => {
               const { user, accountType, SoDConflicts } = params.data || {};
               const typeLabel = accountType || "Regular";
@@ -473,7 +472,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
             },
           },
           { field: "entitlementType", headerName: "Ent Type", width: 150 },
-          { field: "lastLogin", headerName: "Last Login", width: 150 },
+          { field: "lastLogin", headerName: "Last Login", width: 140 },
           {
             field: "recommendation",
             headerName: "AI Assist",
@@ -519,10 +518,9 @@ const TreeClient: React.FC<TreeClientProps> = ({
             },
           },
           {
-            colId: "actionColumn",
             headerName: "Actions",
-            width: 150,
-            headerComponent: () => null,
+            width: 220,
+            // headerComponent: () => null,
             cellRenderer: (params: ICellRendererParams) => {
               return (
                 <ActionButtons
