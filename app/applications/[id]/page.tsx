@@ -68,11 +68,11 @@ export default function ApplicationDetailPage() {
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
   const [nodeData, setNodeData] = useState<any>(null);
   const [expandedFrames, setExpandedFrames] = useState({
-    general: true,
-    business: true,
-    technical: true,
-    security: true,
-    lifecycle: true,
+    general: false,
+    business: false,
+    technical: false,
+    security: false,
+    lifecycle: false,
   });
   const [comment, setComment] = useState("");
   const [error, setError] = useState<string | null>(null);
