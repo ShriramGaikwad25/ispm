@@ -466,7 +466,26 @@ export default function ApplicationDetailPage() {
 
   const colDefs = useMemo<ColDef[]>(
     () => [
-      { field: "Ent Name", headerName: "Enttitlement Name", flex: 2.5 },
+          {
+      field: "Ent Name",
+      headerName: "Entitlement Name",
+      flex: 2.5,
+      wrapText:true,
+      cellRenderer: (params: ICellRendererParams) => {
+        return (
+          <div className="flex flex-col">
+            {/* Row 1: entitlement name */}
+            <div className="font-semibold">{params.value}</div>
+
+            {/* Row 2: full-width description */}
+            <div className="text-gray-600 text-sm w-100">
+              {params.data["Ent Description"]}
+            </div>
+          </div>
+        );
+      },
+    },
+      // { field:"Ent Description", headerName:"Entitlement Description", flex:2},
       { field: "Ent Type", headerName: "Enttitlement Type", flex: 2.5 },
       { field: "Risk", headerName: "Risk", flex: 1.5 },
       { field: "App Name", headerName: "Application Name", flex: 2.5 },
@@ -573,8 +592,26 @@ export default function ApplicationDetailPage() {
 
   const underReviewColDefs = useMemo<ColDef[]>(
     () => [
-      { field: "Ent Name", headerName: "Entitlement Name", flex: 2.5 },
-      { field: "Ent Type", headerName: "Entitlement Type", flex: 2.5 },
+               {
+      field: "Ent Name",
+      headerName: "Entitlement Name",
+      flex: 2.5,
+      wrapText:true,
+      cellRenderer: (params: ICellRendererParams) => {
+        return (
+          <div className="flex flex-col">
+            {/* Row 1: entitlement name */}
+            <div className="font-semibold">{params.value}</div>
+
+            {/* Row 2: full-width description */}
+            <div className="text-gray-600 text-sm w-100">
+              {params.data["Ent Description"]}
+            </div>
+          </div>
+        );
+      },
+    },
+      { field: "Ent Type", headerName: "Ent Type", flex: 2 },
       {
         field: "Risk",
         headerName: "Ent Risk",
@@ -655,7 +692,7 @@ export default function ApplicationDetailPage() {
               >
                 <InfoIcon
                   color="#55544dff"
-                  size="34"
+                  size="48"
                   className="transform scale-[0.6]"
                 />
               </button>
@@ -684,6 +721,7 @@ export default function ApplicationDetailPage() {
       },
     };
   }, []);
+  
 
   const defaultColDef = {
     sortable: true,
@@ -789,6 +827,7 @@ export default function ApplicationDetailPage() {
               columnDefs={colDefs}
               defaultColDef={defaultColDef}
               masterDetail={true}
+              getRowHeight={() => 70}
               detailCellRendererParams={detailCellRendererParams}
             />
           </div>
@@ -889,6 +928,7 @@ export default function ApplicationDetailPage() {
             columnDefs={underReviewColDefs}
             defaultColDef={defaultColDef}
             masterDetail={true}
+            getRowHeight={() => 70}
             detailCellRendererParams={detailCellRendererParams}
           />
           {isSidePanelOpen &&

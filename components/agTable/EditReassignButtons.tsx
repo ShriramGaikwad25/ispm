@@ -1,7 +1,7 @@
 "use client";
 import { GridApi } from "ag-grid-enterprise";
 import { createPortal } from "react-dom";
-import { ChevronDown, ChevronRight, CircleCheck, CircleX, Edit2Icon, InfoIcon, UserPlus, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Edit2Icon, InfoIcon, UserPlus, X } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import ProxyActionModal from "../ProxyActionModal";
 
@@ -38,6 +38,7 @@ const EditReassignButtons = <T extends { status?: string }>({
 }: EditReassignButtonsProps<T>) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false); // Initialize as false
   const [expandedFrames, setExpandedFrames] = useState({
     general: true,
     business: true,
@@ -45,9 +46,7 @@ const EditReassignButtons = <T extends { status?: string }>({
     security: true,
     lifecycle: true,
   });
-  const [comment, setComment] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [lastAction, setLastAction] = useState<string | null>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [menuPosition, setMenuPosition] = useState<{
@@ -56,14 +55,28 @@ const EditReassignButtons = <T extends { status?: string }>({
   }>({ top: 0, left: 0 });
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedAssignee, setSelectedAssignee] = useState<User | Group | null>(null);
+  const [editableFields, setEditableFields] = useState<Partial<T>>({});
 
   const handleEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!api || selectedRows.length === 0) return;
+
+    // Update grid rows to "Editing" status
     api.applyTransaction({
       update: selectedRows.map((row) => ({ ...row, status: "Editing" })),
     });
-    alert(`Editing ${selectedRows.length} selected rows`);
+
+    // Open side panel in edit mode
+    setIsSidePanelOpen(true);
+    setIsEditMode(true);
+
+    // Initialize editable fields with current nodeData
+    setEditableFields({ ...nodeData });
+  };
+
+  const handleSidebarEdit = () => {
+    setIsEditMode(true);
+    setEditableFields({ ...nodeData });
   };
 
   const handleReassign = () => {
@@ -87,85 +100,25 @@ const EditReassignButtons = <T extends { status?: string }>({
   const toggleSidePanel = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsSidePanelOpen((prev) => !prev);
+    setIsEditMode(false); // Open in non-edit mode
+    setEditableFields({}); // Reset editable fields
   };
 
   const toggleFrame = (frame: keyof typeof expandedFrames) => {
     setExpandedFrames((prev) => ({ ...prev, [frame]: !prev[frame] }));
   };
 
-  const updateActions = async (actionType: string, justification: string) => {
-    const payload: any = {
-      useraction: [],
-      accountAction: [],
-      entitlementAction: [],
-    };
-
-    if (context === "entitlement") {
-      payload.entitlementAction = [
-        {
-          actionType,
-          lineItemIds: selectedRows.length > 0
-            ? selectedRows.map((row: any) => row.lineItemId)
-            : [(nodeData as any)?.lineItemId].filter(Boolean),
-          justification,
-        },
-      ];
-    }
-
-    try {
-      const response = await fetch(
-        `https://preview.keyforge.ai/certification/api/v1/CERTTEST/updateAction/${reviewerId}/${certId}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-
-      // Update grid with new status
-      const rowsToUpdate = selectedRows.length > 0 ? selectedRows : [nodeData].filter(Boolean);
-      api.applyTransaction({
-        update: rowsToUpdate.map((row) => ({ ...row, status: actionType })),
-      });
-      setLastAction(actionType);
-      setError(null);
-      if (onActionSuccess) {
-        onActionSuccess();
-      }
-      setComment("");
-      return await response.json();
-    } catch (err) {
-      setError(`Failed to update actions: ${err.message}`);
-      console.error("API error:", err);
-      throw err;
-    }
-  };
-
-  const handleApprove = async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleSaveEdits = () => {
     if (!api || (!selectedRows.length && !nodeData)) return;
-    await updateActions("Approve", comment || "Approved via UI");
-  };
 
-  const handleRevoke = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!api || (!selectedRows.length && !nodeData)) return;
-    await updateActions("Reject", comment || "Revoked via UI");
-  };
+    // Update grid with edited fields
+    api.applyTransaction({
+      update: selectedRows.map((row) => ({ ...row, ...editableFields, status: "Edited" })),
+    });
 
-  const handleComment = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!selectedRows.length && !nodeData) return;
-    if (comment.trim()) {
-      alert(`Comment added: ${comment} for ${(nodeData as any)?.["Ent Name"] || "selected rows"}`);
-      setComment("");
-    }
+    setIsSidePanelOpen(false);
+    setIsEditMode(false);
+    alert("Changes saved successfully");
   };
 
   useEffect(() => {
@@ -179,7 +132,10 @@ const EditReassignButtons = <T extends { status?: string }>({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setIsSidePanelOpen(false);
+      if (e.key === "Escape") {
+        setIsSidePanelOpen(false);
+        setIsEditMode(false);
+      }
     };
     if (isSidePanelOpen) {
       document.addEventListener("keydown", handleKeyDown);
@@ -198,10 +154,6 @@ const EditReassignButtons = <T extends { status?: string }>({
     }
   };
 
-  useEffect(() => {
-    setLastAction(null);
-  }, [selectedRows, nodeData]);
-
   const formatDate = (date: string | undefined) => {
     return date
       ? new Date(date).toLocaleDateString("en-US", {
@@ -212,20 +164,56 @@ const EditReassignButtons = <T extends { status?: string }>({
       : "N/A";
   };
 
-  const renderSideBySideField = (label1: string, value1: any, label2: string, value2: any) => (
+  const renderSideBySideField = (label1: string, key1: string, value1: any, label2: string, key2: string, value2: any) => (
     <div className="flex space-x-4 text-sm text-gray-700">
       <div className="flex-1">
-        <strong>{label1}:</strong> {value1?.toString() || "N/A"}
+        <strong>{label1}:</strong>{" "}
+        {isEditMode ? (
+          <input
+            type="text"
+            value={editableFields[key1 as keyof T] || value1 || ""}
+            onChange={(e) =>
+              setEditableFields((prev) => ({ ...prev, [key1]: e.target.value }))
+            }
+            className="form-input w-full text-sm border-gray-300 rounded"
+          />
+        ) : (
+          value1?.toString() || "N/A"
+        )}
       </div>
       <div className="flex-1">
-        <strong>{label2}:</strong> {value2?.toString() || "N/A"}
+        <strong>{label2}:</strong>{" "}
+        {isEditMode ? (
+          <input
+            type="text"
+            value={editableFields[key2 as keyof T] || value2 || ""}
+            onChange={(e) =>
+              setEditableFields((prev) => ({ ...prev, [key2]: e.target.value }))
+            }
+            className="form-input w-full text-sm border-gray-300 rounded"
+          />
+        ) : (
+          value2?.toString() || "N/A"
+        )}
       </div>
     </div>
   );
 
-  const renderSingleField = (label: string, value: any) => (
+  const renderSingleField = (label: string, key: string, value: any) => (
     <div className="text-sm text-gray-700">
-      <strong>{label}:</strong> {value?.toString() || "N/A"}
+      <strong>{label}:</strong>{" "}
+      {isEditMode ? (
+        <input
+          type="text"
+          value={editableFields[key as keyof T] || value || ""}
+          onChange={(e) =>
+            setEditableFields((prev) => ({ ...prev, [key]: e.target.value }))
+          }
+          className="form-input w-full text-sm border-gray-300 rounded"
+        />
+      ) : (
+        value?.toString() || "N/A"
+      )}
     </div>
   );
 
@@ -241,7 +229,7 @@ const EditReassignButtons = <T extends { status?: string }>({
         />
       </button>
 
-      <button
+      {/* <button
         ref={menuButtonRef}
         onClick={toggleMenu}
         title="Reassign"
@@ -255,7 +243,7 @@ const EditReassignButtons = <T extends { status?: string }>({
           size="34"
           className="transform scale-[0.6]"
         />
-      </button>
+      </button> */}
 
       <button
         onClick={toggleSidePanel}
@@ -266,8 +254,8 @@ const EditReassignButtons = <T extends { status?: string }>({
         aria-label="View details"
       >
         <InfoIcon
-          color="#55544dff"
-          size="34"
+          color="#d53d3dff"
+          size="42"
           className="transform scale-[0.6]"
         />
       </button>
@@ -309,12 +297,43 @@ const EditReassignButtons = <T extends { status?: string }>({
               <div className="p-4 border-b bg-gray-50">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
-                    <h2 className="text-lg font-semibold">Entitlement Details</h2>
-                    <h3 className="text-md font-medium mt-2">{(nodeData as any)?.["Ent Name"] || "Name: -"}</h3>
-                    <p className="text-sm text-gray-600">{(nodeData as any)?.["Ent Description"] || "Ent Description: -"}</p>
+                    <h2 className="text-lg font-semibold">
+                      {isEditMode ? "Edit Entitlement" : "Entitlement Details"}
+                    </h2>
+                    {isEditMode ? (
+                      <input
+                        type="text"
+                        value={editableFields["Ent Name" as keyof T] || (nodeData as any)?.["Ent Name"] || ""}
+                        onChange={(e) =>
+                          setEditableFields((prev) => ({ ...prev, "Ent Name": e.target.value }))
+                        }
+                        className="form-input w-full text-md font-medium mt-2 rounded"
+                      />
+                    ) : (
+                      <h3 className="text-md font-medium mt-2">
+                        {(nodeData as any)?.["Ent Name"] || "Name: -"}
+                      </h3>
+                    )}
+                    {isEditMode ? (
+                      <textarea
+                        value={editableFields["Ent Description" as keyof T] || (nodeData as any)?.["Ent Description"] || ""}
+                        onChange={(e) =>
+                          setEditableFields((prev) => ({ ...prev, "Ent Description": e.target.value }))
+                        }
+                        className="form-input w-full text-sm text-gray-600 mt-2 rounded"
+                        rows={2}
+                      />
+                    ) : (
+                      <p className="text-sm text-gray-600">
+                        {(nodeData as any)?.["Ent Description"] || "Ent Description: -"}
+                      </p>
+                    )}
                   </div>
                   <button
-                    onClick={() => setIsSidePanelOpen(false)}
+                    onClick={() => {
+                      setIsSidePanelOpen(false);
+                      setIsEditMode(false);
+                    }}
                     className="text-gray-600 hover:text-gray-800"
                     aria-label="Close panel"
                   >
@@ -322,69 +341,25 @@ const EditReassignButtons = <T extends { status?: string }>({
                   </button>
                 </div>
                 <div className="mt-3 flex space-x-2">
-                  <button
-                    onClick={handleApprove}
-                    title="Approve"
-                    aria-label="Approve entitlement"
-                    className={`p-1 rounded transition-colors duration-200 ${
-                      lastAction === "Approve" ? "bg-green-500" : "hover:bg-green-100"
-                    }`}
-                  >
-                    <CircleCheck
-                      className="cursor-pointer"
-                      color="#1c821cff"
-                      strokeWidth="1"
-                      size="32"
-                      fill={lastAction === "Approve" ? "#1c821cff" : "none"}
-                    />
-                  </button>
-                  <button
-                    onClick={handleRevoke}
-                    title="Revoke"
-                    aria-label="Revoke entitlement"
-                    className={`p-1 rounded ${
-                      (nodeData as any)?.status === "Rejected" ? "bg-red-100" : ""
-                    }`}
-                  >
-                    <CircleX
-                      className="cursor-pointer hover:opacity-80 transform rotate-90"
-                      color="#FF2D55"
-                      strokeWidth="1"
-                      size="32"
-                      fill={(nodeData as any)?.status === "Rejected" ? "#FF2D55" : "none"}
-                    />
-                  </button>
-                  <button
-                    onClick={handleComment}
-                    title="Comment"
-                    aria-label="Add comment"
-                    className="p-1 rounded"
-                  >
-                    <svg
-                      width="30"
-                      height="30"
-                      viewBox="0 0 32 32"
-                      className="cursor-pointer hover:opacity-80"
+                  {!isEditMode && (
+                    <button
+                      onClick={handleSidebarEdit}
+                      className="p-1 rounded bg-blue-500 text-white hover:bg-blue-600"
+                      aria-label="Edit entitlement"
                     >
-                      <path
-                        d="M0.700195 0V19.5546H3.5802V25.7765C3.57994 25.9525 3.62203 26.1247 3.70113 26.2711C3.78022 26.4176 3.89277 26.5318 4.02449 26.5992C4.15621 26.6666 4.30118 26.6842 4.44101 26.6498C4.58085 26.6153 4.70926 26.5304 4.80996 26.4058C6.65316 24.1232 10.3583 19.5546 10.3583 19.5546H25.1802V0H0.700195ZM2.1402 1.77769H23.7402V17.7769H9.76212L5.0202 23.6308V17.7769H2.1402V1.77769ZM5.0202 5.33307V7.11076H16.5402V5.33307H5.0202ZM26.6202 5.33307V7.11076H28.0602V23.11H25.1802V28.9639L20.4383 23.11H9.34019L7.9002 24.8877H19.8421C19.8421 24.8877 23.5472 29.4563 25.3904 31.7389C25.4911 31.8635 25.6195 31.9484 25.7594 31.9828C25.8992 32.0173 26.0442 31.9997 26.1759 31.9323C26.3076 31.8648 26.4202 31.7507 26.4993 31.6042C26.5784 31.4578 26.6204 31.2856 26.6202 31.1096V24.8877H29.5002V5.33307H26.6202ZM5.0202 8.88845V10.6661H10.7802V8.88845H5.0202ZM5.0202 12.4438V14.2215H19.4202V12.4438H5.0202Z"
-                        fill="#2684FF"
-                      />
-                    </svg>
-                  </button>
+                      Edit
+                    </button>
+                  )}
+                  {isEditMode && (
+                    <button
+                      onClick={handleSaveEdits}
+                      className="p-1 rounded bg-blue-500 text-white hover:bg-blue-600"
+                      aria-label="Save edits"
+                    >
+                      Save
+                    </button>
+                  )}
                 </div>
-                {/* <div className="mt-3">
-                  <span className="text-sm text-gray-700">Comment:</span>
-                  <div className="flex">
-                    <textarea
-                      className="form-input w-full text-sm border-gray-300 rounded"
-                      rows={2}
-                      value={comment}
-                      onChange={(e) => setComment(e.target.value)}
-                      placeholder="Enter comment"
-                    />
-                  </div>
-                </div> */}
               </div>
 
               <div className="p-4 space-y-4">
@@ -401,14 +376,18 @@ const EditReassignButtons = <T extends { status?: string }>({
                     <div className="p-4 space-y-2">
                       {renderSideBySideField(
                         "Ent Type",
+                        "Ent Type",
                         (nodeData as any)?.["Ent Type"],
                         "#Assignments",
+                        "Total Assignments",
                         (nodeData as any)?.["Total Assignments"]
                       )}
                       {renderSideBySideField(
                         "App Name",
+                        "App Name",
                         (nodeData as any)?.["App Name"],
                         "Tag(s)",
+                        "Dynamic Tag",
                         (nodeData as any)?.["Dynamic Tag"]
                       )}
                     </div>
@@ -426,17 +405,21 @@ const EditReassignButtons = <T extends { status?: string }>({
                   </button>
                   {expandedFrames.business && (
                     <div className="p-4 space-y-2">
-                      {renderSingleField("Objective", (nodeData as any)?.["Business Objective"])}
+                      {renderSingleField("Objective", "Business Objective", (nodeData as any)?.["Business Objective"])}
                       {renderSideBySideField(
+                        "Business Unit",
                         "Business Unit",
                         (nodeData as any)?.["Business Unit"],
                         "Business Owner",
+                        "Ent Owner",
                         (nodeData as any)?.["Ent Owner"]
                       )}
-                      {renderSingleField("Regulatory Scope", (nodeData as any)?.["Compliance Type"])}
+                      {renderSingleField("Regulatory Scope", "Compliance Type", (nodeData as any)?.["Compliance Type"])}
                       {renderSideBySideField(
                         "Data Classification",
+                        "Data Classification",
                         (nodeData as any)?.["Data Classification"],
+                        "Cost Center",
                         "Cost Center",
                         (nodeData as any)?.["Cost Center"]
                       )}
@@ -457,30 +440,38 @@ const EditReassignButtons = <T extends { status?: string }>({
                     <div className="p-4 space-y-2">
                       {renderSideBySideField(
                         "Created On",
+                        "Created On",
                         formatDate((nodeData as any)?.["Created On"]),
+                        "Last Sync",
                         "Last Sync",
                         formatDate((nodeData as any)?.["Last Sync"])
                       )}
                       {renderSideBySideField(
                         "App Name",
+                        "App Name",
                         (nodeData as any)?.["App Name"],
+                        "App Instance",
                         "App Instance",
                         (nodeData as any)?.["App Instance"]
                       )}
                       {renderSideBySideField(
                         "App Owner",
+                        "App Owner",
                         (nodeData as any)?.["App Owner"],
+                        "Ent Owner",
                         "Ent Owner",
                         (nodeData as any)?.["Ent Owner"]
                       )}
                       {renderSideBySideField(
                         "Hierarchy",
+                        "Hierarchy",
                         (nodeData as any)?.["Hierarchy"],
+                        "MFA Status",
                         "MFA Status",
                         (nodeData as any)?.["MFA Status"]
                       )}
-                      {renderSingleField("Assigned to/Member of", (nodeData as any)?.["assignment"])}
-                      {renderSingleField("License Type", (nodeData as any)?.["License Type"])}
+                      {renderSingleField("Assigned to/Member of", "assignment", (nodeData as any)?.["assignment"])}
+                      {renderSingleField("License Type", "License Type", (nodeData as any)?.["License Type"])}
                     </div>
                   )}
                 </div>
@@ -498,32 +489,40 @@ const EditReassignButtons = <T extends { status?: string }>({
                     <div className="p-4 space-y-2">
                       {renderSideBySideField(
                         "Risk",
+                        "Risk",
                         (nodeData as any)?.["Risk"],
+                        "Certifiable",
                         "Certifiable",
                         (nodeData as any)?.["Certifiable"]
                       )}
                       {renderSideBySideField(
                         "Revoke on Disable",
+                        "Revoke on Disable",
                         (nodeData as any)?.["Revoke on Disable"],
+                        "Shared Pwd",
                         "Shared Pwd",
                         (nodeData as any)?.["Shared Pwd"]
                       )}
-                      {renderSingleField("SoD/Toxic Combination", (nodeData as any)?.["SOD Check"])}
-                      {renderSingleField("Access Scope", (nodeData as any)?.["Access Scope"])}
+                      {renderSingleField("SoD/Toxic Combination", "SOD Check", (nodeData as any)?.["SOD Check"])}
+                      {renderSingleField("Access Scope", "Access Scope", (nodeData as any)?.["Access Scope"])}
                       {renderSideBySideField(
+                        "Review Schedule",
                         "Review Schedule",
                         (nodeData as any)?.["Review Schedule"],
                         "Last Reviewed On",
+                        "Last Reviewed on",
                         formatDate((nodeData as any)?.["Last Reviewed on"])
                       )}
                       {renderSideBySideField(
                         "Privileged",
+                        "Privileged",
                         (nodeData as any)?.["Privileged"],
+                        "Non Persistent Access",
                         "Non Persistent Access",
                         (nodeData as any)?.["Non Persistent Access"]
                       )}
-                      {renderSingleField("Audit Comments", (nodeData as any)?.["Audit Comments"])}
-                      {renderSingleField("Account Type Restriction", (nodeData as any)?.["Account Type Restriction"])}
+                      {renderSingleField("Audit Comments", "Audit Comments", (nodeData as any)?.["Audit Comments"])}
+                      {renderSingleField("Account Type Restriction", "Account Type Restriction", (nodeData as any)?.["Account Type Restriction"])}
                     </div>
                   )}
                 </div>
@@ -541,16 +540,18 @@ const EditReassignButtons = <T extends { status?: string }>({
                     <div className="p-4 space-y-2">
                       {renderSideBySideField(
                         "Requestable",
+                        "Requestable",
                         (nodeData as any)?.["Requestable"],
                         "Pre-Requisite",
+                        "Pre- Requisite",
                         (nodeData as any)?.["Pre- Requisite"]
                       )}
-                      {renderSingleField("Pre-Req Details", (nodeData as any)?.["Pre-Requisite Details"])}
-                      {renderSingleField("Auto Assign Access Policy", (nodeData as any)?.["Auto Assign Access Policy"])}
-                      {renderSingleField("Provisioner Group", (nodeData as any)?.["Provisioner Group"])}
-                      {renderSingleField("Provisioning Steps", (nodeData as any)?.["Provisioning Steps"])}
-                      {renderSingleField("Provisioning Mechanism", (nodeData as any)?.["Provisioning Mechanism"])}
-                      {renderSingleField("Action on Native Change", (nodeData as any)?.["Action on Native Change"])}
+                      {renderSingleField("Pre-Req Details", "Pre-Requisite Details", (nodeData as any)?.["Pre-Requisite Details"])}
+                      {renderSingleField("Auto Assign Access Policy", "Auto Assign Access Policy", (nodeData as any)?.["Auto Assign Access Policy"])}
+                      {renderSingleField("Provisioner Group", "Provisioner Group", (nodeData as any)?.["Provisioner Group"])}
+                      {renderSingleField("Provisioning Steps", "Provisioning Steps", (nodeData as any)?.["Provisioning Steps"])}
+                      {renderSingleField("Provisioning Mechanism", "Provisioning Mechanism", (nodeData as any)?.["Provisioning Mechanism"])}
+                      {renderSingleField("Action on Native Change", "Action on Native Change", (nodeData as any)?.["Action on Native Change"])}
                     </div>
                   )}
                 </div>

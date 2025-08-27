@@ -48,11 +48,11 @@ interface ActionCellRendererParams {
 // ];
 
 export const activeColumnDefs: ColDef[] = [
-  { headerName: "Campaign Name", field: "certificationName",width:350 },
+  { headerName: "Campaign Name", field: "certificationName",width:350,wrapText:true },
   { headerName: "Type", field: "type",width:250 },
   { headerName: "Owner", field: "owner",width:250 },
   { headerName: "Progress", field: "progress",width:250 },
-  { headerName: "Due In", field: "dueIn",width:250 },
+  { headerName: "Due In", field: "dueIn",width:200 },
   { headerName: "Estimated time to completion", field: "Estimated time to completion",width:250,hide: true  },
   { headerName: "Description", field: "description",width:250,hide: true  },
   { headerName: "Tags", field: "tags",width:250,hide: true  },

@@ -187,7 +187,7 @@ export default function Application() {
           return (
             <div className="flex items-center">
               <a
-                href={url}
+                // href={url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-600 hover:underline"
@@ -274,7 +274,7 @@ export default function Application() {
             <h2 className="text-sm font-semibold">
               App Distribution by Sync Type
             </h2>
-            <div className="w-100 h-100 mx-auto">
+            <div className="w-80 h-80">
               <Doughnut
                 data={syncTypeData}
                 options={{
