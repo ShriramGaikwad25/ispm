@@ -114,3 +114,13 @@ export async function updateAction(
     body: JSON.stringify(payload),
   });
 }
+
+export async function getAppOwnerDetails<T>(
+  reviewerId: string,
+  certId: string,
+  pageSize?: number,
+  pageNumber?: number
+): Promise<PaginatedResponse<T>> {
+  const endpoint = `${BASE_URL}/getAPPOCertificationDetails/${reviewerId}/${certId}`;
+  return fetchApi(endpoint, pageSize, pageNumber);
+}

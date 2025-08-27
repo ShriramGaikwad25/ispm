@@ -31,6 +31,7 @@ import { CheckCircleIcon, Flag, User, UserCheckIcon } from "lucide-react";
 import Import from "@/components/agTable/Import";
 import { MasterDetailModule } from "ag-grid-enterprise";
 import { ModuleRegistry } from "ag-grid-community";
+// import "./TreeClient.css";
 ModuleRegistry.registerModules([MasterDetailModule]);
 
 interface UserPopupProps {

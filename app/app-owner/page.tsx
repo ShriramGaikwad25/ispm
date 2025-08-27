@@ -16,13 +16,18 @@ import {
   FirstDataRenderedEvent,
 } from "ag-grid-enterprise";
 import ActionButtons from "@/components/agTable/ActionButtons";
-import { AlertTriangle, CheckCircle, CheckCircleIcon, MailIcon } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle,
+  CheckCircleIcon,
+  MailIcon,
+} from "lucide-react";
 import RightSidebar from "@/components/RightSideBar";
 import Accordion from "@/components/Accordion";
 import ChartAppOwnerComponent from "@/components/ChartForAppOwner";
 import "./AppOwner.css";
 
-// Register AG Grid Enterprise modules (if not already done in ag-grid-setup)
+// Register AG Grid Enterprise modules
 import { MasterDetailModule } from "ag-grid-enterprise";
 import { ModuleRegistry } from "ag-grid-community";
 ModuleRegistry.registerModules([MasterDetailModule]);
@@ -33,85 +38,27 @@ type DataItem = {
   color?: string;
 };
 
-/*** dummy data ***/
-const rowData = [
-  {
-    accountId: "Derrick Watson",
-    userId: "7243915",
-    entitlementName: "Job Title",
-    entitlementDescription: "Testing is going on",
-    aiInsights: "thumbs-down",
-    accountSummary: "Regular Accounts",
-    accountActivity: "Active in past 30 days",
-    changeSinceLastReview: "New accounts",
-    accountType: "Disabled",
-    userType: "Active",
-    lastLoginDate: "2025-05-25",
-    department: "Finance",
-    manager: "John Doe",
-  },
-  {
-    accountId: "Sophia Davis",
-    userId: "7243215",
-    entitlementName: "Job Title",
-    entitlementDescription: "Change Since Last Review",
-    aiInsights: "thumbs-up",
-    accountSummary: "Elevated Accounts",
-    accountActivity: "Active in past 30-60 days",
-    changeSinceLastReview: "New entitlements",
-    accountType: "Privileged",
-    userType: "Active",
-    lastLoginDate: "2025-05-22",
-    department: "Marketing",
-    manager: "Jane Smith",
-  },
-  {
-    accountId: "Michael Brown",
-    userId: "7241234",
-    entitlementName: "Analyst",
-    entitlementDescription: "New Entitlement",
-    aiInsights: "thumbs-up",
-    accountSummary: "Orphan Accounts",
-    accountActivity: "Active in past more than 90 days",
-    changeSinceLastReview: "Old accounts",
-    accountType: "Orphan",
-    userType: "Disable",
-    lastLoginDate: "2025-04-10",
-    department: "Operations",
-    manager: "David Johnson",
-  },
-  {
-    accountId: "Lisa Thompson",
-    userId: "7241987",
-    entitlementName: "Admin",
-    entitlementDescription: "Old Account - Retained Access",
-    aiInsights: "thumbs-down",
-    accountSummary: "Terminated User Accounts",
-    accountActivity: "Active in past more than 90 days",
-    changeSinceLastReview: "Old accounts",
-    accountType: "Disabled",
-    userType: "Disable",
-    lastLoginDate: "2025-03-05",
-    department: "HR",
-    manager: "Emily Davis",
-  },
-  {
-    accountId: "Kevin Smith",
-    userId: "7248892",
-    entitlementName: "Developer",
-    entitlementDescription: "Elevated Access Granted",
-    aiInsights: "thumbs-up",
-    accountSummary: "Elevated Accounts",
-    accountActivity: "Active in past 30 days",
-    changeSinceLastReview: "New entitlements",
-    accountType: "Privileged",
-    userType: "Active",
-    lastLoginDate: "2025-05-20",
-    department: "Engineering",
-    manager: "Mark Wilson",
-  },
-];
+// Define the type for row data based on API response
+type RowData = {
+  accountId: string;
+  userId: string;
+  entitlementName: string;
+  entitlementDescription: string;
+  aiInsights: string;
+  accountSummary: string;
+  accountActivity: string;
+  changeSinceLastReview: string;
+  accountType: string;
+  userType: string;
+  lastLoginDate: string;
+  department: string;
+  manager: string;
+  risk: string;
+  applicationName: string;
+  numOfEntitlements: number;
+};
 
+// Sample data structure for charts
 const data: {
   accountSummary: DataItem[];
   accountActivity: DataItem[];
@@ -141,30 +88,162 @@ const DetailCellRenderer = (props: IDetailCellRendererParams) => {
   return (
     <div className="flex p-4 bg-gray-50 border-t border-gray-200 ml-10">
       <div className="flex flex-row items-center gap-2">
-        <span className="font-bold text-md text-[#1759e4]">
-          Entitlement Description:-
-        </span>
         <span className="text-gray-800">{data.entitlementDescription}</span>
       </div>
     </div>
   );
 };
 
+// UUID validation function
+const isValidUUID = (str: string): boolean => {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
+};
+
+// Sample getAppOwnerDetails implementation
+async function getAppOwnerDetails(
+  page: number,
+  pageSize: number,
+  reviewerId: string,
+  certificationId: string
+) {
+  // Validate parameters
+  if (!Number.isInteger(page) || page < 1) {
+    throw new Error("Invalid page number: must be a positive integer");
+  }
+  if (!Number.isInteger(pageSize) || pageSize < 1) {
+    throw new Error("Invalid page size: must be a positive integer");
+  }
+  if (!isValidUUID(reviewerId)) {
+    throw new Error("Invalid reviewerId: must be a valid UUID");
+  }
+  if (!isValidUUID(certificationId)) {
+    throw new Error("Invalid certificationId: must be a valid UUID");
+  }
+
+  try {
+    const response = await fetch(
+      `https://preview.keyforge.ai/certification/api/v1/CERTTEST/getAPPOCertificationDetails/${reviewerId}/${certificationId}?pageSize=${pageSize}&pageNumber=${page}`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          // Add authentication headers if needed
+        },
+      }
+    );
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(
+        `API request failed: ${response.status} ${errorData.errorMessage || response.statusText}`
+      );
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("API error:", error);
+    throw error;
+  }
+}
+
 export default function AppOwner() {
-  const [selected, setSelected] = useState<{ [key: string]: number | null }>(
-    {}
-  );
+  const [selected, setSelected] = useState<{ [key: string]: number | null }>({});
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [groupByColumn, setGroupByColumn] = useState<string | null>(null);
   const [isGridReady, setIsGridReady] = useState(false);
-  const pageSizeSelector = [5, 10, 20, 50, 100];
+  const [rowData, setRowData] = useState<RowData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const pageSizeSelector = [10, 20, 50, 100];
   const defaultPageSize = pageSizeSelector[0];
   const [pageNumber, setPageNumber] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
   const gridApiRef = useRef<GridApi | null>(null);
   const [detailGridApis, setDetailGridApis] = useState<Map<string, GridApi>>(
     new Map()
   );
   const [comment, setComment] = useState("");
+
+  // Hardcoded UUIDs from API response (replace with dynamic values if available)
+  const reviewerId = "430ea9e6-3cff-449c-a24e-59c057f81e3d";
+  const certificationId = "4f5c20b8-1031-4114-a688-3b5be9cc2224";
+
+  // Transform API response to RowData
+  const transformApiData = (items: any[]): RowData[] => {
+    return items.flatMap((item) =>
+      item.entityEntitlements.map((entitlement: any) => ({
+        accountId: item.accountInfo.accountId,
+        accountName:item.accountInfo.accountName,
+        userId: item.userInfo.UserID,
+        entitlementName: entitlement.entitlementInfo.entitlementName,
+        entitlementDescription: entitlement.entitlementInfo.entitlementName,
+        aiInsights: entitlement.aiassist?.recommendation ,
+        accountSummary: item.accountInfo.accountName.includes("@")
+          ? "Regular Accounts"
+          : "Other",
+        changeSinceLastReview: "New entitlements", // Update based on deltaChanges
+        accountType: item.campaignType,
+        userName: item.userInfo.UserName,
+        lastLoginDate: "2025-05-25", // Update with real data
+        department: "Unknown", // Update if available
+        manager: "Unknown", // Update if available
+        risk: item.userInfo.Risk,
+        applicationName: item.applicationInfo.applicationName,
+        numOfEntitlements: item.access.numOfEntitlements,
+      }))
+    );
+  };
+
+  // Fetch data with pagination and additional parameters
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Validate parameters before API call
+        if (!isValidUUID(reviewerId)) {
+          throw new Error("Invalid reviewerId: must be a valid UUID");
+        }
+        if (!isValidUUID(certificationId)) {
+          throw new Error("Invalid certificationId: must be a valid UUID");
+        }
+        if (!Number.isInteger(pageNumber) || pageNumber < 1) {
+          throw new Error("Invalid page number: must be a positive integer");
+        }
+        if (!Number.isInteger(defaultPageSize) || defaultPageSize < 1) {
+          throw new Error("Invalid page size: must be a positive integer");
+        }
+
+        console.log("Fetching data with:", {
+          pageNumber,
+          pageSize: defaultPageSize,
+          reviewerId,
+          certificationId,
+        });
+
+        const response = await getAppOwnerDetails(
+          pageNumber,
+          defaultPageSize,
+          reviewerId,
+          certificationId
+        );
+        if (response.status === "error") {
+          throw new Error(response.errorMessage || "API returned an error");
+        }
+        const transformedData = transformApiData(response.items);
+        setRowData(transformedData);
+        setTotalPages(response.total_pages);
+        setTotalItems(response.total_items);
+      } catch (err: any) {
+        console.error("Error fetching app owner details:", err);
+        setError(err.message || "Failed to load data. Please try again later.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [pageNumber, defaultPageSize, reviewerId, certificationId]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setComment(e.target.value);
@@ -178,7 +257,7 @@ export default function AppOwner() {
   };
 
   const handlePageChange = (newPage: number) => {
-    if (newPage !== pageNumber) {
+    if (newPage !== pageNumber && newPage >= 1 && newPage <= totalPages) {
       setPageNumber(newPage);
     }
   };
@@ -202,7 +281,7 @@ export default function AppOwner() {
     () => ({
       minWidth: 200,
       cellRendererParams: {
-        suppressExpand: true, // Hide the arrow for dynamic group column
+        suppressExpand: true,
       },
     }),
     []
@@ -211,77 +290,6 @@ export default function AppOwner() {
   const detailCellRenderer = useCallback(DetailCellRenderer, []);
 
   const [columnDefs, setColumnDefs] = useState<ColDef[]>([
-    {
-      field: "accountId",
-      headerName: "Account ID",
-      cellRenderer: "agGroupCellRenderer",
-      cellRendererParams: {
-        suppressExpand: true,
-        innerRenderer: (params: ICellRendererParams) => {
-          const { accountType } = params.data || {};
-          const accountTypeLabel = accountType ? `(${accountType})` : "";
-          return (
-            <div className="flex items-center space-x-2">
-              <div
-                className="flex flex-col gap-0 cursor-pointer hover:underline"
-                onClick={openModal}
-              >
-                <span className="text-gray-800 font-bold text-[14px]">
-                  {params.value}{" "}
-                  {accountType && (
-                    <span
-                      className="text-[#175AE4] font-normal"
-                      title={`Account Type: ${accountType}`}
-                    >
-                      {accountTypeLabel}
-                    </span>
-                  )}
-                </span>
-              </div>
-            </div>
-          );
-        },
-      },
-      cellClass: "ag-cell-no-padding",
-    },
-    {
-      field: "risk",
-      headerName: "Risk",
-      width: 100,
-      cellRenderer: (params: ICellRendererParams) => {
-        const userName = params.value;
-        const risk = params.data?.risk;
-        const riskColor =
-          risk === "High" ? "red" : risk === "Medium" ? "orange" : "green";
-        return <span style={{ color: riskColor }}>{userName}</span>;
-      },
-    },
-    {
-      field: "Display Name",
-      headerName: "Display Name",
-      cellRenderer: (params: ICellRendererParams) => {
-        const { userType } = params.data || {};
-        const userTypeLabel = userType ? `(${userType})` : "";
-        return (
-          <div
-            className="flex flex-col gap-0 cursor-pointer hover:underline"
-            onClick={openModal}
-          >
-            <span className="text-gray-800">
-              {/* {params.value}{" "}
-              {userType && (
-                <span
-                  className="text-[#175AE4] font-normal"
-                  title={`User Type: ${userType}`}
-                >
-                  {userTypeLabel}
-                </span>
-              )} */}
-            </span>
-          </div>
-        );
-      },
-    },
     {
       field: "entitlementName",
       headerName: "Entitlement Name",
@@ -293,7 +301,61 @@ export default function AppOwner() {
       ),
     },
     {
-      field: "lastLogin",
+      field: "accountName",
+      headerName: "Account ID",
+      cellRenderer: "agGroupCellRenderer",
+      // cellRendererParams: {
+      //   suppressExpand: true,
+      //   innerRenderer: (params: ICellRendererParams) => {
+      //     const { accountType } = params.data || {};
+      //     const accountTypeLabel = accountType ? `(${accountType})` : "";
+      //     return (
+      //       <div className="flex items-center space-x-2">
+      //         <div
+      //           className="flex flex-col gap-0 cursor-pointer hover:underline"
+      //           onClick={openModal}
+      //         >
+      //           <span className="text-gray-800 font-bold text-[14px]">
+      //             {params.value}{" "}
+      //             {accountType && (
+      //               <span
+      //                 className="text-[#175AE4] font-normal"
+      //                 title={`Account Type: ${accountType}`}
+      //               >
+      //                 {accountTypeLabel}
+      //               </span>
+      //             )}
+      //           </span>
+      //         </div>
+      //       </div>
+      //     );
+      //   },
+      // },
+      cellClass: "ag-cell-no-padding",
+    },
+    {
+      field: "risk",
+      headerName: "Risk",
+      width: 100,
+      cellRenderer: (params: ICellRendererParams) => {
+        const risk = params.data?.risk || "Low";
+        const riskColor =
+          risk === "High" ? "red" : risk === "Medium" ? "orange" : "green";
+        return <span style={{ color: riskColor }}>{risk}</span>;
+      },
+    },
+    // {
+    //   field: "userId",
+    //   headerName: "User ID",
+    //   cellRenderer: (params: ICellRendererParams) => (
+    //     <div className="flex flex-col gap-0">
+    //       <span className="text-gray-800">{params.value}</span>
+    //     </div>
+    //   ),
+    // },
+    {field: "userName", headerName: "Display Name",},
+    {
+      field: "lastLoginDate",
       headerName: "Last Login Date",
       enableRowGroup: true,
       cellRenderer: (params: ICellRendererParams) => (
@@ -336,25 +398,20 @@ export default function AppOwner() {
       },
       onCellClicked: handleOpen,
     },
-    { field: "Account Type", headerName: "Account Type", flex: 2, hide: true },
-    { field: "User Status", headerName: "User Status", flex: 2, hide: true },
-    { field: "User ID", headerName: "User ID", flex: 2, hide: true },
-    { field: "User Manager", headerName: "User Manager", flex: 2, hide: true },
-    { field: "User Dept", headerName: "User Dept", flex: 2, hide: true },
-    { field: "Job Title", headerName: "Job Title", flex: 2, hide: true },
-    {
-      field: "Access Grant Date",
-      headerName: "Access Grant Date",
-      flex: 2,
-      hide: true,
-    },
-    { field: "User Type", headerName: "User Type", flex: 2, hide: true },
-    {
-      field: "Entitlement Type",
-      headerName: "Entitlement Type",
-      flex: 2,
-      hide: true,
-    },
+    // {
+    //   field: "applicationName",
+    //   headerName: "Application Name",
+    //   flex: 2,
+    // },
+    // {
+    //   field: "numOfEntitlements",
+    //   headerName: "Number of Entitlements",
+    //   flex: 2,
+    // },
+    { field: "accountType", headerName: "Account Type", flex: 2, hide: true },
+    { field: "userType", headerName: "User Status", flex: 2, hide: true },
+    { field: "department", headerName: "User Dept", flex: 2, hide: true },
+    { field: "manager", headerName: "User Manager", flex: 2, hide: true },
     {
       field: "actions",
       headerName: "Actions",
@@ -364,7 +421,6 @@ export default function AppOwner() {
     },
   ]);
 
-  // Get columns available for row grouping
   const groupableColumns = useMemo(() => {
     return columnDefs
       .filter((col) => col.enableRowGroup && col.field)
@@ -374,7 +430,6 @@ export default function AppOwner() {
       }));
   }, [columnDefs]);
 
-  // Apply row grouping with retry mechanism
   const applyRowGrouping = (
     selectedField: string | null,
     retries = 5,
@@ -404,7 +459,6 @@ export default function AppOwner() {
     }
   };
 
-  // Handle group by column change
   const handleGroupByChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedField = event.target.value || null;
     console.log("Group by changed to:", selectedField);
@@ -416,7 +470,6 @@ export default function AppOwner() {
     }
   };
 
-  // Expand the first row by default
   const onFirstDataRendered = useCallback((params: FirstDataRenderedEvent) => {
     params.api.forEachNode(function (node) {
       if (node.id === "0") {
@@ -425,7 +478,6 @@ export default function AppOwner() {
     });
   }, []);
 
-  // Log grid initialization status and apply initial grouping
   useEffect(() => {
     if (isGridReady && gridApiRef.current && gridApiRef.current.columnApi) {
       console.log("Grid API and Column API initialized successfully", {
@@ -459,31 +511,10 @@ export default function AppOwner() {
           showExpandCollapse={true}
         />
         <div className="flex items-center space-x-4">
-          {/* <div className="flex items-center">
-            <label htmlFor="groupBy" className="mr-2 text-sm font-semibold">
-              Group By:
-            </label>
-            <select
-              id="groupBy"
-              value={groupByColumn || ""}
-              onChange={handleGroupByChange}
-              disabled={!isGridReady}
-              className={`border border-gray-300 rounded-md px-2 py-1 text-sm ${
-                !isGridReady ? "opacity-50 cursor-not-allowed" : ""
-              }`}
-            >
-              <option value="">None</option>
-              {groupableColumns.map((col) => (
-                <option key={col.field} value={col.field}>
-                  {col.headerName}
-                </option>
-              ))}
-            </select>
-          </div> */}
           <CustomPagination
-            totalItems={rowData.length}
+            totalItems={totalItems}
             currentPage={pageNumber}
-            totalPages={Math.ceil(rowData.length / defaultPageSize)}
+            totalPages={totalPages}
             pageSize={defaultPageSize}
             onPageChange={handlePageChange}
           />
@@ -499,7 +530,7 @@ export default function AppOwner() {
             aria-label="Sign off selected rows"
             className="p-1 rounded transition-colors duration-200"
           >
-            <CheckCircleIcon  
+            <CheckCircleIcon
               className="curser-pointer"
               strokeWidth="1"
               size="24"
@@ -521,46 +552,66 @@ export default function AppOwner() {
           />
         </div>
       </div>
-      <div style={{ height: "100%", width: "100%" }}>
-        <AgGridReact
-          rowData={rowData}
-          getRowId={(params: GetRowIdParams) => params.data.accountId}
-          columnDefs={columnDefs}
-          groupDefaultExpanded={-1}
-          defaultColDef={defaultColDef}
-          autoGroupColumnDef={autoGroupColumnDef}
-          rowGroupPanelShow={"never"}
-          domLayout="autoHeight"
-          rowSelection={{
-            mode: "multiRow",
-            masterSelects: "detail",
-          }}
-          masterDetail={true}
-          detailCellRenderer={detailCellRenderer}
-          detailRowAutoHeight={true}
-          onGridReady={(params) => {
-            console.log("onGridReady triggered at", new Date().toISOString());
-            gridApiRef.current = params.api;
-            params.api.sizeColumnsToFit();
-            setIsGridReady(true);
-            console.log("Grid initialized:", {
-              api: !!params.api,
-              columnApi: !!params.columnApi,
-              enterpriseModules: params.api.isEnterprise?.()
-                ? "Loaded"
-                : "Not loaded",
-              columns: params.columnApi
-                ?.getAllColumns()
-                ?.map((col) => col.getColId()),
-            });
-          }}
-          onFirstDataRendered={onFirstDataRendered}
-          pagination={false}
-          overlayLoadingTemplate={`<span class="ag-overlay-loading-center">⏳ Loading certification data...</span>`}
-          overlayNoRowsTemplate={`<span class="ag-overlay-loading-center">No data to display.</span>`}
-          className="ag-theme-quartz ag-main"
-        />
-      </div>
+      {loading ? (
+        <div className="text-center py-4">
+          <span className="ag-overlay-loading-center">
+            ⏳ Loading certification data...
+          </span>
+        </div>
+      ) : error ? (
+        <div className="text-center py-4 text-red-600">
+          {error}
+          <button
+            onClick={() => setPageNumber(1)} // Retry fetching
+            className="ml-4 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Retry
+          </button>
+        </div>
+      ) : (
+        <div style={{ height: "100%", width: "100%" }}>
+          <AgGridReact
+            rowData={rowData}
+            getRowId={(params: GetRowIdParams) =>
+              `${params.data.accountId}-${params.data.entitlementName}`
+            }
+            columnDefs={columnDefs}
+            groupDefaultExpanded={-1}
+            defaultColDef={defaultColDef}
+            autoGroupColumnDef={autoGroupColumnDef}
+            rowGroupPanelShow={"never"}
+            domLayout="autoHeight"
+            rowSelection={{
+              mode: "multiRow",
+              masterSelects: "detail",
+            }}
+            masterDetail={true}
+            detailCellRenderer={detailCellRenderer}
+            detailRowAutoHeight={true}
+            onGridReady={(params) => {
+              console.log("onGridReady triggered at", new Date().toISOString());
+              gridApiRef.current = params.api;
+              params.api.sizeColumnsToFit();
+              setIsGridReady(true);
+              console.log("Grid initialized:", {
+                api: !!params.api,
+                columnApi: !!params.columnApi,
+                enterpriseModules: params.api.isEnterprise?.()
+                  ? "Loaded"
+                  : "Not loaded",
+                columns: params.columnApi
+                  ?.getAllColumns()
+                  ?.map((col) => col.getColId()),
+              });
+            }}
+            onFirstDataRendered={onFirstDataRendered}
+            pagination={false}
+            overlayLoadingTemplate={`<span class="ag-overlay-loading-center">⏳ Loading certification data...</span>`}
+            overlayNoRowsTemplate={`<span class="ag-overlay-loading-center">No data to display.</span>`}
+            className="ag-theme-quartz ag-main"
+          />
+        </div>
+      )}
       <RightSidebar isOpen={isSidebarOpen} onClose={handleClose}>
         <div className="max-w-3xl mx-auto p-4 bg-white shadow-lg rounded-xl border border-gray-200 space-y-6">
           <div>

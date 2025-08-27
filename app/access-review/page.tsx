@@ -321,7 +321,8 @@ const expiredColumnDefs: ColDef[] = [
   { headerName: "Tags", field: "tags", width: 250, hide: true },
 ];
 
-const reviewerId = "0089414b-fb84-4fba-8a30-afc7386eab49";
+// const reviewerId = "0089414b-fb84-4fba-8a30-afc7386eab49";
+const reviewerId = "430ea9e6-3cff-449c-a24e-59c057f81e3d";
 
 const AccessReview: React.FC = () => {
   const [gridApi, setGridApi] = useState<GridApi | null>(null);
@@ -427,10 +428,17 @@ const AccessReview: React.FC = () => {
   const handleRowClick = (e: RowClickedEvent<CertificationRow>) => {
     const clickedReviewerId = e.data?.reviewerId;
     const clickedCertificationId = e.data?.certificationId;
+    const certificationType = e.data?.certificationType;
     if (clickedReviewerId && clickedCertificationId) {
+      if(certificationType === "UserAccessReview"){
       router.push(
         `/access-review/${clickedReviewerId}/${clickedCertificationId}`
       );
+    }else if(certificationType === "AppOwnerReview"){
+            router.push(
+        `/app-owner`
+      );
+    }
     }
   };
 

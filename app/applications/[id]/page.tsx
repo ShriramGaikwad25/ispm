@@ -4,12 +4,21 @@ import ChartComponent from "@/components/ChartComponent";
 import HorizontalTabs from "@/components/HorizontalTabs";
 import { ColDef, GridApi, ICellRendererParams } from "ag-grid-enterprise";
 import { AgGridReact } from "ag-grid-react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  CircleCheck,
+  CircleX,
+  Info,
+  InfoIcon,
+} from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import "@/lib/ag-grid-setup";
 import Exports from "@/components/agTable/Exports";
 import EditReassignButtons from "@/components/agTable/EditReassignButtons";
 import ActionButtons from "@/components/agTable/ActionButtons";
+import Link from "next/link";
+import Tabs from "@/components/tabs";
 
 interface DataItem {
   label: string;
@@ -49,6 +58,7 @@ const dataAccount: Record<string, DataItem[]> = {
     { label: "Active in past more than 90 days", value: 0 },
   ],
 };
+
 export default function ApplicationDetailPage() {
   const [tabIndex, setTabIndex] = useState(1);
   const gridApiRef = useRef<GridApi | null>(null);
@@ -309,7 +319,6 @@ export default function ApplicationDetailPage() {
     {
       field: "lastaction",
       headerName: "Last Access Review",
-
     },
     { field: "Account Type", headerName: "Account Type", flex: 2, hide: true },
     { field: "User Status", headerName: "User Status", flex: 2, hide: true },
@@ -333,31 +342,30 @@ export default function ApplicationDetailPage() {
     {
       field: "syncDate",
       headerName: "Sync Date",
-
     },
   ]);
 
   const colDefs = useMemo<ColDef[]>(
     () => [
-      // Default 6 visible columns
-      { field: "Ent ID", headerName: "Entitlement ID", flex: 2 },
-      { field: "Ent Name", headerName: "Enttitlement Name", flex: 2 },
+      { field: "Ent Name", headerName: "Enttitlement Name", flex: 2.5 },
+      { field: "Ent Type", headerName: "Enttitlement Type", flex: 2.5 },
+      { field: "Risk", headerName: "Risk", flex: 1.5 },
+      { field: "App Name", headerName: "Application Name", flex: 2.5 },
+      { field: "assignment", headerName: "Assignment", flex: 2 },
+      { field: "Last Sync", headerName: "Last Sync", flex: 2 },
       {
-        field: "Ent Description",
-        headerName: "Entitlement Description",
+        field: "Last Reviewed on",
+        headerName: "Last Reviewed",
         flex: 2,
       },
       {
         field: "Total Assignments",
         headerName: "Total Assignments",
         flex: 1.5,
+        hide: true,
       },
-      { field: "Last Sync", headerName: "Last Sync", flex: 2 },
-      { field: "Requestable", headerName: "Requestable", flex: 2 },
-
-      // Remaining hidden columns (initially hidden)
+      { field: "Requestable", headerName: "Requestable", flex: 2, hide: true },
       { field: "Certifiable", headerName: "Certifiable", flex: 2, hide: true },
-      { field: "Risk", headerName: "Risk", flex: 1.5, hide: true },
       { field: "SOD Check", headerName: "SOD Check", flex: 1.5, hide: true },
       { field: "Hierarchy", headerName: "Hierarchy", flex: 2, hide: true },
       {
@@ -403,12 +411,6 @@ export default function ApplicationDetailPage() {
         flex: 1.5,
         hide: true,
       },
-      {
-        field: "Last Reviewed on",
-        headerName: "Last Reviewed on",
-        flex: 1.5,
-        hide: true,
-      },
       { field: "Reviewed", headerName: "Reviewed", flex: 2, hide: true },
       { field: "Dynamic Tag", headerName: "Dynamic Tag", flex: 2, hide: true },
       { field: "MFA Status", headerName: "MFA Status", flex: 1.5, hide: true },
@@ -443,6 +445,100 @@ export default function ApplicationDetailPage() {
     []
   );
 
+  const underReviewColDefs = useMemo<ColDef[]>(
+    () => [
+      { field: "Ent Name", headerName: "Entitlement Name", flex: 2.5 },
+      { field: "Ent Type", headerName: "Entitlement Type", flex: 2 },
+      {
+        field: "Risk",
+        headerName: "Ent Risk",
+        flex: 1.5,
+        cellRenderer: (params: ICellRendererParams) => {
+          const risk = params.value;
+          const riskColor =
+            risk === "High" ? "red" : risk === "Medium" ? "orange" : "green";
+          return <span style={{ color: riskColor }}>{risk}</span>;
+        },
+      },
+      { field: "App Name", headerName: "Application Name", flex: 2 },
+      { field: "Last Reviewed on", headerName: "Last Reviewed", flex: 2 },
+      {
+        headerName: "Actions",
+        width: 500,
+        // headerComponent: () => null,
+        cellRenderer: (params: ICellRendererParams) => {
+          return (
+            <div className="flex space-x-4 h-full items-center">
+              {/* {error && <div className="text-red-500 text-sm">{error}</div>} */}
+              <button
+                // onClick={handleApprove}
+                title="Approve"
+                aria-label="Approve selected rows"
+                // className={`p-1 rounded transition-colors duration-200 ${
+                //   lastAction === "Approve" ? "bg-green-500" : "hover:bg-green-100"
+                // }`}
+              >
+                <CircleCheck
+                  className="cursor-pointer"
+                  color="#1c821cff"
+                  strokeWidth="1"
+                  size="32"
+                  // fill={lastAction === "Approve" ? "#1c821cff" : "none"}
+                />
+              </button>
+
+              <button
+                // onClick={handleRevoke}
+                title="Revoke"
+                aria-label="Revoke selected rows"
+                // className={`p-1 rounded ${isRejected ? "bg-red-100" : ""}`}
+              >
+                <CircleX
+                  className="cursor-pointer hover:opacity-80 transform rotate-90"
+                  color="#FF2D55"
+                  strokeWidth="1"
+                  size="32"
+                  // fill={isRejected ? "#FF2D55" : "none"}
+                />
+              </button>
+
+              <button
+                // onClick={handleComment}
+                title="Comment"
+                aria-label="Add comment"
+                className="p-1 rounded"
+              >
+                <svg
+                  width="30"
+                  height="30"
+                  viewBox="0 0 32 32"
+                  className="cursor-pointer hover:opacity-80"
+                >
+                  <path
+                    d="M0.700195 0V19.5546H3.5802V25.7765C3.57994 25.9525 3.62203 26.1247 3.70113 26.2711C3.78022 26.4176 3.89277 26.5318 4.02449 26.5992C4.15621 26.6666 4.30118 26.6842 4.44101 26.6498C4.58085 26.6153 4.70926 26.5304 4.80996 26.4058C6.65316 24.1232 10.3583 19.5546 10.3583 19.5546H25.1802V0H0.700195ZM2.1402 1.77769H23.7402V17.7769H9.76212L5.0202 23.6308V17.7769H2.1402V1.77769ZM5.0202 5.33307V7.11076H16.5402V5.33307H5.0202ZM26.6202 5.33307V7.11076H28.0602V23.11H25.1802V28.9639L20.4383 23.11H9.34019L7.9002 24.8877H19.8421C19.8421 24.8877 23.5472 29.4563 25.3904 31.7389C25.4911 31.8635 25.6195 31.9484 25.7594 31.9828C25.8992 32.0173 26.0442 31.9997 26.1759 31.9323C26.3076 31.8648 26.4202 31.7507 26.4993 31.6042C26.5784 31.4578 26.6204 31.2856 26.6202 31.1096V24.8877H29.5002V5.33307H26.6202ZM5.0202 8.88845V10.6661H10.7802V8.88845H5.0202ZM5.0202 12.4438V14.2215H19.4202V12.4438H5.0202Z"
+                    fill="#2684FF"
+                  />
+                </svg>
+              </button>
+              <button className="p-1 rounded">
+                <InfoIcon
+                  color="#55544dff"
+                  size="34"
+                  className="transform scale-[0.6]"
+                />
+              </button>
+            </div>
+          );
+        },
+        suppressMenu: true,
+        sortable: false,
+        filter: false,
+        resizable: false,
+      },
+    ],
+    []
+  );
+
   const detailCellRendererParams = useMemo(() => {
     return {
       detailGridOptions: {
@@ -462,6 +558,138 @@ export default function ApplicationDetailPage() {
     filter: true,
     resizable: true,
   };
+
+  const tabsDataEnt = [
+    {
+      label: "All",
+      icon: ChevronDown,
+      iconOff: ChevronRight,
+      component: () => {
+        return (
+          <div
+            className="ag-theme-alpine"
+            style={{ height: 500, width: "100%" }}
+          >
+            <div className="relative mb-2">
+              <Accordion
+                iconClass="top-1 right-0 rounded-full text-white bg-purple-800"
+                open={true}
+              >
+                <div className="grid grid-cols-4 gap-10">
+                  {Object.entries(data).map(([category, items]) => (
+                    <div key={category}>
+                      <div className="flex justify-between items-center mb-2 border-b border-gray-300 pb-2 p-4">
+                        <h3 className="font-semibold text-sm capitalize">
+                          {category.replace(/([A-Z])/g, " $1")}
+                        </h3>
+                        <button
+                          onClick={() => {
+                            setSelected((prev) => ({
+                              ...prev,
+                              [category]: null,
+                            }));
+                          }}
+                          className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                        >
+                          Clear
+                          {selected[category] !== undefined &&
+                          selected[category] !== null ? (
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-3 w-3 text-blue-600"
+                              viewBox="0 0 24 24"
+                              fill="currentColor"
+                            >
+                              <path d="M3 4a1 1 0 011-1h16a1 1 0 01.8 1.6l-5.6 7.5V18a1 1 0 01-.45.84l-4 2.5A1 1 0 019 20.5v-8.4L3.2 5.6A1 1 0 013 4z" />
+                            </svg>
+                          ) : (
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-3 w-3 text-blue-600"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M3 4a1 1 0 011-1h16a1 1 0 01.8 1.6l-5.6 7.5V18a1 1 0 01-.45.84l-4 2.5A1 1 0 019 20.5v-8.4L3.2 5.6A1 1 0 013 4z"
+                              />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+
+                      <div className="space-y-2 pl-8 pr-8">
+                        {items.map((item, index) => (
+                          <div
+                            key={index}
+                            className={`flex text-sm relative items-center p-3 rounded-sm cursor-pointer transition-all ${
+                              selected[category] === index
+                                ? "bg-[#6574BD] text-white"
+                                : "bg-[#F0F2FC] hover:bg-[#e5e9f9]"
+                            } ${item.color || ""}`}
+                            onClick={() => handleSelect(category, index)}
+                          >
+                            <span>{item.label}</span>
+                            <span
+                              className={`font-semibold absolute -right-2 bg-white border p-1 text-[12px]  rounded-sm ${
+                                selected[category] === index
+                                  ? "border-[#6574BD] text-[#6574BD]"
+                                  : "border-[#e5e9f9]"
+                              }`}
+                            >
+                              {item.value}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Accordion>
+            </div>
+            <div className="flex justify-end mb-4 relative z-10">
+              <Exports gridApi={gridApiRef.current} />
+            </div>
+
+            <AgGridReact
+              rowData={rowData2}
+              columnDefs={colDefs}
+              defaultColDef={defaultColDef}
+              masterDetail={true}
+              detailCellRendererParams={detailCellRendererParams}
+            />
+          </div>
+        );
+      },
+    },
+    {
+      label: "Under Review",
+      icon: ChevronDown,
+      iconOff: ChevronRight,
+      component: () => (
+        <div className="ag-theme-alpine" style={{ height: 500, width: "100%" }}>
+          <div className="relative mb-4">
+            <h1 className="text-xl font-bold border-b border-gray-300 pb-2 text-blue-950">
+              Under Review
+            </h1>
+          </div>
+          <div className="flex justify-end mb-4 relative z-10">
+            <Exports gridApi={gridApiRef.current} />
+          </div>
+          <AgGridReact
+            rowData={rowData2}
+            columnDefs={underReviewColDefs}
+            defaultColDef={defaultColDef}
+            masterDetail={true}
+            detailCellRendererParams={detailCellRendererParams}
+          />
+        </div>
+      ),
+    },
+  ];
 
   const tabsData = [
     {
@@ -563,7 +791,10 @@ export default function ApplicationDetailPage() {
                 </div>
               </Accordion>
             </div>
-            <div className="flex justify-end mb-4 relative z-10 pt-10">
+            <div
+              className="flex justify-end mb-4 Phase 3: Implementing the new column definitions for the Under Review tab
+relative z-10 pt-10"
+            >
               <Exports gridApi={gridApiRef.current} />
             </div>
 
@@ -571,7 +802,6 @@ export default function ApplicationDetailPage() {
               rowData={rowData}
               columnDefs={columnDefs}
               defaultColDef={defaultColDef}
-              // rowSelection={rowSelection}
               masterDetail={true}
               detailCellRendererParams={detailCellRendererParams}
             />
@@ -593,97 +823,13 @@ export default function ApplicationDetailPage() {
               <h1 className="text-xl font-bold pb-2 text-blue-950">
                 Entitlements
               </h1>
-              <Accordion
-                iconClass="top-1 right-0 rounded-full text-white bg-purple-800"
-                open={true}
-              >
-                <div className="grid grid-cols-4 gap-10 p-2">
-                  {Object.entries(data).map(([category, items]) => (
-                    <div key={category}>
-                      <div className="flex justify-between items-center mb-2 border-b border-gray-300 pb-2 p-4">
-                        <h3 className="font-semibold text-sm capitalize">
-                          {category.replace(/([A-Z])/g, " $1")}
-                        </h3>
-                        <button
-                          onClick={() => {
-                            setSelected((prev) => ({
-                              ...prev,
-                              [category]: null,
-                            }));
-                          }}
-                          className="text-xs text-blue-600 hover:underline flex items-center gap-1"
-                        >
-                          Clear
-                          {selected[category] !== undefined &&
-                          selected[category] !== null ? (
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="h-3 w-3 text-blue-600"
-                              viewBox="0 0 24 24"
-                              fill="currentColor"
-                            >
-                              <path d="M3 4a1 1 0 011-1h16a1 1 0 01.8 1.6l-5.6 7.5V18a1 1 0 01-.45.84l-4 2.5A1 1 0 019 20.5v-8.4L3.2 5.6A1 1 0 013 4z" />
-                            </svg>
-                          ) : (
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="h-3 w-3 text-blue-600"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                d="M3 4a1 1 0 011-1h16a1 1 0 01.8 1.6l-5.6 7.5V18a1 1 0 01-.45.84l-4 2.5A1 1 0 019 20.5v-8.4L3.2 5.6A1 1 0 013 4z"
-                              />
-                            </svg>
-                          )}
-                        </button>
-                      </div>
-
-                      <div className="space-y-2 pl-8 pr-8">
-                        {items.map((item, index) => (
-                          <div
-                            key={index}
-                            className={`flex text-sm relative items-center p-3 rounded-sm cursor-pointer transition-all ${
-                              selected[category] === index
-                                ? "bg-[#6574BD] text-white"
-                                : "bg-[#F0F2FC] hover:bg-[#e5e9f9]"
-                            } ${item.color || ""}`}
-                            onClick={() => handleSelect(category, index)}
-                          >
-                            <span>{item.label}</span>
-                            <span
-                              className={`font-semibold absolute -right-2 bg-white border p-1 text-[12px]  rounded-sm ${
-                                selected[category] === index
-                                  ? "border-[#6574BD] text-[#6574BD]"
-                                  : "border-[#e5e9f9]"
-                              }`}
-                            >
-                              {item.value}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </Accordion>
+              <Tabs
+                tabs={tabsDataEnt}
+                activeClass="bg-[#15274E] text-white rounded-sm -ml-1"
+                buttonClass="h-10 -mt-1 w-50"
+                className="ml-0.5 border border-gray-300 w-80 h-8 rounded-md"
+              />
             </div>
-            <div className="flex justify-end mb-4 relative z-10 pt-10">
-              <Exports gridApi={gridApiRef.current} />
-            </div>
-
-            <AgGridReact
-              rowData={rowData2}
-              columnDefs={colDefs}
-              defaultColDef={defaultColDef}
-              // rowSelection={rowSelection}
-              masterDetail={true}
-              detailCellRendererParams={detailCellRendererParams}
-            />
           </div>
         );
       },
@@ -700,6 +846,9 @@ export default function ApplicationDetailPage() {
     <>
       <HorizontalTabs
         tabs={tabsData}
+        activeClass="bg-[#15274E] text-white rounded-sm -ml-1"
+        buttonClass="h-10 -mt-1 w-50"
+        className="ml-0.5 border border-gray-300 w-80 h-8 rounded-md"
         activeIndex={tabIndex}
         onChange={setTabIndex}
       />
