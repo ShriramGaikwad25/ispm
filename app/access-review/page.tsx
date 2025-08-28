@@ -80,7 +80,7 @@ const DetailCellRenderer = (props: IDetailCellRendererParams) => {
   return (
     <div className="flex p-2 bg-gray-40 border-b border-gray-200 ml-16">
       <div className="flex flex-row items-center gap-2">
-        <span className="text-gray-800">{description}</span>
+        <span className="text-gray-800 text-sm">{description}</span>
       </div>
     </div>
   );
