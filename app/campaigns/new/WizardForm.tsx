@@ -3,8 +3,8 @@ import WizardSteps from "@/components/WizardSteps";
 import SubmitDialog from "@/components/SubmitDialog";
 import { useFormData } from "@/hooks/useFormData";
 import { Step } from "@/types/stepTypes";
-import { BookType, MoveLeft, MoveRight } from "lucide-react";
-
+import { BookType, MoveLeft, MoveRight, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 interface WizardFormProps {
   steps: Step[];
 }
@@ -19,6 +19,8 @@ const WizardForm: React.FC<WizardFormProps> = ({ steps }) => {
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const router = useRouter(); // Initialize router for navigation
+
 
   const handleSubmit = async () => {
     try {
@@ -85,9 +87,20 @@ const WizardForm: React.FC<WizardFormProps> = ({ steps }) => {
       setCurrentStep((prev) => prev - 1); // Go to the previous step
     }
   };
+    const handleClose = () => {
+    router.push("/campaigns"); // Navigate back to campaigns page
+  };
 
   return (
     <>
+          <button
+        className="absolute top-14 right-10 p-2 rounded-full bg-gray-200 hover:bg-gray-300 text-red-400 transition-colors duration-200"
+        onClick={handleClose}
+        title="Close Form"
+        aria-label="Close form"
+      >
+        <X size={24} />
+      </button>
       <WizardSteps
         currentStep={currentStep}
         steps={steps}

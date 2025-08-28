@@ -373,6 +373,39 @@ const TreeClient: React.FC<TreeClientProps> = ({
       detailGridOptions: {
         columnDefs: [
           {
+            field: "entitlementName",
+            headerName: "Ent Name",
+            width: 250,
+            cellRenderer: "agGroupCellRenderer",
+            cellRendererParams: {
+              suppressCount: true,
+              innerRenderer: (params: ICellRendererParams) => {
+                const { entitlementName, isNew, itemRisk } = params.data || {};
+                const deltaLabel = isNew ? "New" : "Old";
+                const riskAbbr =
+                  itemRisk === "High" ? "H" : itemRisk === "Medium" ? "M" : "L";
+                const riskColor =
+                  itemRisk === "High"
+                    ? "red"
+                    : itemRisk === "Medium"
+                    ? "orange"
+                    : "green";
+                return (
+                  <div className="flex items-center gap-4">
+                    <span>
+                      <User size={18} />
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <small className="leading-4">{entitlementName}</small>
+                      <span>({deltaLabel})</span>
+                      <span style={{ color: riskColor }}>{riskAbbr}</span>
+                    </div>
+                  </div>
+                );
+              },
+            },
+          },
+          {
             field: "user",
             headerName: "A/C ID",
             width: 180,
@@ -437,39 +470,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
                   </span>
                 </div>
               );
-            },
-          },
-          {
-            field: "entitlementName",
-            headerName: "Ent Name",
-            width: 250,
-            cellRenderer: "agGroupCellRenderer",
-            cellRendererParams: {
-              suppressCount: true,
-              innerRenderer: (params: ICellRendererParams) => {
-                const { entitlementName, isNew, itemRisk } = params.data || {};
-                const deltaLabel = isNew ? "New" : "Old";
-                const riskAbbr =
-                  itemRisk === "High" ? "H" : itemRisk === "Medium" ? "M" : "L";
-                const riskColor =
-                  itemRisk === "High"
-                    ? "red"
-                    : itemRisk === "Medium"
-                    ? "orange"
-                    : "green";
-                return (
-                  <div className="flex items-center gap-4">
-                    <span>
-                      <User size={18} />
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <small className="leading-4">{entitlementName}</small>
-                      <span>({deltaLabel})</span>
-                      <span style={{ color: riskColor }}>{riskAbbr}</span>
-                    </div>
-                  </div>
-                );
-              },
             },
           },
           { field: "entitlementType", headerName: "Ent Type", width: 150 },

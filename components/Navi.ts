@@ -2,7 +2,7 @@ import { Home, Settings, ListTodo,ListTree, LayoutDashboard, LayoutPanelLeft, Us
  export const navLinks = [
   { name: 'Dashboard', href: '/', icon: Home },
   { name: 'Access Review', href: '/access-review', icon: ListTodo },
-  { name: 'Application owner', href: '/app-owner', icon: LayoutDashboard },
+  // { name: 'Application owner', href: '/app-owner', icon: LayoutDashboard },
   { name: 'Manage Campaigns', href: '/campaigns', icon: ListTree },
   { name: 'Applications', href: '/applications', icon: LayoutPanelLeft },
   { name: 'Users', href: '/user', icon: User2Icon },

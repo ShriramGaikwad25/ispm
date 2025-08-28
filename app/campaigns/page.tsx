@@ -7,10 +7,8 @@ import {
   CheckCircleIcon,
   ChevronDown,
   ChevronRight,
-  DeleteIcon,
   DownloadIcon,
   EyeIcon,
-  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { AgGridReact } from "ag-grid-react";
@@ -20,8 +18,15 @@ import {
   ColDef,
   ICellRendererParams,
   RowClickedEvent,
+  IDetailCellRendererParams,
+  FirstDataRenderedEvent,
 } from "ag-grid-enterprise";
-import ActionButtons from "@/components/agTable/ActionButtons";
+import { MasterDetailModule } from "ag-grid-enterprise";
+import { ModuleRegistry } from "ag-grid-community";
+import "./Champaign.css"
+
+// Register AG Grid Enterprise modules
+ModuleRegistry.registerModules([MasterDetailModule]);
 
 const campData = [
   {
@@ -65,14 +70,38 @@ const campData = [
   },
 ];
 
+// Detail Cell Renderer for Description
+const DetailCellRenderer = (props: IDetailCellRendererParams) => {
+  const description = props.data?.description || "No description available";
+  return (
+    <div className="flex p-2 bg-gray-50 border-t border-gray-200">
+      <div className="flex flex-row items-center gap-2">
+        <span className="text-gray-800">{description}</span>
+      </div>
+    </div>
+  );
+};
+
 export default function Campaigns() {
   const gridRef = useRef<AgGridReactType>(null);
   const router = useRouter();
 
   const columnDefs = useMemo<ColDef[]>(
     () => [
-      { headerName: "Campaign Name", field: "campaignName" },
-      { headerName: "Description", field: "description", flex: 2 },
+      {
+        headerName: "Campaign Name",
+        field: "campaignName",
+        cellRenderer: "agGroupCellRenderer", // Enable detail row toggle
+        width: 250,
+        wrapText: true,
+        autoHeight: true,
+      },
+      {
+        headerName: "Description",
+        field: "description",
+        flex: 2,
+        hide: true, // Hide in main grid, show in detail row
+      },
       { headerName: "Instances", field: "instances", flex: 1 },
       { headerName: "Progress", field: "progress", flex: 1.5 },
       { headerName: "Expiry Date", field: "expiryDate", flex: 1.5 },
@@ -82,16 +111,15 @@ export default function Campaigns() {
         headerName: "Actions",
         width: 250,
         cellRenderer: (params: ICellRendererParams) => {
-          const selectedRows = params.api.getSelectedNodes().map((n) => n.data);
           return (
             <div className="flex space-x-4 h-full items-center">
               <button
                 title="Download"
-                aria-label="Sign off selected rows"
+                aria-label="Download selected rows"
                 className="p-1 rounded transition-colors duration-200"
               >
                 <DownloadIcon
-                  className="curser-pointer"
+                  className="cursor-pointer"
                   strokeWidth="1"
                   size="24"
                   color="#6f3d1cff"
@@ -99,35 +127,23 @@ export default function Campaigns() {
               </button>
               <button
                 title="View"
-                aria-label="Sign off selected rows"
+                aria-label="View selected rows"
                 className="p-1 rounded transition-colors duration-200"
               >
                 <EyeIcon
-                  className="curser-pointer"
+                  className="cursor-pointer"
                   strokeWidth="1"
                   size="24"
                   color="#4a10ebff"
                 />
               </button>
-              {/* <button
-                title="Delete"
-                aria-label="Sign off selected rows"
-                className="p-1 rounded transition-colors duration-200"
-              >
-                <Trash2
-                  className="curser-pointer"
-                  strokeWidth="1"
-                  size="24"
-                  color="#eb1010ff"
-                />
-              </button> */}
               <button
                 title="Sign Off"
                 aria-label="Sign off selected rows"
                 className="p-1 rounded transition-colors duration-200"
               >
                 <CheckCircleIcon
-                  className="curser-pointer"
+                  className="cursor-pointer"
                   strokeWidth="1"
                   size="24"
                   color="#e73c3cff"
@@ -146,6 +162,15 @@ export default function Campaigns() {
     router.push(`/campaigns/manage-campaigns/${campaignId}`);
   };
 
+  const onFirstDataRendered = (params: FirstDataRenderedEvent) => {
+    console.log("First data rendered, expanding all rows");
+    params.api.forEachNode((node) => {
+      if (node.master) {
+        node.setExpanded(true); // Expand all master rows
+      }
+    });
+  };
+
   const tabsData = [
     {
       label: "Active",
@@ -153,8 +178,9 @@ export default function Campaigns() {
       iconOff: ChevronRight,
       component: () => {
         if (!campData || campData.length === 0) return <div>Loading...</div>;
+        console.log("Row Data:", campData); // Debug row data
         return (
-          <div className="ag-theme-alpine h-72">
+          <div className="h-100">
             <AgGridReact
               ref={gridRef}
               rowData={campData}
@@ -168,7 +194,20 @@ export default function Campaigns() {
                 filter: true,
                 resizable: true,
               }}
+              masterDetail={true}
+              detailCellRenderer={DetailCellRenderer}
+              detailRowAutoHeight={true}
+              detailRowHeight={80}
               onRowClicked={handleRowClick}
+              onGridReady={(params) => {
+                console.log("Grid initialized:", {
+                  api: !!params.api,
+                  columnApi: !!params.columnApi,
+                  enterpriseModules: params.api.isEnterprise?.() ? "Loaded" : "Not loaded",
+                });
+                params.api.sizeColumnsToFit();
+              }}
+              onFirstDataRendered={onFirstDataRendered}
             />
           </div>
         );
@@ -195,7 +234,7 @@ export default function Campaigns() {
           All Campaigns
           <p className="font-normal text-sm">
             Access review campaigns are used to manage the certification of
-            access for your users. to start an access review campaign, click the
+            access for your users. To start an access review campaign, click the
             ‘Create’ button at the top of this page.
           </p>
         </h1>
