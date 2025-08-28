@@ -64,7 +64,9 @@ export default function ApplicationDetailPage() {
   const [tabIndex, setTabIndex] = useState(1);
   const [entTabIndex, setEntTabIndex] = useState(1); // Set to 1 for "Under Review"
   const gridApiRef = useRef<GridApi | null>(null);
-  const [selected, setSelected] = useState<{ [key: string]: number | null }>({});
+  const [selected, setSelected] = useState<{ [key: string]: number | null }>(
+    {}
+  );
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
   const [nodeData, setNodeData] = useState<any>(null);
   const [expandedFrames, setExpandedFrames] = useState({
@@ -109,7 +111,9 @@ export default function ApplicationDetailPage() {
   const handleComment = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!nodeData || !comment.trim()) return;
-    alert(`Comment added: ${comment} for ${nodeData["Ent Name"] || "selected row"}`);
+    alert(
+      `Comment added: ${comment} for ${nodeData["Ent Name"] || "selected row"}`
+    );
     setComment("");
   };
 
@@ -178,7 +182,12 @@ export default function ApplicationDetailPage() {
       : "N/A";
   };
 
-  const renderSideBySideField = (label1: string, value1: any, label2: string, value2: any) => (
+  const renderSideBySideField = (
+    label1: string,
+    value1: any,
+    label2: string,
+    value2: any
+  ) => (
     <div className="flex space-x-4 text-sm text-gray-700">
       <div className="flex-1">
         <strong>{label1}:</strong> {value1?.toString() || "N/A"}
@@ -437,10 +446,20 @@ export default function ApplicationDetailPage() {
         field: "lastaction",
         headerName: "Last Access Review",
       },
-      { field: "Account Type", headerName: "Account Type", flex: 2, hide: true },
+      {
+        field: "Account Type",
+        headerName: "Account Type",
+        flex: 2,
+        hide: true,
+      },
       { field: "User Status", headerName: "User Status", flex: 2, hide: true },
       { field: "User ID", headerName: "User ID", flex: 2, hide: true },
-      { field: "User Manager", headerName: "User Manager", flex: 2, hide: true },
+      {
+        field: "User Manager",
+        headerName: "User Manager",
+        flex: 2,
+        hide: true,
+      },
       { field: "User Dept", headerName: "User Dept", flex: 2, hide: true },
       { field: "Job Title", headerName: "Job Title", flex: 2, hide: true },
       {
@@ -466,25 +485,25 @@ export default function ApplicationDetailPage() {
 
   const colDefs = useMemo<ColDef[]>(
     () => [
-          {
-      field: "Ent Name",
-      headerName: "Entitlement Name",
-      flex: 2.5,
-      wrapText:true,
-      cellRenderer: (params: ICellRendererParams) => {
-        return (
-          <div className="flex flex-col">
-            {/* Row 1: entitlement name */}
-            <div className="font-semibold">{params.value}</div>
+      {
+        field: "Ent Name",
+        headerName: "Entitlement Name",
+        flex: 2.5,
+        wrapText: true,
+        cellRenderer: (params: ICellRendererParams) => {
+          return (
+            <div className="flex flex-col">
+              {/* Row 1: entitlement name */}
+              <div className="font-semibold">{params.value}</div>
 
-            {/* Row 2: full-width description */}
-            <div className="text-gray-600 text-sm w-100">
-              {params.data["Ent Description"]}
+              {/* Row 2: full-width description */}
+              <div className="text-gray-600 text-sm w-100">
+                {params.data["Ent Description"]}
+              </div>
             </div>
-          </div>
-        );
+          );
+        },
       },
-    },
       // { field:"Ent Description", headerName:"Entitlement Description", flex:2},
       { field: "Ent Type", headerName: "Enttitlement Type", flex: 2.5 },
       { field: "Risk", headerName: "Risk", flex: 1.5 },
@@ -592,25 +611,25 @@ export default function ApplicationDetailPage() {
 
   const underReviewColDefs = useMemo<ColDef[]>(
     () => [
-               {
-      field: "Ent Name",
-      headerName: "Entitlement Name",
-      flex: 2.5,
-      wrapText:true,
-      cellRenderer: (params: ICellRendererParams) => {
-        return (
-          <div className="flex flex-col">
-            {/* Row 1: entitlement name */}
-            <div className="font-semibold">{params.value}</div>
+      {
+        field: "Ent Name",
+        headerName: "Entitlement Name",
+        flex: 2.5,
+        wrapText: true,
+        cellRenderer: (params: ICellRendererParams) => {
+          return (
+            <div className="flex flex-col">
+              {/* Row 1: entitlement name */}
+              <div className="font-semibold">{params.value}</div>
 
-            {/* Row 2: full-width description */}
-            <div className="text-gray-600 text-sm w-100">
-              {params.data["Ent Description"]}
+              {/* Row 2: full-width description */}
+              <div className="text-gray-600 text-sm w-100">
+                {params.data["Ent Description"]}
+              </div>
             </div>
-          </div>
-        );
+          );
+        },
       },
-    },
       { field: "Ent Type", headerName: "Ent Type", flex: 2 },
       {
         field: "Risk",
@@ -637,7 +656,9 @@ export default function ApplicationDetailPage() {
                 title="Approve"
                 aria-label="Approve selected rows"
                 className={`p-1 rounded transition-colors duration-200 ${
-                  lastAction === "Approve" ? "bg-green-500" : "hover:bg-green-100"
+                  lastAction === "Approve"
+                    ? "bg-green-500"
+                    : "hover:bg-green-100"
                 }`}
               >
                 <CircleCheck
@@ -686,7 +707,9 @@ export default function ApplicationDetailPage() {
                 onClick={() => toggleSidePanel(params.data)}
                 title="Info"
                 className={`cursor-pointer rounded-sm hover:opacity-80 ${
-                  isSidePanelOpen && nodeData === params.data ? "bg-[#6D6E73]/20" : ""
+                  isSidePanelOpen && nodeData === params.data
+                    ? "bg-[#6D6E73]/20"
+                    : ""
                 }`}
                 aria-label="View details"
               >
@@ -721,7 +744,6 @@ export default function ApplicationDetailPage() {
       },
     };
   }, []);
-  
 
   const defaultColDef = {
     sortable: true,
@@ -936,13 +958,17 @@ export default function ApplicationDetailPage() {
               <div
                 className="fixed top-0 right-0 h-full w-150 bg-white shadow-xl z-50 transform transition-transform duration-300 ease-in-out overflow-y-auto"
                 style={{
-                  transform: isSidePanelOpen ? "translateX(0)" : "translateX(100%)",
+                  transform: isSidePanelOpen
+                    ? "translateX(0)"
+                    : "translateX(100%)",
                 }}
               >
                 <div className="p-4 border-b bg-gray-50">
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
-                      <h2 className="text-lg font-semibold">Entitlement Details</h2>
+                      <h2 className="text-lg font-semibold">
+                        Entitlement Details
+                      </h2>
                       <h3 className="text-md font-medium mt-2">
                         {nodeData?.["Ent Name"] || "Name: -"}
                       </h3>
@@ -964,7 +990,9 @@ export default function ApplicationDetailPage() {
                       title="Approve"
                       aria-label="Approve entitlement"
                       className={`p-1 rounded transition-colors duration-200 ${
-                        lastAction === "Approve" ? "bg-green-500" : "hover:bg-green-100"
+                        lastAction === "Approve"
+                          ? "bg-green-500"
+                          : "hover:bg-green-100"
                       }`}
                     >
                       <CircleCheck
@@ -988,7 +1016,9 @@ export default function ApplicationDetailPage() {
                         color="#FF2D55"
                         strokeWidth="1"
                         size="32"
-                        fill={nodeData?.status === "Rejected" ? "#FF2D55" : "none"}
+                        fill={
+                          nodeData?.status === "Rejected" ? "#FF2D55" : "none"
+                        }
                       />
                     </button>
                     <button
@@ -1017,7 +1047,11 @@ export default function ApplicationDetailPage() {
                       className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
                       onClick={() => toggleFrame("general")}
                     >
-                      {expandedFrames.general ? <ChevronDown size={20} className="mr-2" /> : <ChevronRight size={20} className="mr-2" />}
+                      {expandedFrames.general ? (
+                        <ChevronDown size={20} className="mr-2" />
+                      ) : (
+                        <ChevronRight size={20} className="mr-2" />
+                      )}
                       General
                     </button>
                     {expandedFrames.general && (
@@ -1042,19 +1076,29 @@ export default function ApplicationDetailPage() {
                       className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
                       onClick={() => toggleFrame("business")}
                     >
-                      {expandedFrames.business ? <ChevronDown size={20} className="mr-2" /> : <ChevronRight size={20} className="mr-2" />}
+                      {expandedFrames.business ? (
+                        <ChevronDown size={20} className="mr-2" />
+                      ) : (
+                        <ChevronRight size={20} className="mr-2" />
+                      )}
                       Business
                     </button>
                     {expandedFrames.business && (
                       <div className="p-4 space-y-2">
-                        {renderSingleField("Objective", nodeData?.["Business Objective"])}
+                        {renderSingleField(
+                          "Objective",
+                          nodeData?.["Business Objective"]
+                        )}
                         {renderSideBySideField(
                           "Business Unit",
                           nodeData?.["Business Unit"],
                           "Business Owner",
                           nodeData?.["Ent Owner"]
                         )}
-                        {renderSingleField("Regulatory Scope", nodeData?.["Compliance Type"])}
+                        {renderSingleField(
+                          "Regulatory Scope",
+                          nodeData?.["Compliance Type"]
+                        )}
                         {renderSideBySideField(
                           "Data Classification",
                           nodeData?.["Data Classification"],
@@ -1069,7 +1113,11 @@ export default function ApplicationDetailPage() {
                       className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
                       onClick={() => toggleFrame("technical")}
                     >
-                      {expandedFrames.technical ? <ChevronDown size={20} className="mr-2" /> : <ChevronRight size={20} className="mr-2" />}
+                      {expandedFrames.technical ? (
+                        <ChevronDown size={20} className="mr-2" />
+                      ) : (
+                        <ChevronRight size={20} className="mr-2" />
+                      )}
                       Technical
                     </button>
                     {expandedFrames.technical && (
@@ -1098,8 +1146,14 @@ export default function ApplicationDetailPage() {
                           "MFA Status",
                           nodeData?.["MFA Status"]
                         )}
-                        {renderSingleField("Assigned to/Member of", nodeData?.["assignment"])}
-                        {renderSingleField("License Type", nodeData?.["License Type"])}
+                        {renderSingleField(
+                          "Assigned to/Member of",
+                          nodeData?.["assignment"]
+                        )}
+                        {renderSingleField(
+                          "License Type",
+                          nodeData?.["License Type"]
+                        )}
                       </div>
                     )}
                   </div>
@@ -1108,7 +1162,11 @@ export default function ApplicationDetailPage() {
                       className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
                       onClick={() => toggleFrame("security")}
                     >
-                      {expandedFrames.security ? <ChevronDown size={20} className="mr-2" /> : <ChevronRight size={20} className="mr-2" />}
+                      {expandedFrames.security ? (
+                        <ChevronDown size={20} className="mr-2" />
+                      ) : (
+                        <ChevronRight size={20} className="mr-2" />
+                      )}
                       Security
                     </button>
                     {expandedFrames.security && (
@@ -1125,8 +1183,14 @@ export default function ApplicationDetailPage() {
                           "Shared Pwd",
                           nodeData?.["Shared Pwd"]
                         )}
-                        {renderSingleField("SoD/Toxic Combination", nodeData?.["SOD Check"])}
-                        {renderSingleField("Access Scope", nodeData?.["Access Scope"])}
+                        {renderSingleField(
+                          "SoD/Toxic Combination",
+                          nodeData?.["SOD Check"]
+                        )}
+                        {renderSingleField(
+                          "Access Scope",
+                          nodeData?.["Access Scope"]
+                        )}
                         {renderSideBySideField(
                           "Review Schedule",
                           nodeData?.["Review Schedule"],
@@ -1139,8 +1203,14 @@ export default function ApplicationDetailPage() {
                           "Non Persistent Access",
                           nodeData?.["Non Persistent Access"]
                         )}
-                        {renderSingleField("Audit Comments", nodeData?.["Audit Comments"])}
-                        {renderSingleField("Account Type Restriction", nodeData?.["Account Type Restriction"])}
+                        {renderSingleField(
+                          "Audit Comments",
+                          nodeData?.["Audit Comments"]
+                        )}
+                        {renderSingleField(
+                          "Account Type Restriction",
+                          nodeData?.["Account Type Restriction"]
+                        )}
                       </div>
                     )}
                   </div>
@@ -1149,7 +1219,11 @@ export default function ApplicationDetailPage() {
                       className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
                       onClick={() => toggleFrame("lifecycle")}
                     >
-                      {expandedFrames.lifecycle ? <ChevronDown size={20} className="mr-2" /> : <ChevronRight size={20} className="mr-2" />}
+                      {expandedFrames.lifecycle ? (
+                        <ChevronDown size={20} className="mr-2" />
+                      ) : (
+                        <ChevronRight size={20} className="mr-2" />
+                      )}
                       Lifecycle
                     </button>
                     {expandedFrames.lifecycle && (
@@ -1160,12 +1234,30 @@ export default function ApplicationDetailPage() {
                           "Pre-Requisite",
                           nodeData?.["Pre- Requisite"]
                         )}
-                        {renderSingleField("Pre-Req Details", nodeData?.["Pre-Requisite Details"])}
-                        {renderSingleField("Auto Assign Access Policy", nodeData?.["Auto Assign Access Policy"])}
-                        {renderSingleField("Provisioner Group", nodeData?.["Provisioner Group"])}
-                        {renderSingleField("Provisioning Steps", nodeData?.["Provisioning Steps"])}
-                        {renderSingleField("Provisioning Mechanism", nodeData?.["Provisioning Mechanism"])}
-                        {renderSingleField("Action on Native Change", nodeData?.["Action on Native Change"])}
+                        {renderSingleField(
+                          "Pre-Req Details",
+                          nodeData?.["Pre-Requisite Details"]
+                        )}
+                        {renderSingleField(
+                          "Auto Assign Access Policy",
+                          nodeData?.["Auto Assign Access Policy"]
+                        )}
+                        {renderSingleField(
+                          "Provisioner Group",
+                          nodeData?.["Provisioner Group"]
+                        )}
+                        {renderSingleField(
+                          "Provisioning Steps",
+                          nodeData?.["Provisioning Steps"]
+                        )}
+                        {renderSingleField(
+                          "Provisioning Mechanism",
+                          nodeData?.["Provisioning Mechanism"]
+                        )}
+                        {renderSingleField(
+                          "Action on Native Change",
+                          nodeData?.["Action on Native Change"]
+                        )}
                       </div>
                     )}
                   </div>
@@ -1277,9 +1369,7 @@ export default function ApplicationDetailPage() {
                 </div>
               </Accordion>
             </div>
-            <div
-              className="flex justify-end mb-4 relative z-10 pt-10"
-            >
+            <div className="flex justify-end mb-4 relative z-10 pt-10">
               <Exports gridApi={gridApiRef.current} />
             </div>
             <AgGridReact

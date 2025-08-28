@@ -36,8 +36,8 @@ export interface CertificationRow {
   certificationSignedOff: boolean;
   certificateRequester: string;
   percentageCompleted: number;
-  totalActions: number;
-  totalActionsCompleted: number;
+  // totalActions: number;
+  // totalActionsCompleted: number;
 }
 
 export interface UserRowData {

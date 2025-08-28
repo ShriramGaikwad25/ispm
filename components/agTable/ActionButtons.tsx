@@ -263,7 +263,7 @@ const updateActions = async (actionType: string, justification: string) => {
         </svg>
       </button>
 
-      {viewChangeEnable && (
+      {/* {viewChangeEnable && (
         <button
           onClick={handleComment}
           title="Change view"
@@ -282,7 +282,7 @@ const updateActions = async (actionType: string, justification: string) => {
             />
           </svg>
         </button>
-      )}
+      )} */}
 
       <button
         ref={menuButtonRef}
