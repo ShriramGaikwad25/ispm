@@ -60,8 +60,11 @@ const dataAccount: Record<string, DataItem[]> = {
   ],
 };
 
-export default function ApplicationDetailPage( { params }: { params: Promise<{ appId: string }> } ) {
-
+export default function ApplicationDetailPage({
+  params,
+}: {
+  params: Promise<{ appId: string }>;
+}) {
   const resolvedParams = use(params);
   const { id } = resolvedParams;
   const [tabIndex, setTabIndex] = useState(1);
@@ -82,8 +85,7 @@ export default function ApplicationDetailPage( { params }: { params: Promise<{ a
   const [comment, setComment] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [lastAction, setLastAction] = useState<string | null>(null);
-    const [rowData, setRowData] = useState([]);
-  
+  const [rowData, setRowData] = useState([]);
 
   const handleSelect = (category: string, index: number) => {
     setSelected((prev) => ({
@@ -220,22 +222,24 @@ export default function ApplicationDetailPage( { params }: { params: Promise<{ a
   //     user: "Aaliyah Munoz",
   //   }
   // ];
-  
-    useEffect(() => {
-      const fetchData = async () => {
-        try {
-          const response = await fetch(`https://preview.keyforge.ai/entities/api/v1/CERTTEST/getAppAccounts/430ea9e6-3cff-449c-a24e-59c057f81e3d/${id}`);
-          const data = await response.json();
-          console.log(data);
-          if (data.executionStatus === "success") {
-            setRowData(data.items);
-          }
-        } catch (error) {
-          console.error("Error fetching data:", error);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch(
+          `https://preview.keyforge.ai/entities/api/v1/CERTTEST/getAppAccounts/430ea9e6-3cff-449c-a24e-59c057f81e3d/${id}`
+        );
+        const data = await response.json();
+        console.log(data);
+        if (data.executionStatus === "success") {
+          setRowData(data.items);
         }
-      };
-      fetchData();
-    }, []);
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      }
+    };
+    fetchData();
+  }, []);
 
   const rowData2 = [
     {
@@ -300,7 +304,7 @@ export default function ApplicationDetailPage( { params }: { params: Promise<{ a
       {
         field: "accountName",
         headerName: "accountId",
-        flex:2,
+        flex: 2,
         cellRenderer: "agGroupCellRenderer",
         cellRendererParams: {
           suppressExpand: false,
@@ -310,7 +314,7 @@ export default function ApplicationDetailPage( { params }: { params: Promise<{ a
             return (
               <div className="flex items-center space-x-2">
                 <div className="flex flex-col gap-0 cursor-pointer hover:underline">
-                  <span className="text-gray-800 font-bold text-[14px]">
+                  <span className="text-[14px]">
                     {params.value}{" "}
                     {accountType && (
                       <span
@@ -343,7 +347,7 @@ export default function ApplicationDetailPage( { params }: { params: Promise<{ a
       {
         field: "userDisplayName",
         headerName: "Display Name",
-        flex:2,
+        flex: 2,
         cellRenderer: (params: ICellRendererParams) => {
           const { userType } = params.data || {};
           const userTypeLabel = userType ? `(${userType})` : "";
@@ -420,7 +424,7 @@ export default function ApplicationDetailPage( { params }: { params: Promise<{ a
       {
         field: "syncDate",
         headerName: "Sync Date",
-        flex:1
+        flex: 1,
       },
     ],
     []
@@ -1353,41 +1357,44 @@ export default function ApplicationDetailPage( { params }: { params: Promise<{ a
         );
       },
     },
-{
-  label: "Sampling",
-  icon: ChevronDown,
-  iconOff: ChevronRight,
-  component: () => (
-    <div className="sampling-tab-content flex justify-center">
-      <div className="search-container" style={{ display: 'flex', gap: '10px', margin: '20px' }}>
-        <input
-          type="text"
-          placeholder="Search by User Name Or Email Id"
-          style={{
-            padding: '8px',
-            width: '300px',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
-            fontSize: '14px'
-          }}
-        />
-        <button
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#007bff',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '14px'
-          }}
-        >
-          Get Result
-        </button>
-      </div>
-    </div>
-  ),
-},
+    {
+      label: "Sampling",
+      icon: ChevronDown,
+      iconOff: ChevronRight,
+      component: () => (
+        <div className="sampling-tab-content flex justify-center">
+          <div
+            className="search-container"
+            style={{ display: "flex", gap: "10px", margin: "20px" }}
+          >
+            <input
+              type="text"
+              placeholder="Search by User Name Or Email Id"
+              style={{
+                padding: "8px",
+                width: "300px",
+                border: "1px solid #ccc",
+                borderRadius: "4px",
+                fontSize: "14px",
+              }}
+            />
+            <button
+              style={{
+                padding: "8px 16px",
+                backgroundColor: "#007bff",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                cursor: "pointer",
+                fontSize: "14px",
+              }}
+            >
+              Get Result
+            </button>
+          </div>
+        </div>
+      ),
+    },
   ];
 
   return (
