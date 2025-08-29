@@ -561,7 +561,7 @@ export default function ApplicationDetailPage({
       {
         field: "Ent Name",
         headerName: "Entitlement Name",
-        flex: 2.5,
+        flex: 3,
         wrapText: true,
         cellRenderer: (params: ICellRendererParams) => {
           return (
@@ -569,19 +569,18 @@ export default function ApplicationDetailPage({
               {/* Row 1: entitlement name */}
               <div className="font-semibold">{params.value}</div>
 
-              {/* Row 2: full-width description */}
-              <div className="text-gray-600 text-sm w-100">
+              <div className="text-gray-600 text-sm w-full">
                 {params.data["Ent Description"]}
               </div>
             </div>
           );
         },
       },
-      { field: "Ent Type", headerName: "Ent Type", flex: 2 },
+      { field: "Ent Type", headerName: "Ent Type", flex: 1 },
       {
         field: "Risk",
         headerName: "Ent Risk",
-        flex: 2,
+        flex: 1.5,
         cellRenderer: (params: ICellRendererParams) => {
           const risk = params.value;
           const riskColor =
@@ -589,14 +588,14 @@ export default function ApplicationDetailPage({
           return <span style={{ color: riskColor }}>{risk}</span>;
         },
       },
-      { field: "App Name", headerName: "Application Name", flex: 2.5 },
-      { field: "Last Reviewed on", headerName: "Last Reviewed", flex: 2.5 },
+      { field: "App Name", headerName: "Application Name", flex: 1.5 },
+      { field: "Last Reviewed on", headerName: "Last Reviewed", flex: 1.5 },
       {
         headerName: "Actions",
-        width: 500,
+        width: 250,
         cellRenderer: (params: ICellRendererParams) => {
           return (
-            <div className="flex space-x-4 h-full items-center">
+            <div className="flex space-x-4 h-full items-start">
               {error && <div className="text-red-500 text-sm">{error}</div>}
               <button
                 onClick={handleApprove}
@@ -662,8 +661,8 @@ export default function ApplicationDetailPage({
               >
                 <InfoIcon
                   color="#55544dff"
-                  size="48"
-                  className="transform scale-[0.6]"
+                  size="36"
+                  className="transform scale-[0.8]"
                 />
               </button>
             </div>
