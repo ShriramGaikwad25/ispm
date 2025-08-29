@@ -159,7 +159,7 @@ const AccessReview: React.FC = () => {
       width: 200,
       cellRenderer: (params: any) => (
         <div
-          className="flex space-x-4 h-full items-center"
+          className="flex space-x-4 h-full items-start"
           onClick={(e) => e.stopPropagation()}
         >
           <button

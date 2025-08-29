@@ -1,9 +1,9 @@
-import { RefreshCcw, Wand2 } from "lucide-react";
-import Dropdown from "./Dropdown";
-import Image from "next/image";
 import { useEffect, useState } from "react";
-import { UserRowData } from "@/types/certification";
 import { usePathname } from "next/navigation";
+import Image from "next/image";
+import Dropdown from "./Dropdown";
+import { UserRowData } from "@/types/certification";
+import { UserPopup } from "@/app/access-review/[reviewerId]/[certId]/TreeClient";
 
 const HeaderContent = () => {
   const [headerInfo, setHeaderInfo] = useState<{
@@ -15,6 +15,18 @@ const HeaderContent = () => {
     dueDate: "",
     daysLeft: 0,
   });
+
+  // State for UserPopup
+  const [showUserPopup, setShowUserPopup] = useState(false);
+  const [userDetails, setUserDetails] = useState<{
+    username: string;
+    userId: string;
+    userStatus: string;
+    manager: string;
+    department: string;
+    jobTitle: string;
+    userType: "Internal" | "External";
+  } | null>(null);
 
   const pathname = usePathname();
 
@@ -29,6 +41,16 @@ const HeaderContent = () => {
             campaignName: firstItem.certificationName || "",
             dueDate: firstItem.certificationExpiration || "",
             daysLeft: calculateDaysLeft(firstItem.certificationExpiration),
+          });
+          // Set user details for the popup
+          setUserDetails({
+            username: firstItem.fullName || "Unknown User",
+            userId: firstItem.id || "N/A",
+            userStatus: firstItem.status || "Active", // Adjust based on actual field
+            manager: firstItem.manager || "N/A", // Adjust based on actual field
+            department: firstItem.department || "N/A",
+            jobTitle: firstItem.jobtitle || "N/A",
+            userType: firstItem.userType || "Internal", // Adjust based on actual field
           });
         }
       } catch (err) {
@@ -49,6 +71,13 @@ const HeaderContent = () => {
   const hasAccessReviewWithSegments =
     pathname && /^\/access-review(\/.+)+$/.test(pathname);
 
+  // Handler for Profile click in dropdown
+  const handleProfileClick = () => {
+    if (userDetails) {
+      setShowUserPopup(true);
+    }
+  };
+
   return (
     <div className="flex h-[45px] w-full items-center justify-between text-sm bg-[#f8f9fa] px-4">
       {/* Left Section */}
@@ -62,7 +91,7 @@ const HeaderContent = () => {
             </div>
             <div className="flex items-center px-4">
               <p className="text-sm font-medium text-blue-500">
-                Generated On{headerInfo.dueDate}
+                Generated On {headerInfo.dueDate}
               </p>
             </div>
             <div className="flex items-center px-4">
@@ -97,12 +126,12 @@ const HeaderContent = () => {
           className="!rounded-full border border-gray-500"
           title="User profile"
         >
-          <a
-            href="#"
-            className="block px-4 py-2 text-gray-700 hover:bg-gray-100"
+          <button
+            onClick={handleProfileClick}
+            className="block px-4 py-2 text-gray-700 hover:bg-gray-100 w-full text-left"
           >
             Profile
-          </a>
+          </button>
           <a
             href="#"
             className="block px-4 py-2 text-gray-700 hover:bg-gray-100"
@@ -117,6 +146,20 @@ const HeaderContent = () => {
           </a>
         </Dropdown>
       </div>
+
+      {/* User Popup */}
+      {showUserPopup && userDetails && (
+        <UserPopup
+          username={userDetails.username}
+          userId={userDetails.userId}
+          userStatus={userDetails.userStatus}
+          manager={userDetails.manager}
+          department={userDetails.department}
+          jobTitle={userDetails.jobTitle}
+          userType={userDetails.userType}
+          onClose={() => setShowUserPopup(false)}
+        />
+      )}
     </div>
   );
 };

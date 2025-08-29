@@ -1,7 +1,10 @@
 import { LineItemDetail } from "@/types/lineItem";
 import { PaginatedResponse } from "@/types/api";
+import { string } from "yup";
 
 const BASE_URL = "https://preview.keyforge.ai/certification/api/v1/CERTTEST";
+
+const BASE_URL2 = "https://preview.keyforge.ai/entities/api/v1/CERTTEST";
 
 export async function fetchApi<T>(
   endpoint: string,
@@ -123,4 +126,29 @@ export async function getAppOwnerDetails<T>(
 ): Promise<PaginatedResponse<T>> {
   const endpoint = `${BASE_URL}/getAPPOCertificationDetails/${reviewerId}/${certId}`;
   return fetchApi(endpoint, pageSize, pageNumber);
+}
+
+export async function getApplications(
+reviewerId: string,
+):Promise<void>{
+  const endpoint = `${BASE_URL2}/getApplications/${reviewerId}`
+  return fetchApi(endpoint)
+}
+  
+export async function getGroupedAppOwnerDetails<T>(
+  reviewerId: string,
+  certId: string,
+  pageSize?: number,
+  pageNumber?: number
+): Promise<PaginatedResponse<T>> {
+  const endpoint = `${BASE_URL}/getAPPOGroupByEntsCertDetails/${reviewerId}/${certId}`;
+  return fetchApi(endpoint, pageSize, pageNumber);
+}
+  
+export async function getAppAccounts(
+reviewerId: string,
+applicationinstanceid:string
+):Promise<void>{
+  const endpoint = `${BASE_URL2}/getAppAccounts/${reviewerId}/${applicationinstanceid}`
+  return fetchApi(endpoint)
 }

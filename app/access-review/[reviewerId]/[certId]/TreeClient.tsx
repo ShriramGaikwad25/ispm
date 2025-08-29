@@ -45,7 +45,7 @@ interface UserPopupProps {
   onClose: () => void;
 }
 
-const UserPopup: React.FC<UserPopupProps> = ({
+export const UserPopup: React.FC<UserPopupProps> = ({
   username,
   userId,
   userStatus,
@@ -610,6 +610,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
         const taskId = params.data.taskId;
         const addedEntitlements = params.data.addedEntitlements || [];
         if (!taskId) return;
+        console.log("DONEEEEE",taskId)
         try {
           const accounts =
             (await fetchAccessDetails(reviewerId, certId, taskId)) ?? [];

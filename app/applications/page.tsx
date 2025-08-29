@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { AgGridReact } from "ag-grid-react";
 import "@/lib/ag-grid-setup";
@@ -11,183 +11,53 @@ import { Doughnut } from "react-chartjs-2";
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
-const rowData = [
-  {
-    id: "adp",
-    application: { name: "ADP", url: "#" },
-    department: "Finance",
-    owner: "Brian Adams",
-    accounts: 1300,
-    lastReview: "6/17/24",
-    lastSync: "6/9/24",
-    syncType: "ZUS",
-    riskStatus: "Low",
-    appRisk: "Low",
-    appType: "Payroll",
-    appDescription: "Automated payroll processing system",
-    tags: ["Finance", "Payroll"],
-  },
-  {
-    id: "aws",
-    application: { name: "Amazon Web Services", url: "#" },
-    department: "Engineering",
-    owner: "Michael Smith",
-    accounts: 389,
-    lastReview: "6/17/24",
-    lastSync: "6/15/24",
-    syncType: "Rest API",
-    riskStatus: "Medium",
-    appRisk: "Medium",
-    appType: "Cloud Infrastructure",
-    appDescription: "Cloud computing platform for hosting services",
-    tags: ["Cloud", "Infrastructure"],
-  },
-  {
-    id: "sap",
-    application: { name: "SAP ERP", url: "#" },
-    department: "Operations",
-    owner: "Sarah Johnson",
-    accounts: 750,
-    lastReview: "7/1/24",
-    lastSync: "7/10/24",
-    syncType: "DB",
-    riskStatus: "High",
-    appRisk: "High",
-    appType: "ERP",
-    appDescription: "Enterprise resource planning software",
-    tags: ["ERP", "Operations"],
-  },
-  {
-    id: "salesforce",
-    application: { name: "Salesforce", url: "#" },
-    department: "Sales",
-    owner: "Emily Davis",
-    accounts: 520,
-    lastReview: "5/30/24",
-    lastSync: "6/5/24",
-    syncType: "Rest API",
-    riskStatus: "Low",
-    appRisk: "Low",
-    appType: "CRM",
-    appDescription: "Customer relationship management platform",
-    tags: ["CRM", "Sales"],
-  },
-  {
-    id: "workday",
-    application: { name: "Workday", url: "#" },
-    department: "HR",
-    owner: "Lisa Brown",
-    accounts: 900,
-    lastReview: "6/20/24",
-    lastSync: "6/25/24",
-    syncType: "Flat File",
-    riskStatus: "Medium",
-    appRisk: "Medium",
-    appType: "HCM",
-    appDescription: "Human capital management software",
-    tags: ["HR", "HCM"],
-  },
-  {
-    id: "azure",
-    application: { name: "Microsoft Azure", url: "#" },
-    department: "Engineering",
-    owner: "James Wilson",
-    accounts: 420,
-    lastReview: "7/5/24",
-    lastSync: "7/8/24",
-    syncType: "AD based",
-    riskStatus: "Low",
-    appRisk: "Low",
-    appType: "Cloud Infrastructure",
-    appDescription: "Cloud platform for enterprise solutions",
-    tags: ["Cloud", "Infrastructure"],
-  },
-  {
-    id: "oracle",
-    application: { name: "Oracle HCM", url: "#" },
-    department: "HR",
-    owner: "David Kim",
-    accounts: 650,
-    lastReview: "6/10/24",
-    lastSync: "6/12/24",
-    syncType: "DB",
-    riskStatus: "High",
-    appRisk: "High",
-    appType: "HCM",
-    appDescription: "Human capital management and payroll system",
-    tags: ["HR", "HCM"],
-  },
-  {
-    id: "jira",
-    application: { name: "Jira", url: "#" },
-    department: "Engineering",
-    owner: "Tom Harris",
-    accounts: 300,
-    lastReview: "6/25/24",
-    lastSync: "6/30/24",
-    syncType: "Rest API",
-    riskStatus: "Low",
-    appRisk: "Low",
-    appType: "Project Management",
-    appDescription: "Issue tracking and project management tool",
-    tags: ["Project Management", "Engineering"],
-  },
-  {
-    id: "netsuite",
-    application: { name: "NetSuite", url: "#" },
-    department: "Finance",
-    owner: "Karen Taylor",
-    accounts: 480,
-    lastReview: "7/3/24",
-    lastSync: "7/7/24",
-    syncType: "Flat File",
-    riskStatus: "Medium",
-    appRisk: "Medium",
-    appType: "ERP",
-    appDescription: "Cloud-based financial management software",
-    tags: ["Finance", "ERP"],
-  },
-  {
-    id: "servicenow",
-    application: { name: "ServiceNow", url: "#" },
-    department: "IT",
-    owner: "Paul Walker",
-    accounts: 250,
-    lastReview: "6/15/24",
-    lastSync: "6/20/24",
-    syncType: "AD based",
-    riskStatus: "Low",
-    appRisk: "Low",
-    appType: "ITSM",
-    appDescription: "IT service management platform",
-    tags: ["IT", "ITSM"],
-  },
-];
+const reviewerID = "430ea9e6-3cff-449c-a24e-59c057f81e3d";
 
 export default function Application() {
   const router = useRouter();
+  const [rowData, setRowData] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [hasNext, setHasNext] = useState(false);
+  const [hasPrevious, setHasPrevious] = useState(false);
+  const [totalItems, setTotalItems] = useState(0);
+
+  // Fetch data from API
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch(`https://preview.keyforge.ai/entities/api/v1/CERTTEST/getApplications/430ea9e6-3cff-449c-a24e-59c057f81e3d`);
+        const data = await response.json();
+        if (data.executionStatus === "success") {
+          setRowData(data.items);
+          setTotalPages(data.total_pages);
+          setHasNext(data.has_next);
+          setHasPrevious(data.has_previous);
+          setTotalItems(data.total_items);
+        }
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      }
+    };
+    fetchData();
+  }, [currentPage]);
 
   const columnDefs = useMemo<ColDef[]>(
     () => [
       {
         headerName: "App Name",
-        field: "application.name",
+        field: "applicationinstancename",
         cellRenderer: (params: any) => {
-          const name = params.data.application.name;
-          const url = params.data.application.url;
-          const riskStatus = params.data.riskStatus;
+          const name = params.data.applicationinstancename;
+          const riskStatus = params.data.risk || "Unknown";
           const riskInitial =
             riskStatus === "High" ? "H" : riskStatus === "Medium" ? "M" : "L";
           const riskColor =
-            riskStatus === "High"
-              ? "red"
-              : riskStatus === "Medium"
-              ? "orange"
-              : "green";
+            riskStatus === "High" ? "red" : riskStatus === "Medium" ? "orange" : "green";
           return (
             <div className="flex items-center">
               <a
-                // href={url}
+                // href={`#${params.data.applicationInstanceId}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-600 hover:underline"
@@ -204,34 +74,42 @@ export default function Application() {
           );
         },
       },
-      { headerName: "Department", field: "department" },
-      { headerName: "Owner", field: "owner" },
+      { headerName: "Department", field: "businessUnit" },
+      { headerName: "Owner", field: "ownername" },
       {
         headerName: "#Accounts",
-        field: "accounts",
+        field: "numofaccounts",
         valueFormatter: (params: any) =>
           params.value?.toLocaleString("en-US") || "0",
       },
-      { headerName: "Last Access Review", field: "lastReview" },
-      { headerName: "Last Sync", field: "lastSync" },
+      {
+        headerName: "Last Access Review",
+        field: "lastAccessReview",
+        valueFormatter: (params: any) => params.value || "N/A",
+      },
+      {
+        headerName: "Last Sync",
+        field: "lastSync",
+        valueFormatter: (params: any) => params.value || "N/A",
+      },
       { headerName: "Sync Type", field: "syncType" },
-      { headerName: "App Risk", field: "appRisk",hide:true },
-      { headerName: "App Type", field: "appType",hide:true },
-      { headerName: "App Description", field: "appdesc" ,hide:true},
+      { headerName: "App Risk", field: "risk", hide: true },
+      { headerName: "App Type", field: "applicationtype", hide: true },
+      { headerName: "App Description", field: "applicationcategory", hide: true },
     ],
     []
   );
 
   const handleRowClick = (event: any) => {
-    const appId = event.data.id;
+    const appId = event.data.applicationInstanceId;
     router.push(`/applications/${appId}`);
   };
 
-  // Data for the doughnut chart
+  // Data for the doughnut chart (based on syncType)
   const syncTypeData = useMemo(() => {
-    const syncTypes = ["Flat File", "DB", "Rest API", "AD based", "ZUS", "API"];
+    const syncTypes = [...new Set(rowData.map((row: any) => row.syncType))];
     const counts = syncTypes.map(
-      (type) => rowData.filter((row) => row.syncType === type).length
+      (type) => rowData.filter((row: any) => row.syncType === type).length
     );
     return {
       labels: syncTypes,
@@ -250,7 +128,16 @@ export default function Application() {
         },
       ],
     };
-  }, []);
+  }, [rowData]);
+
+  // Pagination controls
+  const handleNextPage = () => {
+    if (hasNext) setCurrentPage((prev) => prev + 1);
+  };
+
+  const handlePreviousPage = () => {
+    if (hasPrevious) setCurrentPage((prev) => prev - 1);
+  };
 
   return (
     <div className="ag-theme-alpine" style={{ height: 600, width: "100%" }}>
@@ -261,28 +148,23 @@ export default function Application() {
         <div className="mb-1">
           <div className="bg-gray-100 p-2 rounded-lg shadow-sm">
             <p className="text-sm font-semibold text-gray-700">
-              Total Number of Applications:{" "}
-              <span className="text-blue-600">{rowData.length}</span>
+              Total Number of Applications: <span className="text-blue-600">{totalItems}</span>
             </p>
           </div>
         </div>
         <Accordion
-          iconClass="absolute top-1 right-0 rounded-full text-white bg-purple-800"
+          iconClass="absolute right-0 rounded-full text-white bg-purple-800"
           title="Expand/Collapse"
         >
-          <div className="p-2">
-            <h2 className="text-sm font-semibold">
-              App Distribution by Sync Type
-            </h2>
+          <div>
+            <h2 className="text-sm font-semibold">App Distribution by Sync Type</h2>
             <div className="w-80 h-80">
               <Doughnut
                 data={syncTypeData}
                 options={{
                   responsive: true,
                   plugins: {
-                    legend: {
-                      position: "right",
-                    },
+                    legend: { position: "right" },
                     tooltip: {
                       callbacks: {
                         label: (context) => `${context.label}: ${context.raw}`,
@@ -298,9 +180,30 @@ export default function Application() {
       <AgGridReact
         rowData={rowData}
         columnDefs={columnDefs}
+        pagination={true}
+        paginationPageSize={20}
         domLayout="autoHeight"
         onRowClicked={handleRowClick}
       />
+      {/* <div className="flex justify-between">
+        <button
+          onClick={handlePreviousPage}
+          disabled={!hasPrevious}
+          className="px-4 py-2 bg-blue-600 text-white rounded disabled:bg-gray-300"
+        >
+          Previous
+        </button>
+        <span>
+          Page {currentPage} of {totalPages}
+        </span>
+        <button
+          onClick={handleNextPage}
+          disabled={!hasNext}
+          className="px-4 py-2 bg-blue-600 text-white rounded disabled:bg-gray-300"
+        >
+          Next
+        </button>
+      </div> */}
     </div>
   );
 }

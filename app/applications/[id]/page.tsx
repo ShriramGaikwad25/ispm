@@ -12,7 +12,7 @@ import {
   InfoIcon,
   X,
 } from "lucide-react";
-import { useMemo, useRef, useState, useEffect } from "react";
+import { useMemo, useRef, useState, useEffect, use } from "react";
 import { createPortal } from "react-dom";
 import "@/lib/ag-grid-setup";
 import Exports from "@/components/agTable/Exports";
@@ -60,7 +60,10 @@ const dataAccount: Record<string, DataItem[]> = {
   ],
 };
 
-export default function ApplicationDetailPage() {
+export default function ApplicationDetailPage( { params }: { params: Promise<{ appId: string }> } ) {
+
+  const resolvedParams = use(params);
+  const { id } = resolvedParams;
   const [tabIndex, setTabIndex] = useState(1);
   const [entTabIndex, setEntTabIndex] = useState(1); // Set to 1 for "Under Review"
   const gridApiRef = useRef<GridApi | null>(null);
@@ -79,6 +82,8 @@ export default function ApplicationDetailPage() {
   const [comment, setComment] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [lastAction, setLastAction] = useState<string | null>(null);
+    const [rowData, setRowData] = useState([]);
+  
 
   const handleSelect = (category: string, index: number) => {
     setSelected((prev) => ({
@@ -204,98 +209,33 @@ export default function ApplicationDetailPage() {
     </div>
   );
 
-  const rowData = [
-    {
-      account: "Adonis Salinas",
-      accountStatus: "Active",
-      accountType: "User",
-      discoveryDate: "6/17/24",
-      externalDomain: "No",
-      userStatus: "Active",
-      user: "Adonis Salinas",
-    },
-    {
-      account: "Adeline Guerrero",
-      accountStatus: "Active",
-      accountType: "User",
-      discoveryDate: "6/17/24",
-      externalDomain: "No",
-      userStatus: "Active",
-      user: "Adeline Guerrero",
-    },
-    {
-      account: "Adam Torres",
-      accountStatus: "Active",
-      accountType: "User",
-      discoveryDate: "6/17/24",
-      externalDomain: "No",
-      userStatus: "Active",
-      user: "Adam Torres",
-    },
-    {
-      account: "Adalyn Le",
-      accountStatus: "Active",
-      accountType: "User",
-      discoveryDate: "6/17/24",
-      externalDomain: "No",
-      userStatus: "Active",
-      user: "Adalyn Le",
-    },
-    {
-      account: "Abigail Gutierrez",
-      accountStatus: "Active",
-      accountType: "User",
-      discoveryDate: "6/17/24",
-      externalDomain: "No",
-      userStatus: "Active",
-      user: "Abigail Gutierrez",
-    },
-    {
-      account: "Abel Curtis",
-      accountStatus: "Active",
-      accountType: "User",
-      discoveryDate: "6/17/24",
-      externalDomain: "No",
-      userStatus: "Active",
-      user: "Abel Curtis",
-    },
-    {
-      account: "Aaliyah Munoz",
-      accountStatus: "Active",
-      accountType: "User",
-      discoveryDate: "6/17/24",
-      externalDomain: "No",
-      userStatus: "Active",
-      user: "Aaliyah Munoz",
-    },
-    {
-      account: "Adelyn Casey",
-      accountStatus: "Active",
-      accountType: "User",
-      discoveryDate: "6/17/24",
-      externalDomain: "No",
-      userStatus: "Active",
-      user: "Adelyn Casey",
-    },
-    {
-      account: "Addison Wallace",
-      accountStatus: "Active",
-      accountType: "User",
-      discoveryDate: "6/17/24",
-      externalDomain: "No",
-      userStatus: "Active",
-      user: "Addison Wallace",
-    },
-    {
-      account: "Adam St.",
-      accountStatus: "Active",
-      accountType: "User",
-      discoveryDate: "6/17/24",
-      externalDomain: "No",
-      userStatus: "Active",
-      user: "Adam St.",
-    },
-  ];
+  // const rowData = [
+  //   {
+  //     account: "Aaliyah Munoz",
+  //     accountStatus: "Active",
+  //     accountType: "User",
+  //     discoveryDate: "6/17/24",
+  //     externalDomain: "No",
+  //     userStatus: "Active",
+  //     user: "Aaliyah Munoz",
+  //   }
+  // ];
+  
+    useEffect(() => {
+      const fetchData = async () => {
+        try {
+          const response = await fetch(`https://preview.keyforge.ai/entities/api/v1/CERTTEST/getAppAccounts/430ea9e6-3cff-449c-a24e-59c057f81e3d/${id}`);
+          const data = await response.json();
+          console.log(data);
+          if (data.executionStatus === "success") {
+            setRowData(data.items);
+          }
+        } catch (error) {
+          console.error("Error fetching data:", error);
+        }
+      };
+      fetchData();
+    }, []);
 
   const rowData2 = [
     {
@@ -358,11 +298,12 @@ export default function ApplicationDetailPage() {
   const columnDefs = useMemo<ColDef[]>(
     () => [
       {
-        field: "accountId",
-        headerName: "Account ID",
+        field: "accountName",
+        headerName: "accountId",
+        flex:2,
         cellRenderer: "agGroupCellRenderer",
         cellRendererParams: {
-          suppressExpand: true,
+          suppressExpand: false,
           innerRenderer: (params: ICellRendererParams) => {
             const { accountType } = params.data || {};
             const accountTypeLabel = accountType ? `(${accountType})` : "";
@@ -400,15 +341,16 @@ export default function ApplicationDetailPage() {
         },
       },
       {
-        field: "Display Name",
+        field: "userDisplayName",
         headerName: "Display Name",
+        flex:2,
         cellRenderer: (params: ICellRendererParams) => {
           const { userType } = params.data || {};
           const userTypeLabel = userType ? `(${userType})` : "";
           return (
             <div className="flex flex-col gap-0 cursor-pointer hover:underline">
               <span className="text-gray-800">
-                {/* {params.value}{" "}
+                {params.value}{" "}
                 {userType && (
                   <span
                     className="text-[#175AE4] font-normal"
@@ -416,7 +358,7 @@ export default function ApplicationDetailPage() {
                   >
                     {userTypeLabel}
                   </span>
-                )} */}
+                )}
               </span>
             </div>
           );
@@ -433,7 +375,7 @@ export default function ApplicationDetailPage() {
         ),
       },
       {
-        field: "lastLogin",
+        field: "lastlogindate",
         headerName: "Last Login Date",
         enableRowGroup: true,
         cellRenderer: (params: ICellRendererParams) => (
@@ -443,34 +385,34 @@ export default function ApplicationDetailPage() {
         ),
       },
       {
-        field: "lastaction",
+        field: "lastAccessReview",
         headerName: "Last Access Review",
       },
       {
-        field: "Account Type",
+        field: "accountType",
         headerName: "Account Type",
         flex: 2,
         hide: true,
       },
-      { field: "User Status", headerName: "User Status", flex: 2, hide: true },
-      { field: "User ID", headerName: "User ID", flex: 2, hide: true },
+      { field: "userStatus", headerName: "User Status", flex: 2, hide: true },
+      { field: "userId", headerName: "User ID", flex: 2, hide: true },
       {
-        field: "User Manager",
+        field: "userManager",
         headerName: "User Manager",
         flex: 2,
         hide: true,
       },
-      { field: "User Dept", headerName: "User Dept", flex: 2, hide: true },
-      { field: "Job Title", headerName: "Job Title", flex: 2, hide: true },
+      { field: "userDepartment", headerName: "User Dept", flex: 2, hide: true },
+      { field: "jobTitle", headerName: "Job Title", flex: 2, hide: true },
       {
-        field: "Access Grant Date",
+        field: "accessGrantDate",
         headerName: "Access Grant Date",
         flex: 2,
         hide: true,
       },
-      { field: "User Type", headerName: "User Type", flex: 2, hide: true },
+      { field: "userType", headerName: "User Type", flex: 2, hide: true },
       {
-        field: "Entitlement Type",
+        field: "entitlementType",
         headerName: "Entitlement Type",
         flex: 2,
         hide: true,
@@ -478,6 +420,7 @@ export default function ApplicationDetailPage() {
       {
         field: "syncDate",
         headerName: "Sync Date",
+        flex:1
       },
     ],
     []
@@ -762,7 +705,7 @@ export default function ApplicationDetailPage() {
             className="ag-theme-alpine"
             style={{ height: 500, width: "100%" }}
           >
-            <div className="relative mb-2">
+            {/* <div className="relative mb-2">
               <Accordion
                 iconClass="top-1 right-0 rounded-full text-white bg-purple-800"
                 open={true}
@@ -840,7 +783,7 @@ export default function ApplicationDetailPage() {
                   ))}
                 </div>
               </Accordion>
-            </div>
+            </div> */}
             <div className="flex justify-end mb-4 relative z-10">
               <Exports gridApi={gridApiRef.current} />
             </div>
@@ -863,7 +806,7 @@ export default function ApplicationDetailPage() {
       component: () => (
         <div className="ag-theme-alpine" style={{ height: 500, width: "100%" }}>
           <div className="relative mb-4"></div>
-          <div className="relative mb-2">
+          {/* <div className="relative mb-2">
             <Accordion
               iconClass="top-1 right-0 rounded-full text-white bg-purple-800"
               open={true}
@@ -941,7 +884,7 @@ export default function ApplicationDetailPage() {
                 ))}
               </div>
             </Accordion>
-          </div>
+          </div> */}
           <div className="flex justify-end mb-4 relative z-10">
             <Exports gridApi={gridApiRef.current} />
           </div>
@@ -1410,12 +1353,41 @@ export default function ApplicationDetailPage() {
         );
       },
     },
-    {
-      label: "Sampling",
-      icon: ChevronDown,
-      iconOff: ChevronRight,
-      component: () => <p>Coming Soon...</p>,
-    },
+{
+  label: "Sampling",
+  icon: ChevronDown,
+  iconOff: ChevronRight,
+  component: () => (
+    <div className="sampling-tab-content flex justify-center">
+      <div className="search-container" style={{ display: 'flex', gap: '10px', margin: '20px' }}>
+        <input
+          type="text"
+          placeholder="Search by User Name Or Email Id"
+          style={{
+            padding: '8px',
+            width: '300px',
+            border: '1px solid #ccc',
+            borderRadius: '4px',
+            fontSize: '14px'
+          }}
+        />
+        <button
+          style={{
+            padding: '8px 16px',
+            backgroundColor: '#007bff',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '14px'
+          }}
+        >
+          Get Result
+        </button>
+      </div>
+    </div>
+  ),
+},
   ];
 
   return (

@@ -26,6 +26,8 @@ import RightSidebar from "@/components/RightSideBar";
 import Accordion from "@/components/Accordion";
 import ChartAppOwnerComponent from "@/components/ChartForAppOwner";
 import "./AppOwner.css";
+import { getAppOwnerDetails, getGroupedAppOwnerDetails, updateAction } from "@/lib/api";
+import { PaginatedResponse } from "@/types/api";
 
 // Register AG Grid Enterprise modules
 import { MasterDetailModule } from "ag-grid-enterprise";
@@ -38,7 +40,6 @@ type DataItem = {
   color?: string;
 };
 
-// Define the type for row data based on API response
 type RowData = {
   accountId: string;
   userId: string;
@@ -56,9 +57,9 @@ type RowData = {
   risk: string;
   applicationName: string;
   numOfEntitlements: number;
+  lineItemId?: string;
 };
 
-// Sample data structure for charts
 const data: {
   accountSummary: DataItem[];
   accountActivity: DataItem[];
@@ -82,7 +83,6 @@ const data: {
   ],
 };
 
-// Custom Detail Cell Renderer for Entitlement Description
 const DetailCellRenderer = (props: IDetailCellRendererParams) => {
   const { data } = props;
   return (
@@ -94,56 +94,81 @@ const DetailCellRenderer = (props: IDetailCellRendererParams) => {
   );
 };
 
-// UUID validation function
 const isValidUUID = (str: string): boolean => {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   return uuidRegex.test(str);
 };
 
-// Sample getAppOwnerDetails implementation
-async function getAppOwnerDetails(
-  page: number,
-  pageSize: number,
-  reviewerId: string,
-  certificationId: string
-) {
-  // Validate parameters
-  if (!Number.isInteger(page) || page < 1) {
-    throw new Error("Invalid page number: must be a positive integer");
-  }
-  if (!Number.isInteger(pageSize) || pageSize < 1) {
-    throw new Error("Invalid page size: must be a positive integer");
-  }
-  if (!isValidUUID(reviewerId)) {
-    throw new Error("Invalid reviewerId: must be a valid UUID");
-  }
-  if (!isValidUUID(certificationId)) {
-    throw new Error("Invalid certificationId: must be a valid UUID");
+const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
+  if (!Array.isArray(items)) {
+    console.error("transformApiData: items is not an array", items);
+    return [];
   }
 
-  try {
-    const response = await fetch(
-      `https://preview.keyforge.ai/certification/api/v1/CERTTEST/getAPPOCertificationDetails/${reviewerId}/${certificationId}?pageSize=${pageSize}&pageNumber=${page}`,
-      {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          // Add authentication headers if needed
-        },
-      }
-    );
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(
-        `API request failed: ${response.status} ${errorData.errorMessage || response.statusText}`
-      );
-    }
-    return await response.json();
-  } catch (error) {
-    console.error("API error:", error);
-    throw error;
+  if (isGrouped) {
+    // Handle grouped data from getGroupedAppOwnerDetails
+    return items.flatMap((group) => {
+      const groupEntitlement = group.entitlementInfo || {};
+      const groupEntitlementName = groupEntitlement.entitlementName || "Unknown Entitlement";
+      const groupEntitlementDescription = groupEntitlement.description || "";
+      const accounts = Array.isArray(group.accounts) ? group.accounts : [];
+      
+      return accounts.map((account: any, index: number) => {
+        const accountInfo = account.accountInfo || {};
+        const userInfo = account.userInfo || {};
+        const access = account.access || {};
+        const entityEntitlement = account.entityEntitlement || {};
+
+        return {
+          accountId: accountInfo.accountId || `grouped-${index}`,
+          accountName: accountInfo.accountName || "",
+          userId: userInfo.UserID || "",
+          entitlementName: groupEntitlementName,
+          entitlementDescription: groupEntitlementDescription,
+          aiInsights: entityEntitlement.aiassist?.recommendation || "",
+          accountSummary: accountInfo.accountName?.includes("@") ? "Regular Accounts" : "Other",
+          changeSinceLastReview: entityEntitlement.isNewAccess === "Y" ? "New entitlements" : "Existing entitlements",
+          accountType: group.campaignType || "",
+          userName: userInfo.UserName || "",
+          lastLoginDate: access.lastLogonDate || "2025-05-25",
+          department: userInfo.department || "Unknown",
+          manager: userInfo.manager || "Unknown",
+          risk: userInfo.Risk || access.risk || "Low",
+          applicationName: account.applicationInfo?.applicationName || "",
+          numOfEntitlements: group.access?.numOfAccounts || accounts.length || 0,
+          lineItemId: entityEntitlement.lineItemId || "",
+        };
+      });
+    });
   }
-}
+
+  // Handle ungrouped data from getAppOwnerDetails
+  return items.flatMap((item) => {
+    if (!item?.entityEntitlements || !Array.isArray(item.entityEntitlements)) {
+      console.warn("transformApiData: invalid entityEntitlements for item", item);
+      return [];
+    }
+    return item.entityEntitlements.map((entitlement: any) => ({
+      accountId: item.accountInfo?.accountId || "",
+      accountName: item.accountInfo?.accountName || "",
+      userId: item.userInfo?.UserID || "",
+      entitlementName: entitlement.entitlementInfo?.entitlementName || "",
+      entitlementDescription: entitlement.entitlementInfo?.entitlementDescription || "",
+      aiInsights: entitlement.aiassist?.recommendation || "",
+      accountSummary: item.accountInfo?.accountName?.includes("@") ? "Regular Accounts" : "Other",
+      changeSinceLastReview: "New entitlements",
+      accountType: item.campaignType || "",
+      userName: item.userInfo?.UserName || "",
+      lastLoginDate: "2025-05-25",
+      department: "Unknown",
+      manager: "Unknown",
+      risk: item.userInfo?.Risk || "Low",
+      applicationName: item.applicationInfo?.applicationName || "",
+      numOfEntitlements: item.access?.numOfEntitlements || 0,
+      lineItemId: entitlement.lineItemId || "",
+    }));
+  });
+};
 
 export default function AppOwner() {
   const [selected, setSelected] = useState<{ [key: string]: number | null }>({});
@@ -163,87 +188,110 @@ export default function AppOwner() {
     new Map()
   );
   const [comment, setComment] = useState("");
+  const [selectedRow, setSelectedRow] = useState<RowData | null>(null);
+  const [groupByOption, setGroupByOption] = useState<string>("None");
 
-  // Hardcoded UUIDs from API response (replace with dynamic values if available)
   const reviewerId = "430ea9e6-3cff-449c-a24e-59c057f81e3d";
   const certificationId = "4f5c20b8-1031-4114-a688-3b5be9cc2224";
 
-  // Transform API response to RowData
-  const transformApiData = (items: any[]): RowData[] => {
-    return items.flatMap((item) =>
-      item.entityEntitlements.map((entitlement: any) => ({
-        accountId: item.accountInfo.accountId,
-        accountName:item.accountInfo.accountName,
-        userId: item.userInfo.UserID,
-        entitlementName: entitlement.entitlementInfo.entitlementName,
-        entitlementDescription: entitlement.entitlementInfo.entitlementName,
-        aiInsights: entitlement.aiassist?.recommendation ,
-        accountSummary: item.accountInfo.accountName.includes("@")
-          ? "Regular Accounts"
-          : "Other",
-        changeSinceLastReview: "New entitlements", // Update based on deltaChanges
-        accountType: item.campaignType,
-        userName: item.userInfo.UserName,
-        lastLoginDate: "2025-05-25", // Update with real data
-        department: "Unknown", // Update if available
-        manager: "Unknown", // Update if available
-        risk: item.userInfo.Risk,
-        applicationName: item.applicationInfo.applicationName,
-        numOfEntitlements: item.access.numOfEntitlements,
-      }))
-    );
-  };
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-  // Fetch data with pagination and additional parameters
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
+      if (!isValidUUID(reviewerId)) {
+        throw new Error("Invalid reviewerId: must be a valid UUID");
+      }
+      if (!isValidUUID(certificationId)) {
+        throw new Error("Invalid certificationId: must be a valid UUID");
+      }
+      if (!Number.isInteger(pageNumber) || pageNumber < 1) {
+        throw new Error("Invalid page number: must be a positive integer");
+      }
+      if (!Number.isInteger(defaultPageSize) || defaultPageSize < 1) {
+        throw new Error("Invalid page size: must be a positive integer");
+      }
 
-        // Validate parameters before API call
-        if (!isValidUUID(reviewerId)) {
-          throw new Error("Invalid reviewerId: must be a valid UUID");
-        }
-        if (!isValidUUID(certificationId)) {
-          throw new Error("Invalid certificationId: must be a valid UUID");
-        }
-        if (!Number.isInteger(pageNumber) || pageNumber < 1) {
-          throw new Error("Invalid page number: must be a positive integer");
-        }
-        if (!Number.isInteger(defaultPageSize) || defaultPageSize < 1) {
-          throw new Error("Invalid page size: must be a positive integer");
-        }
+      console.log("Fetching data with:", {
+        pageNumber,
+        pageSize: defaultPageSize,
+        reviewerId,
+        certificationId,
+        groupBy: groupByOption,
+      });
 
-        console.log("Fetching data with:", {
-          pageNumber,
-          pageSize: defaultPageSize,
+      let response: PaginatedResponse<any>;
+      const isGrouped = groupByOption === "Entitlements" || groupByOption === "Accounts";
+      if (isGrouped) {
+        const groupByField = groupByOption === "Entitlements" ? "entitlementName" : "accountName";
+        response = await getGroupedAppOwnerDetails(
           reviewerId,
           certificationId,
-        });
-
-        const response = await getAppOwnerDetails(
-          pageNumber,
           defaultPageSize,
-          reviewerId,
-          certificationId
+          pageNumber,
+          groupByField
         );
-        if (response.status === "error") {
-          throw new Error(response.errorMessage || "API returned an error");
-        }
-        const transformedData = transformApiData(response.items);
-        setRowData(transformedData);
-        setTotalPages(response.total_pages);
-        setTotalItems(response.total_items);
-      } catch (err: any) {
-        console.error("Error fetching app owner details:", err);
-        setError(err.message || "Failed to load data. Please try again later.");
-      } finally {
-        setLoading(false);
+      } else {
+        response = await getAppOwnerDetails(
+          reviewerId,
+          certificationId,
+          defaultPageSize,
+          pageNumber
+        );
       }
-    };
+
+      console.log("API Response:", JSON.stringify(response, null, 2));
+
+      if (response.executionStatus === "error") {
+        throw new Error(response.errorMessage || "API returned an error");
+      }
+
+      if (!response.items || !Array.isArray(response.items)) {
+        console.error("Invalid response.items:", response.items);
+        throw new Error("Invalid data format received from API");
+      }
+
+      const transformedData = transformApiData(response.items, isGrouped);
+      console.log("Transformed Data:", JSON.stringify(transformedData, null, 2));
+      setRowData(transformedData);
+      setTotalPages(response.total_pages || 1);
+      setTotalItems(response.total_items || 0);
+    } catch (err: any) {
+      console.error("Error fetching app owner details:", err);
+      setError(err.message || "Failed to load data. Please try again later.");
+      setRowData([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [pageNumber, defaultPageSize, reviewerId, certificationId, groupByOption]);
+
+  useEffect(() => {
     fetchData();
-  }, [pageNumber, defaultPageSize, reviewerId, certificationId]);
+  }, [fetchData]);
+
+  const handleAction = async (
+    lineItemId: string,
+    actionType: "Approve" | "Reject",
+    justification: string
+  ) => {
+    try {
+      const payload = {
+        entitlementAction: [
+          {
+            lineItemIds: [lineItemId],
+            actionType,
+            justification,
+          },
+        ],
+      };
+      await updateAction(reviewerId, certificationId, payload);
+      alert(`${actionType} action submitted successfully`);
+      setPageNumber(1);
+    } catch (err: any) {
+      console.error("Error updating action:", err);
+      setError(err.message || "Failed to submit action. Please try again.");
+    }
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setComment(e.target.value);
@@ -262,8 +310,15 @@ export default function AppOwner() {
     }
   };
 
-  const handleOpen = () => setSidebarOpen(true);
-  const handleClose = () => setSidebarOpen(false);
+  const handleOpen = (params: ICellRendererParams) => {
+    setSelectedRow(params.data);
+    setSidebarOpen(true);
+  };
+
+  const handleClose = () => {
+    setSidebarOpen(false);
+    setSelectedRow(null);
+  };
 
   const openModal = () => {
     alert("Modal opened");
@@ -304,33 +359,6 @@ export default function AppOwner() {
       field: "accountName",
       headerName: "Account ID",
       cellRenderer: "agGroupCellRenderer",
-      // cellRendererParams: {
-      //   suppressExpand: true,
-      //   innerRenderer: (params: ICellRendererParams) => {
-      //     const { accountType } = params.data || {};
-      //     const accountTypeLabel = accountType ? `(${accountType})` : "";
-      //     return (
-      //       <div className="flex items-center space-x-2">
-      //         <div
-      //           className="flex flex-col gap-0 cursor-pointer hover:underline"
-      //           onClick={openModal}
-      //         >
-      //           <span className="text-gray-800 font-bold text-[14px]">
-      //             {params.value}{" "}
-      //             {accountType && (
-      //               <span
-      //                 className="text-[#175AE4] font-normal"
-      //                 title={`Account Type: ${accountType}`}
-      //               >
-      //                 {accountTypeLabel}
-      //               </span>
-      //             )}
-      //           </span>
-      //         </div>
-      //       </div>
-      //     );
-      //   },
-      // },
       cellClass: "ag-cell-no-padding",
     },
     {
@@ -344,16 +372,7 @@ export default function AppOwner() {
         return <span style={{ color: riskColor }}>{risk}</span>;
       },
     },
-    // {
-    //   field: "userId",
-    //   headerName: "User ID",
-    //   cellRenderer: (params: ICellRendererParams) => (
-    //     <div className="flex flex-col gap-0">
-    //       <span className="text-gray-800">{params.value}</span>
-    //     </div>
-    //   ),
-    // },
-    {field: "userName", headerName: "Display Name",},
+    { field: "userName", headerName: "Display Name" },
     {
       field: "lastLoginDate",
       headerName: "Last Login Date",
@@ -391,23 +410,13 @@ export default function AppOwner() {
             </svg>
           );
         return (
-          <div className="flex flex-col gap-0">
+          <div className="flex flex-col gap-0 mt-2">
             <span className="text-gray-800 cursor-pointer">{icon}</span>
           </div>
         );
       },
       onCellClicked: handleOpen,
     },
-    // {
-    //   field: "applicationName",
-    //   headerName: "Application Name",
-    //   flex: 2,
-    // },
-    // {
-    //   field: "numOfEntitlements",
-    //   headerName: "Number of Entitlements",
-    //   flex: 2,
-    // },
     { field: "accountType", headerName: "Account Type", flex: 2, hide: true },
     { field: "userType", headerName: "User Status", flex: 2, hide: true },
     { field: "department", headerName: "User Dept", flex: 2, hide: true },
@@ -416,7 +425,13 @@ export default function AppOwner() {
       field: "actions",
       headerName: "Actions",
       cellRenderer: (params: ICellRendererParams) => {
-        return <ActionButtons api={params.api} selectedRows={[params.data]} />;
+        return (
+          <ActionButtons
+            api={params.api}
+            selectedRows={[params.data]}
+            onAction={handleAction}
+          />
+        );
       },
     },
   ]);
@@ -440,22 +455,22 @@ export default function AppOwner() {
     );
     if (gridApiRef.current && gridApiRef.current.columnApi) {
       const columnApi = gridApiRef.current.columnApi;
-      console.log("Row grouping applied successfully for:", selectedField);
+      // console.log("Row grouping applied successfully for:", selectedField);
       columnApi.setRowGroupColumns([]);
       if (selectedField) {
         columnApi.setRowGroupColumns([selectedField]);
       }
     } else if (retries > 0) {
-      console.warn(`Grid API not ready, retrying (${retries} attempts left)`);
+      // console.warn(`Grid API not ready, retrying (${retries} attempts left)`);
       setTimeout(
         () => applyRowGrouping(selectedField, retries - 1, delay * 2),
         delay
       );
     } else {
-      console.error(
-        "Failed to apply row grouping: Grid API or Column API not available after retries"
-      );
-      alert("Unable to group rows at this time. Please try again later.");
+      // console.error(
+      //   "Failed to apply row grouping: Grid API or Column API not available after retries"
+      // );
+      // alert("Unable to group rows at this time. Please try again later.");
     }
   };
 
@@ -463,10 +478,21 @@ export default function AppOwner() {
     const selectedField = event.target.value || null;
     console.log("Group by changed to:", selectedField);
     setGroupByColumn(selectedField);
+    setGroupByOption(selectedField === "entitlementName" ? "Entitlements" : selectedField === "accountName" ? "Accounts" : "None");
     if (isGridReady) {
       applyRowGrouping(selectedField);
     } else {
       console.log("Grid not ready, deferring group change to onGridReady");
+    }
+  };
+
+  const handleGroupByOptionChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedOption = event.target.value;
+    setGroupByOption(selectedOption);
+    const selectedField = selectedOption === "Entitlements" ? "entitlementName" : selectedOption === "Accounts" ? "accountName" : null;
+    setGroupByColumn(selectedField);
+    if (isGridReady) {
+      applyRowGrouping(selectedField);
     }
   };
 
@@ -486,9 +512,7 @@ export default function AppOwner() {
           ?.getAllColumns()
           ?.map((col) => col.getColId()),
       });
-      if (groupByColumn) {
-        applyRowGrouping(groupByColumn);
-      }
+      applyRowGrouping(groupByColumn);
     }
   }, [isGridReady, groupByColumn]);
 
@@ -504,12 +528,23 @@ export default function AppOwner() {
         <ChartAppOwnerComponent />
       </Accordion>
       <div className="flex items-center justify-between mb-4 relative z-10 pt-10">
-        <SelectAll
-          gridApi={gridApiRef.current}
-          detailGridApis={detailGridApis}
-          clearDetailGridApis={() => setDetailGridApis(new Map())}
-          showExpandCollapse={true}
-        />
+        <div className="flex items-center space-x-4">
+          <SelectAll
+            gridApi={gridApiRef.current}
+            detailGridApis={detailGridApis}
+            clearDetailGridApis={() => setDetailGridApis(new Map())}
+            showExpandCollapse={true}
+          />
+          <select
+            value={groupByOption}
+            onChange={handleGroupByOptionChange}
+            className="border border-gray-300 rounded-md px-3 py-1 text-sm"
+          >
+            <option value="None">All</option>
+            <option value="Entitlements">Group by Entitlements</option>
+            <option value="Accounts">Group by Accounts</option>
+          </select>
+        </div>
         <div className="flex items-center space-x-4">
           <CustomPagination
             totalItems={totalItems}
@@ -531,7 +566,7 @@ export default function AppOwner() {
             className="p-1 rounded transition-colors duration-200"
           >
             <CheckCircleIcon
-              className="curser-pointer"
+              className="cursor-pointer"
               strokeWidth="1"
               size="24"
               color="#e73c3cff"
@@ -562,11 +597,17 @@ export default function AppOwner() {
         <div className="text-center py-4 text-red-600">
           {error}
           <button
-            onClick={() => setPageNumber(1)} // Retry fetching
+            onClick={() => fetchData()}
             className="ml-4 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
           >
             Retry
           </button>
+        </div>
+      ) : rowData.length === 0 ? (
+        <div className="text-center py-4">
+          <span className="ag-overlay-loading-center">
+            No data to display.
+          </span>
         </div>
       ) : (
         <div style={{ height: "100%", width: "100%" }}>
@@ -599,13 +640,13 @@ export default function AppOwner() {
                 enterpriseModules: params.api.isEnterprise?.()
                   ? "Loaded"
                   : "Not loaded",
-                columns: params.columnApi
+                columns: gridApiRef.current?.columnApi
                   ?.getAllColumns()
                   ?.map((col) => col.getColId()),
               });
             }}
             onFirstDataRendered={onFirstDataRendered}
-            pagination={false}
+            pagination={true}
             overlayLoadingTemplate={`<span class="ag-overlay-loading-center">⏳ Loading certification data...</span>`}
             overlayNoRowsTemplate={`<span class="ag-overlay-loading-center">No data to display.</span>`}
             className="ag-theme-quartz ag-main"
@@ -613,21 +654,21 @@ export default function AppOwner() {
         </div>
       )}
       <RightSidebar isOpen={isSidebarOpen} onClose={handleClose}>
-        <div className="max-w-3xl mx-auto p-4 bg-white shadow-lg rounded-xl border border-gray-200 space-y-6">
+        <div className="max-w-2xl mx-auto p-2 bg-white shadow-lg rounded-xl border border-gray-200 space-y-4">
           <div>
             <h2 className="text-lg font-semibold">Task summary</h2>
             <p className="text-sm text-gray-500">Review the access below</p>
           </div>
           <div className="flex items-center space-x-4 p-3 bg-gray-50 rounded-md">
             <div className="flex-1">
-              <p className="font-medium">Tye Davis</p>
+              <p className="font-medium">{selectedRow?.userName || "Tye Davis"}</p>
               <p className="text-sm text-gray-500">
-                tye.davis@conductorone.com - User - SSO
+                {selectedRow?.accountName || "tye.davis@conductorone.com"} - User - SSO
               </p>
             </div>
             <span className="text-gray-400">→</span>
             <div className="flex-1">
-              <p className="font-medium">Admin</p>
+              <p className="font-medium">{selectedRow?.entitlementName || "Admin"}</p>
               <p className="text-sm text-gray-500">AWS - IAM role</p>
             </div>
           </div>
@@ -649,11 +690,11 @@ export default function AppOwner() {
           <div className="space-y-1 text-sm">
             <p className="flex items-center">
               <CheckCircle className="w-4 h-4 text-green-500 mr-2" />
-              <strong className="m-1">Tye Davis</strong> is{" "}
+              <strong className="m-1">{selectedRow?.userName || "Tye Davis"}</strong> is{" "}
               <strong className="m-1">active</strong> in Okta
             </p>
             <p className="text-gray-700">
-              Tye Davis last logged into AWS on Nov 1, 2023:{" "}
+              {selectedRow?.userName || "Tye Davis"} last logged into AWS on Nov 1, 2023:{" "}
               <strong>1 month ago</strong>
             </p>
             <p className="text-red-600">
@@ -675,7 +716,10 @@ export default function AppOwner() {
                 Should this user have this access?
               </h3>
               <div className="space-x-2 p-2">
-                <ActionButtons />
+                <ActionButtons
+                  selectedRows={selectedRow ? [selectedRow] : []}
+                  onAction={handleAction}
+                />
               </div>
             </div>
             <p className="text-xs text-gray-500 mt-1">
@@ -694,12 +738,17 @@ export default function AppOwner() {
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
             />
             <button
-              disabled={!comment.trim()}
+              disabled={!comment.trim() || !selectedRow?.lineItemId}
               className={`mt-4 px-3 py-1 rounded-lg text-sm ${
-                comment.trim()
+                comment.trim() && selectedRow?.lineItemId
                   ? "bg-blue-500 hover:bg-blue-600 text-white"
                   : "bg-gray-100 text-gray-400 cursor-not-allowed"
               }`}
+              onClick={() => {
+                if (selectedRow?.lineItemId) {
+                  handleAction(selectedRow.lineItemId, "Approve", comment);
+                }
+              }}
             >
               Submit
             </button>

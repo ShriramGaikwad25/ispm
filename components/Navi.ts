@@ -7,7 +7,7 @@ import { Home, Settings, ListTodo,ListTree, LayoutDashboard, LayoutPanelLeft, Us
   { name: 'Applications', href: '/applications', icon: LayoutPanelLeft },
   { name: 'Users', href: '/user', icon: User2Icon },
   { name: 'Profiles', href: '/profiles', icon: UserCircle2Icon },
-  { name: 'Screen5', href: '/screen5', icon: ScreenShareIcon },
+  { name: 'Catalog', href: '/catalog', icon: ScreenShareIcon },
   { name: 'Settings', href: '/settings', icon: Settings },
 
 ];
