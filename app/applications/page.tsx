@@ -8,6 +8,7 @@ import { ColDef } from "ag-grid-enterprise";
 import Accordion from "@/components/Accordion";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 import { Doughnut } from "react-chartjs-2";
+import { formatDateMMDDYY } from "../access-review/page";
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -85,12 +86,13 @@ export default function Application() {
       {
         headerName: "Last Access Review",
         field: "lastAccessReview",
-        valueFormatter: (params: any) => params.value || "N/A",
+        valueFormatter: (params) => formatDateMMDDYY(params.value),
+       
       },
       {
         headerName: "Last Sync",
         field: "lastSync",
-        valueFormatter: (params: any) => params.value || "N/A",
+      valueFormatter: (params) => formatDateMMDDYY(params.value),
       },
       { headerName: "Sync Type", field: "syncType" },
       { headerName: "App Risk", field: "risk", hide: true },
@@ -141,9 +143,9 @@ export default function Application() {
 
   return (
     <div className="ag-theme-alpine" style={{ height: 600, width: "100%" }}>
-      <div className="relative mb-4">
+      <div className="relative mb-2">
         <h1 className="text-xl font-bold border-b border-gray-300 pb-2 text-blue-950">
-          Manager Actions
+          Applications
         </h1>
         <div className="mb-1">
           <div className="bg-gray-100 p-2 rounded-lg shadow-sm">

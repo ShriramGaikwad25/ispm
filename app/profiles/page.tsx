@@ -6,6 +6,7 @@ import { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 import ActionButtons from "@/components/agTable/ActionButtons";
 import Accordion from "@/components/Accordion";
 import ChartComponent from "@/components/ChartComponent";
+import { formatDateMMDDYY } from "../access-review/page";
 
 const Page = () => {
   const columnDefs = useMemo<ColDef[]>(
@@ -29,7 +30,8 @@ const Page = () => {
         type: "numberColumn",
         flex: 2,
       },
-      { field: "lastUpdated", headerName: "Last Updated", flex: 2 },
+      { field: "lastUpdated", headerName: "Last Updated", flex: 2,      valueFormatter: (params) => formatDateMMDDYY(params.value),
+       },
       {
         field: "actions",
         headerName: "Actions",

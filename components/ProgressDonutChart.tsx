@@ -87,7 +87,7 @@ const ProgressSummaryChart = () => {
   };
 
   return (
-    <div className="h-72 w-full p-4">
+    <div className="h-72 w-full">
       <Doughnut data={data} options={options} />
     </div>
   );

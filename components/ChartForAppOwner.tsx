@@ -10,17 +10,32 @@ interface DataItem {
 }
 
 const ChartAppOwnerComponent = () => {
+
+  const allData: DataItem[] = [
+    { label: "Elevated Accounts", value: 0 },
+    { label: "Orphan Accounts", value: 0 },
+    { label: "Terminated user accounts", value: 0 },
+    { label: "Dormant Accounts", value: 0 },
+    { label: "New Access", value: 0 },
+    { label: "Over Privileged users", value: 0 },
+    { label: "Compliance Violations", value: 0 },
+  ];
+
   const data: Record<string, DataItem[]> = {
-    InteractiveFilters: [
-      { label: "Elevated Accounts", value: 0 },
-      { label: "Orphan Accounts", value: 0 },
-      { label: "Terminated user accounts", value: 0 },
-      { label: "Dormant Accounts", value: 0 },
-      { label: "New Access", value: 0 },
-      { label: "Over Privileged users", value: 0 },
-      { label: "Compliance Violations", value: 0 },
-    ],
+    "InteractiveFilters": allData.slice(0, 4), // First 4 records
+    " ": allData.slice(4),   // Remaining 3 records
   };
+  // const data: Record<string, DataItem[]> = {
+  //   InteractiveFilters: [
+  //     { label: "Elevated Accounts", value: 0 },
+  //     { label: "Orphan Accounts", value: 0 },
+  //     { label: "Terminated user accounts", value: 0 },
+  //     { label: "Dormant Accounts", value: 0 },
+  //     { label: "New Access", value: 0 },
+  //     { label: "Over Privileged users", value: 0 },
+  //     { label: "Compliance Violations", value: 0 },
+  //   ],
+  // };
   const [selected, setSelected] = useState<{ [key: string]: number | null }>(
     {}
   );
@@ -31,7 +46,7 @@ const ChartAppOwnerComponent = () => {
     }));
   };
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
       {/* <div className="">
         <div className="flex justify-between p-4">
             <h2 className="text-lg text-gray-700">Risk Summary</h2> 
@@ -39,12 +54,12 @@ const ChartAppOwnerComponent = () => {
             <DonutChart />
         </div> */}
 
-      <div className="">
+      {/* <div className="">
         <div className="flex justify-between p-4">
           <h2 className="text-lg text-gray-700">Risk Heat Map</h2>
         </div>
         <VennChart />
-      </div>
+      </div> */}
 
       {/* <div className="">
         <div className="flex justify-between p-4">
@@ -52,9 +67,19 @@ const ChartAppOwnerComponent = () => {
         </div>
         <HorizontalBarChart />
       </div> */}
-      <div className="">
+      <div className="w-90">
         <FilterPanel
-          data={data}
+          data={{ "InteractiveFilters": data["InteractiveFilters"] }}
+          selected={selected}
+          onSelect={handleSelect}
+          onClear={(category) =>
+            setSelected((prev) => ({ ...prev, [category]: null }))
+          }
+        />
+      </div>
+      <div className="mt-3 w-90">
+        <FilterPanel
+          data={{ " ": data[" "] }}
           selected={selected}
           onSelect={handleSelect}
           onClear={(category) =>
@@ -64,7 +89,7 @@ const ChartAppOwnerComponent = () => {
       </div>
 
       <div className="">
-        <div className="flex justify-between p-4">
+        <div className="flex justify-between p-2">
           <h2 className="text-lg text-gray-700">Progress Summary</h2>
         </div>
         <ProgressDonutChart />

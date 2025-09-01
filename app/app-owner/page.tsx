@@ -26,12 +26,17 @@ import RightSidebar from "@/components/RightSideBar";
 import Accordion from "@/components/Accordion";
 import ChartAppOwnerComponent from "@/components/ChartForAppOwner";
 import "./AppOwner.css";
-import { getAppOwnerDetails, getGroupedAppOwnerDetails, updateAction } from "@/lib/api";
+import {
+  getAppOwnerDetails,
+  getGroupedAppOwnerDetails,
+  updateAction,
+} from "@/lib/api";
 import { PaginatedResponse } from "@/types/api";
 
 // Register AG Grid Enterprise modules
 import { MasterDetailModule } from "ag-grid-enterprise";
 import { ModuleRegistry } from "ag-grid-community";
+import { formatDateMMDDYY } from "../access-review/page";
 ModuleRegistry.registerModules([MasterDetailModule]);
 
 type DataItem = {
@@ -95,7 +100,8 @@ const DetailCellRenderer = (props: IDetailCellRendererParams) => {
 };
 
 const isValidUUID = (str: string): boolean => {
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   return uuidRegex.test(str);
 };
 
@@ -109,10 +115,11 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
     // Handle grouped data from getGroupedAppOwnerDetails
     return items.flatMap((group) => {
       const groupEntitlement = group.entitlementInfo || {};
-      const groupEntitlementName = groupEntitlement.entitlementName || "Unknown Entitlement";
+      const groupEntitlementName =
+        groupEntitlement.entitlementName || "Unknown Entitlement";
       const groupEntitlementDescription = groupEntitlement.description || "";
       const accounts = Array.isArray(group.accounts) ? group.accounts : [];
-      
+
       return accounts.map((account: any, index: number) => {
         const accountInfo = account.accountInfo || {};
         const userInfo = account.userInfo || {};
@@ -126,8 +133,13 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
           entitlementName: groupEntitlementName,
           entitlementDescription: groupEntitlementDescription,
           aiInsights: entityEntitlement.aiassist?.recommendation || "",
-          accountSummary: accountInfo.accountName?.includes("@") ? "Regular Accounts" : "Other",
-          changeSinceLastReview: entityEntitlement.isNewAccess === "Y" ? "New entitlements" : "Existing entitlements",
+          accountSummary: accountInfo.accountName?.includes("@")
+            ? "Regular Accounts"
+            : "Other",
+          changeSinceLastReview:
+            entityEntitlement.isNewAccess === "Y"
+              ? "New entitlements"
+              : "Existing entitlements",
           accountType: group.campaignType || "",
           userName: userInfo.UserName || "",
           lastLoginDate: access.lastLogonDate || "2025-05-25",
@@ -135,7 +147,8 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
           manager: userInfo.manager || "Unknown",
           risk: userInfo.Risk || access.risk || "Low",
           applicationName: account.applicationInfo?.applicationName || "",
-          numOfEntitlements: group.access?.numOfAccounts || accounts.length || 0,
+          numOfEntitlements:
+            group.access?.numOfAccounts || accounts.length || 0,
           lineItemId: entityEntitlement.lineItemId || "",
         };
       });
@@ -145,7 +158,10 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
   // Handle ungrouped data from getAppOwnerDetails
   return items.flatMap((item) => {
     if (!item?.entityEntitlements || !Array.isArray(item.entityEntitlements)) {
-      console.warn("transformApiData: invalid entityEntitlements for item", item);
+      console.warn(
+        "transformApiData: invalid entityEntitlements for item",
+        item
+      );
       return [];
     }
     return item.entityEntitlements.map((entitlement: any) => ({
@@ -153,9 +169,12 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
       accountName: item.accountInfo?.accountName || "",
       userId: item.userInfo?.UserID || "",
       entitlementName: entitlement.entitlementInfo?.entitlementName || "",
-      entitlementDescription: entitlement.entitlementInfo?.entitlementDescription || "",
+      entitlementDescription:
+        entitlement.entitlementInfo?.entitlementDescription || "",
       aiInsights: entitlement.aiassist?.recommendation || "",
-      accountSummary: item.accountInfo?.accountName?.includes("@") ? "Regular Accounts" : "Other",
+      accountSummary: item.accountInfo?.accountName?.includes("@")
+        ? "Regular Accounts"
+        : "Other",
       changeSinceLastReview: "New entitlements",
       accountType: item.campaignType || "",
       userName: item.userInfo?.UserName || "",
@@ -171,7 +190,9 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
 };
 
 export default function AppOwner() {
-  const [selected, setSelected] = useState<{ [key: string]: number | null }>({});
+  const [selected, setSelected] = useState<{ [key: string]: number | null }>(
+    {}
+  );
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [groupByColumn, setGroupByColumn] = useState<string | null>(null);
   const [isGridReady, setIsGridReady] = useState(false);
@@ -221,9 +242,11 @@ export default function AppOwner() {
       });
 
       let response: PaginatedResponse<any>;
-      const isGrouped = groupByOption === "Entitlements" || groupByOption === "Accounts";
+      const isGrouped =
+        groupByOption === "Entitlements" || groupByOption === "Accounts";
       if (isGrouped) {
-        const groupByField = groupByOption === "Entitlements" ? "entitlementName" : "accountName";
+        const groupByField =
+          groupByOption === "Entitlements" ? "entitlementName" : "accountName";
         response = await getGroupedAppOwnerDetails(
           reviewerId,
           certificationId,
@@ -252,7 +275,10 @@ export default function AppOwner() {
       }
 
       const transformedData = transformApiData(response.items, isGrouped);
-      console.log("Transformed Data:", JSON.stringify(transformedData, null, 2));
+      console.log(
+        "Transformed Data:",
+        JSON.stringify(transformedData, null, 2)
+      );
       setRowData(transformedData);
       setTotalPages(response.total_pages || 1);
       setTotalItems(response.total_items || 0);
@@ -377,11 +403,12 @@ export default function AppOwner() {
       field: "lastLoginDate",
       headerName: "Last Login Date",
       enableRowGroup: true,
-      cellRenderer: (params: ICellRendererParams) => (
-        <div className="flex flex-col gap-0">
-          <span className="text-gray-800">{params.value}</span>
-        </div>
-      ),
+      valueFormatter: (params) => formatDateMMDDYY(params.value),
+      // cellRenderer: (params: ICellRendererParams) => (
+      //   <div className="flex flex-col gap-0">
+      //     <span className="text-gray-800">{params.value}</span>
+      //   </div>
+      // ),
     },
     {
       field: "aiInsights",
@@ -478,7 +505,13 @@ export default function AppOwner() {
     const selectedField = event.target.value || null;
     console.log("Group by changed to:", selectedField);
     setGroupByColumn(selectedField);
-    setGroupByOption(selectedField === "entitlementName" ? "Entitlements" : selectedField === "accountName" ? "Accounts" : "None");
+    setGroupByOption(
+      selectedField === "entitlementName"
+        ? "Entitlements"
+        : selectedField === "accountName"
+        ? "Accounts"
+        : "None"
+    );
     if (isGridReady) {
       applyRowGrouping(selectedField);
     } else {
@@ -486,10 +519,17 @@ export default function AppOwner() {
     }
   };
 
-  const handleGroupByOptionChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleGroupByOptionChange = (
+    event: React.ChangeEvent<HTMLSelectElement>
+  ) => {
     const selectedOption = event.target.value;
     setGroupByOption(selectedOption);
-    const selectedField = selectedOption === "Entitlements" ? "entitlementName" : selectedOption === "Accounts" ? "accountName" : null;
+    const selectedField =
+      selectedOption === "Entitlements"
+        ? "entitlementName"
+        : selectedOption === "Accounts"
+        ? "accountName"
+        : null;
     setGroupByColumn(selectedField);
     if (isGridReady) {
       applyRowGrouping(selectedField);
@@ -546,6 +586,16 @@ export default function AppOwner() {
           </select>
         </div>
         <div className="flex items-center space-x-4">
+          <input
+            type="text"
+            placeholder="Search..."
+            className="mr-2 border rounded"
+            onChange={(e) => {
+              if (gridApiRef.current) {
+                // gridApiRef.current.setQuickFilter(e.target.value);
+              }
+            }}
+          />
           <CustomPagination
             totalItems={totalItems}
             currentPage={pageNumber}
@@ -605,9 +655,7 @@ export default function AppOwner() {
         </div>
       ) : rowData.length === 0 ? (
         <div className="text-center py-4">
-          <span className="ag-overlay-loading-center">
-            No data to display.
-          </span>
+          <span className="ag-overlay-loading-center">No data to display.</span>
         </div>
       ) : (
         <div style={{ height: "100%", width: "100%" }}>
@@ -661,14 +709,19 @@ export default function AppOwner() {
           </div>
           <div className="flex items-center space-x-4 p-3 bg-gray-50 rounded-md">
             <div className="flex-1">
-              <p className="font-medium">{selectedRow?.userName || "Tye Davis"}</p>
+              <p className="font-medium">
+                {selectedRow?.userName || "Tye Davis"}
+              </p>
               <p className="text-sm text-gray-500">
-                {selectedRow?.accountName || "tye.davis@conductorone.com"} - User - SSO
+                {selectedRow?.accountName || "tye.davis@conductorone.com"} -
+                User - SSO
               </p>
             </div>
             <span className="text-gray-400">→</span>
             <div className="flex-1">
-              <p className="font-medium">{selectedRow?.entitlementName || "Admin"}</p>
+              <p className="font-medium">
+                {selectedRow?.entitlementName || "Admin"}
+              </p>
               <p className="text-sm text-gray-500">AWS - IAM role</p>
             </div>
           </div>
@@ -690,12 +743,14 @@ export default function AppOwner() {
           <div className="space-y-1 text-sm">
             <p className="flex items-center">
               <CheckCircle className="w-4 h-4 text-green-500 mr-2" />
-              <strong className="m-1">{selectedRow?.userName || "Tye Davis"}</strong> is{" "}
-              <strong className="m-1">active</strong> in Okta
+              <strong className="m-1">
+                {selectedRow?.userName || "Tye Davis"}
+              </strong>{" "}
+              is <strong className="m-1">active</strong> in Okta
             </p>
             <p className="text-gray-700">
-              {selectedRow?.userName || "Tye Davis"} last logged into AWS on Nov 1, 2023:{" "}
-              <strong>1 month ago</strong>
+              {selectedRow?.userName || "Tye Davis"} last logged into AWS on Nov
+              1, 2023: <strong>1 month ago</strong>
             </p>
             <p className="text-red-600">
               This entitlement is marked as <strong>Critical</strong> risk

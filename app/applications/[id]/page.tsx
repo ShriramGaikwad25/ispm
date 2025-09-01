@@ -241,63 +241,84 @@ export default function ApplicationDetailPage({
     fetchData();
   }, []);
 
-  const rowData2 = [
-    {
-      "Ent ID": "ENT201",
-      "Ent Name": "Server Admin",
-      "Ent Description":
-        "Administrative access to on-premises server infrastructure",
-      "Total Assignments": 8,
-      "Last Sync": "2025-07-13T12:00:00Z",
-      Requestable: "Yes",
-      Certifiable: "Yes",
-      Risk: "High",
-      "SOD Check": "Passed",
-      Hierarchy: "Top-level",
-      "Pre- Requisite": "Server Admin Training",
-      "Pre-Requisite Details": "Completion of Windows Server Admin course",
-      "Revoke on Disable": "Yes",
-      "Shared Pwd": "No",
-      "Capability/Technical Scope": "Manage server configurations and updates",
-      "Business Objective": "Maintain server uptime and security",
-      "Compliance Type": "ISO 27001",
-      "Access Scope": "Global",
-      "Last Reviewed on": "2025-06-25",
-      Reviewed: "Yes",
-      "Dynamic Tag": "Infrastructure",
-      "MFA Status": "Enabled",
-      "Review Schedule": "Quarterly",
-      "Ent Owner": "Emily Carter",
-      "Created On": "2024-03-10",
-    },
-    {
-      "Ent ID": "ENT202",
-      "Ent Name": "HR Viewer",
-      "Ent Description": "Read-only access to HR system reports",
-      "Total Assignments": 20,
-      "Last Sync": "2025-07-12T15:30:00Z",
-      Requestable: "No",
-      Certifiable: "No",
-      Risk: "Low",
-      "SOD Check": "Not Required",
-      Hierarchy: "Low-level",
-      "Pre- Requisite": "None",
-      "Pre-Requisite Details": "N/A",
-      "Revoke on Disable": "Yes",
-      "Shared Pwd": "Yes",
-      "Capability/Technical Scope": "View employee data and reports",
-      "Business Objective": "Support HR analytics",
-      "Compliance Type": "GDPR",
-      "Access Scope": "Departmental",
-      "Last Reviewed on": "2025-05-15",
-      Reviewed: "No",
-      "Dynamic Tag": "HR",
-      "MFA Status": "Disabled",
-      "Review Schedule": "Annual",
-      "Ent Owner": "Mark Thompson",
-      "Created On": "2024-08-01",
-    },
-  ];
+useEffect(() => {
+    const fetchEntitlementsData = async () => {
+      try {
+        const response = await fetch(
+          `https://preview.keyforge.ai/entities/api/v1/CERTTEST/getAppEntitlements/430ea9e6-3cff-449c-a24e-59c057f81e3d/${id}`
+        );
+        const data = await response.json();
+        console.log("Entitlements data:", data);
+        if (data.executionStatus === "success") {
+          setRowData(data.items);
+        }
+      } catch (error) {
+        console.error("Error fetching entitlements data:", error);
+      }
+    };
+    if (tabIndex === 2) {
+      // Only fetch entitlements when on the Entitlements tab
+      fetchEntitlementsData();
+    }
+  }, [id, tabIndex]);
+
+  // const rowData2 = [
+  //   {
+  //     "Ent ID": "ENT201",
+  //     "Ent Name": "Server Admin",
+  //     "Ent Description":
+  //       "Administrative access to on-premises server infrastructure",
+  //     "Total Assignments": 8,
+  //     "Last Sync": "2025-07-13T12:00:00Z",
+  //     Requestable: "Yes",
+  //     Certifiable: "Yes",
+  //     Risk: "High",
+  //     "SOD Check": "Passed",
+  //     Hierarchy: "Top-level",
+  //     "Pre- Requisite": "Server Admin Training",
+  //     "Pre-Requisite Details": "Completion of Windows Server Admin course",
+  //     "Revoke on Disable": "Yes",
+  //     "Shared Pwd": "No",
+  //     "Capability/Technical Scope": "Manage server configurations and updates",
+  //     "Business Objective": "Maintain server uptime and security",
+  //     "Compliance Type": "ISO 27001",
+  //     "Access Scope": "Global",
+  //     "Last Reviewed on": "2025-06-25",
+  //     Reviewed: "Yes",
+  //     "Dynamic Tag": "Infrastructure",
+  //     "MFA Status": "Enabled",
+  //     "Review Schedule": "Quarterly",
+  //     "Ent Owner": "Emily Carter",
+  //     "Created On": "2024-03-10",
+  //   },
+  //   {
+  //     "Ent ID": "ENT202",
+  //     "Ent Name": "HR Viewer",
+  //     "Ent Description": "Read-only access to HR system reports",
+  //     "Total Assignments": 20,
+  //     "Last Sync": "2025-07-12T15:30:00Z",
+  //     Requestable: "No",
+  //     Certifiable: "No",
+  //     Risk: "Low",
+  //     "SOD Check": "Not Required",
+  //     Hierarchy: "Low-level",
+  //     "Pre- Requisite": "None",
+  //     "Pre-Requisite Details": "N/A",
+  //     "Revoke on Disable": "Yes",
+  //     "Shared Pwd": "Yes",
+  //     "Capability/Technical Scope": "View employee data and reports",
+  //     "Business Objective": "Support HR analytics",
+  //     "Compliance Type": "GDPR",
+  //     "Access Scope": "Departmental",
+  //     "Last Reviewed on": "2025-05-15",
+  //     Reviewed: "No",
+  //     "Dynamic Tag": "HR",
+  //     "MFA Status": "Disabled",
+  //     "Review Schedule": "Annual",
+  //     "Ent Owner": "Mark Thompson",
+  //     "Created On": "2024-08-01",
+  //   },
+  // ];
 
   const columnDefs = useMemo<ColDef[]>(
     () => [
@@ -305,12 +326,12 @@ export default function ApplicationDetailPage({
         field: "accountName",
         headerName: "accountId",
         flex: 2,
-        cellRenderer: "agGroupCellRenderer",
+        // cellRenderer: "agGroupCellRenderer",
         cellRendererParams: {
           suppressExpand: false,
           innerRenderer: (params: ICellRendererParams) => {
             const { accountType } = params.data || {};
-            const accountTypeLabel = accountType ? `(${accountType})` : "";
+            const accountTypeLabel = accountType ;
             return (
               <div className="flex items-center space-x-2">
                 <div className="flex flex-col gap-0 cursor-pointer hover:underline">
@@ -433,7 +454,7 @@ export default function ApplicationDetailPage({
   const colDefs = useMemo<ColDef[]>(
     () => [
       {
-        field: "Ent Name",
+        field: "entitlementName",
         headerName: "Entitlement Name",
         flex: 2.5,
         wrapText: true,
@@ -445,16 +466,16 @@ export default function ApplicationDetailPage({
 
               {/* Row 2: full-width description */}
               <div className="text-gray-600 text-sm w-100">
-                {params.data["Ent Description"]}
+                {params.data["description"]}
               </div>
             </div>
           );
         },
       },
       // { field:"Ent Description", headerName:"Entitlement Description", flex:2},
-      { field: "Ent Type", headerName: "Enttitlement Type", flex: 2.5 },
-      { field: "Risk", headerName: "Risk", flex: 1.5 },
-      { field: "App Name", headerName: "Application Name", flex: 2.5 },
+      { field: "type", headerName: "Entitlement Type", flex: 2.5 },
+      { field: "risk", headerName: "Risk", flex: 1.5 },
+      { field: "applicationName", headerName: "Application Name", flex: 2.5 },
       { field: "assignment", headerName: "Assignment", flex: 2 },
       { field: "Last Sync", headerName: "Last Sync", flex: 2 },
       {
@@ -559,7 +580,7 @@ export default function ApplicationDetailPage({
   const underReviewColDefs = useMemo<ColDef[]>(
     () => [
       {
-        field: "Ent Name",
+        field: "entitlementName",
         headerName: "Entitlement Name",
         flex: 3,
         wrapText: true,
@@ -570,15 +591,15 @@ export default function ApplicationDetailPage({
               <div className="font-semibold">{params.value}</div>
 
               <div className="text-gray-600 text-sm w-full">
-                {params.data["Ent Description"]}
+                {params.data["description"]}
               </div>
             </div>
           );
         },
       },
-      { field: "Ent Type", headerName: "Ent Type", flex: 1 },
+      { field: "type", headerName: "Ent Type", flex: 1 },
       {
-        field: "Risk",
+        field: "risk",
         headerName: "Ent Risk",
         flex: 1.5,
         cellRenderer: (params: ICellRendererParams) => {
@@ -588,7 +609,7 @@ export default function ApplicationDetailPage({
           return <span style={{ color: riskColor }}>{risk}</span>;
         },
       },
-      { field: "App Name", headerName: "Application Name", flex: 1.5 },
+      { field: "applicationName", headerName: "Application Name", flex: 1.5 },
       { field: "Last Reviewed on", headerName: "Last Reviewed", flex: 1.5 },
       {
         headerName: "Actions",
@@ -791,7 +812,7 @@ export default function ApplicationDetailPage({
               <Exports gridApi={gridApiRef.current} />
             </div>
             <AgGridReact
-              rowData={rowData2}
+              rowData={rowData}
               columnDefs={colDefs}
               defaultColDef={defaultColDef}
               masterDetail={true}
@@ -892,7 +913,7 @@ export default function ApplicationDetailPage({
             <Exports gridApi={gridApiRef.current} />
           </div>
           <AgGridReact
-            rowData={rowData2}
+            rowData={rowData}
             columnDefs={underReviewColDefs}
             defaultColDef={defaultColDef}
             masterDetail={true}
@@ -1233,7 +1254,7 @@ export default function ApplicationDetailPage({
             className="ag-theme-alpine"
             style={{ height: 500, width: "100%" }}
           >
-            <div className="relative mb-4">
+            <div className="relative mb-2">
               <h1 className="text-xl font-bold border-b border-gray-300 pb-2 text-blue-950">
                 Accounts
               </h1>
@@ -1323,7 +1344,7 @@ export default function ApplicationDetailPage({
               columnDefs={columnDefs}
               defaultColDef={defaultColDef}
               masterDetail={true}
-              detailCellRendererParams={detailCellRendererParams}
+              // detailCellRendererParams={detailCellRendererParams}
             />
           </div>
         );

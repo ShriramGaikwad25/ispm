@@ -115,9 +115,9 @@ const SelectAll: React.FC<SelectAllProps> = ({
           Select All
         </label>
 
-        <div className="px-4 text-blue-600">
+        {/* <div className="px-4 text-blue-600">
           {selectedCount} / {visibleCount} Selected
-        </div>
+        </div> */}
       </div>
 
       {selectedCount > 0 && gridApi && (

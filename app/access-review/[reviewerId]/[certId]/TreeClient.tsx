@@ -8,7 +8,8 @@ import React, {
   useCallback,
 } from "react";
 import { AgGridReact } from "ag-grid-react";
-import "@/lib/ag-grid-setup";
+import { themeQuartz } from "ag-grid-community";
+import "@/lib/ag-grid-setup"; // Ensure Enterprise modules and license are loaded
 import Image from "next/image";
 import {
   ColDef,
@@ -27,12 +28,8 @@ import { useCertificationDetails, fetchAccessDetails } from "@/hooks/useApi";
 import { getLineItemDetails } from "@/lib/api";
 import { EntitlementInfo } from "@/types/lineItem";
 import { UserRowData } from "@/types/certification";
-import { CheckCircleIcon, Flag, User, UserCheckIcon } from "lucide-react";
+import { CheckCircleIcon, Flag, User } from "lucide-react";
 import Import from "@/components/agTable/Import";
-import { MasterDetailModule } from "ag-grid-enterprise";
-import { ModuleRegistry } from "ag-grid-community";
-// import "./TreeClient.css";
-ModuleRegistry.registerModules([MasterDetailModule]);
 
 interface UserPopupProps {
   username: string;
@@ -95,9 +92,6 @@ const DetailCellRenderer = (props: IDetailCellRendererParams) => {
   return (
     <div className="flex p-4 bg-gray-50 border-t border-gray-200 ml-10">
       <div className="flex flex-row items-center gap-2">
-        {/* <span className="font-bold text-md text-[#1759e4]">
-          Entitlement Description:
-        </span> */}
         <span className="text-gray-800">{data.entitlementDescription}</span>
       </div>
     </div>
@@ -140,40 +134,51 @@ const TreeClient: React.FC<TreeClientProps> = ({
   );
 
   useEffect(() => {
-    if (!certificationDetailsData) return;
-    console.log("Full data:", certificationDetailsData);
+    if (!certificationDetailsData) {
+      console.log("No certificationDetailsData available");
+      return;
+    }
+    console.log("certificationDetailsData:", certificationDetailsData);
 
     const mapped = certificationDetailsData.items.map((task: any) => {
       const userInfo = task.userInfo || {};
       const access = task.access || {};
       const delta = task.deltaChanges || {};
-
-      console.log(`Delta Changes for task ${task.taskId}:`, delta);
       const fullName = userInfo.firstname + userInfo.lastname;
-      console.log(fullName);
 
       return {
         id: task.taskId,
         ...userInfo,
+        status: userInfo.status || "Unknown",
+        manager: userInfo.manager || "Unknown",
+        userType: userInfo.userType || "Internal",
         certificationId: certId,
         taskId: task.taskId,
-        jobtitle: userInfo.jobtitle,
-        numOfApplications: access.numOfApplications,
-        numOfEntitlements: access.numOfEntitlements,
-        numOfApplicationsCertified: access.numOfApplicationsCertified,
-        numOfRolesCertified: access.numOfRolesCertified,
-        numOfEntitlementsCertified: access.numOfEntitlementsCertified,
+        jobtitle: userInfo.jobtitle || "Unknown",
+        department: userInfo.department || "Unknown",
+        numOfApplications: access.numOfApplications || 0,
+        numOfEntitlements: access.numOfEntitlements || 0,
+        numOfApplicationsCertified: access.numOfApplicationsCertified || 0,
+        numOfRolesCertified: access.numOfRolesCertified || 0,
+        numOfEntitlementsCertified: access.numOfEntitlementsCertified || 0,
         profileChange: delta.profileChange || [],
         SoDConflicts: delta.SoDConflicts || [],
         addedAccounts: delta.addedAccounts || [],
         addedEntitlements: delta.addedEntitlements || [],
-        fullName: fullName,
+        fullName: fullName || "",
       };
     });
 
+    console.log("Mapped rowData:", mapped);
     setRowData(mapped);
     setTotalItems(certificationDetailsData.total_items || 0);
     setTotalPages(certificationDetailsData.total_pages || 1);
+
+    if (gridApiRef.current) {
+      // gridApiRef.current.setRowData(mapped);
+      gridApiRef.current.redrawRows();
+      gridApiRef.current.ensureIndexVisible(0);
+    }
   }, [certificationDetailsData, certId]);
 
   const handlePageChange = (newPage: number) => {
@@ -195,7 +200,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
       defaultPageSize,
       newPageNumber
     );
-
     detailApi.applyTransaction({ update: data });
   };
 
@@ -204,8 +208,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
     const isExpanded = node.expanded;
     const fullName = node.data?.fullName;
     const taskId = node.data?.id;
-
-    console.log("User row group opened:", { fullName, taskId, isExpanded });
 
     if (isExpanded) {
       setExpandedFullName(fullName || null);
@@ -226,7 +228,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
       });
       if (gridApiRef.current) {
         gridApiRef.current.ensureIndexVisible(0);
-        gridApiRef.current.refreshCells();
+        gridApiRef.current.redrawRows();
       }
     } else {
       setExpandedFullName(null);
@@ -239,7 +241,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const columnDefs = useMemo<ColDef[]>(
     () => [
       {
-        headerComponent: () => "Users",
         field: "fullName",
         headerName: "User",
         width: 600,
@@ -248,7 +249,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
           suppressCount: true,
           innerRenderer: (params: ICellRendererParams) => {
             const [showTooltip, setShowTooltip] = React.useState(false);
-
             return (
               <div className="flex items-center gap-3">
                 <Image
@@ -338,7 +338,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
       {
         headerName: "Actions",
         width: 500,
-        // headerComponent: () => null,
         cellRenderer: (params: ICellRendererParams) => {
           return (
             <ActionButtons
@@ -391,12 +390,14 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     ? "orange"
                     : "green";
                 return (
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-4 font-normal text-sm">
                     <span>
                       <User size={18} />
                     </span>
                     <div className="flex items-center gap-2">
-                      <small className="leading-4">{entitlementName}</small>
+                      <span className="font-normal text-sm">
+                        {entitlementName}
+                      </span>
                       <span>({deltaLabel})</span>
                       <span style={{ color: riskColor }}>{riskAbbr}</span>
                     </div>
@@ -415,13 +416,13 @@ const TreeClient: React.FC<TreeClientProps> = ({
               const hasViolation = SoDConflicts && SoDConflicts.length > 0;
               const lines = user?.split?.("\n") ?? ["", ""];
               return (
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4 font-normal text-sm mt-2">
                   <div className="flex items-center gap-2">
-                    <small className="leading-4">{lines[0]}</small>
+                    <span className="font-normal text-sm">{lines[0]}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div
-                      className="flex items-center justify-center w-5 h-5 rounded-full bg-[#27685b] text-white text-[10px]"
+                      className="flex items-center justify-center w-5 h-5 rounded-full bg-[#27685b] text-white text-sm"
                       title={`Account Type: ${typeLabel}`}
                     >
                       {typeLabel.charAt(0)}
@@ -431,10 +432,10 @@ const TreeClient: React.FC<TreeClientProps> = ({
                         className="flex items-center justify-center w-5 h-5 rounded-full bg-gray-200 relative z-50"
                         title="Audit/SOD Violation"
                       >
-                        <Flag height={10} color="red" className="text-[10px]" />
+                        <Flag height={10} color="red" className="text-sm" />
                       </div>
                     )}
-                    <small className="leading-4">{lines[1]}</small>
+                    <span className="font-normal text-sm">{lines[1]}</span>
                   </div>
                 </div>
               );
@@ -521,7 +522,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
           {
             headerName: "Actions",
             width: 220,
-            // headerComponent: () => null,
             cellRenderer: (params: ICellRendererParams) => {
               return (
                 <ActionButtons
@@ -572,12 +572,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
           },
           { field: "appRisk", headerName: "App Risk", width: 150, hide: true },
         ],
-        defaultColDef: {
-          resizable: true,
-        },
-        rowSelection: {
-          mode: "multiRow",
-        },
+        defaultColDef: { resizable: true },
+        rowSelection: { mode: "multiRow" },
         className: "account-table-detail",
         pagination: true,
         paginationPageSize: defaultPageSize,
@@ -586,7 +582,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
           const detailApi = params.api;
           const taskId = detailApi.getRowNode("0")?.data?.taskId;
           const newPageNumber = detailApi.paginationGetCurrentPage() + 1;
-
           if (taskId) {
             handleDetailPageChange(taskId, newPageNumber, detailApi);
           }
@@ -595,11 +590,9 @@ const TreeClient: React.FC<TreeClientProps> = ({
           const taskId = params.data?.taskId;
           const lineItemId = params.data?.lineItemId;
           const entitlementName = params.data?.entitlementName;
-
           if (!taskId || !lineItemId || !entitlementName) {
             return `fallback-${Math.random()}`;
           }
-
           return `${taskId}-${lineItemId}-${entitlementName}`;
         },
         masterDetail: true,
@@ -609,11 +602,14 @@ const TreeClient: React.FC<TreeClientProps> = ({
       getDetailRowData: async (params: any) => {
         const taskId = params.data.taskId;
         const addedEntitlements = params.data.addedEntitlements || [];
-        if (!taskId) return;
-        console.log("DONEEEEE",taskId)
+        if (!taskId) {
+          console.warn("No taskId for detail row data", params.data);
+          return params.successCallback([]);
+        }
         try {
           const accounts =
             (await fetchAccessDetails(reviewerId, certId, taskId)) ?? [];
+          console.log("Detail accounts:", accounts);
           const entitlementPromises = accounts.map(async (account: any) => {
             const lineItemId = account.lineItemId;
             if (!lineItemId) return [];
@@ -624,34 +620,33 @@ const TreeClient: React.FC<TreeClientProps> = ({
                 taskId,
                 lineItemId
               )) ?? [];
-            return entitlements.map((item: any) => {
-              const info: EntitlementInfo = item.entitlementInfo ?? {
-                entitlementName: "",
-                entitlementDescription: "",
-              };
-              const ai = item.aiassist ?? {};
-              return {
-                ...account,
-                entitlementName: info.entitlementName ?? "",
-                entitlementDescription: info.entitlementDescription ?? "",
-                entitlementType: info.entitlementType ?? "",
-                recommendation: ai.Recommendation ?? "",
-                accessedWithinAMonth: ai.accessedWithinAMonth ?? "",
-                itemRisk: item.entityEntitlements?.itemRisk ?? "",
-                percAccessInSameDept: ai.percAccessInSameDept ?? "",
-                percAccessWithSameJobtitle: ai.percAccessWithSameJobtitle ?? "",
-                percAccessWithSameManager: ai.percAccessWithSameManager ?? "",
-                actionInLastReview: ai.Recommendation ?? "",
-                isNew: addedEntitlements.includes(info.entitlementName),
-                appTag: item.appTag || "SOX",
-                appRisk: item.appRisk || "Low",
-                appType: item.appType || "",
-                complianceViolation: item.complianceViolation || "",
-                deltaChange: item.deltaChange || "",
-              };
-            });
+            return entitlements.map((item: any) => ({
+              ...account,
+              entitlementName: item.entitlementInfo?.entitlementName ?? "",
+              entitlementDescription:
+                item.entitlementInfo?.entitlementDescription ?? "",
+              entitlementType: item.entitlementInfo?.entitlementType ?? "",
+              recommendation: item.aiassist?.Recommendation ?? "",
+              accessedWithinAMonth: item.aiassist?.accessedWithinAMonth ?? "",
+              itemRisk: item.entityEntitlements?.itemRisk ?? "",
+              percAccessInSameDept: item.aiassist?.percAccessInSameDept ?? "",
+              percAccessWithSameJobtitle:
+                item.aiassist?.percAccessWithSameJobtitle ?? "",
+              percAccessWithSameManager:
+                item.aiassist?.percAccessWithSameManager ?? "",
+              actionInLastReview: item.aiassist?.Recommendation ?? "",
+              isNew: addedEntitlements.includes(
+                item.entitlementInfo?.entitlementName
+              ),
+              appTag: item.appTag || "SOX",
+              appRisk: item.appRisk || "Low",
+              appType: item.appType || "",
+              complianceViolation: item.complianceViolation || "",
+              deltaChange: item.deltaChange || "",
+            }));
           });
           const allRows = (await Promise.all(entitlementPromises)).flat();
+          console.log("Detail row data:", allRows);
           params.successCallback(allRows);
         } catch (err) {
           console.error("Error loading accessDetails and entitlements", err);
@@ -662,6 +657,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
     }),
     [certId, reviewerId, defaultPageSize]
   );
+
+  // const customizedTheme = themeQuartz.withParams({ accentColor: "#27685b" });
 
   return (
     <>
@@ -678,33 +675,18 @@ const TreeClient: React.FC<TreeClientProps> = ({
               </span>
               <button
                 onClick={() => {
-                  console.log("Closing user:", {
-                    fullName: expandedFullName,
-                    rowId: expandedUserRowId,
-                  });
                   setExpandedFullName(null);
                   setExpandedUserRowId(null);
                   if (gridApiRef.current && expandedUserRowId) {
-                    console.log("User grid API available");
                     const node =
                       gridApiRef.current.getRowNode(expandedUserRowId);
                     if (node) {
-                      console.log("User row node found:", node.data);
                       node.setExpanded(false);
                     } else {
-                      console.warn(
-                        "User row node not found for ID:",
-                        expandedUserRowId
-                      );
                       gridApiRef.current.forEachNode((n) => {
                         if (n.expanded) n.setExpanded(false);
                       });
                     }
-                  } else {
-                    console.warn("User grid API or row ID not available:", {
-                      gridApi: gridApiRef.current,
-                      expandedUserRowId,
-                    });
                   }
                 }}
                 className="text-red-500 hover:text-red-600 font-bold text-lg leading-none"
@@ -719,6 +701,29 @@ const TreeClient: React.FC<TreeClientProps> = ({
       {selectedUser && (
         <UserPopup
           username={selectedUser}
+          userId={
+            rowData.find((row) => row.fullName === selectedUser)?.id || ""
+          }
+          userStatus={
+            rowData.find((row) => row.fullName === selectedUser)?.status ||
+            "Unknown"
+          }
+          manager={
+            rowData.find((row) => row.fullName === selectedUser)?.manager ||
+            "Unknown"
+          }
+          department={
+            rowData.find((row) => row.fullName === selectedUser)?.department ||
+            "Unknown"
+          }
+          jobTitle={
+            rowData.find((row) => row.fullName === selectedUser)?.jobtitle ||
+            "Unknown"
+          }
+          userType={
+            rowData.find((row) => row.fullName === selectedUser)?.userType ||
+            "Internal"
+          }
           onClose={() => setSelectedUser(null)}
         />
       )}
@@ -729,6 +734,16 @@ const TreeClient: React.FC<TreeClientProps> = ({
           clearDetailGridApis={() => setDetailGridApis(new Map())}
         />
         <div className="flex items-center">
+          <input
+            type="text"
+            placeholder="Search..."
+            className="mr-2 border rounded"
+            onChange={(e) => {
+              if (gridApiRef.current) {
+                gridApiRef.current.setQuickFilter(e.target.value);
+              }
+            }}
+          />
           <CustomPagination
             totalItems={totalItems}
             currentPage={pageNumber}
@@ -745,7 +760,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
             className="p-1 rounded transition-colors duration-200"
           >
             <CheckCircleIcon
-              className="curser-pointer"
+              className="cursor-pointer"
               strokeWidth="1"
               size="24"
               color="#e73c3cff"
@@ -767,40 +782,52 @@ const TreeClient: React.FC<TreeClientProps> = ({
         </div>
       </div>
       <div style={{ height: "100%", width: "100%" }}>
-        <AgGridReact
-          rowData={rowData}
-          getRowId={(params: GetRowIdParams) => params.data.id}
-          columnDefs={columnDefs}
-          defaultColDef={defaultColDef}
-          domLayout="autoHeight"
-          detailRowAutoHeight={true}
-          masterDetail={true}
-          isRowMaster={() => true}
-          rowSelection={{
-            mode: "multiRow",
-            masterSelects: "detail",
-          }}
-          onGridReady={(params) => {
-            console.log("Main grid ready:", params.api);
-            gridApiRef.current = params.api;
-            params.api.sizeColumnsToFit();
-          }}
-          onFirstDataRendered={(params) => {
-            console.log("Main grid data rendered:", params.api);
-            gridApiRef.current = params.api;
-            params.api.sizeColumnsToFit();
-          }}
-          onRowGroupOpened={onRowGroupOpened}
-          pagination={false}
-          paginationPageSize={defaultPageSize}
-          paginationPageSizeSelector={pageSizeSelector}
-          cacheBlockSize={defaultPageSize}
-          paginateChildRows={true}
-          overlayLoadingTemplate={`<span class="ag-overlay-loading-center">⏳ Loading certification data...</span>`}
-          overlayNoRowsTemplate={`<span class="ag-overlay-loading-center">No data to display.</span>`}
-          className="ag-theme-quartz ag-main"
-          detailCellRendererParams={detailCellRendererParams}
-        />
+        {rowData.length > 0 ? (
+          <AgGridReact
+            rowData={rowData}
+            getRowId={(params: GetRowIdParams) => params.data.id}
+            columnDefs={columnDefs}
+            defaultColDef={defaultColDef}
+            domLayout="autoHeight"
+            detailRowAutoHeight={true}
+            masterDetail={true}
+            isRowMaster={() => true}
+            rowSelection={{ mode: "multiRow", masterSelects: "detail" }}
+            // theme={customizedTheme}
+            onGridReady={(params) => {
+              gridApiRef.current = params.api;
+              params.api.sizeColumnsToFit();
+            }}
+            onFirstDataRendered={(params) => {
+              gridApiRef.current = params.api;
+              params.api.sizeColumnsToFit();
+              params.api.forEachNode((node) => {
+                console.log(
+                  `Row ${node.data?.id}: isExpandable = ${node.isExpandable()}`
+                );
+                if (!node.isExpandable()) {
+                  node.setExpandable(true);
+                }
+              });
+              params.api.redrawRows();
+              params.api.refreshCells({ force: true });
+            }}
+            onRowGroupOpened={onRowGroupOpened}
+            pagination={false}
+            paginationPageSize={defaultPageSize}
+            paginationPageSizeSelector={pageSizeSelector}
+            cacheBlockSize={defaultPageSize}
+            paginateChildRows={true}
+            overlayLoadingTemplate={`<span class="ag-overlay-loading-center">⏳ Loading certification data...</span>`}
+            overlayNoRowsTemplate={`<span class="ag-overlay-loading-center">No data to display.</span>`}
+            className="ag-main"
+            detailCellRendererParams={detailCellRendererParams}
+          />
+        ) : (
+          <div className="ag-overlay-loading-center">
+            ⏳ Loading certification data...
+          </div>
+        )}
       </div>
     </>
   );

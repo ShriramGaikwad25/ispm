@@ -3,8 +3,44 @@ import React, { useMemo, useState } from "react";
 import { AgGridReact } from "ag-grid-react";
 import { ColDef, ICellRendererParams } from "ag-grid-community";
 import "@/lib/ag-grid-setup";
-import ActionButtons from "@/components/agTable/ActionButtons";
 import EditReassignButtons from "@/components/agTable/EditReassignButtons";
+import { formatDateMMDDYY } from "../access-review/page";
+
+interface TabProps {
+  tabs: { label: string }[];
+  activeClass: string;
+  buttonClass: string;
+  className: string;
+  activeIndex: number;
+  onChange: (index: number) => void;
+}
+
+const Tabs: React.FC<TabProps> = ({
+  tabs,
+  activeClass,
+  buttonClass,
+  className,
+  activeIndex,
+  onChange,
+}) => {
+  return (
+    <div className={className}>
+      {tabs.map((tab, index) => (
+        <button
+          key={tab.label}
+          className={`${
+            index === activeIndex
+              ? activeClass
+              : "text-gray-500 hover:text-gray-700"
+          } ${buttonClass}`}
+          onClick={() => onChange(index)}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
+};
 
 const page = () => {
   const [rowData] = useState<any[]>([
@@ -14,28 +50,28 @@ const page = () => {
       "Ent Description": "Administrative access to AWS cloud services",
       "Total Assignments": 12,
       "Last Sync": "2025-07-12T10:15:00Z",
-      "Requestable": "Yes",
-      "Certifiable": "Yes",
-      "Risk": "High",
+      Requestable: "Yes",
+      Certifiable: "Yes",
+      Risk: "High",
       "SOD Check": "Passed",
-      "Hierarchy": "Top-level",
+      Hierarchy: "Top-level",
       "Pre- Requisite": "AWS Certification",
       "Pre-Requisite Details": "AWS Certified Solutions Architect",
       "Revoke on Disable": "Yes",
       "Shared Pwd": "No",
-      "appOwner": "Alice Johnson",
-      "appInstance": "AWS-Prod-01",
-      "appName": "Amazon Web Services",
+      appOwner: "Alice Johnson",
+      appInstance: "AWS-Prod-01",
+      appName: "Amazon Web Services",
       "Capability/Technical Scope": "Manage EC2 instances and S3 buckets",
       "Business Objective": "Enable cloud infrastructure management",
       "Compliance Type": "SOC2",
       "Access Scope": "Global",
       "Last Reviewed on": "2025-06-20",
-      "Reviewed": "Yes",
+      Reviewed: "Yes",
       "Dynamic Tag": "Cloud",
       "MFA Status": "Enabled",
       "Review Schedule": "Quarterly",
-      "Created On": "2024-02-15"
+      "Created On": "2024-02-15",
     },
     {
       "Ent ID": "ENT102",
@@ -43,28 +79,28 @@ const page = () => {
       "Ent Description": "Access to GitHub repositories for code development",
       "Total Assignments": 30,
       "Last Sync": "2025-07-13T09:00:00Z",
-      "Requestable": "Yes",
-      "Certifiable": "Yes",
-      "Risk": "Medium",
+      Requestable: "Yes",
+      Certifiable: "Yes",
+      Risk: "Medium",
       "SOD Check": "Pending",
-      "Hierarchy": "Mid-level",
+      Hierarchy: "Mid-level",
       "Pre- Requisite": "Git Training",
       "Pre-Requisite Details": "Completion of GitHub fundamentals course",
       "Revoke on Disable": "No",
       "Shared Pwd": "No",
-      "appOwner": "Bob Smith",
-      "appInstance": "GitHub-Dev-Team",
-      "appName": "GitHub Enterprise",
+      appOwner: "Bob Smith",
+      appInstance: "GitHub-Dev-Team",
+      appName: "GitHub Enterprise",
       "Capability/Technical Scope": "Read/write access to code repositories",
       "Business Objective": "Support software development",
       "Compliance Type": "ISO 27001",
       "Access Scope": "Team",
       "Last Reviewed on": "2025-05-10",
-      "Reviewed": "Yes",
+      Reviewed: "Yes",
       "Dynamic Tag": "Development",
       "MFA Status": "Enabled",
       "Review Schedule": "Bi-Annual",
-      "Created On": "2024-04-10"
+      "Created On": "2024-04-10",
     },
     {
       "Ent ID": "ENT103",
@@ -72,28 +108,28 @@ const page = () => {
       "Ent Description": "Read-only access to Salesforce CRM dashboards",
       "Total Assignments": 45,
       "Last Sync": "2025-07-11T14:20:00Z",
-      "Requestable": "No",
-      "Certifiable": "No",
-      "Risk": "Low",
+      Requestable: "No",
+      Certifiable: "No",
+      Risk: "Low",
       "SOD Check": "Not Required",
-      "Hierarchy": "Low-level",
+      Hierarchy: "Low-level",
       "Pre- Requisite": "None",
       "Pre-Requisite Details": "N/A",
       "Revoke on Disable": "Yes",
       "Shared Pwd": "Yes",
-      "appOwner": "Clara Williams",
-      "appInstance": "Salesforce-Prod",
-      "appName": "Salesforce",
+      appOwner: "Clara Williams",
+      appInstance: "Salesforce-Prod",
+      appName: "Salesforce",
       "Capability/Technical Scope": "View customer data and reports",
       "Business Objective": "Monitor sales performance",
       "Compliance Type": "GDPR",
       "Access Scope": "Departmental",
       "Last Reviewed on": "2025-04-25",
-      "Reviewed": "No",
+      Reviewed: "No",
       "Dynamic Tag": "CRM",
       "MFA Status": "Disabled",
       "Review Schedule": "Annual",
-      "Created On": "2024-07-01"
+      "Created On": "2024-07-01",
     },
     {
       "Ent ID": "ENT104",
@@ -101,28 +137,28 @@ const page = () => {
       "Ent Description": "Full access to manage PostgreSQL databases",
       "Total Assignments": 10,
       "Last Sync": "2025-07-10T16:45:00Z",
-      "Requestable": "Yes",
-      "Certifiable": "Yes",
-      "Risk": "Critical",
+      Requestable: "Yes",
+      Certifiable: "Yes",
+      Risk: "Critical",
       "SOD Check": "Failed",
-      "Hierarchy": "Top-level",
+      Hierarchy: "Top-level",
       "Pre- Requisite": "DBA Certification",
       "Pre-Requisite Details": "PostgreSQL Certified Professional",
       "Revoke on Disable": "Yes",
       "Shared Pwd": "No",
-      "appOwner": "David Lee",
-      "appInstance": "DB-Prod-01",
-      "appName": "PostgreSQL",
+      appOwner: "David Lee",
+      appInstance: "DB-Prod-01",
+      appName: "PostgreSQL",
       "Capability/Technical Scope": "Manage database schemas and queries",
       "Business Objective": "Ensure database performance and security",
       "Compliance Type": "HIPAA",
       "Access Scope": "Global",
       "Last Reviewed on": "2025-03-30",
-      "Reviewed": "Yes",
+      Reviewed: "Yes",
       "Dynamic Tag": "Database",
       "MFA Status": "Enabled",
       "Review Schedule": "Monthly",
-      "Created On": "2024-01-25"
+      "Created On": "2024-01-25",
     },
     {
       "Ent ID": "ENT105",
@@ -130,43 +166,47 @@ const page = () => {
       "Ent Description": "Access to monitor network traffic and configurations",
       "Total Assignments": 20,
       "Last Sync": "2025-07-13T11:30:00Z",
-      "Requestable": "No",
-      "Certifiable": "No",
-      "Risk": "Low",
+      Requestable: "No",
+      Certifiable: "No",
+      Risk: "Low",
       "SOD Check": "Passed",
-      "Hierarchy": "Low-level",
+      Hierarchy: "Low-level",
       "Pre- Requisite": "None",
       "Pre-Requisite Details": "N/A",
       "Revoke on Disable": "Yes",
       "Shared Pwd": "Yes",
-      "appOwner": "Emma Brown",
-      "appInstance": "Network-Monitor-01",
-      "appName": "SolarWinds",
+      appOwner: "Emma Brown",
+      appInstance: "Network-Monitor-01",
+      appName: "SolarWinds",
       "Capability/Technical Scope": "Monitor network performance",
       "Business Objective": "Ensure network uptime",
       "Compliance Type": "PCI DSS",
       "Access Scope": "Regional",
       "Last Reviewed on": "2025-06-05",
-      "Reviewed": "Yes",
+      Reviewed: "Yes",
       "Dynamic Tag": "Network",
       "MFA Status": "Disabled",
       "Review Schedule": "Annual",
-      "Created On": "2024-05-15"
-    }
+      "Created On": "2024-05-15",
+    },
   ]);
 
   const [selectedApp, setSelectedApp] = useState<string>("All");
+  const [entTabIndex, setEntTabIndex] = useState<number>(0);
+
+  // Define tabs data
+  const tabsDataEnt = [{ label: "All" }, { label: "Under Review" }];
 
   // Extract unique app names for dropdown
   const appNames = useMemo(() => {
-    const names = Array.from(new Set(rowData.map(item => item.appName)));
+    const names = Array.from(new Set(rowData.map((item) => item.appName)));
     return ["All", ...names];
   }, [rowData]);
 
   // Filter row data based on selected app
   const filteredRowData = useMemo(() => {
     if (selectedApp === "All") return rowData;
-    return rowData.filter(item => item.appName === selectedApp);
+    return rowData.filter((item) => item.appName === selectedApp);
   }, [rowData, selectedApp]);
 
   const colDefs = useMemo<ColDef[]>(
@@ -183,7 +223,12 @@ const page = () => {
         headerName: "Total Assignments",
         flex: 1.5,
       },
-      { field: "Last Sync", headerName: "Last Sync", flex: 2 },
+      {
+        field: "Last Sync",
+        headerName: "Last Sync",
+        flex: 2,
+        valueFormatter: (params) => formatDateMMDDYY(params.value),
+      },
       { field: "Requestable", headerName: "Requestable", flex: 2 },
       { field: "Certifiable", headerName: "Certifiable", flex: 2, hide: true },
       { field: "Risk", headerName: "Risk", flex: 1.5, hide: true },
@@ -209,7 +254,12 @@ const page = () => {
       },
       { field: "Shared Pwd", headerName: "Shared Pwd", flex: 1.5, hide: true },
       { field: "appOwner", headerName: "App Owner", flex: 1.5, hide: true },
-      { field: "appInstance", headerName: "App Instance", flex: 1.5, hide: true },
+      {
+        field: "appInstance",
+        headerName: "App Instance",
+        flex: 1.5,
+        hide: true,
+      },
       { field: "appName", headerName: "App Name", flex: 1.5, hide: true },
       {
         field: "Capability/Technical Scope",
@@ -255,7 +305,9 @@ const page = () => {
         field: "actionColumn",
         headerName: "Action",
         cellRenderer: (params: ICellRendererParams) => {
-          return <EditReassignButtons api={params.api} selectedRows={params.data} />;
+          return (
+            <EditReassignButtons api={params.api} selectedRows={params.data} />
+          );
         },
         suppressMenu: true,
         sortable: false,
@@ -276,8 +328,19 @@ const page = () => {
   );
 
   return (
-    <div className="flex flex-col gap-4 p-4">
-      <div className="flex justify-end">
+    <div className="ag-theme-alpine" style={{ height: 500, width: "100%" }}>
+      <div className="relative mb-2">
+        <h1 className="text-xl font-bold pb-2 text-blue-950">Entitlements</h1>
+        <Tabs
+          tabs={tabsDataEnt}
+          activeClass="bg-[#15274E] text-white text-sm rounded-sm"
+          buttonClass="h-10 -mt-1 w-30"
+          className="border border-gray-300 w-61 h-8 rounded-md"
+          activeIndex={entTabIndex}
+          onChange={setEntTabIndex}
+        />
+      </div>
+      <div className="flex justify-end mb-2">
         <select
           className="border rounded p-2 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
           value={selectedApp}
@@ -290,7 +353,7 @@ const page = () => {
           ))}
         </select>
       </div>
-      <div className="ag-theme-alpine" style={{ height: 600, width: "100%" }}>
+      <div style={{ height: "calc(100% - 80px)", width: "100%" }}>
         <AgGridReact
           rowData={filteredRowData}
           columnDefs={colDefs}

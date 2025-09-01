@@ -152,3 +152,11 @@ applicationinstanceid:string
   const endpoint = `${BASE_URL2}/getAppAccounts/${reviewerId}/${applicationinstanceid}`
   return fetchApi(endpoint)
 }
+
+export async function getAppEntitlement(
+reviewerId: string,
+applicationinstanceid:string
+):Promise<void>{
+  const endpoint = `${BASE_URL2}/getAppEntitlements/${reviewerId}/${applicationinstanceid}`
+  return fetchApi(endpoint)
+}
