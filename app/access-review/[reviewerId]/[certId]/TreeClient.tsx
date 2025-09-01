@@ -89,10 +89,22 @@ export const UserPopup: React.FC<UserPopupProps> = ({
 
 const DetailCellRenderer = (props: IDetailCellRendererParams) => {
   const { data } = props;
+  const description = data.entitlementDescription;
+  const hasDescription = description && description.trim().length > 0;
+
   return (
-    <div className="flex p-4 bg-gray-50 border-t border-gray-200 ml-10">
-      <div className="flex flex-row items-center gap-2">
-        <span className="text-gray-800">{data.entitlementDescription}</span>
+    <div className="flex flex-col p-4 bg-gray-50 border-t border-gray-200 ml-10">
+      <div className="flex flex-row items-center gap-2 mb-2">
+        <span className="text-gray-600 text-sm font-medium">
+          Entitlement Description:
+        </span>
+      </div>
+      <div className="ml-4">
+        <span
+          className={hasDescription ? "text-gray-800" : "text-gray-500 italic"}
+        >
+          {hasDescription ? description : "No description available"}
+        </span>
       </div>
     </div>
   );
@@ -375,25 +387,19 @@ const TreeClient: React.FC<TreeClientProps> = ({
             field: "entitlementName",
             headerName: "Ent Name",
             width: 250,
-            cellRenderer: "agGroupCellRenderer",
-            cellRendererParams: {
-              suppressCount: true,
-              innerRenderer: (params: ICellRendererParams) => {
-                const { entitlementName, isNew, itemRisk } = params.data || {};
-                const deltaLabel = isNew ? "New" : "Old";
-                const riskAbbr =
-                  itemRisk === "High" ? "H" : itemRisk === "Medium" ? "M" : "L";
-                const riskColor =
-                  itemRisk === "High"
-                    ? "red"
-                    : itemRisk === "Medium"
-                    ? "orange"
-                    : "green";
+            cellRenderer: (params: ICellRendererParams) => {
+              const { entitlementName, isNew, itemRisk ,entitlementDescription} = params.data || {};
+              const deltaLabel = isNew ? "New" : "Old";
+              const riskAbbr =
+                itemRisk === "High" ? "H" : itemRisk === "Medium" ? "M" : "L";
+              const riskColor =
+                itemRisk === "High"
+                  ? "red"
+                  : itemRisk === "Medium"
+                  ? "orange"
+                  : "green";
                 return (
-                  <div className="flex items-center gap-4 font-normal text-sm">
-                    <span>
-                      <User size={18} />
-                    </span>
+                  <div className="flex flex-col gap-1 font-normal text-sm h-full justify-start py-2">
                     <div className="flex items-center gap-2">
                       <span className="font-normal text-sm">
                         {entitlementName}
@@ -401,9 +407,17 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       <span>({deltaLabel})</span>
                       <span style={{ color: riskColor }}>{riskAbbr}</span>
                     </div>
+                    {entitlementDescription ? (
+                      <div className="text-xs text-gray-600 break-words leading-relaxed" title={entitlementDescription}>
+                        {entitlementDescription}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-gray-400 ml-6 italic">
+                        No description available
+                      </div>
+                    )}
                   </div>
                 );
-              },
             },
           },
           {
@@ -576,6 +590,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
         rowSelection: { mode: "multiRow" },
         className: "account-table-detail",
         pagination: true,
+        rowHeight:80,
         paginationPageSize: defaultPageSize,
         paginationPageSizeSelector: pageSizeSelector,
         onPaginationChanged: (params: { api: GridApi }) => {
@@ -654,6 +669,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
         }
       },
       detailRowAutoHeight: true,
+      // Ensure detail rows are not expandable (no nested expandable icons)
+      isRowMaster: () => false,
     }),
     [certId, reviewerId, defaultPageSize]
   );
@@ -808,6 +825,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                 if (!node.isExpandable()) {
                   node.setExpandable(true);
                 }
+                // Do not auto-expand rows by default
               });
               params.api.redrawRows();
               params.api.refreshCells({ force: true });
