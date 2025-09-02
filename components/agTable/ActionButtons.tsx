@@ -62,8 +62,10 @@ const ActionButtons = <T extends { status?: string }>({
   const [error, setError] = useState<string | null>(null);
   const [lastAction, setLastAction] = useState<string | null>(null);
 
+  // Filter out undefined/null rows (e.g., group rows can pass undefined data)
+  const definedRows = (selectedRows || []).filter((r): r is T => !!r);
   // Determine if all selected rows have the same status
-  const rowStatus = selectedRows.length > 0 ? selectedRows[0].status : null;
+  const rowStatus = definedRows.length > 0 ? definedRows[0].status : null;
   const isApproved = rowStatus === "Approved";
   const isRejected = rowStatus === "Rejected";
 
@@ -76,13 +78,13 @@ const updateActions = async (actionType: string, justification: string) => {
   };
 
     if (context === "user") {
-      payload.useraction = selectedRows.map((row: any) => ({
+      payload.useraction = definedRows.map((row: any) => ({
         userId: row.id,
         actionType,
         justification,
       }));
     } else if (context === "account") {
-      payload.accountAction = selectedRows.map((row: any) => ({
+      payload.accountAction = definedRows.map((row: any) => ({
         actionType,
         lineItemId: row.lineItemId,
         justification,
@@ -91,7 +93,7 @@ const updateActions = async (actionType: string, justification: string) => {
       payload.entitlementAction = [
         {
           actionType,
-          lineItemIds: selectedRows.map((row: any) => row.lineItemId),
+          lineItemIds: definedRows.map((row: any) => row.lineItemId),
           justification,
         },
       ];
@@ -115,7 +117,7 @@ const updateActions = async (actionType: string, justification: string) => {
 
       // Update grid with new status
       api.applyTransaction({
-        update: selectedRows.map((row) => ({ ...row, status: actionType })),
+        update: definedRows.map((row) => ({ ...row, status: actionType })),
       });
       setLastAction(actionType);
       setError(null);
@@ -146,20 +148,20 @@ const updateActions = async (actionType: string, justification: string) => {
 
   const handleApprove = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!api || selectedRows.length === 0) return;
+    if (!api || definedRows.length === 0) return;
     await updateActions("Approve", comment || "Approved via UI");
   };
 
   const handleRevoke = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!api || selectedRows.length === 0) return;
+    if (!api || definedRows.length === 0) return;
     await updateActions("Reject", comment || "Revoked via UI");
   };
 
   const handleComment = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (selectedRows.length === 0) return;
-    alert(`Comment added: ${comment || "No comment provided"} for ${selectedRows.length} rows`);
+    if (definedRows.length === 0) return;
+    alert(`Comment added: ${comment || "No comment provided"} for ${definedRows.length} rows`);
   };
 
   const toggleMenu = (e: React.MouseEvent) => {

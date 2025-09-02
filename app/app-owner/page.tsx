@@ -29,6 +29,7 @@ import "./AppOwner.css";
 import {
   getAppOwnerDetails,
   getGroupedAppOwnerDetails,
+  getAppAccounts,
   updateAction,
 } from "@/lib/api";
 import { PaginatedResponse } from "@/types/api";
@@ -61,6 +62,7 @@ type RowData = {
   manager: string;
   risk: string;
   applicationName: string;
+  applicationInstanceId?: string;
   numOfEntitlements: number;
   lineItemId?: string;
 };
@@ -147,6 +149,10 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
           manager: userInfo.manager || "Unknown",
           risk: userInfo.Risk || access.risk || "Low",
           applicationName: account.applicationInfo?.applicationName || "",
+          applicationInstanceId:
+            account.applicationInfo?.applicationInstanceId ||
+            account.applicationInfo?.applicationinstanceid ||
+            "",
           numOfEntitlements:
             group.access?.numOfAccounts || accounts.length || 0,
           lineItemId: entityEntitlement.lineItemId || "",
@@ -183,6 +189,10 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
       manager: "Unknown",
       risk: item.userInfo?.Risk || "Low",
       applicationName: item.applicationInfo?.applicationName || "",
+      applicationInstanceId:
+        item.applicationInfo?.applicationInstanceId ||
+        item.applicationInfo?.applicationinstanceid ||
+        "",
       numOfEntitlements: item.access?.numOfEntitlements || 0,
       lineItemId: entitlement.lineItemId || "",
     }));
@@ -242,18 +252,37 @@ export default function AppOwner() {
       });
 
       let response: PaginatedResponse<any>;
-      const isGrouped =
-        groupByOption === "Entitlements" || groupByOption === "Accounts";
-      if (isGrouped) {
-        const groupByField =
-          groupByOption === "Entitlements" ? "entitlementName" : "accountName";
+      const isGroupedEnts = groupByOption === "Entitlements";
+      const isGroupedAccounts = groupByOption === "Accounts";
+      if (isGroupedEnts) {
         response = await getGroupedAppOwnerDetails(
           reviewerId,
           certificationId,
           defaultPageSize,
-          pageNumber,
-          groupByField
+          pageNumber
         );
+      } else if (isGroupedAccounts) {
+        // For Accounts grouping, call entities API getAppAccounts
+        // Determine applicationInstanceId: prefer from current state else from first of response of ungrouped data
+        let applicationInstanceId = rowData.find((r) => r.applicationInstanceId)?.applicationInstanceId || "";
+        if (!applicationInstanceId) {
+          const ungResp = await getAppOwnerDetails(
+            reviewerId,
+            certificationId,
+            defaultPageSize,
+            pageNumber
+          );
+          const transformedUng = transformApiData(ungResp.items || [], false);
+          applicationInstanceId = transformedUng.find((r) => r.applicationInstanceId)?.applicationInstanceId || "";
+        }
+        if (!applicationInstanceId) {
+          throw new Error("applicationInstanceId not found to fetch accounts");
+        }
+        const accountsResp: any = await getAppAccounts(reviewerId, applicationInstanceId);
+        // Normalize to PaginatedResponse-like shape for rendering
+        response = (Array.isArray(accountsResp)
+          ? { items: accountsResp, total_pages: 1, total_items: accountsResp.length }
+          : accountsResp) as PaginatedResponse<any>;
       } else {
         response = await getAppOwnerDetails(
           reviewerId,
@@ -275,7 +304,10 @@ export default function AppOwner() {
         throw new Error("Invalid data format received from API");
       }
 
-      const transformedData = transformApiData(response.items, isGrouped);
+      const transformedData = transformApiData(
+        response.items,
+        isGroupedEnts /* grouped shape only for Entitlements path */
+      );
       console.log(
         "Transformed Data:",
         JSON.stringify(transformedData, null, 2)
