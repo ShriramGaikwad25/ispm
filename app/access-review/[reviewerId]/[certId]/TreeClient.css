@@ -15,3 +15,17 @@
 .account-table-detail .ag-cell-no-padding {
   padding-left: 0px !important;
 } */
+
+/* Ensure expand icons are visible in TreeClient */
+.ag-main .ag-group-expanded,
+.ag-main .ag-group-contracted {
+  display: block !important;
+  visibility: visible !important;
+}
+
+/* Override any global styles that might hide expand icons */
+.ag-main .ag-group-expanded .ag-icon,
+.ag-main .ag-group-contracted .ag-icon {
+  display: inline-block !important;
+  visibility: visible !important;
+}

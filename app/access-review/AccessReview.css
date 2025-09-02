@@ -1,6 +1,26 @@
+/* Hide expand icons in the AccessReview page */
+.access-review-page .ag-group-expanded,
+.access-review-page .ag-group-contracted,
+.access-review-page .ag-group-expand,
+.access-review-page .ag-group-contract,
+.access-review-page .ag-group-expanded .ag-icon,
+.access-review-page .ag-group-contracted .ag-icon,
+.access-review-page .ag-group-expand .ag-icon,
+.access-review-page .ag-group-contract .ag-icon,
+.access-review-page .ag-row-group-expanded,
+.access-review-page .ag-row-group-contracted {
+  display: none !important;
+}
 
-.ag-group-expanded,
-.ag-group-contracted {
+/* Additional rules to ensure all expand icons are hidden */
+.access-review-page .ag-icon-tree-closed,
+.access-review-page .ag-icon-tree-open,
+.access-review-page .ag-icon-tree-closed:before,
+.access-review-page .ag-icon-tree-open:before,
+.access-review-page .ag-icon-expanded,
+.access-review-page .ag-icon-contracted,
+.access-review-page .ag-icon-expanded:before,
+.access-review-page .ag-icon-contracted:before {
   display: none !important;
 }
 

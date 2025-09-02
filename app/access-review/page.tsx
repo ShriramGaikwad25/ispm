@@ -129,7 +129,14 @@ const AccessReview: React.FC = () => {
       width: 300,
       wrapText: true,
       autoHeight: true,
-      cellRenderer: "agGroupCellRenderer",
+      cellRenderer: (params: any) => (
+        <div className="flex flex-col gap-1">
+          <span className="text-gray-800 font-medium">{params.value}</span>
+          <span className="text-gray-500 text-sm leading-tight">
+            {params.data?.description || "No description available"}
+          </span>
+        </div>
+      ),
     },
     { headerName: "Type", field: "certificationType", width: 150 },
     { headerName: "Owner", field: "reviewerName", width: 150 },
@@ -445,7 +452,7 @@ const AccessReview: React.FC = () => {
           domLayout="autoHeight"
           detailRowAutoHeight={true}
           masterDetail={true}
-          detailCellRenderer={DetailCellRenderer}
+          // detailCellRenderer={DetailCellRenderer}
           detailRowHeight={80}
           groupDefaultExpanded={-1} // Expand all groups by default
           rowSelection={{

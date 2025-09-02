@@ -757,7 +757,9 @@ const TreeClient: React.FC<TreeClientProps> = ({
             className="mr-2 border rounded"
             onChange={(e) => {
               if (gridApiRef.current) {
-                gridApiRef.current.setQuickFilter(e.target.value);
+                // TODO: Implement search functionality
+                // gridApiRef.current.setQuickFilter(e.target.value);
+                console.log("Search value:", e.target.value);
               }
             }}
           />
@@ -818,17 +820,28 @@ const TreeClient: React.FC<TreeClientProps> = ({
             onFirstDataRendered={(params) => {
               gridApiRef.current = params.api;
               params.api.sizeColumnsToFit();
+              console.log("TreeClient: First data rendered, checking expand icons");
+              
+              // Force refresh of expand icons
               params.api.forEachNode((node) => {
                 console.log(
-                  `Row ${node.data?.id}: isExpandable = ${node.isExpandable()}`
+                  `Row ${node.data?.id}: isExpandable = ${node.isExpandable()}, expanded = ${node.expanded}`
                 );
-                if (!node.isExpandable()) {
-                  node.setExpandable(true);
-                }
                 // Do not auto-expand rows by default
               });
+              
+              // Force redraw to ensure expand icons are visible
               params.api.redrawRows();
               params.api.refreshCells({ force: true });
+              
+              // Additional check for expand icons
+              setTimeout(() => {
+                const expandIcons = document.querySelectorAll('.ag-main .ag-group-expanded, .ag-main .ag-group-contracted');
+                console.log("TreeClient: Found expand icons:", expandIcons.length);
+                expandIcons.forEach((icon, index) => {
+                  console.log(`Icon ${index}:`, icon, 'display:', window.getComputedStyle(icon).display);
+                });
+              }, 100);
             }}
             onRowGroupOpened={onRowGroupOpened}
             pagination={false}

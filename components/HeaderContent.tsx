@@ -1,4 +1,4 @@
-"use-client";
+"use client";
 import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
@@ -199,7 +199,7 @@ const PopupButton = ({
             </span>
           ),
         },
-      ],
+      ] as any[],
       []
     );
 
@@ -251,18 +251,15 @@ const PopupButton = ({
 };
 
 const HeaderContent = () => {
-  const [headerInfo, setHeaderInfo] = useState<{
-    campaignName: string;
-    dueDate: string;
-    daysLeft: number;
-  }>({
+  const pathname = usePathname();
+
+  // State for header info and user details
+  const [headerInfo, setHeaderInfo] = useState({
     campaignName: "",
     dueDate: "",
     daysLeft: 0,
   });
 
-  // State for PopupButton
-  const [showPopupButton, setShowPopupButton] = useState(false);
   const [userDetails, setUserDetails] = useState<{
     username: string;
     userId: string;
@@ -273,48 +270,20 @@ const HeaderContent = () => {
     userType: "Internal" | "External";
   } | null>(null);
 
-  const pathname = usePathname();
+  // State for PopupButton
+  const [showPopupButton, setShowPopupButton] = useState(false);
 
-  useEffect(() => {
-    const dataStr = localStorage.getItem("sharedRowData");
-    if (dataStr) {
-      try {
-        const data: UserRowData[] = JSON.parse(dataStr);
-        if (data.length > 0) {
-          const firstItem = data[0];
-          setHeaderInfo({
-            campaignName: firstItem.certificationName || "",
-            dueDate: firstItem.certificationExpiration || "",
-            daysLeft: calculateDaysLeft(firstItem.certificationExpiration),
-          });
-          // Set user details for the popup
-          setUserDetails({
-            username: firstItem.fullName || "Unknown User",
-            userId: firstItem.id || "N/A",
-            userStatus: firstItem.status || "Active",
-            manager: firstItem.manager || "N/A",
-            department: firstItem.department || "N/A",
-            jobTitle: firstItem.jobtitle || "N/A",
-            userType: firstItem.userType || "Internal",
-          });
-        }
-      } catch (err) {
-        console.error("Error parsing sharedRowData:", err);
-      }
-    }
-  }, []);
+  // Check if we should show the header (for access-review and app-owner pages)
+  const shouldShowHeader = pathname?.includes('/access-review/') || pathname?.includes('/app-owner');
 
-  function calculateDaysLeft(expirationDateStr: string): number {
+  // Calculate days left
+  const calculateDaysLeft = (expirationDateStr: string): number => {
     if (!expirationDateStr) return 0;
     const expiration = new Date(expirationDateStr);
     const now = new Date();
     const diffTime = expiration.getTime() - now.getTime();
     return Math.max(Math.ceil(diffTime / (1000 * 60 * 60 * 24)), 0);
-  }
-
-  // Check if pathname contains "access-review" followed by additional segments
-  const hasAccessReviewWithSegments =
-    pathname && /^\/access-review(\/.+)+$/.test(pathname);
+  };
 
   // Handler for Profile click in dropdown
   const handleProfileClick = () => {
@@ -323,35 +292,141 @@ const HeaderContent = () => {
     }
   };
 
+  // Update header data function
+  const updateHeaderData = (data: UserRowData[]) => {
+    if (data.length > 0) {
+      const firstItem = data[0];
+      const daysLeft = calculateDaysLeft(firstItem.certificationExpiration || "");
+      
+      setHeaderInfo({
+        campaignName: firstItem.certificationName || "Campaign Name",
+        dueDate: firstItem.certificationExpiration || "",
+        daysLeft: daysLeft,
+      });
+
+      setUserDetails({
+        username: firstItem.fullName || "Unknown User",
+        userId: firstItem.id || "N/A",
+        userStatus: firstItem.status || "Active",
+        manager: firstItem.manager || "N/A",
+        department: firstItem.department || "N/A",
+        jobTitle: firstItem.jobtitle || "N/A",
+        userType: firstItem.userType || "Internal",
+      });
+    }
+  };
+
+  // Effect to populate header info from localStorage
+  useEffect(() => {
+    const updateHeaderData = () => {
+      try {
+        const sharedRowData = localStorage.getItem("sharedRowData");
+        if (sharedRowData) {
+          const data = JSON.parse(sharedRowData);
+          if (Array.isArray(data) && data.length > 0) {
+            const firstItem = data[0];
+            const daysLeft = calculateDaysLeft(firstItem.certificationExpiration || "");
+            
+            setHeaderInfo({
+              campaignName: firstItem.certificationName || "Campaign Name",
+              dueDate: firstItem.certificationExpiration || "",
+              daysLeft: daysLeft,
+            });
+
+            setUserDetails({
+              username: firstItem.fullName || "Unknown User",
+              userId: firstItem.id || "N/A",
+              userStatus: firstItem.status || "Active",
+              manager: firstItem.manager || "N/A",
+              department: firstItem.department || "N/A",
+              jobTitle: firstItem.jobtitle || "N/A",
+              userType: firstItem.userType || "Internal",
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Error parsing localStorage data:", error);
+      }
+    };
+
+    // Initial call
+    updateHeaderData();
+
+    // Listen for storage changes
+    const handleStorageChange = () => {
+      updateHeaderData();
+    };
+
+    // Listen for custom localStorage change event
+    const handleLocalStorageChange = () => {
+      updateHeaderData();
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('localStorageChange', handleLocalStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('localStorageChange', handleLocalStorageChange);
+    };
+  }, []);
+
   return (
     <div className="flex h-[45px] w-full items-center justify-between text-sm bg-[#f8f9fa] px-4">
       {/* Left Section */}
       <div className="flex items-center h-full">
-        {hasAccessReviewWithSegments && (
+        {shouldShowHeader ? (
           <div className="flex h-full divide-x divide-[#C3C4C8]">
             <div className="flex items-center px-4">
               <p className="text-sm font-medium text-blue-500">
-                {headerInfo.campaignName}
+                {headerInfo.campaignName || "Campaign Name"}
               </p>
             </div>
             <div className="flex items-center px-4">
               <p className="text-sm font-medium text-blue-500">
-                Generated On {headerInfo.dueDate}
+                Generated On {headerInfo.dueDate ? (() => {
+                  try {
+                    const due = new Date(headerInfo.dueDate);
+                    const generated = new Date(due.getTime() - (30 * 24 * 60 * 60 * 1000));
+                    return generated.toLocaleDateString('en-US', { 
+                      month: 'short', 
+                      day: 'numeric', 
+                      year: 'numeric' 
+                    });
+                  } catch {
+                    return "N/A";
+                  }
+                })() : "N/A"}
               </p>
             </div>
             <div className="flex items-center px-4">
               <p className="text-sm font-medium text-blue-500">
-                Due on {headerInfo.dueDate}
-                <span className="font-bold">
-                  ({headerInfo.daysLeft} days left)
+                Due on {headerInfo.dueDate ? (() => {
+                  try {
+                    return new Date(headerInfo.dueDate).toLocaleDateString('en-US', { 
+                      month: 'short', 
+                      day: 'numeric', 
+                      year: 'numeric' 
+                    });
+                  } catch {
+                    return "N/A";
+                  }
+                })() : "N/A"}
+                <span className={`font-bold ml-1 ${
+                  headerInfo.daysLeft < 10 ? 'text-red-500' : 
+                  headerInfo.daysLeft <= 20 ? 'text-orange-500' : 
+                  'text-green-500'
+                }`}>
+                  ({headerInfo.daysLeft || 0} days left)
                 </span>
               </p>
             </div>
-            <div className="flex items-center px-4">
-              {/* <p className="text-sm font-medium text-blue-500">
-                Cert Objective ?
-              </p> */}
-            </div>
+          </div>
+        ) : (
+          <div className="flex items-center px-4">
+            {/* <p className="text-sm font-medium text-gray-600">
+              Welcome to ISPM
+            </p> */}
           </div>
         )}
       </div>

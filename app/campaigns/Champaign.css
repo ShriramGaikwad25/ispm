@@ -1,6 +1,7 @@
 
-.ag-group-expanded,
-.ag-group-contracted {
+/* Only hide expand icons in the campaigns page, not in TreeClient */
+.campaigns-page .ag-group-expanded,
+.campaigns-page .ag-group-contracted {
   display: none !important;
 }
 

@@ -265,8 +265,9 @@ export default function AppOwner() {
 
       console.log("API Response:", JSON.stringify(response, null, 2));
 
-      if (response.executionStatus === "error") {
-        throw new Error(response.errorMessage || "API returned an error");
+      // Check if response has error properties (for backward compatibility)
+      if ((response as any).executionStatus === "error") {
+        throw new Error((response as any).errorMessage || "API returned an error");
       }
 
       if (!response.items || !Array.isArray(response.items)) {
@@ -282,6 +283,23 @@ export default function AppOwner() {
       setRowData(transformedData);
       setTotalPages(response.total_pages || 1);
       setTotalItems(response.total_items || 0);
+      
+      // Store header data in localStorage for header component
+      const headerData = transformedData.map((item: any) => ({
+        id: item.accountId,
+        certificationName: "App Owner Review",
+        certificationExpiration: "2025-12-31",
+        status: item.risk === "High" ? "Pending" : "Completed",
+        fullName: item.userName,
+        manager: item.manager,
+        department: item.department,
+        jobtitle: item.accountType,
+        userType: "Internal"
+      }));
+      
+      localStorage.setItem("sharedRowData", JSON.stringify(headerData));
+      // Dispatch custom event to notify header component
+      window.dispatchEvent(new Event('localStorageChange'));
     } catch (err: any) {
       console.error("Error fetching app owner details:", err);
       setError(err.message || "Failed to load data. Please try again later.");
@@ -384,7 +402,7 @@ export default function AppOwner() {
     {
       field: "accountName",
       headerName: "Account ID",
-      cellRenderer: "agGroupCellRenderer",
+      // cellRenderer: "agGroupCellRenderer",
       cellClass: "ag-cell-no-padding",
     },
     {
@@ -565,7 +583,7 @@ export default function AppOwner() {
         iconClass="top-1 right-0 rounded-full text-white bg-purple-800"
         open={true}
       >
-        <ChartAppOwnerComponent />
+        <ChartAppOwnerComponent rowData={rowData} />
       </Accordion>
       <div className="flex items-center justify-between mb-4 relative z-10 pt-10">
         <div className="flex items-center space-x-4">

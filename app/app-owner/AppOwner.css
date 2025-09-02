@@ -1,6 +1,27 @@
 
-.ag-group-expanded,
-.ag-group-contracted {
+/* Hide expand icons in the AppOwner page */
+.app-owner-page .ag-group-expanded,
+.app-owner-page .ag-group-contracted,
+.app-owner-page .ag-group-expand,
+.app-owner-page .ag-group-contract,
+.app-owner-page .ag-group-expanded .ag-icon,
+.app-owner-page .ag-group-contracted .ag-icon,
+.app-owner-page .ag-group-expand .ag-icon,
+.app-owner-page .ag-group-contract .ag-icon,
+.app-owner-page .ag-row-group-expanded,
+.app-owner-page .ag-row-group-contracted {
+  display: none !important;
+}
+
+/* Additional rules to ensure all expand icons are hidden */
+.app-owner-page .ag-icon-tree-closed,
+.app-owner-page .ag-icon-tree-open,
+.app-owner-page .ag-icon-tree-closed:before,
+.app-owner-page .ag-icon-tree-open:before,
+.app-owner-page .ag-icon-expanded,
+.app-owner-page .ag-icon-contracted,
+.app-owner-page .ag-icon-expanded:before,
+.app-owner-page .ag-icon-contracted:before {
   display: none !important;
 }
 

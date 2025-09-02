@@ -48,6 +48,7 @@ export interface UserRowData {
   manager?: string;
   department?: string;
   JobTitle?: string;
+  jobtitle?: string; // Add this for TreeClient compatibility
   userType?: 'Internal' | 'External';
   certificationId: string;
   taskId: string;
@@ -70,4 +71,11 @@ export interface UserRowData {
   accessedWithinAMonth?: string;
   itemRisk?: string;
   entitlementType?: string;
+  // Add properties used in TreeClient
+  fullName?: string;
+  numOfApplications?: number;
+  numOfEntitlements?: number;
+  // Add properties for header functionality
+  certificationName?: string;
+  certificationExpiration?: string;
 }
