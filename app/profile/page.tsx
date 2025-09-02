@@ -1,20 +1,11 @@
 "use client";
 import HorizontalTabs from "@/components/HorizontalTabs";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { useState, useMemo, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-
-// Dynamically import AgGridReact with SSR disabled
-const AgGridReact = dynamic(() => import("ag-grid-react").then((mod) => mod.AgGridReact), {
-  ssr: false,
-});
 import "@/lib/ag-grid-setup";
 
-// Dynamically import Bar chart with SSR disabled
-const Bar = dynamic(() => import("react-chartjs-2").then((mod) => mod.Bar), {
-  ssr: false,
-});
-
+// Charts
 import {
   Chart as ChartJS,
   BarElement,
@@ -29,79 +20,62 @@ import ChartDataLabels from "chartjs-plugin-datalabels";
 // Register Chart.js components and plugin
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend, ChartDataLabels);
 
-// Sample user data
-const userData = {
-  firstName: "John",
-  lastName: "Doe",
-  email: "john.doe@example.com",
-  displayName: "John Doe",
-  alias: "jdoe",
-  phone: "+1 (555) 123-4567",
-  title: "Software Engineer",
-  department: "Engineering",
-  startDate: "2023-01-15",
-  userType: "Full-Time",
-  managerEmail: "jane.smith@example.com",
-  tags: ["Developer", "Team Lead", "Agile"],
+// Dynamically import AgGridReact and Bar with SSR disabled
+const AgGridReact = dynamic(() => import("ag-grid-react").then((mod) => mod.AgGridReact), { ssr: false });
+const Bar = dynamic(() => import("react-chartjs-2").then((mod) => mod.Bar), { ssr: false });
+
+type UserDetails = {
+  username: string;
+  userId: string;
+  userStatus: string;
+  manager: string;
+  department: string;
+  jobTitle: string;
+  userType: "Internal" | "External" | string;
+  email?: string;
 };
 
-// Sample access data
-const accessData = {
-  accounts: 20,
-  apps: 10,
-  entitlements: 60,
-  violations: 5,
-};
-
-// Sample account data
-const accountData = [
-  {
-    accountId: "ACC001",
-    accountStatus: "Active",
-    risk: "Low",
-    appName: "CRM App",
-    discoveryDate: "2023-06-01",
-    lastSyncDate: "2025-08-20",
-    lastAccessReview: "2025-07-15",
-    insights: "High usage",
-    mfa: "Enabled",
-    complianceViolation: "None",
-    entitlements: [
-      { entName: "CRM_READ", risk: "Low", description: "Read-only access to CRM", assignedOn: "2023-06-01", lastReviewed: "2025-07-15", tags: ["Read", "CRM"] },
-      { entName: "CRM_WRITE", risk: "Medium", description: "Write access to CRM", assignedOn: "2023-06-01", lastReviewed: "2025-07-15", tags: ["Write", "CRM"] },
-    ],
-  },
-  {
-    accountId: "ACC002",
-    accountStatus: "Suspended",
-    risk: "High",
-    appName: "HR Portal",
-    discoveryDate: "2023-05-10",
-    lastSyncDate: "2025-08-18",
-    lastAccessReview: "2025-06-30",
-    insights: "Inactive account",
-    mfa: "Disabled",
-    complianceViolation: "SoD Violation",
-    entitlements: [
-      { entName: "HR_ADMIN", risk: "High", description: "Admin access to HR Portal", assignedOn: "2023-05-10", lastReviewed: "2025-06-30", tags: ["Admin", "HR"] },
-    ],
-  },
-];
-
-export default function UserDetailPage() {
+export default function ProfilePage() {
   const [tabIndex, setTabIndex] = useState(0);
+  const [user, setUser] = useState<UserDetails | null>(null);
   const [isMounted, setIsMounted] = useState(false);
 
-  // Ensure chart and grid render only on client
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
+  useEffect(() => {
+    try {
+      const shared = localStorage.getItem("sharedRowData");
+      if (shared) {
+        const data = JSON.parse(shared);
+        if (Array.isArray(data) && data[0]) {
+          const first = data[0];
+          setUser({
+            username: first.fullName || "Unknown User",
+            userId: first.id || "N/A",
+            userStatus: first.status || "Active",
+            manager: first.manager || "N/A",
+            department: first.department || "N/A",
+            jobTitle: first.jobtitle || "N/A",
+            userType: first.userType || "Internal",
+            email: first.email || undefined,
+          });
+        }
+      }
+    } catch (e) {
+      // ignore parse errors; fall back to null user
+    }
+  }, []);
+
   const ProfileTab = () => {
-    const initials = `${userData.firstName[0]}${userData.lastName[0]}`.toUpperCase();
+    const displayName = user?.username || "Unknown User";
+    const [firstName, ...rest] = displayName.split(" ");
+    const lastName = rest.join(" ");
+    const initials = `${firstName?.[0] || "U"}${lastName?.[0] || ""}`.toUpperCase();
     const colors = ["#7f3ff0", "#0099cc", "#777", "#d7263d", "#ffae00"];
-    // Use a deterministic color based on user data to avoid server-client mismatch
-    const bgColor = colors[userData.email.length % colors.length];
+    const bgSource = user?.email || user?.userId || displayName;
+    const bgColor = colors[(bgSource || "").length % colors.length];
 
     return (
       <div className="flex flex-col md:flex-row gap-6 p-6 bg-white rounded-lg shadow-md">
@@ -116,59 +90,52 @@ export default function UserDetailPage() {
         <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="text-sm font-medium text-gray-500">First Name</label>
-            <p className="text-base text-gray-900">{userData.firstName}</p>
+            <p className="text-base text-gray-900">{firstName || "Unknown"}</p>
           </div>
           <div>
             <label className="text-sm font-medium text-gray-500">Last Name</label>
-            <p className="text-base text-gray-900">{userData.lastName}</p>
+            <p className="text-base text-gray-900">{lastName || ""}</p>
           </div>
           <div>
             <label className="text-sm font-medium text-gray-500">Email</label>
-            <p className="text-base text-blue-600">{userData.email}</p>
+            <p className="text-base text-blue-600">{user?.email || "no-email@example.com"}</p>
           </div>
           <div>
             <label className="text-sm font-medium text-gray-500">Display Name</label>
-            <p className="text-base text-gray-900">{userData.displayName}</p>
+            <p className="text-base text-gray-900">{displayName}</p>
           </div>
           <div>
             <label className="text-sm font-medium text-gray-500">Alias</label>
-            <p className="text-base text-gray-900">{userData.alias}</p>
+            <p className="text-base text-gray-900">{user?.userId || "N/A"}</p>
           </div>
           <div>
             <label className="text-sm font-medium text-gray-500">Phone Number</label>
-            <p className="text-base text-gray-900">{userData.phone}</p>
+            <p className="text-base text-gray-900">N/A</p>
           </div>
           <div>
             <label className="text-sm font-medium text-gray-500">Title</label>
-            <p className="text-base text-gray-900">{userData.title}</p>
+            <p className="text-base text-gray-900">{user?.jobTitle || "N/A"}</p>
           </div>
           <div>
             <label className="text-sm font-medium text-gray-500">Department</label>
-            <p className="text-base text-gray-900">{userData.department}</p>
+            <p className="text-base text-gray-900">{user?.department || "N/A"}</p>
           </div>
           <div>
             <label className="text-sm font-medium text-gray-500">Start Date</label>
-            <p className="text-base text-gray-900">{userData.startDate}</p>
+            <p className="text-base text-gray-900">N/A</p>
           </div>
           <div>
             <label className="text-sm font-medium text-gray-500">User Type</label>
-            <p className="text-base text-gray-900">{userData.userType}</p>
+            <p className="text-base text-gray-900">{user?.userType || "Internal"}</p>
           </div>
           <div>
             <label className="text-sm font-medium text-gray-500">Manager Email</label>
-            <p className="text-base text-blue-600">{userData.managerEmail}</p>
+            <p className="text-base text-blue-600">{user?.manager || "N/A"}</p>
           </div>
           <div>
             <label className="text-sm font-medium text-gray-500">Tags</label>
             <div className="flex flex-wrap gap-2">
-              {userData.tags.map((tag, index) => (
-                <span
-                  key={index}
-                  className="inline-block bg-blue-100 text-blue-800 text-sm px-2 py-1 rounded"
-                >
-                  {tag}
-                </span>
-              ))}
+              <span className="inline-block bg-blue-100 text-blue-800 text-sm px-2 py-1 rounded">User</span>
             </div>
           </div>
         </div>
@@ -177,7 +144,41 @@ export default function UserDetailPage() {
   };
 
   const AccessTab = () => {
-    const [rowData] = useState(accountData);
+    // Sample access data and accounts (same structure as user detail page)
+    const accessData = { accounts: 20, apps: 10, entitlements: 60, violations: 5 };
+    const rowData = [
+      {
+        accountId: "ACC001",
+        accountStatus: "Active",
+        risk: "Low",
+        appName: "CRM App",
+        discoveryDate: "2023-06-01",
+        lastSyncDate: "2025-08-20",
+        lastAccessReview: "2025-07-15",
+        insights: "High usage",
+        mfa: "Enabled",
+        complianceViolation: "None",
+        entitlements: [
+          { entName: "CRM_READ", risk: "Low", description: "Read-only access to CRM", assignedOn: "2023-06-01", lastReviewed: "2025-07-15", tags: ["Read", "CRM"] },
+          { entName: "CRM_WRITE", risk: "Medium", description: "Write access to CRM", assignedOn: "2023-06-01", lastReviewed: "2025-07-15", tags: ["Write", "CRM"] },
+        ],
+      },
+      {
+        accountId: "ACC002",
+        accountStatus: "Suspended",
+        risk: "High",
+        appName: "HR Portal",
+        discoveryDate: "2023-05-10",
+        lastSyncDate: "2025-08-18",
+        lastAccessReview: "2025-06-30",
+        insights: "Inactive account",
+        mfa: "Disabled",
+        complianceViolation: "SoD Violation",
+        entitlements: [
+          { entName: "HR_ADMIN", risk: "High", description: "Admin access to HR Portal", assignedOn: "2023-05-10", lastReviewed: "2025-06-30", tags: ["Admin", "HR"] },
+        ],
+      },
+    ];
 
     const accountColumnDefs = useMemo(
       () => [
@@ -234,10 +235,7 @@ export default function UserDetailPage() {
           cellRenderer: (params: any) => (
             <div className="flex flex-wrap gap-1">
               {params.value?.map((tag: string, index: number) => (
-                <span
-                  key={index}
-                  className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded"
-                >
+                <span key={index} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
                   {tag}
                 </span>
               ))}
@@ -248,7 +246,6 @@ export default function UserDetailPage() {
       []
     );
 
-    // Bar chart data
     const chartData: ChartData<"bar"> = {
       labels: ["Accounts", "Apps", "Entitlements", "Violations"],
       datasets: [
@@ -264,48 +261,25 @@ export default function UserDetailPage() {
 
     const chartOptions = {
       scales: {
-        y: {
-          beginAtZero: true,
-          title: {
-            display: true,
-            text: "Count",
-          },
-        },
-        x: {
-          title: {
-            display: true,
-            text: "Categories",
-          },
-        },
+        y: { beginAtZero: true, title: { display: true, text: "Count" } },
+        x: { title: { display: true, text: "Categories" } },
       },
       plugins: {
-        legend: {
-          display: false, // Hide legend since we have only one dataset
-        },
+        legend: { display: false },
         datalabels: {
           color: "#fff",
-          font: {
-            weight: "bold" as const,
-            size: 14,
-          },
-          formatter: (value: number) => value, // Display the value on each bar
+          font: { weight: "bold" as const, size: 14 },
+          formatter: (value: number) => value,
           anchor: "center" as const,
           align: "center" as const,
         },
-        title: {
-          display: true,
-          text: "Access Metrics",
-          font: {
-            size: 18,
-          },
-        },
+        title: { display: true, text: "Access Metrics", font: { size: 18 } },
       },
       maintainAspectRatio: false,
-    };
+    } as const;
 
     return (
       <div className="p-6 bg-gray-50 ">
-        {/* Bar Chart */}
         {isMounted && (
           <div className="bg-white p-4 rounded-lg shadow-md mb-6 w-120">
             <div className="h-64">
@@ -313,7 +287,6 @@ export default function UserDetailPage() {
             </div>
           </div>
         )}
-        {/* Accounts Table */}
         {isMounted && (
           <div className="ag-theme-alpine" style={{ height: 400, width: "100%" }}>
             <AgGridReact
@@ -339,27 +312,13 @@ export default function UserDetailPage() {
   };
 
   const tabsData = [
-    {
-      label: "Profile",
-      icon: ChevronDown,
-      iconOff: ChevronRight,
-      component: ProfileTab,
-    },
-    {
-      label: "Access",
-      icon: ChevronDown,
-      iconOff: ChevronRight,
-      component: AccessTab,
-    },
+    { label: "Profile", icon: ChevronDown, iconOff: ChevronRight, component: ProfileTab },
+    { label: "Access", icon: ChevronDown, iconOff: ChevronRight, component: AccessTab },
   ];
 
   return (
-    <>
-      <HorizontalTabs
-        tabs={tabsData}
-        activeIndex={tabIndex}
-        onChange={setTabIndex}
-      />
-    </>
+    <HorizontalTabs tabs={tabsData} activeIndex={tabIndex} onChange={setTabIndex} />
   );
 }
+
+

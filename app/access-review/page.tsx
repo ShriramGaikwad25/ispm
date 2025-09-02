@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { AgGridReact } from "ag-grid-react";
 import "@/lib/ag-grid-setup";
 import { useRouter } from "next/navigation";
+import { formatDateMMDDYY as formatDateShared } from "@/utils/utils";
 import { defaultColDef } from "@/components/dashboard/columnDefs";
 import SelectAllAR from "@/components/agTable/SelectAllAR";
 import CustomPagination from "@/components/agTable/CustomPagination";
@@ -86,17 +87,9 @@ const DetailCellRenderer = (props: IDetailCellRendererParams) => {
   );
 };
 
-// Date Formatter
-export const formatDateMMDDYY = (dateString?: string) => {
-  if (!dateString) return "";
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) return "";
-  return date.toLocaleDateString("en-US", {
-    month: "2-digit",
-    day: "2-digit",
-    year: "2-digit",
-  });
-};
+// Date Formatter (delegates to shared util)
+export const formatDateMMDDYY = (dateString?: string) =>
+  formatDateShared(dateString);
 
 const reviewerId = "430ea9e6-3cff-449c-a24e-59c057f81e3d";
 

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useMemo, useRef, useState, useEffect, use } from "react";
 import { createPortal } from "react-dom";
+import { formatDateMMDDYY } from "@/utils/utils";
 import "@/lib/ag-grid-setup";
 import Exports from "@/components/agTable/Exports";
 import EditReassignButtons from "@/components/agTable/EditReassignButtons";
@@ -180,13 +181,7 @@ export default function ApplicationDetailPage({
   }, [nodeData]);
 
   const formatDate = (date: string | undefined) => {
-    return date
-      ? new Date(date).toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-        })
-      : "N/A";
+    return date ? formatDateMMDDYY(date) || "N/A" : "N/A";
   };
 
   const renderSideBySideField = (
@@ -403,15 +398,12 @@ useEffect(() => {
         field: "lastlogindate",
         headerName: "Last Login Date",
         enableRowGroup: true,
-        cellRenderer: (params: ICellRendererParams) => (
-          <div className="flex flex-col gap-0">
-            <span className="text-gray-800">{params.value}</span>
-          </div>
-        ),
+        valueFormatter: (params: ICellRendererParams) => formatDateMMDDYY(params.value),
       },
       {
         field: "lastAccessReview",
         headerName: "Last Access Review",
+        valueFormatter: (params: ICellRendererParams) => formatDateMMDDYY(params.value),
       },
       {
         field: "accountType",
@@ -434,6 +426,7 @@ useEffect(() => {
         headerName: "Access Grant Date",
         flex: 2,
         hide: true,
+        valueFormatter: (params: ICellRendererParams) => formatDateMMDDYY(params.value),
       },
       { field: "userType", headerName: "User Type", flex: 2, hide: true },
       {
@@ -446,6 +439,7 @@ useEffect(() => {
         field: "syncDate",
         headerName: "Sync Date",
         flex: 1,
+        valueFormatter: (params: ICellRendererParams) => formatDateMMDDYY(params.value),
       },
     ],
     []
@@ -477,11 +471,17 @@ useEffect(() => {
       { field: "risk", headerName: "Risk", flex: 1.5 },
       { field: "applicationName", headerName: "Application Name", flex: 2.5 },
       { field: "assignment", headerName: "Assignment", flex: 2 },
-      { field: "Last Sync", headerName: "Last Sync", flex: 2 },
+      {
+        field: "Last Sync",
+        headerName: "Last Sync",
+        flex: 2,
+        valueFormatter: (params: ICellRendererParams) => formatDateMMDDYY(params.value),
+      },
       {
         field: "Last Reviewed on",
         headerName: "Last Reviewed",
         flex: 2,
+        valueFormatter: (params: ICellRendererParams) => formatDateMMDDYY(params.value),
       },
       {
         field: "Total Assignments",
@@ -923,12 +923,8 @@ useEffect(() => {
           {isSidePanelOpen &&
             createPortal(
               <div
-                className="fixed top-0 right-0 h-full w-150 bg-white shadow-xl z-50 transform transition-transform duration-300 ease-in-out overflow-y-auto"
-                style={{
-                  transform: isSidePanelOpen
-                    ? "translateX(0)"
-                    : "translateX(100%)",
-                }}
+                className="fixed top-0 right-0 h-full bg-white shadow-xl z-50 overflow-y-auto"
+                style={{ width: 500 }}
               >
                 <div className="p-4 border-b bg-gray-50">
                   <div className="flex justify-between items-start">

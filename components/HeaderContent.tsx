@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import Dropdown from "./Dropdown";
+import { formatDateMMDDYY } from "@/utils/utils";
 import { UserRowData } from "@/types/certification";
 import HorizontalTabs from "@/components/HorizontalTabs";
 import { ChevronDown, ChevronRight } from "lucide-react";
@@ -252,6 +253,7 @@ const PopupButton = ({
 
 const HeaderContent = () => {
   const pathname = usePathname();
+  const router = useRouter();
 
   // State for header info and user details
   const [headerInfo, setHeaderInfo] = useState({
@@ -288,7 +290,7 @@ const HeaderContent = () => {
   // Handler for Profile click in dropdown
   const handleProfileClick = () => {
     if (userDetails) {
-      setShowPopupButton(true);
+      router.push(`/profile`);
     }
   };
 
@@ -388,11 +390,7 @@ const HeaderContent = () => {
                   try {
                     const due = new Date(headerInfo.dueDate);
                     const generated = new Date(due.getTime() - (30 * 24 * 60 * 60 * 1000));
-                    return generated.toLocaleDateString('en-US', { 
-                      month: 'short', 
-                      day: 'numeric', 
-                      year: 'numeric' 
-                    });
+                    return formatDateMMDDYY(generated);
                   } catch {
                     return "N/A";
                   }
@@ -403,11 +401,7 @@ const HeaderContent = () => {
               <p className="text-sm font-medium text-blue-500">
                 Due on {headerInfo.dueDate ? (() => {
                   try {
-                    return new Date(headerInfo.dueDate).toLocaleDateString('en-US', { 
-                      month: 'short', 
-                      day: 'numeric', 
-                      year: 'numeric' 
-                    });
+                    return formatDateMMDDYY(new Date(headerInfo.dueDate));
                   } catch {
                     return "N/A";
                   }

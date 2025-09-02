@@ -46,6 +46,20 @@ export const exportToExcel = (gridApi: any) => {
   });
 };
 
+// Formats a date input into MM-dd-yy. Accepts Date or parsable string.
+export const formatDateMMDDYY = (input?: string | Date | null): string => {
+  if (!input) return "";
+  const date = input instanceof Date ? input : new Date(input);
+  if (isNaN(date.getTime())) return "";
+  return date
+    .toLocaleDateString("en-US", {
+      month: "2-digit",
+      day: "2-digit",
+      year: "2-digit",
+    })
+    .replaceAll("/", "-");
+};
+
 export const defaultExpression = {
   id: uuidv4(),
   attribute: null,

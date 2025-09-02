@@ -91,7 +91,7 @@ export default function Campaigns() {
       {
         headerName: "Campaign Name",
         field: "campaignName",
-        cellRenderer: "agGroupCellRenderer", // Enable detail row toggle
+        // cellRenderer: "agGroupCellRenderer",
         width: 250,
         wrapText: true,
         autoHeight: true,
@@ -104,7 +104,7 @@ export default function Campaigns() {
       },
       { headerName: "Instances", field: "instances", flex: 1 },
       { headerName: "Progress", field: "progress", flex: 1.5 },
-      { headerName: "Expiry Date", field: "expiryDate", flex: 1.5 },
+      { headerName: "Expiry Date", field: "expiryDate", flex: 1.5, valueFormatter: (p:any)=> require("@/utils/utils").formatDateMMDDYY(p.value) },
       { headerName: "Owner", field: "owner", flex: 1 },
       {
         field: "actions",

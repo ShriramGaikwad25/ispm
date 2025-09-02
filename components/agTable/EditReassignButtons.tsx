@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { ChevronDown, ChevronRight, Edit2Icon, InfoIcon, UserPlus, X } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import ProxyActionModal from "../ProxyActionModal";
+import { formatDateMMDDYY } from "@/utils/utils";
 
 interface EditReassignButtonsProps<T> {
   api: GridApi;
@@ -155,13 +156,7 @@ const EditReassignButtons = <T extends { status?: string }>({
   };
 
   const formatDate = (date: string | undefined) => {
-    return date
-      ? new Date(date).toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-        })
-      : "N/A";
+    return date ? formatDateMMDDYY(date) || "N/A" : "N/A";
   };
 
   const renderSideBySideField = (label1: string, key1: string, value1: any, label2: string, key2: string, value2: any) => (
@@ -289,10 +284,8 @@ const EditReassignButtons = <T extends { status?: string }>({
         {isSidePanelOpen &&
           createPortal(
             <div
-              className="fixed top-0 right-0 h-full w-150 bg-white shadow-xl z-50 transform transition-transform duration-300 ease-in-out overflow-y-auto"
-              style={{
-                transform: isSidePanelOpen ? "translateX(0)" : "translateX(100%)",
-              }}
+              className="fixed top-0 right-0 h-full bg-white shadow-xl z-50 overflow-y-auto"
+              style={{ width: 500 }}
             >
               <div className="p-4 border-b bg-gray-50">
                 <div className="flex justify-between items-start">

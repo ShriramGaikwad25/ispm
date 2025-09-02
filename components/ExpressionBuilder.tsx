@@ -65,6 +65,7 @@ const ExpressionBuilder: React.FC<ExpressionBuilderProps> = ({
 
   const [isAccordionOpen, setIsAccordionOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); // <-- Sidebar State
+  // (Reverted) No global shift behavior
 
   useEffect(() => {
     if (conditions.length > 0) {
