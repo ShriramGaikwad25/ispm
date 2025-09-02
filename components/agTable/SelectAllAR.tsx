@@ -101,7 +101,7 @@ const SelectAllAR: React.FC<SelectAllProps> = ({
   return (
     <div className="flex items-center text-sm">
       <div className="divide-x-1 divide-gray-300 h-9 flex items-center">
-        {/* {showExpandCollapse && <ExpandCollapse gridApi={gridApi} />} */}
+        {showExpandCollapse && <ExpandCollapse gridApi={gridApi} />}
 
         <label className="font-medium cursor-pointer pr-4 items-center h-9 flex">
           <input

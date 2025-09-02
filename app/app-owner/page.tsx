@@ -48,7 +48,9 @@ type DataItem = {
 
 type RowData = {
   accountId: string;
+  accountName: string;
   userId: string;
+  userName: string;
   entitlementName: string;
   entitlementDescription: string;
   aiInsights: string;
@@ -65,6 +67,7 @@ type RowData = {
   applicationInstanceId?: string;
   numOfEntitlements: number;
   lineItemId?: string;
+  status?: string;
 };
 
 const data: {
@@ -487,8 +490,8 @@ export default function AppOwner() {
             </svg>
           );
         return (
-          <div className="flex flex-col gap-0 mt-2">
-            <span className="text-gray-800 cursor-pointer">{icon}</span>
+          <div className="flex flex-col gap-0 mt-2 cursor-pointer hover:bg-gray-100 p-2 rounded transition-colors duration-200 ai-insights-cell" title="Click to view details">
+            <span className="text-gray-800">{icon}</span>
           </div>
         );
       },
@@ -607,259 +610,281 @@ export default function AppOwner() {
   }, [isGridReady, groupByColumn]);
 
   return (
-    <>
-      <h1 className="text-xl font-bold mb-6 border-b border-gray-300 pb-2 text-blue-950">
-        Application Owner
-      </h1>
-      <Accordion
-        iconClass="top-1 right-0 rounded-full text-white bg-purple-800"
-        open={true}
-      >
-        <ChartAppOwnerComponent rowData={rowData} />
-      </Accordion>
-      <div className="flex items-center justify-between mb-4 relative z-10 pt-10">
-        <div className="flex items-center space-x-4">
-          <SelectAll
-            gridApi={gridApiRef.current}
-            detailGridApis={detailGridApis}
-            clearDetailGridApis={() => setDetailGridApis(new Map())}
-            showExpandCollapse={true}
-          />
-          <select
-            value={groupByOption}
-            onChange={handleGroupByOptionChange}
-            className="border border-gray-300 rounded-md px-3 py-1 text-sm"
+    <div className="flex w-full h-screen">
+      <div className={`flex-1 transition-all duration-300 ${isSidebarOpen ? 'mr-4' : ''}`}>
+        <div className="max-w-full">
+          <h1 className="text-xl font-bold mb-6 border-b border-gray-300 pb-2 text-blue-950">
+            Application Owner
+          </h1>
+          <Accordion
+            iconClass="top-1 right-0 rounded-full text-white bg-purple-800"
+            open={true}
           >
-            <option value="None">All</option>
-            <option value="Entitlements">Group by Entitlements</option>
-            <option value="Accounts">Group by Accounts</option>
-          </select>
-        </div>
-        <div className="flex items-center space-x-4">
-          <input
-            type="text"
-            placeholder="Search..."
-            className="mr-2 border rounded"
-            onChange={(e) => {
-              if (gridApiRef.current) {
-                // gridApiRef.current.setQuickFilter(e.target.value);
-              }
-            }}
-          />
-          <CustomPagination
-            totalItems={totalItems}
-            currentPage={pageNumber}
-            totalPages={totalPages}
-            pageSize={defaultPageSize}
-            onPageChange={handlePageChange}
-          />
-          <Filters gridApi={gridApiRef} />
-          <Exports gridApi={gridApiRef.current} />
-          <MailIcon
-            size={32}
-            color="#35353A"
-            className="transform scale-[.6]"
-          />
-          <button
-            title="Sign Off"
-            aria-label="Sign off selected rows"
-            className="p-1 rounded transition-colors duration-200"
-          >
-            <CheckCircleIcon
-              className="cursor-pointer"
-              strokeWidth="1"
-              size="24"
-              color="#e73c3cff"
-            />
-          </button>
-          <ColumnSettings
-            columnDefs={columnDefs}
-            gridApi={gridApiRef.current}
-            visibleColumns={() => {
-              const visibleCols: string[] = [];
-              columnDefs.forEach((colDef) => {
-                if (colDef.field) {
-                  visibleCols.push(colDef.field);
-                }
-              });
-              return visibleCols;
-            }}
-          />
-        </div>
-      </div>
-      {loading ? (
-        <div className="text-center py-4">
-          <span className="ag-overlay-loading-center">
-            ⏳ Loading certification data...
-          </span>
-        </div>
-      ) : error ? (
-        <div className="text-center py-4 text-red-600">
-          {error}
-          <button
-            onClick={() => fetchData()}
-            className="ml-4 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            Retry
-          </button>
-        </div>
-      ) : rowData.length === 0 ? (
-        <div className="text-center py-4">
-          <span className="ag-overlay-loading-center">No data to display.</span>
-        </div>
-      ) : (
-        <div style={{ height: "100%", width: "100%" }}>
-          <AgGridReact
-            rowData={rowData}
-            getRowId={(params: GetRowIdParams) =>
-              `${params.data.accountId}-${params.data.entitlementName}`
-            }
-            columnDefs={columnDefs}
-            groupDefaultExpanded={-1}
-            defaultColDef={defaultColDef}
-            autoGroupColumnDef={autoGroupColumnDef}
-            rowGroupPanelShow={"never"}
-            domLayout="autoHeight"
-            rowSelection={{
-              mode: "multiRow",
-              masterSelects: "detail",
-            }}
-            masterDetail={true}
-            detailCellRenderer={detailCellRenderer}
-            detailRowAutoHeight={true}
-            onGridReady={(params) => {
-              console.log("onGridReady triggered at", new Date().toISOString());
-              gridApiRef.current = params.api;
-              params.api.sizeColumnsToFit();
-              setIsGridReady(true);
-              console.log("Grid initialized:", {
-                api: !!params.api,
-                columnApi: !!params.columnApi,
-                enterpriseModules: params.api.isEnterprise?.()
-                  ? "Loaded"
-                  : "Not loaded",
-                columns: gridApiRef.current?.columnApi
-                  ?.getAllColumns()
-                  ?.map((col) => col.getColId()),
-              });
-            }}
-            onFirstDataRendered={onFirstDataRendered}
-            pagination={true}
-            overlayLoadingTemplate={`<span class="ag-overlay-loading-center">⏳ Loading certification data...</span>`}
-            overlayNoRowsTemplate={`<span class="ag-overlay-loading-center">No data to display.</span>`}
-            className="ag-theme-quartz ag-main"
-          />
-        </div>
-      )}
-      <RightSidebar isOpen={isSidebarOpen} onClose={handleClose}>
-        <div className="max-w-2xl mx-auto p-2 bg-white shadow-lg rounded-xl border border-gray-200 space-y-4">
-          <div>
-            <h2 className="text-lg font-semibold">Task summary</h2>
-            <p className="text-sm text-gray-500">Review the access below</p>
-          </div>
-          <div className="flex items-center space-x-4 p-3 bg-gray-50 rounded-md">
-            <div className="flex-1">
-              <p className="font-medium">
-                {selectedRow?.userName || "Tye Davis"}
-              </p>
-              <p className="text-sm text-gray-500">
-                {selectedRow?.accountName || "tye.davis@conductorone.com"} -
-                User - SSO
-              </p>
+            <ChartAppOwnerComponent rowData={rowData} />
+          </Accordion>
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-4 relative z-10 pt-10 gap-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
+              <SelectAll
+                gridApi={gridApiRef.current}
+                detailGridApis={detailGridApis}
+                clearDetailGridApis={() => setDetailGridApis(new Map())}
+                showExpandCollapse={true}
+              />
+              <select
+                value={groupByOption}
+                onChange={handleGroupByOptionChange}
+                className="border border-gray-300 rounded-md px-3 py-1 text-sm"
+              >
+                <option value="None">All</option>
+                <option value="Entitlements">Group by Entitlements</option>
+                <option value="Accounts">Group by Accounts</option>
+              </select>
+              
             </div>
-            <span className="text-gray-400">→</span>
-            <div className="flex-1">
-              <p className="font-medium">
-                {selectedRow?.entitlementName || "Admin"}
-              </p>
-              <p className="text-sm text-gray-500">AWS - IAM role</p>
-            </div>
-          </div>
-          <div className="border-l-4 border-yellow-400 bg-yellow-50 p-4 rounded-md">
-            <p className="font-semibold flex items-center text-yellow-700">
-              <AlertTriangle className="w-4 h-4 mr-2" />
-              Copilot suggests taking a closer look at this access
-            </p>
-            <ul className="list-decimal list-inside mt-2 text-sm text-yellow-800 space-y-1">
-              <li>
-                This access is critical risk and this user might be
-                over-permissioned
-              </li>
-              <li>
-                Users with the job title Sales don't usually have this access
-              </li>
-            </ul>
-          </div>
-          <div className="space-y-1 text-sm">
-            <p className="flex items-center">
-              <CheckCircle className="w-4 h-4 text-green-500 mr-2" />
-              <strong className="m-1">
-                {selectedRow?.userName || "Tye Davis"}
-              </strong>{" "}
-              is <strong className="m-1">active</strong> in Okta
-            </p>
-            <p className="text-gray-700">
-              {selectedRow?.userName || "Tye Davis"} last logged into AWS on Nov
-              1, 2023: <strong>1 month ago</strong>
-            </p>
-            <p className="text-red-600">
-              This entitlement is marked as <strong>Critical</strong> risk
-            </p>
-            <p className="text-gray-700">
-              1 out of 11 users with the title Sales have this entitlement
-            </p>
-            <p className="text-gray-700">
-              1 out of 2495 users in your organization have this entitlement
-            </p>
-            <p className="text-gray-700">
-              1 out of 13 accounts in this application have this entitlement
-            </p>
-          </div>
-          <div>
-            <div className="flex justify-between items-center">
-              <h3 className="text-sm font-semibold text-gray-700">
-                Should this user have this access?
-              </h3>
-              <div className="space-x-2 p-2">
-                <ActionButtons
-                  selectedRows={selectedRow ? [selectedRow] : []}
-                  onAction={handleAction}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
+              <input
+                type="text"
+                placeholder="Search..."
+                className="border rounded px-3 py-1 text-sm"
+                onChange={(e) => {
+                  if (gridApiRef.current) {
+                    // gridApiRef.current.setQuickFilter(e.target.value);
+                  }
+                }}
+              />
+              <CustomPagination
+                totalItems={totalItems}
+                currentPage={pageNumber}
+                totalPages={totalPages}
+                pageSize={defaultPageSize}
+                onPageChange={handlePageChange}
+              />
+              <Filters gridApi={gridApiRef} />
+              <Exports gridApi={gridApiRef.current} />
+              <MailIcon
+                size={32}
+                color="#35353A"
+                className="transform scale-[.6]"
+              />
+              <button
+                title="Sign Off"
+                aria-label="Sign off selected rows"
+                className="p-1 rounded transition-colors duration-200"
+              >
+                <CheckCircleIcon
+                  className="cursor-pointer"
+                  strokeWidth="1"
+                  size="24"
+                  color="#e73c3cff"
                 />
-              </div>
+              </button>
+              <ColumnSettings
+                columnDefs={columnDefs}
+                gridApi={gridApiRef.current}
+                visibleColumns={() => {
+                  const visibleCols: string[] = [];
+                  columnDefs.forEach((colDef) => {
+                    if (colDef.field) {
+                      visibleCols.push(colDef.field);
+                    }
+                  });
+                  return visibleCols;
+                }}
+              />
             </div>
-            <p className="text-xs text-gray-500 mt-1">
-              Certify or recommend removing this user’s access.
-              <a href="#" className="text-blue-600 hover:underline ml-1">
-                More about decisions
-              </a>
-            </p>
           </div>
-          <div className="pt-4">
-            <input
-              type="text"
-              placeholder="Ask me Anything"
-              value={comment}
-              onChange={handleInputChange}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-            />
+        </div>
+        {loading ? (
+          <div className="text-center py-4">
+            <span className="ag-overlay-loading-center">
+              ⏳ Loading certification data...
+            </span>
+          </div>
+        ) : error ? (
+          <div className="text-center py-4 text-red-600">
+            {error}
             <button
-              disabled={!comment.trim() || !selectedRow?.lineItemId}
-              className={`mt-4 px-3 py-1 rounded-lg text-sm ${
-                comment.trim() && selectedRow?.lineItemId
-                  ? "bg-blue-500 hover:bg-blue-600 text-white"
-                  : "bg-gray-100 text-gray-400 cursor-not-allowed"
-              }`}
-              onClick={() => {
-                if (selectedRow?.lineItemId) {
-                  handleAction(selectedRow.lineItemId, "Approve", comment);
-                }
-              }}
+              onClick={() => fetchData()}
+              className="ml-4 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
             >
-              Submit
+              Retry
             </button>
           </div>
+        ) : rowData.length === 0 ? (
+          <div className="text-center py-4">
+            <span className="ag-overlay-loading-center">No data to display.</span>
+          </div>
+        ) : (
+          <div className="w-full">
+            <AgGridReact
+              rowData={rowData}
+              getRowId={(params: GetRowIdParams) =>
+                `${params.data.accountId}-${params.data.entitlementName}`
+              }
+              columnDefs={columnDefs}
+              groupDefaultExpanded={-1}
+              defaultColDef={defaultColDef}
+              autoGroupColumnDef={autoGroupColumnDef}
+              rowGroupPanelShow={"never"}
+              domLayout="autoHeight"
+              rowSelection={{
+                mode: "multiRow",
+                masterSelects: "detail",
+              }}
+              masterDetail={true}
+              detailCellRenderer={detailCellRenderer}
+              detailRowAutoHeight={true}
+              onGridReady={(params) => {
+                console.log("onGridReady triggered at", new Date().toISOString());
+                gridApiRef.current = params.api;
+                params.api.sizeColumnsToFit();
+                setIsGridReady(true);
+                console.log("Grid initialized:", {
+                  api: !!params.api,
+                  columnApi: !!(params.api as any).columnApi,
+                  enterpriseModules: (params.api as any).isEnterprise?.()
+                    ? "Loaded"
+                    : "Not loaded",
+                  columns: (gridApiRef.current as any)?.columnApi
+                    ?.getAllColumns()
+                    ?.map((col: any) => col.getColId()),
+                });
+              }}
+              onFirstDataRendered={onFirstDataRendered}
+              pagination={true}
+              overlayLoadingTemplate={`<span class="ag-overlay-loading-center">⏳ Loading certification data...</span>`}
+              overlayNoRowsTemplate={`<span class="ag-overlay-loading-center">No data to display.</span>`}
+              className="ag-theme-quartz ag-main"
+            />
+          </div>
+        )}
+      </div>
+      {isSidebarOpen && (
+        <div className="w-[500px] h-full flex-shrink-0 border-l border-gray-200 bg-white shadow-lg side-panel">
+                     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200 p-3 z-10 side-panel-header">
+             <div className="flex justify-between items-center">
+               <div className="flex items-center space-x-2">
+                 <div className="w-1.5 h-6 bg-blue-600 rounded-full"></div>
+                 <h2 className="text-lg font-bold text-gray-800">Task Summary</h2>
+               </div>
+                             <button 
+                 onClick={handleClose} 
+                 className="text-gray-500 hover:text-gray-700 p-1.5 rounded-full hover:bg-white transition-colors duration-200"
+                 title="Close panel"
+               >
+                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+                                           <div className="p-3 space-y-3">
+                         <div className="bg-gray-50 rounded-lg p-3">
+               <div className="flex items-center space-x-2 p-2">
+                 <div className="flex-1">
+                   <p className="text-sm font-medium text-gray-900">
+                     {selectedRow?.userName || "Tye Davis"}
+                   </p>
+                   <p className="text-xs text-gray-600">
+                     {selectedRow?.accountName || "tye.davis@conductorone.com"} - User - SSO
+                   </p>
+                 </div>
+                 <span className="text-gray-400 text-lg">→</span>
+                 <div className="flex-1">
+                   <p className="text-sm font-medium text-gray-900">
+                     {selectedRow?.entitlementName || "Admin"}
+                   </p>
+                   <p className="text-xs text-gray-600">AWS - IAM role</p>
+                 </div>
+               </div>
+             </div>
+            
+                         <div className="border-l-4 border-yellow-400 bg-yellow-50 p-3 rounded-md">
+               <p className="font-semibold flex items-center text-yellow-700 mb-2 text-sm">
+                 <AlertTriangle className="w-4 h-4 mr-2 flex-shrink-0" />
+                 Copilot suggests taking a closer look at this access
+               </p>
+               <ul className="list-decimal list-inside text-xs text-yellow-800 space-y-1">
+                 <li>This access is critical risk and this user might be over-permissioned</li>
+                 <li>Users with the job title Sales don't usually have this access</li>
+               </ul>
+             </div>
+            
+                         <div className="space-y-2">
+               <div className="flex items-start space-x-2">
+                 <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                 <div>
+                   <p className="text-xs text-gray-700">
+                     <strong>{selectedRow?.userName || "Tye Davis"}</strong> is <strong>active</strong> in Okta
+                   </p>
+                 </div>
+               </div>
+               
+               <div className="text-xs text-gray-700">
+                 <p>{selectedRow?.userName || "Tye Davis"} last logged into AWS on Nov 1, 2023: <strong>1 month ago</strong></p>
+               </div>
+               
+               <div className="text-red-600 text-xs">
+                 <p>This entitlement is marked as <strong>Critical</strong> risk</p>
+               </div>
+               
+               <div className="text-xs text-gray-700 space-y-0.5">
+                 <p>1 out of 11 users with the title Sales have this entitlement</p>
+                 <p>1 out of 2495 users in your organization have this entitlement</p>
+                 <p>1 out of 13 accounts in this application have this entitlement</p>
+               </div>
+             </div>
+            
+                         <div className="border-t border-gray-200 pt-3">
+               <div className="flex justify-between items-center mb-2">
+                 <h3 className="text-xs font-semibold text-gray-700">
+                   Should this user have this access?
+                 </h3>
+                 <div className="space-x-2">
+                   <ActionButtons
+                     api={{} as any}
+                     selectedRows={selectedRow ? [selectedRow] : []}
+                     context="entitlement"
+                     reviewerId={reviewerId}
+                     certId={certificationId}
+                   />
+                 </div>
+               </div>
+               <p className="text-xs text-gray-500 mb-2">
+                 Certify or recommend removing this user's access.
+                 <a href="#" className="text-blue-600 hover:underline ml-1">
+                   More about decisions
+                 </a>
+               </p>
+             </div>
+            
+                         <div className="border-t border-gray-200 pt-3">
+               <input
+                 type="text"
+                 placeholder="Ask me Anything"
+                 value={comment}
+                 onChange={handleInputChange}
+                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+               />
+               <button
+                 disabled={!comment.trim() || !selectedRow?.lineItemId}
+                 className={`mt-2 w-full px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                   comment.trim() && selectedRow?.lineItemId
+                     ? "bg-blue-600 hover:bg-blue-700 text-white"
+                     : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                 }`}
+                 onClick={() => {
+                   if (selectedRow?.lineItemId) {
+                     handleAction(selectedRow.lineItemId, "Approve", comment);
+                   }
+                 }}
+               >
+                 Submit
+               </button>
+             </div>
+          </div>
         </div>
-      </RightSidebar>
-    </>
+      )}
+    </div>
   );
 }
