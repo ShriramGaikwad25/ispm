@@ -268,6 +268,25 @@ export default function AppOwner() {
         // For Accounts grouping, call entities API getAppAccounts
         // Determine applicationInstanceId: prefer from current state else from first of response of ungrouped data
         let applicationInstanceId = rowData.find((r) => r.applicationInstanceId)?.applicationInstanceId || "";
+        const tryExtractFromRawItems = (items: any[]): string | undefined => {
+          for (const item of items || []) {
+            // Top-level variants
+            const top1 = item?.applicationInfo?.applicationInstanceId || item?.applicationInfo?.applicationinstanceid;
+            if (top1) return top1 as string;
+            const top2 = item?.applicationInstanceId || item?.applicationinstanceid;
+            if (top2) return top2 as string;
+            // Ungrouped entityEntitlements path
+            const entAppId = item?.entityEntitlements?.[0]?.applicationInfo?.applicationInstanceId || item?.entityEntitlements?.[0]?.applicationInfo?.applicationinstanceid;
+            if (entAppId) return entAppId as string;
+            // Grouped structure paths (accounts array)
+            const accounts = Array.isArray(item?.accounts) ? item.accounts : [];
+            for (const acc of accounts) {
+              const accAppId = acc?.applicationInfo?.applicationInstanceId || acc?.applicationInfo?.applicationinstanceid;
+              if (accAppId) return accAppId as string;
+            }
+          }
+          return undefined;
+        };
         if (!applicationInstanceId) {
           const ungResp = await getAppOwnerDetails(
             reviewerId,
@@ -275,17 +294,57 @@ export default function AppOwner() {
             defaultPageSize,
             pageNumber
           );
+          console.log("Ungrouped response for appId extraction:", JSON.stringify(ungResp, null, 2));
+          
+          // First try fast transform path
           const transformedUng = transformApiData(ungResp.items || [], false);
           applicationInstanceId = transformedUng.find((r) => r.applicationInstanceId)?.applicationInstanceId || "";
+          console.log("Transformed data appId:", applicationInstanceId);
+          
+          // Then try raw items exhaustive scan for various shapes/casings
+          if (!applicationInstanceId) {
+            const extracted = tryExtractFromRawItems(ungResp.items || []);
+            if (extracted) applicationInstanceId = extracted;
+            console.log("Raw extraction appId:", extracted);
+          }
         }
+        
+        console.log("Final applicationInstanceId for accounts:", applicationInstanceId);
+        
         if (!applicationInstanceId) {
-          throw new Error("applicationInstanceId not found to fetch accounts");
+          // Try to get applications list and use the first one as fallback
+          try {
+            console.log("Trying to fetch applications list as fallback...");
+            const appsResponse = await fetch(`https://preview.keyforge.ai/entities/api/v1/CERTTEST/getApplications/${reviewerId}`);
+            const appsData = await appsResponse.json();
+            console.log("Applications fallback response:", appsData);
+            
+            if (appsData.executionStatus === "success" && appsData.items && appsData.items.length > 0) {
+              const firstApp = appsData.items[0];
+              applicationInstanceId = firstApp.applicationinstanceid || firstApp.applicationInstanceId;
+              console.log("Using first application as fallback:", applicationInstanceId);
+            }
+          } catch (fallbackErr) {
+            console.error("Fallback applications fetch failed:", fallbackErr);
+          }
         }
-        const accountsResp: any = await getAppAccounts(reviewerId, applicationInstanceId);
-        // Normalize to PaginatedResponse-like shape for rendering
-        response = (Array.isArray(accountsResp)
-          ? { items: accountsResp, total_pages: 1, total_items: accountsResp.length }
-          : accountsResp) as PaginatedResponse<any>;
+        
+        if (!applicationInstanceId) {
+          // Provide user-friendly message instead of throwing hard error
+          setError("Unable to determine application to load accounts. Open an application first or try 'Group by Entitlements'.");
+          setRowData([]);
+          setLoading(false);
+          return;
+        }
+                 const accountsResp: any = await getAppAccounts(reviewerId, applicationInstanceId);
+         console.log("Raw accounts response:", accountsResp);
+         
+         // Normalize to PaginatedResponse-like shape for rendering
+         response = (Array.isArray(accountsResp)
+           ? { items: accountsResp, total_pages: 1, total_items: accountsResp.length }
+           : accountsResp) as PaginatedResponse<any>;
+         
+         console.log("Normalized accounts response:", response);
       } else {
         response = await getAppOwnerDetails(
           reviewerId,
@@ -307,10 +366,48 @@ export default function AppOwner() {
         throw new Error("Invalid data format received from API");
       }
 
-      const transformedData = transformApiData(
-        response.items,
-        isGroupedEnts /* grouped shape only for Entitlements path */
-      );
+             let transformedData: RowData[];
+       
+               if (isGroupedAccounts) {
+          // For accounts data, transform differently since it has a different structure
+          console.log("First account item structure:", response.items?.[0]);
+          
+                     transformedData = (response.items || []).map((account: any, index: number) => {
+             // Map using the actual field names from the API response
+             const mappedAccount = {
+               accountId: account.accountId || `account-${index}`,
+               accountName: account.accountName || "",
+               userId: account.userId || "",
+               userName: account.userDisplayName || "", // This is the key field for Display Name
+               entitlementName: account.entitlementName || "Account Access",
+                               entitlementDescription: account.entitlementDescription || "",
+               aiInsights: "",
+               accountSummary: (account.accountName || "").includes("@") ? "Regular Accounts" : "Other",
+               accountActivity: "Active",
+               changeSinceLastReview: "Existing accounts",
+               accountType: account.jobTitle || "", // Use jobTitle for account type
+               userType: account.userType || "Internal",
+               lastLoginDate: account.lastlogindate || "2025-05-25",
+               department: account.userDepartment || "Unknown", // Use userDepartment
+               manager: account.userManager || "Unknown", // Use userManager
+               risk: account.risk || "Low",
+               applicationName: account.applicationName || "",
+               applicationInstanceId: account.applicationInstanceId || "",
+               numOfEntitlements: 1,
+               lineItemId: account.accountId || "",
+               status: account.userStatus || "Active"
+             };
+             
+             console.log(`Mapped account ${index}:`, mappedAccount);
+             return mappedAccount;
+           });
+        } else {
+         // Use existing transform for other cases
+         transformedData = transformApiData(
+           response.items,
+           isGroupedEnts /* grouped shape only for Entitlements path */
+         );
+       }
       console.log(
         "Transformed Data:",
         JSON.stringify(transformedData, null, 2)
