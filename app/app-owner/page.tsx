@@ -389,8 +389,8 @@ export default function AppOwner() {
     }
   };
 
-  const handleOpen = (params: ICellRendererParams) => {
-    setSelectedRow(params.data);
+  const handleOpen = (event: any) => {
+    setSelectedRow(event?.data);
     setSidebarOpen(true);
   };
 
@@ -509,7 +509,9 @@ export default function AppOwner() {
           <ActionButtons
             api={params.api}
             selectedRows={[params.data]}
-            onAction={handleAction}
+            context="entitlement"
+            reviewerId={reviewerId}
+            certId={certificationId}
           />
         );
       },
@@ -533,8 +535,8 @@ export default function AppOwner() {
     console.log(
       `Attempting to apply row grouping for: ${selectedField}, retries left: ${retries}`
     );
-    if (gridApiRef.current && gridApiRef.current.columnApi) {
-      const columnApi = gridApiRef.current.columnApi;
+    if (gridApiRef.current && (gridApiRef.current as any).columnApi) {
+      const columnApi = (gridApiRef.current as any).columnApi;
       // console.log("Row grouping applied successfully for:", selectedField);
       columnApi.setRowGroupColumns([]);
       if (selectedField) {
@@ -598,21 +600,20 @@ export default function AppOwner() {
   }, []);
 
   useEffect(() => {
-    if (isGridReady && gridApiRef.current && gridApiRef.current.columnApi) {
+    if (isGridReady && gridApiRef.current && (gridApiRef.current as any).columnApi) {
       console.log("Grid API and Column API initialized successfully", {
         groupByColumn,
-        columns: gridApiRef.current.columnApi
+        columns: (gridApiRef.current as any).columnApi
           ?.getAllColumns()
-          ?.map((col) => col.getColId()),
+          ?.map((col: any) => col.getColId()),
       });
       applyRowGrouping(groupByColumn);
     }
   }, [isGridReady, groupByColumn]);
 
   return (
-    <div className="flex w-full h-screen">
-      <div className={`flex-1 transition-all duration-300 ${isSidebarOpen ? 'mr-4' : ''}`}>
-        <div className="max-w-full">
+    <div className="w-full h-screen">
+      <div className="max-w-full">
           <h1 className="text-xl font-bold mb-6 border-b border-gray-300 pb-2 text-blue-950">
             Application Owner
           </h1>
@@ -693,75 +694,78 @@ export default function AppOwner() {
               />
             </div>
           </div>
-        </div>
-        {loading ? (
-          <div className="text-center py-4">
-            <span className="ag-overlay-loading-center">
-              ⏳ Loading certification data...
-            </span>
-          </div>
-        ) : error ? (
-          <div className="text-center py-4 text-red-600">
-            {error}
-            <button
-              onClick={() => fetchData()}
-              className="ml-4 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
-            >
-              Retry
-            </button>
-          </div>
-        ) : rowData.length === 0 ? (
-          <div className="text-center py-4">
-            <span className="ag-overlay-loading-center">No data to display.</span>
-          </div>
-        ) : (
-          <div className="w-full">
-            <AgGridReact
-              rowData={rowData}
-              getRowId={(params: GetRowIdParams) =>
-                `${params.data.accountId}-${params.data.entitlementName}`
-              }
-              columnDefs={columnDefs}
-              groupDefaultExpanded={-1}
-              defaultColDef={defaultColDef}
-              autoGroupColumnDef={autoGroupColumnDef}
-              rowGroupPanelShow={"never"}
-              domLayout="autoHeight"
-              rowSelection={{
-                mode: "multiRow",
-                masterSelects: "detail",
-              }}
-              masterDetail={true}
-              detailCellRenderer={detailCellRenderer}
-              detailRowAutoHeight={true}
-              onGridReady={(params) => {
-                console.log("onGridReady triggered at", new Date().toISOString());
-                gridApiRef.current = params.api;
-                params.api.sizeColumnsToFit();
-                setIsGridReady(true);
-                console.log("Grid initialized:", {
-                  api: !!params.api,
-                  columnApi: !!(params.api as any).columnApi,
-                  enterpriseModules: (params.api as any).isEnterprise?.()
-                    ? "Loaded"
-                    : "Not loaded",
-                  columns: (gridApiRef.current as any)?.columnApi
-                    ?.getAllColumns()
-                    ?.map((col: any) => col.getColId()),
-                });
-              }}
-              onFirstDataRendered={onFirstDataRendered}
-              pagination={true}
-              overlayLoadingTemplate={`<span class="ag-overlay-loading-center">⏳ Loading certification data...</span>`}
-              overlayNoRowsTemplate={`<span class="ag-overlay-loading-center">No data to display.</span>`}
-              className="ag-theme-quartz ag-main"
-            />
-          </div>
-        )}
       </div>
-      {isSidebarOpen && (
-        <div className="w-[500px] h-full flex-shrink-0 border-l border-gray-200 bg-white shadow-lg side-panel">
-                     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200 p-3 z-10 side-panel-header">
+
+      <div className="flex w-full">
+        <div className="flex-1">
+          {loading ? (
+            <div className="text-center py-4">
+              <span className="ag-overlay-loading-center">
+                ⏳ Loading certification data...
+              </span>
+            </div>
+          ) : error ? (
+            <div className="text-center py-4 text-red-600">
+              {error}
+              <button
+                onClick={() => fetchData()}
+                className="ml-4 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+              >
+                Retry
+              </button>
+            </div>
+          ) : rowData.length === 0 ? (
+            <div className="text-center py-4">
+              <span className="ag-overlay-loading-center">No data to display.</span>
+            </div>
+          ) : (
+            <div className="w-full">
+              <AgGridReact
+                rowData={rowData}
+                getRowId={(params: GetRowIdParams) =>
+                  `${params.data.accountId}-${params.data.entitlementName}`
+                }
+                columnDefs={columnDefs}
+                groupDefaultExpanded={-1}
+                defaultColDef={defaultColDef}
+                autoGroupColumnDef={autoGroupColumnDef}
+                rowGroupPanelShow={"never"}
+                domLayout="autoHeight"
+                rowSelection={{
+                  mode: "multiRow",
+                  masterSelects: "detail",
+                }}
+                masterDetail={true}
+                detailCellRenderer={detailCellRenderer}
+                detailRowAutoHeight={true}
+                onGridReady={(params: any) => {
+                  console.log("onGridReady triggered at", new Date().toISOString());
+                  gridApiRef.current = params.api;
+                  params.api.sizeColumnsToFit();
+                  setIsGridReady(true);
+                  console.log("Grid initialized:", {
+                    api: !!params.api,
+                    columnApi: !!(params.api as any).columnApi,
+                    enterpriseModules: (params.api as any).isEnterprise?.()
+                      ? "Loaded"
+                      : "Not loaded",
+                    columns: (gridApiRef.current as any)?.columnApi
+                      ?.getAllColumns()
+                      ?.map((col: any) => col.getColId()),
+                  });
+                }}
+                onFirstDataRendered={onFirstDataRendered as any}
+                pagination={true}
+                overlayLoadingTemplate={`<span class="ag-overlay-loading-center">⏳ Loading certification data...</span>`}
+                overlayNoRowsTemplate={`<span class="ag-overlay-loading-center">No data to display.</span>`}
+                className="ag-theme-quartz ag-main"
+              />
+            </div>
+          )}
+        </div>
+        {isSidebarOpen && (
+          <div className="w-[500px] h-full flex-shrink-0 border-l border-gray-200 bg-white shadow-lg side-panel">
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200 p-3 z-10 side-panel-header">
              <div className="flex justify-between items-center">
                <div className="flex items-center space-x-2">
                  <div className="w-1.5 h-6 bg-blue-600 rounded-full"></div>
@@ -778,8 +782,8 @@ export default function AppOwner() {
               </button>
             </div>
           </div>
-                                           <div className="p-3 space-y-3">
-                         <div className="bg-gray-50 rounded-lg p-3">
+          <div className="p-3 space-y-3">
+            <div className="bg-gray-50 rounded-lg p-3">
                <div className="flex items-center space-x-2 p-2">
                  <div className="flex-1">
                    <p className="text-sm font-medium text-gray-900">
@@ -884,7 +888,8 @@ export default function AppOwner() {
              </div>
           </div>
         </div>
-      )}
-    </div>
+        )}
+      </div>
+  </div>
   );
 }
