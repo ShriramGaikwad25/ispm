@@ -217,7 +217,7 @@ const Revocations: React.FC = () => {
       {/* Toggle Button */}
       <div className="flex justify-center mb-4">
         <div className="inline-flex rounded-md shadow-sm" role="group">
-          <button
+          {/* <button
             className={`px-4 py-2 text-sm font-medium border rounded-l-lg ${
               view === "user"
                 ? "bg-blue-600 text-white"
@@ -226,8 +226,8 @@ const Revocations: React.FC = () => {
             onClick={() => setView("user")}
           >
             User View
-          </button>
-          <button
+          </button> */}
+          {/* <button
             className={`px-4 py-2 text-sm font-medium border rounded-r-lg ${
               view === "app"
                 ? "bg-blue-600 text-white"
@@ -236,7 +236,7 @@ const Revocations: React.FC = () => {
             onClick={() => setView("app")}
           >
             App View
-          </button>
+          </button> */}
         </div>
       </div>
 
@@ -247,7 +247,7 @@ const Revocations: React.FC = () => {
             <h2 className="text-lg font-semibold text-gray-700 mb-2">
               Campaign Completes on: August 30, 2025
             </h2>
-            <div
+            {/* <div
               className="ag-theme-alpine"
               style={{ height: "100px", width: "100%" }}
             >
@@ -260,7 +260,7 @@ const Revocations: React.FC = () => {
                   resizable: true,
                 }}
               />
-            </div>
+            </div> */}
           </div>
 
           {/* User View Main AG-Grid Table */}
