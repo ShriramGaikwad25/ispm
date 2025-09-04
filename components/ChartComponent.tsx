@@ -12,16 +12,30 @@ interface DataItem {
 }
 
 const ChartComponent = () => {
-  const data: Record<string, DataItem[]> = {
-    InteractiveFilters: [
-      { label: "Over Privileged Users", value: 0 },
+  // const allData: Record<string, DataItem[]> = {
+  //   InteractiveFilters: [
+  //     { label: "Over Privileged Users", value: 0 },
+  //     { label: "Dormant Access", value: 0 },
+  //     { label: "Compliance Violations", value: 0 },
+  //     { label: "High Risk Entities", value: 0 },
+  //     { label: "New/Delta Access", value: 0 },
+  //     {label: "Access Anamoly", value:0}
+  //   ],
+  // };
+
+    const allData: DataItem[] = [
+        { label: "Over Privileged Users", value: 0 },
       { label: "Dormant Access", value: 0 },
       { label: "Compliance Violations", value: 0 },
       { label: "High Risk Entities", value: 0 },
       { label: "New/Delta Access", value: 0 },
       {label: "Access Anamoly", value:0}
-    ],
+  ];
+    const data: Record<string, DataItem[]> = {
+    "InteractiveFilters": allData.slice(0, 3), // First 4 records
+    " ": allData.slice(3),   // Remaining 3 records
   };
+  
   const [selected, setSelected] = useState<{ [key: string]: number | null }>(
     {}
   );
@@ -40,12 +54,12 @@ const ChartComponent = () => {
             <DonutChart />
         </div> */}
 
-      <div className="">
+      {/* <div className="">
         <div className="flex justify-between p-4">
           <h2 className="text-lg text-gray-700">Risk Heat Map</h2>
         </div>
         <VennChart />
-      </div>
+      </div> */}
 
       {/* <div className="">
         <div className="flex justify-between p-4">
@@ -53,9 +67,19 @@ const ChartComponent = () => {
         </div>
         <HorizontalBarChart />
       </div> */}
-      <div className="mt-4">
+      <div className="w-90 mt-4">
         <FilterPanel
-          data={data}
+          data={{ "InteractiveFilters": data["InteractiveFilters"] }}
+          selected={selected}
+          onSelect={handleSelect}
+          onClear={(category) =>
+            setSelected((prev) => ({ ...prev, [category]: null }))
+          }
+        />
+      </div>
+      <div className="mt-7 w-90">
+        <FilterPanel
+          data={{ " ": data[" "] }}
           selected={selected}
           onSelect={handleSelect}
           onClear={(category) =>
@@ -65,7 +89,7 @@ const ChartComponent = () => {
       </div>
 
       <div className="">
-        <div className="flex justify-between p-4">
+        <div className="flex justify-between p-2">
           <h2 className="text-lg text-gray-700">Progress Summary</h2>
         </div>
         <ProgressDonutChart />
