@@ -4,6 +4,7 @@ import Link from 'next/link';
 import './dashboard.css';
 
 export default function Home() {
+
   const cards = [
     {
       title: 'My Profile',
