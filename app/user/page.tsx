@@ -112,6 +112,13 @@ const columnDefs = useMemo<ColDef[]>(
   []
 );
 
+  const handleSelect = (category: string, index: number) => {
+    setSelected((prev) => ({
+      ...prev,
+      [category]: prev[category] === index ? null : index,
+    }));
+  };
+
   const handleRowClick = (event: any) => {
     const appId = event.data.name;
     router.push(`/user/${appId}`); // This should now work with App Router
@@ -123,84 +130,89 @@ const columnDefs = useMemo<ColDef[]>(
         <h1 className="text-xl font-bold border-b border-gray-300 pb-2 text-blue-950">
           Manager Actions
         </h1>
-        <Accordion
-          iconClass="absolute top-1 right-0 rounded-full text-white bg-purple-800"
-          title="Expand/Collapse"
-        >
-          <div className="grid grid-cols-3 gap-10 p-1">
-            {Object.entries(data).map(([category, items]) => (
-              <div key={category}>
-                <div className="flex justify-between items-center mb-1 border-b border-gray-300 pb-1 p-2">
-                  <h3 className="font-semibold text-sm capitalize">
-                    {category.replace(/([A-Z])/g, " $1")}
-                  </h3>
-                  <button
-                    onClick={() => {
-                      setSelected((prev) => ({
-                        ...prev,
-                        [category]: null,
-                      }));
-                    }}
-                    className="text-xs text-blue-600 hover:underline flex items-center gap-1"
-                  >
-                    Clear
-                    {selected[category] !== undefined &&
-                    selected[category] !== null ? (
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-3 w-3 text-blue-600"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                      >
-                        <path d="M3 4a1 1 0 011-1h16a1 1 0 01.8 1.6l-5.6 7.5V18a1 1 0 01-.45.84l-4 2.5A1 1 0 019 20.5v-8.4L3.2 5.6A1 1 0 013 4z" />
-                      </svg>
-                    ) : (
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-3 w-3 text-blue-600"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M3 4a1 1 0 011-1h16a1 1 0 01.8 1.6l-5.6 7.5V18a1 1 0 01-.45.84l-4 2.5A1 1 0 019 20.5v-8.4L3.2 5.6A1 1 0 013 4z"
-                        />
-                      </svg>
-                    )}
-                  </button>
-                </div>
-
-                <div className="space-y-1 pl-8 pr-8">
-                  {items.map((item, index) => (
-                    <div
-                      key={index}
-                      className={`flex text-sm relative items-center p-2 rounded-sm cursor-pointer transition-all ${
-                        selected[category] === index
-                          ? "bg-[#6574BD] text-white"
-                          : "bg-[#F0F2FC] hover:bg-[#e5e9f9]"
-                      } ${item.color || ""}`}
-                      onClick={() => handleSelect(category, index)}
+        <div style={{ maxWidth: '600px', maxHeight: '200px' }}>
+          <Accordion
+            iconClass="absolute top-1 right-0 rounded-full text-white bg-purple-800"
+            title="Expand/Collapse"
+            open={false}
+          >
+            <div className="grid grid-cols-2 gap-1 p-0.5" style={{ maxWidth: '580px' }}>
+              {Object.entries(data).map(([category, items]) => (
+                <div key={category} style={{ minHeight: 'auto' }}>
+                  <div className="flex justify-between items-center mb-0 border-b border-gray-300 pb-0 px-0">
+                    <h3 className="font-semibold text-[9px] capitalize">
+                      {category.replace(/([A-Z])/g, " $1")}
+                    </h3>
+                    <button
+                      onClick={() => {
+                        setSelected((prev) => ({
+                          ...prev,
+                          [category]: null,
+                        }));
+                      }}
+                      className="text-[8px] text-blue-600 hover:underline flex items-center gap-0"
                     >
-                      <span>{item.label}</span>
-                      <span
-                        className={`font-semibold absolute -right-2 bg-white border p-1 text-[12px]  rounded-sm ${
+                      Clear
+                      {selected[category] !== undefined &&
+                      selected[category] !== null ? (
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-2 w-2 text-blue-600"
+                          viewBox="0 0 24 24"
+                          fill="currentColor"
+                        >
+                          <path d="M3 4a1 1 0 011-1h16a1 1 0 01.8 1.6l-5.6 7.5V18a1 1 0 01-.45.84l-4 2.5A1 1 0 019 20.5v-8.4L3.2 5.6A1 1 0 013 4z" />
+                        </svg>
+                      ) : (
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-2 w-2 text-blue-600"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M3 4a1 1 0 011-1h16a1 1 0 01.8 1.6l-5.6 7.5V18a1 1 0 01-.45.84l-4 2.5A1 1 0 019 20.5v-8.4L3.2 5.6A1 1 0 013 4z"
+                          />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+
+                  <div style={{ lineHeight: '1' }}>
+                    {items.map((item, index) => (
+                      <div
+                        key={index}
+                        className={`flex text-[8px] relative items-center p-0.5 rounded-sm cursor-pointer transition-all ${
                           selected[category] === index
-                            ? "border-[#6574BD] text-[#6574BD]"
-                            : "border-[#e5e9f9]"
-                        }`}
+                            ? "bg-[#6574BD] text-white"
+                            : "bg-[#F0F2FC] hover:bg-[#e5e9f9]"
+                        } ${item.color || ""}`}
+                        onClick={() => handleSelect(category, index)}
+                        style={{ minHeight: '16px', lineHeight: '1' }}
                       >
-                        {item.value}
-                      </span>
-                    </div>
-                  ))}
+                        <span className="truncate text-[8px]">{item.label}</span>
+                        <span
+                          className={`font-semibold absolute -right-0 bg-white border p-0 text-[7px] rounded-sm ${
+                            selected[category] === index
+                              ? "border-[#6574BD] text-[#6574BD]"
+                              : "border-[#e5e9f9]"
+                          }`}
+                          style={{ padding: '1px 2px' }}
+                        >
+                          {item.value}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </Accordion>
+              ))}
+            </div>
+          </Accordion>
+        </div>
       </div>
       <AgGridReact
         columnDefs={columnDefs}

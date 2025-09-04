@@ -29,17 +29,18 @@ const Accordion = ({ headerText, children, iconSize, title, iconClass, open, onT
       setIsOpen((prev) => !prev);
     }  };
   return (
-    <div className="transition-all duration-150 ease-in-out transform min-h-8"> 
+    <div className="transition-all duration-150 ease-in-out transform" style={{ minHeight: 'auto' }}> 
       <button
         className={`flex cursor-pointer items-center ${iconClass}`}
         onClick={handleToggle}
         title={title}
+        style={{ minHeight: 'auto' }}
       > 
-        {isOpen ? <CircleMinus size={iconSize || 22} /> : <CirclePlus size={iconSize || 22} />}
+        {isOpen ? <CircleMinus size={iconSize || 16} /> : <CirclePlus size={iconSize || 16} />}
         {headerText && <small>{headerText}</small>}
       </button>
 
-      {isOpen && <div>{children}</div>}
+      {isOpen && <div style={{ minHeight: 'auto' }}>{children}</div>}
     </div>
   );
 };
