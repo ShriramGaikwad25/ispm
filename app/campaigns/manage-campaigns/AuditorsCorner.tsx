@@ -42,12 +42,6 @@ const Timeline = () => {
               records: { pulled: 12000, reconciled: 11800, failed: 200 },
             },
             {
-              app: "Workday",
-              date: "July 19th",
-              type: "Flat file",
-              records: { pulled: 5600, reconciled: 5500, failed: 100 },
-            },
-            {
               app: "HR App / IGA tool",
               date: "July 17th",
               type: "Flat file",
@@ -116,8 +110,7 @@ const Timeline = () => {
             <tbody>
               {[
                 { id: 1, app: "Salesforce", type: "Manual" },
-                { id: 2, app: "Workday", type: "Ticket" },
-                { id: 3, app: "HR App", type: "IGA" },
+                { id: 2, app: "HR App", type: "IGA" },
               ].map((row, idx) => (
                 <tr key={idx}>
                   <td className="border border-gray-300 px-3 py-1">{row.id}</td>

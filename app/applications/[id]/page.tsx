@@ -18,6 +18,7 @@ import "@/lib/ag-grid-setup";
 import Exports from "@/components/agTable/Exports";
 import EditReassignButtons from "@/components/agTable/EditReassignButtons";
 import ActionButtons from "@/components/agTable/ActionButtons";
+import { getAllRegisteredApps, searchUsers } from "@/lib/api";
 import Link from "next/link";
 import Tabs from "@/components/tabs";
 
@@ -1068,39 +1069,492 @@ useEffect(() => {
       label: "Sampling",
       icon: ChevronDown,
       iconOff: ChevronRight,
-      component: () => (
-        <div className="sampling-tab-content flex justify-center">
-          <div
-            className="search-container"
-            style={{ display: "flex", gap: "10px", margin: "20px" }}
-          >
-            <input
-              type="text"
-              placeholder="Search by User Name Or Email Id"
-              style={{
-                padding: "8px",
-                width: "300px",
-                border: "1px solid #ccc",
-                borderRadius: "4px",
-                fontSize: "14px",
-              }}
-            />
-            <button
-              style={{
-                padding: "8px 16px",
-                backgroundColor: "#007bff",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
-                cursor: "pointer",
-                fontSize: "14px",
-              }}
+      component: () => {
+        const [selectedApplication, setSelectedApplication] = useState<string>("");
+        const [userName, setUserName] = useState<string>("");
+        const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
+        const [applications, setApplications] = useState<Array<{ applicationId: string; applicationName: string; scimurl: string; filter: string }>>([]);
+        const [loading, setLoading] = useState<boolean>(true);
+        const [error, setError] = useState<string | null>(null);
+        const [searchResults, setSearchResults] = useState<any[]>([]);
+        const [searchLoading, setSearchLoading] = useState<boolean>(false);
+        const [searchError, setSearchError] = useState<string | null>(null);
+        const [responseBody, setResponseBody] = useState<any>(null);
+        const [selectedUser, setSelectedUser] = useState<any>(null);
+
+        // Use the same reviewerID as other parts of the application
+        const reviewerID = "430ea9e6-3cff-449c-a24e-59c057f81e3d";
+
+        // Fetch applications from API
+        useEffect(() => {
+          const fetchApplications = async () => {
+            try {
+              setLoading(true);
+              setError(null);
+              const response = await getAllRegisteredApps(reviewerID);
+              
+              if (response.executionStatus === "success") {
+                setApplications(response.items);
+              } else {
+                setError("Failed to fetch applications");
+              }
+            } catch (err) {
+              console.error("Error fetching applications:", err);
+              setError("Error loading applications. Please try again.");
+            } finally {
+              setLoading(false);
+            }
+          };
+
+          fetchApplications();
+        }, []);
+
+        const handleApplicationSelect = (app: { applicationId: string; applicationName: string }) => {
+          setSelectedApplication(app.applicationName);
+          setIsDropdownOpen(false);
+          // Clear user name and response data when application changes
+          setUserName("");
+          setSearchResults([]);
+          setResponseBody(null);
+          setSearchError(null);
+          setSelectedUser(null);
+        };
+
+        const handleGetResult = async () => {
+          if (selectedApplication && userName) {
+            const selectedApp = applications.find(app => app.applicationName === selectedApplication);
+            
+            if (!selectedApp) {
+              setSearchError("Selected application not found");
+              return;
+            }
+
+            try {
+              setSearchLoading(true);
+              setSearchError(null);
+              setSearchResults([]);
+              setResponseBody(null);
+              setSelectedUser(null);
+
+              // Create the payload as per your specification
+              const payload = {
+                filter: `userName co "${userName}"`,
+                applicationId: selectedApp.applicationId,
+                scimurl: selectedApp.scimurl,
+                applicationName: selectedApp.applicationName
+              };
+
+              console.log("Searching with payload:", payload);
+              
+              const response = await searchUsers(payload);
+              
+              console.log("Search results:", response);
+              setSearchResults(response.items || response || []);
+              setResponseBody(response);
+              // Set first user as selected by default
+              if (response.Resources && response.Resources.length > 0) {
+                setSelectedUser(response.Resources[0]);
+              }
+              
+            } catch (err) {
+              console.error("Error searching users:", err);
+              setSearchError("Error searching users. Please try again.");
+            } finally {
+              setSearchLoading(false);
+            }
+          }
+        };
+
+        return (
+          <div className="sampling-tab-content">
+            <div
+              className="search-container"
+              style={{ display: "flex", gap: "15px", margin: "20px", alignItems: "center", justifyContent: "center" }}
             >
-              Get Result
-            </button>
+              {/* Application Name Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => !loading && !error && setIsDropdownOpen(!isDropdownOpen)}
+                  disabled={loading || error}
+                  style={{
+                    padding: "8px 12px",
+                    width: "250px",
+                    border: "1px solid #ccc",
+                    borderRadius: "4px",
+                    fontSize: "14px",
+                    backgroundColor: loading || error ? "#f5f5f5" : "white",
+                    cursor: loading || error ? "not-allowed" : "pointer",
+                    textAlign: "left",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center"
+                  }}
+                >
+                  <span style={{ color: selectedApplication ? "#000" : "#999" }}>
+                    {loading ? "Loading applications..." : 
+                     error ? "Error loading applications" :
+                     selectedApplication || "Select Application Name"}
+                  </span>
+                  <span style={{ fontSize: "12px" }}>▼</span>
+                </button>
+                
+                {isDropdownOpen && !loading && !error && applications.length > 0 && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "100%",
+                      left: 0,
+                      right: 0,
+                      backgroundColor: "white",
+                      border: "1px solid #ccc",
+                      borderTop: "none",
+                      borderRadius: "0 0 4px 4px",
+                      maxHeight: "200px",
+                      overflowY: "auto",
+                      zIndex: 1000,
+                      boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
+                    }}
+                  >
+                    {applications.map((app, index) => (
+                      <div
+                        key={app.applicationId}
+                        onClick={() => handleApplicationSelect(app)}
+                        style={{
+                          padding: "8px 12px",
+                          cursor: "pointer",
+                          fontSize: "14px",
+                          borderBottom: index < applications.length - 1 ? "1px solid #f0f0f0" : "none"
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = "#f5f5f5";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = "white";
+                        }}
+                      >
+                        {app.applicationName}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* User Name Input */}
+              <input
+                type="text"
+                placeholder="Enter User Name"
+                value={userName}
+                onChange={(e) => {
+                  setUserName(e.target.value);
+                  // Clear response data when user name changes
+                  setSearchResults([]);
+                  setResponseBody(null);
+                  setSearchError(null);
+                  setSelectedUser(null);
+                }}
+                disabled={!selectedApplication}
+                style={{
+                  padding: "8px 12px",
+                  width: "200px",
+                  border: "1px solid #ccc",
+                  borderRadius: "4px",
+                  fontSize: "14px",
+                  backgroundColor: selectedApplication ? "white" : "#f5f5f5",
+                  color: selectedApplication ? "#000" : "#999",
+                  cursor: selectedApplication ? "text" : "not-allowed"
+                }}
+              />
+
+              {/* Get Result Button */}
+              <button
+                onClick={handleGetResult}
+                disabled={!selectedApplication || !userName || searchLoading}
+                style={{
+                  padding: "8px 16px",
+                  backgroundColor: (selectedApplication && userName && !searchLoading) ? "#007bff" : "#ccc",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: (selectedApplication && userName && !searchLoading) ? "pointer" : "not-allowed",
+                  fontSize: "14px",
+                  fontWeight: "500",
+                  minWidth: "100px"
+                }}
+              >
+                {searchLoading ? "Searching..." : "Get Result"}
+              </button>
+            </div>
+
+            {/* Search Results */}
+            {(searchResults.length > 0 || searchError) && (
+              <div style={{ margin: "20px", width: "100%" }}>
+                <h3 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "10px", color: "#333" }}>
+                  Search Results
+                </h3>
+                
+                {searchError && (
+                  <div style={{
+                    padding: "10px",
+                    backgroundColor: "#fee",
+                    border: "1px solid #fcc",
+                    borderRadius: "4px",
+                    color: "#c33",
+                    marginBottom: "10px"
+                  }}>
+                    {searchError}
+                  </div>
+                )}
+
+                {searchResults.length > 0 && (
+                  <div style={{
+                    border: "1px solid #ddd",
+                    borderRadius: "4px",
+                    maxHeight: "400px",
+                    overflowY: "auto"
+                  }}>
+                    <div style={{
+                      padding: "10px",
+                      backgroundColor: "#f8f9fa",
+                      borderBottom: "1px solid #ddd",
+                      fontWeight: "600",
+                      fontSize: "14px"
+                    }}>
+                      Found {searchResults.length} result(s)
+                    </div>
+                    {searchResults.map((result, index) => (
+                      <div key={index} style={{
+                        padding: "10px",
+                        borderBottom: index < searchResults.length - 1 ? "1px solid #eee" : "none",
+                        fontSize: "14px"
+                      }}>
+                        <pre style={{ 
+                          margin: 0, 
+                          whiteSpace: "pre-wrap", 
+                          fontFamily: "monospace",
+                          fontSize: "12px",
+                          backgroundColor: "#f8f9fa",
+                          padding: "8px",
+                          borderRadius: "4px"
+                        }}>
+                          {JSON.stringify(result, null, 2)}
+                        </pre>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Response Body Display with Sidebar */}
+            {responseBody && responseBody.Resources && (
+              <div style={{ margin: "20px", width: "100%", padding: "0 20px" }}>
+                <div style={{ display: "flex", gap: "20px", height: "500px" }}>
+                  {/* Part 1: Left Sidebar - User List */}
+                  <div style={{
+                    width: "200px",
+                    border: "1px solid #ddd",
+                    borderRadius: "4px",
+                    backgroundColor: "#f8f9fa",
+                    overflowY: "auto"
+                  }}>
+                    <div style={{
+                      padding: "10px",
+                      backgroundColor: "#e9ecef",
+                      borderBottom: "1px solid #ddd",
+                      fontWeight: "600",
+                      fontSize: "14px"
+                    }}>
+                      Users ({responseBody.Resources.length})
+                    </div>
+                    {responseBody.Resources.map((user: any, index: number) => (
+                      <div
+                        key={user.id}
+                        onClick={() => setSelectedUser(user)}
+                        style={{
+                          padding: "12px",
+                          cursor: "pointer",
+                          borderBottom: index < responseBody.Resources.length - 1 ? "1px solid #eee" : "none",
+                          backgroundColor: selectedUser?.id === user.id ? "#007bff" : "transparent",
+                          color: selectedUser?.id === user.id ? "white" : "#333",
+                          fontSize: "14px",
+                          transition: "background-color 0.2s"
+                        }}
+                        onMouseEnter={(e) => {
+                          if (selectedUser?.id !== user.id) {
+                            e.currentTarget.style.backgroundColor = "#f5f5f5";
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (selectedUser?.id !== user.id) {
+                            e.currentTarget.style.backgroundColor = "transparent";
+                          }
+                        }}
+                      >
+                        <div style={{ fontWeight: "500" }}>{user.userName}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Part 2: Middle Panel - User Profile Card */}
+                  <div style={{
+                    width: "500px",
+                    border: "1px solid #ddd",
+                    borderRadius: "4px",
+                    backgroundColor: "#f8f9fa",
+                    overflowY: "auto"
+                  }}>
+                    {selectedUser ? (
+                      <div>
+                        {/* User Profile Card */}
+                        <div style={{
+                          padding: "20px",
+                          backgroundColor: "white",
+                          height: "100%"
+                        }}>
+                          {/* Header with Avatar and Name */}
+                          <div style={{ display: "flex", alignItems: "center", marginBottom: "20px" }}>
+                            <div style={{
+                              width: "50px",
+                              height: "50px",
+                              borderRadius: "50%",
+                              backgroundColor: "#007bff",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              color: "white",
+                              fontWeight: "bold",
+                              fontSize: "18px",
+                              marginRight: "15px"
+                            }}>
+                              {selectedUser.displayName ? 
+                                selectedUser.displayName.split(' ').map((n: string) => n[0]).join('').toUpperCase() :
+                                selectedUser.userName ? selectedUser.userName.substring(0, 2).toUpperCase() : 'U'
+                              }
+                            </div>
+                            <div>
+                              <div style={{ fontSize: "20px", fontWeight: "bold", color: "#333" }}>
+                                {selectedUser.displayName || selectedUser.userName}
+                              </div>
+                              {selectedUser.title && (
+                                <div style={{ fontSize: "14px", color: "#666", marginTop: "2px" }}>
+                                  {selectedUser.title}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* User Attributes Table */}
+                          <div style={{ 
+                            display: "grid", 
+                            gridTemplateColumns: "1fr 2fr", 
+                            gap: "12px",
+                            fontSize: "14px"
+                          }}>
+                            <div style={{ fontWeight: "600", color: "#333" }}>Username (for login):</div>
+                            <div style={{ color: "#666" }}>{selectedUser.userName || "N/A"}</div>
+
+                            <div style={{ fontWeight: "600", color: "#333" }}>Work Email:</div>
+                            <div style={{ color: "#666" }}>
+                              {selectedUser.emails && selectedUser.emails.length > 0 
+                                ? selectedUser.emails[0].value 
+                                : "N/A"
+                              }
+                            </div>
+
+                            <div style={{ fontWeight: "600", color: "#333" }}>First Name:</div>
+                            <div style={{ color: "#666" }}>
+                              {selectedUser.name?.givenName || "N/A"}
+                            </div>
+
+                            <div style={{ fontWeight: "600", color: "#333" }}>Last Name:</div>
+                            <div style={{ color: "#666" }}>
+                              {selectedUser.name?.familyName || "N/A"}
+                            </div>
+
+                            <div style={{ fontWeight: "600", color: "#333" }}>Account Status:</div>
+                            <div style={{ color: "#28a745", fontWeight: "500" }}>Active</div>
+
+                            <div style={{ fontWeight: "600", color: "#333" }}>Permissions:</div>
+                            <div style={{ color: "#6c757d" }}>
+                              {selectedUser.groups && selectedUser.groups.length > 0 
+                                ? selectedUser.groups.map((group: any, index: number) => (
+                                    <div key={index} style={{ marginBottom: "4px" }}>
+                                      {group.display || group.value}
+                                    </div>
+                                  ))
+                                : "No group permissions assigned"
+                              }
+                            </div>
+
+
+                            {selectedUser.preferredLanguage && (
+                              <>
+                                <div style={{ fontWeight: "600", color: "#333" }}>Preferred Language:</div>
+                                <div style={{ color: "#666" }}>{selectedUser.preferredLanguage}</div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        height: "100%",
+                        color: "#666",
+                        fontSize: "14px"
+                      }}>
+                        Select a user from the list to view details
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Part 3: Right Panel - JSON Data */}
+                  <div style={{
+                    flex: 1,
+                    border: "1px solid #ddd",
+                    borderRadius: "4px",
+                    backgroundColor: "#000000",
+                    overflowY: "auto"
+                  }}>
+                    {selectedUser ? (
+                      <div style={{ padding: "15px" }}>
+                        <pre style={{ 
+                          margin: 0, 
+                          whiteSpace: "pre-wrap", 
+                          fontFamily: "monospace",
+                          fontSize: "12px",
+                          backgroundColor: "#1a1a1a",
+                          padding: "10px",
+                          borderRadius: "4px",
+                          border: "1px solid #333",
+                          color: "#ffffff",
+                          height: "calc(100% - 30px)",
+                          overflowY: "auto"
+                        }}>
+                          {JSON.stringify(selectedUser, null, 2)}
+                        </pre>
+                      </div>
+                    ) : (
+                      <div style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        height: "100%",
+                        color: "#ffffff",
+                        fontSize: "14px"
+                      }}>
+                        Select a user from the list to view JSON data
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      ),
+        );
+      },
     },
   ];
 

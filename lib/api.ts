@@ -160,3 +160,32 @@ applicationinstanceid:string
   const endpoint = `${BASE_URL2}/getAppEntitlements/${reviewerId}/${applicationinstanceid}`
   return fetchApi(endpoint)
 }
+
+export async function getAllRegisteredApps(
+  reviewerId: string
+): Promise<{ items: Array<{ applicationId: string; applicationName: string; scimurl: string; filter: string }>; executionStatus: string }> {
+  const endpoint = `https://preview.keyforge.ai/entities/api/v1/ACMECOM/getAllRegisteredApp/${reviewerId}`;
+  return fetchApi(endpoint);
+}
+
+export async function searchUsers(
+  payload: { filter: string; applicationId: string; scimurl: string; applicationName: string }
+): Promise<any> {
+  const endpoint = `https://preview.keyforge.ai/entities/api/v1/ACMECOM/search/user`;
+  
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Search API failed: ${response.status} ${response.statusText}\n${errorBody}`);
+  }
+
+  return response.json();
+}
