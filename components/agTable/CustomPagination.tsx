@@ -29,34 +29,32 @@ const CustomPagination: React.FC<CustomPaginationProps> = ({
     totalItems === 0 ? 0 : Math.min(currentPage * pageSize, totalItems);
 
   return (
-    <div className="flex justify-between items-center">
-      <div className="flex items-center space-x-2">
+    <div className="bg-white rounded-lg px-4 py-3 w-full border border-gray-200">
+      <div className="flex justify-between items-center">
         <button
-          className={`p-2 cursor-pointer ${
-            currentPage === 1 ? "text-gray-400" : "text-blue-600"
+          className={`flex items-center gap-1 text-sm ${
+            currentPage === 1 ? "text-gray-400 cursor-not-allowed" : "text-gray-600 hover:text-gray-800 cursor-pointer"
           }`}
           onClick={() => goToPage(currentPage - 1)}
           disabled={currentPage === 1}
         >
-          <ChevronLeft className="w-5 h-5" />
+          <ChevronLeft className="w-4 h-4" />
+          <span>Prev</span>
         </button>
-        <div className="flex flex-row items-center justify-center">
-          <span className="w-9 h-9 flex items-center justify-center">
-            {currentPage}
-          </span>
-          <span className="mx-1">/</span>
-          <span className="w-9 h-9 flex items-center justify-center">
-            {totalPages}
-          </span>
+        
+        <div className="text-sm text-gray-600">
+          Page {currentPage} of {totalPages}
         </div>
+        
         <button
-          className={`p-2 cursor-pointer ${
-            currentPage === totalPages ? "text-gray-400" : "text-blue-600"
+          className={`flex items-center gap-1 text-sm ${
+            currentPage === totalPages ? "text-gray-400 cursor-not-allowed" : "text-gray-600 hover:text-gray-800 cursor-pointer"
           }`}
           onClick={() => goToPage(currentPage + 1)}
           disabled={currentPage === totalPages}
         >
-          <ChevronRight className="w-5 h-5" />
+          <span>Next</span>
+          <ChevronRight className="w-4 h-4" />
         </button>
       </div>
     </div>

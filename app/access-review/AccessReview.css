@@ -36,3 +36,12 @@
 .ag-cell-no-padding {
   padding-left: 0px !important;
 }
+
+/* Make column headers grey */
+.ag-theme-quartz .ag-header-cell-label {
+  color: #6b7280 !important; /* gray-500 */
+}
+
+.ag-theme-quartz .ag-header-cell-text {
+  color: #6b7280 !important; /* gray-500 */
+}

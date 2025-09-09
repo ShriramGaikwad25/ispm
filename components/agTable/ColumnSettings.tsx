@@ -15,12 +15,14 @@ interface ColumnSettingsProps {
   columnDefs: ColDef[];
   visibleColumns: () => string[];
   gridApi: GridApi | null;
+  customButton?: React.ReactNode;
 }
 
 const ColumnSettings = ({
   columnDefs,
   gridApi,
   visibleColumns,
+  customButton,
 }: ColumnSettingsProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [tempColumnsOrder, setTempColumnsOrder] = useState(
@@ -90,15 +92,21 @@ const ColumnSettings = ({
   }, [isOpen]);
   return (
     <>
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        title="Column Settings"
-        className={`w-9 h-9 flex items-center s justify-center cursor-pointer rounded-sm hover:opacity-80 ${
-          isOpen ? "bg-[#6D6E73]/20" : ""
-        }`}
-      >
-        <Settings size="32" color="#35353A" className="transform scale-[.6]" />
-      </button>
+      {customButton ? (
+        <div onClick={() => setIsOpen(!isOpen)}>
+          {customButton}
+        </div>
+      ) : (
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          title="Column Settings"
+          className={`w-9 h-9 flex items-center s justify-center cursor-pointer rounded-sm hover:opacity-80 ${
+            isOpen ? "bg-[#6D6E73]/20" : ""
+          }`}
+        >
+          <Settings size="32" color="#35353A" className="transform scale-[.6]" />
+        </button>
+      )}
       {isOpen && (
         <div className="relative">
           <div

@@ -5,9 +5,9 @@ import "@/lib/ag-grid-setup";
 import { useRouter } from "next/navigation";
 import { formatDateMMDDYY as formatDateShared } from "@/utils/utils";
 import { defaultColDef } from "@/components/dashboard/columnDefs";
-import SelectAllAR from "@/components/agTable/SelectAllAR";
 import CustomPagination from "@/components/agTable/CustomPagination";
 import ColumnSettings from "@/components/agTable/ColumnSettings";
+import IndividualRowSelection from "@/components/agTable/IndividualRowSelection";
 import {
   GridApi,
   GetRowIdParams,
@@ -27,50 +27,32 @@ import {
   DownloadIcon,
   MoreVertical,
   UserRoundCheckIcon,
+  Search,
+  Filter,
+  Upload,
+  Settings,
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { MasterDetailModule } from "ag-grid-enterprise";
 import { ModuleRegistry } from "ag-grid-community";
+import HorizontalProgressBar from "@/components/HorizontalProgressBar";
 import "./AccessReview.css"
 
 // Register AG Grid Enterprise modules
 ModuleRegistry.registerModules([MasterDetailModule]);
 
-// Circular Progress Renderer
-const CircularProgressRenderer = (props: any) => {
+// Horizontal Progress Renderer
+const HorizontalProgressRenderer = (props: any) => {
   const value = props.value || 0;
-  const radius = 16;
-  const stroke = 4;
-  const normalizedRadius = radius - stroke * 0.5;
-  const circumference = normalizedRadius * 2 * Math.PI;
-  const strokeDashoffset = circumference - (value / 100) * circumference;
 
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <svg height={radius * 2} width={radius * 2}>
-        <circle
-          stroke="#e5e7eb"
-          fill="transparent"
-          strokeWidth={stroke}
-          r={normalizedRadius}
-          cx={radius}
-          cy={radius}
-        />
-        <circle
-          stroke="#3b82f6"
-          fill="transparent"
-          strokeWidth={stroke}
-          strokeDasharray={circumference + " " + circumference}
-          style={{ strokeDashoffset, transition: "stroke-dashoffset 0.35s" }}
-          strokeLinecap="round"
-          r={normalizedRadius}
-          cx={radius}
-          cy={radius}
-        />
-        <text x="50%" y="50%" textAnchor="middle" dy=".3em" fontSize="10" fill="#111">
-          {value}%
-        </text>
-      </svg>
+    <div className="w-full px-2 flex justify-center items-center">
+      <HorizontalProgressBar 
+        value={value} 
+        height={8} 
+        showPercentage={true}
+        className="w-full max-w-[150px]"
+      />
     </div>
   );
 };
@@ -107,6 +89,14 @@ const AccessReview: React.FC = () => {
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [filterStatus, setFilterStatus] = useState<string>("Active");
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
+  const filterButtonRef = useRef<HTMLButtonElement>(null);
+  const filterMenuRef = useRef<HTMLDivElement>(null);
+  const [filterMenuPosition, setFilterMenuPosition] = useState<{
+    top: number;
+    left: number;
+  }>({ top: 0, left: 0 });
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -114,6 +104,7 @@ const AccessReview: React.FC = () => {
     top: number;
     left: number;
   }>({ top: 0, left: 0 });
+  const [selectedRows, setSelectedRows] = useState<any[]>([]);
 
   const activeColumnDefs: ColDef[] = [
     {
@@ -136,8 +127,8 @@ const AccessReview: React.FC = () => {
     {
       headerName: "Progress",
       field: "progress",
-      width: 150,
-      cellRenderer: CircularProgressRenderer,
+      width: 200,
+      cellRenderer: HorizontalProgressRenderer,
     },
     { headerName: "Due In", field: "dueIn", width: 150 },
     {
@@ -287,6 +278,18 @@ const AccessReview: React.FC = () => {
     }
   }, [router]);
 
+  const toggleFilterMenu = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsFilterMenuOpen((prev) => !prev);
+    if (filterButtonRef.current) {
+      const rect = filterButtonRef.current.getBoundingClientRect();
+      setFilterMenuPosition({
+        top: rect.bottom,
+        left: rect.left,
+      });
+    }
+  };
+
   const toggleMenu = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsMenuOpen((prev) => !prev);
@@ -349,12 +352,24 @@ const AccessReview: React.FC = () => {
   }, [certificationData]);
 
   useEffect(() => {
-    if (filterStatus === "All") {
-      setFilteredRowData(rowData);
-    } else {
-      setFilteredRowData(rowData.filter((row) => row.status === filterStatus));
+    let filtered = rowData;
+    
+    // Filter by status
+    if (filterStatus !== "All") {
+      filtered = filtered.filter((row) => row.status === filterStatus);
     }
-  }, [rowData, filterStatus]);
+    
+    // Filter by search term
+    if (searchTerm.trim()) {
+      filtered = filtered.filter((row) =>
+        row.certificationName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        row.certificationType.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        row.reviewerName.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    setFilteredRowData(filtered);
+  }, [rowData, filterStatus, searchTerm]);
 
   useEffect(() => {
     if (filterStatus === "Active") {
@@ -401,42 +416,125 @@ const AccessReview: React.FC = () => {
     }
   };
 
-  const handleFilterChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    setFilterStatus(event.target.value);
+  const handleSelectionChanged = () => {
+    if (gridApi) {
+      const selectedNodes = gridApi.getSelectedNodes();
+      const selectedData = selectedNodes.map(node => node.data);
+      setSelectedRows(selectedData);
+    }
   };
+
 
   return (
     <>
-      <h1 className="text-xl font-bold mb-6 border-b border-gray-300 pb-2 text-blue-950">
+      <h1 className="text-xl font-bold mb-3 border-b border-gray-300 pb-2 text-blue-950">
         Access Review
       </h1>
       {error && (
         <div style={{ color: "red", padding: 10 }}>{String(error)}</div>
       )}
-      <div className="flex items-center justify-between mb-4 relative z-10">
-        <SelectAllAR
-          gridApi={gridApi}
-          detailGridApis={detailGridApis}
-          clearDetailGridApis={() => setDetailGridApis(new Map())}
-          key={`select-all-${pageNumber}`}
-        />
-        <div className="flex items-center gap-4">
-          <select
-            value={filterStatus}
-            onChange={handleFilterChange}
-            className="border rounded-md w-60 p-2 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      <div className="bg-white rounded-lg px-4 py-3 mb-2 flex items-center justify-between border border-gray-200">
+        <div className="flex items-center gap-3">
+          <div 
+            className="relative bg-white rounded-md border border-gray-300"
+            style={{
+              display: 'flex',
+              padding: '6px 10px',
+              alignItems: 'center',
+              gap: '8px',
+              alignSelf: 'stretch'
+            }}
           >
-            <option value="Active">Active</option>
-            <option value="Expired">Expired</option>
-            <option value="Preview">Preview</option>
-          </select>
-          <CustomPagination
-            totalItems={totalItems}
-            currentPage={pageNumber}
-            totalPages={totalPages}
-            pageSize={defaultPageSize}
-            onPageChange={handlePageChange}
-          />
+            <Search className="text-gray-400 w-4 h-4" />
+            <input
+              type="text"
+              placeholder="Search"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="border-0 bg-transparent text-gray-700 focus:outline-none flex-1"
+            />
+          </div>
+          <button 
+            ref={filterButtonRef}
+            onClick={toggleFilterMenu}
+            className="p-2 hover:bg-gray-300 rounded-md transition-colors"
+          >
+            <Filter className="w-4 h-4 text-gray-600" />
+          </button>
+          {selectedRows.length > 0 && (
+            <div className="flex items-center gap-2 ml-2 pl-2 border-l border-gray-300">
+              <span className="text-sm text-gray-600">{selectedRows.length} selected</span>
+              <button 
+                title="Sign Off Selected"
+                className="p-2 hover:bg-gray-300 rounded-md transition-colors"
+              >
+                <CheckCircleIcon className="w-4 h-4 text-red-600" />
+              </button>
+              <button 
+                title="Download Selected"
+                className="p-2 hover:bg-gray-300 rounded-md transition-colors"
+              >
+                <DownloadIcon className="w-4 h-4 text-gray-600" />
+              </button>
+            </div>
+          )}
+          {isFilterMenuOpen &&
+            createPortal(
+              <div
+                ref={filterMenuRef}
+                className="absolute bg-white border border-gray-300 shadow-lg rounded-md z-50"
+                style={{
+                  position: "fixed",
+                  top: `${filterMenuPosition.top}px`,
+                  left: `${filterMenuPosition.left}px`,
+                  minWidth: "120px",
+                  padding: "8px",
+                }}
+              >
+                <ul className="py-2 text-sm text-gray-700">
+                  <li 
+                    className={`px-4 py-2 hover:bg-gray-100 cursor-pointer ${filterStatus === "Active" ? "bg-blue-50 text-blue-600" : ""}`}
+                    onClick={() => {
+                      setFilterStatus("Active");
+                      setIsFilterMenuOpen(false);
+                    }}
+                  >
+                    Active
+                  </li>
+                  <li 
+                    className={`px-4 py-2 hover:bg-gray-100 cursor-pointer ${filterStatus === "Expired" ? "bg-blue-50 text-blue-600" : ""}`}
+                    onClick={() => {
+                      setFilterStatus("Expired");
+                      setIsFilterMenuOpen(false);
+                    }}
+                  >
+                    Expired
+                  </li>
+                  <li 
+                    className={`px-4 py-2 hover:bg-gray-100 cursor-pointer ${filterStatus === "Preview" ? "bg-blue-50 text-blue-600" : ""}`}
+                    onClick={() => {
+                      setFilterStatus("Preview");
+                      setIsFilterMenuOpen(false);
+                    }}
+                  >
+                    Preview
+                  </li>
+                </ul>
+              </div>,
+              document.body
+            )}
+        </div>
+        
+        <div className="flex items-center gap-3">
+          <button className="p-2 hover:bg-gray-300 rounded-md transition-colors">
+            <Upload className="w-4 h-4 text-gray-600" />
+          </button>
+          <button className="p-2 hover:bg-gray-300 rounded-md transition-colors">
+            <DownloadIcon className="w-4 h-4 text-gray-600" />
+          </button>
+          <button className="p-2 hover:bg-gray-300 rounded-md transition-colors">
+            <CheckCircleIcon className="w-4 h-4 text-gray-600" />
+          </button>
           <ColumnSettings
             columnDefs={currentColumnDefs}
             gridApi={gridApi}
@@ -449,10 +547,22 @@ const AccessReview: React.FC = () => {
               });
               return visibleCols;
             }}
+            customButton={
+              <button className="p-2 hover:bg-gray-300 rounded-md transition-colors">
+                <Settings className="w-4 h-4 text-gray-600" />
+              </button>
+            }
           />
         </div>
       </div>
-      <div style={{ height: "100%", width: "100%" }}>
+      
+      <div className="flex items-center justify-end mb-2 relative z-10">
+        <IndividualRowSelection
+          gridApi={gridApi}
+          detailGridApis={detailGridApis}
+        />
+      </div>
+      <div className="w-full">
         <AgGridReact
           rowData={filteredRowData}
           getRowId={(params: GetRowIdParams) => params.data.id}
@@ -486,7 +596,17 @@ const AccessReview: React.FC = () => {
           overlayNoRowsTemplate={`<span class="ag-overlay-loading-center">No data to display.</span>`}
           className="ag-theme-quartz ag-main"
           onRowClicked={handleRowClick}
+          onSelectionChanged={handleSelectionChanged}
         />
+        <div className="flex justify-center">
+          <CustomPagination
+            totalItems={totalItems}
+            currentPage={pageNumber}
+            totalPages={totalPages}
+            pageSize={defaultPageSize}
+            onPageChange={handlePageChange}
+          />
+        </div>
       </div>
     </>
   );

@@ -32,13 +32,13 @@ const UserProgress: React.FC<UserProgressProps> = ({
     <div className={`flex items-center gap-3 ${className}`}>
       {/* Progress Bar */}
       <div className="flex items-center gap-2">
-        <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
+        <div className="w-24 h-2 bg-white rounded-full overflow-hidden">
           <div 
             className={`h-full transition-all duration-300 ${getProgressColor()}`}
             style={{ width: `${percentage}%` }}
           />
         </div>
-        <span className="text-xs font-medium text-gray-600 min-w-[3rem]">
+        <span className="text-xs font-medium text-white min-w-[3rem]">
           {percentage}%
         </span>
       </div>

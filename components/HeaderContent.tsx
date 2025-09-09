@@ -448,44 +448,47 @@ const HeaderContent = () => {
   }, []);
 
   return (
-    <div className="flex h-[45px] w-full items-center justify-between text-sm bg-[#f8f9fa] px-4">
+    <div className="flex h-[60px] w-full items-center justify-between text-sm px-4" style={{ backgroundColor: '#27B973' }}>
       {/* Left Section */}
       <div className="flex items-center h-full">
+        {/* Logo and Brand */}
+        <div className="flex items-center gap-2 mr-8">
+          <svg 
+            xmlns="http://www.w3.org/2000/svg" 
+            width="28" 
+            height="23" 
+            viewBox="0 0 28 23" 
+            fill="none"
+          >
+            <path d="M14.5404 22.6392C20.7986 21.0898 24.5947 14.8443 23.0193 8.68939C21.4438 2.5345 15.0934 -1.199 8.8352 0.350432C2.577 1.89986 -1.21912 8.14548 0.356317 14.3004C1.93175 20.4552 8.28216 24.1887 14.5404 22.6392Z" fill="#F5CB39"/>
+            <path d="M23.322 0.00923857V23H28V0.00923857H23.322Z" fill="#FCA311"/>
+          </svg>
+          <span className="text-white font-semibold text-lg">KeyForge</span>
+        </div>
+        
         {shouldShowHeader ? (
-          <div className="flex h-full divide-x divide-[#C3C4C8]">
+          <div className="flex h-full">
             <div className="flex items-center px-4">
-              <p className="text-sm font-medium text-blue-500">
-                {headerInfo.campaignName || "Campaign Name"}
+              <p className="text-sm font-medium text-white">
+                {headerInfo.campaignName || "Quarterly Access Review - Megan Jackson"}
               </p>
             </div>
-            <div className="flex items-center px-4">
-              <p className="text-sm font-medium text-blue-500">
-                Generated On {headerInfo.dueDate ? (() => {
-                  try {
-                    const due = new Date(headerInfo.dueDate);
-                    const generated = new Date(due.getTime() - (30 * 24 * 60 * 60 * 1000));
-                    return formatDateMMDDYY(generated);
-                  } catch {
-                    return "N/A";
-                  }
-                })() : "N/A"}
-              </p>
+            <div className="flex items-center px-2">
+              <span className="text-white text-lg">•</span>
             </div>
             <div className="flex items-center px-4">
-              <p className="text-sm font-medium text-blue-500">
-                Due on {headerInfo.dueDate ? (() => {
-                  try {
-                    return formatDateMMDDYY(new Date(headerInfo.dueDate));
-                  } catch {
-                    return "N/A";
-                  }
-                })() : "N/A"}
-                <span className={`font-bold ml-1 ${
-                  headerInfo.daysLeft < 10 ? 'text-red-500' : 
-                  headerInfo.daysLeft <= 20 ? 'text-orange-500' : 
-                  'text-green-500'
-                }`}>
-                  ({headerInfo.daysLeft || 0} days left)
+              <p className="text-sm font-medium text-white">
+                Generated On N/A
+              </p>
+            </div>
+            <div className="flex items-center px-2">
+              <span className="text-white text-lg">•</span>
+            </div>
+            <div className="flex items-center px-4">
+              <p className="text-sm font-medium text-white">
+                Due on N/A
+                <span className="font-bold ml-1 text-white">
+                  (0 days left)
                 </span>
               </p>
             </div>
@@ -504,20 +507,27 @@ const HeaderContent = () => {
       </div>
 
       {/* Right Section */}
-      <div className="flex items-center h-full w-32 justify-end border-l border-l-white gap-4">
-        <Dropdown
-          Icon={() => (
-            <Image
-              src="https://avatar.iran.liara.run/public/1"
-              alt="User Avatar"
-              width={28}
-              height={28}
-              className="object-cover cursor-pointer"
-            />
-          )}
-          className="!rounded-full border border-gray-500"
-          title="User profile"
-        >
+      <div className="flex items-center h-full justify-end gap-4 px-4">
+        <div className="flex items-center gap-3">
+          <Image
+            src="https://avatar.iran.liara.run/public/2"
+            alt="User Avatar"
+            width={28}
+            height={28}
+            className="object-cover rounded-full"
+          />
+          <span className="text-white font-medium text-sm">
+            {userDetails?.username || "Unknown User"}
+          </span>
+          <Dropdown
+            Icon={() => (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 9L12 15L18 9" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            )}
+            className="!p-0 !bg-transparent !border-0"
+            title="User profile"
+          >
           <button
             onClick={handleProfileClick}
             className="block px-4 py-2 text-gray-700 hover:bg-gray-100 w-full text-left"
@@ -536,7 +546,8 @@ const HeaderContent = () => {
           >
             Logout
           </a>
-        </Dropdown>
+          </Dropdown>
+        </div>
       </div>
 
       {/* PopupButton */}

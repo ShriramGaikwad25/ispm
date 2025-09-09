@@ -5,75 +5,73 @@ import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import {navLinks as navigation} from './Navi';
 
-interface NavigationProps {
-  isOpen?: (isCollapsed: boolean) => void; // Mobile view
-}
-
-export function Navigation({ isOpen }: NavigationProps) {
+export function Navigation() {
   const pathname = usePathname();
-  const [isCollapsed, setIsCollapsed] = useState(true);
+  const [isHovered, setIsHovered] = useState(false);
 
   return (
     <div 
-      className={`h-full bg-[#15274E] z-[99] transition-all duration-150 ease-in-out transform ${isCollapsed ? 'w-[65px]' : 'w-[210px]'}`}
-      onMouseEnter={() => {
-        if (isCollapsed) {
-          setIsCollapsed(false);
-          if (isOpen) isOpen(false);
-        }
+      className="bg-white border-r border-gray-200 flex flex-col items-center transition-all duration-300 ease-in-out"
+      style={{
+        display: 'flex',
+        width: isHovered ? '280px' : '80px',
+        height: '1418px',
+        padding: '16px 0 24px 0',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '8px'
       }}
-      onMouseLeave={() => {
-        if (!isCollapsed) {
-          setIsCollapsed(true);
-          if (isOpen) isOpen(true);
-        }
-      }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
-      <div className='bg-[#27685b] flex items-center justify-between p-2.5 border-b border-[#060E1F] h-[45px] relative'>
-        <div className={`text-white font-bold text-xl ${!isCollapsed ? 'p-3' : ''}`}>
-          ISPM
+      {/* Logo Section */}
+      {/* <div className="flex items-center px-5 py-4 border-b border-gray-200 bg-[#27B973]">
+        <div className="flex items-center gap-2">
+          <svg 
+            xmlns="http://www.w3.org/2000/svg" 
+            width="28" 
+            height="23" 
+            viewBox="0 0 28 23" 
+            fill="none"
+          >
+            <path d="M14.5404 22.6392C20.7986 21.0898 24.5947 14.8443 23.0193 8.68939C21.4438 2.5345 15.0934 -1.199 8.8352 0.350432C2.577 1.89986 -1.21912 8.14548 0.356317 14.3004C1.93175 20.4552 8.28216 24.1887 14.5404 22.6392Z" fill="#F5CB39"/>
+            <path d="M23.322 0.00923857V23H28V0.00923857H23.322Z" fill="#FCA311"/>
+          </svg>
+          {isHovered && <span className="text-black font-bold text-xl">KeyForge</span>}
         </div>
-        {/* Collapse Toggle Button */}
-        <button
-          onClick={() => {
-            setIsCollapsed(!isCollapsed)
-            if (isOpen) {
-              isOpen(!isCollapsed); 
-            }
-          }}
-          className={`absolute -right-2.5 top-[46px] p-2 cursor-pointer ${
-            isCollapsed ? '-right-5' : ''
-          }`}
-        >
-          {isCollapsed ? (
-            <svg width="14" height="20" viewBox="0 0 14 20" fill="none" xmlns="http://www.w3.org/2000/svg" transform="scale(-1 1)">
-              <path d="M.45 10 13.573.625v18.75z" fill="#15274E" />
-              <path d="M.45 10 13.573.625V10z" fill="#AD2D2D" />
-            </svg>
-          ) : (
-            <svg width="14" height="20" viewBox="0 0 14 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M.45 10 13.573.625v18.75z" fill="#fff" />
-              <path d="M.45 10 13.573.625V10z" fill="#fff" />
-            </svg>
-          )}
-        </button>
-      </div>
+      </div> */}
 
       {/* Navigation Links */}
-      <nav className={`flex flex-col gap-2 px-2 py-6  ${isCollapsed ? 'pl-0 items-center' : ''}`}>
+      <nav className="flex flex-col px-4 py-6 space-y-1">
         {navigation.map((item) => {
           const Icon = item.icon;
+          const isActive = pathname === item.href;
           return (
             <Link
               key={item.name}
               href={item.href}
-              className={`flex w-full items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors text-white h-10 ${
-                pathname === item.href ? 'bg-[#2684FF] hover:bg-[#2684FF]/90' : 'hover:bg-white/10'
-              } ${isCollapsed ? 'rounded-r-full justify-center ' : ''}`}
-              title={isCollapsed ? item.name : undefined}
+              className={`flex items-center gap-3 px-3 py-3 rounded-md transition-colors ${
+                isActive 
+                  ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600' 
+                  : 'hover:bg-gray-50'
+              } ${!isHovered ? 'justify-center' : ''}`}
+              style={{
+                color: isActive ? '#2563eb' : 'var(--text-icons-base-second, #68727D)',
+                fontFamily: 'Inter',
+                fontSize: '15px',
+                fontStyle: 'normal',
+                fontWeight: '600',
+                lineHeight: '22px'
+              }}
+              title={!isHovered ? item.name : undefined}
             >
-              <Icon className="h-5 w-5 flex-shrink-0" />
-              {!isCollapsed && <span>{item.name}</span>}
+              <Icon 
+                className="h-5 w-5 flex-shrink-0" 
+                style={{
+                  color: isActive ? '#2563eb' : 'var(--text-icons-base-second, #68727D)'
+                }}
+              />
+              {isHovered && <span>{item.name}</span>}
             </Link>
           );
         })}

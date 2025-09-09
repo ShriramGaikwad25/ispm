@@ -1,4 +1,4 @@
-import { Home, Settings, ListTodo,ListTree, LayoutDashboard, LayoutPanelLeft, User2Icon, UserCircle2Icon, ScreenShareIcon } from 'lucide-react';
+import { Home, Settings, ListTodo, ListTree, LayoutDashboard, LayoutPanelLeft, User2Icon, UserCircle2Icon, ScreenShareIcon } from 'lucide-react';
 export const navLinks = [
   { name: 'Dashboard', href: '/', icon: Home },
   { name: 'Access Review', href: '/access-review', icon: ListTodo },
