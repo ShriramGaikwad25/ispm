@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import DonutChart from "./DonutChart";
 import HorizontalBarChart from "./HorizontalBarChart";
 import ProgressDonutChart from "./ProgressDonutChart";
+import ProgressHorizontalBarChart from "./ProgressHorizontalBarChart";
 import VennChart from "./VennChart";
 import FilterPanel from "./FilterPannel";
 
@@ -11,7 +12,18 @@ interface DataItem {
   color?: string;
 }
 
-const ChartComponent = () => {
+interface ChartComponentProps {
+  progressData?: {
+    totalItems: number;
+    approvedCount: number;
+    pendingCount: number;
+    revokedCount: number;
+    delegatedCount: number;
+    remediatedCount: number;
+  };
+}
+
+const ChartComponent: React.FC<ChartComponentProps> = ({ progressData }) => {
   // const allData: Record<string, DataItem[]> = {
   //   InteractiveFilters: [
   //     { label: "Over Privileged Users", value: 0 },
@@ -46,28 +58,8 @@ const ChartComponent = () => {
     }));
   };
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      {/* <div className="">
-        <div className="flex justify-between p-4">
-            <h2 className="text-lg text-gray-700">Risk Summary</h2> 
-        </div>
-            <DonutChart />
-        </div> */}
-
-      {/* <div className="">
-        <div className="flex justify-between p-4">
-          <h2 className="text-lg text-gray-700">Risk Heat Map</h2>
-        </div>
-        <VennChart />
-      </div> */}
-
-      {/* <div className="">
-        <div className="flex justify-between p-4">
-          <h2 className="text-lg text-gray-700">Entitlement Summary</h2>
-        </div>
-        <HorizontalBarChart />
-      </div> */}
-      <div className="w-90 mt-4">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="w-90 mt-2">
         <FilterPanel
           data={{ "InteractiveFilters": data["InteractiveFilters"] }}
           selected={selected}
@@ -77,7 +69,7 @@ const ChartComponent = () => {
           }
         />
       </div>
-      <div className="mt-7 w-90">
+      <div className="mt-2 w-90">
         <FilterPanel
           data={{ " ": data[" "] }}
           selected={selected}
@@ -89,10 +81,10 @@ const ChartComponent = () => {
       </div>
 
       <div className="">
-        <div className="flex justify-between p-2">
-          <h2 className="text-lg text-gray-700">Progress Summary</h2>
+        <div className="flex justify-between p-1">
+          <h2 className="text-sm text-gray-700">Progress Summary</h2>
         </div>
-        <ProgressDonutChart />
+        <ProgressHorizontalBarChart data={progressData} />
       </div>
     </div>
   );

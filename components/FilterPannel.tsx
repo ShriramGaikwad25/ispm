@@ -15,8 +15,8 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
     <>
       {Object.entries(data).map(([category, items]) => (
         <div key={category}>
-          <div className="flex justify-between items-center mb-2 border-gray-300 pb-4 p-2">
-            <h3 className="text-lg text-gray-700">
+          <div className="flex justify-between items-center mb-1 border-gray-300 pb-2 p-1">
+            <h3 className="text-sm text-gray-700">
               {category.replace(/([A-Z])/g, " $1")}
             </h3>
             <button
@@ -52,11 +52,11 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
               )}
             </button>
           </div>
-          <div className="space-y-2 pl-2 pr-2">
+          <div className="space-y-1 pl-1 pr-1">
             {items.map((item, index) => (
               <div
                 key={index}
-                className={`flex text-sm relative items-center p-2 rounded-sm cursor-pointer transition-all ${
+                className={`flex text-xs relative items-center p-1.5 rounded-sm cursor-pointer transition-all ${
                   selected[category] === index
                     ? "bg-[#6574BD] text-white"
                     : "bg-[#F0F2FC] hover:bg-[#e5e9f9]"
@@ -65,7 +65,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
               >
                 <span>{item.label}</span>
                 <span
-                  className={`font-semibold absolute -right-2 bg-white border p-1 text-[12px]  rounded-sm ${
+                  className={`font-semibold absolute -right-1 bg-white border p-0.5 text-[10px] rounded-sm ${
                     selected[category] === index
                       ? "border-[#6574BD] text-[#6574BD]"
                       : "border-[#e5e9f9]"

@@ -11,6 +11,8 @@ import dynamic from "next/dynamic";
 import { Chart as ChartJS, BarElement, CategoryScale, LinearScale, Tooltip, Legend, ChartData } from "chart.js";
 import ChartDataLabels from "chartjs-plugin-datalabels";
 import "@/lib/ag-grid-setup";
+import CertificationProgress from "./CertificationProgress";
+import UserProgress from "./UserProgress";
 
 // Register Chart.js components and plugin
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend, ChartDataLabels);
@@ -272,11 +274,30 @@ const HeaderContent = () => {
     userType: "Internal" | "External";
   } | null>(null);
 
+  // State for certification progress
+  const [progressData, setProgressData] = useState({
+    totalItems: 0,
+    approvedCount: 0,
+    pendingCount: 0,
+    revokedCount: 0,
+    delegatedCount: 0,
+    remediatedCount: 0,
+  });
+
+  // State for user-based progress (matching access review page)
+  const [userProgressData, setUserProgressData] = useState({
+    totalItems: 0,
+    approvedCount: 0,
+    pendingCount: 0,
+    percentage: 0,
+  });
+
   // State for PopupButton
   const [showPopupButton, setShowPopupButton] = useState(false);
 
   // Check if we should show the header (for access-review and app-owner pages)
   const shouldShowHeader = pathname?.includes('/access-review/') || pathname?.includes('/app-owner');
+  
 
   // Calculate days left
   const calculateDaysLeft = (expirationDateStr: string): number => {
@@ -318,6 +339,26 @@ const HeaderContent = () => {
     }
   };
 
+  // Update progress data function
+  const updateProgressData = (data: any) => {
+    setProgressData(data);
+  };
+
+  // Calculate user-based progress (matching access review page)
+  const calculateUserProgress = (userData: any) => {
+    const total = userData.numOfEntitlements || 0;
+    const approved = userData.numOfEntitlementsCertified || 0;
+    const pending = total - approved;
+    const percentage = total > 0 ? Math.round((approved / total) * 100) : 0;
+    
+    return {
+      totalItems: total,
+      approvedCount: approved,
+      pendingCount: pending,
+      percentage: percentage,
+    };
+  };
+
   // Effect to populate header info from localStorage
   useEffect(() => {
     const updateHeaderData = () => {
@@ -344,6 +385,10 @@ const HeaderContent = () => {
               jobTitle: firstItem.jobtitle || "N/A",
               userType: firstItem.userType || "Internal",
             });
+
+            // Calculate user-based progress
+            const userProgress = calculateUserProgress(firstItem);
+            setUserProgressData(userProgress);
           }
         }
       } catch (error) {
@@ -364,12 +409,41 @@ const HeaderContent = () => {
       updateHeaderData();
     };
 
+  // Listen for progress data changes
+  const handleProgressDataChange = (event: CustomEvent) => {
+    updateProgressData(event.detail);
+    
+    // Check if it's user-based progress data (from getUserProgress)
+    if (event.detail && event.detail.percentage !== undefined) {
+      // This is user-based progress data
+      const userProgress = {
+        totalItems: event.detail.total || 0,
+        approvedCount: event.detail.approved || 0,
+        pendingCount: event.detail.pending || 0,
+        percentage: event.detail.percentage || 0
+      };
+      setUserProgressData(userProgress);
+    } else if (event.detail && event.detail.totalItems !== undefined) {
+      // This is entitlement-based progress data (fallback)
+      const userProgress = {
+        totalItems: event.detail.totalItems,
+        approvedCount: event.detail.approvedCount,
+        pendingCount: event.detail.pendingCount,
+        percentage: event.detail.totalItems > 0 ? 
+          Math.round(((event.detail.approvedCount + event.detail.revokedCount + event.detail.delegatedCount + event.detail.remediatedCount) / event.detail.totalItems) * 100) : 0
+      };
+      setUserProgressData(userProgress);
+    }
+  };
+
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('localStorageChange', handleLocalStorageChange);
+    window.addEventListener('progressDataChange', handleProgressDataChange as EventListener);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('localStorageChange', handleLocalStorageChange);
+      window.removeEventListener('progressDataChange', handleProgressDataChange as EventListener);
     };
   }, []);
 
@@ -414,6 +488,10 @@ const HeaderContent = () => {
                   ({headerInfo.daysLeft || 0} days left)
                 </span>
               </p>
+            </div>
+            {/* User Progress */}
+            <div className="flex items-center px-4">
+              <UserProgress progressData={userProgressData} />
             </div>
           </div>
         ) : (

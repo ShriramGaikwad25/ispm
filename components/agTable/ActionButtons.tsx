@@ -8,6 +8,7 @@ import Select from "react-select";
 import ToggleSwitch from "../ToggleSwitch";
 import Buttons from "react-multi-date-picker/components/button";
 import ProxyActionModal from "../ProxyActionModal";
+import { updateAction } from "@/lib/api";
 
 interface User {
   username: string;
@@ -100,34 +101,36 @@ const updateActions = async (actionType: string, justification: string) => {
     }
 
     try {
-      const response = await fetch(
-        `https://preview.keyforge.ai/certification/api/v1/CERTTEST/updateAction/${reviewerId}/${certId}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
+      await updateAction(reviewerId, certId, payload);
 
       // Update grid with new status
-      api.applyTransaction({
-        update: definedRows.map((row) => ({ ...row, status: actionType })),
+      definedRows.forEach((row) => {
+        const rowId = row.lineItemId || row.id;
+        if (rowId) {
+          const rowNode = api.getRowNode(rowId);
+          if (rowNode) {
+            rowNode.setData({ ...rowNode.data, status: actionType });
+          } else {
+            // Fallback: try to find the row by data comparison
+            let foundNode = null;
+            api.forEachNode((node) => {
+              if (node.data && node.data.lineItemId === rowId) {
+                foundNode = node;
+              }
+            });
+            if (foundNode) {
+              foundNode.setData({ ...foundNode.data, status: actionType });
+            }
+          }
+        }
       });
       setLastAction(actionType);
       setError(null);
       if (onActionSuccess) {
         onActionSuccess();
-        // window.location.reload();
       }
-      return await response.json();
       
-    } catch (err) {
+    } catch (err: any) {
       setError(`Failed to update actions: ${err.message}`);
       console.error("API error:", err);
       throw err;
@@ -219,7 +222,7 @@ const updateActions = async (actionType: string, justification: string) => {
       title="Approve"
       aria-label="Approve selected rows"
       className={`p-1 rounded transition-colors duration-200 ${
-        lastAction === "Approve" ? "bg-green-500" : "hover:bg-green-100"
+        isApproved ? "bg-green-500" : "hover:bg-green-100"
       }`}
     >
       <CircleCheck
@@ -227,7 +230,7 @@ const updateActions = async (actionType: string, justification: string) => {
         color="#1c821cff"
         strokeWidth="1"
         size="32"
-        fill={lastAction === "Approve" ? "#1c821cff" : "none"}
+        fill={isApproved ? "#1c821cff" : "none"}
       />
     </button>
 
@@ -235,7 +238,9 @@ const updateActions = async (actionType: string, justification: string) => {
         onClick={handleRevoke}
         title="Revoke"
         aria-label="Revoke selected rows"
-        className={`p-1 rounded ${isRejected ? "bg-red-100" : ""}`}
+        className={`p-1 rounded transition-colors duration-200 ${
+          isRejected ? "bg-red-500" : "hover:bg-red-100"
+        }`}
       >
         <CircleX
           className="cursor-pointer hover:opacity-80 transform rotate-90"

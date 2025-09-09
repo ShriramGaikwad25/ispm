@@ -343,6 +343,8 @@ const AccessReview: React.FC = () => {
       localStorage.setItem("sharedRowData", JSON.stringify(mapped));
       setTotalItems(certificationData.total_items || 0);
       setTotalPages(certificationData.total_pages || 1);
+      
+      // Progress data will be sent to header when a certification row is clicked
     }
   }, [certificationData]);
 
@@ -374,6 +376,20 @@ const AccessReview: React.FC = () => {
     const clickedReviewerId = e.data?.reviewerId;
     const clickedCertificationId = e.data?.certificationId;
     const certificationType = e.data?.certificationType;
+    
+    // Send progress data to header for the clicked certification
+    if (e.data) {
+      const progressEvent = new CustomEvent('progressDataChange', {
+        detail: {
+          total: e.data.totalActions,
+          approved: e.data.totalActionsCompleted,
+          pending: e.data.totalActions - e.data.totalActionsCompleted,
+          percentage: e.data.progress
+        }
+      });
+      window.dispatchEvent(progressEvent);
+    }
+    
     if (clickedReviewerId && clickedCertificationId) {
       if (certificationType === "UserAccessReview") {
         router.push(

@@ -247,7 +247,7 @@ const Revocations: React.FC = () => {
             <h2 className="text-lg font-semibold text-gray-700 mb-2">
               Campaign Completes on: August 30, 2025
             </h2>
-            {/* <div
+            <div
               className="ag-theme-alpine"
               style={{ height: "100px", width: "100%" }}
             >
@@ -260,11 +260,11 @@ const Revocations: React.FC = () => {
                   resizable: true,
                 }}
               />
-            </div> */}
+            </div>
           </div>
 
           {/* User View Main AG-Grid Table */}
-          <div
+          {/* <div
             className="ag-theme-alpine"
             style={{ height: "400px", width: "100%" }}
           >
@@ -277,7 +277,7 @@ const Revocations: React.FC = () => {
                 resizable: true,
               }}
             />
-          </div>
+          </div> */}
         </>
       ) : (
         <>

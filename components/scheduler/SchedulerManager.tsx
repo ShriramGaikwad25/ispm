@@ -1,43 +1,54 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Play, Clock, CheckCircle, AlertCircle, Pause, Square, RotateCcw, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Play, Clock, CheckCircle, AlertCircle, Pause, Square, RotateCcw, Calendar, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
+import { config } from '../../lib/config';
 import './SchedulerManager.css';
 
-interface CertificationSchedule {
+interface JobSchedule {
   id: string;
   name: string;
-  certificationType: string;
-  reviewInstruction: string;
+  jobClass: string;
+  misfireInstruction: string;
   startDate?: string;
   endDate?: string;
-  reviewInterval: number;
-  reviewCount: number;
+  repeatInterval: number;
+  repeatCount: number;
   status: 'active' | 'paused' | 'completed' | 'stopped';
   isRunning: boolean;
   currentExecution: number;
   startTime?: Date;
   nextExecutionTime?: Date;
+  groupName?: string; // Store the group name from API response
+  description?: string; // Job description
+  // Trigger fields
+  triggerName?: string;
+  triggerGroup?: string;
+  triggerState?: string;
+  type?: string;
+  intervalMs?: number;
+  previousFireTime?: string;
+  nextFireTime?: string;
 }
 
-interface CertificationLog {
+interface JobLog {
   id: string;
   timestamp: string;
-  reviewer: string;
+  worker: string;
   message: string;
   status: 'success' | 'error' | 'pending';
 }
 
-interface CertificationProgress {
+interface JobProgress {
   currentCount: number;
   totalCount: number;
   percentage: number;
-  prevReviewTime?: string;
-  nextReviewTime?: string;
-  finalReviewTime?: string;
+  prevFireTime?: string;
+  nextFireTime?: string;
+  finalFireTime?: string;
 }
 
-const REVIEW_INSTRUCTIONS = [
+const MISFIRE_INSTRUCTIONS = [
   'RESCHEDULE NEXT WITH REMAINING COUNT',
   'RESCHEDULE NEXT WITH EXISTING COUNT',
   'RESCHEDULE NOW WITH REMAINING COUNT',
@@ -45,44 +56,419 @@ const REVIEW_INSTRUCTIONS = [
   'DO NOTHING'
 ];
 
-const CERTIFICATION_TYPES = [
-  'com.example.certifications.access.AccessCertification',
-  'com.example.certifications.entitlement.EntitlementCertification',
-  'com.example.certifications.role.RoleCertification',
-  'com.example.certifications.application.ApplicationCertification'
+const JOB_CLASSES = [
+  'it.fabioformosa.quartzmanager.jobs.myjobs.SimpleJob',
+  'it.fabioformosa.quartzmanager.jobs.myjobs.ComplexJob',
+  'it.fabioformosa.quartzmanager.jobs.myjobs.EmailJob',
+  'it.fabioformosa.quartzmanager.jobs.myjobs.ReportJob'
 ];
 
 export default function SchedulerManager() {
-  const [selectedSchedule, setSelectedSchedule] = useState<CertificationSchedule | null>(null);
-  const [schedules, setSchedules] = useState<CertificationSchedule[]>([
-    {
-      id: '1',
-      name: 'Access Review Campaign',
-      certificationType: CERTIFICATION_TYPES[0],
-      reviewInstruction: REVIEW_INSTRUCTIONS[0],
-      startDate: '',
-      endDate: '',
-      reviewInterval: 5000, // 5 seconds for demo
-      reviewCount: 10,
-      status: 'stopped',
-      isRunning: false,
-      currentExecution: 0,
-      startTime: undefined,
-      nextExecutionTime: undefined
-    }
-  ]);
-  const [certificationProgress, setCertificationProgress] = useState<CertificationProgress>({
+  const [selectedSchedule, setSelectedSchedule] = useState<JobSchedule | null>(null);
+  const [schedules, setSchedules] = useState<JobSchedule[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [jobDetailsLoading, setJobDetailsLoading] = useState(false);
+  const [jobDetailsError, setJobDetailsError] = useState<string | null>(null);
+  const [jobDetailsData, setJobDetailsData] = useState<any>(null);
+  const [jobHistoryLoading, setJobHistoryLoading] = useState(false);
+  const [jobHistoryError, setJobHistoryError] = useState<string | null>(null);
+  const [jobHistoryData, setJobHistoryData] = useState<any[]>([]);
+  const [isJsonDataExpanded, setIsJsonDataExpanded] = useState(false);
+  const [editableJsonData, setEditableJsonData] = useState<string>('');
+  const [originalJsonData, setOriginalJsonData] = useState<string>('');
+  const [isUpdatingJson, setIsUpdatingJson] = useState(false);
+  const [jobProgress, setJobProgress] = useState<JobProgress>({
     currentCount: 0,
     totalCount: 10,
     percentage: 0,
-    prevReviewTime: undefined,
-    nextReviewTime: undefined,
-    finalReviewTime: undefined
+    prevFireTime: undefined,
+    nextFireTime: undefined,
+    finalFireTime: undefined
   });
-  const [certificationLogs, setCertificationLogs] = useState<CertificationLog[]>([]);
+  const [jobLogs, setJobLogs] = useState<JobLog[]>([]);
   
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const [isGlobalRunning, setIsGlobalRunning] = useState(false);
+
+  // API call to fetch jobs
+  const fetchJobs = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Use local API route to avoid CORS issues
+      const response = await fetch(config.api.endpoints.jobs);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('Fetched jobs data:', data);
+      
+      // Handle case where API returns an error object
+      if (data.error) {
+        throw new Error(data.message || data.error);
+      }
+      
+      // Map API response to our JobSchedule interface
+      // Handle the format: ["groupname:jobname"]
+      const mappedJobs: JobSchedule[] = data.map((jobString: string, index: number) => {
+        // Parse the "groupname:jobname" format
+        const [groupName, jobName] = jobString.includes(':') 
+          ? jobString.split(':') 
+          : ['Default', jobString];
+        
+        return {
+          id: `job-${index}`,
+          name: jobName || `Job ${index + 1}`,
+          jobClass: JOB_CLASSES[0], // Default job class
+          misfireInstruction: MISFIRE_INSTRUCTIONS[0], // Default misfire instruction
+          startDate: '',
+          endDate: '',
+          repeatInterval: 5000, // Default 5 seconds
+          repeatCount: 10, // Default repeat count
+          status: 'stopped' as const,
+          isRunning: false,
+          currentExecution: 0,
+          startTime: undefined,
+          nextExecutionTime: undefined,
+          // Store additional info for reference
+          groupName: groupName,
+          description: undefined // Will be populated from job details API
+        };
+      });
+      
+      setSchedules(mappedJobs);
+      
+      // If we have jobs and no selected schedule, select the first one
+      if (mappedJobs.length > 0 && !selectedSchedule) {
+        setSelectedSchedule(mappedJobs[0]);
+      }
+      
+    } catch (err) {
+      console.error('Error fetching jobs:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch jobs');
+      
+      // No fallback data - only use real API data
+      setSchedules([]);
+      setSelectedSchedule(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch job details when a job is selected
+  const fetchJobDetails = async (groupName: string, jobName: string) => {
+    try {
+      setJobDetailsLoading(true);
+      setJobDetailsError(null);
+      
+      const response = await fetch(`/api/jobs/${encodeURIComponent(groupName)}/${encodeURIComponent(jobName)}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('Fetched job details:', data);
+      
+      // Store the raw API response data
+      setJobDetailsData(data);
+      // Set the editable JSON data and original data
+      const formattedJson = JSON.stringify(data.data || data, null, 2);
+      setEditableJsonData(formattedJson);
+      setOriginalJsonData(formattedJson);
+      
+      // Handle case where API returns an error object
+      if (data.error) {
+        throw new Error(data.message || data.error);
+      }
+      
+      // Update the selected schedule with the detailed information
+      if (selectedSchedule) {
+        const updatedSchedule: JobSchedule = {
+          ...selectedSchedule,
+          // Map the detailed job data to our interface
+          name: data.name || data.jobName || selectedSchedule.name,
+          jobClass: data.jobClass || selectedSchedule.jobClass,
+          misfireInstruction: data.misfireInstruction || selectedSchedule.misfireInstruction,
+          startDate: data.startDate || selectedSchedule.startDate,
+          endDate: data.endDate || selectedSchedule.endDate,
+          repeatInterval: data.repeatInterval || selectedSchedule.repeatInterval,
+          repeatCount: data.repeatCount || selectedSchedule.repeatCount,
+          status: data.status || selectedSchedule.status,
+          isRunning: data.isRunning || selectedSchedule.isRunning,
+          currentExecution: data.currentExecution || selectedSchedule.currentExecution,
+          startTime: data.startTime ? new Date(data.startTime) : selectedSchedule.startTime,
+          nextExecutionTime: data.nextExecutionTime ? new Date(data.nextExecutionTime) : selectedSchedule.nextExecutionTime,
+          description: data.description || data.jobDescription || selectedSchedule.description,
+          // Map trigger fields from API response
+          triggerName: data.triggerName || data.triggers?.[0]?.triggerName || selectedSchedule.triggerName,
+          triggerGroup: data.triggerGroup || data.triggers?.[0]?.triggerGroup || selectedSchedule.triggerGroup,
+          triggerState: data.triggerState || data.triggers?.[0]?.triggerState || selectedSchedule.triggerState,
+          type: data.type || data.triggers?.[0]?.type || selectedSchedule.type,
+          intervalMs: data.intervalMs || data.triggers?.[0]?.intervalMs || selectedSchedule.intervalMs,
+          previousFireTime: data.previousFireTime || data.triggers?.[0]?.previousFireTime || selectedSchedule.previousFireTime,
+          nextFireTime: data.nextFireTime || data.triggers?.[0]?.nextFireTime || selectedSchedule.nextFireTime,
+        };
+        
+        setSelectedSchedule(updatedSchedule);
+        
+        // Update the schedules array with the updated job
+        setSchedules(prev => prev.map(schedule => 
+          schedule.id === selectedSchedule.id ? updatedSchedule : schedule
+        ));
+      }
+      
+    } catch (err) {
+      console.error('Error fetching job details:', err);
+      setJobDetailsError(err instanceof Error ? err.message : 'Failed to fetch job details');
+    } finally {
+      setJobDetailsLoading(false);
+    }
+  };
+
+  // Fetch job history
+  const fetchJobHistory = async (groupName: string, jobName: string) => {
+    try {
+      setJobHistoryLoading(true);
+      setJobHistoryError(null);
+      
+      const response = await fetch(`/api/jobs/history/${encodeURIComponent(groupName)}/${encodeURIComponent(jobName)}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || errorData.error);
+      }
+      
+      const data = await response.json();
+      
+      // Check if the response contains an error
+      if (data && typeof data === 'object' && (data.message || data.error)) {
+        throw new Error(data.message || data.error);
+      }
+      
+      // Set the history data (should be an array)
+      setJobHistoryData(Array.isArray(data) ? data : []);
+      
+    } catch (err) {
+      console.error('Error fetching job history:', err);
+      setJobHistoryError(err instanceof Error ? err.message : 'Failed to fetch job history');
+      setJobHistoryData([]);
+    } finally {
+      setJobHistoryLoading(false);
+    }
+  };
+
+  // Resume job
+  const resumeJob = async (groupName: string, jobName: string) => {
+    try {
+      setIsUpdatingJson(true);
+      
+      const response = await fetch(`/api/jobs/resume/${encodeURIComponent(groupName)}/${encodeURIComponent(jobName)}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      const responseText = await response.text();
+      
+      if (!response.ok) {
+        let errorMessage = 'Failed to resume job';
+        try {
+          const errorData = JSON.parse(responseText);
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch {
+          errorMessage = responseText || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
+
+      let resumeResult;
+      try {
+        resumeResult = JSON.parse(responseText);
+        console.log('Job resumed successfully:', resumeResult);
+      } catch (parseError) {
+        console.log('Job resumed successfully (non-JSON response):', responseText);
+        resumeResult = { message: responseText, success: true };
+      }
+      
+      alert('Job resumed successfully!');
+      
+    } catch (error) {
+      console.error('Error resuming job:', error);
+      alert(`Failed to resume job: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsUpdatingJson(false);
+    }
+  };
+
+  // Pause job
+  const pauseJob = async (groupName: string, jobName: string) => {
+    try {
+      setIsUpdatingJson(true);
+      
+      const response = await fetch(`/api/jobs/pause/${encodeURIComponent(groupName)}/${encodeURIComponent(jobName)}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      const responseText = await response.text();
+      
+      if (!response.ok) {
+        let errorMessage = 'Failed to pause job';
+        try {
+          const errorData = JSON.parse(responseText);
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch {
+          errorMessage = responseText || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
+
+      let pauseResult;
+      try {
+        pauseResult = JSON.parse(responseText);
+        console.log('Job paused successfully:', pauseResult);
+      } catch (parseError) {
+        console.log('Job paused successfully (non-JSON response):', responseText);
+        pauseResult = { message: responseText, success: true };
+      }
+      
+      alert('Job paused successfully!');
+      
+    } catch (error) {
+      console.error('Error pausing job:', error);
+      alert(`Failed to pause job: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsUpdatingJson(false);
+    }
+  };
+
+  // Trigger job manually
+  const triggerJobManually = async (groupName: string, jobName: string) => {
+    try {
+      setIsUpdatingJson(true); // Reuse loading state for now
+      
+      const response = await fetch(`/api/jobs/trigger/${encodeURIComponent(groupName)}/${encodeURIComponent(jobName)}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      // Read the response body once
+      const responseText = await response.text();
+      
+      if (!response.ok) {
+        let errorMessage = 'Failed to trigger job';
+        try {
+          const errorData = JSON.parse(responseText);
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch {
+          errorMessage = responseText || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
+
+      let triggerResult;
+      try {
+        triggerResult = JSON.parse(responseText);
+        console.log('Job triggered successfully:', triggerResult);
+      } catch (parseError) {
+        console.log('Job triggered successfully (non-JSON response):', responseText);
+        triggerResult = { message: responseText, success: true };
+      }
+      
+      // Show success message
+      alert('Job triggered successfully!');
+      
+    } catch (error) {
+      console.error('Error triggering job:', error);
+      alert(`Failed to trigger job: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsUpdatingJson(false);
+    }
+  };
+
+  // Update JSON data
+  const updateJsonData = async () => {
+    if (!selectedSchedule || !selectedSchedule.groupName) {
+      return;
+    }
+
+    try {
+      setIsUpdatingJson(true);
+      
+      // Parse the edited JSON to validate it
+      let parsedData;
+      try {
+        parsedData = JSON.parse(editableJsonData);
+      } catch (parseError) {
+        alert('Invalid JSON format. Please check your syntax.');
+        return;
+      }
+
+      // Make API call to update the job data
+      const response = await fetch(`/api/jobs/${encodeURIComponent(selectedSchedule.groupName)}/${encodeURIComponent(selectedSchedule.name)}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(parsedData)
+      });
+
+      // Read the response body once
+      const responseText = await response.text();
+      
+      if (!response.ok) {
+        let errorMessage = 'Failed to update job data';
+        try {
+          const errorData = JSON.parse(responseText);
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch {
+          // If response is not JSON, use the text as error message
+          errorMessage = responseText || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
+
+      let updatedData;
+      try {
+        updatedData = JSON.parse(responseText);
+        console.log('Job data updated successfully:', updatedData);
+      } catch (parseError) {
+        // If response is not JSON, treat as success with the text response
+        console.log('Job data updated successfully (non-JSON response):', responseText);
+        updatedData = { message: responseText, success: true };
+      }
+      
+      // Update the local state with the response
+      setJobDetailsData(updatedData);
+      
+      // Update the original data to match the new data
+      setOriginalJsonData(editableJsonData);
+      
+      // Show success message
+      alert('JSON data updated successfully!');
+      
+    } catch (error) {
+      console.error('Error updating JSON data:', error);
+      alert(`Failed to update JSON data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsUpdatingJson(false);
+    }
+  };
+
+  // Check if JSON data has been modified
+  const isJsonDataModified = editableJsonData !== originalJsonData;
 
   // Date picker state
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
@@ -91,11 +477,24 @@ export default function SchedulerManager() {
   const startDatePickerRef = useRef<HTMLDivElement>(null);
   const endDatePickerRef = useRef<HTMLDivElement>(null);
 
+  // Fetch jobs on component mount
+  useEffect(() => {
+    fetchJobs();
+  }, []);
+
   useEffect(() => {
     if (schedules.length > 0 && !selectedSchedule) {
       setSelectedSchedule(schedules[0]);
     }
   }, [schedules, selectedSchedule]);
+
+  // Fetch job details when selectedSchedule changes
+  useEffect(() => {
+    if (selectedSchedule && selectedSchedule.groupName && selectedSchedule.name) {
+      fetchJobDetails(selectedSchedule.groupName, selectedSchedule.name);
+      fetchJobHistory(selectedSchedule.groupName, selectedSchedule.name);
+    }
+  }, [selectedSchedule?.id]); // Only fetch when the job ID changes
 
   // Close date pickers when clicking outside
   useEffect(() => {
@@ -117,16 +516,16 @@ export default function SchedulerManager() {
   // Update progress when selected schedule changes
   useEffect(() => {
     if (selectedSchedule) {
-      setCertificationProgress({
+      setJobProgress({
         currentCount: selectedSchedule.currentExecution,
-        totalCount: selectedSchedule.reviewCount,
-        percentage: Math.round((selectedSchedule.currentExecution / selectedSchedule.reviewCount) * 100),
-        prevReviewTime: selectedSchedule.currentExecution > 0 ? 
-          new Date(Date.now() - selectedSchedule.reviewInterval).toLocaleString() : undefined,
-        nextReviewTime: selectedSchedule.isRunning && selectedSchedule.currentExecution < selectedSchedule.reviewCount ?
-          new Date(Date.now() + selectedSchedule.reviewInterval).toLocaleString() : undefined,
-        finalReviewTime: selectedSchedule.reviewCount > 0 ?
-          new Date(Date.now() + (selectedSchedule.reviewCount - selectedSchedule.currentExecution) * selectedSchedule.reviewInterval).toLocaleString() : undefined
+        totalCount: selectedSchedule.repeatCount,
+        percentage: Math.round((selectedSchedule.currentExecution / selectedSchedule.repeatCount) * 100),
+        prevFireTime: selectedSchedule.currentExecution > 0 ? 
+          new Date(Date.now() - selectedSchedule.repeatInterval).toLocaleString() : undefined,
+        nextFireTime: selectedSchedule.isRunning && selectedSchedule.currentExecution < selectedSchedule.repeatCount ?
+          new Date(Date.now() + selectedSchedule.repeatInterval).toLocaleString() : undefined,
+        finalFireTime: selectedSchedule.repeatCount > 0 ?
+          new Date(Date.now() + (selectedSchedule.repeatCount - selectedSchedule.currentExecution) * selectedSchedule.repeatInterval).toLocaleString() : undefined
       });
     }
   }, [selectedSchedule]);
@@ -138,30 +537,30 @@ export default function SchedulerManager() {
         setSchedules(prev => prev.map(schedule => {
           if (schedule.id === selectedSchedule.id && schedule.isRunning) {
             const newExecution = schedule.currentExecution + 1;
-            const isCompleted = newExecution >= schedule.reviewCount;
+            const isCompleted = newExecution >= schedule.repeatCount;
             
             // Add log entry
-            const newLog: CertificationLog = {
+            const newLog: JobLog = {
               id: Date.now().toString(),
               timestamp: new Date().toLocaleString(),
-              reviewer: `reviewer_${schedule.certificationType.split('.').pop()}-${Math.floor(Math.random() * 5) + 1}`,
-              message: generateCertificationMessage(schedule.certificationType, isCompleted),
+              worker: `example_Worker-${Math.floor(Math.random() * 5) + 1}`,
+              message: generateJobMessage(schedule.jobClass, isCompleted),
               status: Math.random() > 0.1 ? 'success' : Math.random() > 0.5 ? 'error' : 'pending'
             };
             
-            setCertificationLogs(prev => [newLog, ...prev.slice(0, 19)]); // Keep last 20 logs
+            setJobLogs(prev => [newLog, ...prev.slice(0, 19)]); // Keep last 20 logs
             
             return {
               ...schedule,
               currentExecution: newExecution,
               status: isCompleted ? 'completed' : 'active',
               isRunning: !isCompleted,
-              nextExecutionTime: !isCompleted ? new Date(Date.now() + schedule.reviewInterval) : undefined
+              nextExecutionTime: !isCompleted ? new Date(Date.now() + schedule.repeatInterval) : undefined
             };
           }
           return schedule;
         }));
-      }, selectedSchedule.reviewInterval);
+      }, selectedSchedule.repeatInterval);
     } else {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -176,16 +575,16 @@ export default function SchedulerManager() {
     };
   }, [isGlobalRunning, selectedSchedule]);
 
-  const generateCertificationMessage = (certType: string, isCompleted: boolean): string => {
-    const type = certType.split('.').pop()?.replace('Certification', '') || 'Access';
+  const generateJobMessage = (jobClass: string, isCompleted: boolean): string => {
+    const type = jobClass.split('.').pop()?.replace('Job', '') || 'Simple';
     const messages = {
-      Access: ['Access review completed', 'Access certification in progress', 'Access validation successful'],
-      Entitlement: ['Entitlement review completed', 'Entitlement certification in progress', 'Entitlement validation successful'],
-      Role: ['Role review completed', 'Role certification in progress', 'Role validation successful'],
-      Application: ['Application access review completed', 'Application certification in progress', 'Application validation successful']
+      Simple: ['Hello World!', 'Simple job executed', 'Task completed successfully'],
+      Complex: ['Complex processing started', 'Complex job in progress', 'Complex task completed'],
+      Email: ['Email sent successfully', 'Email job processed', 'Email notification sent'],
+      Report: ['Report generated', 'Report job completed', 'Report processing finished']
     };
     
-    const typeMessages = messages[type as keyof typeof messages] || messages.Access;
+    const typeMessages = messages[type as keyof typeof messages] || messages.Simple;
     return typeMessages[Math.floor(Math.random() * typeMessages.length)];
   };
 
@@ -309,15 +708,15 @@ export default function SchedulerManager() {
   };
 
   const handleCreateNewSchedule = () => {
-    const newSchedule: CertificationSchedule = {
+    const newSchedule: JobSchedule = {
       id: Date.now().toString(),
-      name: 'New Certification Campaign',
-      certificationType: CERTIFICATION_TYPES[0],
-      reviewInstruction: REVIEW_INSTRUCTIONS[0],
+      name: 'New Job Task',
+      jobClass: JOB_CLASSES[0],
+      misfireInstruction: MISFIRE_INSTRUCTIONS[0],
       startDate: '',
       endDate: '',
-      reviewInterval: 5000,
-      reviewCount: 10,
+      repeatInterval: 5000,
+      repeatCount: 10,
       status: 'stopped',
       isRunning: false,
       currentExecution: 0,
@@ -409,8 +808,8 @@ export default function SchedulerManager() {
       ));
       setSelectedSchedule(updatedSchedule);
       setIsGlobalRunning(false);
-      setCertificationLogs([]);
-      console.log('Campaign stopped successfully!');
+      setJobLogs([]);
+      console.log('Job stopped successfully!');
     }
   };
 
@@ -431,8 +830,8 @@ export default function SchedulerManager() {
       ));
       setSelectedSchedule(updatedSchedule);
       setIsGlobalRunning(false);
-      setCertificationLogs([]);
-      console.log('Campaign reset successfully!');
+      setJobLogs([]);
+      console.log('Job reset successfully!');
     }
   };
 
@@ -441,7 +840,7 @@ export default function SchedulerManager() {
       {/* Header */}
       <div className="scheduler-header">
         <div className="scheduler-title">
-          <h1>CERTIFICATION MANAGER</h1>
+          <h1>QUARTZ MANAGER</h1>
         </div>
         <div className="scheduler-nav">
           <div className="nav-item active">
@@ -449,442 +848,383 @@ export default function SchedulerManager() {
             <span>SCHEDULER</span>
           </div>
         </div>
+        
+        
         <div className="scheduler-info">
-          <span>NAME: ISPM</span>
+          <span>NAME: Example</span>
           <span>INSTANCE ID: NON_CLUSTERED</span>
         </div>
       </div>
 
       {/* Main Content */}
       <div className="scheduler-content">
-        {/* Left Panel - Schedule Management */}
-        <div className="trigger-panel">
-          <div className="triggers-section">
-            <h3>CAMPAIGNS</h3>
+        {/* Left Panel - Jobs List Only */}
+        <div className="triggers-panel">
+          <div className="triggers-header">
+            <h3>JOBS</h3>
             <button 
               className="new-trigger-btn" 
               onClick={() => {
-                console.log('New campaign button clicked!');
+                console.log('New trigger button clicked!');
                 handleCreateNewSchedule();
               }}
+              disabled={loading}
             >
               new
             </button>
-            <div className="trigger-list">
-              {schedules.map(schedule => (
-                <div 
-                  key={schedule.id}
-                  className={`trigger-item ${selectedSchedule?.id === schedule.id ? 'selected' : ''} ${schedule.status}`}
-                  onClick={() => setSelectedSchedule(schedule)}
-                >
-                  <div className="trigger-name">{schedule.name}</div>
-                  <div className="trigger-status">
-                    <span className={`status-indicator ${schedule.status}`}></span>
-                    {schedule.status.toUpperCase()}
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
+          
+          {loading ? (
+            <div className="loading-container">
+              <div className="loading-spinner"></div>
+              <p>Loading jobs...</p>
+            </div>
+          ) : error ? (
+            <div className="error-container">
+              <p className="error-message">Error: {error}</p>
+              <button 
+                className="retry-btn"
+                onClick={fetchJobs}
+              >
+                Retry
+              </button>
+            </div>
+          ) : (
+            <div className="trigger-list">
+              {schedules.length === 0 ? (
+                <div className="no-jobs">
+                  <p>No jobs found</p>
+                  <button 
+                    className="create-first-job-btn"
+                    onClick={handleCreateNewSchedule}
+                  >
+                    Create First Job
+                  </button>
+                </div>
+              ) : (
+                schedules.map(schedule => (
+                  <div 
+                    key={schedule.id}
+                    className={`trigger-item ${selectedSchedule?.id === schedule.id ? 'selected' : ''} ${schedule.status}`}
+                    onClick={() => {
+                      setSelectedSchedule(schedule);
+                      // Fetch job details if we have group name
+                      if (schedule.groupName) {
+                        fetchJobDetails(schedule.groupName, schedule.name);
+                      }
+                    }}
+                  >
+                    <div className="trigger-name">{schedule.name}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
 
+        {/* Middle Panel - Job Details */}
+        <div className="details-panel">
           {selectedSchedule && (
             <div className="trigger-details">
-              <h3>CAMPAIGN DETAILS</h3>
-              <form onSubmit={handleScheduleSubmit}>
-                <div className="form-group">
-                  <label>Campaign Name</label>
-                  <input
-                    type="text"
-                    value={selectedSchedule.name}
-                    onChange={(e) => setSelectedSchedule({
-                      ...selectedSchedule,
-                      name: e.target.value
-                    })}
-                  />
+              <h3>JOB DETAILS</h3>
+              
+              {jobDetailsLoading && (
+                <div className="job-details-loading">
+                  <div className="loading-spinner"></div>
+                  <p>Loading job details...</p>
                 </div>
-
-                <div className="form-group">
-                  <label>Certification Type</label>
-                  <select
-                    value={selectedSchedule.certificationType}
-                    onChange={(e) => setSelectedSchedule({
-                      ...selectedSchedule,
-                      certificationType: e.target.value
-                    })}
-                  >
-                    {CERTIFICATION_TYPES.map(certType => (
-                      <option key={certType} value={certType}>
-                        {certType}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label>Review Instruction</label>
-                  <select
-                    value={selectedSchedule.reviewInstruction}
-                    onChange={(e) => setSelectedSchedule({
-                      ...selectedSchedule,
-                      reviewInstruction: e.target.value
-                    })}
-                  >
-                    {REVIEW_INSTRUCTIONS.map(instruction => (
-                      <option key={instruction} value={instruction}>
-                        {instruction}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="misfire-explanation">
-                    In case of review delay event, the scheduler won't do anything immediately. Instead it will wait for next scheduled time the campaign and run all reviews with scheduled interval. Delayed reviews are simply post-poned but not ignored. Use this policy if your constraint is to execute the certification for the all times equals to the review counter. + Warning The scheduler can completed over the end date time you set.
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label>Start Date (optional)</label>
-                  <div className="date-picker-container" ref={startDatePickerRef}>
-                    <div className="date-picker-input" onClick={() => setShowStartDatePicker(!showStartDatePicker)}>
-                      <Calendar className="calendar-icon" />
-                      <span className="date-display-text">
-                        {selectedSchedule.startDate ? formatDateForDisplay(selectedSchedule.startDate) : 'Select start date'}
-                      </span>
-                    </div>
-                    
-                    {showStartDatePicker && (
-                      <div className="date-picker-dropdown">
-                        <div className="date-picker-header">
-                          <button 
-                            type="button" 
-                            className="nav-btn"
-                            onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
-                          >
-                            <ChevronLeft className="nav-icon" />
-                          </button>
-                          <span className="month-year">
-                            {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                          </span>
-                          <button 
-                            type="button" 
-                            className="nav-btn"
-                            onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
-                          >
-                            <ChevronRight className="nav-icon" />
-                          </button>
-                        </div>
-                        
-                        <div className="date-picker-calendar">
-                          <div className="calendar-header">
-                            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                              <div key={day} className="calendar-day-header">{day}</div>
-                            ))}
-                          </div>
-                          <div className="calendar-body">
-                            {getDaysInMonth(currentMonth).map((day, index) => (
-                              <div key={index} className="calendar-day-cell">
-                                {day && (
-                                  <button
-                                    type="button"
-                                    className={`calendar-day ${selectedSchedule.startDate && new Date(selectedSchedule.startDate).toDateString() === day.toDateString() ? 'selected' : ''}`}
-                                    onClick={() => handleDateSelect(day, true)}
-                                  >
-                                    {day.getDate()}
-                                  </button>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                        
-                        <div className="time-picker">
-                          <label>Time:</label>
-                          <input
-                            type="time"
-                            value={selectedSchedule.startDate ? new Date(selectedSchedule.startDate).toTimeString().slice(0, 5) : '12:00'}
-                            onChange={(e) => handleTimeChange(e.target.value, true)}
-                          />
-                        </div>
-                        
-                        <div className="date-picker-actions">
-                          <button 
-                            type="button" 
-                            className="now-btn"
-                            onClick={() => {
-                              const now = new Date();
-                              setSelectedSchedule({
-                                ...selectedSchedule,
-                                startDate: now.toLocaleString()
-                              });
-                              setShowStartDatePicker(false);
-                            }}
-                          >
-                            Now
-                          </button>
-                          <button 
-                            type="button" 
-                            className="clear-btn"
-                            onClick={() => {
-                              setSelectedSchedule({
-                                ...selectedSchedule,
-                                startDate: ''
-                              });
-                              setShowStartDatePicker(false);
-                            }}
-                          >
-                            Clear
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label>End Date (optional)</label>
-                  <div className="date-picker-container" ref={endDatePickerRef}>
-                    <div className="date-picker-input" onClick={() => setShowEndDatePicker(!showEndDatePicker)}>
-                      <Calendar className="calendar-icon" />
-                      <span className="date-display-text">
-                        {selectedSchedule.endDate ? formatDateForDisplay(selectedSchedule.endDate) : 'Select end date'}
-                      </span>
-                    </div>
-                    
-                    {showEndDatePicker && (
-                      <div className="date-picker-dropdown">
-                        <div className="date-picker-header">
-                          <button 
-                            type="button" 
-                            className="nav-btn"
-                            onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
-                          >
-                            <ChevronLeft className="nav-icon" />
-                          </button>
-                          <span className="month-year">
-                            {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                          </span>
-                          <button 
-                            type="button" 
-                            className="nav-btn"
-                            onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
-                          >
-                            <ChevronRight className="nav-icon" />
-                          </button>
-                        </div>
-                        
-                        <div className="date-picker-calendar">
-                          <div className="calendar-header">
-                            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                              <div key={day} className="calendar-day-header">{day}</div>
-                            ))}
-                          </div>
-                          <div className="calendar-body">
-                            {getDaysInMonth(currentMonth).map((day, index) => (
-                              <div key={index} className="calendar-day-cell">
-                                {day && (
-                                  <button
-                                    type="button"
-                                    className={`calendar-day ${selectedSchedule.endDate && new Date(selectedSchedule.endDate).toDateString() === day.toDateString() ? 'selected' : ''}`}
-                                    onClick={() => handleDateSelect(day, false)}
-                                  >
-                                    {day.getDate()}
-                                  </button>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                        
-                        <div className="time-picker">
-                          <label>Time:</label>
-                          <input
-                            type="time"
-                            value={selectedSchedule.endDate ? new Date(selectedSchedule.endDate).toTimeString().slice(0, 5) : '12:00'}
-                            onChange={(e) => handleTimeChange(e.target.value, false)}
-                          />
-                        </div>
-                        
-                        <div className="date-picker-actions">
-                          <button 
-                            type="button" 
-                            className="clear-btn"
-                            onClick={() => {
-                              setSelectedSchedule({
-                                ...selectedSchedule,
-                                endDate: ''
-                              });
-                              setShowEndDatePicker(false);
-                            }}
-                          >
-                            Clear
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label>Review Interval [in mills]</label>
-                  <input
-                    type="number"
-                    value={selectedSchedule.reviewInterval}
-                    onChange={(e) => setSelectedSchedule({
-                      ...selectedSchedule,
-                      reviewInterval: parseInt(e.target.value) || 0
-                    })}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Review Count</label>
-                  <input
-                    type="number"
-                    value={selectedSchedule.reviewCount}
-                    onChange={(e) => setSelectedSchedule({
-                      ...selectedSchedule,
-                      reviewCount: parseInt(e.target.value) || 0
-                    })}
-                  />
-                </div>
-
-                <div className="form-actions">
+              )}
+              
+              {jobDetailsError && (
+                <div className="job-details-error">
+                  <p className="error-message">Error: {jobDetailsError}</p>
                   <button 
-                    type="button" 
-                    className="cancel-btn"
+                    className="retry-btn"
                     onClick={() => {
-                      // Reset form or close if needed
-                      console.log('Cancel clicked');
+                      if (selectedSchedule.groupName) {
+                        fetchJobDetails(selectedSchedule.groupName, selectedSchedule.name);
+                      }
                     }}
                   >
-                    Cancel
-                  </button>
-                  <button 
-                    type="submit" 
-                    className="submit-btn"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      handleScheduleSubmit(e);
-                    }}
-                  >
-                    Submit
+                    Retry
                   </button>
                 </div>
+              )}
+              
+              {!jobDetailsLoading && !jobDetailsError && (
+                <div className="job-info-display">
+                  <div className="job-info-item">
+                    <span className="info-label">Job Name:</span>
+                    <span className="info-value">{selectedSchedule.name}</span>
+                  </div>
+                  <div className="job-info-item">
+                    <span className="info-label">Job Group:</span>
+                    <span className="info-value">{selectedSchedule.groupName || 'N/A'}</span>
+                  </div>
+                  <div className="job-info-item">
+                    <span className="info-label">Job Class:</span>
+                    <span className="info-value">{selectedSchedule.jobClass}</span>
+                  </div>
+                  <div className="job-info-item">
+                    <span className="info-label">Description:</span>
+                    <span className="info-value">{selectedSchedule.description || 'No description available'}</span>
+                  </div>
+                </div>
+              )}
+              
+              {/* JSON Data Display */}
+              {!jobDetailsLoading && !jobDetailsError && jobDetailsData && (
+                <div className="json-data-display">
+                  <div 
+                    className="json-data-header"
+                    onClick={() => setIsJsonDataExpanded(!isJsonDataExpanded)}
+                  >
+                    <h4>JSON Data</h4>
+                    {isJsonDataExpanded ? (
+                      <ChevronDown className="json-toggle-icon" />
+                    ) : (
+                      <ChevronRight className="json-toggle-icon" />
+                    )}
+                  </div>
+                  {isJsonDataExpanded && (
+                    <div className="json-container">
+                      <textarea 
+                        className="json-content"
+                        value={editableJsonData}
+                        onChange={(e) => setEditableJsonData(e.target.value)}
+                        rows={10}
+                        spellCheck={false}
+                      />
+                      <div className="json-actions">
+                        <button 
+                          className="update-json-btn"
+                          onClick={updateJsonData}
+                          disabled={isUpdatingJson || !isJsonDataModified}
+                        >
+                          {isUpdatingJson ? (
+                            <>
+                              <div className="loading-spinner-small"></div>
+                              Updating...
+                            </>
+                          ) : (
+                            'Update'
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
-                {/* Campaign Controls */}
-                <div className="campaign-controls">
-                  <h4>CAMPAIGN CONTROLS</h4>
-                  <div className="control-buttons">
+              {/* Trigger Control Buttons */}
+              {selectedSchedule && (
+                <div className="trigger-controls-section">
+                  <div className="trigger-controls">
                     <button 
-                      type="button" 
-                      className="control-btn test-btn"
-                      onClick={() => {
-                        console.log('Test button clicked!');
-                        alert('Test button works!');
-                      }}
+                      className={`start-btn ${selectedSchedule.isRunning ? 'active' : ''}`}
+                      onClick={() => triggerJobManually(selectedSchedule.groupName || '', selectedSchedule.name)}
+                      disabled={isUpdatingJson}
                     >
-                      Test
+                      {isUpdatingJson ? (
+                        <>
+                          <div className="loading-spinner-small"></div>
+                          Running...
+                        </>
+                      ) : (
+                        <>
+                          <Play className="btn-icon" />
+                          Run
+                        </>
+                      )}
                     </button>
-                    {!selectedSchedule.isRunning && selectedSchedule.status !== 'completed' && (
+                    {selectedSchedule.status === 'paused' ? (
                       <button 
-                        type="button" 
-                        className="control-btn start-btn"
-                        onClick={handleStartCampaign}
+                        className="resume-btn"
+                        onClick={() => resumeJob(selectedSchedule.groupName || '', selectedSchedule.name)}
+                        disabled={isUpdatingJson}
                       >
-                        <Play className="btn-icon" />
-                        Start
+                        {isUpdatingJson ? (
+                          <>
+                            <div className="loading-spinner-small"></div>
+                            Resuming...
+                          </>
+                        ) : (
+                          <>
+                            <Play className="btn-icon" />
+                            Resume
+                          </>
+                        )}
                       </button>
-                    )}
-                    {selectedSchedule.isRunning && (
+                    ) : (
                       <button 
-                        type="button" 
-                        className="control-btn pause-btn"
-                        onClick={handlePauseCampaign}
+                        className="pause-btn"
+                        onClick={() => pauseJob(selectedSchedule.groupName || '', selectedSchedule.name)}
+                        disabled={isUpdatingJson}
                       >
-                        <Pause className="btn-icon" />
-                        Pause
-                      </button>
-                    )}
-                    {selectedSchedule.status === 'paused' && (
-                      <button 
-                        type="button" 
-                        className="control-btn start-btn"
-                        onClick={handleStartCampaign}
-                      >
-                        <Play className="btn-icon" />
-                        Resume
+                        {isUpdatingJson ? (
+                          <>
+                            <div className="loading-spinner-small"></div>
+                            Pausing...
+                          </>
+                        ) : (
+                          <>
+                            <Pause className="btn-icon" />
+                            Pause
+                          </>
+                        )}
                       </button>
                     )}
                     <button 
-                      type="button" 
-                      className="control-btn stop-btn"
-                      onClick={handleStopCampaign}
+                      className="stop-btn"
+                      onClick={() => handleStop(selectedSchedule.id)}
+                      disabled={!selectedSchedule.isRunning}
                     >
                       <Square className="btn-icon" />
                       Stop
                     </button>
                     <button 
-                      type="button" 
-                      className="control-btn reset-btn"
-                      onClick={handleResetCampaign}
+                      className="reset-btn"
+                      onClick={() => handleReset(selectedSchedule.id)}
                     >
                       <RotateCcw className="btn-icon" />
                       Reset
                     </button>
                   </div>
                 </div>
-              </form>
+              )}
             </div>
           )}
         </div>
 
-        {/* Right Panel - Certification Progress & Logs */}
+        {/* Right Panel - Triggers */}
         <div className="job-panel">
-          <div className="job-progress-section">
-            <h3>CERTIFICATION PROGRESS</h3>
-            <div className="progress-container">
-              <div className="progress-bar">
-                <div 
-                  className="progress-fill" 
-                  style={{ width: `${certificationProgress.percentage}%` }}
-                ></div>
-              </div>
-              <div className="progress-text">
-                {certificationProgress.currentCount}/{certificationProgress.totalCount}
-              </div>
-            </div>
-            <div className="fire-times">
-              <div className="fire-time">
-                <span>prev review time:</span>
-                <span>{certificationProgress.prevReviewTime}</span>
-              </div>
-              <div className="fire-time">
-                <span>next review time:</span>
-                <span>{certificationProgress.nextReviewTime}</span>
-              </div>
-              <div className="fire-time">
-                <span>final review time:</span>
-                <span>{certificationProgress.finalReviewTime}</span>
-              </div>
+          <div className="jobs-section">
+            <h3>TRIGGERS</h3>
+            
+            {/* Single Trigger Card */}
+            <div className="trigger-card-section">
+              {selectedSchedule ? (
+                <div className="trigger-card">
+                  <div className="trigger-card-header">
+                    <h4>Trigger: {selectedSchedule.triggerName || 'N/A'}</h4>
+                  </div>
+                  
+                  <div className="trigger-card-content">
+                    <div className="trigger-info-grid">
+                      <div className="info-item">
+                        <span className="info-label">Trigger Group:</span>
+                        <span className="info-value">{selectedSchedule.triggerGroup || 'N/A'}</span>
+                      </div>
+                      <div className="info-item">
+                        <span className="info-label">Trigger State:</span>
+                        <span className={`info-value status-${selectedSchedule.triggerState?.toLowerCase()}`}>
+                          {selectedSchedule.triggerState || 'N/A'}
+                        </span>
+                      </div>
+                      <div className="info-item">
+                        <span className="info-label">Type:</span>
+                        <span className="info-value">{selectedSchedule.type || 'N/A'}</span>
+                      </div>
+                      <div className="info-item">
+                        <span className="info-label">Interval (ms):</span>
+                        <span className="info-value">{selectedSchedule.intervalMs || 'N/A'}</span>
+                      </div>
+                      <div className="info-item">
+                        <span className="info-label">Repeat Count:</span>
+                        <span className="info-value">{selectedSchedule.repeatCount || 'N/A'}</span>
+                      </div>
+                      <div className="info-item">
+                        <span className="info-label">Previous Fire Time:</span>
+                        <span className="info-value">{selectedSchedule.previousFireTime || 'N/A'}</span>
+                      </div>
+                      <div className="info-item">
+                        <span className="info-label">Next Fire Time:</span>
+                        <span className="info-value">{selectedSchedule.nextFireTime || 'N/A'}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="no-trigger-selected">
+                  <p>Select a job to view its trigger details</p>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="job-logs-section">
-            <h3>CERTIFICATION LOGS</h3>
-            <div className="logs-container">
-              {certificationLogs.map(log => (
-                <div key={log.id} className="log-entry">
-                  <span className="log-timestamp">[{log.timestamp}]</span>
-                  {log.status === 'success' ? (
-                    <CheckCircle className="log-icon success" />
-                  ) : log.status === 'error' ? (
-                    <AlertCircle className="log-icon error" />
-                  ) : (
-                    <Clock className="log-icon pending" />
-                  )}
-                  <span className="log-worker">{log.reviewer}</span>
-                  <span className="log-message">{log.message}</span>
-                </div>
-              ))}
-            </div>
+          {/* Job History Section */}
+          <div className="history-section">
+            <h3>JOB HISTORY</h3>
+            
+            {jobHistoryLoading ? (
+              <div className="history-loading">
+                <div className="loading-spinner"></div>
+                <p>Loading job history...</p>
+              </div>
+            ) : jobHistoryError ? (
+              <div className="history-error">
+                <p>Error: {jobHistoryError}</p>
+              </div>
+            ) : jobHistoryData.length === 0 ? (
+              <div className="no-history">
+                <p>No job history available</p>
+              </div>
+            ) : (
+              <div className="history-list">
+                {jobHistoryData.map((historyItem, index) => (
+                  <div key={historyItem.id || index} className="history-item">
+                    <div className="history-header">
+                      <span className="history-timestamp">
+                        {historyItem.firedAt ? new Date(historyItem.firedAt).toLocaleString() : 'N/A'}
+                      </span>
+                      <span className={`history-status status-${historyItem.status?.toLowerCase() || 'unknown'}`}>
+                        {historyItem.status || 'UNKNOWN'}
+                      </span>
+                    </div>
+                    <div className="history-details">
+                      <div className="history-info-grid">
+                        <div className="history-info-item">
+                          <span className="history-info-label">Job Name:</span>
+                          <span className="history-info-value">{historyItem.jobName || 'N/A'}</span>
+                        </div>
+                        <div className="history-info-item">
+                          <span className="history-info-label">Job Group:</span>
+                          <span className="history-info-value">{historyItem.jobGroup || 'N/A'}</span>
+                        </div>
+                        <div className="history-info-item">
+                          <span className="history-info-label">Trigger Name:</span>
+                          <span className="history-info-value">{historyItem.triggerName || 'N/A'}</span>
+                        </div>
+                        <div className="history-info-item">
+                          <span className="history-info-label">Trigger Group:</span>
+                          <span className="history-info-value">{historyItem.triggerGroup || 'N/A'}</span>
+                        </div>
+                        <div className="history-info-item">
+                          <span className="history-info-label">Finished At:</span>
+                          <span className="history-info-value">
+                            {historyItem.finishedAt ? new Date(historyItem.finishedAt).toLocaleString() : 'N/A'}
+                          </span>
+                        </div>
+                        {historyItem.firedAt && historyItem.finishedAt && (
+                          <div className="history-info-item">
+                            <span className="history-info-label">Duration:</span>
+                            <span className="history-info-value">
+                              {new Date(historyItem.finishedAt).getTime() - new Date(historyItem.firedAt).getTime()}ms
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      {historyItem.message && (
+                        <div className="history-message-section">
+                          <span className="history-message-label">Message:</span>
+                          <p className="history-message">{historyItem.message}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
