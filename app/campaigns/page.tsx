@@ -134,7 +134,7 @@ export default function Campaigns() {
                   className="cursor-pointer"
                   strokeWidth="1"
                   size="24"
-                  color="#4a10ebff"
+                  color="#2563eb"
                 />
               </button>
               <button
@@ -146,7 +146,7 @@ export default function Campaigns() {
                   className="cursor-pointer"
                   strokeWidth="1"
                   size="24"
-                  color="#e73c3cff"
+                  color="#10a13cff"
                 />
               </button>
             </div>

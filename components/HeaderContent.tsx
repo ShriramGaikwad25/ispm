@@ -328,7 +328,7 @@ const HeaderContent = () => {
       });
 
       setUserDetails({
-        username: firstItem.fullName || "Unknown User",
+        username: firstItem.fullName || "IAM Admin",
         userId: firstItem.id || "N/A",
         userStatus: firstItem.status || "Active",
         manager: firstItem.manager || "N/A",
@@ -377,7 +377,7 @@ const HeaderContent = () => {
             });
 
             setUserDetails({
-              username: firstItem.fullName || "Unknown User",
+              username: firstItem.fullName || "IAM Admin",
               userId: firstItem.id || "N/A",
               userStatus: firstItem.status || "Active",
               manager: firstItem.manager || "N/A",
@@ -517,7 +517,7 @@ const HeaderContent = () => {
             className="object-cover rounded-full"
           />
           <span className="text-white font-medium text-sm">
-            {userDetails?.username || "Unknown User"}
+            {userDetails?.username || "IAM Admin"}
           </span>
           <Dropdown
             Icon={() => (

@@ -268,21 +268,32 @@ export default function AppOwner() {
       } else if (isGroupedAccounts) {
         // For Accounts grouping, call entities API getAppAccounts
         // Determine applicationInstanceId: prefer from current state else from first of response of ungrouped data
-        let applicationInstanceId = rowData.find((r) => r.applicationInstanceId)?.applicationInstanceId || "";
+        let applicationInstanceId =
+          rowData.find((r) => r.applicationInstanceId)?.applicationInstanceId ||
+          "";
         const tryExtractFromRawItems = (items: any[]): string | undefined => {
           for (const item of items || []) {
             // Top-level variants
-            const top1 = item?.applicationInfo?.applicationInstanceId || item?.applicationInfo?.applicationinstanceid;
+            const top1 =
+              item?.applicationInfo?.applicationInstanceId ||
+              item?.applicationInfo?.applicationinstanceid;
             if (top1) return top1 as string;
-            const top2 = item?.applicationInstanceId || item?.applicationinstanceid;
+            const top2 =
+              item?.applicationInstanceId || item?.applicationinstanceid;
             if (top2) return top2 as string;
             // Ungrouped entityEntitlements path
-            const entAppId = item?.entityEntitlements?.[0]?.applicationInfo?.applicationInstanceId || item?.entityEntitlements?.[0]?.applicationInfo?.applicationinstanceid;
+            const entAppId =
+              item?.entityEntitlements?.[0]?.applicationInfo
+                ?.applicationInstanceId ||
+              item?.entityEntitlements?.[0]?.applicationInfo
+                ?.applicationinstanceid;
             if (entAppId) return entAppId as string;
             // Grouped structure paths (accounts array)
             const accounts = Array.isArray(item?.accounts) ? item.accounts : [];
             for (const acc of accounts) {
-              const accAppId = acc?.applicationInfo?.applicationInstanceId || acc?.applicationInfo?.applicationinstanceid;
+              const accAppId =
+                acc?.applicationInfo?.applicationInstanceId ||
+                acc?.applicationInfo?.applicationinstanceid;
               if (accAppId) return accAppId as string;
             }
           }
@@ -295,13 +306,18 @@ export default function AppOwner() {
             defaultPageSize,
             pageNumber
           );
-          console.log("Ungrouped response for appId extraction:", JSON.stringify(ungResp, null, 2));
-          
+          console.log(
+            "Ungrouped response for appId extraction:",
+            JSON.stringify(ungResp, null, 2)
+          );
+
           // First try fast transform path
           const transformedUng = transformApiData(ungResp.items || [], false);
-          applicationInstanceId = transformedUng.find((r) => r.applicationInstanceId)?.applicationInstanceId || "";
+          applicationInstanceId =
+            transformedUng.find((r) => r.applicationInstanceId)
+              ?.applicationInstanceId || "";
           console.log("Transformed data appId:", applicationInstanceId);
-          
+
           // Then try raw items exhaustive scan for various shapes/casings
           if (!applicationInstanceId) {
             const extracted = tryExtractFromRawItems(ungResp.items || []);
@@ -309,43 +325,68 @@ export default function AppOwner() {
             console.log("Raw extraction appId:", extracted);
           }
         }
-        
-        console.log("Final applicationInstanceId for accounts:", applicationInstanceId);
-        
+
+        console.log(
+          "Final applicationInstanceId for accounts:",
+          applicationInstanceId
+        );
+
         if (!applicationInstanceId) {
           // Try to get applications list and use the first one as fallback
           try {
             console.log("Trying to fetch applications list as fallback...");
-            const appsResponse = await fetch(`https://preview.keyforge.ai/entities/api/v1/CERTTEST/getApplications/${reviewerId}`);
+            const appsResponse = await fetch(
+              `https://preview.keyforge.ai/entities/api/v1/CERTTEST/getApplications/${reviewerId}`
+            );
             const appsData = await appsResponse.json();
             console.log("Applications fallback response:", appsData);
-            
-            if (appsData.executionStatus === "success" && appsData.items && appsData.items.length > 0) {
+
+            if (
+              appsData.executionStatus === "success" &&
+              appsData.items &&
+              appsData.items.length > 0
+            ) {
               const firstApp = appsData.items[0];
-              applicationInstanceId = firstApp.applicationinstanceid || firstApp.applicationInstanceId;
-              console.log("Using first application as fallback:", applicationInstanceId);
+              applicationInstanceId =
+                firstApp.applicationinstanceid ||
+                firstApp.applicationInstanceId;
+              console.log(
+                "Using first application as fallback:",
+                applicationInstanceId
+              );
             }
           } catch (fallbackErr) {
             console.error("Fallback applications fetch failed:", fallbackErr);
           }
         }
-        
+
         if (!applicationInstanceId) {
           // Provide user-friendly message instead of throwing hard error
-          setError("Unable to determine application to load accounts. Open an application first or try 'Group by Entitlements'.");
+          setError(
+            "Unable to determine application to load accounts. Open an application first or try 'Group by Entitlements'."
+          );
           setRowData([]);
           setLoading(false);
           return;
         }
-                 const accountsResp: any = await getAppAccounts(reviewerId, applicationInstanceId);
-         console.log("Raw accounts response:", accountsResp);
-         
-         // Normalize to PaginatedResponse-like shape for rendering
-         response = (Array.isArray(accountsResp)
-           ? { items: accountsResp, total_pages: 1, total_items: accountsResp.length }
-           : accountsResp) as PaginatedResponse<any>;
-         
-         console.log("Normalized accounts response:", response);
+        const accountsResp: any = await getAppAccounts(
+          reviewerId,
+          applicationInstanceId
+        );
+        console.log("Raw accounts response:", accountsResp);
+
+        // Normalize to PaginatedResponse-like shape for rendering
+        response = (
+          Array.isArray(accountsResp)
+            ? {
+                items: accountsResp,
+                total_pages: 1,
+                total_items: accountsResp.length,
+              }
+            : accountsResp
+        ) as PaginatedResponse<any>;
+
+        console.log("Normalized accounts response:", response);
       } else {
         response = await getAppOwnerDetails(
           reviewerId,
@@ -359,7 +400,9 @@ export default function AppOwner() {
 
       // Check if response has error properties (for backward compatibility)
       if ((response as any).executionStatus === "error") {
-        throw new Error((response as any).errorMessage || "API returned an error");
+        throw new Error(
+          (response as any).errorMessage || "API returned an error"
+        );
       }
 
       if (!response.items || !Array.isArray(response.items)) {
@@ -367,48 +410,52 @@ export default function AppOwner() {
         throw new Error("Invalid data format received from API");
       }
 
-             let transformedData: RowData[];
-       
-               if (isGroupedAccounts) {
-          // For accounts data, transform differently since it has a different structure
-          console.log("First account item structure:", response.items?.[0]);
-          
-                     transformedData = (response.items || []).map((account: any, index: number) => {
-             // Map using the actual field names from the API response
-             const mappedAccount = {
-               accountId: account.accountId || `account-${index}`,
-               accountName: account.accountName || "",
-               userId: account.userId || "",
-               userName: account.userDisplayName || "", // This is the key field for Display Name
-               entitlementName: account.entitlementName || "Account Access",
-                               entitlementDescription: account.entitlementDescription || "",
-               aiInsights: "",
-               accountSummary: (account.accountName || "").includes("@") ? "Regular Accounts" : "Other",
-               accountActivity: "Active",
-               changeSinceLastReview: "Existing accounts",
-               accountType: account.jobTitle || "", // Use jobTitle for account type
-               userType: account.userType || "Internal",
-               lastLoginDate: account.lastlogindate || "2025-05-25",
-               department: account.userDepartment || "Unknown", // Use userDepartment
-               manager: account.userManager || "Unknown", // Use userManager
-               risk: account.risk || "Low",
-               applicationName: account.applicationName || "",
-               applicationInstanceId: account.applicationInstanceId || "",
-               numOfEntitlements: 1,
-               lineItemId: account.accountId || "",
-               status: account.userStatus || "Active"
-             };
-             
-             console.log(`Mapped account ${index}:`, mappedAccount);
-             return mappedAccount;
-           });
-        } else {
-         // Use existing transform for other cases
-         transformedData = transformApiData(
-           response.items,
-           isGroupedEnts /* grouped shape only for Entitlements path */
-         );
-       }
+      let transformedData: RowData[];
+
+      if (isGroupedAccounts) {
+        // For accounts data, transform differently since it has a different structure
+        console.log("First account item structure:", response.items?.[0]);
+
+        transformedData = (response.items || []).map(
+          (account: any, index: number) => {
+            // Map using the actual field names from the API response
+            const mappedAccount = {
+              accountId: account.accountId || `account-${index}`,
+              accountName: account.accountName || "",
+              userId: account.userId || "",
+              userName: account.userDisplayName || "", // This is the key field for Display Name
+              entitlementName: account.entitlementName || "Account Access",
+              entitlementDescription: account.entitlementDescription || "",
+              aiInsights: "",
+              accountSummary: (account.accountName || "").includes("@")
+                ? "Regular Accounts"
+                : "Other",
+              accountActivity: "Active",
+              changeSinceLastReview: "Existing accounts",
+              accountType: account.jobTitle || "", // Use jobTitle for account type
+              userType: account.userType || "Internal",
+              lastLoginDate: account.lastlogindate || "2025-05-25",
+              department: account.userDepartment || "Unknown", // Use userDepartment
+              manager: account.userManager || "Unknown", // Use userManager
+              risk: account.risk || "Low",
+              applicationName: account.applicationName || "",
+              applicationInstanceId: account.applicationInstanceId || "",
+              numOfEntitlements: 1,
+              lineItemId: account.accountId || "",
+              status: account.userStatus || "Active",
+            };
+
+            console.log(`Mapped account ${index}:`, mappedAccount);
+            return mappedAccount;
+          }
+        );
+      } else {
+        // Use existing transform for other cases
+        transformedData = transformApiData(
+          response.items,
+          isGroupedEnts /* grouped shape only for Entitlements path */
+        );
+      }
       console.log(
         "Transformed Data:",
         JSON.stringify(transformedData, null, 2)
@@ -416,7 +463,7 @@ export default function AppOwner() {
       setRowData(transformedData);
       setTotalPages(response.total_pages || 1);
       setTotalItems(response.total_items || 0);
-      
+
       // Store header data in localStorage for header component
       const headerData = transformedData.map((item: any) => ({
         id: item.accountId,
@@ -427,12 +474,12 @@ export default function AppOwner() {
         manager: item.manager,
         department: item.department,
         jobtitle: item.accountType,
-        userType: "Internal"
+        userType: "Internal",
       }));
-      
+
       localStorage.setItem("sharedRowData", JSON.stringify(headerData));
       // Dispatch custom event to notify header component
-      window.dispatchEvent(new Event('localStorageChange'));
+      window.dispatchEvent(new Event("localStorageChange"));
     } catch (err: any) {
       console.error("Error fetching app owner details:", err);
       setError(err.message || "Failed to load data. Please try again later.");
@@ -524,7 +571,7 @@ export default function AppOwner() {
   const [columnDefs, setColumnDefs] = useState<ColDef[]>([
     {
       field: "entitlementName",
-      headerName: "Entitlement Name",
+      headerName: "Entitlement",
       enableRowGroup: true,
       cellRenderer: (params: ICellRendererParams) => (
         <div className="flex flex-col gap-0">
@@ -532,16 +579,24 @@ export default function AppOwner() {
         </div>
       ),
     },
+    { field: "entitlementType", headerName: "Type", width:100},
     {
       field: "accountName",
-      headerName: "Account ID",
+      headerName: "Account",
       // cellRenderer: "agGroupCellRenderer",
       cellClass: "ag-cell-no-padding",
+      cellRenderer: (params: ICellRendererParams) => {
+        const risk = params.data?.accountName || "Low";
+        const riskColor =
+          risk === "High" ? "red" : risk === "Medium" ? "orange" : "green";
+        return <span style={{ color: riskColor }}>{risk}</span>;
+      },
     },
     {
       field: "risk",
       headerName: "Risk",
       width: 100,
+      hide:true,
       cellRenderer: (params: ICellRendererParams) => {
         const risk = params.data?.risk || "Low";
         const riskColor =
@@ -549,10 +604,10 @@ export default function AppOwner() {
         return <span style={{ color: riskColor }}>{risk}</span>;
       },
     },
-    { field: "userName", headerName: "Display Name",width: 120 },
+    { field: "userName", headerName: "Identity", width: 120 },
     {
       field: "lastLoginDate",
-      headerName: "Last Login Date",
+      headerName: "Last Login",
       enableRowGroup: true,
       width: 130,
       valueFormatter: (params) => formatDateMMDDYY(params.value),
@@ -564,7 +619,7 @@ export default function AppOwner() {
     },
     {
       field: "aiInsights",
-      headerName: "AI Insights",
+      headerName: "Insights",
       width: 100,
       cellRenderer: (params: ICellRendererParams) => {
         const icon =
@@ -590,21 +645,23 @@ export default function AppOwner() {
             </svg>
           );
         return (
-          <div className="flex flex-col gap-0 mt-2 cursor-pointer hover:bg-gray-100 p-2 rounded transition-colors duration-200 ai-insights-cell" title="Click to view details">
+          <div
+            className="flex flex-col gap-0 mt-2 cursor-pointer hover:bg-gray-100 p-2 rounded transition-colors duration-200 ai-insights-cell"
+            title="Click to view details"
+          >
             <span className="text-gray-800">{icon}</span>
           </div>
         );
       },
       onCellClicked: handleOpen,
     },
-    { field: "accountType", headerName: "Account Type", flex: 2, hide: true },
     { field: "userType", headerName: "User Status", flex: 2, hide: true },
     { field: "department", headerName: "User Dept", flex: 2, hide: true },
     { field: "manager", headerName: "User Manager", flex: 2, hide: true },
     {
       field: "actions",
       headerName: "Actions",
-      flex:2,
+      flex: 2,
       cellRenderer: (params: ICellRendererParams) => {
         return (
           <ActionButtons
@@ -701,7 +758,11 @@ export default function AppOwner() {
   }, []);
 
   useEffect(() => {
-    if (isGridReady && gridApiRef.current && (gridApiRef.current as any).columnApi) {
+    if (
+      isGridReady &&
+      gridApiRef.current &&
+      (gridApiRef.current as any).columnApi
+    ) {
       console.log("Grid API and Column API initialized successfully", {
         groupByColumn,
         columns: (gridApiRef.current as any).columnApi
@@ -715,81 +776,80 @@ export default function AppOwner() {
   return (
     <div className="w-full h-screen">
       <div className="max-w-full">
-          <h1 className="text-xl font-bold mb-6 border-b border-gray-300 pb-2 text-blue-950">
-            Application Owner
-          </h1>
-          <Accordion
-            iconClass="top-1 right-0 rounded-full text-white bg-purple-800"
-            open={true}
-          >
-            <ChartAppOwnerComponent rowData={rowData} />
-          </Accordion>
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-4 relative z-10 pt-10 gap-4">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
-              <select
-                value={groupByOption}
-                onChange={handleGroupByOptionChange}
-                className="border border-gray-300 rounded-md px-3 h-8 text-sm w-44"
-              >
-                <option value="None">All</option>
-                <option value="Entitlements">Group by Entitlements</option>
-                <option value="Accounts">Group by Accounts</option>
-              </select>
-              {selectedRows.length > 0 && gridApiRef.current && (
-                <ActionButtons
-                  api={gridApiRef.current as any}
-                  selectedRows={selectedRows}
-                  context="entitlement"
-                  reviewerId={reviewerId}
-                  certId={certificationId}
-                />
-              )}
-              <input
-                type="text"
-                placeholder="Search..."
-                className="border rounded px-3 h-8 text-sm w-44"
-                onChange={(e) => {
-                  setQuickFilterText(e.target.value);
-                }}
+        <h1 className="text-xl font-bold mb-6 border-b border-gray-300 pb-2 text-blue-950">
+          Application Owner
+        </h1>
+        <Accordion
+          iconClass="top-1 right-0 rounded-full text-white bg-purple-800"
+          open={true}
+        >
+          <ChartAppOwnerComponent rowData={rowData} />
+        </Accordion>
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-4 relative z-10 pt-10 gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
+            <select
+              value={groupByOption}
+              onChange={handleGroupByOptionChange}
+              className="border border-gray-300 rounded-md px-3 h-8 text-sm w-44"
+            >
+              <option value="None">All</option>
+              <option value="Entitlements">Group by Entitlements</option>
+              <option value="Accounts">Group by Accounts</option>
+            </select>
+            {selectedRows.length > 0 && gridApiRef.current && (
+              <ActionButtons
+                api={gridApiRef.current as any}
+                selectedRows={selectedRows}
+                context="entitlement"
+                reviewerId={reviewerId}
+                certId={certificationId}
               />
-              <Filters gridApi={gridApiRef} />
-              
-            </div>
-            <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
-              {/* Pagination moved to bottom below the grid */}
-              <Exports gridApi={gridApiRef.current} />
-              <MailIcon
-                size={32}
-                color="#35353A"
-                className="transform scale-[.6]"
-              />
-              <button
-                title="Sign Off"
-                aria-label="Sign off selected rows"
-                className="p-1 rounded transition-colors duration-200"
-              >
-                <CheckCircleIcon
-                  className="cursor-pointer"
-                  strokeWidth="1"
-                  size="24"
-                  color="#e73c3cff"
-                />
-              </button>
-              <ColumnSettings
-                columnDefs={columnDefs}
-                gridApi={gridApiRef.current}
-                visibleColumns={() => {
-                  const visibleCols: string[] = [];
-                  columnDefs.forEach((colDef) => {
-                    if (colDef.field) {
-                      visibleCols.push(colDef.field);
-                    }
-                  });
-                  return visibleCols;
-                }}
-              />
-            </div>
+            )}
+            <input
+              type="text"
+              placeholder="Search..."
+              className="border rounded px-3 h-8 text-sm w-44"
+              onChange={(e) => {
+                setQuickFilterText(e.target.value);
+              }}
+            />
+            <Filters gridApi={gridApiRef} />
           </div>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
+            {/* Pagination moved to bottom below the grid */}
+            <Exports gridApi={gridApiRef.current} />
+            <MailIcon
+              size={32}
+              color="#35353A"
+              className="transform scale-[.6]"
+            />
+            <button
+              title="Sign Off"
+              aria-label="Sign off selected rows"
+              className="p-1 rounded transition-colors duration-200"
+            >
+              <CheckCircleIcon
+                className="cursor-pointer"
+                strokeWidth="1"
+                size="24"
+                color="#e73c3cff"
+              />
+            </button>
+            <ColumnSettings
+              columnDefs={columnDefs}
+              gridApi={gridApiRef.current}
+              visibleColumns={() => {
+                const visibleCols: string[] = [];
+                columnDefs.forEach((colDef) => {
+                  if (colDef.field) {
+                    visibleCols.push(colDef.field);
+                  }
+                });
+                return visibleCols;
+              }}
+            />
+          </div>
+        </div>
       </div>
 
       <div className="flex w-full relative">
@@ -812,7 +872,9 @@ export default function AppOwner() {
             </div>
           ) : rowData.length === 0 ? (
             <div className="text-center py-4">
-              <span className="ag-overlay-loading-center">No data to display.</span>
+              <span className="ag-overlay-loading-center">
+                No data to display.
+              </span>
             </div>
           ) : (
             <div className="w-full">
@@ -835,7 +897,10 @@ export default function AppOwner() {
                 detailCellRenderer={detailCellRenderer}
                 detailRowAutoHeight={true}
                 onGridReady={(params: any) => {
-                  console.log("onGridReady triggered at", new Date().toISOString());
+                  console.log(
+                    "onGridReady triggered at",
+                    new Date().toISOString()
+                  );
                   gridApiRef.current = params.api;
                   params.api.sizeColumnsToFit();
                   setIsGridReady(true);
@@ -853,7 +918,8 @@ export default function AppOwner() {
                 onFirstDataRendered={onFirstDataRendered as any}
                 onSelectionChanged={() => {
                   if (gridApiRef.current) {
-                    const rows = gridApiRef.current.getSelectedRows() as RowData[];
+                    const rows =
+                      gridApiRef.current.getSelectedRows() as RowData[];
                     setSelectedRows(rows || []);
                   }
                 }}
@@ -879,130 +945,163 @@ export default function AppOwner() {
         {isSidebarOpen && (
           <div className="fixed top-16 right-0 w-[500px] h-[calc(100vh-4rem)] flex-shrink-0 border-l border-gray-200 bg-white shadow-lg side-panel z-50">
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200 p-3 z-10 side-panel-header">
-             <div className="flex justify-between items-center">
-               <div className="flex items-center space-x-2">
-                 <div className="w-1.5 h-6 bg-blue-600 rounded-full"></div>
-                 <h2 className="text-lg font-bold text-gray-800">Task Summary</h2>
-               </div>
-                             <button 
-                 onClick={handleClose} 
-                 className="text-gray-500 hover:text-gray-700 p-1.5 rounded-full hover:bg-white transition-colors duration-200"
-                 title="Close panel"
-               >
-                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+              <div className="flex justify-between items-center">
+                <div className="flex items-center space-x-2">
+                  <div className="w-1.5 h-6 bg-blue-600 rounded-full"></div>
+                  <h2 className="text-lg font-bold text-gray-800">
+                    Task Summary
+                  </h2>
+                </div>
+                <button
+                  onClick={handleClose}
+                  className="text-gray-500 hover:text-gray-700 p-1.5 rounded-full hover:bg-white transition-colors duration-200"
+                  title="Close panel"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div className="p-3 space-y-3">
+              <div className="bg-gray-50 rounded-lg p-3">
+                <div className="flex items-center space-x-2 p-2">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-900">
+                      {selectedRow?.userName || "Tye Davis"}
+                    </p>
+                    <p className="text-xs text-gray-600">
+                      {selectedRow?.accountName || "tye.davis@conductorone.com"}{" "}
+                      - User - SSO
+                    </p>
+                  </div>
+                  <span className="text-gray-400 text-lg">→</span>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-900">
+                      {selectedRow?.entitlementName || "Admin"}
+                    </p>
+                    <p className="text-xs text-gray-600">AWS - IAM role</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-l-4 border-yellow-400 bg-yellow-50 p-3 rounded-md">
+                <p className="font-semibold flex items-center text-yellow-700 mb-2 text-sm">
+                  <AlertTriangle className="w-4 h-4 mr-2 flex-shrink-0" />
+                  Copilot suggests taking a closer look at this access
+                </p>
+                <ul className="list-decimal list-inside text-xs text-yellow-800 space-y-1">
+                  <li>
+                    This access is critical risk and this user might be
+                    over-permissioned
+                  </li>
+                  <li>
+                    Users with the job title Sales don't usually have this
+                    access
+                  </li>
+                </ul>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-start space-x-2">
+                  <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-700">
+                      <strong>{selectedRow?.userName || "Tye Davis"}</strong> is{" "}
+                      <strong>active</strong> in Okta
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-xs text-gray-700">
+                  <p>
+                    {selectedRow?.userName || "Tye Davis"} last logged into AWS
+                    on Nov 1, 2023: <strong>1 month ago</strong>
+                  </p>
+                </div>
+
+                <div className="text-red-600 text-xs">
+                  <p>
+                    This entitlement is marked as <strong>Critical</strong> risk
+                  </p>
+                </div>
+
+                <div className="text-xs text-gray-700 space-y-0.5">
+                  <p>
+                    1 out of 11 users with the title Sales have this entitlement
+                  </p>
+                  <p>
+                    1 out of 2495 users in your organization have this
+                    entitlement
+                  </p>
+                  <p>
+                    1 out of 13 accounts in this application have this
+                    entitlement
+                  </p>
+                </div>
+              </div>
+
+              <div className="border-t border-gray-200 pt-3">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="text-xs font-semibold text-gray-700">
+                    Should this user have this access?
+                  </h3>
+                  <div className="space-x-2">
+                    <ActionButtons
+                      api={{} as any}
+                      selectedRows={selectedRow ? [selectedRow] : []}
+                      context="entitlement"
+                      reviewerId={reviewerId}
+                      certId={certificationId}
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mb-2">
+                  Certify or recommend removing this user's access.
+                  <a href="#" className="text-blue-600 hover:underline ml-1">
+                    More about decisions
+                  </a>
+                </p>
+              </div>
+
+              <div className="border-t border-gray-200 pt-3">
+                <input
+                  type="text"
+                  placeholder="Ask me Anything"
+                  value={comment}
+                  onChange={handleInputChange}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                />
+                <button
+                  disabled={!comment.trim() || !selectedRow?.lineItemId}
+                  className={`mt-2 w-full px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                    comment.trim() && selectedRow?.lineItemId
+                      ? "bg-blue-600 hover:bg-blue-700 text-white"
+                      : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                  }`}
+                  onClick={() => {
+                    if (selectedRow?.lineItemId) {
+                      handleAction(selectedRow.lineItemId, "Approve", comment);
+                    }
+                  }}
+                >
+                  Submit
+                </button>
+              </div>
             </div>
           </div>
-          <div className="p-3 space-y-3">
-            <div className="bg-gray-50 rounded-lg p-3">
-               <div className="flex items-center space-x-2 p-2">
-                 <div className="flex-1">
-                   <p className="text-sm font-medium text-gray-900">
-                     {selectedRow?.userName || "Tye Davis"}
-                   </p>
-                   <p className="text-xs text-gray-600">
-                     {selectedRow?.accountName || "tye.davis@conductorone.com"} - User - SSO
-                   </p>
-                 </div>
-                 <span className="text-gray-400 text-lg">→</span>
-                 <div className="flex-1">
-                   <p className="text-sm font-medium text-gray-900">
-                     {selectedRow?.entitlementName || "Admin"}
-                   </p>
-                   <p className="text-xs text-gray-600">AWS - IAM role</p>
-                 </div>
-               </div>
-             </div>
-            
-                         <div className="border-l-4 border-yellow-400 bg-yellow-50 p-3 rounded-md">
-               <p className="font-semibold flex items-center text-yellow-700 mb-2 text-sm">
-                 <AlertTriangle className="w-4 h-4 mr-2 flex-shrink-0" />
-                 Copilot suggests taking a closer look at this access
-               </p>
-               <ul className="list-decimal list-inside text-xs text-yellow-800 space-y-1">
-                 <li>This access is critical risk and this user might be over-permissioned</li>
-                 <li>Users with the job title Sales don't usually have this access</li>
-               </ul>
-             </div>
-            
-                         <div className="space-y-2">
-               <div className="flex items-start space-x-2">
-                 <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-                 <div>
-                   <p className="text-xs text-gray-700">
-                     <strong>{selectedRow?.userName || "Tye Davis"}</strong> is <strong>active</strong> in Okta
-                   </p>
-                 </div>
-               </div>
-               
-               <div className="text-xs text-gray-700">
-                 <p>{selectedRow?.userName || "Tye Davis"} last logged into AWS on Nov 1, 2023: <strong>1 month ago</strong></p>
-               </div>
-               
-               <div className="text-red-600 text-xs">
-                 <p>This entitlement is marked as <strong>Critical</strong> risk</p>
-               </div>
-               
-               <div className="text-xs text-gray-700 space-y-0.5">
-                 <p>1 out of 11 users with the title Sales have this entitlement</p>
-                 <p>1 out of 2495 users in your organization have this entitlement</p>
-                 <p>1 out of 13 accounts in this application have this entitlement</p>
-               </div>
-             </div>
-            
-                         <div className="border-t border-gray-200 pt-3">
-               <div className="flex justify-between items-center mb-2">
-                 <h3 className="text-xs font-semibold text-gray-700">
-                   Should this user have this access?
-                 </h3>
-                 <div className="space-x-2">
-                   <ActionButtons
-                     api={{} as any}
-                     selectedRows={selectedRow ? [selectedRow] : []}
-                     context="entitlement"
-                     reviewerId={reviewerId}
-                     certId={certificationId}
-                   />
-                 </div>
-               </div>
-               <p className="text-xs text-gray-500 mb-2">
-                 Certify or recommend removing this user's access.
-                 <a href="#" className="text-blue-600 hover:underline ml-1">
-                   More about decisions
-                 </a>
-               </p>
-             </div>
-            
-                         <div className="border-t border-gray-200 pt-3">
-               <input
-                 type="text"
-                 placeholder="Ask me Anything"
-                 value={comment}
-                 onChange={handleInputChange}
-                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-               />
-               <button
-                 disabled={!comment.trim() || !selectedRow?.lineItemId}
-                 className={`mt-2 w-full px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-                   comment.trim() && selectedRow?.lineItemId
-                     ? "bg-blue-600 hover:bg-blue-700 text-white"
-                     : "bg-gray-100 text-gray-400 cursor-not-allowed"
-                 }`}
-                 onClick={() => {
-                   if (selectedRow?.lineItemId) {
-                     handleAction(selectedRow.lineItemId, "Approve", comment);
-                   }
-                 }}
-               >
-                 Submit
-               </button>
-             </div>
-          </div>
-        </div>
         )}
       </div>
-  </div>
+    </div>
   );
 }

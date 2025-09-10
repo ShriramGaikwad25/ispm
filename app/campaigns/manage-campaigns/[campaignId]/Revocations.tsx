@@ -3,9 +3,139 @@ import React, { useState } from "react";
 import { AgGridReact } from "ag-grid-react";
 import "@/lib/ag-grid-setup";
 import { BellIcon, DownloadIcon } from "lucide-react";
+import { IDetailCellRendererParams, ColDef } from "ag-grid-enterprise";
+import { formatDateMMDDYY } from "@/utils/utils";
+
+// Detail Cell Renderer for App View
+const DetailCellRenderer = (props: IDetailCellRendererParams) => {
+  const { data } = props;
+  const details = data.details || [];
+
+  return (
+    <div className="flex flex-col p-4 bg-gray-50 border-t border-gray-200 ml-10">
+      <div className="flex flex-row items-center gap-2 mb-2">
+        <span className="text-gray-600 text-sm font-medium">
+          Revocation Details:
+        </span>
+      </div>
+      <div className="ml-4 space-y-2">
+        {details.length > 0 ? (
+          details.map((detail: any, index: number) => (
+            <div key={index} className="text-sm text-gray-800">
+              <span className="font-medium">{detail.type}:</span>{" "}
+              {detail.description}
+              {detail.status && (
+                <span
+                  className={`ml-2 px-2 py-1 rounded text-xs ${
+                    detail.status === "Completed"
+                      ? "bg-green-100 text-green-800"
+                      : detail.status === "Pending"
+                      ? "bg-yellow-100 text-yellow-800"
+                      : "bg-red-100 text-red-800"
+                  }`}
+                >
+                  {detail.status}
+                </span>
+              )}
+            </div>
+          ))
+        ) : (
+          <span className="text-gray-500 italic">
+            No revocation details available
+          </span>
+        )}
+      </div>
+    </div>
+  );
+};
+
+
+// Identity | Account | Entitlement | Type | Status | Ticket#  | Evidence
+// Detail Cell Renderer Parameters
+const detailCellRendererParams = {
+  detailGridOptions: {
+    columnDefs: [
+      {
+        field: "identity",
+        headerName: "Identity",
+        flex: 1,
+        cellStyle: { fontWeight: "bold" },
+      },
+      {
+        field: "account",
+        headerName: "Account",
+        flex: 2,
+        wrapText: true,
+        autoHeight: true,
+      },
+            {
+        field: "entitlement",
+        headerName: "Entitlement",
+        flex: 2,
+        wrapText: true,
+        autoHeight: true,
+      },
+            {
+        field: "type",
+        headerName: "Type",
+        flex: 2,
+        wrapText: true,
+        autoHeight: true,
+      },
+      {
+        field: "status",
+        headerName: "Status",
+        flex: 2,
+        wrapText: true,
+        autoHeight: true,
+      },
+            {
+        field: "ticket",
+        headerName: "#Ticket",
+        flex: 2,
+        wrapText: true,
+        autoHeight: true,
+      },
+            {
+        field: "evidence",
+        headerName: "Evidence",
+        flex: 2,
+        wrapText: true,
+        autoHeight: true,
+      },
+    ],
+    defaultColDef: {
+      flex: 1,
+      sortable: true,
+      filter: true,
+      resizable: true,
+    },
+    onGridReady: (params: any) => {
+      console.log("Detail grid ready:", params.api);
+      params.api.sizeColumnsToFit();
+    },
+    domLayout: "autoHeight",
+    headerHeight: 40,
+    rowHeight: 50,
+    suppressRowClickSelection: true,
+    rowSelection: "single",
+  },
+  getDetailRowData: (params: any) => {
+    console.log("getDetailRowData called with:", params.data);
+    const details = params.data.details || [];
+    console.log("Details to show:", details);
+    if (details.length > 0) {
+      console.log("Successfully providing detail data");
+      params.successCallback(details);
+    } else {
+      console.log("No detail data available");
+      params.successCallback([]);
+    }
+  },
+};
 
 const Revocations: React.FC = () => {
-  const [view, setView] = useState<"user" | "app">("user");
+  const [view, setView] = useState<"user" | "app">("app");
 
   // User View Dashboard Column Definitions
   const userDashboardColumnDefs = [
@@ -18,7 +148,7 @@ const Revocations: React.FC = () => {
 
   // App View Dashboard Column Definitions
   const appDashboardColumnDefs = [
-    { headerName: "App Name", field: "appName", flex: 1 },
+    { headerName: "Application", field: "appName", flex: 1 },
     { headerName: "App Owner", field: "appOwner", flex: 1 },
     { headerName: "# Revocations", field: "revocations", flex: 1 },
     { headerName: "# Completed", field: "completed", flex: 1 },
@@ -28,35 +158,35 @@ const Revocations: React.FC = () => {
       field: "actions",
       cellRenderer: () => (
         <div className="flex gap-2">
-      <button
-        title="Remind"
-        className="text-yellow-400 hover:text-yellow-600 p-1 cursor-pointer"
-      >
-        <BellIcon />
-      </button>
-      <button
-        title="Escalate"
-        className="text-red-400 hover:text-red-600 p-1 cursor-pointer"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="24"
-          height="24"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="lucide lucide-arrow-up-narrow-wide-icon lucide-arrow-up-narrow-wide"
-        >
-          <path d="m3 8 4-4 4 4" />
-          <path d="M7 4v16" />
-          <path d="M11 12h4" />
-          <path d="M11 16h7" />
-          <path d="M11 20h10" />
-        </svg>
-      </button>
+          <button
+            title="Remind"
+            className="text-yellow-400 hover:text-yellow-600 p-1 cursor-pointer"
+          >
+            <BellIcon />
+          </button>
+          <button
+            title="Escalate"
+            className="text-red-400 hover:text-red-600 p-1 cursor-pointer"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="lucide lucide-arrow-up-narrow-wide-icon lucide-arrow-up-narrow-wide"
+            >
+              <path d="m3 8 4-4 4 4" />
+              <path d="M7 4v16" />
+              <path d="M11 12h4" />
+              <path d="M11 16h7" />
+              <path d="M11 20h10" />
+            </svg>
+          </button>
         </div>
       ),
       flex: 1,
@@ -80,55 +210,65 @@ const Revocations: React.FC = () => {
   ];
 
   // App View Table Column Definitions
-  const appColumnDefs = [
+  const appColumnDefs: ColDef[] = [
     {
-      headerName: "App Name",
+      headerName: "Application",
       field: "appName",
-      valueFormatter: (params: any) =>
-        `${params.value} (${params.data.appRisk})`,
-      flex: 1,
+      cellRenderer: "agGroupCellRenderer",
+      cellRendererParams: {
+        suppressCount: true,
+        innerRenderer: (params: any) => {
+          return `${params.value} (${params.data.appRisk})`;
+        },
+      },
+      width: 200,
     },
-    { headerName: "#Access", field: "access", flex: 1 },
-    { headerName: "#Approved", field: "approved", flex: 1 },
-    { headerName: "#Revoked", field: "revoked", flex: 1 },
-    { headerName: "#Revokes Completed", field: "revokesCompleted", flex: 1 },
-    { headerName: "Last Data Sync", field: "lastSync", flex: 1 },
-    { headerName: "App Owner", field: "appOwner", flex: 1 },
+    { headerName: "Owner", field: "appOwner", width: 100 },
+    { headerName: "#Access", field: "access", width: 100 },
+    { headerName: "#Approved", field: "approved", width: 120 },
+    { headerName: "#Revoked", field: "revoked", width: 120 },
+    { headerName: "#Revokes Completed", field: "revokesCompleted", width: 160 },
+    {
+      headerName: "Last Sync",
+      field: "lastSync",
+      width: 110,
+      valueFormatter: (params) => formatDateMMDDYY(params.value),
+    },
 
     {
       headerName: "Actions",
       field: "actions",
       cellRenderer: () => (
         <div className="flex gap-2">
-      <button
-        title="Remind"
-        className="text-yellow-400 hover:text-yellow-600 p-1 cursor-pointer"
-      >
-        <BellIcon />
-      </button>
-      <button
-        title="Escalate"
-        className="text-red-400 hover:text-red-600 p-1 cursor-pointer"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="24"
-          height="24"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="lucide lucide-arrow-up-narrow-wide-icon lucide-arrow-up-narrow-wide"
-        >
-          <path d="m3 8 4-4 4 4" />
-          <path d="M7 4v16" />
-          <path d="M11 12h4" />
-          <path d="M11 16h7" />
-          <path d="M11 20h10" />
-        </svg>
-      </button>
+          <button
+            title="Remind"
+            className="text-yellow-400 hover:text-yellow-600 p-1 cursor-pointer"
+          >
+            <BellIcon />
+          </button>
+          <button
+            title="Escalate"
+            className="text-red-400 hover:text-red-600 p-1 cursor-pointer"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="lucide lucide-arrow-up-narrow-wide-icon lucide-arrow-up-narrow-wide"
+            >
+              <path d="m3 8 4-4 4 4" />
+              <path d="M7 4v16" />
+              <path d="M11 12h4" />
+              <path d="M11 16h7" />
+              <path d="M11 20h10" />
+            </svg>
+          </button>
           <button
             title="Download Excel"
             aria-label="Sign off selected rows"
@@ -142,9 +282,14 @@ const Revocations: React.FC = () => {
           </button>
         </div>
       ),
-      flex: 1,
+      width: 150,
     },
   ];
+
+  // Check if a cell is a full width cell (for detail rows)
+  const isFullWidthCell = (rowNode: any) => {
+    return rowNode.detail;
+  };
 
   // Sample Data for Dashboard
   const userDashboardData = [
@@ -199,6 +344,23 @@ const Revocations: React.FC = () => {
       revokesCompleted: 3,
       lastSync: "2025-08-20",
       appOwner: "Alice Brown",
+      details: [
+        {
+          type: "Database Access",
+          description: "Revoked admin privileges for terminated user John Doe",
+          status: "Completed",
+        },
+        {
+          type: "Application Access",
+          description: "Removed access to financial reporting module",
+          status: "Completed",
+        },
+        {
+          type: "System Access",
+          description: "Pending revocation of VPN access for remote user",
+          status: "Pending",
+        },
+      ],
     },
     {
       appName: "App 2",
@@ -209,6 +371,18 @@ const Revocations: React.FC = () => {
       revokesCompleted: 1,
       lastSync: "2025-08-19",
       appOwner: "Bob Wilson",
+      details: [
+        {
+          type: "User Account",
+          description: "Disabled account for former employee Jane Smith",
+          status: "Completed",
+        },
+        {
+          type: "File Access",
+          description: "Revoked shared folder permissions",
+          status: "In Progress",
+        },
+      ],
     },
   ];
 
@@ -243,7 +417,7 @@ const Revocations: React.FC = () => {
       {view === "user" ? (
         <>
           {/* User View Dashboard AG-Grid */}
-          <div className="mb-6">
+          {/* <div className="mb-6">
             <h2 className="text-lg font-semibold text-gray-700 mb-2">
               Campaign Completes on: August 30, 2025
             </h2>
@@ -261,7 +435,7 @@ const Revocations: React.FC = () => {
                 }}
               />
             </div>
-          </div>
+          </div> */}
 
           {/* User View Main AG-Grid Table */}
           {/* <div
@@ -282,7 +456,7 @@ const Revocations: React.FC = () => {
       ) : (
         <>
           {/* App View Dashboard AG-Grid */}
-          <div className="mb-6">
+          {/* <div className="mb-6">
             <h2 className="text-lg font-semibold text-gray-700 mb-2">
               Campaign Completes on: August 30, 2025
             </h2>
@@ -300,7 +474,7 @@ const Revocations: React.FC = () => {
                 }}
               />
             </div>
-          </div>
+          </div> */}
 
           {/* App View Main AG-Grid Table */}
           <div
@@ -310,10 +484,53 @@ const Revocations: React.FC = () => {
             <AgGridReact
               columnDefs={appColumnDefs}
               rowData={appRowData}
+              getRowId={(params) => params.data.appName}
               defaultColDef={{
                 sortable: true,
                 filter: true,
                 resizable: true,
+              }}
+              masterDetail={true}
+              detailCellRendererParams={detailCellRendererParams}
+              detailRowAutoHeight={true}
+              detailRowHeight={200}
+              suppressRowClickSelection={true}
+              detailCellRenderer="agDetailCellRenderer"
+              rowSelection={{
+                mode: "multiRow",
+                masterSelects: "detail",
+              }}
+              onGridReady={(params) => {
+                console.log("Grid initialized:", {
+                  api: !!params.api,
+                  enterpriseModules: (params.api as any).isEnterprise?.()
+                    ? "Loaded"
+                    : "Not loaded",
+                });
+                params.api.sizeColumnsToFit();
+              }}
+              onFirstDataRendered={(params) => {
+                console.log(
+                  "onFirstDataRendered called - master rows will expand only when arrow is clicked"
+                );
+                params.api.forEachNode((node) => {
+                  console.log(
+                    "Row:",
+                    node.data?.appName,
+                    "isMaster:",
+                    node.master,
+                    "expanded:",
+                    node.expanded
+                  );
+                });
+              }}
+              onRowClicked={(params) => {
+                console.log(
+                  "Row clicked:",
+                  params.data?.appName,
+                  "isMaster:",
+                  params.node.master
+                );
               }}
             />
           </div>

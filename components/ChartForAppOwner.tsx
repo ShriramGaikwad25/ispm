@@ -110,7 +110,7 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
       {/* Interactive Filters - 2/3 */}
       <div className="w-2/3 bg-white border border-gray-200 rounded-lg p-4">
         <div className="flex justify-between items-center mb-3">
-          <h2 className="text-base font-medium text-gray-800">Interactive Filters</h2>
+          <h2 className="text-base font-medium text-gray-800">Filters</h2>
           <button className="text-gray-400 hover:text-gray-600" aria-label="More">
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
               <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
@@ -153,7 +153,7 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
                 </div>
               );
             })}
-            <button
+            {/* <button
               className="flex items-center gap-1 text-sm text-blue-600 hover:underline mt-4"
               onClick={() => setSelected((prev) => ({ ...prev, left: null }))}
             >
@@ -175,7 +175,7 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
                 </svg>
               )}
               Clear Filters
-            </button>
+            </button> */}
           </div>
 
           {/* Right column */}

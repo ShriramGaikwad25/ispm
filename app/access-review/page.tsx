@@ -130,7 +130,7 @@ const AccessReview: React.FC = () => {
       width: 200,
       cellRenderer: HorizontalProgressRenderer,
     },
-    { headerName: "Due In", field: "dueIn", width: 150 },
+    { headerName: "Due On", field: "dueIn", width: 150 },
     {
       headerName: "Estimated time to completion",
       field: "estimatedTimeToCompletion",
@@ -140,7 +140,7 @@ const AccessReview: React.FC = () => {
     { headerName: "Description", field: "description", width: 250, hide: true },
     { headerName: "Tags", field: "tags", width: 250, hide: true },
     {
-      headerName: "Create On",
+      headerName: "Created On",
       field: "certificationCreatedOn",
       width: 150,
       valueFormatter: (params) => formatDateMMDDYY(params.value),

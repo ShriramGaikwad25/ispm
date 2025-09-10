@@ -453,12 +453,12 @@ const TreeClient: React.FC<TreeClientProps> = ({
     () => [
       {
         field: "entitlementName",
-        headerName: "Ent Name",
+        headerName: "Entitlement",
         width: 400,
         cellRenderer: (params: ICellRendererParams) => {
           const { entitlementName, isNew, itemRisk, entitlementDescription } =
             params.data || {};
-          const deltaLabel = isNew ? "New" : '';
+          const deltaLabel = isNew ? "New" : "";
           const riskAbbr =
             itemRisk === "High" ? "H" : itemRisk === "Medium" ? "M" : "L";
           const riskColor =
@@ -490,7 +490,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
           );
         },
       },
-      { field: "entitlementType", headerName: "Ent Type", width: 150 },
+      { field: "entitlementType", headerName: "Type", width: 150 },
       {
         field: "user",
         headerName: "Account",
@@ -558,7 +558,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
       { field: "lastLogin", headerName: "Last Login", width: 140 },
       {
         field: "recommendation",
-        headerName: "AI Assist",
+        headerName: "Insights",
         width: 120,
         cellRenderer: (params: ICellRendererParams) => {
           const { recommendation, accessedWithinAMonth } = params.data || {};
@@ -710,7 +710,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     index === 0 ? "mt-0" : "mt-0"
                   } ${
                     selectedUser?.id === user.id
-                      ? "bg-blue-100 border-l-4 border-blue-500"
+                      ? "border-s-4 border-blue-500"
                       : "hover:bg-gray-50"
                   }`}
                 >
@@ -729,10 +729,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     >
                       {!isSidebarHovered ? (
                         <div
-                          className={`w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold text-xs ${
-                            selectedUser?.id === user.id
-                              ? "bg-blue-700 ring-2 ring-blue-300"
-                              : ""
+                          className={`w-7 h-7 rounded-full bg-blue-200 text-blue-600 flex items-center justify-center font-semibold text-xs ${
+                            selectedUser?.id === user.id ? "bg-blue-200 " : ""
                           }`}
                         >
                           {getUserInitials(user.fullName || "")}
@@ -827,14 +825,21 @@ const TreeClient: React.FC<TreeClientProps> = ({
               {/* Upper section: Name, Status, Buttons */}
               <div className="flex items-center justify-between gap-3 bg-gray-50 p-3 rounded-md">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center text-white font-semibold text-lg flex-shrink-0">
-                    {selectedUser.fullName
+                  <div className="w-14 h-14 rounded-full flex items-center justify-center text-white font-semibold text-lg flex-shrink-0">
+                    {/* {selectedUser.fullName
                       ? selectedUser.fullName
                           .split(" ")
                           .map((n) => n[0])
                           .join("")
                           .toUpperCase()
-                      : "??"}
+                      : "??"} */}
+                    <Image
+                      src="https://avatar.iran.liara.run/public/2"
+                      alt="User Avatar"
+                      width={36}
+                      height={36}
+                      className="object-cover rounded-full"
+                    />
                   </div>
                   <h4 className="text-lg font-bold text-gray-900 truncate">
                     {selectedUser.fullName || "Unknown User"}
@@ -851,19 +856,90 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     </span>
                   </div>
                   <button
-                    className="flex items-center px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors duration-200 text-xs font-medium"
+                    className="flex items-center px-3 py-2 text-white rounded-md hover:bg-blue-700 transition-colors duration-200 text-xs font-medium"
                     title="Open in Microsoft Teams"
                   >
                     <svg
-                      className="w-4 h-4"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
+                      width="32px"
+                      height="32px"
+                      viewBox="0 0 16 16"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
                     >
-                      <path d="M20.4 7.2c-.4-.2-.8-.3-1.2-.3-.4 0-.8.1-1.2.3L12 10.8 6 7.2c-.4-.2-.8-.3-1.2-.3-.4 0-.8.1-1.2.3C3.2 7.8 2.8 8.4 2.8 9.2v5.6c0 .8.4 1.4 1.2 1.8.4.2.8.3 1.2.3.4 0 .8-.1 1.2-.3L12 13.2l6 3.6c.4.2.8.3 1.2.3.4 0 .8-.1 1.2-.3.8-.4 1.2-1 1.2-1.8V9.2c0-.8-.4-1.4-1.2-1.8z" />
+                      <path
+                        fill="#5059C9"
+                        d="M10.765 6.875h3.616c.342 0 .619.276.619.617v3.288a2.272 2.272 0 01-2.274 2.27h-.01a2.272 2.272 0 01-2.274-2.27V7.199c0-.179.145-.323.323-.323zM13.21 6.225c.808 0 1.464-.655 1.464-1.462 0-.808-.656-1.463-1.465-1.463s-1.465.655-1.465 1.463c0 .807.656 1.462 1.465 1.462z"
+                      />
+                      <path
+                        fill="#7B83EB"
+                        d="M8.651 6.225a2.114 2.114 0 002.117-2.112A2.114 2.114 0 008.65 2a2.114 2.114 0 00-2.116 2.112c0 1.167.947 2.113 2.116 2.113zM11.473 6.875h-5.97a.611.611 0 00-.596.625v3.75A3.669 3.669 0 008.488 15a3.669 3.669 0 003.582-3.75V7.5a.611.611 0 00-.597-.625z"
+                      />
+                      <path
+                        fill="#000000"
+                        d="M8.814 6.875v5.255a.598.598 0 01-.596.595H5.193a3.951 3.951 0 01-.287-1.476V7.5a.61.61 0 01.597-.624h3.31z"
+                        opacity=".1"
+                      />
+                      <path
+                        fill="#000000"
+                        d="M8.488 6.875v5.58a.6.6 0 01-.596.595H5.347a3.22 3.22 0 01-.267-.65 3.951 3.951 0 01-.172-1.15V7.498a.61.61 0 01.596-.624h2.985z"
+                        opacity=".2"
+                      />
+                      <path
+                        fill="#000000"
+                        d="M8.488 6.875v4.93a.6.6 0 01-.596.595H5.08a3.951 3.951 0 01-.172-1.15V7.498a.61.61 0 01.596-.624h2.985z"
+                        opacity=".2"
+                      />
+                      <path
+                        fill="#000000"
+                        d="M8.163 6.875v4.93a.6.6 0 01-.596.595H5.079a3.951 3.951 0 01-.172-1.15V7.498a.61.61 0 01.596-.624h2.66z"
+                        opacity=".2"
+                      />
+                      <path
+                        fill="#000000"
+                        d="M8.814 5.195v1.024c-.055.003-.107.006-.163.006-.055 0-.107-.003-.163-.006A2.115 2.115 0 016.593 4.6h1.625a.598.598 0 01.596.594z"
+                        opacity=".1"
+                      />
+                      <path
+                        fill="#000000"
+                        d="M8.488 5.52v.699a2.115 2.115 0 01-1.79-1.293h1.195a.598.598 0 01.595.594z"
+                        opacity=".2"
+                      />
+                      <path
+                        fill="#000000"
+                        d="M8.488 5.52v.699a2.115 2.115 0 01-1.79-1.293h1.195a.598.598 0 01.595.594z"
+                        opacity=".2"
+                      />
+                      <path
+                        fill="#000000"
+                        d="M8.163 5.52v.647a2.115 2.115 0 01-1.465-1.242h.87a.598.598 0 01.595.595z"
+                        opacity=".2"
+                      />
+                      <path
+                        fill="url(#microsoft-teams-color-16__paint0_linear_2372_494)"
+                        d="M1.597 4.925h5.969c.33 0 .597.267.597.596v5.958a.596.596 0 01-.597.596h-5.97A.596.596 0 011 11.479V5.521c0-.33.267-.596.597-.596z"
+                      />
+                      <path
+                        fill="#ffffff"
+                        d="M6.152 7.193H4.959v3.243h-.76V7.193H3.01v-.63h3.141v.63z"
+                      />
+                      <defs>
+                        <linearGradient
+                          id="microsoft-teams-color-16__paint0_linear_2372_494"
+                          x1="2.244"
+                          x2="6.906"
+                          y1="4.46"
+                          y2="12.548"
+                          gradientUnits="userSpaceOnUse"
+                        >
+                          <stop stopColor="#5A62C3" />
+                          <stop offset=".5" stopColor="#4D55BD" />
+                          <stop offset="1" stopColor="#3940AB" />
+                        </linearGradient>
+                      </defs>
                     </svg>
                   </button>
                   <button
-                    className="flex items-center space-x-2 px-3 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-all duration-200 text-xs font-medium"
+                    className="flex items-center space-x-2 px-3 py-2 bg-[#27B973] text-white rounded-md hover:bg-purple-700 transition-all duration-200 text-xs font-medium"
                     title="AI Assist Analysis"
                   >
                     <svg
