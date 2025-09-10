@@ -224,6 +224,7 @@ export default function AppOwner() {
   const [selectedRow, setSelectedRow] = useState<RowData | null>(null);
   const [groupByOption, setGroupByOption] = useState<string>("None");
   const [selectedRows, setSelectedRows] = useState<RowData[]>([]);
+  const [quickFilterText, setQuickFilterText] = useState("");
 
   const reviewerId = "430ea9e6-3cff-449c-a24e-59c057f81e3d";
   const certificationId = "4f5c20b8-1031-4114-a688-3b5be9cc2224";
@@ -728,7 +729,7 @@ export default function AppOwner() {
               <select
                 value={groupByOption}
                 onChange={handleGroupByOptionChange}
-                className="border border-gray-300 rounded-md px-3 py-1 text-sm"
+                className="border border-gray-300 rounded-md px-3 h-8 text-sm w-44"
               >
                 <option value="None">All</option>
                 <option value="Entitlements">Group by Entitlements</option>
@@ -746,11 +747,9 @@ export default function AppOwner() {
               <input
                 type="text"
                 placeholder="Search..."
-                className="border rounded px-3 py-1 text-sm"
+                className="border rounded px-3 h-8 text-sm w-44"
                 onChange={(e) => {
-                  if (gridApiRef.current) {
-                    // gridApiRef.current.setQuickFilter(e.target.value);
-                  }
+                  setQuickFilterText(e.target.value);
                 }}
               />
               <Filters gridApi={gridApiRef} />
@@ -859,6 +858,7 @@ export default function AppOwner() {
                   }
                 }}
                 pagination={true}
+                quickFilterText={quickFilterText}
                 overlayLoadingTemplate={`<span class="ag-overlay-loading-center">⏳ Loading certification data...</span>`}
                 overlayNoRowsTemplate={`<span class="ag-overlay-loading-center">No data to display.</span>`}
                 suppressHorizontalScroll={true}

@@ -53,8 +53,10 @@ const Filters = ({
     setSelectedFilter("");
   };
 
+  const isActive = !!selectedFilter;
+
   return (
-    <div className="relative">
+    <div className={`relative ${isActive ? "flex-1" : ""}`}>
       {selectedFilter && (
         <span
           title="Clear Filters"
@@ -68,7 +70,7 @@ const Filters = ({
         Icon={
           selectedFilter
             ? () => (
-                <div className="flex h-8 items-center gap-2 px-2">
+                <div className={`flex h-8 items-center gap-2 px-2 ${isActive ? "w-full" : "w-44"}`}>
                   <FilterX />
                   <small>{selectedFilter}</small>
                   <span
@@ -81,9 +83,9 @@ const Filters = ({
               )
             : Filter
         }
-        className={`min-w-9 h-9 flex items-center justify-center ${
-          selectedFilter ? "bg-[#6D6E73]/20" : ""
-        }`}
+        className={`h-8 ${isActive ? "w-full" : "w-44"} ${
+          isActive ? "flex-1" : ""
+        } flex items-center justify-between ${isActive ? "bg-[#6D6E73]/20" : ""}`}
       >
         <li className="px-4 pb-2 border-b border-b-gray-300 font-semibold mb-2">
           Filter by Status
