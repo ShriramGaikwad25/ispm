@@ -2,7 +2,7 @@
 import Accordion from "@/components/Accordion";
 import ChartComponent from "@/components/ChartComponent";
 import HorizontalTabs from "@/components/HorizontalTabs";
-import { ColDef, GridApi, ICellRendererParams } from "ag-grid-enterprise";
+import { ColDef, GridApi, ICellRendererParams, IDetailCellRendererParams } from "ag-grid-enterprise";
 import { AgGridReact } from "ag-grid-react";
 import {
   ChevronDown,
@@ -319,7 +319,7 @@ useEffect(() => {
     () => [
       {
         field: "accountName",
-        headerName: "accountId",
+        headerName: "Account",
         flex: 2,
         // cellRenderer: "agGroupCellRenderer",
         cellRendererParams: {
@@ -346,7 +346,7 @@ useEffect(() => {
             );
           },
         },
-        cellClass: "ag-cell-no-padding",
+        // cellClass: "ag-cell-no-padding",
       },
       {
         field: "risk",
@@ -445,13 +445,23 @@ useEffect(() => {
     []
   );
 
+  const DetailCellRenderer = (props: IDetailCellRendererParams) => {
+    const { data } = props;
+    return (
+      <div className="flex p-4 bg-gray-50 border-t border-gray-200 ml-10">
+        <div className="flex flex-row items-center gap-2">
+          <span className="text-gray-800">{data.description}</span>
+        </div>
+      </div>
+    );
+  };
   const colDefs = useMemo<ColDef[]>(
     () => [
       {
         field: "entitlementName",
-        headerName: "Entitlement Name",
-        flex: 2.5,
-        wrapText: true,
+        headerName: "Entitlement",
+        flex: 3,
+        width:350,
         cellRenderer: (params: ICellRendererParams) => {
           return (
             <div className="flex flex-col">
@@ -459,7 +469,7 @@ useEffect(() => {
               <div className="font-semibold">{params.value}</div>
 
               {/* Row 2: full-width description */}
-              <div className="text-gray-600 text-sm w-100">
+              <div className="text-gray-600 text-sm w-full z-index-1">
                 {params.data["description"]}
               </div>
             </div>
@@ -467,20 +477,20 @@ useEffect(() => {
         },
       },
       // { field:"Ent Description", headerName:"Entitlement Description", flex:2},
-      { field: "type", headerName: "Entitlement Type", flex: 2.5 },
-      { field: "risk", headerName: "Risk", flex: 1.5 },
-      { field: "applicationName", headerName: "Application Name", flex: 2.5 },
-      { field: "assignment", headerName: "Assignment", flex: 2 },
+      { field: "type", headerName: "Type", width:120},
+      { field: "risk", headerName: "Risk", width:120 },
+      { field: "applicationName", headerName: "Application", width:150 },
+      { field: "assignment", headerName: "Assignment", width:150 },
       {
         field: "Last Sync",
         headerName: "Last Sync",
-        flex: 2,
+        width:140,
         valueFormatter: (params: ICellRendererParams) => formatDateMMDDYY(params.value),
       },
       {
         field: "Last Reviewed on",
         headerName: "Last Reviewed",
-        flex: 2,
+        width:180,
         valueFormatter: (params: ICellRendererParams) => formatDateMMDDYY(params.value),
       },
       {
@@ -489,14 +499,14 @@ useEffect(() => {
         flex: 1.5,
         hide: true,
       },
-      { field: "Requestable", headerName: "Requestable", flex: 2, hide: true },
-      { field: "Certifiable", headerName: "Certifiable", flex: 2, hide: true },
+      { field: "Requestable", headerName: "Requestable", width:100, hide: true },
+      { field: "Certifiable", headerName: "Certifiable", width:100, hide: true },
       { field: "SOD Check", headerName: "SOD Check", flex: 1.5, hide: true },
-      { field: "Hierarchy", headerName: "Hierarchy", flex: 2, hide: true },
+      { field: "Hierarchy", headerName: "Hierarchy", width:100, hide: true },
       {
         field: "Pre- Requisite",
         headerName: "Pre- Requisite",
-        flex: 2,
+        width:100,
         hide: true,
       },
       {
@@ -515,7 +525,7 @@ useEffect(() => {
       {
         field: "Capability/Technical Scope",
         headerName: "Capability/Technical Scope",
-        flex: 2,
+        width:100,
         hide: true,
       },
       {
@@ -527,7 +537,7 @@ useEffect(() => {
       {
         field: "Compliance Type",
         headerName: "Compliance Type",
-        flex: 2,
+        width:100,
         hide: true,
       },
       {
@@ -536,13 +546,13 @@ useEffect(() => {
         flex: 1.5,
         hide: true,
       },
-      { field: "Reviewed", headerName: "Reviewed", flex: 2, hide: true },
-      { field: "Dynamic Tag", headerName: "Dynamic Tag", flex: 2, hide: true },
+      { field: "Reviewed", headerName: "Reviewed", width:100, hide: true },
+      { field: "Dynamic Tag", headerName: "Dynamic Tag", width:100, hide: true },
       { field: "MFA Status", headerName: "MFA Status", flex: 1.5, hide: true },
       {
         field: "Review Schedule",
         headerName: "Review Schedule",
-        flex: 2,
+        width:100,
         hide: true,
       },
       {
@@ -551,11 +561,11 @@ useEffect(() => {
         flex: 1.5,
         hide: true,
       },
-      { field: "Created On", headerClass: "Created On", flex: 2, hide: true },
+      { field: "Created On", headerClass: "Created On", width:100, hide: true },
       {
         field: "actionColumn",
         headerName: "Action",
-        flex: 2,
+        width:100,
         cellRenderer: (params: ICellRendererParams) => {
           return (
             <EditReassignButtons
@@ -582,7 +592,7 @@ useEffect(() => {
       {
         field: "entitlementName",
         headerName: "Entitlement Name",
-        flex: 3,
+        width:650,
         wrapText: true,
         cellRenderer: (params: ICellRendererParams) => {
           return (
@@ -597,11 +607,11 @@ useEffect(() => {
           );
         },
       },
-      { field: "type", headerName: "Ent Type", flex: 1 },
+      { field: "type", headerName: "Type", width:120, },
       {
         field: "risk",
-        headerName: "Ent Risk",
-        flex: 1.5,
+        headerName: "Risk",
+        width:120,
         cellRenderer: (params: ICellRendererParams) => {
           const risk = params.value;
           const riskColor =
@@ -609,8 +619,8 @@ useEffect(() => {
           return <span style={{ color: riskColor }}>{risk}</span>;
         },
       },
-      { field: "applicationName", headerName: "Application Name", flex: 1.5 },
-      { field: "Last Reviewed on", headerName: "Last Reviewed", flex: 1.5 },
+      { field: "applicationName", headerName: "Application", width:150 },
+      { field: "Last Reviewed on", headerName: "Last Reviewed", width:180 },
       {
         headerName: "Actions",
         width: 250,

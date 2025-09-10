@@ -154,7 +154,7 @@ export default function Application() {
             </p>
           </div>
         </div>
-        <Accordion
+        {/* <Accordion
           iconClass="absolute right-0 rounded-full text-white bg-purple-800"
           title="Expand/Collapse"
         >
@@ -177,7 +177,7 @@ export default function Application() {
               />
             </div>
           </div>
-        </Accordion>
+        </Accordion> */}
       </div>
       <AgGridReact
         rowData={rowData}

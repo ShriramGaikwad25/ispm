@@ -284,7 +284,7 @@ const EditReassignButtons = <T extends { status?: string }>({
         {isSidePanelOpen &&
           createPortal(
             <div
-              className="fixed top-0 right-0 h-full bg-white shadow-xl z-50 overflow-y-auto"
+              className="fixed top-0 right-0 h-full bg-white shadow-xl z-50 overflow-y-auto mt-16"
               style={{ width: 500 }}
             >
               <div className="p-4 border-b bg-gray-50">
