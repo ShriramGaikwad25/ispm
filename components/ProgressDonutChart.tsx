@@ -74,11 +74,11 @@ const ProgressDonutChart: React.FC<ProgressDonutChartProps> = ({
           remediatedPercentage,
         ],
         backgroundColor: [
-          "#6EC6FF", // Pending
-          "#50BFA5", // Approved
-          "#6478B9", // Revoked
-          "#E67E5A", // Delegated
-          "#4F46E5", // Remediated
+          "#6EC6FF", // Pending - Blue
+          "#50BFA5", // Approved - Green
+          "#6478B9", // Revoked - Grey
+          "#E67E5A", // Delegated - Orange
+          "#4F46E5", // Remediated - Purple
         ],
         hoverBackgroundColor: [
           "#5CA9E6",
@@ -87,7 +87,7 @@ const ProgressDonutChart: React.FC<ProgressDonutChartProps> = ({
           "#D76A50",
           "#4038D1",
         ],
-        borderWidth: 2,
+        borderWidth: 0,
       },
     ],
   };
@@ -96,9 +96,9 @@ const ProgressDonutChart: React.FC<ProgressDonutChartProps> = ({
   const options = {
     responsive: true,
     maintainAspectRatio: false,
-    cutout: "45%", // Creates the donut effect
+    cutout: "65%", // Creates the donut effect
     layout: {
-      padding: 30, // Adds space around the chart
+      padding: 15, // Adds space around the chart
     },
     plugins: {
       legend: {
@@ -107,12 +107,39 @@ const ProgressDonutChart: React.FC<ProgressDonutChartProps> = ({
         align: "center" as const,
         labels: {
           usePointStyle: true,
-          padding: 20,
+          pointStyle: "rect",
+          padding: 12,
+          font: {
+            size: 11,
+            weight: "normal" as const,
+          },
+          generateLabels: (chart: any) => {
+            const data = chart.data;
+            if (data.labels.length && data.datasets.length) {
+              return data.labels.map((label: string, i: number) => {
+                const value = data.datasets[0].data[i];
+                const color = data.datasets[0].backgroundColor[i];
+                return {
+                  text: label,
+                  fillStyle: color,
+                  strokeStyle: color,
+                  lineWidth: 0,
+                  pointStyle: "rect",
+                  hidden: false,
+                  index: i,
+                };
+              });
+            }
+            return [];
+          },
         },
       },
       datalabels: {
-        color: "#fafafa",
-        font: { weight: "bold" as const },
+        color: "#ffffff",
+        font: { 
+          weight: "bold" as const,
+          size: 10,
+        },
         formatter: (value: number) => (value > 0 ? `${value.toFixed(1)}%` : ""), // Show percentage only if value > 0
         offset: 0,
         clip: false,
