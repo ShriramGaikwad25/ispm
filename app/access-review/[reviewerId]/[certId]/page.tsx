@@ -65,13 +65,13 @@ export default function CertificationDetailsPage({
 
   return (
     <>
-      <div className="relative mb-6">
-        <div className="flex items-center gap-4 flex-wrap">
+      <div className="relative mb-4">
+        <div className="flex items-center gap-4 flex-wrap justify-between">
           <h2 className="text-xl font-bold border-b border-gray-300 pb-2 text-blue-950">
             Filters:
           </h2>
           
-          <div className="flex gap-3 flex-wrap">
+          <div className="flex gap-2 flex-wrap ml-auto">
             {filterOptions.map((filter) => {
               const isSelected = selectedFilters.includes(filter.name);
               return (
@@ -79,17 +79,17 @@ export default function CertificationDetailsPage({
                   key={filter.name}
                   onClick={() => handleFilterToggle(filter.name)}
                   className={`
-                    px-3 py-2 rounded-lg border-2 cursor-pointer transition-all duration-200 hover:shadow-md
+                    px-2.5 py-1.5 rounded-lg border cursor-pointer transition-all duration-200 hover:shadow
                     ${isSelected 
-                      ? `${filter.color} shadow-md transform scale-105` 
+                      ? `${filter.color} shadow transform scale-105` 
                       : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
                     }
                   `}
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <span className="font-medium text-sm">{filter.name}</span>
                     {isSelected && (
-                      <div className="w-2 h-2 bg-current rounded-full"></div>
+                      <div className="w-1.5 h-1.5 bg-current rounded-full"></div>
                     )}
                   </div>
                 </div>

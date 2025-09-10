@@ -336,7 +336,8 @@
 }
 
 .ag-main .ag-row {
-  min-height: 80px;
+  min-height: 50px;
+  background-color: white;
 }
 
 .ag-main .ag-row:hover {
@@ -344,6 +345,19 @@
 }
 
 .ag-main .ag-row-selected {
+  background-color: #eff6ff;
+}
+
+/* Ensure all rows have consistent background */
+.ag-main .ag-row-custom {
+  background-color: white;
+}
+
+.ag-main .ag-row-custom:hover {
+  background-color: #f9fafb;
+}
+
+.ag-main .ag-row-custom.ag-row-selected {
   background-color: #eff6ff;
 }
 
