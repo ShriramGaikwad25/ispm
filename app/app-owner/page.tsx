@@ -2,7 +2,6 @@
 import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { AgGridReact } from "ag-grid-react";
 import "@/lib/ag-grid-setup";
-import SelectAll from "@/components/agTable/SelectAll";
 import CustomPagination from "@/components/agTable/CustomPagination";
 import Filters from "@/components/agTable/Filters";
 import Exports from "@/components/agTable/Exports";
@@ -224,6 +223,7 @@ export default function AppOwner() {
   const [comment, setComment] = useState("");
   const [selectedRow, setSelectedRow] = useState<RowData | null>(null);
   const [groupByOption, setGroupByOption] = useState<string>("None");
+  const [selectedRows, setSelectedRows] = useState<RowData[]>([]);
 
   const reviewerId = "430ea9e6-3cff-449c-a24e-59c057f81e3d";
   const certificationId = "4f5c20b8-1031-4114-a688-3b5be9cc2224";
@@ -548,11 +548,12 @@ export default function AppOwner() {
         return <span style={{ color: riskColor }}>{risk}</span>;
       },
     },
-    { field: "userName", headerName: "Display Name" },
+    { field: "userName", headerName: "Display Name",width: 120 },
     {
       field: "lastLoginDate",
       headerName: "Last Login Date",
       enableRowGroup: true,
+      width: 130,
       valueFormatter: (params) => formatDateMMDDYY(params.value),
       // cellRenderer: (params: ICellRendererParams) => (
       //   <div className="flex flex-col gap-0">
@@ -563,6 +564,7 @@ export default function AppOwner() {
     {
       field: "aiInsights",
       headerName: "AI Insights",
+      width: 100,
       cellRenderer: (params: ICellRendererParams) => {
         const icon =
           params.value === "thumbs-up" ? (
@@ -601,6 +603,7 @@ export default function AppOwner() {
     {
       field: "actions",
       headerName: "Actions",
+      flex:2,
       cellRenderer: (params: ICellRendererParams) => {
         return (
           <ActionButtons
@@ -722,12 +725,6 @@ export default function AppOwner() {
           </Accordion>
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-4 relative z-10 pt-10 gap-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
-              <SelectAll
-                gridApi={gridApiRef.current}
-                detailGridApis={detailGridApis}
-                clearDetailGridApis={() => setDetailGridApis(new Map())}
-                showExpandCollapse={true}
-              />
               <select
                 value={groupByOption}
                 onChange={handleGroupByOptionChange}
@@ -737,9 +734,15 @@ export default function AppOwner() {
                 <option value="Entitlements">Group by Entitlements</option>
                 <option value="Accounts">Group by Accounts</option>
               </select>
-              
-            </div>
-            <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
+              {selectedRows.length > 0 && gridApiRef.current && (
+                <ActionButtons
+                  api={gridApiRef.current as any}
+                  selectedRows={selectedRows}
+                  context="entitlement"
+                  reviewerId={reviewerId}
+                  certId={certificationId}
+                />
+              )}
               <input
                 type="text"
                 placeholder="Search..."
@@ -750,14 +753,11 @@ export default function AppOwner() {
                   }
                 }}
               />
-              <CustomPagination
-                totalItems={totalItems}
-                currentPage={pageNumber}
-                totalPages={totalPages}
-                pageSize={defaultPageSize}
-                onPageChange={handlePageChange}
-              />
               <Filters gridApi={gridApiRef} />
+              
+            </div>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
+              {/* Pagination moved to bottom below the grid */}
               <Exports gridApi={gridApiRef.current} />
               <MailIcon
                 size={32}
@@ -816,7 +816,7 @@ export default function AppOwner() {
               <span className="ag-overlay-loading-center">No data to display.</span>
             </div>
           ) : (
-            <div className="w-full">
+            <div className="w-full overflow-x-hidden">
               <AgGridReact
                 rowData={rowData}
                 getRowId={(params: GetRowIdParams) =>
@@ -852,11 +852,27 @@ export default function AppOwner() {
                   });
                 }}
                 onFirstDataRendered={onFirstDataRendered as any}
+                onSelectionChanged={() => {
+                  if (gridApiRef.current) {
+                    const rows = gridApiRef.current.getSelectedRows() as RowData[];
+                    setSelectedRows(rows || []);
+                  }
+                }}
                 pagination={true}
                 overlayLoadingTemplate={`<span class="ag-overlay-loading-center">⏳ Loading certification data...</span>`}
                 overlayNoRowsTemplate={`<span class="ag-overlay-loading-center">No data to display.</span>`}
+                suppressHorizontalScroll={true}
                 className="ag-theme-quartz ag-main"
               />
+              <div className="mt-0">
+                <CustomPagination
+                  totalItems={totalItems}
+                  currentPage={pageNumber}
+                  totalPages={totalPages}
+                  pageSize={defaultPageSize}
+                  onPageChange={handlePageChange}
+                />
+              </div>
             </div>
           )}
         </div>

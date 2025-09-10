@@ -31,7 +31,7 @@ body {
 /* Assuming 'font-sans' is configured in tailwind.config.js */
 }
 body {
-  @apply overflow-hidden max-h-screen;
+  @apply overflow-auto min-h-screen;
 }
 .level_1 + .no_level {
   @apply border-white border-t;
