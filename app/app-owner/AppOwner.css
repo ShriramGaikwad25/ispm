@@ -42,9 +42,14 @@
 .side-panel {
   transition: all 0.3s ease-in-out;
   box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1);
-  height: 100vh;
-  max-height: 100vh;
+  height: calc(100vh - 4rem);
+  max-height: calc(100vh - 4rem);
   overflow-y: auto;
+  position: fixed;
+  top: 4rem;
+  right: 0;
+  z-index: 50;
+  transform: translateX(0);
 }
 
 .side-panel-header {

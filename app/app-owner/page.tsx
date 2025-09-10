@@ -792,7 +792,7 @@ export default function AppOwner() {
           </div>
       </div>
 
-      <div className="flex w-full">
+      <div className="flex w-full relative">
         <div className="flex-1">
           {loading ? (
             <div className="text-center py-4">
@@ -815,7 +815,7 @@ export default function AppOwner() {
               <span className="ag-overlay-loading-center">No data to display.</span>
             </div>
           ) : (
-            <div className="w-full overflow-x-hidden">
+            <div className="w-full">
               <AgGridReact
                 rowData={rowData}
                 getRowId={(params: GetRowIdParams) =>
@@ -877,7 +877,7 @@ export default function AppOwner() {
           )}
         </div>
         {isSidebarOpen && (
-          <div className="w-[500px] h-full flex-shrink-0 border-l border-gray-200 bg-white shadow-lg side-panel">
+          <div className="fixed top-16 right-0 w-[500px] h-[calc(100vh-4rem)] flex-shrink-0 border-l border-gray-200 bg-white shadow-lg side-panel z-50">
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200 p-3 z-10 side-panel-header">
              <div className="flex justify-between items-center">
                <div className="flex items-center space-x-2">
