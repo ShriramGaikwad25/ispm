@@ -56,22 +56,48 @@ export default function Application() {
             riskStatus === "High" ? "H" : riskStatus === "Medium" ? "M" : "L";
           const riskColor =
             riskStatus === "High" ? "red" : riskStatus === "Medium" ? "orange" : "green";
+          
+          // Special styling for Medium risk - show app name in red bubble
+          if (riskStatus === "High") {
+            return (
+              <div className="flex items-center">
+                <span
+                  className="px-3 py-1 text-gray-800 font-medium rounded-full"
+                  style={{ 
+                    backgroundColor: "#ffebee", 
+                    color: "#d32f2f",
+                    border: "1px solid #ffcdd2"
+                  }}
+                >
+                  {name}
+                </span>
+                {/* <span
+                  className="ml-2 px-2 py-1 text-xs rounded"
+                  style={{ backgroundColor: riskColor, color: "white" }}
+                >
+                  {riskInitial}
+                </span> */}
+              </div>
+            );
+          }
+          
+          // Default styling for other risk levels
           return (
             <div className="flex items-center">
               <a
                 // href={`#${params.data.applicationInstanceId}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 hover:underline"
+                className="text-blue-600 hover:underline font-medium"
               >
                 {name}
               </a>
-              <span
+              {/* <span
                 className="ml-2 px-2 py-1 text-xs rounded"
                 style={{ backgroundColor: riskColor, color: "white" }}
               >
                 {riskInitial}
-              </span>
+              </span> */}
             </div>
           );
         },
@@ -86,7 +112,7 @@ export default function Application() {
           params.value?.toLocaleString("en-US") || "0",
       },
       {
-        headerName: "Last Access Review",
+        headerName: "Last Review",
         field: "lastAccessReview",
         width:200,
         valueFormatter: (params) => formatDateMMDDYY(params.value),
@@ -108,6 +134,25 @@ export default function Application() {
 
   const handleRowClick = (event: any) => {
     const appId = event.data.applicationInstanceId;
+    const applicationData = {
+      applicationName: event.data.applicationinstancename || "N/A",
+      owner: event.data.ownername || "N/A",
+      lastSync: event.data.lastSync || "N/A"
+    };
+    
+    console.log('Row clicked - Application data:', applicationData);
+    console.log('Row clicked - App ID:', appId);
+    
+    // Store application data in localStorage for HeaderContent
+    localStorage.setItem('applicationDetails', JSON.stringify(applicationData));
+    
+    // Dispatch custom event
+    const customEvent = new CustomEvent('applicationDataChange', {
+      detail: applicationData
+    });
+    window.dispatchEvent(customEvent);
+    console.log('Custom event dispatched from applications page');
+    
     router.push(`/applications/${appId}`);
   };
 

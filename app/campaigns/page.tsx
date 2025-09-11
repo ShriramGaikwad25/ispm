@@ -182,6 +182,19 @@ export default function Campaigns() {
 
   const handleRowClick = (e: RowClickedEvent) => {
     const campaignId = e.data.id;
+    try {
+      // Persist selected campaign summary for header display on detail page
+      const payload = {
+        campaignId,
+        campaignName: e.data.campaignName,
+        status: "Running", // default/demo status; replace when real status available
+        snapshotAt: new Date().toISOString(),
+        dueDate: e.data.expiryDate,
+      };
+      localStorage.setItem("selectedCampaignSummary", JSON.stringify(payload));
+      // notify other tabs/components if needed
+      window.dispatchEvent(new Event("localStorageChange"));
+    } catch {}
     router.push(`/campaigns/manage-campaigns/${campaignId}`);
   };
 

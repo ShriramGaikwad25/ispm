@@ -21,6 +21,7 @@ import { useMemo, useRef, useState, useEffect, use } from "react";
 import { formatDateMMDDYY } from "@/utils/utils";
 import "@/lib/ag-grid-setup";
 import Exports from "@/components/agTable/Exports";
+import CustomPagination from "@/components/agTable/CustomPagination";
 import EditReassignButtons from "@/components/agTable/EditReassignButtons";
 import ActionButtons from "@/components/agTable/ActionButtons";
 import { getAllRegisteredApps, searchUsers } from "@/lib/api";
@@ -92,6 +93,15 @@ export default function ApplicationDetailPage({
   const [error, setError] = useState<string | null>(null);
   const [lastAction, setLastAction] = useState<string | null>(null);
   const [rowData, setRowData] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  // Client-side pagination logic
+  const totalItems = rowData.length;
+  const totalPages = Math.ceil(totalItems / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedData = rowData.slice(startIndex, endIndex);
 
   const handleSelect = (category: string, index: number) => {
     setSelected((prev) => ({
@@ -233,13 +243,42 @@ export default function ApplicationDetailPage({
         console.log(data);
         if (data.executionStatus === "success") {
           setRowData(data.items);
+          
+          // Only update application details if they don't already exist
+          // This prevents overriding the data from the applications list
+          const existingDetails = localStorage.getItem('applicationDetails');
+          if (!existingDetails) {
+            // Extract application details from the first item or API response
+            if (data.items && data.items.length > 0) {
+              const firstItem = data.items[0];
+              console.log("First item data:", firstItem);
+              const applicationDetails = {
+                applicationName: firstItem.applicationinstancename || "N/A",
+                owner: firstItem.ownername || "N/A", 
+                lastSync: firstItem.lastSync || firstItem.lastlogindate || "N/A"
+              };
+              console.log("Application details to dispatch:", applicationDetails);
+              
+              // Store application data in localStorage for HeaderContent
+              localStorage.setItem('applicationDetails', JSON.stringify(applicationDetails));
+              
+              // Also dispatch custom event
+              const event = new CustomEvent('applicationDataChange', {
+                detail: applicationDetails
+              });
+              window.dispatchEvent(event);
+              console.log("Event dispatched:", event);
+            }
+          } else {
+            console.log("Application details already exist, not overriding:", JSON.parse(existingDetails));
+          }
         }
       } catch (error) {
         console.error("Error fetching data:", error);
       }
     };
     fetchData();
-  }, []);
+  }, [id]);
 
   useEffect(() => {
     const fetchEntitlementsData = async () => {
@@ -335,7 +374,7 @@ export default function ApplicationDetailPage({
             return (
               <div className="flex items-center space-x-2">
                 <div className="flex flex-col gap-0 cursor-pointer hover:underline">
-                  <span className="text-[14px]">
+                  <span className="text-md font-large text-gray-800">
                     {params.value}{" "}
                     {accountType && (
                       <span
@@ -357,28 +396,77 @@ export default function ApplicationDetailPage({
         field: "risk",
         headerName: "Risk",
         width: 100,
+        hide:true,
         cellRenderer: (params: ICellRendererParams) => {
-          const userName = params.value;
-          const risk = params.data?.risk;
+          const risk = params.data?.risk || "Unknown";
+          const riskInitial =
+            risk === "High" ? "H" : risk === "Medium" ? "M" : "L";
           const riskColor =
             risk === "High" ? "red" : risk === "Medium" ? "orange" : "green";
-          return <span style={{ color: riskColor }}>{userName}</span>;
+
+          // Special styling for High risk - show in red bubble
+          if (risk === "High") {
+            return (
+              <div className="flex items-center">
+                <span
+                  className="px-3 py-1 text-gray-800 font-medium rounded-full"
+                  style={{
+                    backgroundColor: "#ffebee",
+                    color: "#d32f2f",
+                    border: "1px solid #ffcdd2"
+                  }}
+                >
+                  {risk}
+                </span>
+              </div>
+            );
+          }
+
+          // Special styling for Low risk - show in green bubble
+          if (risk === "Low") {
+            return (
+              <div className="flex items-center">
+                <span
+                  className="px-3 py-1 text-gray-800 font-medium rounded-full"
+                  style={{
+                    backgroundColor: "#e8f5e8",
+                    color: "#2e7d32",
+                    border: "1px solid #c8e6c9"
+                  }}
+                >
+                  {risk}
+                </span>
+              </div>
+            );
+          }
+
+          // Default styling for Medium risk
+          return (
+            <div className="flex items-center">
+              <span
+                className="px-2 py-1 text-xs rounded font-medium"
+                style={{ backgroundColor: riskColor, color: "white" }}
+              >
+                {riskInitial}
+              </span>
+            </div>
+          );
         },
       },
       {
         field: "userDisplayName",
-        headerName: "Display Name",
+        headerName: "Identity",
         flex: 2,
         cellRenderer: (params: ICellRendererParams) => {
           const { userType } = params.data || {};
           const userTypeLabel = userType ? `(${userType})` : "";
           return (
             <div className="flex flex-col gap-0 cursor-pointer hover:underline">
-              <span className="text-gray-800">
+              <span className="text-md text-gray-800">
                 {params.value}{" "}
                 {userType && (
                   <span
-                    className="text-[#175AE4] font-normal"
+                    className="text-[#175AE4] "
                     title={`User Type: ${userType}`}
                   >
                     {userTypeLabel}
@@ -391,24 +479,25 @@ export default function ApplicationDetailPage({
       },
       {
         field: "entitlementName",
-        headerName: "Entitlement Name",
+        headerName: "Entitlement",
         enableRowGroup: true,
+        flex:2,
         cellRenderer: (params: ICellRendererParams) => (
           <div className="flex flex-col gap-0">
-            <span className="text-gray-800">{params.value}</span>
+            <span className="text-md text-gray-800">{params.value}</span>
           </div>
         ),
       },
       {
         field: "lastlogindate",
-        headerName: "Last Login Date",
+        headerName: "Last Login",
         enableRowGroup: true,
         valueFormatter: (params: ICellRendererParams) =>
           formatDateMMDDYY(params.value),
       },
       {
         field: "lastAccessReview",
-        headerName: "Last Access Review",
+        headerName: "Last Review",
         valueFormatter: (params: ICellRendererParams) =>
           formatDateMMDDYY(params.value),
       },
@@ -487,9 +576,20 @@ export default function ApplicationDetailPage({
       },
       // { field:"Ent Description", headerName:"Entitlement Description", flex:2},
       { field: "type", headerName: "Type", width: 120 },
-      { field: "risk", headerName: "Risk", width: 120 },
-      { field: "applicationName", headerName: "Application", width: 150 },
-      { field: "assignment", headerName: "Assignment", width: 150 },
+      { 
+        field: "risk", 
+        headerName: "Risk", 
+        width: 120,
+        hide:true,
+        cellRenderer: (params: ICellRendererParams) => {
+          const risk = params.value;
+          const riskColor =
+            risk === "High" ? "red" : risk === "Medium" ? "orange" : "green";
+          return <span className="font-medium" style={{ color: riskColor }}>{risk}</span>;
+        },
+      },
+      { field: "applicationName", headerName: "Application", width: 150,hide:true },
+      { field: "assignment", headerName: "Assignment", width: 150,hide:true },
       {
         field: "Last Sync",
         headerName: "Last Sync",
@@ -643,11 +743,12 @@ export default function ApplicationDetailPage({
         field: "risk",
         headerName: "Risk",
         width: 120,
+        hide:true,
         cellRenderer: (params: ICellRendererParams) => {
           const risk = params.value;
           const riskColor =
             risk === "High" ? "red" : risk === "Medium" ? "orange" : "green";
-          return <span style={{ color: riskColor }}>{risk}</span>;
+          return <span className="font-medium" style={{ color: riskColor }}>{risk}</span>;
         },
       },
       { field: "applicationName", headerName: "Application", width: 150 },
@@ -988,14 +1089,14 @@ export default function ApplicationDetailPage({
                 Accounts
               </h1>
               <Accordion
-                iconClass="absolute top-2 right-0 rounded-full text-white bg-purple-800"
-                title="Expand/Collapse"
+                iconClass="top-1 right-0 rounded-full text-white bg-purple-800"
+                open={true}
               >
-                <div className="grid grid-cols-4 gap-10 p-2">
+                <div className="flex gap-4 p-2">
                   {Object.entries(dataAccount).map(([category, items]) => (
-                    <div key={category}>
-                      <div className="flex justify-between items-center mb-2 border-b border-gray-300 pb-2 p-4">
-                        <h3 className="font-semibold text-sm capitalize">
+                    <div key={category} className="w-1/3 bg-white border border-gray-200 rounded-lg p-3">
+                      <div className="flex justify-between items-center mb-2">
+                        <h3 className="text-base font-medium text-gray-800 capitalize">
                           {category.replace(/([A-Z])/g, " $1")}
                         </h3>
                         <button
@@ -1036,24 +1137,35 @@ export default function ApplicationDetailPage({
                           )}
                         </button>
                       </div>
-                      <div className="space-y-2 pl-8 pr-8">
+                      <div className="space-y-2">
                         {items.map((item, index) => (
                           <div
                             key={index}
-                            className={`flex text-sm relative items-center p-3 rounded-sm cursor-pointer transition-all ${
+                            className={`flex items-center justify-between py-2 px-3 rounded cursor-pointer transition-colors ${
                               selected[category] === index
-                                ? "bg-[#6574BD] text-white"
-                                : "bg-[#F0F2FC] hover:bg-[#e5e9f9]"
+                                ? "bg-blue-100 border border-blue-300"
+                                : "bg-gray-100"
                             } ${item.color || ""}`}
                             onClick={() => handleSelect(category, index)}
                           >
-                            <span>{item.label}</span>
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="w-3 h-3 rounded-full border-2"
+                                style={{
+                                  borderColor: "#6EC6FF",
+                                  backgroundColor: selected[category] === index ? "#6EC6FF" : "transparent",
+                                }}
+                              ></div>
+                              <span className={`text-sm ${selected[category] === index ? "text-blue-900" : "text-gray-700"}`}>
+                                {item.label}
+                              </span>
+                            </div>
                             <span
-                              className={`font-semibold absolute -right-2 bg-white border p-1 text-[12px] rounded-sm ${
+                              className={`text-sm font-medium ${
                                 selected[category] === index
-                                  ? "border-[#6574BD] text-[#6574BD]"
-                                  : "border-[#e5e9f9]"
-                              }`}
+                                  ? "text-blue-700 border-blue-300"
+                                  : "text-gray-900 border-gray-300"
+                              } bg-white border px-2 py-1 rounded text-xs min-w-[20px] text-center`}
                             >
                               {item.value}
                             </span>
@@ -1065,16 +1177,25 @@ export default function ApplicationDetailPage({
                 </div>
               </Accordion>
             </div>
-            <div className="flex justify-end mb-4 relative z-10 pt-10">
+            <div className="flex justify-end mb-4 relative z-10 pt-4">
               <Exports gridApi={gridApiRef.current} />
             </div>
             <AgGridReact
-              rowData={rowData}
+              rowData={paginatedData}
               columnDefs={columnDefs}
               defaultColDef={defaultColDef}
               masterDetail={true}
               // detailCellRendererParams={detailCellRendererParams}
             />
+            <div className="flex justify-center">
+              <CustomPagination
+                totalItems={totalItems}
+                currentPage={currentPage}
+                totalPages={totalPages}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+              />
+            </div>
           </div>
         );
       },

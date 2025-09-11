@@ -46,7 +46,7 @@ const HorizontalProgressRenderer = (props: any) => {
   const value = props.value || 0;
 
   return (
-    <div className="w-full px-2 flex justify-center items-center">
+    <div className="w-full px-2 flex justify-center items-center mt-4">
       <HorizontalProgressBar 
         value={value} 
         height={8} 
@@ -74,7 +74,9 @@ export const formatDateMMDDYY = (dateString?: string) =>
   formatDateShared(dateString);
 
 // const reviewerId = "430ea9e6-3cff-449c-a24e-59c057f81e3d";
-const reviewerId = "1bf73ddb-c95d-4716-8e14-f7cf0f2e5922";
+// const reviewerId = "1bf73ddb-c95d-4716-8e14-f7cf0f2e5922";
+  //  const reviewerId = "d4cc2173-7471-4e26-8c72-a27be88ff6cb";
+   const reviewerId = "ec527a50-0944-4b31-b239-05518c87a743";
 
 const AccessReview: React.FC = () => {
   const [gridApi, setGridApi] = useState<GridApi | null>(null);
@@ -404,6 +406,17 @@ const AccessReview: React.FC = () => {
         }
       });
       window.dispatchEvent(progressEvent);
+    }
+    
+    // Store campaign summary data for navigation to App Owner or User Access Review
+    if (e.data && (certificationType === "AppOwnerReview" || certificationType === "UserAccessReview")) {
+      const campaignSummary = {
+        campaignName: e.data.certificationName,
+        status: e.data.status,
+        snapshotAt: e.data.certificationCreatedOn,
+        dueDate: e.data.certificationExpiration,
+      };
+      localStorage.setItem("selectedCampaignSummary", JSON.stringify(campaignSummary));
     }
     
     if (clickedReviewerId && clickedCertificationId) {

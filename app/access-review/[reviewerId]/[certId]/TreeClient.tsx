@@ -205,6 +205,27 @@ const TreeClient: React.FC<TreeClientProps> = ({
     setUsers(mapped);
     setTotalItems(certificationDetailsData.total_items || 0);
     setTotalPages(certificationDetailsData.total_pages || 1);
+
+    // Store user data in localStorage for header component
+    // Only update if we don't have existing campaign data from access review
+    const existingCampaignData = localStorage.getItem("selectedCampaignSummary");
+    if (!existingCampaignData) {
+      const headerData = mapped.map((user: any) => ({
+        id: user.id,
+        certificationName: "User Access Review",
+        certificationExpiration: "2025-12-31",
+        status: user.status,
+        fullName: user.fullName,
+        manager: user.manager,
+        department: user.department,
+        jobtitle: user.jobtitle,
+        userType: user.userType,
+      }));
+
+      localStorage.setItem("sharedRowData", JSON.stringify(headerData));
+      // Dispatch custom event to notify header component
+      window.dispatchEvent(new Event("localStorageChange"));
+    }
   }, [certificationDetailsData, certId]);
 
   // Auto-select first user when users are loaded or page changes
@@ -285,8 +306,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
             user.addedEntitlements?.includes(
               item.entitlementInfo?.entitlementName
             ) ?? false,
-          appTag: item.appTag || "SOX",
-          appRisk: item.appRisk || "Low",
+          appTag: item.appTag || "",
+          appRisk: item.appRisk || "",
           appType: item.appType || "",
           complianceViolation: item.complianceViolation || "",
           deltaChange: item.deltaChange || "",
@@ -319,7 +340,21 @@ const TreeClient: React.FC<TreeClientProps> = ({
     setSelectedUser(user);
     setEntitlementsPageNumber(1);
 
-    // Don't send progress data to header from TreeClient
+    // Send user progress data to header
+    const totalEntitlements = user.numOfEntitlements || 0;
+    const approvedEntitlements = user.numOfEntitlementsCertified || 0;
+    const userProgress = {
+      total: totalEntitlements,
+      approved: approvedEntitlements,
+      pending: totalEntitlements - approvedEntitlements,
+      percentage: totalEntitlements > 0 ? 
+        Math.round((approvedEntitlements / totalEntitlements) * 100) : 0
+    };
+
+    const progressEvent = new CustomEvent('progressDataChange', {
+      detail: userProgress
+    });
+    window.dispatchEvent(progressEvent);
 
     loadUserEntitlements(user, 1);
     if (typeof onRowExpand === "function") {
@@ -472,7 +507,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
               <div className="flex items-center gap-2">
                 <span className="font-normal text-sm">{entitlementName}</span>
                 {/* <span>({deltaLabel})</span> */}
-                <span style={{ color: riskColor }}>{riskAbbr}</span>
+                {/* <span style={{ color: riskColor }}>{riskAbbr}</span> */}
               </div>
               {entitlementDescription ? (
                 <div
@@ -506,12 +541,12 @@ const TreeClient: React.FC<TreeClientProps> = ({
                 <span className="font-normal text-sm">{lines[0]}</span>
               </div>
               <div className="flex items-center gap-2">
-                <div
+                {/* <div
                   className="flex items-center justify-center w-5 h-5 rounded-full bg-[#27685b] text-white text-sm"
                   title={`Account Type: ${typeLabel}`}
                 >
                   {typeLabel.charAt(0)}
-                </div>
+                </div> */}
                 {hasViolation && (
                   <div
                     className="flex items-center justify-center w-5 h-5 rounded-full bg-gray-200 relative z-50"
@@ -542,12 +577,12 @@ const TreeClient: React.FC<TreeClientProps> = ({
           return (
             <div className="flex items-center gap-2">
               <span>{applicationName}</span>
-              <div
+              {/* <div
                 className="flex items-center justify-center w-5 h-5 rounded-full bg-[#27685b] text-white text-[10px]"
                 title={`App Tag: ${tag}`}
               >
                 {tag}
-              </div>
+              </div> */}
               <span style={{ color: riskColor }} title={`App Risk: ${appRisk}`}>
                 {appRisk}
               </span>
@@ -764,7 +799,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                             {user.fullName}
                           </span>
                           {/* Progress Summary - percentage only */}
-                          <div className="flex items-center gap-1 flex-shrink-0">
+                          <div className="flex items-center gap-1 flex-shrink-0 pt-2">
                             {(() => {
                               const progress = getUserProgress(user);
                               return (

@@ -465,21 +465,25 @@ export default function AppOwner() {
       setTotalItems(response.total_items || 0);
 
       // Store header data in localStorage for header component
-      const headerData = transformedData.map((item: any) => ({
-        id: item.accountId,
-        certificationName: "App Owner Review",
-        certificationExpiration: "2025-12-31",
-        status: item.risk === "High" ? "Pending" : "Completed",
-        fullName: item.userName,
-        manager: item.manager,
-        department: item.department,
-        jobtitle: item.accountType,
-        userType: "Internal",
-      }));
+      // Only update if we don't have existing campaign data from access review
+      const existingCampaignData = localStorage.getItem("selectedCampaignSummary");
+      if (!existingCampaignData) {
+        const headerData = transformedData.map((item: any) => ({
+          id: item.accountId,
+          certificationName: "App Owner Review",
+          certificationExpiration: "2025-12-31",
+          status: item.risk === "High" ? "Pending" : "Completed",
+          fullName: item.userName,
+          manager: item.manager,
+          department: item.department,
+          jobtitle: item.accountType,
+          userType: "Internal",
+        }));
 
-      localStorage.setItem("sharedRowData", JSON.stringify(headerData));
-      // Dispatch custom event to notify header component
-      window.dispatchEvent(new Event("localStorageChange"));
+        localStorage.setItem("sharedRowData", JSON.stringify(headerData));
+        // Dispatch custom event to notify header component
+        window.dispatchEvent(new Event("localStorageChange"));
+      }
     } catch (err: any) {
       console.error("Error fetching app owner details:", err);
       setError(err.message || "Failed to load data. Please try again later.");

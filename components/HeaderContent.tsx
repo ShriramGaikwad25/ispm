@@ -260,6 +260,8 @@ const HeaderContent = () => {
   // State for header info and user details
   const [headerInfo, setHeaderInfo] = useState({
     campaignName: "",
+    status: "",
+    snapshotAt: "",
     dueDate: "",
     daysLeft: 0,
   });
@@ -295,8 +297,20 @@ const HeaderContent = () => {
   // State for PopupButton
   const [showPopupButton, setShowPopupButton] = useState(false);
 
-  // Check if we should show the header (for access-review and app-owner pages)
-  const shouldShowHeader = pathname?.includes('/access-review/') || pathname?.includes('/app-owner');
+  // State for application details
+  const [applicationDetails, setApplicationDetails] = useState<{
+    applicationName: string;
+    owner: string;
+    lastSync: string;
+  } | null>(null);
+
+  // Check if we should show the header (for access-review and app-owner pages, but not individual applications)
+  const shouldShowHeader =
+    (pathname?.includes('/access-review/') || pathname?.includes('/app-owner')) &&
+    !pathname?.includes('/applications/');
+
+  // Check if we should show campaign-specific header (only when inside a specific campaign)
+  const shouldShowCampaignHeader = pathname?.includes('/campaigns/manage-campaigns/');
 
 
   // Calculate days left
@@ -323,6 +337,8 @@ const HeaderContent = () => {
 
       setHeaderInfo({
         campaignName: firstItem.certificationName || "Campaign Name",
+        status: "",
+        snapshotAt: "",
         dueDate: firstItem.certificationExpiration || "",
         daysLeft: daysLeft,
       });
@@ -363,6 +379,21 @@ const HeaderContent = () => {
   useEffect(() => {
     const updateHeaderData = () => {
       try {
+        // Prefer campaign summary if available (for campaign manage pages)
+        const selectedCampaignSummary = localStorage.getItem("selectedCampaignSummary");
+        if (selectedCampaignSummary) {
+          const summary = JSON.parse(selectedCampaignSummary);
+          const daysLeft = calculateDaysLeft(summary.dueDate || "");
+
+          setHeaderInfo({
+            campaignName: summary.campaignName || "Campaign Name",
+            status: summary.status || "",
+            snapshotAt: summary.snapshotAt || "",
+            dueDate: summary.dueDate || "",
+            daysLeft: daysLeft,
+          });
+        }
+
         const sharedRowData = localStorage.getItem("sharedRowData");
         if (sharedRowData) {
           const data = JSON.parse(sharedRowData);
@@ -370,11 +401,16 @@ const HeaderContent = () => {
             const firstItem = data[0];
             const daysLeft = calculateDaysLeft(firstItem.certificationExpiration || "");
 
-            setHeaderInfo({
-              campaignName: firstItem.certificationName || "Campaign Name",
-              dueDate: firstItem.certificationExpiration || "",
-              daysLeft: daysLeft,
-            });
+            // Only update header info if we don't have campaign summary data
+            if (!selectedCampaignSummary) {
+              setHeaderInfo((prev) => ({
+                campaignName: firstItem.certificationName || prev.campaignName || "Campaign Name",
+                status: prev.status || "",
+                snapshotAt: prev.snapshotAt || "",
+                dueDate: firstItem.certificationExpiration || prev.dueDate || "",
+                daysLeft: prev.dueDate ? prev.daysLeft : daysLeft,
+              }));
+            }
 
             setUserDetails({
               username: firstItem.fullName || "IAM Admin",
@@ -447,6 +483,46 @@ const HeaderContent = () => {
     };
   }, []);
 
+  // Effect to handle application details
+  useEffect(() => {
+    const handleApplicationDataChange = (event: CustomEvent) => {
+      console.log('Application data change event received:', event.detail);
+      setApplicationDetails(event.detail);
+    };
+
+    // Load application details from localStorage on mount
+    const loadApplicationDetails = () => {
+      try {
+        const stored = localStorage.getItem('applicationDetails');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          console.log('Loaded application details from localStorage:', parsed);
+          setApplicationDetails(parsed);
+        }
+      } catch (error) {
+        console.error('Error loading application details:', error);
+      }
+    };
+
+    // Initial load
+    loadApplicationDetails();
+
+    // Listen for application data changes
+    window.addEventListener('applicationDataChange', handleApplicationDataChange as EventListener);
+
+    return () => {
+      window.removeEventListener('applicationDataChange', handleApplicationDataChange as EventListener);
+    };
+  }, []);
+
+  // Debug logging
+  useEffect(() => {
+    console.log('HeaderContent - pathname:', pathname);
+    console.log('HeaderContent - applicationDetails:', applicationDetails);
+    console.log('HeaderContent - shouldShowHeader:', shouldShowHeader);
+    console.log('HeaderContent - shouldShowCampaignHeader:', shouldShowCampaignHeader);
+  }, [pathname, applicationDetails, shouldShowHeader, shouldShowCampaignHeader]);
+
   return (
     <div className="flex h-[60px] w-full items-center justify-between text-sm px-4" style={{ backgroundColor: '#27B973' }}>
       {/* Left Section */}
@@ -463,7 +539,31 @@ const HeaderContent = () => {
 
         </div>
 
-        {shouldShowHeader ? (
+        {applicationDetails && pathname?.includes('/applications/') ? (
+          <div className="flex h-full">
+            <div className="flex items-center px-4">
+              <p className="text-lg font-medium text-white">
+                Application:- {applicationDetails.applicationName}
+              </p>
+            </div>
+            <div className="flex items-center px-2">
+              <span className="text-white text-lg">•</span>
+            </div>
+            <div className="flex items-center px-4">
+              <p className="text-lg font-medium text-white">
+                Owner:- {applicationDetails.owner}
+              </p>
+            </div>
+            <div className="flex items-center px-2">
+              <span className="text-white text-lg">•</span>
+            </div>
+            <div className="flex items-center px-4">
+              <p className="text-lg font-medium text-white">
+                Last Sync:- {formatDateMMDDYY(applicationDetails.lastSync)}
+              </p>
+            </div>
+          </div>
+        ) : shouldShowHeader ? (
           <div className="flex h-full">
             <div className="flex items-center px-4">
               <p className="text-sm font-medium text-white">
@@ -492,6 +592,41 @@ const HeaderContent = () => {
             {/* User Progress */}
             <div className="flex items-center px-4">
               <UserProgress progressData={userProgressData} />
+            </div>
+          </div>
+        ) : shouldShowCampaignHeader ? (
+          <div className="flex h-full">
+            <div className="flex items-center px-4">
+              <p className="text-sm font-medium text-white">
+                {headerInfo.campaignName || "Campaign"}
+              </p>
+            </div>
+            <div className="flex items-center px-2">
+              <span className="text-white text-lg">•</span>
+            </div>
+            <div className="flex items-center px-4">
+              <p className="text-sm font-medium text-white">
+                {headerInfo.status ? `Status: ${headerInfo.status}` : "Status: N/A"}
+              </p>
+            </div>
+            <div className="flex items-center px-2">
+              <span className="text-white text-lg">•</span>
+            </div>
+            <div className="flex items-center px-4">
+              <p className="text-sm font-medium text-white">
+                {headerInfo.snapshotAt ? `Data Snapshot: ${formatDateMMDDYY(headerInfo.snapshotAt)}` : "Data Snapshot: N/A"}
+              </p>
+            </div>
+            <div className="flex items-center px-2">
+              <span className="text-white text-lg">•</span>
+            </div>
+            <div className="flex items-center px-4">
+              <p className="text-sm font-medium text-white">
+                {headerInfo.dueDate ? `Due on ${formatDateMMDDYY(headerInfo.dueDate)}` : "Due on N/A"}
+                <span className="font-bold ml-1 text-white">
+                  ({headerInfo.daysLeft || 0} days left)
+                </span>
+              </p>
             </div>
           </div>
         ) : (
