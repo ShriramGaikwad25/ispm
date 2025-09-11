@@ -13,10 +13,15 @@ interface TabsProps {
   className?:string;
   buttonClass?:string;
   activeClass?:string;
+  inactiveClass?:string;
+  activeIndex?: number;
+  onChange?: (index: number) => void;
 }
 
-const Tabs: React.FC<TabsProps> = ({ tabs, className, buttonClass, activeClass}) => {
-  const [activeTab, setActiveTab] = useState(0);
+const Tabs: React.FC<TabsProps> = ({ tabs, className, buttonClass, activeClass, inactiveClass, activeIndex, onChange}) => {
+  const [uncontrolledActiveTab, setUncontrolledActiveTab] = useState(1);
+  const isControlled = typeof activeIndex === 'number';
+  const activeTab = isControlled ? (activeIndex as number) : uncontrolledActiveTab;
   const ActiveComponent = tabs[activeTab].component; // Get active tab's component
 
   return (
@@ -26,9 +31,16 @@ const Tabs: React.FC<TabsProps> = ({ tabs, className, buttonClass, activeClass})
         {tabs.map((tab, index) => (
           <button
             key={index}
-            onClick={() => setActiveTab(index)}
+            onClick={() => {
+              if (onChange) {
+                onChange(index);
+              }
+              if (!isControlled) {
+                setUncontrolledActiveTab(index);
+              }
+            }}
             className={`flex items-center px-2 gap-2 py-2 cursor-pointer ${buttonClass ? buttonClass : 'hover:text-blue-500'}
-              ${activeTab === index ? activeClass ? activeClass : 'border-b-4 -mb-0.5 border-blue-500 text-blue-600' : "text-gray-500"}
+              ${activeTab === index ? (activeClass ? activeClass : 'border-b-4 -mb-0.5 border-blue-500 text-blue-600') : (inactiveClass ? inactiveClass : 'text-gray-500')}
               `}
           >
             <small className="flex gap-2">

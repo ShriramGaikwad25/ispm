@@ -42,7 +42,7 @@ const HorizontalTabs: React.FC<TabsProps> = ({
   return (
     <div className="w-full">
       {/* Tab Headers */}
-      <div className="flex border-b">
+      <div className="flex border-b border-gray-200">
         {tabs.map((tab, index) => (
           <button
             key={index}

@@ -48,6 +48,7 @@ export default function Application() {
       {
         headerName: "App Name",
         field: "applicationinstancename",
+        width:350,
         cellRenderer: (params: any) => {
           const name = params.data.applicationinstancename;
           const riskStatus = params.data.risk || "Unknown";
@@ -75,29 +76,32 @@ export default function Application() {
           );
         },
       },
-      { headerName: "Department", field: "businessUnit" },
-      { headerName: "Owner", field: "ownername" },
+      { headerName: "Department", field: "businessUnit",width:200 },
+      { headerName: "Owner", field: "ownername",width:200 },
       {
         headerName: "#Accounts",
         field: "numofaccounts",
+        width:200,
         valueFormatter: (params: any) =>
           params.value?.toLocaleString("en-US") || "0",
       },
       {
         headerName: "Last Access Review",
         field: "lastAccessReview",
+        width:200,
         valueFormatter: (params) => formatDateMMDDYY(params.value),
        
       },
       {
         headerName: "Last Sync",
         field: "lastSync",
+        width:200,
       valueFormatter: (params) => formatDateMMDDYY(params.value),
       },
-      { headerName: "Sync Type", field: "syncType" },
-      { headerName: "App Risk", field: "risk", hide: true },
-      { headerName: "App Type", field: "applicationtype", hide: true },
-      { headerName: "App Description", field: "applicationcategory", hide: true },
+      { headerName: "Sync Type", field: "syncType",width:200, },
+      { headerName: "App Risk", field: "risk", hide: true,width:200, },
+      { headerName: "App Type", field: "applicationtype", hide: true,width:200, },
+      { headerName: "App Description", field: "applicationcategory", hide: true,width:200, },
     ],
     []
   );

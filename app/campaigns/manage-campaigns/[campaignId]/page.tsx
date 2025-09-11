@@ -2,7 +2,7 @@
 
 import React, { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, MoreVertical } from "lucide-react";
 import { AgGridReact } from "ag-grid-react";
 import { AgGridReact as AgGridReactType } from "ag-grid-react";
 import "@/lib/ag-grid-setup";
@@ -120,7 +120,7 @@ export default function ManageCampaigns() {
         return (
           <div className="ag-theme-alpine h-72">
             <div className="flex justify-between">
-              <h1 className="text-xl font-bold mb-6 border-gray-300 pb-4 text-blue-950">
+              <h1 className="text-xl font-bold mb-6 border-b border-gray-200 pb-4 text-blue-950">
                 Manage Campaigns
                 <p className="font-normal text-sm pt-4">
                   Campaigns is <strong>Running</strong>. Directory snapshot as
@@ -135,78 +135,80 @@ export default function ManageCampaigns() {
                 </p>
               </h1>
             </div>
-            <Accordion
-              iconClass="absolute top-1 pb-4 right-0 rounded-full text-white bg-purple-800"
-              title="Expand/Collapse"
-            >
+            <div className="mb-4">
+              <Accordion
+                iconClass="absolute top-1 pb-4 right-0 rounded-full text-white bg-purple-800 mb-4"
+                title="Expand/Collapse"
+              >
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="">
-                  <div className="flex justify-between p-4">
-                    <h2 className="text-lg text-gray-700"></h2>
+                {/* Revenue Card */}
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+                    <h2 className="text-sm font-semibold text-gray-700">Revenue</h2>
+                    <MoreVertical className="w-4 h-4 text-gray-400" />
                   </div>
-                  <VerticalBarChart />
+                  <div className="px-2 pb-2">
+                    <VerticalBarChart />
+                  </div>
                 </div>
-                <div className="pl-2">
-                  <div className="flex justify-between p-4">
-                    <h2 className="text-lg text-gray-700">Campaign Risk</h2>
-                  </div>
-                  <table className="min-w-full table-auto text-left border-t border-gray-200">
-                    <thead className="bg-gray-100 text-sm text-gray-600">
-                      <tr>
-                        <th className="px-4 py-2 bg-red-600 text-white">
-                          Risk
-                        </th>
-                        <th className="px-4 py-2 bg-blue-400 text-white">
-                          Impact
-                        </th>
+
+                {/* Risk / Impact Card as Table */}
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+                  <table className="w-full table-auto text-sm text-gray-700 border-collapse p-4">
+                    <thead>
+                      <tr className="border-b border-gray-200">
+                        <th className="text-left px-6 py-3 bg-rose-100 text-rose-700 rounded-tl-xl font-medium">Risk</th>
+                        <th className="text-left px-6 py-3 bg-blue-100 text-blue-700 rounded-tr-xl font-medium border-l-2 border-gray-300">Impact</th>
                       </tr>
                     </thead>
-                    <tbody className="text-sm text-gray-700">
-                      <tr className="border-t">
-                        <td className="px-4 py-2">
-                          800+ High risk entitlements
+                    <tbody>
+                      <tr className="border-b border-gray-200 last:border-b-0">
+                        <td className="px-6 py-4">800+ High Risk Entitlements</td>
+                        <td className="px-6 py-4 border-l-2 border-gray-300">
+                          <span className="px-2 py-0.5 rounded-full text-xs bg-orange-100 text-orange-700">Medium</span>
                         </td>
-                        <td className="px-4 py-2 text-red-600">High</td>
                       </tr>
-                      <tr className="border-t">
-                        <td className="px-4 py-2">50+ Privileged accounts</td>
-                        <td className="px-4 py-2 text-yellow-500">Medium</td>
-                      </tr>
-                      <tr className="border-t">
-                        <td className="px-4 py-2">
-                          80+ Orphan/deleted/rogue accounts
+                      <tr className="border-b border-gray-200 last:border-b-0">
+                        <td className="px-6 py-4">50+ Privileged Accounts</td>
+                        <td className="px-6 py-4 border-l-2 border-gray-300">
+                          <span className="px-2 py-0.5 rounded-full text-xs bg-rose-100 text-rose-700">High</span>
                         </td>
-                        <td className="px-4 py-2 text-red-600">High</td>
                       </tr>
-                      <tr className="border-t">
-                        <td className="px-4 py-2">10 SoD violations</td>
-                        <td className="px-4 py-2 text-red-600">High</td>
-                      </tr>
-                      <tr className="border-t">
-                        <td className="px-4 py-2">
-                          Dormant – Accounts not used for 60+ days
+                      <tr className="border-b border-gray-200 last:border-b-0">
+                        <td className="px-6 py-4">80+ Orphan/deleted/rogue accounts</td>
+                        <td className="px-6 py-4 border-l-2 border-gray-300">
+                          <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">Low</span>
                         </td>
-                        <td className="px-4 py-2  text-green-700">Low</td>
                       </tr>
-                      <tr className="border-t">
-                        <td className="px-4 py-2">
-                          Users with Sensitive Data access
+                      <tr className="border-b border-gray-200 last:border-b-0">
+                        <td className="px-6 py-4">10 SoD Violations</td>
+                        <td className="px-6 py-4 border-l-2 border-gray-300">
+                          <span className="px-2 py-0.5 rounded-full text-xs bg-orange-100 text-orange-700">Medium</span>
                         </td>
-                        <td className="px-4 py-2  text-yellow-500">Medium</td>
+                      </tr>
+                      <tr className="border-b border-gray-200 last:border-b-0">
+                        <td className="px-6 py-4">Dormant - Accounts not used for 60+ days</td>
+                        <td className="px-6 py-4 border-l-2 border-gray-300">
+                          <span className="px-2 py-0.5 rounded-full text-xs bg-rose-100 text-rose-700">High</span>
+                        </td>
                       </tr>
                     </tbody>
                   </table>
                 </div>
-                <div className="">
-                  <div className="flex justify-between p-4">
-                    <h2 className="text-lg text-gray-700">
-                      Total Entitlements
-                    </h2>
+
+                {/* Progress Summary Card */}
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+                    <h2 className="text-sm font-semibold text-gray-700">Progress Summary</h2>
+                    <MoreVertical className="w-4 h-4 text-gray-400" />
                   </div>
-                  <ProgressDonutChart />
+                  <div className="px-2 pb-2">
+                    <ProgressDonutChart />
+                  </div>
                 </div>
               </div>
-            </Accordion>
+              </Accordion>
+            </div>
             <AgGridReact
               ref={gridRef}
               rowData={campData}

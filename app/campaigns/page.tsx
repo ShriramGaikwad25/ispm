@@ -35,7 +35,7 @@ const campData = [
     description:
       "Review user permissions and access levels across departments.",
     instances: 150,
-    progress: "75%",
+    progress: 75,
     expiryDate: "2025-04-15",
     owner: "John Doe",
   },
@@ -45,30 +45,48 @@ const campData = [
     description:
       "Verify finance department users have appropriate access rights.",
     instances: 75,
-    progress: "50%",
-    expiryDate: "2025-05-01",
+    progress: 75,
+    expiryDate: "2025-04-15",
     owner: "Alice Johnson",
   },
   {
     id: 3,
     campaignName: "MFA Compliance Check",
     description:
-      "Ensure all employees have enabled Multi-Factor Authentication.",
+      "Ensure all employees have enabled Multi-Factor Authentication",
     instances: 200,
-    progress: "90%",
-    expiryDate: "2025-03-30",
+    progress: 75,
+    expiryDate: "2025-04-15",
     owner: "Robert Smith",
   },
   {
     id: 4,
-    campaignName: "Privileged Account Review",
+    campaignName: "Privileged Access Review",
     description: "Identify and validate privileged users' access rights.",
     instances: 50,
-    progress: "60%",
-    expiryDate: "2025-04-10",
+    progress: 75,
+    expiryDate: "2025-04-15",
     owner: "Emily White",
   },
 ];
+
+// Progress Bar Cell Renderer
+const ProgressCellRenderer = (props: ICellRendererParams) => {
+  const progress = props.value || 0;
+  return (
+    <div className="progress-bar-container">
+      <div className="progress-bar">
+        <div 
+          className="progress-fill"
+          style={{ width: `${progress}%` }}
+        ></div>
+      </div>
+      <span className="progress-text">
+        {progress}%
+      </span>
+    </div>
+  );
+};
 
 // Detail Cell Renderer for Description
 const DetailCellRenderer = (props: IDetailCellRendererParams) => {
@@ -103,7 +121,12 @@ export default function Campaigns() {
         hide: true, // Hide in main grid, show in detail row
       },
       { headerName: "Instances", field: "instances", flex: 1 },
-      { headerName: "Progress", field: "progress", flex: 1.5 },
+      { 
+        headerName: "Progress", 
+        field: "progress", 
+        flex: 1.5,
+        cellRenderer: ProgressCellRenderer
+      },
       { headerName: "Expiry Date", field: "expiryDate", flex: 1.5, valueFormatter: (p:any)=> require("@/utils/utils").formatDateMMDDYY(p.value) },
       { headerName: "Owner", field: "owner", flex: 1 },
       {
@@ -180,7 +203,7 @@ export default function Campaigns() {
         if (!campData || campData.length === 0) return <div>Loading...</div>;
         console.log("Row Data:", campData); // Debug row data
         return (
-          <div className="h-100">
+          <div className="h-96 w-full">
             <AgGridReact
               ref={gridRef}
               rowData={campData}
@@ -228,31 +251,34 @@ export default function Campaigns() {
   ];
 
   return (
-    <>
-      <div className="flex justify-between">
-        <h1 className="text-xl font-bold mb-6 border-b border-gray-300 pb-2 text-blue-950">
-          All Campaigns
-          <p className="font-normal text-sm">
-            Access review campaigns are used to manage the certification of
-            access for your users. To start an access review campaign, click the
-            ‘Create’ button at the top of this page.
-          </p>
-        </h1>
-        <div className="pt-4 px-4 sm:px-6 md:px-8">
+    <div className="p-6 bg-white min-h-screen">
+      <div className="mb-6">
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">
+              All Campaigns
+            </h1>
+            <p className="text-gray-600 text-sm">
+              Access review campaigns are used to manage the certification of access for your users. To start an access review campaign.
+            </p>
+          </div>
           <Link
             href="/campaigns/new"
-            className="inline-block bg-[#15274E] text-white py-2 px-4 sm:py-3 sm:px-6 rounded-sm text-sm sm:text-base font-medium text-center w-full sm:w-auto hover:bg-[#1a3399] transition-colors duration-200"
+            className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 transition-colors duration-200"
           >
             Create Cert Definition
           </Link>
         </div>
+        
+        <div className="mb-6">
+          <Tabs
+            tabs={tabsData}
+            activeClass="bg-blue-600 text-white rounded-lg -ml-1"
+            buttonClass="h-9 -mt-1 w-26 text-sm px-2 py-1"
+            className="ml-0.5 border border-gray-300 w-80 h-8 rounded-md"
+          />
+        </div>
       </div>
-      <Tabs
-        tabs={tabsData}
-        activeClass="bg-[#15274E] text-white rounded-sm -ml-1"
-        buttonClass="h-9.5 -mt-1 w-30"
-        className="ml-0.5 border border-gray-300 w-80 h-8 rounded-md"
-      />
-    </>
+    </div>
   );
 }

@@ -2,7 +2,12 @@
 import Accordion from "@/components/Accordion";
 import ChartComponent from "@/components/ChartComponent";
 import HorizontalTabs from "@/components/HorizontalTabs";
-import { ColDef, GridApi, ICellRendererParams, IDetailCellRendererParams } from "ag-grid-enterprise";
+import {
+  ColDef,
+  GridApi,
+  ICellRendererParams,
+  IDetailCellRendererParams,
+} from "ag-grid-enterprise";
 import { AgGridReact } from "ag-grid-react";
 import {
   ChevronDown,
@@ -236,7 +241,7 @@ export default function ApplicationDetailPage({
     fetchData();
   }, []);
 
-useEffect(() => {
+  useEffect(() => {
     const fetchEntitlementsData = async () => {
       try {
         const response = await fetch(
@@ -326,7 +331,7 @@ useEffect(() => {
           suppressExpand: false,
           innerRenderer: (params: ICellRendererParams) => {
             const { accountType } = params.data || {};
-            const accountTypeLabel = accountType ;
+            const accountTypeLabel = accountType;
             return (
               <div className="flex items-center space-x-2">
                 <div className="flex flex-col gap-0 cursor-pointer hover:underline">
@@ -398,12 +403,14 @@ useEffect(() => {
         field: "lastlogindate",
         headerName: "Last Login Date",
         enableRowGroup: true,
-        valueFormatter: (params: ICellRendererParams) => formatDateMMDDYY(params.value),
+        valueFormatter: (params: ICellRendererParams) =>
+          formatDateMMDDYY(params.value),
       },
       {
         field: "lastAccessReview",
         headerName: "Last Access Review",
-        valueFormatter: (params: ICellRendererParams) => formatDateMMDDYY(params.value),
+        valueFormatter: (params: ICellRendererParams) =>
+          formatDateMMDDYY(params.value),
       },
       {
         field: "accountType",
@@ -426,7 +433,8 @@ useEffect(() => {
         headerName: "Access Grant Date",
         flex: 2,
         hide: true,
-        valueFormatter: (params: ICellRendererParams) => formatDateMMDDYY(params.value),
+        valueFormatter: (params: ICellRendererParams) =>
+          formatDateMMDDYY(params.value),
       },
       { field: "userType", headerName: "User Type", flex: 2, hide: true },
       {
@@ -439,7 +447,8 @@ useEffect(() => {
         field: "syncDate",
         headerName: "Sync Date",
         flex: 1,
-        valueFormatter: (params: ICellRendererParams) => formatDateMMDDYY(params.value),
+        valueFormatter: (params: ICellRendererParams) =>
+          formatDateMMDDYY(params.value),
       },
     ],
     []
@@ -461,7 +470,7 @@ useEffect(() => {
         field: "entitlementName",
         headerName: "Entitlement",
         flex: 3,
-        width:350,
+        width: 350,
         cellRenderer: (params: ICellRendererParams) => {
           return (
             <div className="flex flex-col">
@@ -477,21 +486,23 @@ useEffect(() => {
         },
       },
       // { field:"Ent Description", headerName:"Entitlement Description", flex:2},
-      { field: "type", headerName: "Type", width:120},
-      { field: "risk", headerName: "Risk", width:120 },
-      { field: "applicationName", headerName: "Application", width:150 },
-      { field: "assignment", headerName: "Assignment", width:150 },
+      { field: "type", headerName: "Type", width: 120 },
+      { field: "risk", headerName: "Risk", width: 120 },
+      { field: "applicationName", headerName: "Application", width: 150 },
+      { field: "assignment", headerName: "Assignment", width: 150 },
       {
         field: "Last Sync",
         headerName: "Last Sync",
-        width:140,
-        valueFormatter: (params: ICellRendererParams) => formatDateMMDDYY(params.value),
+        width: 140,
+        valueFormatter: (params: ICellRendererParams) =>
+          formatDateMMDDYY(params.value),
       },
       {
         field: "Last Reviewed on",
         headerName: "Last Reviewed",
-        width:180,
-        valueFormatter: (params: ICellRendererParams) => formatDateMMDDYY(params.value),
+        width: 180,
+        valueFormatter: (params: ICellRendererParams) =>
+          formatDateMMDDYY(params.value),
       },
       {
         field: "Total Assignments",
@@ -499,14 +510,24 @@ useEffect(() => {
         flex: 1.5,
         hide: true,
       },
-      { field: "Requestable", headerName: "Requestable", width:100, hide: true },
-      { field: "Certifiable", headerName: "Certifiable", width:100, hide: true },
+      {
+        field: "Requestable",
+        headerName: "Requestable",
+        width: 100,
+        hide: true,
+      },
+      {
+        field: "Certifiable",
+        headerName: "Certifiable",
+        width: 100,
+        hide: true,
+      },
       { field: "SOD Check", headerName: "SOD Check", flex: 1.5, hide: true },
-      { field: "Hierarchy", headerName: "Hierarchy", width:100, hide: true },
+      { field: "Hierarchy", headerName: "Hierarchy", width: 100, hide: true },
       {
         field: "Pre- Requisite",
         headerName: "Pre- Requisite",
-        width:100,
+        width: 100,
         hide: true,
       },
       {
@@ -525,7 +546,7 @@ useEffect(() => {
       {
         field: "Capability/Technical Scope",
         headerName: "Capability/Technical Scope",
-        width:100,
+        width: 100,
         hide: true,
       },
       {
@@ -537,7 +558,7 @@ useEffect(() => {
       {
         field: "Compliance Type",
         headerName: "Compliance Type",
-        width:100,
+        width: 100,
         hide: true,
       },
       {
@@ -546,13 +567,18 @@ useEffect(() => {
         flex: 1.5,
         hide: true,
       },
-      { field: "Reviewed", headerName: "Reviewed", width:100, hide: true },
-      { field: "Dynamic Tag", headerName: "Dynamic Tag", width:100, hide: true },
+      { field: "Reviewed", headerName: "Reviewed", width: 100, hide: true },
+      {
+        field: "Dynamic Tag",
+        headerName: "Dynamic Tag",
+        width: 100,
+        hide: true,
+      },
       { field: "MFA Status", headerName: "MFA Status", flex: 1.5, hide: true },
       {
         field: "Review Schedule",
         headerName: "Review Schedule",
-        width:100,
+        width: 100,
         hide: true,
       },
       {
@@ -561,11 +587,16 @@ useEffect(() => {
         flex: 1.5,
         hide: true,
       },
-      { field: "Created On", headerClass: "Created On", width:100, hide: true },
+      {
+        field: "Created On",
+        headerClass: "Created On",
+        width: 100,
+        hide: true,
+      },
       {
         field: "actionColumn",
         headerName: "Action",
-        width:100,
+        width: 100,
         cellRenderer: (params: ICellRendererParams) => {
           return (
             <EditReassignButtons
@@ -592,7 +623,7 @@ useEffect(() => {
       {
         field: "entitlementName",
         headerName: "Entitlement Name",
-        width:650,
+        width: 650,
         wrapText: true,
         cellRenderer: (params: ICellRendererParams) => {
           return (
@@ -607,11 +638,11 @@ useEffect(() => {
           );
         },
       },
-      { field: "type", headerName: "Type", width:120, },
+      { field: "type", headerName: "Type", width: 120 },
       {
         field: "risk",
         headerName: "Risk",
-        width:120,
+        width: 120,
         cellRenderer: (params: ICellRendererParams) => {
           const risk = params.value;
           const riskColor =
@@ -619,8 +650,8 @@ useEffect(() => {
           return <span style={{ color: riskColor }}>{risk}</span>;
         },
       },
-      { field: "applicationName", headerName: "Application", width:150 },
-      { field: "Last Reviewed on", headerName: "Last Reviewed", width:180 },
+      { field: "applicationName", headerName: "Application", width: 150 },
+      { field: "Last Reviewed on", headerName: "Last Reviewed", width: 180 },
       {
         headerName: "Actions",
         width: 250,
@@ -1064,8 +1095,8 @@ useEffect(() => {
               </h1>
               <Tabs
                 tabs={tabsDataEnt}
-                activeClass="bg-[#15274E] text-white text-sm rounded-sm "
-                buttonClass="h-10 -mt-1 w-40"
+                activeClass="bg-[#2563eb] text-white text-sm rounded-sm "
+                buttonClass="h-10 -mt-1 w-40 right-0"
                 className="ml-0.5 border border-gray-300 w-65 h-8 rounded-md"
                 activeIndex={entTabIndex}
                 onChange={setEntTabIndex}
@@ -1080,10 +1111,18 @@ useEffect(() => {
       icon: ChevronDown,
       iconOff: ChevronRight,
       component: () => {
-        const [selectedApplication, setSelectedApplication] = useState<string>("");
+        const [selectedApplication, setSelectedApplication] =
+          useState<string>("");
         const [userName, setUserName] = useState<string>("");
         const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
-        const [applications, setApplications] = useState<Array<{ applicationId: string; applicationName: string; scimurl: string; filter: string }>>([]);
+        const [applications, setApplications] = useState<
+          Array<{
+            applicationId: string;
+            applicationName: string;
+            scimurl: string;
+            filter: string;
+          }>
+        >([]);
         const [loading, setLoading] = useState<boolean>(true);
         const [error, setError] = useState<string | null>(null);
         const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -1102,7 +1141,7 @@ useEffect(() => {
               setLoading(true);
               setError(null);
               const response = await getAllRegisteredApps(reviewerID);
-              
+
               if (response.executionStatus === "success") {
                 setApplications(response.items);
               } else {
@@ -1119,7 +1158,10 @@ useEffect(() => {
           fetchApplications();
         }, []);
 
-        const handleApplicationSelect = (app: { applicationId: string; applicationName: string }) => {
+        const handleApplicationSelect = (app: {
+          applicationId: string;
+          applicationName: string;
+        }) => {
           setSelectedApplication(app.applicationName);
           setIsDropdownOpen(false);
           // Clear user name and response data when application changes
@@ -1132,8 +1174,10 @@ useEffect(() => {
 
         const handleGetResult = async () => {
           if (selectedApplication && userName) {
-            const selectedApp = applications.find(app => app.applicationName === selectedApplication);
-            
+            const selectedApp = applications.find(
+              (app) => app.applicationName === selectedApplication
+            );
+
             if (!selectedApp) {
               setSearchError("Selected application not found");
               return;
@@ -1151,13 +1195,13 @@ useEffect(() => {
                 filter: `userName co "${userName}"`,
                 applicationId: selectedApp.applicationId,
                 scimurl: selectedApp.scimurl,
-                applicationName: selectedApp.applicationName
+                applicationName: selectedApp.applicationName,
               };
 
               console.log("Searching with payload:", payload);
-              
+
               const response = await searchUsers(payload);
-              
+
               console.log("Search results:", response);
               setSearchResults(response.items || response || []);
               setResponseBody(response);
@@ -1165,7 +1209,6 @@ useEffect(() => {
               if (response.Resources && response.Resources.length > 0) {
                 setSelectedUser(response.Resources[0]);
               }
-              
             } catch (err) {
               console.error("Error searching users:", err);
               setSearchError("Error searching users. Please try again.");
@@ -1179,12 +1222,20 @@ useEffect(() => {
           <div className="sampling-tab-content">
             <div
               className="search-container"
-              style={{ display: "flex", gap: "15px", margin: "20px", alignItems: "center", justifyContent: "center" }}
+              style={{
+                display: "flex",
+                gap: "15px",
+                margin: "20px",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
             >
               {/* Application Name Dropdown */}
               <div className="relative">
                 <button
-                  onClick={() => !loading && !error && setIsDropdownOpen(!isDropdownOpen)}
+                  onClick={() =>
+                    !loading && !error && setIsDropdownOpen(!isDropdownOpen)
+                  }
                   disabled={loading || error}
                   style={{
                     padding: "8px 12px",
@@ -1197,56 +1248,66 @@ useEffect(() => {
                     textAlign: "left",
                     display: "flex",
                     justifyContent: "space-between",
-                    alignItems: "center"
+                    alignItems: "center",
                   }}
                 >
-                  <span style={{ color: selectedApplication ? "#000" : "#999" }}>
-                    {loading ? "Loading applications..." : 
-                     error ? "Error loading applications" :
-                     selectedApplication || "Select Application Name"}
+                  <span
+                    style={{ color: selectedApplication ? "#000" : "#999" }}
+                  >
+                    {loading
+                      ? "Loading applications..."
+                      : error
+                      ? "Error loading applications"
+                      : selectedApplication || "Select Application Name"}
                   </span>
                   <span style={{ fontSize: "12px" }}>▼</span>
                 </button>
-                
-                {isDropdownOpen && !loading && !error && applications.length > 0 && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: "100%",
-                      left: 0,
-                      right: 0,
-                      backgroundColor: "white",
-                      border: "1px solid #ccc",
-                      borderTop: "none",
-                      borderRadius: "0 0 4px 4px",
-                      maxHeight: "200px",
-                      overflowY: "auto",
-                      zIndex: 1000,
-                      boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
-                    }}
-                  >
-                    {applications.map((app, index) => (
-                      <div
-                        key={app.applicationId}
-                        onClick={() => handleApplicationSelect(app)}
-                        style={{
-                          padding: "8px 12px",
-                          cursor: "pointer",
-                          fontSize: "14px",
-                          borderBottom: index < applications.length - 1 ? "1px solid #f0f0f0" : "none"
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = "#f5f5f5";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = "white";
-                        }}
-                      >
-                        {app.applicationName}
-                      </div>
-                    ))}
-                  </div>
-                )}
+
+                {isDropdownOpen &&
+                  !loading &&
+                  !error &&
+                  applications.length > 0 && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "100%",
+                        left: 0,
+                        right: 0,
+                        backgroundColor: "white",
+                        border: "1px solid #ccc",
+                        borderTop: "none",
+                        borderRadius: "0 0 4px 4px",
+                        maxHeight: "200px",
+                        overflowY: "auto",
+                        zIndex: 1000,
+                        boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                      }}
+                    >
+                      {applications.map((app, index) => (
+                        <div
+                          key={app.applicationId}
+                          onClick={() => handleApplicationSelect(app)}
+                          style={{
+                            padding: "8px 12px",
+                            cursor: "pointer",
+                            fontSize: "14px",
+                            borderBottom:
+                              index < applications.length - 1
+                                ? "1px solid #f0f0f0"
+                                : "none",
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = "#f5f5f5";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = "white";
+                          }}
+                        >
+                          {app.applicationName}
+                        </div>
+                      ))}
+                    </div>
+                  )}
               </div>
 
               {/* User Name Input */}
@@ -1271,7 +1332,7 @@ useEffect(() => {
                   fontSize: "14px",
                   backgroundColor: selectedApplication ? "white" : "#f5f5f5",
                   color: selectedApplication ? "#000" : "#999",
-                  cursor: selectedApplication ? "text" : "not-allowed"
+                  cursor: selectedApplication ? "text" : "not-allowed",
                 }}
               />
 
@@ -1281,14 +1342,20 @@ useEffect(() => {
                 disabled={!selectedApplication || !userName || searchLoading}
                 style={{
                   padding: "8px 16px",
-                  backgroundColor: (selectedApplication && userName && !searchLoading) ? "#007bff" : "#ccc",
+                  backgroundColor:
+                    selectedApplication && userName && !searchLoading
+                      ? "#007bff"
+                      : "#ccc",
                   color: "white",
                   border: "none",
                   borderRadius: "4px",
-                  cursor: (selectedApplication && userName && !searchLoading) ? "pointer" : "not-allowed",
+                  cursor:
+                    selectedApplication && userName && !searchLoading
+                      ? "pointer"
+                      : "not-allowed",
                   fontSize: "14px",
                   fontWeight: "500",
-                  minWidth: "100px"
+                  minWidth: "100px",
                 }}
               >
                 {searchLoading ? "Searching..." : "Get Result"}
@@ -1298,54 +1365,75 @@ useEffect(() => {
             {/* Search Results */}
             {(searchResults.length > 0 || searchError) && (
               <div style={{ margin: "20px", width: "100%" }}>
-                <h3 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "10px", color: "#333" }}>
+                <h3
+                  style={{
+                    fontSize: "16px",
+                    fontWeight: "600",
+                    marginBottom: "10px",
+                    color: "#333",
+                  }}
+                >
                   Search Results
                 </h3>
-                
+
                 {searchError && (
-                  <div style={{
-                    padding: "10px",
-                    backgroundColor: "#fee",
-                    border: "1px solid #fcc",
-                    borderRadius: "4px",
-                    color: "#c33",
-                    marginBottom: "10px"
-                  }}>
+                  <div
+                    style={{
+                      padding: "10px",
+                      backgroundColor: "#fee",
+                      border: "1px solid #fcc",
+                      borderRadius: "4px",
+                      color: "#c33",
+                      marginBottom: "10px",
+                    }}
+                  >
                     {searchError}
                   </div>
                 )}
 
                 {searchResults.length > 0 && (
-                  <div style={{
-                    border: "1px solid #ddd",
-                    borderRadius: "4px",
-                    maxHeight: "400px",
-                    overflowY: "auto"
-                  }}>
-                    <div style={{
-                      padding: "10px",
-                      backgroundColor: "#f8f9fa",
-                      borderBottom: "1px solid #ddd",
-                      fontWeight: "600",
-                      fontSize: "14px"
-                    }}>
+                  <div
+                    style={{
+                      border: "1px solid #ddd",
+                      borderRadius: "4px",
+                      maxHeight: "400px",
+                      overflowY: "auto",
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: "10px",
+                        backgroundColor: "#f8f9fa",
+                        borderBottom: "1px solid #ddd",
+                        fontWeight: "600",
+                        fontSize: "14px",
+                      }}
+                    >
                       Found {searchResults.length} result(s)
                     </div>
                     {searchResults.map((result, index) => (
-                      <div key={index} style={{
-                        padding: "10px",
-                        borderBottom: index < searchResults.length - 1 ? "1px solid #eee" : "none",
-                        fontSize: "14px"
-                      }}>
-                        <pre style={{ 
-                          margin: 0, 
-                          whiteSpace: "pre-wrap", 
-                          fontFamily: "monospace",
-                          fontSize: "12px",
-                          backgroundColor: "#f8f9fa",
-                          padding: "8px",
-                          borderRadius: "4px"
-                        }}>
+                      <div
+                        key={index}
+                        style={{
+                          padding: "10px",
+                          borderBottom:
+                            index < searchResults.length - 1
+                              ? "1px solid #eee"
+                              : "none",
+                          fontSize: "14px",
+                        }}
+                      >
+                        <pre
+                          style={{
+                            margin: 0,
+                            whiteSpace: "pre-wrap",
+                            fontFamily: "monospace",
+                            fontSize: "12px",
+                            backgroundColor: "#f8f9fa",
+                            padding: "8px",
+                            borderRadius: "4px",
+                          }}
+                        >
                           {JSON.stringify(result, null, 2)}
                         </pre>
                       </div>
@@ -1360,20 +1448,24 @@ useEffect(() => {
               <div style={{ margin: "20px", width: "100%", padding: "0 20px" }}>
                 <div style={{ display: "flex", gap: "20px", height: "500px" }}>
                   {/* Part 1: Left Sidebar - User List */}
-                  <div style={{
-                    width: "200px",
-                    border: "1px solid #ddd",
-                    borderRadius: "4px",
-                    backgroundColor: "#f8f9fa",
-                    overflowY: "auto"
-                  }}>
-                    <div style={{
-                      padding: "10px",
-                      backgroundColor: "#e9ecef",
-                      borderBottom: "1px solid #ddd",
-                      fontWeight: "600",
-                      fontSize: "14px"
-                    }}>
+                  <div
+                    style={{
+                      width: "200px",
+                      border: "1px solid #ddd",
+                      borderRadius: "4px",
+                      backgroundColor: "#f8f9fa",
+                      overflowY: "auto",
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: "10px",
+                        backgroundColor: "#e9ecef",
+                        borderBottom: "1px solid #ddd",
+                        fontWeight: "600",
+                        fontSize: "14px",
+                      }}
+                    >
                       Users ({responseBody.Resources.length})
                     </div>
                     {responseBody.Resources.map((user: any, index: number) => (
@@ -1383,11 +1475,18 @@ useEffect(() => {
                         style={{
                           padding: "12px",
                           cursor: "pointer",
-                          borderBottom: index < responseBody.Resources.length - 1 ? "1px solid #eee" : "none",
-                          backgroundColor: selectedUser?.id === user.id ? "#007bff" : "transparent",
-                          color: selectedUser?.id === user.id ? "white" : "#333",
+                          borderBottom:
+                            index < responseBody.Resources.length - 1
+                              ? "1px solid #eee"
+                              : "none",
+                          backgroundColor:
+                            selectedUser?.id === user.id
+                              ? "#007bff"
+                              : "transparent",
+                          color:
+                            selectedUser?.id === user.id ? "white" : "#333",
                           fontSize: "14px",
-                          transition: "background-color 0.2s"
+                          transition: "background-color 0.2s",
                         }}
                         onMouseEnter={(e) => {
                           if (selectedUser?.id !== user.id) {
@@ -1396,7 +1495,8 @@ useEffect(() => {
                         }}
                         onMouseLeave={(e) => {
                           if (selectedUser?.id !== user.id) {
-                            e.currentTarget.style.backgroundColor = "transparent";
+                            e.currentTarget.style.backgroundColor =
+                              "transparent";
                           }
                         }}
                       >
@@ -1406,47 +1506,79 @@ useEffect(() => {
                   </div>
 
                   {/* Part 2: Middle Panel - User Profile Card */}
-                  <div style={{
-                    width: "500px",
-                    border: "1px solid #ddd",
-                    borderRadius: "4px",
-                    backgroundColor: "#f8f9fa",
-                    overflowY: "auto"
-                  }}>
+                  <div
+                    style={{
+                      width: "500px",
+                      border: "1px solid #ddd",
+                      borderRadius: "4px",
+                      backgroundColor: "#f8f9fa",
+                      overflowY: "auto",
+                    }}
+                  >
                     {selectedUser ? (
                       <div>
                         {/* User Profile Card */}
-                        <div style={{
-                          padding: "20px",
-                          backgroundColor: "white",
-                          height: "100%"
-                        }}>
+                        <div
+                          style={{
+                            padding: "20px",
+                            backgroundColor: "white",
+                            height: "100%",
+                          }}
+                        >
                           {/* Header with Avatar and Name */}
-                          <div style={{ display: "flex", alignItems: "center", marginBottom: "20px" }}>
-                            <div style={{
-                              width: "50px",
-                              height: "50px",
-                              borderRadius: "50%",
-                              backgroundColor: "#007bff",
+                          <div
+                            style={{
                               display: "flex",
                               alignItems: "center",
-                              justifyContent: "center",
-                              color: "white",
-                              fontWeight: "bold",
-                              fontSize: "18px",
-                              marginRight: "15px"
-                            }}>
-                              {selectedUser.displayName ? 
-                                selectedUser.displayName.split(' ').map((n: string) => n[0]).join('').toUpperCase() :
-                                selectedUser.userName ? selectedUser.userName.substring(0, 2).toUpperCase() : 'U'
-                              }
+                              marginBottom: "20px",
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: "50px",
+                                height: "50px",
+                                borderRadius: "50%",
+                                backgroundColor: "#007bff",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                color: "white",
+                                fontWeight: "bold",
+                                fontSize: "18px",
+                                marginRight: "15px",
+                              }}
+                            >
+                              {selectedUser.displayName
+                                ? selectedUser.displayName
+                                    .split(" ")
+                                    .map((n: string) => n[0])
+                                    .join("")
+                                    .toUpperCase()
+                                : selectedUser.userName
+                                ? selectedUser.userName
+                                    .substring(0, 2)
+                                    .toUpperCase()
+                                : "U"}
                             </div>
                             <div>
-                              <div style={{ fontSize: "20px", fontWeight: "bold", color: "#333" }}>
-                                {selectedUser.displayName || selectedUser.userName}
+                              <div
+                                style={{
+                                  fontSize: "20px",
+                                  fontWeight: "bold",
+                                  color: "#333",
+                                }}
+                              >
+                                {selectedUser.displayName ||
+                                  selectedUser.userName}
                               </div>
                               {selectedUser.title && (
-                                <div style={{ fontSize: "14px", color: "#666", marginTop: "2px" }}>
+                                <div
+                                  style={{
+                                    fontSize: "14px",
+                                    color: "#666",
+                                    marginTop: "2px",
+                                  }}
+                                >
                                   {selectedUser.title}
                                 </div>
                               )}
@@ -1454,107 +1586,145 @@ useEffect(() => {
                           </div>
 
                           {/* User Attributes Table */}
-                          <div style={{ 
-                            display: "grid", 
-                            gridTemplateColumns: "1fr 2fr", 
-                            gap: "12px",
-                            fontSize: "14px"
-                          }}>
-                            <div style={{ fontWeight: "600", color: "#333" }}>Username (for login):</div>
-                            <div style={{ color: "#666" }}>{selectedUser.userName || "N/A"}</div>
-
-                            <div style={{ fontWeight: "600", color: "#333" }}>Work Email:</div>
+                          <div
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "1fr 2fr",
+                              gap: "12px",
+                              fontSize: "14px",
+                            }}
+                          >
+                            <div style={{ fontWeight: "600", color: "#333" }}>
+                              Username (for login):
+                            </div>
                             <div style={{ color: "#666" }}>
-                              {selectedUser.emails && selectedUser.emails.length > 0 
-                                ? selectedUser.emails[0].value 
-                                : "N/A"
-                              }
+                              {selectedUser.userName || "N/A"}
                             </div>
 
-                            <div style={{ fontWeight: "600", color: "#333" }}>First Name:</div>
+                            <div style={{ fontWeight: "600", color: "#333" }}>
+                              Work Email:
+                            </div>
+                            <div style={{ color: "#666" }}>
+                              {selectedUser.emails &&
+                              selectedUser.emails.length > 0
+                                ? selectedUser.emails[0].value
+                                : "N/A"}
+                            </div>
+
+                            <div style={{ fontWeight: "600", color: "#333" }}>
+                              First Name:
+                            </div>
                             <div style={{ color: "#666" }}>
                               {selectedUser.name?.givenName || "N/A"}
                             </div>
 
-                            <div style={{ fontWeight: "600", color: "#333" }}>Last Name:</div>
+                            <div style={{ fontWeight: "600", color: "#333" }}>
+                              Last Name:
+                            </div>
                             <div style={{ color: "#666" }}>
                               {selectedUser.name?.familyName || "N/A"}
                             </div>
 
-                            <div style={{ fontWeight: "600", color: "#333" }}>Account Status:</div>
-                            <div style={{ color: "#28a745", fontWeight: "500" }}>Active</div>
-
-                            <div style={{ fontWeight: "600", color: "#333" }}>Permissions:</div>
-                            <div style={{ color: "#6c757d" }}>
-                              {selectedUser.groups && selectedUser.groups.length > 0 
-                                ? selectedUser.groups.map((group: any, index: number) => (
-                                    <div key={index} style={{ marginBottom: "4px" }}>
-                                      {group.display || group.value}
-                                    </div>
-                                  ))
-                                : "No group permissions assigned"
-                              }
+                            <div style={{ fontWeight: "600", color: "#333" }}>
+                              Account Status:
+                            </div>
+                            <div
+                              style={{ color: "#28a745", fontWeight: "500" }}
+                            >
+                              Active
                             </div>
 
+                            <div style={{ fontWeight: "600", color: "#333" }}>
+                              Permissions:
+                            </div>
+                            <div style={{ color: "#6c757d" }}>
+                              {selectedUser.groups &&
+                              selectedUser.groups.length > 0
+                                ? selectedUser.groups.map(
+                                    (group: any, index: number) => (
+                                      <div
+                                        key={index}
+                                        style={{ marginBottom: "4px" }}
+                                      >
+                                        {group.display || group.value}
+                                      </div>
+                                    )
+                                  )
+                                : "No group permissions assigned"}
+                            </div>
 
                             {selectedUser.preferredLanguage && (
                               <>
-                                <div style={{ fontWeight: "600", color: "#333" }}>Preferred Language:</div>
-                                <div style={{ color: "#666" }}>{selectedUser.preferredLanguage}</div>
+                                <div
+                                  style={{ fontWeight: "600", color: "#333" }}
+                                >
+                                  Preferred Language:
+                                </div>
+                                <div style={{ color: "#666" }}>
+                                  {selectedUser.preferredLanguage}
+                                </div>
                               </>
                             )}
                           </div>
                         </div>
                       </div>
                     ) : (
-                      <div style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        height: "100%",
-                        color: "#666",
-                        fontSize: "14px"
-                      }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          height: "100%",
+                          color: "#666",
+                          fontSize: "14px",
+                        }}
+                      >
                         Select a user from the list to view details
                       </div>
                     )}
                   </div>
 
                   {/* Part 3: Right Panel - JSON Data */}
-                  <div style={{
-                    flex: 1,
-                    border: "1px solid #ddd",
-                    borderRadius: "4px",
-                    backgroundColor: "#000000",
-                    overflowY: "auto"
-                  }}>
+                  <div
+                    style={{
+                      flex: 1,
+                      border: "1px solid #ddd",
+                      borderRadius: "4px",
+                      backgroundColor: "#000000",
+                      overflowY: "auto",
+                    }}
+                  >
                     {selectedUser ? (
                       <div style={{ padding: "15px" }}>
-                        <pre style={{ 
-                          margin: 0, 
-                          whiteSpace: "pre-wrap", 
-                          fontFamily: "monospace",
-                          fontSize: "12px",
-                          backgroundColor: "#1a1a1a",
-                          padding: "10px",
-                          borderRadius: "4px",
-                          border: "1px solid #333",
-                          color: "#ffffff",
-                          height: "calc(100% - 30px)",
-                          overflowY: "auto"
-                        }}>
+                        <pre
+                          style={{
+                            margin: 0,
+                            whiteSpace: "pre-wrap",
+                            fontFamily: "monospace",
+                            fontSize: "12px",
+                            backgroundColor: "#1a1a1a",
+                            padding: "10px",
+                            borderRadius: "4px",
+                            border: "1px solid #333",
+                            color: "#ffffff",
+                            height: "calc(100% - 30px)",
+                            overflowY: "auto",
+                          }}
+                        >
                           {JSON.stringify(selectedUser, null, 2)}
                         </pre>
                       </div>
                     ) : (
-                      <div style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        height: "100%",
-                        color: "#ffffff",
-                        fontSize: "14px"
-                      }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          height: "100%",
+                          color: "#ffffff",
+                          fontSize: "14px",
+                        }}
+                      >
                         Select a user from the list to view JSON data
                       </div>
                     )}
@@ -1569,7 +1739,11 @@ useEffect(() => {
   ];
 
   return (
-    <div className={`transition-all duration-300 ease-in-out ${isSidePanelOpen ? 'mr-[500px]' : 'mr-0'}`}>
+    <div
+      className={`transition-all duration-300 ease-in-out ${
+        isSidePanelOpen ? "mr-[500px]" : "mr-0"
+      }`}
+    >
       <HorizontalTabs
         tabs={tabsData}
         activeClass="bg-[#15274E] text-white rounded-sm -ml-1"
@@ -1580,310 +1754,331 @@ useEffect(() => {
       />
       {isSidePanelOpen && (
         <div
-          className="fixed top-0 right-0 h-full bg-white shadow-xl z-50 overflow-y-auto border-l border-gray-200"
-                style={{ width: 500 }}
+          className="fixed top-0 right-0 h-180 bg-white shadow-xl z-50 overflow-y-auto border-l border-gray-200 mt-16"
+          style={{ width: 500 }}
+        >
+          <div className="p-4 border-b bg-gray-50">
+            <div className="flex justify-between items-start">
+              <div className="flex-1">
+                <h2 className="text-lg font-semibold">Entitlement Details</h2>
+                <div className="mt-2">
+                  <span className="text-xs uppercase text-gray-500">
+                    Entitlement Name:
+                  </span>
+                  <div className="text-md font-medium text-wrap">
+                    {nodeData?.["Ent Name"] ||
+                      (nodeData as any)?.entitlementName ||
+                      (nodeData as any)?.userDisplayName ||
+                      (nodeData as any)?.accountName ||
+                      (nodeData as any)?.applicationName ||
+                      "-"}
+                  </div>
+                </div>
+                <div className="mt-2">
+                  <span className="text-xs uppercase text-gray-500">
+                    Description:
+                  </span>
+                  <p className="text-sm text-gray-700  text-wrap">
+                    {nodeData?.["Ent Description"] ||
+                      (nodeData as any)?.description ||
+                      (nodeData as any)?.details ||
+                      "-"}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsSidePanelOpen(false)}
+                className="text-gray-600 hover:text-gray-800"
+                aria-label="Close panel"
               >
-                <div className="p-4 border-b bg-gray-50">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <h2 className="text-lg font-semibold">
-                        Entitlement Details
-                      </h2>
-                      <h3 className="text-md font-medium mt-2">
-                        {nodeData?.["Ent Name"] || "Name: -"}
-                      </h3>
-                      <p className="text-sm text-gray-600">
-                        {nodeData?.["Ent Description"] || "Ent Description: -"}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setIsSidePanelOpen(false)}
-                      className="text-gray-600 hover:text-gray-800"
-                      aria-label="Close panel"
-                    >
-                      <X size={24} />
-                    </button>
-                  </div>
-                  <div className="mt-3 flex space-x-2">
-                    <button
-                      onClick={handleApprove}
-                      title="Approve"
-                      aria-label="Approve entitlement"
-                      className={`p-1 rounded transition-colors duration-200 ${
-                        lastAction === "Approve"
-                          ? "bg-green-500"
-                          : "hover:bg-green-100"
-                      }`}
-                    >
-                      <CircleCheck
-                        className="cursor-pointer"
-                        color="#1c821cff"
-                        strokeWidth="1"
-                        size="32"
-                        fill={lastAction === "Approve" ? "#1c821cff" : "none"}
-                      />
-                    </button>
-                    <button
-                      onClick={handleRevoke}
-                      title="Revoke"
-                      aria-label="Revoke entitlement"
-                      className={`p-1 rounded ${
-                        nodeData?.status === "Rejected" ? "bg-red-100" : ""
-                      }`}
-                    >
-                      <CircleX
-                        className="cursor-pointer hover:opacity-80 transform rotate-90"
-                        color="#FF2D55"
-                        strokeWidth="1"
-                        size="32"
-                        fill={
-                          nodeData?.status === "Rejected" ? "#FF2D55" : "none"
-                        }
-                      />
-                    </button>
-                    <button
-                      onClick={handleComment}
-                      title="Comment"
-                      aria-label="Add comment"
-                      className="p-1 rounded"
-                    >
-                      <svg
-                        width="30"
-                        height="30"
-                        viewBox="0 0 32 32"
-                        className="cursor-pointer hover:opacity-80"
-                      >
-                        <path
-                          d="M0.700195 0V19.5546H3.5802V25.7765C3.57994 25.9525 3.62203 26.1247 3.70113 26.2711C3.78022 26.4176 3.89277 26.5318 4.02449 26.5992C4.15621 26.6666 4.30118 26.6842 4.44101 26.6498C4.58085 26.6153 4.70926 26.5304 4.80996 26.4058C6.65316 24.1232 10.3583 19.5546 10.3583 19.5546H25.1802V0H0.700195ZM2.1402 1.77769H23.7402V17.7769H9.76212L5.0202 23.6308V17.7769H2.1402V1.77769ZM5.0202 5.33307V7.11076H16.5402V5.33307H5.0202ZM26.6202 5.33307V7.11076H28.0602V23.11H25.1802V28.9639L20.4383 23.11H9.34019L7.9002 24.8877H19.8421C19.8421 24.8877 23.5472 29.4563 25.3904 31.7389C25.4911 31.8635 25.6195 31.9484 25.7594 31.9828C25.8992 32.0173 26.0442 31.9997 26.1759 31.9323C26.3076 31.8648 26.4202 31.7507 26.4993 31.6042C26.5784 31.4578 26.6204 31.2856 26.6202 31.1096V24.8877H29.5002V5.33307H26.6202ZM5.0202 8.88845V10.6661H10.7802V8.88845H5.0202ZM5.0202 12.4438V14.2215H19.4202V12.4438H5.0202Z"
-                          fill="#2684FF"
-                        />
-                      </svg>
-                    </button>
-                  </div>
+                <X size={24} />
+              </button>
+            </div>
+            <div className="mt-3 flex space-x-2">
+              <button
+                onClick={handleApprove}
+                title="Approve"
+                aria-label="Approve entitlement"
+                className={`p-1 rounded transition-colors duration-200 ${
+                  lastAction === "Approve"
+                    ? "bg-green-500"
+                    : "hover:bg-green-100"
+                }`}
+              >
+                <CircleCheck
+                  className="cursor-pointer"
+                  color="#1c821cff"
+                  strokeWidth="1"
+                  size="32"
+                  fill={lastAction === "Approve" ? "#1c821cff" : "none"}
+                />
+              </button>
+              <button
+                onClick={handleRevoke}
+                title="Revoke"
+                aria-label="Revoke entitlement"
+                className={`p-1 rounded ${
+                  nodeData?.status === "Rejected" ? "bg-red-100" : ""
+                }`}
+              >
+                <CircleX
+                  className="cursor-pointer hover:opacity-80 transform rotate-90"
+                  color="#FF2D55"
+                  strokeWidth="1"
+                  size="32"
+                  fill={nodeData?.status === "Rejected" ? "#FF2D55" : "none"}
+                />
+              </button>
+              <button
+                onClick={handleComment}
+                title="Comment"
+                aria-label="Add comment"
+                className="p-1 rounded"
+              >
+                <svg
+                  width="30"
+                  height="30"
+                  viewBox="0 0 32 32"
+                  className="cursor-pointer hover:opacity-80"
+                >
+                  <path
+                    d="M0.700195 0V19.5546H3.5802V25.7765C3.57994 25.9525 3.62203 26.1247 3.70113 26.2711C3.78022 26.4176 3.89277 26.5318 4.02449 26.5992C4.15621 26.6666 4.30118 26.6842 4.44101 26.6498C4.58085 26.6153 4.70926 26.5304 4.80996 26.4058C6.65316 24.1232 10.3583 19.5546 10.3583 19.5546H25.1802V0H0.700195ZM2.1402 1.77769H23.7402V17.7769H9.76212L5.0202 23.6308V17.7769H2.1402V1.77769ZM5.0202 5.33307V7.11076H16.5402V5.33307H5.0202ZM26.6202 5.33307V7.11076H28.0602V23.11H25.1802V28.9639L20.4383 23.11H9.34019L7.9002 24.8877H19.8421C19.8421 24.8877 23.5472 29.4563 25.3904 31.7389C25.4911 31.8635 25.6195 31.9484 25.7594 31.9828C25.8992 32.0173 26.0442 31.9997 26.1759 31.9323C26.3076 31.8648 26.4202 31.7507 26.4993 31.6042C26.5784 31.4578 26.6204 31.2856 26.6202 31.1096V24.8877H29.5002V5.33307H26.6202ZM5.0202 8.88845V10.6661H10.7802V8.88845H5.0202ZM5.0202 12.4438V14.2215H19.4202V12.4438H5.0202Z"
+                    fill="#2684FF"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div className="p-4 space-y-4">
+            <div className="bg-white border border-gray-200 rounded-md shadow-sm">
+              <button
+                className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
+                onClick={() => toggleFrame("general")}
+              >
+                {expandedFrames.general ? (
+                  <ChevronDown size={20} className="mr-2" />
+                ) : (
+                  <ChevronRight size={20} className="mr-2" />
+                )}
+                General
+              </button>
+              {expandedFrames.general && (
+                <div className="p-4 space-y-2">
+                  {renderSideBySideField(
+                    "Ent Type",
+                    nodeData?.["Ent Type"],
+                    "#Assignments",
+                    nodeData?.["Total Assignments"]
+                  )}
+                  {renderSideBySideField(
+                    "App Name",
+                    nodeData?.["App Name"],
+                    "Tag(s)",
+                    nodeData?.["Dynamic Tag"]
+                  )}
                 </div>
-                <div className="p-4 space-y-4">
-                  <div className="bg-white border border-gray-200 rounded-md shadow-sm">
-                    <button
-                      className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
-                      onClick={() => toggleFrame("general")}
-                    >
-                      {expandedFrames.general ? (
-                        <ChevronDown size={20} className="mr-2" />
-                      ) : (
-                        <ChevronRight size={20} className="mr-2" />
-                      )}
-                      General
-                    </button>
-                    {expandedFrames.general && (
-                      <div className="p-4 space-y-2">
-                        {renderSideBySideField(
-                          "Ent Type",
-                          nodeData?.["Ent Type"],
-                          "#Assignments",
-                          nodeData?.["Total Assignments"]
-                        )}
-                        {renderSideBySideField(
-                          "App Name",
-                          nodeData?.["App Name"],
-                          "Tag(s)",
-                          nodeData?.["Dynamic Tag"]
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  <div className="bg-white border border-gray-200 rounded-md shadow-sm">
-                    <button
-                      className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
-                      onClick={() => toggleFrame("business")}
-                    >
-                      {expandedFrames.business ? (
-                        <ChevronDown size={20} className="mr-2" />
-                      ) : (
-                        <ChevronRight size={20} className="mr-2" />
-                      )}
-                      Business
-                    </button>
-                    {expandedFrames.business && (
-                      <div className="p-4 space-y-2">
-                        {renderSingleField(
-                          "Objective",
-                          nodeData?.["Business Objective"]
-                        )}
-                        {renderSideBySideField(
-                          "Business Unit",
-                          nodeData?.["Business Unit"],
-                          "Business Owner",
-                          nodeData?.["Ent Owner"]
-                        )}
-                        {renderSingleField(
-                          "Regulatory Scope",
-                          nodeData?.["Compliance Type"]
-                        )}
-                        {renderSideBySideField(
-                          "Data Classification",
-                          nodeData?.["Data Classification"],
-                          "Cost Center",
-                          nodeData?.["Cost Center"]
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  <div className="bg-white border border-gray-200 rounded-md shadow-sm">
-                    <button
-                      className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
-                      onClick={() => toggleFrame("technical")}
-                    >
-                      {expandedFrames.technical ? (
-                        <ChevronDown size={20} className="mr-2" />
-                      ) : (
-                        <ChevronRight size={20} className="mr-2" />
-                      )}
-                      Technical
-                    </button>
-                    {expandedFrames.technical && (
-                      <div className="p-4 space-y-2">
-                        {renderSideBySideField(
-                          "Created On",
-                          formatDate(nodeData?.["Created On"]),
-                          "Last Sync",
-                          formatDate(nodeData?.["Last Sync"])
-                        )}
-                        {renderSideBySideField(
-                          "App Name",
-                          nodeData?.["App Name"],
-                          "App Instance",
-                          nodeData?.["App Instance"]
-                        )}
-                        {renderSideBySideField(
-                          "App Owner",
-                          nodeData?.["App Owner"],
-                          "Ent Owner",
-                          nodeData?.["Ent Owner"]
-                        )}
-                        {renderSideBySideField(
-                          "Hierarchy",
-                          nodeData?.["Hierarchy"],
-                          "MFA Status",
-                          nodeData?.["MFA Status"]
-                        )}
-                        {renderSingleField(
-                          "Assigned to/Member of",
-                          nodeData?.["assignment"]
-                        )}
-                        {renderSingleField(
-                          "License Type",
-                          nodeData?.["License Type"]
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  <div className="bg-white border border-gray-200 rounded-md shadow-sm">
-                    <button
-                      className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
-                      onClick={() => toggleFrame("security")}
-                    >
-                      {expandedFrames.security ? (
-                        <ChevronDown size={20} className="mr-2" />
-                      ) : (
-                        <ChevronRight size={20} className="mr-2" />
-                      )}
-                      Security
-                    </button>
-                    {expandedFrames.security && (
-                      <div className="p-4 space-y-2">
-                        {renderSideBySideField(
-                          "Risk",
-                          nodeData?.["Risk"],
-                          "Certifiable",
-                          nodeData?.["Certifiable"]
-                        )}
-                        {renderSideBySideField(
-                          "Revoke on Disable",
-                          nodeData?.["Revoke on Disable"],
-                          "Shared Pwd",
-                          nodeData?.["Shared Pwd"]
-                        )}
-                        {renderSingleField(
-                          "SoD/Toxic Combination",
-                          nodeData?.["SOD Check"]
-                        )}
-                        {renderSingleField(
-                          "Access Scope",
-                          nodeData?.["Access Scope"]
-                        )}
-                        {renderSideBySideField(
-                          "Review Schedule",
-                          nodeData?.["Review Schedule"],
-                          "Last Reviewed On",
-                          formatDate(nodeData?.["Last Reviewed on"])
-                        )}
-                        {renderSideBySideField(
-                          "Privileged",
-                          nodeData?.["Privileged"],
-                          "Non Persistent Access",
-                          nodeData?.["Non Persistent Access"]
-                        )}
-                        {renderSingleField(
-                          "Audit Comments",
-                          nodeData?.["Audit Comments"]
-                        )}
-                        {renderSingleField(
-                          "Account Type Restriction",
-                          nodeData?.["Account Type Restriction"]
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  <div className="bg-white border border-gray-200 rounded-md shadow-sm">
-                    <button
-                      className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
-                      onClick={() => toggleFrame("lifecycle")}
-                    >
-                      {expandedFrames.lifecycle ? (
-                        <ChevronDown size={20} className="mr-2" />
-                      ) : (
-                        <ChevronRight size={20} className="mr-2" />
-                      )}
-                      Lifecycle
-                    </button>
-                    {expandedFrames.lifecycle && (
-                      <div className="p-4 space-y-2">
-                        {renderSideBySideField(
-                          "Requestable",
-                          nodeData?.["Requestable"],
-                          "Pre-Requisite",
-                          nodeData?.["Pre- Requisite"]
-                        )}
-                        {renderSingleField(
-                          "Pre-Req Details",
-                          nodeData?.["Pre-Requisite Details"]
-                        )}
-                        {renderSingleField(
-                          "Auto Assign Access Policy",
-                          nodeData?.["Auto Assign Access Policy"]
-                        )}
-                        {renderSingleField(
-                          "Provisioner Group",
-                          nodeData?.["Provisioner Group"]
-                        )}
-                        {renderSingleField(
-                          "Provisioning Steps",
-                          nodeData?.["Provisioning Steps"]
-                        )}
-                        {renderSingleField(
-                          "Provisioning Mechanism",
-                          nodeData?.["Provisioning Mechanism"]
-                        )}
-                        {renderSingleField(
-                          "Action on Native Change",
-                          nodeData?.["Action on Native Change"]
-                        )}
-                      </div>
-                    )}
-                  </div>
+              )}
+            </div>
+            <div className="bg-white border border-gray-200 rounded-md shadow-sm">
+              <button
+                className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
+                onClick={() => toggleFrame("business")}
+              >
+                {expandedFrames.business ? (
+                  <ChevronDown size={20} className="mr-2" />
+                ) : (
+                  <ChevronRight size={20} className="mr-2" />
+                )}
+                Business
+              </button>
+              {expandedFrames.business && (
+                <div className="p-4 space-y-2">
+                  {renderSingleField(
+                    "Objective",
+                    nodeData?.["Business Objective"]
+                  )}
+                  {renderSideBySideField(
+                    "Business Unit",
+                    nodeData?.["Business Unit"],
+                    "Business Owner",
+                    nodeData?.["Ent Owner"]
+                  )}
+                  {renderSingleField(
+                    "Regulatory Scope",
+                    nodeData?.["Compliance Type"]
+                  )}
+                  {renderSideBySideField(
+                    "Data Classification",
+                    nodeData?.["Data Classification"],
+                    "Cost Center",
+                    nodeData?.["Cost Center"]
+                  )}
                 </div>
+              )}
+            </div>
+            <div className="bg-white border border-gray-200 rounded-md shadow-sm">
+              <button
+                className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
+                onClick={() => toggleFrame("technical")}
+              >
+                {expandedFrames.technical ? (
+                  <ChevronDown size={20} className="mr-2" />
+                ) : (
+                  <ChevronRight size={20} className="mr-2" />
+                )}
+                Technical
+              </button>
+              {expandedFrames.technical && (
+                <div className="p-4 space-y-2">
+                  {renderSideBySideField(
+                    "Created On",
+                    formatDate(nodeData?.["Created On"]),
+                    "Last Sync",
+                    formatDate(nodeData?.["Last Sync"])
+                  )}
+                  {renderSideBySideField(
+                    "App Name",
+                    nodeData?.["App Name"],
+                    "App Instance",
+                    nodeData?.["App Instance"]
+                  )}
+                  {renderSideBySideField(
+                    "App Owner",
+                    nodeData?.["App Owner"],
+                    "Ent Owner",
+                    nodeData?.["Ent Owner"]
+                  )}
+                  {renderSideBySideField(
+                    "Hierarchy",
+                    nodeData?.["Hierarchy"],
+                    "MFA Status",
+                    nodeData?.["MFA Status"]
+                  )}
+                  {renderSingleField(
+                    "Assigned to/Member of",
+                    nodeData?.["assignment"]
+                  )}
+                  {renderSingleField(
+                    "License Type",
+                    nodeData?.["License Type"]
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="bg-white border border-gray-200 rounded-md shadow-sm">
+              <button
+                className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
+                onClick={() => toggleFrame("security")}
+              >
+                {expandedFrames.security ? (
+                  <ChevronDown size={20} className="mr-2" />
+                ) : (
+                  <ChevronRight size={20} className="mr-2" />
+                )}
+                Security
+              </button>
+              {expandedFrames.security && (
+                <div className="p-4 space-y-2">
+                  {renderSideBySideField(
+                    "Risk",
+                    nodeData?.["Risk"],
+                    "Certifiable",
+                    nodeData?.["Certifiable"]
+                  )}
+                  {renderSideBySideField(
+                    "Revoke on Disable",
+                    nodeData?.["Revoke on Disable"],
+                    "Shared Pwd",
+                    nodeData?.["Shared Pwd"]
+                  )}
+                  {renderSingleField(
+                    "SoD/Toxic Combination",
+                    nodeData?.["SOD Check"]
+                  )}
+                  {renderSingleField(
+                    "Access Scope",
+                    nodeData?.["Access Scope"]
+                  )}
+                  {renderSideBySideField(
+                    "Review Schedule",
+                    nodeData?.["Review Schedule"],
+                    "Last Reviewed On",
+                    formatDate(nodeData?.["Last Reviewed on"])
+                  )}
+                  {renderSideBySideField(
+                    "Privileged",
+                    nodeData?.["Privileged"],
+                    "Non Persistent Access",
+                    nodeData?.["Non Persistent Access"]
+                  )}
+                  {renderSingleField(
+                    "Audit Comments",
+                    nodeData?.["Audit Comments"]
+                  )}
+                  {renderSingleField(
+                    "Account Type Restriction",
+                    nodeData?.["Account Type Restriction"]
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="bg-white border border-gray-200 rounded-md shadow-sm">
+              <button
+                className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
+                onClick={() => toggleFrame("lifecycle")}
+              >
+                {expandedFrames.lifecycle ? (
+                  <ChevronDown size={20} className="mr-2" />
+                ) : (
+                  <ChevronRight size={20} className="mr-2" />
+                )}
+                Lifecycle
+              </button>
+              {expandedFrames.lifecycle && (
+                <div className="p-4 space-y-2">
+                  {renderSideBySideField(
+                    "Requestable",
+                    nodeData?.["Requestable"],
+                    "Pre-Requisite",
+                    nodeData?.["Pre- Requisite"]
+                  )}
+                  {renderSingleField(
+                    "Pre-Req Details",
+                    nodeData?.["Pre-Requisite Details"]
+                  )}
+                  {renderSingleField(
+                    "Auto Assign Access Policy",
+                    nodeData?.["Auto Assign Access Policy"]
+                  )}
+                  {renderSingleField(
+                    "Provisioner Group",
+                    nodeData?.["Provisioner Group"]
+                  )}
+                  {renderSingleField(
+                    "Provisioning Steps",
+                    nodeData?.["Provisioning Steps"]
+                  )}
+                  {renderSingleField(
+                    "Provisioning Mechanism",
+                    nodeData?.["Provisioning Mechanism"]
+                  )}
+                  {renderSingleField(
+                    "Action on Native Change",
+                    nodeData?.["Action on Native Change"]
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={() => setIsSidePanelOpen(false)}
+            className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 text-gray-800 w-full"
+            aria-label="Close panel"
+          >
+            Close
+          </button>
         </div>
       )}
-          </div>
+    </div>
   );
 }

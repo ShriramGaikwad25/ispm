@@ -1,7 +1,17 @@
 "use client";
 import { GridApi } from "ag-grid-enterprise";
 import { createPortal } from "react-dom";
-import { ChevronDown, ChevronRight, Edit2Icon, InfoIcon, UserPlus, X } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Edit2Icon,
+  FileText,
+  FileTextIcon,
+  FolderIcon,
+  InfoIcon,
+  UserPlus,
+  X,
+} from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import ProxyActionModal from "../ProxyActionModal";
 import { formatDateMMDDYY } from "@/utils/utils";
@@ -41,11 +51,11 @@ const EditReassignButtons = <T extends { status?: string }>({
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false); // Initialize as false
   const [expandedFrames, setExpandedFrames] = useState({
-    general: true,
-    business: true,
-    technical: true,
-    security: true,
-    lifecycle: true,
+    general: false,
+    business: false,
+    technical: false,
+    security: false,
+    lifecycle: false,
   });
   const [error, setError] = useState<string | null>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -55,7 +65,9 @@ const EditReassignButtons = <T extends { status?: string }>({
     left: number;
   }>({ top: 0, left: 0 });
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedAssignee, setSelectedAssignee] = useState<User | Group | null>(null);
+  const [selectedAssignee, setSelectedAssignee] = useState<User | Group | null>(
+    null
+  );
   const [editableFields, setEditableFields] = useState<Partial<T>>({});
 
   const handleEdit = (e: React.MouseEvent) => {
@@ -114,7 +126,11 @@ const EditReassignButtons = <T extends { status?: string }>({
 
     // Update grid with edited fields
     api.applyTransaction({
-      update: selectedRows.map((row) => ({ ...row, ...editableFields, status: "Edited" })),
+      update: selectedRows.map((row) => ({
+        ...row,
+        ...editableFields,
+        status: "Edited",
+      })),
     });
 
     setIsSidePanelOpen(false);
@@ -159,7 +175,14 @@ const EditReassignButtons = <T extends { status?: string }>({
     return date ? formatDateMMDDYY(date) || "N/A" : "N/A";
   };
 
-  const renderSideBySideField = (label1: string, key1: string, value1: any, label2: string, key2: string, value2: any) => (
+  const renderSideBySideField = (
+    label1: string,
+    key1: string,
+    value1: any,
+    label2: string,
+    key2: string,
+    value2: any
+  ) => (
     <div className="flex space-x-4 text-sm text-gray-700">
       <div className="flex-1">
         <strong>{label1}:</strong>{" "}
@@ -284,42 +307,63 @@ const EditReassignButtons = <T extends { status?: string }>({
         {isSidePanelOpen &&
           createPortal(
             <div
-              className="fixed top-0 right-0 h-full bg-white shadow-xl z-50 overflow-y-auto mt-16"
+              className="fixed top-0 right-0 h-full bg-white shadow-xl z-50 overflow-y-auto mt-16 w-200"
               style={{ width: 500 }}
             >
               <div className="p-4 border-b bg-gray-50">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
-                    <h2 className="text-lg font-semibold">
+                    <h2 className="text-lg font-semibold mb-8 border-b p-1.5">
                       {isEditMode ? "Edit Entitlement" : "Entitlement Details"}
                     </h2>
                     {isEditMode ? (
                       <input
                         type="text"
-                        value={editableFields["Ent Name" as keyof T] || (nodeData as any)?.["Ent Name"] || ""}
+                        value={
+                          editableFields["Ent Name" as keyof T] ||
+                          (nodeData as any)?.["Ent Name"] ||
+                          ""
+                        }
                         onChange={(e) =>
-                          setEditableFields((prev) => ({ ...prev, "Ent Name": e.target.value }))
+                          setEditableFields((prev) => ({
+                            ...prev,
+                            "Ent Name": e.target.value,
+                          }))
                         }
                         className="form-input w-full text-md font-medium mt-2 rounded"
                       />
                     ) : (
-                      <h3 className="text-md font-medium mt-2">
-                        {(nodeData as any)?.["Ent Name"] || "Name: -"}
-                      </h3>
+                      <>
+                      <h3 className="text-md font-semibold text-gray-600">Entitlement Name :-</h3>
+                      <h4 className="text-md font-medium mt-2">
+                        {(nodeData as any)?.["entitlementName"] || "Name: -"}
+                      </h4>
+                      </>
                     )}
                     {isEditMode ? (
                       <textarea
-                        value={editableFields["Ent Description" as keyof T] || (nodeData as any)?.["Ent Description"] || ""}
+                        value={
+                          editableFields["Ent Description" as keyof T] ||
+                          (nodeData as any)?.["Ent Description"] ||
+                          ""
+                        }
                         onChange={(e) =>
-                          setEditableFields((prev) => ({ ...prev, "Ent Description": e.target.value }))
+                          setEditableFields((prev) => ({
+                            ...prev,
+                            "Ent Description": e.target.value,
+                          }))
                         }
                         className="form-input w-full text-sm text-gray-600 mt-2 rounded"
                         rows={2}
                       />
                     ) : (
-                      <p className="text-sm text-gray-600">
-                        {(nodeData as any)?.["Ent Description"] || "Ent Description: -"}
+                      <>
+                       <h3 className="text-md font-semibold text-gray-600 mt-4">Description :-</h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        {(nodeData as any)?.["description"] ||
+                          "description: -"}
                       </p>
+                      </>
                     )}
                   </div>
                   <button
@@ -333,11 +377,11 @@ const EditReassignButtons = <T extends { status?: string }>({
                     <X size={24} />
                   </button>
                 </div>
-                <div className="mt-3 flex space-x-2">
+                <div className="mt-4 flex space-x-2">
                   {!isEditMode && (
                     <button
                       onClick={handleSidebarEdit}
-                      className="p-1 rounded bg-blue-500 text-white hover:bg-blue-600"
+                      className="p-1 rounded bg-blue-500 text-white hover:bg-blue-600 w-full"
                       aria-label="Edit entitlement"
                     >
                       Edit
@@ -346,7 +390,7 @@ const EditReassignButtons = <T extends { status?: string }>({
                   {isEditMode && (
                     <button
                       onClick={handleSaveEdits}
-                      className="p-1 rounded bg-blue-500 text-white hover:bg-blue-600"
+                      className="p-1 rounded bg-blue-500 text-white hover:bg-blue-600 w-full"
                       aria-label="Save edits"
                     >
                       Save
@@ -359,11 +403,18 @@ const EditReassignButtons = <T extends { status?: string }>({
                 {/* General Frame */}
                 <div className="bg-white border border-gray-200 rounded-md shadow-sm">
                   <button
-                    className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
+                    className="flex items-center justify-between w-full text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
                     onClick={() => toggleFrame("general")}
                   >
-                    {expandedFrames.general ? <ChevronDown size={20} className="mr-2" /> : <ChevronRight size={20} className="mr-2" />}
-                    General
+                    <span className="flex items-center">
+                      <FolderIcon size={18} className="mr-2 text-gray-600" />
+                      General
+                    </span>
+                    {expandedFrames.general ? (
+                      <ChevronDown size={20} className="text-gray-600" />
+                    ) : (
+                      <ChevronRight size={20} className="text-gray-600" />
+                    )}
                   </button>
                   {expandedFrames.general && (
                     <div className="p-4 space-y-2">
@@ -390,15 +441,27 @@ const EditReassignButtons = <T extends { status?: string }>({
                 {/* Business Frame */}
                 <div className="bg-white border border-gray-200 rounded-md shadow-sm">
                   <button
-                    className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
+                    className="flex items-center w-full justify-between text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
                     onClick={() => toggleFrame("business")}
                   >
-                    {expandedFrames.business ? <ChevronDown size={20} className="mr-2" /> : <ChevronRight size={20} className="mr-2" />}
-                    Business
+                    <span className="flex items-center">
+                      <FolderIcon size={18} className="mr-2 text-gray-600" />
+                      Business
+                    </span>
+                    {expandedFrames.general ? (
+                      <ChevronDown size={20} className="text-gray-600" />
+                    ) : (
+                      <ChevronRight size={20} className="text-gray-600" />
+                    )}
                   </button>
+
                   {expandedFrames.business && (
                     <div className="p-4 space-y-2">
-                      {renderSingleField("Objective", "Business Objective", (nodeData as any)?.["Business Objective"])}
+                      {renderSingleField(
+                        "Objective",
+                        "Business Objective",
+                        (nodeData as any)?.["Business Objective"]
+                      )}
                       {renderSideBySideField(
                         "Business Unit",
                         "Business Unit",
@@ -407,7 +470,11 @@ const EditReassignButtons = <T extends { status?: string }>({
                         "Ent Owner",
                         (nodeData as any)?.["Ent Owner"]
                       )}
-                      {renderSingleField("Regulatory Scope", "Compliance Type", (nodeData as any)?.["Compliance Type"])}
+                      {renderSingleField(
+                        "Regulatory Scope",
+                        "Compliance Type",
+                        (nodeData as any)?.["Compliance Type"]
+                      )}
                       {renderSideBySideField(
                         "Data Classification",
                         "Data Classification",
@@ -423,11 +490,18 @@ const EditReassignButtons = <T extends { status?: string }>({
                 {/* Technical Frame */}
                 <div className="bg-white border border-gray-200 rounded-md shadow-sm">
                   <button
-                    className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
+                    className="flex items-center w-full justify-between text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
                     onClick={() => toggleFrame("technical")}
                   >
-                    {expandedFrames.technical ? <ChevronDown size={20} className="mr-2" /> : <ChevronRight size={20} className="mr-2" />}
-                    Technical
+                    <span className="flex items-center">
+                      <FolderIcon size={18} className="mr-2 text-gray-600" />
+                      Technical
+                    </span>
+                    {expandedFrames.general ? (
+                      <ChevronDown size={20} className="text-gray-600" />
+                    ) : (
+                      <ChevronRight size={20} className="text-gray-600" />
+                    )}
                   </button>
                   {expandedFrames.technical && (
                     <div className="p-4 space-y-2">
@@ -463,8 +537,16 @@ const EditReassignButtons = <T extends { status?: string }>({
                         "MFA Status",
                         (nodeData as any)?.["MFA Status"]
                       )}
-                      {renderSingleField("Assigned to/Member of", "assignment", (nodeData as any)?.["assignment"])}
-                      {renderSingleField("License Type", "License Type", (nodeData as any)?.["License Type"])}
+                      {renderSingleField(
+                        "Assigned to/Member of",
+                        "assignment",
+                        (nodeData as any)?.["assignment"]
+                      )}
+                      {renderSingleField(
+                        "License Type",
+                        "License Type",
+                        (nodeData as any)?.["License Type"]
+                      )}
                     </div>
                   )}
                 </div>
@@ -472,11 +554,18 @@ const EditReassignButtons = <T extends { status?: string }>({
                 {/* Security Frame */}
                 <div className="bg-white border border-gray-200 rounded-md shadow-sm">
                   <button
-                    className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
+                    className="flex items-center w-full justify-between text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
                     onClick={() => toggleFrame("security")}
                   >
-                    {expandedFrames.security ? <ChevronDown size={20} className="mr-2" /> : <ChevronRight size={20} className="mr-2" />}
-                    Security
+                    <span className="flex items-center">
+                      <FolderIcon size={18} className="mr-2 text-gray-600" />
+                      Security
+                    </span>
+                    {expandedFrames.general ? (
+                      <ChevronDown size={20} className="text-gray-600" />
+                    ) : (
+                      <ChevronRight size={20} className="text-gray-600" />
+                    )}
                   </button>
                   {expandedFrames.security && (
                     <div className="p-4 space-y-2">
@@ -496,8 +585,16 @@ const EditReassignButtons = <T extends { status?: string }>({
                         "Shared Pwd",
                         (nodeData as any)?.["Shared Pwd"]
                       )}
-                      {renderSingleField("SoD/Toxic Combination", "SOD Check", (nodeData as any)?.["SOD Check"])}
-                      {renderSingleField("Access Scope", "Access Scope", (nodeData as any)?.["Access Scope"])}
+                      {renderSingleField(
+                        "SoD/Toxic Combination",
+                        "SOD Check",
+                        (nodeData as any)?.["SOD Check"]
+                      )}
+                      {renderSingleField(
+                        "Access Scope",
+                        "Access Scope",
+                        (nodeData as any)?.["Access Scope"]
+                      )}
                       {renderSideBySideField(
                         "Review Schedule",
                         "Review Schedule",
@@ -514,8 +611,16 @@ const EditReassignButtons = <T extends { status?: string }>({
                         "Non Persistent Access",
                         (nodeData as any)?.["Non Persistent Access"]
                       )}
-                      {renderSingleField("Audit Comments", "Audit Comments", (nodeData as any)?.["Audit Comments"])}
-                      {renderSingleField("Account Type Restriction", "Account Type Restriction", (nodeData as any)?.["Account Type Restriction"])}
+                      {renderSingleField(
+                        "Audit Comments",
+                        "Audit Comments",
+                        (nodeData as any)?.["Audit Comments"]
+                      )}
+                      {renderSingleField(
+                        "Account Type Restriction",
+                        "Account Type Restriction",
+                        (nodeData as any)?.["Account Type Restriction"]
+                      )}
                     </div>
                   )}
                 </div>
@@ -523,11 +628,18 @@ const EditReassignButtons = <T extends { status?: string }>({
                 {/* Lifecycle Frame */}
                 <div className="bg-white border border-gray-200 rounded-md shadow-sm">
                   <button
-                    className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
+                    className="flex items-center w-full justify-between text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
                     onClick={() => toggleFrame("lifecycle")}
                   >
-                    {expandedFrames.lifecycle ? <ChevronDown size={20} className="mr-2" /> : <ChevronRight size={20} className="mr-2" />}
-                    Lifecycle
+                    <span className="flex items-center">
+                      <FolderIcon size={18} className="mr-2 text-gray-600" />
+                      Lifecycle
+                    </span>
+                    {expandedFrames.general ? (
+                      <ChevronDown size={20} className="text-gray-600" />
+                    ) : (
+                      <ChevronRight size={20} className="text-gray-600" />
+                    )}
                   </button>
                   {expandedFrames.lifecycle && (
                     <div className="p-4 space-y-2">
@@ -539,15 +651,51 @@ const EditReassignButtons = <T extends { status?: string }>({
                         "Pre- Requisite",
                         (nodeData as any)?.["Pre- Requisite"]
                       )}
-                      {renderSingleField("Pre-Req Details", "Pre-Requisite Details", (nodeData as any)?.["Pre-Requisite Details"])}
-                      {renderSingleField("Auto Assign Access Policy", "Auto Assign Access Policy", (nodeData as any)?.["Auto Assign Access Policy"])}
-                      {renderSingleField("Provisioner Group", "Provisioner Group", (nodeData as any)?.["Provisioner Group"])}
-                      {renderSingleField("Provisioning Steps", "Provisioning Steps", (nodeData as any)?.["Provisioning Steps"])}
-                      {renderSingleField("Provisioning Mechanism", "Provisioning Mechanism", (nodeData as any)?.["Provisioning Mechanism"])}
-                      {renderSingleField("Action on Native Change", "Action on Native Change", (nodeData as any)?.["Action on Native Change"])}
+                      {renderSingleField(
+                        "Pre-Req Details",
+                        "Pre-Requisite Details",
+                        (nodeData as any)?.["Pre-Requisite Details"]
+                      )}
+                      {renderSingleField(
+                        "Auto Assign Access Policy",
+                        "Auto Assign Access Policy",
+                        (nodeData as any)?.["Auto Assign Access Policy"]
+                      )}
+                      {renderSingleField(
+                        "Provisioner Group",
+                        "Provisioner Group",
+                        (nodeData as any)?.["Provisioner Group"]
+                      )}
+                      {renderSingleField(
+                        "Provisioning Steps",
+                        "Provisioning Steps",
+                        (nodeData as any)?.["Provisioning Steps"]
+                      )}
+                      {renderSingleField(
+                        "Provisioning Mechanism",
+                        "Provisioning Mechanism",
+                        (nodeData as any)?.["Provisioning Mechanism"]
+                      )}
+                      {renderSingleField(
+                        "Action on Native Change",
+                        "Action on Native Change",
+                        (nodeData as any)?.["Action on Native Change"]
+                      )}
                     </div>
                   )}
                 </div>
+              </div>
+              <div className="p-4 border-t bg-gray-50 flex justify-end">
+                <button
+                  onClick={() => {
+                    setIsSidePanelOpen(false);
+                    setIsEditMode(false);
+                  }}
+                  className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 text-gray-800 w-full"
+                  aria-label="Close panel"
+                >
+                  Close
+                </button>
               </div>
             </div>,
             document.body
