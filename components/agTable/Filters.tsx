@@ -11,22 +11,40 @@ const statusOptions = [
   "Remediated",
 ];
 
+const accountFilterOptions = [
+  { label: "Elevated Accounts", value: "iselevated eq Y", count: 0 },
+  { label: "Orphan Accounts", value: "isorphan eq Y", count: 0 },
+  { label: "Terminated User Accounts", value: "isterminated eq Y", count: 0 },
+  { label: "Dormant Accounts", value: "isdormant eq Y", count: 0 },
+  { label: "New Access", value: "isnewaccess eq Y", count: 0 },
+  { label: "Over Privileged Users", value: "isoverprivileged eq Y", count: 0 },
+  { label: "Compliance Violations", value: "iscomplianceviolation eq Y", count: 0 },
+];
+
 const Filters = ({
   gridApi,
   columns = [],
   appliedFilter,
+  onFilterChange,
+  context = "status",
 }: {
   gridApi?: any;
   columns?: string[];
   appliedFilter?: (filters: string[]) => void;
+  onFilterChange?: (filter: string) => void;
+  context?: "status" | "account";
 }) => {
-  const [selectedFilter, setSelectedFilter] = useState<string>("Pending");
+  const [selectedFilter, setSelectedFilter] = useState<string>("");
+  const [filterCounts, setFilterCounts] = useState<{ [key: string]: number }>({});
 
-  const toggleFilter = (status: string) => {
-    setSelectedFilter(status);
+  const toggleFilter = (filterValue: string) => {
+    setSelectedFilter(selectedFilter === filterValue ? "" : filterValue);
     // Call the callback immediately when filter changes
     if (appliedFilter) {
-      appliedFilter([status]);
+      appliedFilter(selectedFilter === filterValue ? [] : [filterValue]);
+    }
+    if (onFilterChange) {
+      onFilterChange(selectedFilter === filterValue ? "" : filterValue);
     }
   };
 
@@ -37,9 +55,14 @@ const Filters = ({
     if (appliedFilter) {
       appliedFilter([]);
     }
+    if (onFilterChange) {
+      onFilterChange("");
+    }
   };
 
   const isActive = !!selectedFilter;
+
+  const options = context === "account" ? accountFilterOptions : statusOptions.map(opt => ({ label: opt, value: opt, count: 0 }));
 
   return (
     <div className={`relative ${isActive ? "w-48" : "w-44"}`}>
@@ -58,7 +81,7 @@ const Filters = ({
             ? () => (
                 <div className="flex h-8 items-center gap-2 px-2 w-full">
                   <FilterX />
-                  <small>{selectedFilter}</small>
+                  <small>{options.find(opt => opt.value === selectedFilter)?.label || selectedFilter}</small>
                   <span
                     title="Clear Filters"
                     className="rounded-full bg-red-600"
@@ -72,28 +95,49 @@ const Filters = ({
         className={`h-8 w-full flex items-center justify-between ${isActive ? "bg-[#6D6E73]/20" : ""}`}
       >
         <li className="px-4 pb-2 border-b border-b-gray-300 font-semibold mb-2">
-          Filter by Status
+          {context === "account" ? "Filters" : "Filter by Status"}
         </li>
-        {statusOptions.map((status) => {
-          const isSelected = selectedFilter === status;
+        {options.map((option) => {
+          const isSelected = selectedFilter === option.value;
+          const count = filterCounts[option.value] || option.count;
           return (
             <li
-              key={status}
-              onClick={() => toggleFilter(status)}
-              className={`px-2 py-2 cursor-pointer flex items-center hover:bg-gray-100 ${
-                isSelected ? "bg-gray-200 font-semibold" : ""
+              key={option.value}
+              onClick={() => toggleFilter(option.value)}
+              className={`px-2 py-2 cursor-pointer flex items-center justify-between hover:bg-gray-100 ${
+                isSelected ? "bg-blue-50 font-semibold" : ""
               }`}
             >
-              <Check
-                size={16}
-                className={`mx-2 ${
-                  isSelected ? "text-green-600" : "text-gray-400"
-                }`}
-              />{" "}
-              {status}
+              <div className="flex items-center">
+                <Check
+                  size={16}
+                  className={`mx-2 ${
+                    isSelected ? "text-blue-600" : "text-gray-400"
+                  }`}
+                />
+                <span className={option.label === "Terminated User Accounts" ? "text-gray-400" : ""}>
+                  {option.label}
+                </span>
+              </div>
+              <span className={`text-xs px-2 py-1 rounded ${
+                isSelected ? "bg-blue-100 text-blue-600" : "bg-gray-100 text-gray-600"
+              }`}>
+                {count}
+              </span>
             </li>
           );
         })}
+        {context === "account" && (
+          <li className="px-2 py-2 border-t border-gray-200 mt-2">
+            <button
+              onClick={clearFilters}
+              className="flex items-center text-gray-600 hover:text-gray-800 text-sm"
+            >
+              <FilterX size={14} className="mr-2" />
+              Clear Filters
+            </button>
+          </li>
+        )}
       </Dropdown>
     </div>
   );

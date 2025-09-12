@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useRef, useState, useEffect, useCallback } from "react";
+import { useMemo, useRef, useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { AgGridReact } from "ag-grid-react";
 import "@/lib/ag-grid-setup";
@@ -31,6 +31,7 @@ import {
   getGroupedAppOwnerDetails,
   getAppAccounts,
   updateAction,
+  getAPPOCertificationDetailsWithFilter,
 } from "@/lib/api";
 import { PaginatedResponse } from "@/types/api";
 
@@ -202,7 +203,7 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
   });
 };
 
-export default function AppOwner() {
+function AppOwnerContent() {
   const searchParams = useSearchParams();
   const [selected, setSelected] = useState<{ [key: string]: number | null }>(
     {}
@@ -227,6 +228,7 @@ export default function AppOwner() {
   const [groupByOption, setGroupByOption] = useState<string>("None");
   const [selectedRows, setSelectedRows] = useState<RowData[]>([]);
   const [quickFilterText, setQuickFilterText] = useState("");
+  const [currentFilter, setCurrentFilter] = useState<string>("");
 
   // Get reviewerId and certificationId from URL parameters, with fallback to hardcoded values
   const reviewerId = searchParams.get('reviewerId') || "430ea9e6-3cff-449c-a24e-59c057f81e3d";
@@ -268,7 +270,17 @@ export default function AppOwner() {
       let response: PaginatedResponse<any>;
       const isGroupedEnts = groupByOption === "Entitlements";
       const isGroupedAccounts = groupByOption === "Accounts";
-      if (isGroupedEnts) {
+      
+      // If a filter is applied, use the filtered API
+      if (currentFilter) {
+        response = await getAPPOCertificationDetailsWithFilter(
+          reviewerId,
+          certificationId,
+          currentFilter,
+          defaultPageSize,
+          pageNumber
+        );
+      } else if (isGroupedEnts) {
         response = await getGroupedAppOwnerDetails(
           reviewerId,
           certificationId,
@@ -460,7 +472,7 @@ export default function AppOwner() {
           }
         );
       } else {
-        // Use existing transform for other cases
+        // Use existing transform for other cases (including filtered API response)
         transformedData = transformApiData(
           response.items,
           isGroupedEnts /* grouped shape only for Entitlements path */
@@ -501,7 +513,7 @@ export default function AppOwner() {
     } finally {
       setLoading(false);
     }
-  }, [pageNumber, defaultPageSize, reviewerId, certificationId, groupByOption]);
+  }, [pageNumber, defaultPageSize, reviewerId, certificationId, groupByOption, currentFilter]);
 
   useEffect(() => {
     fetchData();
@@ -763,6 +775,11 @@ export default function AppOwner() {
     }
   };
 
+  const handleFilterChange = (filter: string) => {
+    setCurrentFilter(filter);
+    setPageNumber(1); // Reset to first page when filter changes
+  };
+
   const onFirstDataRendered = useCallback((params: FirstDataRenderedEvent) => {
     params.api.forEachNode(function (node) {
       if (node.id === "0") {
@@ -827,7 +844,11 @@ export default function AppOwner() {
                 setQuickFilterText(e.target.value);
               }}
             />
-            <Filters gridApi={gridApiRef} />
+            <Filters 
+              gridApi={gridApiRef} 
+              context="account"
+              onFilterChange={handleFilterChange}
+            />
           </div>
           <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
             {/* Pagination moved to bottom below the grid */}
@@ -1117,5 +1138,21 @@ export default function AppOwner() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function AppOwner() {
+  return (
+    <Suspense fallback={
+      <div className="w-full h-screen flex items-center justify-center">
+        <div className="text-center py-4">
+          <span className="ag-overlay-loading-center">
+            ⏳ Loading application owner data...
+          </span>
+        </div>
+      </div>
+    }>
+      <AppOwnerContent />
+    </Suspense>
   );
 }

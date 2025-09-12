@@ -189,3 +189,38 @@ export async function searchUsers(
 
   return response.json();
 }
+
+export async function getAPPOCertificationDetailsWithFilter<T>(
+  reviewerId: string,
+  certificationId: string,
+  filter: string,
+  pageSize?: number,
+  pageNumber?: number
+): Promise<PaginatedResponse<T>> {
+  const endpoint = `https://preview.keyforge.ai/certification/api/v1/CERTTEST/getAPPOCertificationDetails/${reviewerId}/${certificationId}`;
+  
+  const url = new URL(endpoint);
+  url.searchParams.append("filter", filter);
+  if (pageSize !== undefined) {
+    url.searchParams.append("pageSize", pageSize.toString());
+  }
+  if (pageNumber !== undefined) {
+    url.searchParams.append("pageNumber", pageNumber.toString());
+  }
+
+  const headers = {
+    "Content-Type": "application/json",
+    "X-Requested-With": "XMLHttpRequest",
+  };
+
+  const res = await fetch(url.toString(), { headers });
+
+  if (!res.ok) {
+    const errorBody = await res.text();
+    throw new Error(
+      `Fetch failed: ${res.status} ${res.statusText}\n${errorBody}`
+    );
+  }
+
+  return res.json();
+}
