@@ -542,24 +542,24 @@ const HeaderContent = () => {
         {applicationDetails && pathname?.includes('/applications/') ? (
           <div className="flex h-full">
             <div className="flex items-center px-4">
-              <p className="text-lg font-medium text-white">
-                Application:- {applicationDetails.applicationName}
+              <p className="text-sm font-medium text-white">
+                Application: {applicationDetails.applicationName}
               </p>
             </div>
             <div className="flex items-center px-2">
               <span className="text-blue-600 text-lg">•</span>
             </div>
             <div className="flex items-center px-4">
-              <p className="text-lg font-medium text-white">
-                Owner:- {applicationDetails.owner}
+              <p className="text-sm font-medium text-white">
+                Owner: {applicationDetails.owner}
               </p>
             </div>
             <div className="flex items-center px-2">
               <span className="text-blue-600 text-lg">•</span>
             </div>
             <div className="flex items-center px-4">
-              <p className="text-lg font-medium text-white">
-                Last Sync:- {formatDateMMDDYY(applicationDetails.lastSync)}
+              <p className="text-sm font-medium text-white">
+                Last Sync: {formatDateMMDDYY(applicationDetails.lastSync)}
               </p>
             </div>
           </div>

@@ -89,7 +89,7 @@ export default function Campaigns() {
           throw new Error(`Failed to load campaigns (${res.status})`);
         }
         const data = await res.json();
-        console.log(data);
+        console.log(data)
         const campaigns = Array.isArray(data?.campaigns) ? data.campaigns : [];
         const mapped: CampaignRow[] = campaigns.map((c: any) => ({
           id: c.campaignID ?? String(c.id ?? ""),

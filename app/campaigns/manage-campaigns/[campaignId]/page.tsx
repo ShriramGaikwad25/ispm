@@ -122,7 +122,7 @@ export default function ManageCampaigns() {
             <div className="flex justify-between">
               <h1 className="text-xl font-bold mb-6 border-b border-gray-200 pb-4 text-blue-950">
                 Manage Campaigns
-                <p className="font-normal text-sm pt-4">
+                {/* <p className="font-normal text-sm pt-4">
                   Campaigns is <strong>Running</strong>. Directory snapshot as
                   of{" "}
                   <strong className="text-blue-600">
@@ -132,7 +132,7 @@ export default function ManageCampaigns() {
                   <strong className="text-blue-600">
                     29/06/2025, 10:00 AM
                   </strong>
-                </p>
+                </p> */}
               </h1>
             </div>
             <div className="mb-4">
