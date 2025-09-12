@@ -425,7 +425,11 @@ const AccessReview: React.FC = () => {
           `/access-review/${clickedReviewerId}/${clickedCertificationId}`
         );
       } else if (certificationType === "AppOwnerReview") {
-        router.push(`/app-owner`);
+        console.log('Navigating to App Owner with parameters:', {
+          reviewerId: clickedReviewerId,
+          certificationId: clickedCertificationId
+        });
+        router.push(`/app-owner?reviewerId=${clickedReviewerId}&certificationId=${clickedCertificationId}`);
       }
     }
   };

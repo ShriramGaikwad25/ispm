@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useRef, useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { AgGridReact } from "ag-grid-react";
 import "@/lib/ag-grid-setup";
 import CustomPagination from "@/components/agTable/CustomPagination";
@@ -202,6 +203,7 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
 };
 
 export default function AppOwner() {
+  const searchParams = useSearchParams();
   const [selected, setSelected] = useState<{ [key: string]: number | null }>(
     {}
   );
@@ -226,8 +228,16 @@ export default function AppOwner() {
   const [selectedRows, setSelectedRows] = useState<RowData[]>([]);
   const [quickFilterText, setQuickFilterText] = useState("");
 
-  const reviewerId = "430ea9e6-3cff-449c-a24e-59c057f81e3d";
-  const certificationId = "4f5c20b8-1031-4114-a688-3b5be9cc2224";
+  // Get reviewerId and certificationId from URL parameters, with fallback to hardcoded values
+  const reviewerId = searchParams.get('reviewerId') || "430ea9e6-3cff-449c-a24e-59c057f81e3d";
+  const certificationId = searchParams.get('certificationId') || "4f5c20b8-1031-4114-a688-3b5be9cc2224";
+  
+  // Debug logging
+  console.log('App Owner - URL Parameters:', {
+    reviewerId,
+    certificationId,
+    allParams: Object.fromEntries(searchParams.entries())
+  });
 
   const fetchData = useCallback(async () => {
     try {
