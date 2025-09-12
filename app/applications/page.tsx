@@ -57,17 +57,19 @@ export default function Application() {
           const riskColor =
             riskStatus === "High" ? "red" : riskStatus === "Medium" ? "orange" : "green";
           
-          // Special styling for Medium risk - show app name in red bubble
+          // Special styling for High risk - show app name in red bubble
           if (riskStatus === "High") {
             return (
-              <div className="flex items-center">
+              <div className="flex items-center h-full">
                 <span
-                  className="px-3 py-1 text-gray-800 font-medium rounded-full"
+                  className="px-2 py-1 text-sm font-medium rounded-full inline-flex items-center cursor-help"
                   style={{ 
                     backgroundColor: "#ffebee", 
                     color: "#d32f2f",
-                    border: "1px solid #ffcdd2"
+                    border: "1px solid #ffcdd2",
+                    minHeight: "24px"
                   }}
+                  title="High Risk"
                 >
                   {name}
                 </span>
@@ -83,12 +85,12 @@ export default function Application() {
           
           // Default styling for other risk levels
           return (
-            <div className="flex items-center">
+            <div className="flex items-center h-full">
               <a
                 // href={`#${params.data.applicationInstanceId}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 hover:underline font-medium"
+                className="text-blue-600 hover:underline font-medium inline-flex items-center py-2"
               >
                 {name}
               </a>
@@ -235,6 +237,8 @@ export default function Application() {
         paginationPageSize={20}
         domLayout="autoHeight"
         onRowClicked={handleRowClick}
+        rowHeight={60}
+        headerHeight={50}
       />
       {/* <div className="flex justify-between">
         <button
