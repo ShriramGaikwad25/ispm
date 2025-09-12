@@ -28,7 +28,7 @@ const Tabs: React.FC<TabProps> = ({
       {tabs.map((tab, index) => (
         <button
           key={tab.label}
-          className={`${
+          className={`flex items-center justify-center ${
             index === activeIndex
               ? activeClass
               : "text-gray-500 hover:text-gray-700"
@@ -329,13 +329,13 @@ const page = () => {
 
   return (
     <div className="ag-theme-alpine" style={{ height: 500, width: "100%" }}>
-      <div className="relative mb-2">
+      <div className="relative mb-2 flex items-center justify-between">
         <h1 className="text-xl font-bold pb-2 text-blue-950">Entitlements</h1>
         <Tabs
           tabs={tabsDataEnt}
           activeClass="bg-[#15274E] text-white text-sm rounded-sm"
           buttonClass="h-10 -mt-1 w-30"
-          className="border border-gray-300 w-61 h-8 rounded-md"
+          className="border border-gray-300 w-61 h-8 rounded-md flex"
           activeIndex={entTabIndex}
           onChange={setEntTabIndex}
         />
