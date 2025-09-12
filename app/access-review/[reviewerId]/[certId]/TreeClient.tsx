@@ -145,7 +145,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const [sidebarLoading, setSidebarLoading] = useState(false);
   const [userSearch, setUserSearch] = useState("");
-  const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
+  const [selectedFilters, setSelectedFilters] = useState<string[]>(["Pending"]);
 
   const pageSizeSelector = [10, 20, 50, 100];
   const defaultPageSize = pageSizeSelector[0];
@@ -466,6 +466,50 @@ const TreeClient: React.FC<TreeClientProps> = ({
         : [...prev, filterName]
     );
   }, []);
+
+  // Handle filter changes from Filters component
+  const handleAppliedFilter = useCallback((filters: string[]) => {
+    if (filters.length > 0) {
+      setSelectedFilters(filters);
+    } else {
+      setSelectedFilters([]);
+    }
+  }, []);
+
+  // Filter entitlements based on selected filters
+  const filteredEntitlements = useMemo(() => {
+    if (selectedFilters.length === 0) {
+      return entitlementsData;
+    }
+    
+    // Debug: Log the data structure to understand what we're working with
+    if (entitlementsData.length > 0) {
+      console.log('Sample entitlement data:', entitlementsData[0]);
+      console.log('Selected filters:', selectedFilters);
+    }
+    
+    return entitlementsData.filter((entitlement) => {
+      const recommendation = entitlement.recommendation?.toLowerCase() || '';
+      const status = entitlement.status?.toLowerCase() || '';
+      
+      return selectedFilters.some(filter => {
+        const filterLower = filter.toLowerCase();
+        if (filterLower === 'pending') {
+          // Only show items that are truly pending (no recommendation or empty recommendation)
+          return !recommendation || recommendation === '' || recommendation === 'pending';
+        } else if (filterLower === 'certify') {
+          return recommendation === 'certify' || status === 'approved';
+        } else if (filterLower === 'reject') {
+          return recommendation === 'reject' || status === 'revoked' || status === 'rejected';
+        } else if (filterLower === 'delegated') {
+          return status === 'delegated';
+        } else if (filterLower === 'remediated') {
+          return status === 'remediated';
+        }
+        return false;
+      });
+    });
+  }, [entitlementsData, selectedFilters]);
 
   const filterOptions = [
     {
@@ -1071,9 +1115,11 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     }
                   }}
                 />
+                <Filters 
+                  appliedFilter={handleAppliedFilter}
+                />
               </div>
               <div className="flex items-center gap-2">
-                <Filters gridApi={entitlementsGridApiRef} />
                 <Import gridApi={entitlementsGridApiRef.current} />
                 <Exports gridApi={entitlementsGridApiRef.current} />
                 <button
@@ -1112,9 +1158,9 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     ⏳ Loading entitlements...
                   </div>
                 </div>
-              ) : entitlementsData.length > 0 ? (
+              ) : filteredEntitlements.length > 0 ? (
                 <AgGridReact
-                  rowData={entitlementsData}
+                  rowData={filteredEntitlements}
                   columnDefs={entitlementsColumnDefs}
                   defaultColDef={defaultColDef}
                   domLayout="autoHeight"
@@ -1143,12 +1189,12 @@ const TreeClient: React.FC<TreeClientProps> = ({
             </div>
 
             {/* Pagination at bottom of table */}
-            {entitlementsData.length > 0 && (
+            {filteredEntitlements.length > 0 && (
               <div className="flex justify-center">
                 <CustomPagination
-                  totalItems={entitlementsTotalItems}
+                  totalItems={filteredEntitlements.length}
                   currentPage={entitlementsPageNumber}
-                  totalPages={entitlementsTotalPages}
+                  totalPages={Math.ceil(filteredEntitlements.length / defaultPageSize)}
                   pageSize={defaultPageSize}
                   onPageChange={handleEntitlementsPageChange}
                 />

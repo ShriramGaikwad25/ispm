@@ -5,8 +5,8 @@ import { CircleX, Filter, FilterX, Check } from "lucide-react";
 
 const statusOptions = [
   "Pending",
-  "Approved",
-  "Revoked",
+  "Certify",
+  "Reject",
   "Delegated",
   "Remediated",
 ];
@@ -16,47 +16,33 @@ const Filters = ({
   columns = [],
   appliedFilter,
 }: {
-  gridApi: any;
+  gridApi?: any;
   columns?: string[];
   appliedFilter?: (filters: string[]) => void;
 }) => {
-  const [selectedFilter, setSelectedFilter] = useState<string>(statusOptions[0]);
-
-  // Handle AG Grid filtering when selectedFilter changes
-  useEffect(() => {
-    if (!gridApi || !columns) return;
-
-    columns.forEach((colId) => {
-      const filterInstance = gridApi.getFilterInstance(colId);
-      if (filterInstance) {
-        if (selectedFilter) {
-          filterInstance.setModel({
-            filterType: "set",
-            values: [selectedFilter],
-          });
-        } else {
-          filterInstance.setModel(null); // Clear filter
-        }
-        gridApi.onFilterChanged();
-      }
-    });
-
-    appliedFilter?.([selectedFilter]);
-  }, [selectedFilter, gridApi, columns, appliedFilter]);
+  const [selectedFilter, setSelectedFilter] = useState<string>("Pending");
 
   const toggleFilter = (status: string) => {
     setSelectedFilter(status);
+    // Call the callback immediately when filter changes
+    if (appliedFilter) {
+      appliedFilter([status]);
+    }
   };
 
   const clearFilters = (e: React.MouseEvent) => {
     e.stopPropagation();
     setSelectedFilter("");
+    // Call the callback when clearing filters
+    if (appliedFilter) {
+      appliedFilter([]);
+    }
   };
 
   const isActive = !!selectedFilter;
 
   return (
-    <div className={`relative ${isActive ? "flex-1" : ""}`}>
+    <div className={`relative ${isActive ? "w-48" : "w-44"}`}>
       {selectedFilter && (
         <span
           title="Clear Filters"
@@ -70,7 +56,7 @@ const Filters = ({
         Icon={
           selectedFilter
             ? () => (
-                <div className={`flex h-8 items-center gap-2 px-2 ${isActive ? "w-full" : "w-44"}`}>
+                <div className="flex h-8 items-center gap-2 px-2 w-full">
                   <FilterX />
                   <small>{selectedFilter}</small>
                   <span
@@ -83,9 +69,7 @@ const Filters = ({
               )
             : Filter
         }
-        className={`h-8 ${isActive ? "w-full" : "w-44"} ${
-          isActive ? "flex-1" : ""
-        } flex items-center justify-between ${isActive ? "bg-[#6D6E73]/20" : ""}`}
+        className={`h-8 w-full flex items-center justify-between ${isActive ? "bg-[#6D6E73]/20" : ""}`}
       >
         <li className="px-4 pb-2 border-b border-b-gray-300 font-semibold mb-2">
           Filter by Status
