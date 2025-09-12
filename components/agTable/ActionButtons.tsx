@@ -8,6 +8,7 @@ import Select from "react-select";
 import ToggleSwitch from "../ToggleSwitch";
 import Buttons from "react-multi-date-picker/components/button";
 import ProxyActionModal from "../ProxyActionModal";
+import DelegateActionModal from "../DelegateActionModal";
 import { updateAction } from "@/lib/api";
 
 interface User {
@@ -49,6 +50,7 @@ const ActionButtons = <T extends { status?: string }>({
     left: number;
   }>({ top: 0, left: 0 });
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDelegateModalOpen, setIsDelegateModalOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [changeAccountOwner, setChangeAccountOwner] = useState(false);
   const [sendForApproval, setSendForApproval] = useState(false);
@@ -60,6 +62,7 @@ const ActionButtons = <T extends { status?: string }>({
   const [comment, setComment] = useState("");
   const [reviewerType, setReviewerType] = useState(null);
   const [selectedOwner, setSelectedOwner] = useState<User | Group | null>(null);
+  const [selectedDelegate, setSelectedDelegate] = useState<User | Group | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastAction, setLastAction] = useState<string | null>(null);
 
@@ -69,6 +72,16 @@ const ActionButtons = <T extends { status?: string }>({
   const rowStatus = definedRows.length > 0 ? definedRows[0].status : null;
   const isApproved = rowStatus === "Approved";
   const isRejected = rowStatus === "Rejected";
+  
+  // Check if recommendation is "Certify" for entitlement context
+  const isCertifyRecommendation = context === "entitlement" && 
+    definedRows.length > 0 && 
+    (definedRows[0] as any)?.recommendation === "Certify";
+  
+  // Check if recommendation is "Reject" for entitlement context
+  const isRejectRecommendation = context === "entitlement" && 
+    definedRows.length > 0 && 
+    (definedRows[0] as any)?.recommendation === "Reject";
 
   // API call to update actions
 const updateActions = async (actionType: string, justification: string) => {
@@ -205,6 +218,11 @@ const updateActions = async (actionType: string, justification: string) => {
     setIsMenuOpen(false);
   };
 
+  const openDelegateModal = () => {
+    setIsDelegateModalOpen(true);
+    setIsMenuOpen(false);
+  };
+
   const openSidebar = () => {
     setIsSidebarOpen(true);
     setIsMenuOpen(false);
@@ -221,34 +239,72 @@ const updateActions = async (actionType: string, justification: string) => {
       onClick={handleApprove}
       title="Approve"
       aria-label="Approve selected rows"
+      disabled={isCertifyRecommendation}
       className={`p-1 rounded transition-colors duration-200 ${
         isApproved ? "bg-green-500" : "hover:bg-green-100"
-      }`}
+      } ${isCertifyRecommendation ? "opacity-60 cursor-not-allowed" : ""}`}
     >
-      <CircleCheck
-        className="cursor-pointer"
-        color="#1c821cff"
-        strokeWidth="1"
-        size="32"
-        fill={isApproved ? "#1c821cff" : "none"}
-      />
+      <div className="relative">
+        <CircleCheck
+          className={isCertifyRecommendation ? "cursor-not-allowed" : "cursor-pointer"}
+          color="#1c821cff"
+          strokeWidth="1"
+          size="32"
+          fill={isApproved || isCertifyRecommendation ? "#1c821cff" : "none"}
+        />
+        {isCertifyRecommendation && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              className="text-white"
+            >
+              <path
+                d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"
+                fill="currentColor"
+              />
+            </svg>
+          </div>
+        )}
+      </div>
     </button>
 
       <button
         onClick={handleRevoke}
         title="Revoke"
         aria-label="Revoke selected rows"
+        disabled={isRejectRecommendation}
         className={`p-1 rounded transition-colors duration-200 ${
           isRejected ? "bg-red-500" : "hover:bg-red-100"
-        }`}
+        } ${isRejectRecommendation ? "opacity-60 cursor-not-allowed" : ""}`}
       >
-        <CircleX
-          className="cursor-pointer hover:opacity-80 transform rotate-90"
-          color="#FF2D55"
-          strokeWidth="1"
-          size="32"
-          fill={isRejected ? "#FF2D55" : "none"}
-        />
+        <div className="relative">
+          <CircleX
+            className={isRejectRecommendation ? "cursor-not-allowed" : "cursor-pointer hover:opacity-80"}
+            color="#FF2D55"
+            strokeWidth="1"
+            size="32"
+            fill={isRejected || isRejectRecommendation ? "#FF2D55" : "none"}
+          />
+          {isRejectRecommendation && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                className="text-white"
+              >
+                <path
+                  d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"
+                  fill="currentColor"
+                />
+              </svg>
+            </div>
+          )}
+        </div>
       </button>
 
       <button
@@ -321,7 +377,10 @@ const updateActions = async (actionType: string, justification: string) => {
                 >
                   Proxy
                 </li>
-                <li className="px-4 py-2 hover:bg-gray-100 cursor-pointer">
+                <li 
+                  className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                  onClick={openDelegateModal}
+                >
                   Delegate
                 </li>
                 <li
@@ -359,6 +418,32 @@ const updateActions = async (actionType: string, justification: string) => {
         onSelectOwner={(owner) => {
           setSelectedOwner(owner);
           setIsModalOpen(false);
+        }}
+      />
+
+      <DelegateActionModal
+        isModalOpen={isDelegateModalOpen}
+        closeModal={() => setIsDelegateModalOpen(false)}
+        heading="Delegate Action"
+        users={[
+          { username: "john", email: "john@example.com", role: "admin" },
+          { username: "jane", email: "jane@example.com", role: "user" },
+        ]}
+        groups={[
+          { name: "admins", email: "admins@corp.com", role: "admin" },
+          { name: "devs", email: "devs@corp.com", role: "developer" },
+        ]}
+        userAttributes={[
+          { value: "username", label: "Username" },
+          { value: "email", label: "Email" },
+        ]}
+        groupAttributes={[
+          { value: "name", label: "Group Name" },
+          { value: "role", label: "Role" },
+        ]}
+        onSelectDelegate={(delegate) => {
+          setSelectedDelegate(delegate);
+          setIsDelegateModalOpen(false);
         }}
       />
 
