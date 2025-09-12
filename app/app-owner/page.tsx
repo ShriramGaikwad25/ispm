@@ -160,6 +160,7 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
           numOfEntitlements:
             group.access?.numOfAccounts || accounts.length || 0,
           lineItemId: entityEntitlement.lineItemId || "",
+          status: "Pending", // Default status for grouped data
         };
       });
     });
@@ -199,6 +200,7 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
         "",
       numOfEntitlements: item.access?.numOfEntitlements || 0,
       lineItemId: entitlement.lineItemId || "",
+      status: "Pending", // Default status for ungrouped data
     }));
   });
 };
@@ -464,7 +466,7 @@ function AppOwnerContent() {
               applicationInstanceId: account.applicationInstanceId || "",
               numOfEntitlements: 1,
               lineItemId: account.accountId || "",
-              status: account.userStatus || "Active",
+              status: account.userStatus || "Pending",
             };
 
             console.log(`Mapped account ${index}:`, mappedAccount);
@@ -681,6 +683,7 @@ function AppOwnerContent() {
       },
       onCellClicked: handleOpen,
     },
+    { field: "status", headerName: "Status", width: 120, enableRowGroup: true },
     { field: "userType", headerName: "User Status", flex: 2, hide: true },
     { field: "department", headerName: "User Dept", flex: 2, hide: true },
     { field: "manager", headerName: "User Manager", flex: 2, hide: true },
@@ -814,7 +817,10 @@ function AppOwnerContent() {
           iconClass="top-1 right-0 rounded-full text-white bg-purple-800"
           open={true}
         >
-          <ChartAppOwnerComponent rowData={rowData} />
+          <ChartAppOwnerComponent 
+            rowData={rowData} 
+            onFilterChange={handleFilterChange}
+          />
         </Accordion>
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-4 relative z-10 pt-10 gap-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
@@ -836,19 +842,21 @@ function AppOwnerContent() {
                 certId={certificationId}
               />
             )}
-            <input
-              type="text"
-              placeholder="Search..."
-              className="border rounded px-3 h-8 text-sm w-44"
-              onChange={(e) => {
-                setQuickFilterText(e.target.value);
-              }}
-            />
-            <Filters 
-              gridApi={gridApiRef} 
-              context="account"
-              onFilterChange={handleFilterChange}
-            />
+            <div className="flex items-center space-x-2">
+              <input
+                type="text"
+                placeholder="Search..."
+                className="border rounded px-3 h-8 text-sm w-44"
+                onChange={(e) => {
+                  setQuickFilterText(e.target.value);
+                }}
+              />
+              <Filters 
+                gridApi={gridApiRef} 
+                context="status"
+                onFilterChange={handleFilterChange}
+              />
+            </div>
           </div>
           <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
             {/* Pagination moved to bottom below the grid */}

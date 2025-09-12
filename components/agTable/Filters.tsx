@@ -44,7 +44,31 @@ const Filters = ({
       appliedFilter(selectedFilter === filterValue ? [] : [filterValue]);
     }
     if (onFilterChange) {
-      onFilterChange(selectedFilter === filterValue ? "" : filterValue);
+      // For status filters, we don't need to call the API filter
+      // Status filters are handled by the grid's built-in filtering
+      if (context === "status") {
+        // Apply grid filter instead of API filter
+        if (gridApi && gridApi.current) {
+          const filterInstance = gridApi.current.getFilterInstance('status');
+          if (filterInstance) {
+            if (selectedFilter === filterValue) {
+              // Clear filter
+              filterInstance.setModel(null);
+            } else {
+              // Apply filter
+              filterInstance.setModel({
+                filterType: 'text',
+                type: 'equals',
+                filter: filterValue
+              });
+            }
+            gridApi.current.onFilterChanged();
+          }
+        }
+      } else {
+        // For account filters, use API filter
+        onFilterChange(selectedFilter === filterValue ? "" : filterValue);
+      }
     }
   };
 
@@ -56,7 +80,19 @@ const Filters = ({
       appliedFilter([]);
     }
     if (onFilterChange) {
-      onFilterChange("");
+      if (context === "status") {
+        // Clear grid filter
+        if (gridApi && gridApi.current) {
+          const filterInstance = gridApi.current.getFilterInstance('status');
+          if (filterInstance) {
+            filterInstance.setModel(null);
+            gridApi.current.onFilterChanged();
+          }
+        }
+      } else {
+        // Clear API filter
+        onFilterChange("");
+      }
     }
   };
 

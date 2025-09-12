@@ -9,10 +9,12 @@ interface DataItem {
 
 interface ChartAppOwnerComponentProps {
   rowData?: any[];
+  onFilterChange?: (filter: string) => void;
 }
 
 const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
   rowData = [],
+  onFilterChange,
 }) => {
   // Colors tuned to match the screenshot
   const allData: DataItem[] = [
@@ -25,6 +27,17 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
     { label: "Compliance Violations", value: 0, color: "#6EC6FF" },
   ];
 
+  // Mapping between filter labels and API filter values
+  const filterMapping: { [key: string]: string } = {
+    "Elevated Accounts": "iselevated eq Y",
+    "Orphan Accounts": "isorphan eq Y",
+    "Terminated User Accounts": "isterminated eq Y",
+    "Dormant Accounts": "isdormant eq Y",
+    "New Access": "isnewaccess eq Y",
+    "Over Privileged Users": "isoverprivileged eq Y",
+    "Compliance Violations": "iscomplianceviolation eq Y",
+  };
+
   const leftColumnFilters = allData.slice(0, 4);
   const rightColumnFilters = allData.slice(4);
 
@@ -32,10 +45,25 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
   const [selected, setSelected] = useState<{ [key: string]: number | null }>({});
 
   const handleSelect = (column: "left" | "right", index: number) => {
+    const newSelection = selected[column] === index ? null : index;
     setSelected((prev) => ({
       ...prev,
-      [column]: prev[column] === index ? null : index,
+      [column]: newSelection,
     }));
+
+    // Trigger API call when a filter is selected
+    if (onFilterChange) {
+      if (newSelection !== null) {
+        const selectedItem = column === "left" ? leftColumnFilters[newSelection] : rightColumnFilters[newSelection];
+        const filterValue = filterMapping[selectedItem.label];
+        if (filterValue) {
+          onFilterChange(filterValue);
+        }
+      } else {
+        // Clear filter when deselected
+        onFilterChange("");
+      }
+    }
   };
 
   return (
@@ -153,9 +181,14 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
                 </div>
               );
             })}
-            {/* <button
+            <button
               className="flex items-center gap-1 text-sm text-blue-600 hover:underline mt-4"
-              onClick={() => setSelected((prev) => ({ ...prev, left: null }))}
+              onClick={() => {
+                setSelected((prev) => ({ ...prev, left: null }));
+                if (onFilterChange) {
+                  onFilterChange("");
+                }
+              }}
             >
               {selected.left == null ? (
                 <svg
@@ -175,7 +208,7 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
                 </svg>
               )}
               Clear Filters
-            </button> */}
+            </button>
           </div>
 
           {/* Right column */}
@@ -214,7 +247,12 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
             })}
             <button
               className="flex items-center gap-1 text-sm text-blue-600 hover:underline mt-4"
-              onClick={() => setSelected((prev) => ({ ...prev, right: null }))}
+              onClick={() => {
+                setSelected((prev) => ({ ...prev, right: null }));
+                if (onFilterChange) {
+                  onFilterChange("");
+                }
+              }}
             >
               {selected.right == null ? (
                 <svg
