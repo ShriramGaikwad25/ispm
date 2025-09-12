@@ -336,7 +336,7 @@ export default function AppOwner() {
           try {
             console.log("Trying to fetch applications list as fallback...");
             const appsResponse = await fetch(
-              `https://preview.keyforge.ai/entities/api/v1/CERTTEST/getApplications/${reviewerId}`
+              `https://preview.keyforge.ai/entities/api/v1/ACMEPOC/getApplications/${reviewerId}`
             );
             const appsData = await appsResponse.json();
             console.log("Applications fallback response:", appsData);

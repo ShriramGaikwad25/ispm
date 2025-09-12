@@ -27,7 +27,7 @@ export default function Application() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch(`https://preview.keyforge.ai/entities/api/v1/CERTTEST/getApplications/430ea9e6-3cff-449c-a24e-59c057f81e3d`);
+        const response = await fetch(`https://preview.keyforge.ai/entities/api/v1/ACMEPOC/getApplications/430ea9e6-3cff-449c-a24e-59c057f81e3d`);
         const data = await response.json();
         if (data.executionStatus === "success") {
           setRowData(data.items);

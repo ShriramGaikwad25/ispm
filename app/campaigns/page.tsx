@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Tabs from "@/components/tabs";
 import {
@@ -28,47 +28,15 @@ import "./Champaign.css"
 // Register AG Grid Enterprise modules
 ModuleRegistry.registerModules([MasterDetailModule]);
 
-const campData = [
-  {
-    id: 1,
-    campaignName: "Quarterly Access Review",
-    description:
-      "Review user permissions and access levels across departments.",
-    instances: 150,
-    progress: 75,
-    expiryDate: "2025-04-15",
-    owner: "John Doe",
-  },
-  {
-    id: 2,
-    campaignName: "Finance Role Audit",
-    description:
-      "Verify finance department users have appropriate access rights.",
-    instances: 75,
-    progress: 75,
-    expiryDate: "2025-04-15",
-    owner: "Alice Johnson",
-  },
-  {
-    id: 3,
-    campaignName: "MFA Compliance Check",
-    description:
-      "Ensure all employees have enabled Multi-Factor Authentication",
-    instances: 200,
-    progress: 75,
-    expiryDate: "2025-04-15",
-    owner: "Robert Smith",
-  },
-  {
-    id: 4,
-    campaignName: "Privileged Access Review",
-    description: "Identify and validate privileged users' access rights.",
-    instances: 50,
-    progress: 75,
-    expiryDate: "2025-04-15",
-    owner: "Emily White",
-  },
-];
+type CampaignRow = {
+  id: string;
+  campaignName: string;
+  description: string | null;
+  instances: number;
+  progress: number;
+  expiryDate: string | null;
+  owner: string | null;
+};
 
 // Progress Bar Cell Renderer
 const ProgressCellRenderer = (props: ICellRendererParams) => {
@@ -103,6 +71,48 @@ const DetailCellRenderer = (props: IDetailCellRendererParams) => {
 export default function Campaigns() {
   const gridRef = useRef<AgGridReactType>(null);
   const router = useRouter();
+  const [rows, setRows] = useState<CampaignRow[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    async function fetchCampaigns() {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const res = await fetch(
+          "https://preview.keyforge.ai/certification/api/v1/CERTTEST/getCampaignAnalytics",
+          { cache: "no-store", signal: controller.signal }
+        );
+        if (!res.ok) {
+          throw new Error(`Failed to load campaigns (${res.status})`);
+        }
+        const data = await res.json();
+        console.log(data);
+        const campaigns = Array.isArray(data?.campaigns) ? data.campaigns : [];
+        const mapped: CampaignRow[] = campaigns.map((c: any) => ({
+          id: c.campaignID ?? String(c.id ?? ""),
+          campaignName: c.name ?? "",
+          description: c.description ?? null,
+          instances: Number(c.totalNumOfCertificationInstance ?? 0),
+          progress: Number(c.progress ?? 0),
+          expiryDate: c.campaignExpiryDate ?? null,
+          owner: Array.isArray(c?.campaignOwner?.ownerName)
+            ? c.campaignOwner.ownerName.join(", ")
+            : c?.campaignOwner?.ownerName ?? null,
+        }));
+        setRows(mapped);
+      } catch (err: any) {
+        if (err?.name === "AbortError") return;
+        setError(err?.message || "Something went wrong loading campaigns");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchCampaigns();
+    return () => controller.abort();
+  }, []);
 
   const columnDefs = useMemo<ColDef[]>(
     () => [
@@ -213,13 +223,13 @@ export default function Campaigns() {
       icon: ChevronDown,
       iconOff: ChevronRight,
       component: () => {
-        if (!campData || campData.length === 0) return <div>Loading...</div>;
-        console.log("Row Data:", campData); // Debug row data
+        if (isLoading) return <div>Loading...</div>;
+        if (error) return <div className="text-red-600">{error}</div>;
         return (
           <div className="h-96 w-full">
             <AgGridReact
               ref={gridRef}
-              rowData={campData}
+              rowData={rows}
               columnDefs={columnDefs}
               rowSelection="multiple"
               context={{ gridRef }}
@@ -236,11 +246,6 @@ export default function Campaigns() {
               detailRowHeight={80}
               onRowClicked={handleRowClick}
               onGridReady={(params) => {
-                console.log("Grid initialized:", {
-                  api: !!params.api,
-                  columnApi: !!params.columnApi,
-                  enterpriseModules: params.api.isEnterprise?.() ? "Loaded" : "Not loaded",
-                });
                 params.api.sizeColumnsToFit();
               }}
               onFirstDataRendered={onFirstDataRendered}

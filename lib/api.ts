@@ -2,9 +2,9 @@ import { LineItemDetail } from "@/types/lineItem";
 import { PaginatedResponse } from "@/types/api";
 import { string } from "yup";
 
-const BASE_URL = "https://preview.keyforge.ai/certification/api/v1/CERTTEST";
+const BASE_URL = "https://preview.keyforge.ai/certification/api/v1/ACMEPOC";
 
-const BASE_URL2 = "https://preview.keyforge.ai/entities/api/v1/CERTTEST";
+const BASE_URL2 = "https://preview.keyforge.ai/entities/api/v1/ACMEPOC";
 
 export async function fetchApi<T>(
   endpoint: string,

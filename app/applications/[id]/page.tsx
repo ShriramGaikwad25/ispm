@@ -43,8 +43,8 @@ const data: Record<string, DataItem[]> = {
   ],
   accountActivity: [
     { label: "Active in past 30 days", value: 0 },
-    { label: "Active in past 30-60 days", value: 0 },
-    { label: "Active in past more than 90 days", value: 0 },
+    { label: "Dormant for past 30-60 days", value: 0 },
+    { label: "Dormant for more than 90 days", value: 0 },
   ],
   changeSinceLastReview: [
     { label: "New accounts", value: 0 },
@@ -62,8 +62,8 @@ const dataAccount: Record<string, DataItem[]> = {
   ],
   accountActivity: [
     { label: "Active in past 30 days", value: 0 },
-    { label: "Active in past 30-60 days", value: 0 },
-    { label: "Active in past more than 90 days", value: 0 },
+    { label: "Dormant for past 30-60 days", value: 0 },
+    { label: "Dormant for more than 90 days", value: 0 },
   ],
 };
 
@@ -153,7 +153,7 @@ export default function ApplicationDetailPage({
 
     try {
       const response = await fetch(
-        `https://preview.keyforge.ai/certification/api/v1/CERTTEST/updateAction/REVIEWER_ID/CERT_ID`,
+        `https://preview.keyforge.ai/certification/api/v1/ACMEPOC/updateAction/REVIEWER_ID/CERT_ID`,
         {
           method: "POST",
           headers: {
@@ -237,7 +237,7 @@ export default function ApplicationDetailPage({
     const fetchData = async () => {
       try {
         const response = await fetch(
-          `https://preview.keyforge.ai/entities/api/v1/CERTTEST/getAppAccounts/430ea9e6-3cff-449c-a24e-59c057f81e3d/${id}`
+          `https://preview.keyforge.ai/entities/api/v1/ACMEPOC/getAppAccounts/430ea9e6-3cff-449c-a24e-59c057f81e3d/${id}`
         );
         const data = await response.json();
         console.log(data);
@@ -284,7 +284,7 @@ export default function ApplicationDetailPage({
     const fetchEntitlementsData = async () => {
       try {
         const response = await fetch(
-          `https://preview.keyforge.ai/entities/api/v1/CERTTEST/getAppEntitlements/430ea9e6-3cff-449c-a24e-59c057f81e3d/${id}`
+          `https://preview.keyforge.ai/entities/api/v1/ACMEPOC/getAppEntitlements/430ea9e6-3cff-449c-a24e-59c057f81e3d/${id}`
         );
         const data = await response.json();
         console.log("Entitlements data:", data);

@@ -67,23 +67,40 @@ const ProxyActionModal: React.FC<ProxyActionModalProps> = ({
       {isModalOpen &&
         createPortal(
           <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center">
-            <div className="bg-white rounded-md p-6 w-[550px] shadow-lg relative">
-              <h2 className="text-xl font-semibold mb-4">{heading}</h2>
+            <div className="bg-white rounded-lg p-6 w-[550px] shadow-lg relative">
+              {/* Close button */}
+              <button
+                onClick={handleClose}
+                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+                aria-label="Close modal"
+              >
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+
+              <h2 className="text-xl font-semibold mb-6 pr-8">{heading}</h2>
 
               {/* Tabs */}
-              <div className="flex mb-4">
+              <div className="flex mb-6 bg-gray-100 p-1 rounded-md">
                 {["User", "Group"].map((type) => (
                   <button
                     key={type}
-                    className={`px-4 py-2 border text-sm ${
+                    className={`flex-1 py-3 px-4 text-sm font-medium transition-colors ${
                       ownerType === type
-                        ? "bg-[#15274E] text-white"
-                        : "bg-white text-black"
-                    } ${
-                      type === "User"
-                        ? "rounded-l-md border-r-0"
-                        : "rounded-r-md"
-                    }`}
+                        ? "bg-white text-[#15274E] border border-gray-300 shadow-sm relative z-10"
+                        : "bg-transparent text-gray-500 hover:text-gray-700"
+                    } rounded-md`}
                     onClick={() => {
                       setOwnerType(type as "User" | "Group");
                       const initialAttr =
@@ -99,14 +116,14 @@ const ProxyActionModal: React.FC<ProxyActionModalProps> = ({
                 ))}
               </div>
 
-              {/* Dropdown + Search input */}
-              <div className="flex gap-3 mb-4">
-                <div className="flex-1">
-                  <label className="block text-sm mb-1">Select Attribute</label>
+              {/* Select Attribute */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Select Attribute</label>
+                <div className="relative">
                   <select
                     value={selectedAttribute}
                     onChange={(e) => setSelectedAttribute(e.target.value)}
-                    className="w-full border rounded px-3 py-2"
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 pr-8 appearance-none bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     {currentAttributes.map((attr) => (
                       <option key={attr.value} value={attr.value}>
@@ -114,16 +131,49 @@ const ProxyActionModal: React.FC<ProxyActionModalProps> = ({
                       </option>
                     ))}
                   </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                    <svg
+                      className="w-4 h-4 text-gray-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M19 9l-7 7-7-7"
+                      />
+                    </svg>
+                  </div>
                 </div>
+              </div>
 
-                <div className="flex-1">
-                  <label className="block text-sm mb-1">Search Value</label>
+              {/* Search Value */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Search Value</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg
+                      className="w-4 h-4 text-gray-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                      />
+                    </svg>
+                  </div>
                   <input
                     type="text"
                     value={searchValue}
                     onChange={(e) => setSearchValue(e.target.value)}
-                    className="w-full border rounded px-3 py-2"
-                    placeholder={`Search by ${selectedAttribute}`}
+                    className="w-full border border-gray-300 rounded-md pl-10 pr-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Search"
                   />
                 </div>
               </div>
@@ -152,15 +202,6 @@ const ProxyActionModal: React.FC<ProxyActionModalProps> = ({
                 </div>
               )}
 
-              {/* Footer Buttons */}
-              <div className="flex justify-end space-x-2">
-                <button
-                  className="px-4 py-2 text-sm rounded bg-gray-300 hover:bg-gray-400"
-                  onClick={handleClose}
-                >
-                  Cancel
-                </button>
-              </div>
             </div>
           </div>,
           document.body

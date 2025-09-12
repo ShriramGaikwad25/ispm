@@ -267,7 +267,7 @@ const validationSchema = yup.object().shape({
 const loadTemplates = async (inputValue: string) => {
   try {
     // Replace with your actual API endpoint
-    const response = await fetch("https://preview.keyforge.ai/campaign/api/v1/CERTTEST/getAllCampaigns", {
+    const response = await fetch("https://preview.keyforge.ai/campaign/api/v1/ACMEPOC/getAllCampaigns", {
       method: "GET",
       headers: {
         "Content-Type": "application/json",

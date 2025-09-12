@@ -547,7 +547,7 @@ const HeaderContent = () => {
               </p>
             </div>
             <div className="flex items-center px-2">
-              <span className="text-white text-lg">•</span>
+              <span className="text-blue-600 text-lg">•</span>
             </div>
             <div className="flex items-center px-4">
               <p className="text-lg font-medium text-white">
@@ -555,7 +555,7 @@ const HeaderContent = () => {
               </p>
             </div>
             <div className="flex items-center px-2">
-              <span className="text-white text-lg">•</span>
+              <span className="text-blue-600 text-lg">•</span>
             </div>
             <div className="flex items-center px-4">
               <p className="text-lg font-medium text-white">
