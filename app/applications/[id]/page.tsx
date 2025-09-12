@@ -24,9 +24,10 @@ import Exports from "@/components/agTable/Exports";
 import CustomPagination from "@/components/agTable/CustomPagination";
 import EditReassignButtons from "@/components/agTable/EditReassignButtons";
 import ActionButtons from "@/components/agTable/ActionButtons";
-import { getAllRegisteredApps, searchUsers } from "@/lib/api";
+import { getAllRegisteredApps, searchUsers, getEntitlementDetails } from "@/lib/api";
 import Link from "next/link";
 import Tabs from "@/components/tabs";
+import EntitlementRiskSidebar from "@/components/EntitlementRiskSidebar";
 
 interface DataItem {
   label: string;
@@ -82,6 +83,8 @@ export default function ApplicationDetailPage({
   );
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
   const [nodeData, setNodeData] = useState<any>(null);
+  const [isEntitlementSidebarOpen, setIsEntitlementSidebarOpen] = useState(false);
+  const [selectedEntitlement, setSelectedEntitlement] = useState<any>(null);
   const [expandedFrames, setExpandedFrames] = useState({
     general: false,
     business: false,
@@ -95,6 +98,59 @@ export default function ApplicationDetailPage({
   const [rowData, setRowData] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [isLoadingEntitlementDetails, setIsLoadingEntitlementDetails] = useState(false);
+  const [entitlementDetails, setEntitlementDetails] = useState<any>(null);
+  const [entitlementDetailsError, setEntitlementDetailsError] = useState<string | null>(null);
+
+  // Helper function to map API response to nodeData fields
+  const mapApiDataToNodeData = (apiData: any, originalNodeData: any) => {
+    if (!apiData) return originalNodeData;
+    
+    return {
+      ...originalNodeData,
+      // Map API fields to existing nodeData structure based on actual API response
+      "Ent Name": apiData.name || originalNodeData?.["Ent Name"],
+      "Ent Description": apiData.description || originalNodeData?.["Ent Description"],
+      "Ent Type": apiData.type || originalNodeData?.["Ent Type"],
+      "App Name": apiData.applicationname || originalNodeData?.["App Name"],
+      "App Instance": apiData.appinstanceid || originalNodeData?.["App Instance"],
+      "App Owner": apiData.applicationowner || originalNodeData?.["App Owner"],
+      "Ent Owner": apiData.entitlementowner || originalNodeData?.["Ent Owner"],
+      "Business Objective": apiData.business_objective || originalNodeData?.["Business Objective"],
+      "Business Unit": apiData.businessunit_department || originalNodeData?.["Business Unit"],
+      "Compliance Type": apiData.regulatory_scope || originalNodeData?.["Compliance Type"],
+      "Data Classification": apiData.data_classification || originalNodeData?.["Data Classification"],
+      "Cost Center": apiData.cost_center || originalNodeData?.["Cost Center"],
+      "Created On": apiData.created_on || originalNodeData?.["Created On"],
+      "Last Sync": apiData.last_sync || originalNodeData?.["Last Sync"],
+      "Hierarchy": apiData.hierarchy || originalNodeData?.["Hierarchy"],
+      "MFA Status": apiData.mfa_status || originalNodeData?.["MFA Status"],
+      "assignment": apiData.assigned_to || originalNodeData?.["assignment"],
+      "License Type": apiData.license_type || originalNodeData?.["License Type"],
+      "Risk": apiData.risk || originalNodeData?.["Risk"],
+      "Certifiable": apiData.certifiable || originalNodeData?.["Certifiable"],
+      "Revoke on Disable": apiData.revoke_on_disable || originalNodeData?.["Revoke on Disable"],
+      "Shared Pwd": apiData.shared_pwd || originalNodeData?.["Shared Pwd"],
+      "SOD Check": apiData.toxic_combination || originalNodeData?.["SOD Check"],
+      "Access Scope": apiData.access_scope || originalNodeData?.["Access Scope"],
+      "Review Schedule": apiData.review_schedule || originalNodeData?.["Review Schedule"],
+      "Last Reviewed on": apiData.last_reviewed_on || originalNodeData?.["Last Reviewed on"],
+      "Privileged": apiData.privileged || originalNodeData?.["Privileged"],
+      "Non Persistent Access": apiData.non_persistent_access || originalNodeData?.["Non Persistent Access"],
+      "Audit Comments": apiData.audit_comments || originalNodeData?.["Audit Comments"],
+      "Account Type Restriction": apiData.account_type_restriction || originalNodeData?.["Account Type Restriction"],
+      "Requestable": apiData.requestable || originalNodeData?.["Requestable"],
+      "Pre- Requisite": apiData.prerequisite || originalNodeData?.["Pre- Requisite"],
+      "Pre-Requisite Details": apiData.prerequisite_details || originalNodeData?.["Pre-Requisite Details"],
+      "Auto Assign Access Policy": apiData.auto_assign_access_policy || originalNodeData?.["Auto Assign Access Policy"],
+      "Provisioner Group": apiData.provisioner_group || originalNodeData?.["Provisioner Group"],
+      "Provisioning Steps": apiData.provisioning_steps || originalNodeData?.["Provisioning Steps"],
+      "Provisioning Mechanism": apiData.provisioning_mechanism || originalNodeData?.["Provisioning Mechanism"],
+      "Action on Native Change": apiData.action_on_native_change || originalNodeData?.["Action on Native Change"],
+      "Total Assignments": apiData.totalassignmentstousers || originalNodeData?.["Total Assignments"],
+      "Dynamic Tag": apiData.tags || originalNodeData?.["Dynamic Tag"],
+    };
+  };
 
   // Client-side pagination logic
   const totalItems = rowData.length;
@@ -110,8 +166,37 @@ export default function ApplicationDetailPage({
     }));
   };
 
-  const toggleSidePanel = (data: any) => {
+  const toggleSidePanel = async (data: any) => {
     setNodeData(data);
+    
+    // If opening the sidebar, fetch entitlement details
+    if (!isSidePanelOpen) {
+      setIsLoadingEntitlementDetails(true);
+      setEntitlementDetailsError(null);
+      
+      try {
+        const appInstanceId = data?.applicationInstanceId || data?.appInstanceId;
+        const entitlementId = data?.entitlementId || data?.id;
+        
+        if (appInstanceId && entitlementId) {
+          const details = await getEntitlementDetails(appInstanceId, entitlementId);
+          console.log("API Response:", details);
+          setEntitlementDetails(details);
+          // Update nodeData with mapped API data
+          const mappedData = mapApiDataToNodeData(details, data);
+          console.log("Mapped Data:", mappedData);
+          setNodeData(mappedData);
+        } else {
+          setEntitlementDetailsError("Missing app instance ID or entitlement ID");
+        }
+      } catch (error) {
+        console.error("Error fetching entitlement details:", error);
+        setEntitlementDetailsError(error instanceof Error ? error.message : "Failed to fetch entitlement details");
+      } finally {
+        setIsLoadingEntitlementDetails(false);
+      }
+    }
+    
     setIsSidePanelOpen((prev) => !prev);
   };
 
@@ -561,10 +646,44 @@ export default function ApplicationDetailPage({
         flex: 3,
         width: 350,
         cellRenderer: (params: ICellRendererParams) => {
+          const risk = params.data?.risk;
+          const isRiskHigh = risk === "High";
+          
           return (
             <div className="flex flex-col">
               {/* Row 1: entitlement name */}
-              <div className="font-semibold">{params.value}</div>
+              {isRiskHigh ? (
+                <div className="flex items-center h-full">
+                  <span
+                    className="px-2 py-1 text-sm font-medium rounded-full inline-flex items-center cursor-pointer hover:bg-red-200 transition-colors duration-200"
+                    style={{ 
+                      backgroundColor: "#ffebee", 
+                      color: "#d32f2f",
+                      border: "1px solid #ffcdd2",
+                      minHeight: "24px"
+                    }}
+                    title="High Risk - Click for details"
+                    onClick={() => {
+                      setSelectedEntitlement({
+                        name: params.value,
+                        description: params.data?.description,
+                        type: params.data?.type,
+                        applicationName: params.data?.applicationName,
+                        risk: params.data?.risk,
+                        lastReviewed: params.data?.["Last Reviewed on"],
+                        lastSync: params.data?.["Last Sync"],
+                        appInstanceId: params.data?.applicationInstanceId || params.data?.appInstanceId,
+                        entitlementId: params.data?.entitlementId || params.data?.id
+                      });
+                      setIsEntitlementSidebarOpen(true);
+                    }}
+                  >
+                    {params.value}
+                  </span>
+                </div>
+              ) : (
+                <div className="font-semibold">{params.value}</div>
+              )}
 
               {/* Row 2: full-width description */}
               <div className="text-gray-600 text-sm w-full z-index-1">
@@ -726,10 +845,44 @@ export default function ApplicationDetailPage({
         width: 650,
         wrapText: true,
         cellRenderer: (params: ICellRendererParams) => {
+          const risk = params.data?.risk;
+          const isRiskHigh = risk === "High";
+          
           return (
             <div className="flex flex-col">
               {/* Row 1: entitlement name */}
-              <div className="font-semibold">{params.value}</div>
+              {isRiskHigh ? (
+                <div className="flex items-center h-full">
+                  <span
+                    className="px-2 py-1 text-sm font-medium rounded-full inline-flex items-center cursor-pointer hover:bg-red-200 transition-colors duration-200"
+                    style={{ 
+                      backgroundColor: "#ffebee", 
+                      color: "#d32f2f",
+                      border: "1px solid #ffcdd2",
+                      minHeight: "24px"
+                    }}
+                    title="High Risk - Click for details"
+                    onClick={() => {
+                      setSelectedEntitlement({
+                        name: params.value,
+                        description: params.data?.description,
+                        type: params.data?.type,
+                        applicationName: params.data?.applicationName,
+                        risk: params.data?.risk,
+                        lastReviewed: params.data?.["Last Reviewed on"],
+                        lastSync: params.data?.["Last Sync"],
+                        appInstanceId: params.data?.applicationInstanceId || params.data?.appInstanceId,
+                        entitlementId: params.data?.entitlementId || params.data?.id
+                      });
+                      setIsEntitlementSidebarOpen(true);
+                    }}
+                  >
+                    {params.value}
+                  </span>
+                </div>
+              ) : (
+                <div className="font-semibold">{params.value}</div>
+              )}
 
               <div className="text-gray-600 text-sm w-full">
                 {params.data["description"]}
@@ -1897,30 +2050,43 @@ export default function ApplicationDetailPage({
             <div className="flex justify-between items-start">
               <div className="flex-1">
                 <h2 className="text-lg font-semibold">Entitlement Details</h2>
-                <div className="mt-2">
-                  <span className="text-xs uppercase text-gray-500">
-                    Entitlement Name:
-                  </span>
-                  <div className="text-md font-medium text-wrap">
-                    {nodeData?.["Ent Name"] ||
-                      (nodeData as any)?.entitlementName ||
-                      (nodeData as any)?.userDisplayName ||
-                      (nodeData as any)?.accountName ||
-                      (nodeData as any)?.applicationName ||
-                      "-"}
+                {isLoadingEntitlementDetails ? (
+                  <div className="mt-4 flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                    <span className="ml-2 text-sm text-gray-600">Loading details...</span>
                   </div>
-                </div>
-                <div className="mt-2">
-                  <span className="text-xs uppercase text-gray-500">
-                    Description:
-                  </span>
-                  <p className="text-sm text-gray-700  text-wrap">
-                    {nodeData?.["Ent Description"] ||
-                      (nodeData as any)?.description ||
-                      (nodeData as any)?.details ||
-                      "-"}
-                  </p>
-                </div>
+                ) : entitlementDetailsError ? (
+                  <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                    <p className="text-sm text-red-600">{entitlementDetailsError}</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="mt-2">
+                      <span className="text-xs uppercase text-gray-500">
+                        Entitlement Name:
+                      </span>
+                      <div className="text-md font-medium text-wrap">
+                        {nodeData?.["Ent Name"] ||
+                          (nodeData as any)?.entitlementName ||
+                          (nodeData as any)?.userDisplayName ||
+                          (nodeData as any)?.accountName ||
+                          (nodeData as any)?.applicationName ||
+                          "-"}
+                      </div>
+                    </div>
+                    <div className="mt-2">
+                      <span className="text-xs uppercase text-gray-500">
+                        Description:
+                      </span>
+                      <p className="text-sm text-gray-700 text-wrap">
+                        {nodeData?.["Ent Description"] ||
+                          (nodeData as any)?.description ||
+                          (nodeData as any)?.details ||
+                          "-"}
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
               <button
                 onClick={() => setIsSidePanelOpen(false)}
@@ -2215,6 +2381,13 @@ export default function ApplicationDetailPage({
           </button>
         </div>
       )}
+      
+      {/* Entitlement Risk Sidebar */}
+      <EntitlementRiskSidebar
+        isOpen={isEntitlementSidebarOpen}
+        onClose={() => setIsEntitlementSidebarOpen(false)}
+        entitlementData={selectedEntitlement}
+      />
     </div>
   );
 }

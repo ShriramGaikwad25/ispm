@@ -15,6 +15,7 @@ import {
 import { useState, useEffect, useRef } from "react";
 import ProxyActionModal from "../ProxyActionModal";
 import { formatDateMMDDYY } from "@/utils/utils";
+import { getEntitlementDetails } from "@/lib/api";
 
 interface EditReassignButtonsProps<T> {
   api: GridApi;
@@ -69,6 +70,65 @@ const EditReassignButtons = <T extends { status?: string }>({
     null
   );
   const [editableFields, setEditableFields] = useState<Partial<T>>({});
+  const [isLoadingEntitlementDetails, setIsLoadingEntitlementDetails] = useState(false);
+  const [entitlementDetails, setEntitlementDetails] = useState<any>(null);
+  const [entitlementDetailsError, setEntitlementDetailsError] = useState<string | null>(null);
+  const [localNodeData, setLocalNodeData] = useState<any>(nodeData);
+
+  // Sync localNodeData with incoming nodeData prop
+  useEffect(() => {
+    setLocalNodeData(nodeData);
+  }, [nodeData]);
+
+  // Helper function to map API response to nodeData fields
+  const mapApiDataToNodeData = (apiData: any, originalNodeData: any) => {
+    if (!apiData) return originalNodeData;
+    
+    return {
+      ...originalNodeData,
+      // Map API fields to existing nodeData structure based on actual API response
+      "Ent Name": apiData.name || originalNodeData?.["Ent Name"],
+      "Ent Description": apiData.description || originalNodeData?.["Ent Description"],
+      "Ent Type": apiData.type || originalNodeData?.["Ent Type"],
+      "App Name": apiData.applicationname || originalNodeData?.["App Name"],
+      "App Instance": apiData.appinstanceid || originalNodeData?.["App Instance"],
+      "App Owner": apiData.applicationowner || originalNodeData?.["App Owner"],
+      "Ent Owner": apiData.entitlementowner || originalNodeData?.["Ent Owner"],
+      "Business Objective": apiData.business_objective || originalNodeData?.["Business Objective"],
+      "Business Unit": apiData.businessunit_department || originalNodeData?.["Business Unit"],
+      "Compliance Type": apiData.regulatory_scope || originalNodeData?.["Compliance Type"],
+      "Data Classification": apiData.data_classification || originalNodeData?.["Data Classification"],
+      "Cost Center": apiData.cost_center || originalNodeData?.["Cost Center"],
+      "Created On": apiData.created_on || originalNodeData?.["Created On"],
+      "Last Sync": apiData.last_sync || originalNodeData?.["Last Sync"],
+      "Hierarchy": apiData.hierarchy || originalNodeData?.["Hierarchy"],
+      "MFA Status": apiData.mfa_status || originalNodeData?.["MFA Status"],
+      "assignment": apiData.assigned_to || originalNodeData?.["assignment"],
+      "License Type": apiData.license_type || originalNodeData?.["License Type"],
+      "Risk": apiData.risk || originalNodeData?.["Risk"],
+      "Certifiable": apiData.certifiable || originalNodeData?.["Certifiable"],
+      "Revoke on Disable": apiData.revoke_on_disable || originalNodeData?.["Revoke on Disable"],
+      "Shared Pwd": apiData.shared_pwd || originalNodeData?.["Shared Pwd"],
+      "SOD Check": apiData.toxic_combination || originalNodeData?.["SOD Check"],
+      "Access Scope": apiData.access_scope || originalNodeData?.["Access Scope"],
+      "Review Schedule": apiData.review_schedule || originalNodeData?.["Review Schedule"],
+      "Last Reviewed on": apiData.last_reviewed_on || originalNodeData?.["Last Reviewed on"],
+      "Privileged": apiData.privileged || originalNodeData?.["Privileged"],
+      "Non Persistent Access": apiData.non_persistent_access || originalNodeData?.["Non Persistent Access"],
+      "Audit Comments": apiData.audit_comments || originalNodeData?.["Audit Comments"],
+      "Account Type Restriction": apiData.account_type_restriction || originalNodeData?.["Account Type Restriction"],
+      "Requestable": apiData.requestable || originalNodeData?.["Requestable"],
+      "Pre- Requisite": apiData.prerequisite || originalNodeData?.["Pre- Requisite"],
+      "Pre-Requisite Details": apiData.prerequisite_details || originalNodeData?.["Pre-Requisite Details"],
+      "Auto Assign Access Policy": apiData.auto_assign_access_policy || originalNodeData?.["Auto Assign Access Policy"],
+      "Provisioner Group": apiData.provisioner_group || originalNodeData?.["Provisioner Group"],
+      "Provisioning Steps": apiData.provisioning_steps || originalNodeData?.["Provisioning Steps"],
+      "Provisioning Mechanism": apiData.provisioning_mechanism || originalNodeData?.["Provisioning Mechanism"],
+      "Action on Native Change": apiData.action_on_native_change || originalNodeData?.["Action on Native Change"],
+      "Total Assignments": apiData.totalassignmentstousers || originalNodeData?.["Total Assignments"],
+      "Dynamic Tag": apiData.tags || originalNodeData?.["Dynamic Tag"],
+    };
+  };
 
   const handleEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -83,13 +143,13 @@ const EditReassignButtons = <T extends { status?: string }>({
     setIsSidePanelOpen(true);
     setIsEditMode(true);
 
-    // Initialize editable fields with current nodeData
-    setEditableFields({ ...nodeData });
+    // Initialize editable fields with current localNodeData
+    setEditableFields({ ...localNodeData });
   };
 
   const handleSidebarEdit = () => {
     setIsEditMode(true);
-    setEditableFields({ ...nodeData });
+    setEditableFields({ ...localNodeData });
   };
 
   const handleReassign = () => {
@@ -110,8 +170,49 @@ const EditReassignButtons = <T extends { status?: string }>({
     }
   };
 
-  const toggleSidePanel = (e: React.MouseEvent) => {
+  const toggleSidePanel = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    
+    // If opening the sidebar, fetch entitlement details
+    if (!isSidePanelOpen) {
+      console.log("Opening sidebar for All tab, nodeData:", localNodeData);
+      setIsLoadingEntitlementDetails(true);
+      setEntitlementDetailsError(null);
+      
+      try {
+        const appInstanceId = (localNodeData as any)?.applicationInstanceId || (localNodeData as any)?.appInstanceId;
+        const entitlementId = (localNodeData as any)?.entitlementId || (localNodeData as any)?.id;
+        
+        if (appInstanceId && entitlementId) {
+          const details = await getEntitlementDetails(appInstanceId, entitlementId);
+          console.log("API Response:", details);
+          setEntitlementDetails(details);
+          // Update nodeData with mapped API data
+          const mappedData = mapApiDataToNodeData(details, localNodeData);
+          console.log("Mapped Data:", mappedData);
+          // Update the grid row with the new data
+          try {
+            api.applyTransaction({
+              update: [mappedData]
+            });
+            // Also update the local nodeData state
+            setLocalNodeData(mappedData);
+          } catch (error) {
+            console.error("Error updating grid:", error);
+            // Fallback: just update the local state
+            setLocalNodeData(mappedData);
+          }
+        } else {
+          setEntitlementDetailsError("Missing app instance ID or entitlement ID");
+        }
+      } catch (error) {
+        console.error("Error fetching entitlement details:", error);
+        setEntitlementDetailsError(error instanceof Error ? error.message : "Failed to fetch entitlement details");
+      } finally {
+        setIsLoadingEntitlementDetails(false);
+      }
+    }
+    
     setIsSidePanelOpen((prev) => !prev);
     setIsEditMode(false); // Open in non-edit mode
     setEditableFields({}); // Reset editable fields
@@ -122,7 +223,7 @@ const EditReassignButtons = <T extends { status?: string }>({
   };
 
   const handleSaveEdits = () => {
-    if (!api || (!selectedRows.length && !nodeData)) return;
+    if (!api || (!selectedRows.length && !localNodeData)) return;
 
     // Update grid with edited fields
     api.applyTransaction({
@@ -316,53 +417,69 @@ const EditReassignButtons = <T extends { status?: string }>({
                     <h2 className="text-lg font-semibold mb-8 border-b p-1.5">
                       {isEditMode ? "Edit Entitlement" : "Entitlement Details"}
                     </h2>
-                    {isEditMode ? (
-                      <input
-                        type="text"
-                        value={
-                          editableFields["Ent Name" as keyof T] ||
-                          (nodeData as any)?.["Ent Name"] ||
-                          ""
-                        }
-                        onChange={(e) =>
-                          setEditableFields((prev) => ({
-                            ...prev,
-                            "Ent Name": e.target.value,
-                          }))
-                        }
-                        className="form-input w-full text-md font-medium mt-2 rounded"
-                      />
+                    {isLoadingEntitlementDetails ? (
+                      <div className="mt-4 flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                        <span className="ml-2 text-sm text-gray-600">Loading details...</span>
+                      </div>
+                    ) : entitlementDetailsError ? (
+                      <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                        <p className="text-sm text-red-600">{entitlementDetailsError}</p>
+                      </div>
                     ) : (
                       <>
-                      <h3 className="text-md font-semibold text-gray-600">Entitlement Name :-</h3>
-                      <h4 className="text-md font-medium mt-2">
-                        {(nodeData as any)?.["entitlementName"] || "Name: -"}
-                      </h4>
-                      </>
-                    )}
-                    {isEditMode ? (
-                      <textarea
-                        value={
-                          editableFields["Ent Description" as keyof T] ||
-                          (nodeData as any)?.["Ent Description"] ||
-                          ""
-                        }
-                        onChange={(e) =>
-                          setEditableFields((prev) => ({
-                            ...prev,
-                            "Ent Description": e.target.value,
-                          }))
-                        }
-                        className="form-input w-full text-sm text-gray-600 mt-2 rounded"
-                        rows={2}
-                      />
-                    ) : (
-                      <>
-                       <h3 className="text-md font-semibold text-gray-600 mt-4">Description :-</h3>
-                      <p className="text-sm text-gray-600 mt-1">
-                        {(nodeData as any)?.["description"] ||
-                          "description: -"}
-                      </p>
+                        {isEditMode ? (
+                          <input
+                            type="text"
+                            value={
+                              editableFields["Ent Name" as keyof T] ||
+                              (localNodeData as any)?.["Ent Name"] ||
+                              ""
+                            }
+                            onChange={(e) =>
+                              setEditableFields((prev) => ({
+                                ...prev,
+                                "Ent Name": e.target.value,
+                              }))
+                            }
+                            className="form-input w-full text-md font-medium mt-2 rounded"
+                          />
+                        ) : (
+                          <>
+                          <h3 className="text-md font-semibold text-gray-600">Entitlement Name :-</h3>
+                          <h4 className="text-md font-medium mt-2">
+                            {(localNodeData as any)?.["Ent Name"] || 
+                              (localNodeData as any)?.["entitlementName"] || 
+                              "Name: -"}
+                          </h4>
+                          </>
+                        )}
+                        {isEditMode ? (
+                          <textarea
+                            value={
+                              editableFields["Ent Description" as keyof T] ||
+                              (localNodeData as any)?.["Ent Description"] ||
+                              ""
+                            }
+                            onChange={(e) =>
+                              setEditableFields((prev) => ({
+                                ...prev,
+                                "Ent Description": e.target.value,
+                              }))
+                            }
+                            className="form-input w-full text-sm text-gray-600 mt-2 rounded"
+                            rows={2}
+                          />
+                        ) : (
+                          <>
+                           <h3 className="text-md font-semibold text-gray-600 mt-4">Description :-</h3>
+                          <p className="text-sm text-gray-600 mt-1">
+                            {(localNodeData as any)?.["Ent Description"] ||
+                              (localNodeData as any)?.["description"] ||
+                              "description: -"}
+                          </p>
+                          </>
+                        )}
                       </>
                     )}
                   </div>
@@ -421,18 +538,18 @@ const EditReassignButtons = <T extends { status?: string }>({
                       {renderSideBySideField(
                         "Ent Type",
                         "Ent Type",
-                        (nodeData as any)?.["Ent Type"],
+                        (localNodeData as any)?.["Ent Type"],
                         "#Assignments",
                         "Total Assignments",
-                        (nodeData as any)?.["Total Assignments"]
+                        (localNodeData as any)?.["Total Assignments"]
                       )}
                       {renderSideBySideField(
                         "App Name",
                         "App Name",
-                        (nodeData as any)?.["App Name"],
+                        (localNodeData as any)?.["App Name"],
                         "Tag(s)",
                         "Dynamic Tag",
-                        (nodeData as any)?.["Dynamic Tag"]
+                        (localNodeData as any)?.["Dynamic Tag"]
                       )}
                     </div>
                   )}
@@ -448,7 +565,7 @@ const EditReassignButtons = <T extends { status?: string }>({
                       <FolderIcon size={18} className="mr-2 text-gray-600" />
                       Business
                     </span>
-                    {expandedFrames.general ? (
+                    {expandedFrames.business ? (
                       <ChevronDown size={20} className="text-gray-600" />
                     ) : (
                       <ChevronRight size={20} className="text-gray-600" />
@@ -460,28 +577,28 @@ const EditReassignButtons = <T extends { status?: string }>({
                       {renderSingleField(
                         "Objective",
                         "Business Objective",
-                        (nodeData as any)?.["Business Objective"]
+                        (localNodeData as any)?.["Business Objective"]
                       )}
                       {renderSideBySideField(
                         "Business Unit",
                         "Business Unit",
-                        (nodeData as any)?.["Business Unit"],
+                        (localNodeData as any)?.["Business Unit"],
                         "Business Owner",
                         "Ent Owner",
-                        (nodeData as any)?.["Ent Owner"]
+                        (localNodeData as any)?.["Ent Owner"]
                       )}
                       {renderSingleField(
                         "Regulatory Scope",
                         "Compliance Type",
-                        (nodeData as any)?.["Compliance Type"]
+                        (localNodeData as any)?.["Compliance Type"]
                       )}
                       {renderSideBySideField(
                         "Data Classification",
                         "Data Classification",
-                        (nodeData as any)?.["Data Classification"],
+                        (localNodeData as any)?.["Data Classification"],
                         "Cost Center",
                         "Cost Center",
-                        (nodeData as any)?.["Cost Center"]
+                        (localNodeData as any)?.["Cost Center"]
                       )}
                     </div>
                   )}
@@ -497,7 +614,7 @@ const EditReassignButtons = <T extends { status?: string }>({
                       <FolderIcon size={18} className="mr-2 text-gray-600" />
                       Technical
                     </span>
-                    {expandedFrames.general ? (
+                    {expandedFrames.technical ? (
                       <ChevronDown size={20} className="text-gray-600" />
                     ) : (
                       <ChevronRight size={20} className="text-gray-600" />
@@ -508,44 +625,44 @@ const EditReassignButtons = <T extends { status?: string }>({
                       {renderSideBySideField(
                         "Created On",
                         "Created On",
-                        formatDate((nodeData as any)?.["Created On"]),
+                        formatDate((localNodeData as any)?.["Created On"]),
                         "Last Sync",
                         "Last Sync",
-                        formatDate((nodeData as any)?.["Last Sync"])
+                        formatDate((localNodeData as any)?.["Last Sync"])
                       )}
                       {renderSideBySideField(
                         "App Name",
                         "App Name",
-                        (nodeData as any)?.["App Name"],
+                        (localNodeData as any)?.["App Name"],
                         "App Instance",
                         "App Instance",
-                        (nodeData as any)?.["App Instance"]
+                        (localNodeData as any)?.["App Instance"]
                       )}
                       {renderSideBySideField(
                         "App Owner",
                         "App Owner",
-                        (nodeData as any)?.["App Owner"],
+                        (localNodeData as any)?.["App Owner"],
                         "Ent Owner",
                         "Ent Owner",
-                        (nodeData as any)?.["Ent Owner"]
+                        (localNodeData as any)?.["Ent Owner"]
                       )}
                       {renderSideBySideField(
                         "Hierarchy",
                         "Hierarchy",
-                        (nodeData as any)?.["Hierarchy"],
+                        (localNodeData as any)?.["Hierarchy"],
                         "MFA Status",
                         "MFA Status",
-                        (nodeData as any)?.["MFA Status"]
+                        (localNodeData as any)?.["MFA Status"]
                       )}
                       {renderSingleField(
                         "Assigned to/Member of",
                         "assignment",
-                        (nodeData as any)?.["assignment"]
+                        (localNodeData as any)?.["assignment"]
                       )}
                       {renderSingleField(
                         "License Type",
                         "License Type",
-                        (nodeData as any)?.["License Type"]
+                        (localNodeData as any)?.["License Type"]
                       )}
                     </div>
                   )}
@@ -561,7 +678,7 @@ const EditReassignButtons = <T extends { status?: string }>({
                       <FolderIcon size={18} className="mr-2 text-gray-600" />
                       Security
                     </span>
-                    {expandedFrames.general ? (
+                    {expandedFrames.security ? (
                       <ChevronDown size={20} className="text-gray-600" />
                     ) : (
                       <ChevronRight size={20} className="text-gray-600" />
@@ -572,54 +689,54 @@ const EditReassignButtons = <T extends { status?: string }>({
                       {renderSideBySideField(
                         "Risk",
                         "Risk",
-                        (nodeData as any)?.["Risk"],
+                        (localNodeData as any)?.["Risk"],
                         "Certifiable",
                         "Certifiable",
-                        (nodeData as any)?.["Certifiable"]
+                        (localNodeData as any)?.["Certifiable"]
                       )}
                       {renderSideBySideField(
                         "Revoke on Disable",
                         "Revoke on Disable",
-                        (nodeData as any)?.["Revoke on Disable"],
+                        (localNodeData as any)?.["Revoke on Disable"],
                         "Shared Pwd",
                         "Shared Pwd",
-                        (nodeData as any)?.["Shared Pwd"]
+                        (localNodeData as any)?.["Shared Pwd"]
                       )}
                       {renderSingleField(
                         "SoD/Toxic Combination",
                         "SOD Check",
-                        (nodeData as any)?.["SOD Check"]
+                        (localNodeData as any)?.["SOD Check"]
                       )}
                       {renderSingleField(
                         "Access Scope",
                         "Access Scope",
-                        (nodeData as any)?.["Access Scope"]
+                        (localNodeData as any)?.["Access Scope"]
                       )}
                       {renderSideBySideField(
                         "Review Schedule",
                         "Review Schedule",
-                        (nodeData as any)?.["Review Schedule"],
+                        (localNodeData as any)?.["Review Schedule"],
                         "Last Reviewed On",
                         "Last Reviewed on",
-                        formatDate((nodeData as any)?.["Last Reviewed on"])
+                        formatDate((localNodeData as any)?.["Last Reviewed on"])
                       )}
                       {renderSideBySideField(
                         "Privileged",
                         "Privileged",
-                        (nodeData as any)?.["Privileged"],
+                        (localNodeData as any)?.["Privileged"],
                         "Non Persistent Access",
                         "Non Persistent Access",
-                        (nodeData as any)?.["Non Persistent Access"]
+                        (localNodeData as any)?.["Non Persistent Access"]
                       )}
                       {renderSingleField(
                         "Audit Comments",
                         "Audit Comments",
-                        (nodeData as any)?.["Audit Comments"]
+                        (localNodeData as any)?.["Audit Comments"]
                       )}
                       {renderSingleField(
                         "Account Type Restriction",
                         "Account Type Restriction",
-                        (nodeData as any)?.["Account Type Restriction"]
+                        (localNodeData as any)?.["Account Type Restriction"]
                       )}
                     </div>
                   )}
@@ -635,7 +752,7 @@ const EditReassignButtons = <T extends { status?: string }>({
                       <FolderIcon size={18} className="mr-2 text-gray-600" />
                       Lifecycle
                     </span>
-                    {expandedFrames.general ? (
+                    {expandedFrames.lifecycle ? (
                       <ChevronDown size={20} className="text-gray-600" />
                     ) : (
                       <ChevronRight size={20} className="text-gray-600" />
@@ -646,40 +763,40 @@ const EditReassignButtons = <T extends { status?: string }>({
                       {renderSideBySideField(
                         "Requestable",
                         "Requestable",
-                        (nodeData as any)?.["Requestable"],
+                        (localNodeData as any)?.["Requestable"],
                         "Pre-Requisite",
                         "Pre- Requisite",
-                        (nodeData as any)?.["Pre- Requisite"]
+                        (localNodeData as any)?.["Pre- Requisite"]
                       )}
                       {renderSingleField(
                         "Pre-Req Details",
                         "Pre-Requisite Details",
-                        (nodeData as any)?.["Pre-Requisite Details"]
+                        (localNodeData as any)?.["Pre-Requisite Details"]
                       )}
                       {renderSingleField(
                         "Auto Assign Access Policy",
                         "Auto Assign Access Policy",
-                        (nodeData as any)?.["Auto Assign Access Policy"]
+                        (localNodeData as any)?.["Auto Assign Access Policy"]
                       )}
                       {renderSingleField(
                         "Provisioner Group",
                         "Provisioner Group",
-                        (nodeData as any)?.["Provisioner Group"]
+                        (localNodeData as any)?.["Provisioner Group"]
                       )}
                       {renderSingleField(
                         "Provisioning Steps",
                         "Provisioning Steps",
-                        (nodeData as any)?.["Provisioning Steps"]
+                        (localNodeData as any)?.["Provisioning Steps"]
                       )}
                       {renderSingleField(
                         "Provisioning Mechanism",
                         "Provisioning Mechanism",
-                        (nodeData as any)?.["Provisioning Mechanism"]
+                        (localNodeData as any)?.["Provisioning Mechanism"]
                       )}
                       {renderSingleField(
                         "Action on Native Change",
                         "Action on Native Change",
-                        (nodeData as any)?.["Action on Native Change"]
+                        (localNodeData as any)?.["Action on Native Change"]
                       )}
                     </div>
                   )}

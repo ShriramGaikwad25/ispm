@@ -224,3 +224,26 @@ export async function getAPPOCertificationDetailsWithFilter<T>(
 
   return res.json();
 }
+
+export async function getEntitlementDetails(
+  appInstanceId: string,
+  entitlementId: string
+): Promise<any> {
+  const endpoint = `https://preview.keyforge.ai/catalog/api/v1/ACMECOM/app/${appInstanceId}/entitlement/${entitlementId}`;
+  
+  const headers = {
+    "Content-Type": "application/json",
+    "X-Requested-With": "XMLHttpRequest",
+  };
+
+  const res = await fetch(endpoint, { headers });
+
+  if (!res.ok) {
+    const errorBody = await res.text();
+    throw new Error(
+      `Fetch failed: ${res.status} ${res.statusText}\n${errorBody}`
+    );
+  }
+
+  return res.json();
+}
