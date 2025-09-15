@@ -55,6 +55,7 @@ type RowData = {
   entitlementName: string;
   entitlementDescription: string;
   aiInsights: string;
+  recommendation?: string;
   accountSummary: string;
   accountActivity: string;
   changeSinceLastReview: string;
@@ -131,6 +132,7 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
         const userInfo = account.userInfo || {};
         const access = account.access || {};
         const entityEntitlement = account.entityEntitlement || {};
+        const recommendation = entityEntitlement.action || undefined;
 
         return {
           accountId: accountInfo.accountId || `grouped-${index}`,
@@ -160,6 +162,7 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
           numOfEntitlements:
             group.access?.numOfAccounts || accounts.length || 0,
           lineItemId: entityEntitlement.lineItemId || "",
+          recommendation,
           status: "Pending", // Default status for grouped data
         };
       });
@@ -183,6 +186,7 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
       entitlementDescription:
         entitlement.entitlementInfo?.entitlementDescription || "",
       aiInsights: entitlement.aiassist?.recommendation || "",
+      recommendation: entitlement.entityEntitlement?.action || undefined,
       accountSummary: item.accountInfo?.accountName?.includes("@")
         ? "Regular Accounts"
         : "Other",
@@ -857,6 +861,7 @@ function AppOwnerContent() {
                 gridApi={gridApiRef} 
                 context="status"
                 onFilterChange={handleFilterChange}
+                initialSelected="Pending"
               />
             </div>
           </div>
