@@ -19,7 +19,7 @@ interface TabsProps {
 }
 
 const Tabs: React.FC<TabsProps> = ({ tabs, className, buttonClass, activeClass, inactiveClass, activeIndex, onChange}) => {
-  const [uncontrolledActiveTab, setUncontrolledActiveTab] = useState(1);
+  const [uncontrolledActiveTab, setUncontrolledActiveTab] = useState(0);
   const isControlled = typeof activeIndex === 'number';
   const activeTab = isControlled ? (activeIndex as number) : uncontrolledActiveTab;
   const ActiveComponent = tabs[activeTab].component; // Get active tab's component

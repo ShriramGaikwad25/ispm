@@ -369,7 +369,7 @@ export default function ApplicationDetailPage({
     const fetchEntitlementsData = async () => {
       try {
         const response = await fetch(
-          `https://preview.keyforge.ai/entities/api/v1/ACMEPOC/getAppEntitlements/430ea9e6-3cff-449c-a24e-59c057f81e3d/${id}`
+          `https://preview.keyforge.ai/entities/api/v1/ACMEPOC/getAppEntitlements/ec527a50-0944-4b31-b239-05518c87a743/${id}`
         );
         const data = await response.json();
         console.log("Entitlements data:", data);
@@ -1248,88 +1248,85 @@ export default function ApplicationDetailPage({
                 iconClass="top-1 right-0 rounded-full text-white bg-purple-800"
                 open={true}
               >
-                <div className="flex gap-4 p-2">
-                  {Object.entries(dataAccount).map(([category, items]) => (
-                    <div key={category} className="w-1/3 bg-white border border-gray-200 rounded-lg p-3">
-                      <div className="flex justify-between items-center mb-2">
-                        <h3 className="text-base font-medium text-gray-800 capitalize">
-                          {category.replace(/([A-Z])/g, " $1")}
-                        </h3>
-                        <button
-                          onClick={() => {
-                            setSelected((prev) => ({
-                              ...prev,
-                              [category]: null,
-                            }));
-                          }}
-                          className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                <div className="p-2">
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-base font-medium text-gray-800">Filters</h3>
+                  </div>
+                  <div className="space-y-3">
+                    {/* First row - Account Summary (4 items) */}
+                    <div className="flex">
+                      {dataAccount.accountSummary.map((item, index) => (
+                        <div
+                          key={`accountSummary-${index}`}
+                          className={`flex items-center justify-between py-2 px-3 rounded cursor-pointer transition-colors bg-white border border-gray-200 w-1/4 ${
+                            selected.accountSummary === index
+                              ? "bg-blue-100 border-blue-300"
+                              : "bg-gray-100"
+                          } ${item.color || ""}`}
+                          onClick={() => handleSelect('accountSummary', index)}
                         >
-                          Clear
-                          {selected[category] !== undefined &&
-                          selected[category] !== null ? (
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="h-3 w-3 text-blue-600"
-                              viewBox="0 0 24 24"
-                              fill="currentColor"
-                            >
-                              <path d="M3 4a1 1 0 011-1h16a1 1 0 01.8 1.6l-5.6 7.5V18a1 1 0 01-.45.84l-4 2.5A1 1 0 019 20.5v-8.4L3.2 5.6A1 1 0 013 4z" />
-                            </svg>
-                          ) : (
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="h-3 w-3 text-blue-600"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                d="M3 4a1 1 0 011-1h16a1 1 0 01.8 1.6l-5.6 7.5V18a1 1 0 01-.45.84l-4 2.5A1 1 0 019 20.5v-8.4L3.2 5.6A1 1 0 013 4z"
-                              />
-                            </svg>
-                          )}
-                        </button>
-                      </div>
-                      <div className="space-y-2">
-                        {items.map((item, index) => (
-                          <div
-                            key={index}
-                            className={`flex items-center justify-between py-2 px-3 rounded cursor-pointer transition-colors ${
-                              selected[category] === index
-                                ? "bg-blue-100 border border-blue-300"
-                                : "bg-gray-100"
-                            } ${item.color || ""}`}
-                            onClick={() => handleSelect(category, index)}
-                          >
-                            <div className="flex items-center gap-2">
-                              <div
-                                className="w-3 h-3 rounded-full border-2"
-                                style={{
-                                  borderColor: "#6EC6FF",
-                                  backgroundColor: selected[category] === index ? "#6EC6FF" : "transparent",
-                                }}
-                              ></div>
-                              <span className={`text-sm ${selected[category] === index ? "text-blue-900" : "text-gray-700"}`}>
-                                {item.label}
-                              </span>
-                            </div>
-                            <span
-                              className={`text-sm font-medium ${
-                                selected[category] === index
-                                  ? "text-blue-700 border-blue-300"
-                                  : "text-gray-900 border-gray-300"
-                              } bg-white border px-2 py-1 rounded text-xs min-w-[20px] text-center`}
-                            >
-                              {item.value}
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-3 h-3 rounded-full border-2"
+                              style={{
+                                borderColor: "#6EC6FF",
+                                backgroundColor: selected.accountSummary === index ? "#6EC6FF" : "transparent",
+                              }}
+                            ></div>
+                            <span className={`text-sm ${selected.accountSummary === index ? "text-blue-900" : "text-gray-700"}`}>
+                              {item.label}
                             </span>
                           </div>
-                        ))}
-                      </div>
+                          <span
+                            className={`text-sm font-medium ${
+                              selected.accountSummary === index
+                                ? "text-blue-700 border-blue-300"
+                                : "text-gray-900 border-gray-300"
+                            } bg-white border px-2 py-1 rounded text-xs min-w-[20px] text-center`}
+                          >
+                            {item.value}
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                    
+                    {/* Second row - Account Activity (3 items) */}
+                    <div className="flex">
+                      {dataAccount.accountActivity.map((item, index) => (
+                        <div
+                          key={`accountActivity-${index}`}
+                          className={`flex items-center justify-between py-2 px-3 rounded cursor-pointer transition-colors bg-white border border-gray-200 w-1/4 ${
+                            selected.accountActivity === index
+                              ? "bg-blue-100 border-blue-300"
+                              : "bg-gray-100"
+                          } ${item.color || ""}`}
+                          onClick={() => handleSelect('accountActivity', index)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-3 h-3 rounded-full border-2"
+                              style={{
+                                borderColor: "#6EC6FF",
+                                backgroundColor: selected.accountActivity === index ? "#6EC6FF" : "transparent",
+                              }}
+                            ></div>
+                            <span className={`text-sm ${selected.accountActivity === index ? "text-blue-900" : "text-gray-700"}`}>
+                              {item.label}
+                            </span>
+                          </div>
+                          <span
+                            className={`text-sm font-medium ${
+                              selected.accountActivity === index
+                                ? "text-blue-700 border-blue-300"
+                                : "text-gray-900 border-gray-300"
+                            } bg-white border px-2 py-1 rounded text-xs min-w-[20px] text-center`}
+                          >
+                            {item.value}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </Accordion>
             </div>
