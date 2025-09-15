@@ -51,6 +51,36 @@ export default function Application() {
         width:350,
         cellRenderer: (params: any) => {
           const name = params.data.applicationinstancename;
+          const LOGO_BY_NAME: Record<string, string> = {
+            "Active Directory": "/ActiveDirectory.svg",
+            "AcmeCorporateDirectory": "/ActiveDirectory.svg",
+            "Oracle": "/Oracle.svg",
+            "SAP": "/SAP.svg",
+            "Workday": "/workday.svg",
+          };
+          const LOGO_BY_KEYWORD: Array<{ keyword: string; src: string }> = [
+            { keyword: "active directory", src: "/ActiveDirectory.svg" },
+            { keyword: "corporate directory", src: "/ActiveDirectory.svg" },
+            { keyword: "oracle", src: "/Oracle.svg" },
+            { keyword: "sap", src: "/SAP.svg" },
+            { keyword: "workday", src: "/workday.svg" },
+          ];
+          const getLogoSrc = (appName: string) => {
+            if (!appName) return "/window.svg";
+            // 1) Exact match mapping (case-sensitive to allow precision)
+            if (LOGO_BY_NAME[appName]) return LOGO_BY_NAME[appName];
+            // 2) Keyword-based mapping (case-insensitive contains)
+            const lower = appName.toLowerCase();
+            const kw = LOGO_BY_KEYWORD.find((k) => lower.includes(k.keyword));
+            if (kw) return kw.src;
+            // 3) Slug fallback: put a file at /public/logos/<slug>.svg
+            const slug = appName
+              .toLowerCase()
+              .replace(/&/g, "and")
+              .replace(/[^a-z0-9]+/g, "-")
+              .replace(/(^-|-$)/g, "");
+            return `/logos/${slug}.svg`;
+          };
           const riskStatus = params.data.risk || "Unknown";
           const riskInitial =
             riskStatus === "High" ? "H" : riskStatus === "Medium" ? "M" : "L";
@@ -61,6 +91,16 @@ export default function Application() {
           if (riskStatus === "High") {
             return (
               <div className="flex items-center h-full">
+                <img
+                  src={getLogoSrc(name)}
+                  alt={`${name} logo`}
+                  width={28}
+                  height={28}
+                  className="mr-2"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = "/window.svg";
+                  }}
+                />
                 <span
                   className="px-2 py-1 text-sm font-medium rounded-full inline-flex items-center cursor-help"
                   style={{ 
@@ -86,6 +126,16 @@ export default function Application() {
           // Default styling for other risk levels
           return (
             <div className="flex items-center h-full">
+              <img
+                src={getLogoSrc(name)}
+                alt={`${name} logo`}
+                width={28}
+                height={28}
+                className="mr-2"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = "/window.svg";
+                }}
+              />
               <a
                 // href={`#${params.data.applicationInstanceId}`}
                 target="_blank"

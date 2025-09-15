@@ -162,7 +162,10 @@ const Revocations: React.FC = () => {
         },
       },
       getDetailRowData: (params: any) => {
-        params.successCallback([{ info: params.data.details }]);
+        const details = Array.isArray(params.data?.details)
+          ? params.data.details
+          : [];
+        params.successCallback(details);
       },
     };
   }, []);
@@ -364,6 +367,26 @@ const Revocations: React.FC = () => {
       revokesCompleted: 6,
       lastSync: "2025-08-20",
       appOwner: "Alice Brown",
+      details: [
+        {
+          identity: "John Doe",
+          Account: "jdoe@sap.local",
+          Entitlement: "SAP FI: Post Journal Entries",
+          Type: "Role",
+          Status: "Pending",
+          Ticket: "INC-100234",
+          Evidence: "Manager approval attached",
+        },
+        {
+          identity: "Mary Johnson",
+          Account: "mjohnson@sap.local",
+          Entitlement: "SAP MM: Approve Purchase Orders",
+          Type: "Role",
+          Status: "In Progress",
+          Ticket: "REQ-55890",
+          Evidence: "Access review decision",
+        },
+      ],
     },
     {
       appName: "Sales Force",
@@ -374,6 +397,26 @@ const Revocations: React.FC = () => {
       revokesCompleted: 4,
       lastSync: "2025-08-19",
       appOwner: "Bob Wilson",
+      details: [
+        {
+          identity: "Alex Smith",
+          Account: "asmith@sf.local",
+          Entitlement: "Salesforce: Export Reports",
+          Type: "Permission",
+          Status: "Completed",
+          Ticket: "CHG-77421",
+          Evidence: "Revocation confirmed by system",
+        },
+        {
+          identity: "Priya Patel",
+          Account: "ppatel@sf.local",
+          Entitlement: "Salesforce: Modify Opportunities",
+          Type: "Profile",
+          Status: "Pending",
+          Ticket: "INC-100311",
+          Evidence: "Awaiting CAB approval",
+        },
+      ],
     },
   ];
 
@@ -470,7 +513,7 @@ const Revocations: React.FC = () => {
           {/* App View Main AG-Grid Table */}
           <div
             className="ag-theme-alpine"
-            style={{ height: "400px", width: "100%" }}
+            style={{ width: "100%" }}
           >
             {/* <AgGridReact
               columnDefs={appColumnDefs}
@@ -531,6 +574,8 @@ const Revocations: React.FC = () => {
               // rowSelection={rowSelection}
               masterDetail={true}
               detailCellRendererParams={detailCellRendererParams}
+              detailRowAutoHeight={true}
+              domLayout="autoHeight"
             />
           </div>
         </>
