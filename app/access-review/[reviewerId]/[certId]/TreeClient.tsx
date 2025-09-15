@@ -534,6 +534,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
         field: "entitlementName",
         headerName: "Entitlement",
         width: 400,
+        autoHeight: true,
+        wrapText: true,
         cellRenderer: (params: ICellRendererParams) => {
           const { entitlementName, isNew, itemRisk, entitlementDescription } =
             params.data || {};
@@ -1117,6 +1119,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                 />
                 <Filters 
                   appliedFilter={handleAppliedFilter}
+                  initialSelected="Pending"
                 />
               </div>
               <div className="flex items-center gap-2">
@@ -1165,7 +1168,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
                   defaultColDef={defaultColDef}
                   domLayout="autoHeight"
                   rowSelection={{ mode: "multiRow" }}
-                  rowHeight={50}
                   getRowId={(params: GetRowIdParams) => params.data.lineItemId}
                   getRowClass={() => "ag-row-custom"}
                   onGridReady={(params) => {

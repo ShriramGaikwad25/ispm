@@ -27,15 +27,45 @@ const Filters = ({
   appliedFilter,
   onFilterChange,
   context = "status",
+  initialSelected,
 }: {
   gridApi?: any;
   columns?: string[];
   appliedFilter?: (filters: string[]) => void;
   onFilterChange?: (filter: string) => void;
   context?: "status" | "account";
+  initialSelected?: string;
 }) => {
-  const [selectedFilter, setSelectedFilter] = useState<string>("");
+  const [selectedFilter, setSelectedFilter] = useState<string>(initialSelected || "");
   const [filterCounts, setFilterCounts] = useState<{ [key: string]: number }>({});
+
+  useEffect(() => {
+    // Apply default selected filter on mount
+    if (initialSelected) {
+      setSelectedFilter(initialSelected);
+      if (appliedFilter) {
+        appliedFilter([initialSelected]);
+      }
+      if (onFilterChange) {
+        if (context === "status") {
+          if (gridApi && gridApi.current) {
+            const filterInstance = gridApi.current.getFilterInstance('status');
+            if (filterInstance) {
+              filterInstance.setModel({
+                filterType: 'text',
+                type: 'equals',
+                filter: initialSelected
+              });
+              gridApi.current.onFilterChanged();
+            }
+          }
+        } else {
+          onFilterChange(initialSelected);
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const toggleFilter = (filterValue: string) => {
     setSelectedFilter(selectedFilter === filterValue ? "" : filterValue);

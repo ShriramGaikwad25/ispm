@@ -600,10 +600,13 @@ function AppOwnerContent() {
     {
       field: "entitlementName",
       headerName: "Entitlement",
+      autoHeight: true,
+      wrapText: true,
       enableRowGroup: true,
+      cellStyle: { whiteSpace: 'normal', lineHeight: '1.4' },
       cellRenderer: (params: ICellRendererParams) => (
         <div className="flex flex-col gap-0">
-          <span className="text-gray-800">{params.value}</span>
+          <span className="text-gray-800 break-words">{params.value}</span>
         </div>
       ),
     },
