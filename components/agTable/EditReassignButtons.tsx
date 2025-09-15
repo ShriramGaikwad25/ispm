@@ -408,7 +408,7 @@ const EditReassignButtons = <T extends { status?: string }>({
         {isSidePanelOpen &&
           createPortal(
             <div
-              className="fixed top-0 right-0 h-full bg-white shadow-xl z-50 overflow-y-auto mt-16 w-200"
+              className="fixed top-0 right-0 h-full bg-white shadow-xl z-50 overflow-y-auto overflow-x-hidden mt-16 w-200"
               style={{ width: 500 }}
             >
               <div className="p-4 border-b bg-gray-50">
@@ -447,7 +447,7 @@ const EditReassignButtons = <T extends { status?: string }>({
                         ) : (
                           <>
                           <h3 className="text-md font-semibold text-gray-600">Entitlement Name :-</h3>
-                          <h4 className="text-md font-medium mt-2">
+                          <h4 className="text-md font-medium mt-2 break-words break-all whitespace-normal leading-snug max-w-full">
                             {(localNodeData as any)?.["Ent Name"] || 
                               (localNodeData as any)?.["entitlementName"] || 
                               "Name: -"}
@@ -473,7 +473,7 @@ const EditReassignButtons = <T extends { status?: string }>({
                         ) : (
                           <>
                            <h3 className="text-md font-semibold text-gray-600 mt-4">Description :-</h3>
-                          <p className="text-sm text-gray-600 mt-1">
+                          <p className="text-sm text-gray-600 mt-1 break-words break-all whitespace-pre-wrap max-w-full">
                             {(localNodeData as any)?.["Ent Description"] ||
                               (localNodeData as any)?.["description"] ||
                               "description: -"}

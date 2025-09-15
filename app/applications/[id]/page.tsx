@@ -645,6 +645,8 @@ export default function ApplicationDetailPage({
         headerName: "Entitlement",
         flex: 3,
         width: 350,
+        wrapText: true,
+        autoHeight: true,
         cellRenderer: (params: ICellRendererParams) => {
           const risk = params.data?.risk;
           const isRiskHigh = risk === "High";
@@ -655,7 +657,7 @@ export default function ApplicationDetailPage({
               {isRiskHigh ? (
                 <div className="flex items-center h-full">
                   <span
-                    className="px-2 py-1 text-sm font-medium rounded-full inline-flex items-center cursor-pointer hover:bg-red-200 transition-colors duration-200"
+                    className="px-2 py-1 text-sm font-medium rounded-full inline-flex items-center cursor-pointer hover:bg-red-200 transition-colors duration-200 break-words whitespace-normal"
                     style={{ 
                       backgroundColor: "#ffebee", 
                       color: "#d32f2f",
@@ -682,11 +684,11 @@ export default function ApplicationDetailPage({
                   </span>
                 </div>
               ) : (
-                <div className="font-semibold">{params.value}</div>
+                <div className="font-semibold break-words whitespace-normal">{params.value}</div>
               )}
 
               {/* Row 2: full-width description */}
-              <div className="text-gray-600 text-sm w-full z-index-1">
+              <div className="text-gray-600 text-sm w-full z-index-1 break-words whitespace-pre-wrap">
                 {params.data["description"]}
               </div>
             </div>
@@ -844,6 +846,7 @@ export default function ApplicationDetailPage({
         headerName: "Entitlement Name",
         width: 650,
         wrapText: true,
+        autoHeight: true,
         cellRenderer: (params: ICellRendererParams) => {
           const risk = params.data?.risk;
           const isRiskHigh = risk === "High";
@@ -854,7 +857,7 @@ export default function ApplicationDetailPage({
               {isRiskHigh ? (
                 <div className="flex items-center h-full">
                   <span
-                    className="px-2 py-1 text-sm font-medium rounded-full inline-flex items-center cursor-pointer hover:bg-red-200 transition-colors duration-200"
+                    className="px-2 py-1 text-sm font-medium rounded-full inline-flex items-center cursor-pointer hover:bg-red-200 transition-colors duration-200 break-words whitespace-normal"
                     style={{ 
                       backgroundColor: "#ffebee", 
                       color: "#d32f2f",
@@ -881,11 +884,11 @@ export default function ApplicationDetailPage({
                   </span>
                 </div>
               ) : (
-                <div className="font-semibold">{params.value}</div>
+                <div className="font-semibold break-words whitespace-normal">{params.value}</div>
               )}
 
               <div className="text-gray-600 text-sm w-full">
-                {params.data["description"]}
+                <span className="break-words whitespace-pre-wrap">{params.data["description"]}</span>
               </div>
             </div>
           );
@@ -1111,7 +1114,7 @@ export default function ApplicationDetailPage({
               columnDefs={colDefs}
               defaultColDef={defaultColDef}
               masterDetail={true}
-              getRowHeight={() => 70}
+              domLayout="autoHeight"
               detailCellRendererParams={detailCellRendererParams}
             />
           </div>
@@ -2043,7 +2046,7 @@ export default function ApplicationDetailPage({
       />
       {isSidePanelOpen && (
         <div
-          className="fixed top-0 right-0 h-180 bg-white shadow-xl z-50 overflow-y-auto border-l border-gray-200 mt-16"
+          className="fixed top-0 right-0 h-180 bg-white shadow-xl z-50 overflow-y-auto overflow-x-hidden border-l border-gray-200 mt-16"
           style={{ width: 500 }}
         >
           <div className="p-4 border-b bg-gray-50">
@@ -2065,7 +2068,7 @@ export default function ApplicationDetailPage({
                       <span className="text-xs uppercase text-gray-500">
                         Entitlement Name:
                       </span>
-                      <div className="text-md font-medium text-wrap">
+                      <div className="text-md font-medium break-words break-all whitespace-normal max-w-full">
                         {nodeData?.["Ent Name"] ||
                           (nodeData as any)?.entitlementName ||
                           (nodeData as any)?.userDisplayName ||
@@ -2078,7 +2081,7 @@ export default function ApplicationDetailPage({
                       <span className="text-xs uppercase text-gray-500">
                         Description:
                       </span>
-                      <p className="text-sm text-gray-700 text-wrap">
+                      <p className="text-sm text-gray-700 break-words break-all whitespace-pre-wrap max-w-full">
                         {nodeData?.["Ent Description"] ||
                           (nodeData as any)?.description ||
                           (nodeData as any)?.details ||
