@@ -686,7 +686,6 @@ function AppOwnerContent() {
       },
       onCellClicked: handleOpen,
     },
-    { field: "status", headerName: "Status", width: 120, enableRowGroup: true },
     { field: "userType", headerName: "User Status", flex: 2, hide: true },
     { field: "department", headerName: "User Dept", flex: 2, hide: true },
     { field: "manager", headerName: "User Manager", flex: 2, hide: true },
