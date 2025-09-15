@@ -291,7 +291,36 @@ const TreeClient: React.FC<TreeClientProps> = ({
           user.taskId,
           lineItemId
         );
-        return entitlements.map((item: any, index: number) => ({
+        return entitlements.map((item: any, index: number) => {
+          const entitlementLineItemId =
+            item?.ID ||
+            item?.Id ||
+            item?.id ||
+            item?.lineItemId ||
+            item?.LineItemId ||
+            item?.lineitemid ||
+            item?.entitlementId ||
+            item?.EntitlementId ||
+            item?.entitlementid ||
+            item?.entityEntitlement?.lineItemId ||
+            item?.entityEntitlements?.lineItemId ||
+            item?.entityEntitlements?.[0]?.lineItemId ||
+            null;
+
+          if (!entitlementLineItemId) {
+            // Debug: log a sample entitlement object to identify the correct ID field
+            try {
+              // Only log a few samples to avoid noise
+              if (index < 3) {
+                console.warn("Entitlement missing lineItemId. Sample:", {
+                  keys: Object.keys(item || {}),
+                  item,
+                });
+              }
+            } catch {}
+          }
+
+          return ({
           ...account,
           entitlementName: item.entitlementInfo?.entitlementName ?? "",
           entitlementDescription:
@@ -315,9 +344,11 @@ const TreeClient: React.FC<TreeClientProps> = ({
           appType: item.appType || "",
           complianceViolation: item.complianceViolation || "",
           deltaChange: item.deltaChange || "",
-          // Use the original lineItemId from account data - don't override it
-          lineItemId: lineItemId,
-        }));
+          // Use entitlement-level lineItem ID for actions, retain account line item for reference
+          lineItemId: entitlementLineItemId,
+          accountLineItemId: lineItemId,
+          });
+        });
       });
 
       const allRows = (await Promise.all(entitlementPromises)).flat();
@@ -1213,6 +1244,9 @@ const TreeClient: React.FC<TreeClientProps> = ({
                   gridApi={entitlementsGridApiRef.current}
                   detailGridApis={new Map()}
                   clearDetailGridApis={() => {}}
+                  context="entitlement"
+                  reviewerId={reviewerId}
+                  certId={certId}
                 />
                 <input
                   type="text"
@@ -1278,7 +1312,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                   defaultColDef={defaultColDef}
                   domLayout="autoHeight"
                   rowSelection={{ mode: "multiRow" }}
-                  getRowId={(params: GetRowIdParams) => params.data.lineItemId}
+                  getRowId={(params: GetRowIdParams) => params.data.lineItemId || params.data.accountLineItemId || params.data.taskId || `${params.data.applicationName}-${params.data.entitlementName}`}
                   getRowClass={() => "ag-row-custom"}
                   onGridReady={(params) => {
                     entitlementsGridApiRef.current = params.api;

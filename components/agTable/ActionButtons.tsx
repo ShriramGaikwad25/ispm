@@ -107,13 +107,26 @@ const updateActions = async (actionType: string, justification: string) => {
       payload.entitlementAction = [
         {
           actionType,
-          lineItemIds: definedRows.map((row: any) => row.lineItemId),
+          lineItemIds: definedRows
+            .map((row: any) => row.lineItemId || (row as any)?.accountLineItemId)
+            .filter((id: any) => Boolean(id)),
           justification,
         },
       ];
     }
 
     try {
+      // Avoid calling API with empty entitlement IDs
+      const hasEntitlementIds =
+        Array.isArray(payload?.entitlementAction?.[0]?.lineItemIds) &&
+        payload.entitlementAction![0].lineItemIds.length > 0;
+
+      if (context === "entitlement" && !hasEntitlementIds) {
+        console.warn("No entitlement lineItemIds to send. Payload:", payload);
+        setError("No entitlement selected or missing IDs.");
+        return;
+      }
+
       await updateAction(reviewerId, certId, payload);
 
       // Update grid with new status

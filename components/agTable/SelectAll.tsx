@@ -10,6 +10,9 @@ interface SelectAllProps {
   detailGridApis: Map<string, GridApi>;
   clearDetailGridApis: () => void;
   showExpandCollapse?: boolean; // <-- Optional prop
+  context?: "user" | "account" | "entitlement";
+  reviewerId?: string;
+  certId?: string;
 }
 
 const SelectAll: React.FC<SelectAllProps> = ({
@@ -17,6 +20,9 @@ const SelectAll: React.FC<SelectAllProps> = ({
   detailGridApis,
   clearDetailGridApis,
   showExpandCollapse = true, // default to true
+  context,
+  reviewerId,
+  certId,
 }) => {
   const [isAllSelected, setIsAllSelected] = useState(false);
   const [isIndeterminate, setIsIndeterminate] = useState(false);
@@ -125,6 +131,9 @@ const SelectAll: React.FC<SelectAllProps> = ({
           api={gridApi}
           selectedRows={gridApi.getSelectedRows()}
           viewChangeEnable
+          context={context as any}
+          reviewerId={reviewerId as any}
+          certId={certId as any}
         />
       )}
     </div>
