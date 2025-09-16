@@ -11,8 +11,20 @@ import {
 // Register required Chart.js elements
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip);
 
-const VerticalBarChart = () => {
-  const data = {
+interface VerticalBarChartProps {
+  data?: {
+    labels: string[];
+    datasets: Array<{
+      data: number[];
+      backgroundColor?: string[];
+      borderRadius?: number;
+      barThickness?: number;
+    }>;
+  };
+}
+
+const VerticalBarChart: React.FC<VerticalBarChartProps> = ({ data: propData }) => {
+  const defaultData = {
     labels: ["0-10%", "10-30%", "30-60%", "60-80%", "80+ %"],
     datasets: [
       {
@@ -30,12 +42,40 @@ const VerticalBarChart = () => {
     ],
   };
 
+  const data = propData || defaultData;
+
+  // Ensure the dataset has proper styling
+  const chartData = {
+    ...data,
+    datasets: data.datasets.map(dataset => ({
+      ...dataset,
+      backgroundColor: dataset.backgroundColor || [
+        "#1F485B",
+        "#50BFA5", 
+        "#6EC6FF",
+        "#E6A23C",
+        "#E74C3C",
+      ],
+      borderRadius: dataset.borderRadius || 4,
+      barThickness: dataset.barThickness || 40,
+    }))
+  };
+
   const options: ChartOptions<"bar"> = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
       legend: { display: false },
-      tooltip: { enabled: true },
+      tooltip: { 
+        enabled: true,
+        callbacks: {
+          label: (context: any) => {
+            const label = context.label || '';
+            const value = context.parsed.y || 0;
+            return `${label}: ${value} instances`;
+          }
+        }
+      },
     },
     scales: {
       x: {
@@ -64,7 +104,7 @@ const VerticalBarChart = () => {
 
   return (
     <div className="w-full h-72 p-4">
-      <Bar data={data} options={options} />
+      <Bar data={chartData} options={options} />
     </div>
   );
 };

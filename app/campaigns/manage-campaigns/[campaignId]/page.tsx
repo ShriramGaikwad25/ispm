@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { useMemo, useRef, useState, useEffect } from "react";
+import { useRouter, useParams } from "next/navigation";
 import { ChevronDown, ChevronRight, MoreVertical } from "lucide-react";
 import { AgGridReact } from "ag-grid-react";
 import { AgGridReact as AgGridReactType } from "ag-grid-react";
@@ -15,53 +15,132 @@ import ChampaignActionButton from "@/components/agTable/ChampaignActionButton";
 import AuditorsCorner from "../AuditorsCorner";
 import Revocations from "./Revocations";
 
-const campData = [
-  {
-    reviewerName: "Alice Johnson",
-    title: "Senior Security Analyst",
-    department: "Cybersecurity",
-    progress: "80%",
-    riskScore: "High",
-    lastUpdate: "2025-05-20",
-  },
-  {
-    reviewerName: "Brian Smith",
-    title: "IAM Manager",
-    department: "IT Governance",
-    progress: "60%",
-    riskScore: "Medium",
-    lastUpdate: "2025-05-25",
-  },
-  {
-    reviewerName: "Catherine Lee",
-    title: "Compliance Officer",
-    department: "Risk & Compliance",
-    progress: "90%",
-    riskScore: "Low",
-    lastUpdate: "2025-05-22",
-  },
-  {
-    reviewerName: "David Kim",
-    title: "Application Owner",
-    department: "Engineering",
-    progress: "40%",
-    riskScore: "High",
-    lastUpdate: "2025-05-21",
-  },
-  {
-    reviewerName: "Emily Chen",
-    title: "Access Reviewer",
-    department: "Finance",
-    progress: "100%",
-    riskScore: "Low",
-    lastUpdate: "2025-05-26",
-  },
-];
+type CampaignReviewer = {
+  reviewerId: string;
+  totalNumOfAccess: number;
+  totalNumOfUsers: number;
+  numOfPendingActions: number;
+  certifications: Array<{
+    percentageCompleted: number;
+    certificationId: string;
+    certificationName: string;
+    status: string;
+  }>;
+  totalActions: number;
+  totalNumOfAccounts: number;
+  numOfAccessRevoked: number;
+  numOfAccessCertified: number;
+  reviewerName: string;
+  reviewerUserName: string;
+  lastUpdateOn: string | null;
+  percentageOfCompletedAction: number;
+  customProperty: any;
+};
+
+type CampaignData = {
+  campaigns: Array<{
+    campaignID: string;
+    name: string;
+    description: string;
+    campaignReviewers: CampaignReviewer[];
+    numOfHighRiskEntitlements: number | null;
+    totalNumOfAccess: number;
+    numOfDormantAccounts: number | null;
+    totalNumOfUsers: number;
+    numOfPendingActions: number;
+    numOfPrivilegedAccounts: number | null;
+    totalNumOfAccounts: number;
+    numOfAccessRevoked: number;
+    numOfOrphanAccounts: number | null;
+    numOfAccessCertified: number;
+    numOfSODViolations: number | null;
+    progress: number;
+    campaignExpiryDate: string | null;
+    totalNumOfCertificationInstance: number;
+    campaignType: string;
+    rangeOfPercentageCompletion: Record<string, number>;
+    campaignOwner: {
+      ownerType: string;
+      ownerName: string[];
+    };
+  }>;
+};
+
+type ReviewerRow = {
+  reviewerName: string;
+  title: string;
+  department: string;
+  progress: string;
+  riskScore: string;
+  lastUpdate: string;
+  totalNumOfAccess: number;
+  totalNumOfUsers: number;
+  numOfPendingActions: number;
+  percentageOfCompletedAction: number;
+};
 
 export default function ManageCampaigns() {
   const gridRef = useRef<AgGridReactType>(null);
   const router = useRouter();
+  const params = useParams();
+  const campaignId = params.campaignId as string;
   const [tabIndex, setTabIndex] = useState(1);
+  const [campaignData, setCampaignData] = useState<CampaignData | null>(null);
+  const [reviewerRows, setReviewerRows] = useState<ReviewerRow[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    async function fetchCampaignData() {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const res = await fetch(
+          "https://preview.keyforge.ai/certification/api/v1/CERTTEST/getCampaignAnalytics",
+          { cache: "no-store", signal: controller.signal }
+        );
+        if (!res.ok) {
+          throw new Error(`Failed to load campaign data (${res.status})`);
+        }
+        const data: CampaignData = await res.json();
+        setCampaignData(data);
+        
+        // Find the specific campaign by ID
+        const selectedCampaign = data.campaigns.find(campaign => campaign.campaignID === campaignId);
+        
+        if (selectedCampaign && selectedCampaign.campaignReviewers) {
+          // Transform campaignReviewers data to match the table structure
+          const transformedRows: ReviewerRow[] = selectedCampaign.campaignReviewers.map((reviewer: CampaignReviewer) => ({
+            reviewerName: reviewer.reviewerName,
+            title: reviewer.reviewerUserName, // Using username as title for now
+            department: "IT Governance", // Default department since not in API
+            progress: `${reviewer.percentageOfCompletedAction}%`,
+            riskScore: reviewer.numOfPendingActions > 0 ? "High" : "Low", // Risk based on pending actions
+            lastUpdate: reviewer.lastUpdateOn ? new Date(reviewer.lastUpdateOn).toLocaleDateString() : "N/A",
+            totalNumOfAccess: reviewer.totalNumOfAccess,
+            totalNumOfUsers: reviewer.totalNumOfUsers,
+            numOfPendingActions: reviewer.numOfPendingActions,
+            percentageOfCompletedAction: reviewer.percentageOfCompletedAction,
+          }));
+          setReviewerRows(transformedRows);
+        } else {
+          setReviewerRows([]);
+        }
+      } catch (err: any) {
+        if (err?.name === "AbortError") return;
+        setError(err?.message || "Something went wrong loading campaign data");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    
+    if (campaignId) {
+      fetchCampaignData();
+    }
+    
+    return () => controller.abort();
+  }, [campaignId]);
 
   const columnDefs = useMemo<ColDef[]>(
     () => [
@@ -116,23 +195,25 @@ export default function ManageCampaigns() {
       icon: ChevronDown,
       iconOff: ChevronRight,
       component: () => {
-        if (!campData || campData.length === 0) return <div>Loading...</div>;
+        if (isLoading) return <div className="flex justify-center items-center h-72">Loading campaign data...</div>;
+        if (error) return <div className="text-red-600 text-center h-72 flex items-center justify-center">{error}</div>;
+        if (!reviewerRows || reviewerRows.length === 0) return <div className="text-gray-500 text-center h-72 flex items-center justify-center">No reviewers found for this campaign</div>;
+        
         return (
           <div className="ag-theme-alpine h-72">
             <div className="flex justify-between">
               <h1 className="text-xl font-bold mb-6 border-b border-gray-200 pb-4 text-blue-950">
                 Manage Campaigns
-                {/* <p className="font-normal text-sm pt-4">
-                  Campaigns is <strong>Running</strong>. Directory snapshot as
-                  of{" "}
-                  <strong className="text-blue-600">
-                    29/05/2025, 10:00 AM
-                  </strong>
-                  ,<strong className="pl-4">Due Date :- </strong>{" "}
-                  <strong className="text-blue-600">
-                    29/06/2025, 10:00 AM
-                  </strong>
-                </p> */}
+                {campaignData && (
+                  <p className="font-normal text-sm pt-4">
+                    Campaign: <strong>{campaignData.campaigns.find(c => c.campaignID === campaignId)?.name || 'Unknown'}</strong>
+                    {campaignData.campaigns.find(c => c.campaignID === campaignId)?.description && (
+                      <span className="block text-gray-600 mt-1">
+                        {campaignData.campaigns.find(c => c.campaignID === campaignId)?.description}
+                      </span>
+                    )}
+                  </p>
+                )}
               </h1>
             </div>
             <div className="mb-4">
@@ -141,14 +222,38 @@ export default function ManageCampaigns() {
                 title="Expand/Collapse"
               >
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Revenue Card */}
+                {/* Progress Distribution Card */}
                 <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
                   <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-                    <h2 className="text-sm font-semibold text-gray-700">Revenue</h2>
+                    <h2 className="text-sm font-semibold text-gray-700">Progress Distribution</h2>
                     <MoreVertical className="w-4 h-4 text-gray-400" />
                   </div>
                   <div className="px-2 pb-2">
-                    <VerticalBarChart />
+                    <VerticalBarChart 
+                      data={(() => {
+                        const selectedCampaign = campaignData?.campaigns.find(c => c.campaignID === campaignId);
+                        if (!selectedCampaign?.rangeOfPercentageCompletion) {
+                          return {
+                            labels: ["0-10%", "10-30%", "30-60%", "60-80%", "80+ %"],
+                            datasets: [{ data: [0, 0, 0, 0, 0] }]
+                          };
+                        }
+                        
+                        const rangeData = selectedCampaign.rangeOfPercentageCompletion;
+                        return {
+                          labels: ["0-10%", "10-30%", "30-60%", "60-80%", "80+ %"],
+                          datasets: [{
+                            data: [
+                              rangeData["10"] || 0,
+                              rangeData["30"] || 0,
+                              rangeData["60"] || 0,
+                              rangeData["80"] || 0,
+                              rangeData["100"] || 0,
+                            ]
+                          }]
+                        };
+                      })()}
+                    />
                   </div>
                 </div>
 
@@ -162,36 +267,85 @@ export default function ManageCampaigns() {
                       </tr>
                     </thead>
                     <tbody>
-                      <tr className="border-b border-gray-200 last:border-b-0">
-                        <td className="px-6 py-4">800+ High Risk Entitlements</td>
-                        <td className="px-6 py-4 border-l-2 border-gray-300">
-                          <span className="px-2 py-0.5 rounded-full text-xs bg-orange-100 text-orange-700">Medium</span>
-                        </td>
-                      </tr>
-                      <tr className="border-b border-gray-200 last:border-b-0">
-                        <td className="px-6 py-4">50+ Privileged Accounts</td>
-                        <td className="px-6 py-4 border-l-2 border-gray-300">
-                          <span className="px-2 py-0.5 rounded-full text-xs bg-rose-100 text-rose-700">High</span>
-                        </td>
-                      </tr>
-                      <tr className="border-b border-gray-200 last:border-b-0">
-                        <td className="px-6 py-4">80+ Orphan/deleted/rogue accounts</td>
-                        <td className="px-6 py-4 border-l-2 border-gray-300">
-                          <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">Low</span>
-                        </td>
-                      </tr>
-                      <tr className="border-b border-gray-200 last:border-b-0">
-                        <td className="px-6 py-4">10 SoD Violations</td>
-                        <td className="px-6 py-4 border-l-2 border-gray-300">
-                          <span className="px-2 py-0.5 rounded-full text-xs bg-orange-100 text-orange-700">Medium</span>
-                        </td>
-                      </tr>
-                      <tr className="border-b border-gray-200 last:border-b-0">
-                        <td className="px-6 py-4">Dormant - Accounts not used for 60+ days</td>
-                        <td className="px-6 py-4 border-l-2 border-gray-300">
-                          <span className="px-2 py-0.5 rounded-full text-xs bg-rose-100 text-rose-700">High</span>
-                        </td>
-                      </tr>
+                      {(() => {
+                        const selectedCampaign = campaignData?.campaigns.find(c => c.campaignID === campaignId);
+                        const totalPendingActions = reviewerRows.reduce((sum, reviewer) => sum + reviewer.numOfPendingActions, 0);
+                        const totalAccess = selectedCampaign?.totalNumOfAccess || 0;
+                        const totalUsers = selectedCampaign?.totalNumOfUsers || 0;
+                        const totalAccounts = selectedCampaign?.totalNumOfAccounts || 0;
+                        
+                        return (
+                          <>
+                            <tr className="border-b border-gray-200 last:border-b-0">
+                              <td className="px-6 py-4">
+                                {selectedCampaign?.numOfHighRiskEntitlements ? 
+                                  `${selectedCampaign.numOfHighRiskEntitlements}+ High Risk Entitlements` : 
+                                  'High Risk Entitlements - N/A'
+                                }
+                              </td>
+                              <td className="px-6 py-4 border-l-2 border-gray-300">
+                                <span className="px-2 py-0.5 rounded-full text-xs bg-orange-100 text-orange-700">Medium</span>
+                              </td>
+                            </tr>
+                            <tr className="border-b border-gray-200 last:border-b-0">
+                              <td className="px-6 py-4">
+                                {selectedCampaign?.numOfPrivilegedAccounts ? 
+                                  `${selectedCampaign.numOfPrivilegedAccounts}+ Privileged Accounts` : 
+                                  'Privileged Accounts - N/A'
+                                }
+                              </td>
+                              <td className="px-6 py-4 border-l-2 border-gray-300">
+                                <span className="px-2 py-0.5 rounded-full text-xs bg-rose-100 text-rose-700">High</span>
+                              </td>
+                            </tr>
+                            <tr className="border-b border-gray-200 last:border-b-0">
+                              <td className="px-6 py-4">
+                                {selectedCampaign?.numOfOrphanAccounts ? 
+                                  `${selectedCampaign.numOfOrphanAccounts}+ Orphan/deleted/rogue accounts` : 
+                                  'Orphan/deleted/rogue accounts - N/A'
+                                }
+                              </td>
+                              <td className="px-6 py-4 border-l-2 border-gray-300">
+                                <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">Low</span>
+                              </td>
+                            </tr>
+                            <tr className="border-b border-gray-200 last:border-b-0">
+                              <td className="px-6 py-4">
+                                {selectedCampaign?.numOfSODViolations ? 
+                                  `${selectedCampaign.numOfSODViolations} SoD Violations` : 
+                                  'SoD Violations - N/A'
+                                }
+                              </td>
+                              <td className="px-6 py-4 border-l-2 border-gray-300">
+                                <span className="px-2 py-0.5 rounded-full text-xs bg-orange-100 text-orange-700">Medium</span>
+                              </td>
+                            </tr>
+                            <tr className="border-b border-gray-200 last:border-b-0">
+                              <td className="px-6 py-4">
+                                {selectedCampaign?.numOfDormantAccounts ? 
+                                  `${selectedCampaign.numOfDormantAccounts} Dormant Accounts` : 
+                                  'Dormant Accounts - N/A'
+                                }
+                              </td>
+                              <td className="px-6 py-4 border-l-2 border-gray-300">
+                                <span className="px-2 py-0.5 rounded-full text-xs bg-rose-100 text-rose-700">High</span>
+                              </td>
+                            </tr>
+                            <tr className="border-b border-gray-200 last:border-b-0">
+                              <td className="px-6 py-4">
+                                {totalPendingActions} Pending Actions
+                              </td>
+                              <td className="px-6 py-4 border-l-2 border-gray-300">
+                                <span className={`px-2 py-0.5 rounded-full text-xs ${
+                                  totalPendingActions > 0 ? 'bg-rose-100 text-rose-700' : 'bg-green-100 text-green-700'
+                                }`}>
+                                  {totalPendingActions > 0 ? 'High' : 'Low'}
+                                </span>
+                              </td>
+                            </tr>
+                          </>
+                        );
+                      })()}
                     </tbody>
                   </table>
                 </div>
@@ -203,7 +357,30 @@ export default function ManageCampaigns() {
                     <MoreVertical className="w-4 h-4 text-gray-400" />
                   </div>
                   <div className="px-2 pb-2">
-                    <ProgressDonutChart />
+                    <ProgressDonutChart 
+                      data={(() => {
+                        const selectedCampaign = campaignData?.campaigns.find(c => c.campaignID === campaignId);
+                        if (!selectedCampaign) {
+                          return {
+                            totalItems: 0,
+                            approvedCount: 0,
+                            pendingCount: 0,
+                            revokedCount: 0,
+                            delegatedCount: 0,
+                            remediatedCount: 0,
+                          };
+                        }
+                        
+                        return {
+                          totalItems: selectedCampaign.totalNumOfCertificationInstance,
+                          approvedCount: selectedCampaign.numOfAccessCertified,
+                          pendingCount: selectedCampaign.numOfPendingActions,
+                          revokedCount: selectedCampaign.numOfAccessRevoked,
+                          delegatedCount: 0, // Not available in API
+                          remediatedCount: 0, // Not available in API
+                        };
+                      })()}
+                    />
                   </div>
                 </div>
               </div>
@@ -211,7 +388,7 @@ export default function ManageCampaigns() {
             </div>
             <AgGridReact
               ref={gridRef}
-              rowData={campData}
+              rowData={reviewerRows}
               columnDefs={columnDefs}
               rowSelection={rowSelection}
               context={{ gridRef }}
