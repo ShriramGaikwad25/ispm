@@ -247,3 +247,30 @@ export async function getEntitlementDetails(
 
   return res.json();
 }
+
+export async function getCatalogEntitlements<T>(
+  appInstanceId: string,
+  reviewerId: string,
+
+): Promise<T> {
+  const endpoint = `https://preview.keyforge.ai/catalog/api/v1/ACMECOM/app/${appInstanceId}/entitlement`;
+  
+  const url = new URL(endpoint);
+  url.searchParams.append("filter", `appownerid eq ${reviewerId}`);
+  
+  const headers = {
+    "Content-Type": "application/json",
+    "X-Requested-With": "XMLHttpRequest",
+  };
+
+  const res = await fetch(url.toString(), { headers });
+
+  if (!res.ok) {
+    const errorBody = await res.text();
+    throw new Error(
+      `Fetch failed: ${res.status} ${res.statusText}\n${errorBody}`
+    );
+  }
+
+  return res.json();
+}

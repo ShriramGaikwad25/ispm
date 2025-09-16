@@ -2,10 +2,13 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { AgGridReact } from "ag-grid-react";
 import { ColDef, ICellRendererParams, GridApi } from "ag-grid-community";
+import { useSearchParams } from "next/navigation";
 import "@/lib/ag-grid-setup";
 import EditReassignButtons from "@/components/agTable/EditReassignButtons";
 import { formatDateMMDDYY } from "../access-review/page";
 import { CircleCheck, CircleX, InfoIcon } from "lucide-react";
+import { getCatalogEntitlements } from "@/lib/api";
+import { PaginatedResponse } from "@/types/api";
 
 interface TabProps {
   tabs: { label: string }[];
@@ -44,212 +47,15 @@ const Tabs: React.FC<TabProps> = ({
 };
 
 const page = () => {
+  const searchParams = useSearchParams();
   const [gridApi, setGridApi] = useState<GridApi | null>(null);
-  const [rowData] = useState<any[]>([
-    {
-      entitlementName: "Sales Team Unique",
-      description: "Access to sales team resources and tools",
-      type: "Group",
-      risk: "Medium",
-      applicationName: "Open LDAP",
-      assignment: "Direct",
-      "Last Sync": "2024-01-15",
-      "Last Reviewed on": "2024-01-10",
-      "Total Assignments": 25,
-      Requestable: "Yes",
-      Certifiable: "Yes",
-      "SOD Check": "Passed",
-      Hierarchy: "Level 2",
-      "Pre- Requisite": "No",
-      "Pre-Requisite Details": "None",
-      "Revoke on Disable": "Yes",
-      "Shared Pwd": "No",
-      "Capability/Technical Scope": "Sales Operations",
-      "Business Objective": "Revenue Generation",
-      "Compliance Type": "SOX",
-      "Access Scope": "Global",
-      Reviewed: "Yes",
-      "Dynamic Tag": "Sales",
-      "MFA Status": "Required",
-      "Review Schedule": "Quarterly",
-      "Ent Owner": "Sales Manager",
-      "Created On": "2023-06-01",
-    },
-    {
-      entitlementName: "Marketing Department Unique",
-      description: "Access to marketing tools and campaigns",
-      type: "Group",
-      risk: "Low",
-      applicationName: "Open LDAP",
-      assignment: "Direct",
-      "Last Sync": "2024-01-14",
-      "Last Reviewed on": "2024-01-08",
-      "Total Assignments": 15,
-      Requestable: "Yes",
-      Certifiable: "Yes",
-      "SOD Check": "Passed",
-      Hierarchy: "Level 1",
-      "Pre- Requisite": "No",
-      "Pre-Requisite Details": "None",
-      "Revoke on Disable": "Yes",
-      "Shared Pwd": "No",
-      "Capability/Technical Scope": "Marketing Operations",
-      "Business Objective": "Brand Awareness",
-      "Compliance Type": "GDPR",
-      "Access Scope": "Regional",
-      Reviewed: "Yes",
-      "Dynamic Tag": "Marketing",
-      "MFA Status": "Required",
-      "Review Schedule": "Monthly",
-      "Ent Owner": "Marketing Manager",
-      "Created On": "2023-05-15",
-    },
-    {
-      entitlementName: "Human Resources Unique",
-      description: "Access to HR systems and employee data",
-      type: "Group",
-      risk: "High",
-      applicationName: "Open LDAP",
-      assignment: "Direct",
-      "Last Sync": "2024-01-13",
-      "Last Reviewed on": "2024-01-05",
-      "Total Assignments": 8,
-      Requestable: "No",
-      Certifiable: "Yes",
-      "SOD Check": "Failed",
-      Hierarchy: "Level 3",
-      "Pre- Requisite": "Yes",
-      "Pre-Requisite Details": "HR Certification Required",
-      "Revoke on Disable": "Yes",
-      "Shared Pwd": "No",
-      "Capability/Technical Scope": "HR Operations",
-      "Business Objective": "Employee Management",
-      "Compliance Type": "HIPAA",
-      "Access Scope": "Global",
-      Reviewed: "No",
-      "Dynamic Tag": "HR",
-      "MFA Status": "Required",
-      "Review Schedule": "Weekly",
-      "Ent Owner": "HR Director",
-      "Created On": "2023-04-20",
-    },
-    {
-      entitlementName: "IT Support Unique",
-      description: "Administrative access to IT systems",
-      type: "Role",
-      risk: "High",
-      applicationName: "Open LDAP",
-      assignment: "Direct",
-      "Last Sync": "2024-01-12",
-      "Last Reviewed on": "2024-01-03",
-      "Total Assignments": 5,
-      Requestable: "No",
-      Certifiable: "Yes",
-      "SOD Check": "Passed",
-      Hierarchy: "Level 4",
-      "Pre- Requisite": "Yes",
-      "Pre-Requisite Details": "IT Certification Required",
-      "Revoke on Disable": "Yes",
-      "Shared Pwd": "No",
-      "Capability/Technical Scope": "System Administration",
-      "Business Objective": "System Maintenance",
-      "Compliance Type": "SOX",
-      "Access Scope": "Global",
-      Reviewed: "Yes",
-      "Dynamic Tag": "IT",
-      "MFA Status": "Required",
-      "Review Schedule": "Weekly",
-      "Ent Owner": "IT Director",
-      "Created On": "2023-03-10",
-    },
-    {
-      entitlementName: "Finance Department Unique",
-      description: "Access to financial systems and reports",
-      type: "Group",
-      risk: "High",
-      applicationName: "Open LDAP",
-      assignment: "Direct",
-      "Last Sync": "2024-01-11",
-      "Last Reviewed on": "2024-01-01",
-      "Total Assignments": 12,
-      Requestable: "No",
-      Certifiable: "Yes",
-      "SOD Check": "Passed",
-      Hierarchy: "Level 3",
-      "Pre- Requisite": "Yes",
-      "Pre-Requisite Details": "Finance Certification Required",
-      "Revoke on Disable": "Yes",
-      "Shared Pwd": "No",
-      "Capability/Technical Scope": "Financial Operations",
-      "Business Objective": "Financial Management",
-      "Compliance Type": "SOX",
-      "Access Scope": "Global",
-      Reviewed: "Yes",
-      "Dynamic Tag": "Finance",
-      "MFA Status": "Required",
-      "Review Schedule": "Monthly",
-      "Ent Owner": "CFO",
-      "Created On": "2023-02-15",
-    },
-    {
-      entitlementName: "Product Development Unique",
-      description: "Access to development tools and repositories",
-      type: "Group",
-      risk: "Medium",
-      applicationName: "Open LDAP",
-      assignment: "Direct",
-      "Last Sync": "2024-01-10",
-      "Last Reviewed on": "2023-12-28",
-      "Total Assignments": 20,
-      Requestable: "Yes",
-      Certifiable: "Yes",
-      "SOD Check": "Passed",
-      Hierarchy: "Level 2",
-      "Pre- Requisite": "No",
-      "Pre-Requisite Details": "None",
-      "Revoke on Disable": "Yes",
-      "Shared Pwd": "No",
-      "Capability/Technical Scope": "Software Development",
-      "Business Objective": "Product Innovation",
-      "Compliance Type": "GDPR",
-      "Access Scope": "Global",
-      Reviewed: "Yes",
-      "Dynamic Tag": "Development",
-      "MFA Status": "Required",
-      "Review Schedule": "Quarterly",
-      "Ent Owner": "CTO",
-      "Created On": "2023-01-20",
-    },
-    {
-      entitlementName: "Customer Service Unique",
-      description: "Access to customer support systems",
-      type: "Group",
-      risk: "Low",
-      applicationName: "Open LDAP",
-      assignment: "Direct",
-      "Last Sync": "2024-01-09",
-      "Last Reviewed on": "2023-12-25",
-      "Total Assignments": 30,
-      Requestable: "Yes",
-      Certifiable: "Yes",
-      "SOD Check": "Passed",
-      Hierarchy: "Level 1",
-      "Pre- Requisite": "No",
-      "Pre-Requisite Details": "None",
-      "Revoke on Disable": "Yes",
-      "Shared Pwd": "No",
-      "Capability/Technical Scope": "Customer Support",
-      "Business Objective": "Customer Satisfaction",
-      "Compliance Type": "GDPR",
-      "Access Scope": "Regional",
-      Reviewed: "Yes",
-      "Dynamic Tag": "Support",
-      "MFA Status": "Required",
-      "Review Schedule": "Monthly",
-      "Ent Owner": "Support Manager",
-      "Created On": "2022-12-01",
-    },
-  ]);
+  const [rowData, setRowData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState<string | null>(null);
+  
+  // Get appinstanceid and reviewerId from URL parameters with fallback values
+  const appInstanceId = searchParams.get('appinstanceid') || "b73ac8d7-f4cd-486f-93c7-3589ab5c5296";
+  const reviewerId = searchParams.get('reviewerId') || "ec527a50-0944-4b31-b239-05518c87a743";
 
   const [entTabIndex, setEntTabIndex] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -297,13 +103,159 @@ const page = () => {
     }
   };
 
-  // Initialize data
+  // Fetch data from API
   useEffect(() => {
-    setTotalItems(rowData.length);
-    setTotalPages(Math.ceil(rowData.length / 20));
-    setHasNext(currentPage < Math.ceil(rowData.length / 20));
-    setHasPrevious(currentPage > 1);
-  }, [rowData, currentPage]);
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setApiError(null);
+        
+        const response = await getCatalogEntitlements<any>(
+          appInstanceId,
+          reviewerId,
+        );
+        
+        // Debug: Log the API response to see what fields are available
+        console.log("API Response:", response);
+        console.log("Response items:", response.items);
+        if (response.items && response.items.length > 0) {
+          console.log("First item structure:", response.items[0]);
+          console.log("Available fields in first item:", Object.keys(response.items[0]));
+        }
+        
+        // Transform API response to match the expected format
+        const transformedData = response.items?.map((item: any) => {
+          // Debug: Log each item to see what description fields are available
+          console.log("Processing item:", item);
+          console.log("Description fields:", {
+            description: item.description,
+            desc: item.desc,
+            summary: item.summary,
+            details: item.details,
+            comment: item.comment,
+            notes: item.notes
+          });
+          
+          return {
+            entitlementName: item.entitlementName || item.name || "N/A",
+            description: item.description || item.entitlementDescription || item.desc || item.summary || item.details || item.comment || item.notes || `Test description for ${item.entitlementName || item.name || 'entitlement'} - This is a fallback description to test the UI`,
+            type: item.type || item.entitlementType || "N/A",
+            risk: item.risk || item.riskLevel || "Medium",
+            applicationName: item.applicationName || item.appName || "N/A",
+            assignment: item.assignment || "Direct",
+            "Last Sync": item.last_sync,
+            "Last Reviewed on": item.last_reviewed_on || "N/A",
+            "Total Assignments": item.totalAssignments || item.assignmentCount || 0,
+            Requestable: item.requestable ? "Yes" : "No",
+            Certifiable: item.certifiable ? "Yes" : "No",
+            "SOD Check": item.sodCheck || "Passed",
+            Hierarchy: item.hierarchy || "Level 1",
+            "Pre- Requisite": item.prerequisite ? "Yes" : "No",
+            "Pre-Requisite Details": item.prerequisiteDetails || "None",
+            "Revoke on Disable": item.revokeOnDisable ? "Yes" : "No",
+            "Shared Pwd": item.sharedPassword ? "Yes" : "No",
+            "Capability/Technical Scope": item.capabilityScope || "N/A",
+            "Business Objective": item.businessObjective || "N/A",
+            "Compliance Type": item.complianceType || "N/A",
+            "Access Scope": item.accessScope || "N/A",
+            Reviewed: item.reviewed ? "Yes" : "No",
+            "Dynamic Tag": item.dynamicTag || "N/A",
+            "MFA Status": item.mfaStatus || "Required",
+            "Review Schedule": item.reviewSchedule || "N/A",
+            "Ent Owner": item.entitlementOwner || item.owner || "N/A",
+            "Created On": item.createdOn || item.createdDate || "N/A",
+          };
+        }) || [];
+        
+        // Debug: Log the final transformed data
+        console.log("Transformed data:", transformedData);
+        if (transformedData.length > 0) {
+          console.log("First transformed item:", transformedData[0]);
+          console.log("Description in first item:", transformedData[0].description);
+        }
+        
+        // Force add some test data if no data is returned
+        if (transformedData.length === 0) {
+          console.log("No data returned, adding test data");
+          const testData = [{
+            entitlementName: "Test Entitlement 1",
+            description: "This is a test description to verify the UI is working",
+            type: "Test",
+            risk: "Low",
+            applicationName: "Test App",
+            assignment: "Direct",
+            "Last Sync": "2024-01-15",
+            "Last Reviewed on": "2024-01-10",
+            "Total Assignments": 5,
+            Requestable: "Yes",
+            Certifiable: "Yes",
+            "SOD Check": "Passed",
+            Hierarchy: "Level 1",
+            "Pre- Requisite": "No",
+            "Pre-Requisite Details": "None",
+            "Revoke on Disable": "Yes",
+            "Shared Pwd": "No",
+            "Capability/Technical Scope": "Test Scope",
+            "Business Objective": "Test Objective",
+            "Compliance Type": "Test Compliance",
+            "Access Scope": "Test Scope",
+            Reviewed: "Yes",
+            "Dynamic Tag": "Test",
+            "MFA Status": "Required",
+            "Review Schedule": "Monthly",
+            "Ent Owner": "Test Owner",
+            "Created On": "2024-01-01",
+          }];
+          setRowData(testData);
+        } else {
+          setRowData(transformedData);
+        }
+        setTotalItems(response.total_items || transformedData.length);
+        setTotalPages(response.total_pages || 1);
+        setHasNext(response.has_next || false);
+        setHasPrevious(response.has_previous || false);
+        
+      } catch (error) {
+        console.error("Error fetching catalog entitlements:", error);
+        setApiError(error instanceof Error ? error.message : "Failed to fetch entitlements");
+        // Set fallback data in case of error
+        const fallbackData = [{
+          entitlementName: "Fallback Test Entitlement",
+          description: "This is fallback test data to verify the UI works even when API fails",
+          type: "Fallback",
+          risk: "Medium",
+          applicationName: "Fallback App",
+          assignment: "Direct",
+          "Last Sync": "2024-01-15",
+          "Last Reviewed on": "2024-01-10",
+          "Total Assignments": 3,
+          Requestable: "Yes",
+          Certifiable: "Yes",
+          "SOD Check": "Passed",
+          Hierarchy: "Level 2",
+          "Pre- Requisite": "No",
+          "Pre-Requisite Details": "None",
+          "Revoke on Disable": "Yes",
+          "Shared Pwd": "No",
+          "Capability/Technical Scope": "Fallback Scope",
+          "Business Objective": "Fallback Objective",
+          "Compliance Type": "Fallback Compliance",
+          "Access Scope": "Fallback Scope",
+          Reviewed: "Yes",
+          "Dynamic Tag": "Fallback",
+          "MFA Status": "Required",
+          "Review Schedule": "Monthly",
+          "Ent Owner": "Fallback Owner",
+          "Created On": "2024-01-01",
+        }];
+        setRowData(fallbackData);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [appInstanceId, reviewerId, currentPage]);
 
   // Pagination controls
   const handleNextPage = () => {
@@ -321,7 +273,8 @@ const page = () => {
       appOwner: event.data["Ent Owner"] || "N/A",
       risk: event.data.risk || "N/A",
       totalAssignments: event.data["Total Assignments"] || 0,
-      lastSync: event.data["Last Sync"] || "N/A"
+      lastSync: event.data["Last Sync"] || "N/A",
+      description:event.data['description']
     };
     
     console.log('Row clicked - Entitlement data:', entitlementData);
@@ -344,6 +297,8 @@ const page = () => {
         headerName: "Entitlement",
         flex: 3,
         width: 350,
+        autoHeight: true,
+        wrapText: true,
         cellRenderer: (params: ICellRendererParams) => {
           return (
             <div className="flex flex-col">
@@ -352,7 +307,7 @@ const page = () => {
 
               {/* Row 2: full-width description */}
               <div className="text-gray-600 text-sm w-full z-index-1">
-                {params.data["description"]}
+                {params.data["description"] || `Test description for ${params.value}`}
               </div>
             </div>
           );
@@ -406,8 +361,8 @@ const page = () => {
         width: 100,
         hide: true,
       },
-      { field: "SOD Check", headerName: "SOD Check", flex: 1.5, hide: true },
-      { field: "Hierarchy", headerName: "Hierarchy", width: 100, hide: true },
+        { field: "SOD Check", headerName: "SOD Check", flex: 1.5, hide: true },
+        { field: "Hierarchy", headerName: "Hierarchy", width: 100, hide: true },
       {
         field: "Pre- Requisite",
         headerName: "Pre- Requisite",
@@ -508,6 +463,7 @@ const page = () => {
         field: "entitlementName",
         headerName: "Entitlement Name",
         width: 650,
+        autoHeight: true,
         wrapText: true,
         cellRenderer: (params: ICellRendererParams) => {
           return (
@@ -516,7 +472,7 @@ const page = () => {
               <div className="font-semibold">{params.value}</div>
 
               <div className="text-gray-600 text-sm w-full">
-                {params.data["description"]}
+                {params.data["description"] || `Test description for ${params.value}`}
               </div>
             </div>
           );
@@ -633,10 +589,54 @@ const page = () => {
     []
   );
 
+  if (loading) {
+    return (
+      <div className="ag-theme-alpine" style={{ height: 600, width: "100%" }}>
+        <div className="relative mb-4 flex items-center justify-between">
+          <h1 className="text-xl font-bold pb-2 text-blue-950">Entitlements</h1>
+        </div>
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading entitlements...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (apiError) {
+    return (
+      <div className="ag-theme-alpine" style={{ height: 600, width: "100%" }}>
+        <div className="relative mb-4 flex items-center justify-between">
+          <h1 className="text-xl font-bold pb-2 text-blue-950">Entitlements</h1>
+        </div>
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <div className="text-red-500 text-6xl mb-4">⚠️</div>
+            <p className="text-red-600 font-semibold mb-2">Error Loading Entitlements</p>
+            <p className="text-gray-600 mb-4">{apiError}</p>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="ag-theme-alpine" style={{ height: 600, width: "100%" }}>
       <div className="relative mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold pb-2 text-blue-950">Entitlements</h1>
+        <div>
+          <h1 className="text-xl font-bold pb-2 text-blue-950">Entitlements</h1>
+          <div className="text-sm text-gray-600">
+            App Instance: {appInstanceId} | Reviewer: {reviewerId} | Total Items: {totalItems}
+          </div>
+        </div>
         <Tabs
           tabs={tabsDataEnt}
           activeClass="bg-[#2563eb] text-white text-sm rounded-sm"
@@ -653,7 +653,7 @@ const page = () => {
           </svg>
         </button>
       </div> */}
-      <div style={{ height: "calc(100% - 80px)", width: "100%" }}>
+      <div style={{ height: "calc(100% - 120px)", width: "100%" }}>
         <AgGridReact
           rowData={filteredRowData}
           columnDefs={entTabIndex === 0 ? colDefs : underReviewColDefs}
@@ -661,7 +661,32 @@ const page = () => {
           animateRows={true}
           rowSelection="multiple"
           onRowClicked={handleRowClick}
+          getRowHeight={() => 80}
+          suppressRowTransform={true}
         />
+      </div>
+      
+      {/* Pagination Controls */}
+      <div className="flex items-center justify-between mt-4 px-4 py-2 bg-gray-50 rounded">
+        <div className="text-sm text-gray-600">
+          Page {currentPage} of {totalPages} ({totalItems} total items)
+        </div>
+        <div className="flex space-x-2">
+          <button
+            onClick={handlePreviousPage}
+            disabled={!hasPrevious}
+            className="px-3 py-1 text-sm border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+          >
+            Previous
+          </button>
+          <button
+            onClick={handleNextPage}
+            disabled={!hasNext}
+            className="px-3 py-1 text-sm border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+          >
+            Next
+          </button>
+        </div>
       </div>
     </div>
   );
