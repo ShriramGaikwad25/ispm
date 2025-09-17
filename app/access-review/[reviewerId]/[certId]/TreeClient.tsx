@@ -642,47 +642,48 @@ const TreeClient: React.FC<TreeClientProps> = ({
         field: "applicationName",
         headerName: "Application",
         width: 250,
-        // cellRenderer: (params: ICellRendererParams) => {
-        //   const { applicationName, appTag, appRisk } = params.data || {};
-        //   const tag = appTag || "SOX";
-        //   const riskColor =
-        //     appRisk === "High"
-        //       ? "red"
-        //       : appRisk === "Medium"
-        //       ? "orange"
-        //       : "green";
-        //   return (
-        //     <div className="flex items-center gap-2">
-        //       <span>{applicationName}</span>
-        //       {/* <div
-        //         className="flex items-center justify-center w-5 h-5 rounded-full bg-[#27685b] text-white text-[10px]"
-        //         title={`App Tag: ${tag}`}
-        //       >
-        //         {tag}
-        //       </div> */}
-        //       <span style={{ color: riskColor }} title={`App Risk: ${appRisk}`}>
-        //         {appRisk}
-        //       </span>
-        //     </div>
-        //   );
-        // },
       },
-      { field: "lastLogin", headerName: "Last Login", width: 140 },
+      { 
+        field: "lastLogin", 
+        headerName: "Last Login", 
+        width: 140,
+        cellRenderer: (params: ICellRendererParams) => {
+          const { lastLogin } = params.data || {};
+          if (!lastLogin) return <span className="text-gray-400">-</span>;
+          
+          try {
+            // Parse the date and format as mm-dd-yy
+            const date = new Date(lastLogin);
+            if (isNaN(date.getTime())) {
+              return <span className="text-gray-400">-</span>;
+            }
+            
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const year = String(date.getFullYear()).slice(-2);
+            
+            return <span className="text-sm">{`${month}-${day}-${year}`}</span>;
+          } catch (error) {
+            return <span className="text-gray-400">-</span>;
+          }
+        }
+      },
       {
         field: "recommendation",
         headerName: "Insights",
         width: 120,
+        cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
         cellRenderer: (params: ICellRendererParams) => {
           const { recommendation, accessedWithinAMonth } = params.data || {};
           return (
-            <div className="leading-3.5 flex items-center justify-center h-full flex-col">
-              <span>
+            <div className="w-full h-full flex flex-col items-center justify-center text-center">
+              <div className="flex items-center justify-center mb-1">
                 {recommendation === "Certify" ? (
                   <svg
                     width="21"
                     height="18"
                     viewBox="0 0 21 18"
-                    className="m-auto"
+                    className="mx-auto"
                   >
                     <path
                       fill="#34C759"
@@ -695,7 +696,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     height="19"
                     viewBox="0 0 21 19"
                     fill="none"
-                    className="m-auto"
+                    className="mx-auto"
                   >
                     <path
                       fill="#FF2D55"
@@ -703,8 +704,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     />
                   </svg>
                 )}
-              </span>
-              <small className="text-xs" title="Review History">
+              </div>
+              <small className="text-xs text-center" title="Review History">
                 {accessedWithinAMonth}
               </small>
             </div>
@@ -1059,9 +1060,30 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       className="object-cover rounded-full"
                     />
                   </div>
-                  <h4 className="text-lg font-bold text-gray-900 truncate">
-                    {selectedUser.fullName || "Unknown User"}
-                  </h4>
+                  <div className="flex flex-col min-w-0">
+                    <h4 className="text-lg font-bold text-gray-900 truncate">
+                      {selectedUser.fullName || "Unknown User"}
+                    </h4>
+                    {/* User Progress Display */}
+                    <div className="flex items-center gap-2 mt-1">
+                      {(() => {
+                        const progress = getUserProgress(selectedUser);
+                        return (
+                          <>
+                            <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                              <div 
+                                className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
+                                style={{ width: `${progress.percentage}%` }}
+                              ></div>
+                            </div>
+                            <span className="text-xs font-medium text-gray-600">
+                              {progress.percentage}%
+                            </span>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="flex items-center space-x-2">

@@ -201,21 +201,7 @@ export default function ManageCampaigns() {
         
         return (
           <div className="ag-theme-alpine h-72">
-            <div className="flex justify-between">
-              <h1 className="text-xl font-bold mb-6 border-b border-gray-200 pb-4 text-blue-950">
-                Manage Campaigns
-                {campaignData && (
-                  <p className="font-normal text-sm pt-4">
-                    Campaign: <strong>{campaignData.campaigns.find(c => c.campaignID === campaignId)?.name || 'Unknown'}</strong>
-                    {campaignData.campaigns.find(c => c.campaignID === campaignId)?.description && (
-                      <span className="block text-gray-600 mt-1">
-                        {campaignData.campaigns.find(c => c.campaignID === campaignId)?.description}
-                      </span>
-                    )}
-                  </p>
-                )}
-              </h1>
-            </div>
+
             <div className="mb-4">
               <Accordion
                 iconClass="absolute top-1 pb-4 right-0 rounded-full text-white bg-purple-800 mb-4"

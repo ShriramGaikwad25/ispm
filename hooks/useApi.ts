@@ -114,7 +114,7 @@ export const fetchAccessDetails = async (
       user: applicationInfo.username || "Unknown",
       risk: appInstance.itemRisk || "Unknown",
       description: "", // No description at app instance level in response
-      applicationName: applicationInfo.accountName || "Unknown",
+      applicationName: applicationInfo.applicationName || "Unknown",
       lastLogin: applicationInfo.lastLogin || null, // Not present, default to null
       recommendation: item.aiassist?.Recommendation || "None", // App instance-level recommendation
       entitlementRecommendations: recommendations, // Array of entitlement-level recommendations
