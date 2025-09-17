@@ -1,5 +1,5 @@
 "use client";
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, Suspense } from "react";
 import { AgGridReact } from "ag-grid-react";
 import { ColDef, ICellRendererParams, GridApi } from "ag-grid-community";
 import { useSearchParams } from "next/navigation";
@@ -46,7 +46,7 @@ const Tabs: React.FC<TabProps> = ({
   );
 };
 
-const page = () => {
+const CatalogContent = () => {
   const searchParams = useSearchParams();
   const [gridApi, setGridApi] = useState<GridApi | null>(null);
   const [rowData, setRowData] = useState<any[]>([]);
@@ -896,6 +896,26 @@ const page = () => {
         
       )}
     </div>
+  );
+};
+
+const page = () => {
+  return (
+    <Suspense fallback={
+      <div className="ag-theme-alpine" style={{ height: 600, width: "100%" }}>
+        <div className="relative mb-4 flex items-center justify-between">
+          <h1 className="text-xl font-bold pb-2 text-blue-950">Entitlements</h1>
+        </div>
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading entitlements...</p>
+          </div>
+        </div>
+      </div>
+    }>
+      <CatalogContent />
+    </Suspense>
   );
 };
 
