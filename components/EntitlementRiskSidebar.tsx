@@ -87,12 +87,12 @@ const EntitlementRiskSidebar: React.FC<EntitlementRiskSidebarProps> = ({
       >
         <div className="flex flex-col h-full">
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-red-50 to-orange-50">
+          <div className="flex items-center justify-between p-6 border-b border-gray-200">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-red-100 rounded-lg">
+              <div className="p-2  rounded-lg">
                 <AlertTriangle className="w-6 h-6 text-red-600" />
               </div>
-              <h2 className="text-lg font-semibold text-red-800 break-words whitespace-normal">Policy Risk Details</h2>
+              <h2 className="text-lg font-semibold text-blue-800 break-words whitespace-normal">Policy Risk Details</h2>
             </div>
             <button
               onClick={onClose}

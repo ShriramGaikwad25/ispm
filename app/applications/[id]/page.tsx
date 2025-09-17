@@ -1178,6 +1178,11 @@ export default function ApplicationDetailPage({
               masterDetail={true}
               getRowHeight={(params) => (params?.data?.__isDescRow ? 36 : 40)}
               detailCellRendererParams={detailCellRendererParams}
+              getRowId={(params) => {
+                const data = params.data || {};
+                const baseId = data.entitlementId || data.entitlementid || data.id || `${data.applicationName || ''}-${data.entitlementName || data.name || ''}`;
+                return data.__isDescRow ? `${baseId}-desc` : baseId;
+              }}
             />
           </div>
         );
@@ -1279,6 +1284,11 @@ export default function ApplicationDetailPage({
             masterDetail={true}
             getRowHeight={(params) => (params?.data?.__isDescRow ? 36 : 40)}
             detailCellRendererParams={detailCellRendererParams}
+            getRowId={(params) => {
+              const data = params.data || {};
+              const baseId = data.entitlementId || data.entitlementid || data.id || `${data.applicationName || ''}-${data.entitlementName || data.name || ''}`;
+              return data.__isDescRow ? `${baseId}-desc` : baseId;
+            }}
           />
         </div>
       ),

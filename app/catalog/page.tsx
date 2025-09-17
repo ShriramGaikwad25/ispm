@@ -752,7 +752,7 @@ const CatalogPageClient = () => {
       {
         field: "entitlementName",
         headerName: "Entitlement Name",
-        width: 700,
+        width: 800,
         autoHeight: true,
         wrapText: true,
         cellRenderer: (params: ICellRendererParams) => {
@@ -784,7 +784,7 @@ const CatalogPageClient = () => {
         },
       },
       { field: "type", headerName: "Type", width: 120 },
-      { field: "applicationName", headerName: "Application", width: 120 },
+      { field: "applicationName", headerName: "Application", width: 150 },
       {
         field: "risk",
         headerName: "Risk",
