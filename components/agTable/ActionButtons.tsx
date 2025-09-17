@@ -52,6 +52,7 @@ const ActionButtons = <T extends { status?: string }>({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDelegateModalOpen, setIsDelegateModalOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
   const [changeAccountOwner, setChangeAccountOwner] = useState(false);
   const [sendForApproval, setSendForApproval] = useState(false);
   const [modifyAccessChecked, setModifyAccessChecked] = useState(false);
@@ -60,6 +61,7 @@ const ActionButtons = <T extends { status?: string }>({
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [revokeSelection, setRevokeSelection] = useState(null);
   const [comment, setComment] = useState("");
+  const [commentText, setCommentText] = useState("");
   const [reviewerType, setReviewerType] = useState(null);
   const [selectedOwner, setSelectedOwner] = useState<User | Group | null>(null);
   const [selectedDelegate, setSelectedDelegate] = useState<User | Group | null>(null);
@@ -190,7 +192,21 @@ const updateActions = async (actionType: string, justification: string) => {
   const handleComment = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (definedRows.length === 0) return;
-    alert(`Comment added: ${comment || "No comment provided"} for ${definedRows.length} rows`);
+    setCommentText(comment); // Load existing comment into the textarea
+    setIsCommentModalOpen(true);
+  };
+
+  const handleSaveComment = () => {
+    if (!commentText.trim()) return;
+    
+    setComment(commentText);
+    setIsCommentModalOpen(false);
+    setCommentText("");
+  };
+
+  const handleCancelComment = () => {
+    setIsCommentModalOpen(false);
+    setCommentText("");
   };
 
   const toggleMenu = (e: React.MouseEvent) => {
@@ -459,6 +475,49 @@ const updateActions = async (actionType: string, justification: string) => {
           setIsDelegateModalOpen(false);
         }}
       />
+
+      {/* Comment Modal */}
+      {isCommentModalOpen &&
+        createPortal(
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Comment</h3>
+              </div>
+              
+              <div className="mb-6">
+                <textarea
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                  placeholder="Enter your comment here..."
+                  className="w-full h-24 px-3 py-2 border border-gray-300 rounded-md resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  autoFocus
+                />
+              </div>
+              
+              <div className="flex justify-end items-center gap-3">
+                <button
+                  onClick={handleCancelComment}
+                  className="px-6 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors min-w-[80px]"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveComment}
+                  disabled={!commentText.trim()}
+                  className={`px-6 py-2 text-sm font-medium rounded-md focus:outline-none focus:ring-2 transition-colors min-w-[80px] ${
+                    commentText.trim()
+                      ? "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500"
+                      : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                  }`}
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
 
       {isSidebarOpen &&
         createPortal(

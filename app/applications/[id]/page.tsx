@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { useMemo, useRef, useState, useEffect, use } from "react";
+import { createPortal } from "react-dom";
 import { formatDateMMDDYY } from "@/utils/utils";
 import "@/lib/ag-grid-setup";
 import Exports from "@/components/agTable/Exports";
@@ -93,6 +94,8 @@ export default function ApplicationDetailPage({
     lifecycle: false,
   });
   const [comment, setComment] = useState("");
+  const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
+  const [commentText, setCommentText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [lastAction, setLastAction] = useState<string | null>(null);
   const [accountsRowData, setAccountsRowData] = useState<any[]>([]);
@@ -244,11 +247,21 @@ export default function ApplicationDetailPage({
 
   const handleComment = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!nodeData || !comment.trim()) return;
-    alert(
-      `Comment added: ${comment} for ${nodeData["Ent Name"] || "selected row"}`
-    );
-    setComment("");
+    setCommentText(comment); // Load existing comment into the textarea
+    setIsCommentModalOpen(true);
+  };
+
+  const handleSaveComment = () => {
+    if (!commentText.trim()) return;
+    
+    setComment(commentText);
+    setIsCommentModalOpen(false);
+    setCommentText("");
+  };
+
+  const handleCancelComment = () => {
+    setIsCommentModalOpen(false);
+    setCommentText("");
   };
 
   const updateActions = async (actionType: string, justification: string) => {
@@ -1013,7 +1026,10 @@ export default function ApplicationDetailPage({
                 />
               </button>
               <button
-                onClick={handleComment}
+                onClick={(e) => {
+                  setNodeData(params.data);
+                  handleComment(e);
+                }}
                 title="Comment"
                 aria-label="Add comment"
                 className="p-1 rounded"
@@ -2455,6 +2471,49 @@ export default function ApplicationDetailPage({
         onClose={() => setIsEntitlementSidebarOpen(false)}
         entitlementData={selectedEntitlement}
       />
+
+      {/* Comment Modal */}
+      {isCommentModalOpen &&
+        createPortal(
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Comment</h3>
+              </div>
+              
+              <div className="mb-6">
+                <textarea
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                  placeholder="Enter your comment here..."
+                  className="w-full h-24 px-3 py-2 border border-gray-300 rounded-md resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  autoFocus
+                />
+              </div>
+              
+              <div className="flex justify-end items-center gap-3">
+                <button
+                  onClick={handleCancelComment}
+                  className="px-6 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors min-w-[80px]"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveComment}
+                  disabled={!commentText.trim()}
+                  className={`px-6 py-2 text-sm font-medium rounded-md focus:outline-none focus:ring-2 transition-colors min-w-[80px] ${
+                    commentText.trim()
+                      ? "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500"
+                      : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                  }`}
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
