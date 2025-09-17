@@ -546,6 +546,17 @@ const TreeClient: React.FC<TreeClientProps> = ({
     });
   }, [entitlementsData, selectedFilters]);
 
+  // Duplicate each entitlement row with a separate description row beneath
+  const entRowsWithDesc = useMemo(() => {
+    if (!filteredEntitlements || filteredEntitlements.length === 0) return [] as any[];
+    const rows: any[] = [];
+    for (const item of filteredEntitlements) {
+      rows.push(item);
+      rows.push({ ...item, __isDescRow: true });
+    }
+    return rows;
+  }, [filteredEntitlements]);
+
   const filterOptions = [
     {
       name: "Dormant Access",
@@ -571,37 +582,33 @@ const TreeClient: React.FC<TreeClientProps> = ({
         width: 400,
         autoHeight: true,
         wrapText: true,
+        colSpan: (params) => {
+          if (!params.data?.__isDescRow) return 1;
+          try {
+            const center = (params.api as any)?.getDisplayedCenterColumns?.() || [];
+            const left = (params.api as any)?.getDisplayedLeftColumns?.() || [];
+            const right = (params.api as any)?.getDisplayedRightColumns?.() || [];
+            const total = center.length + left.length + right.length;
+            if (total > 0) return total;
+          } catch {}
+          const all = (params as any)?.columnApi?.getAllDisplayedColumns?.() || [];
+          return all.length || 1;
+        },
         cellRenderer: (params: ICellRendererParams) => {
           const { entitlementName, isNew, itemRisk, entitlementDescription } =
             params.data || {};
-          const deltaLabel = isNew ? "New" : "";
-          const riskAbbr =
-            itemRisk === "High" ? "H" : itemRisk === "Medium" ? "M" : "L";
-          const riskColor =
-            itemRisk === "High"
-              ? "red"
-              : itemRisk === "Medium"
-              ? "orange"
-              : "green";
-          return (
-            <div className="flex flex-col gap-1 font-normal text-sm h-full justify-start py-2">
-              <div className="flex items-center gap-2">
-                <span className="font-normal text-sm">{entitlementName}</span>
-                {/* <span>({deltaLabel})</span> */}
-                {/* <span style={{ color: riskColor }}>{riskAbbr}</span> */}
+          if (params.data?.__isDescRow) {
+            const desc = entitlementDescription || "No description available";
+            const isEmpty = !entitlementDescription || entitlementDescription.trim().length === 0;
+            return (
+              <div className={`text-sm w-full break-words whitespace-pre-wrap ${isEmpty ? "text-gray-400 italic" : "text-gray-600"}`}>
+                {isEmpty ? "No description available" : desc}
               </div>
-              {entitlementDescription ? (
-                <div
-                  className="text-xs text-gray-600 break-words leading-relaxed entitlement-description w-full"
-                  title={entitlementDescription}
-                >
-                  {entitlementDescription}
-                </div>
-              ) : (
-                <div className="text-xs text-gray-400 italic w-full">
-                  No description available
-                </div>
-              )}
+            );
+          }
+          return (
+            <div className="flex h-full py-1">
+              <span className="text-xs mt-2">{entitlementName}</span>
             </div>
           );
         },
@@ -646,30 +653,30 @@ const TreeClient: React.FC<TreeClientProps> = ({
         field: "applicationName",
         headerName: "Application",
         width: 250,
-        cellRenderer: (params: ICellRendererParams) => {
-          const { applicationName, appTag, appRisk } = params.data || {};
-          const tag = appTag || "SOX";
-          const riskColor =
-            appRisk === "High"
-              ? "red"
-              : appRisk === "Medium"
-              ? "orange"
-              : "green";
-          return (
-            <div className="flex items-center gap-2">
-              <span>{applicationName}</span>
-              {/* <div
-                className="flex items-center justify-center w-5 h-5 rounded-full bg-[#27685b] text-white text-[10px]"
-                title={`App Tag: ${tag}`}
-              >
-                {tag}
-              </div> */}
-              <span style={{ color: riskColor }} title={`App Risk: ${appRisk}`}>
-                {appRisk}
-              </span>
-            </div>
-          );
-        },
+        // cellRenderer: (params: ICellRendererParams) => {
+        //   const { applicationName, appTag, appRisk } = params.data || {};
+        //   const tag = appTag || "SOX";
+        //   const riskColor =
+        //     appRisk === "High"
+        //       ? "red"
+        //       : appRisk === "Medium"
+        //       ? "orange"
+        //       : "green";
+        //   return (
+        //     <div className="flex items-center gap-2">
+        //       <span>{applicationName}</span>
+        //       {/* <div
+        //         className="flex items-center justify-center w-5 h-5 rounded-full bg-[#27685b] text-white text-[10px]"
+        //         title={`App Tag: ${tag}`}
+        //       >
+        //         {tag}
+        //       </div> */}
+        //       <span style={{ color: riskColor }} title={`App Risk: ${appRisk}`}>
+        //         {appRisk}
+        //       </span>
+        //     </div>
+        //   );
+        // },
       },
       { field: "lastLogin", headerName: "Last Login", width: 140 },
       {
@@ -1307,13 +1314,14 @@ const TreeClient: React.FC<TreeClientProps> = ({
                 </div>
               ) : filteredEntitlements.length > 0 ? (
                 <AgGridReact
-                  rowData={filteredEntitlements}
+                  rowData={entRowsWithDesc}
                   columnDefs={entitlementsColumnDefs}
                   defaultColDef={defaultColDef}
                   domLayout="autoHeight"
                   rowSelection={{ mode: "multiRow" }}
                   getRowId={(params: GetRowIdParams) => params.data.lineItemId || params.data.accountLineItemId || params.data.taskId || `${params.data.applicationName}-${params.data.entitlementName}`}
-                  getRowClass={() => "ag-row-custom"}
+                  getRowClass={(params) => params?.data?.__isDescRow ? "ag-row-custom ag-row-desc" : "ag-row-custom"}
+                  getRowHeight={(params) => (params?.data?.__isDescRow ? 32 : 40)}
                   onGridReady={(params) => {
                     entitlementsGridApiRef.current = params.api;
                     params.api.sizeColumnsToFit();
