@@ -15,7 +15,7 @@ import {
 import { useState, useEffect, useRef } from "react";
 import ProxyActionModal from "../ProxyActionModal";
 import { formatDateMMDDYY } from "@/utils/utils";
-import { getEntitlementDetails } from "@/lib/api";
+// Removed getEntitlementDetails import - now using existing data
 
 interface EditReassignButtonsProps<T> {
   api: GridApi;
@@ -70,7 +70,7 @@ const EditReassignButtons = <T extends { status?: string }>({
     null
   );
   const [editableFields, setEditableFields] = useState<Partial<T>>({});
-  const [isLoadingEntitlementDetails, setIsLoadingEntitlementDetails] = useState(false);
+  // Removed isLoadingEntitlementDetails - no longer making API calls
   const [entitlementDetails, setEntitlementDetails] = useState<any>(null);
   const [entitlementDetailsError, setEntitlementDetailsError] = useState<string | null>(null);
   const [localNodeData, setLocalNodeData] = useState<any>(nodeData);
@@ -170,46 +170,44 @@ const EditReassignButtons = <T extends { status?: string }>({
     }
   };
 
-  const toggleSidePanel = async (e: React.MouseEvent) => {
+  const toggleSidePanel = (e: React.MouseEvent) => {
     e.stopPropagation();
     
-    // If opening the sidebar, fetch entitlement details
+    // If opening the sidebar, use existing catalogDetails data
     if (!isSidePanelOpen) {
       console.log("Opening sidebar for All tab, nodeData:", localNodeData);
-      setIsLoadingEntitlementDetails(true);
-      setEntitlementDetailsError(null);
       
-      try {
-        const appInstanceId = (localNodeData as any)?.applicationInstanceId || (localNodeData as any)?.appInstanceId;
-        const entitlementId = (localNodeData as any)?.entitlementId || (localNodeData as any)?.id;
-        
-        if (appInstanceId && entitlementId) {
-          const details = await getEntitlementDetails(appInstanceId, entitlementId);
-          console.log("API Response:", details);
-          setEntitlementDetails(details);
-          // Update nodeData with mapped API data
-          const mappedData = mapApiDataToNodeData(details, localNodeData);
-          console.log("Mapped Data:", mappedData);
-          // Update the grid row with the new data
-          try {
-            api.applyTransaction({
-              update: [mappedData]
-            });
-            // Also update the local nodeData state
-            setLocalNodeData(mappedData);
-          } catch (error) {
-            console.error("Error updating grid:", error);
-            // Fallback: just update the local state
-            setLocalNodeData(mappedData);
-          }
-        } else {
-          setEntitlementDetailsError("Missing app instance ID or entitlement ID");
+      // Use the catalogDetails from the existing data instead of making API call
+      const catalogDetails = (localNodeData as any)?.catalogDetails;
+      
+      console.log("Row data structure:", localNodeData);
+      console.log("Available keys in row data:", Object.keys(localNodeData || {}));
+      
+      if (catalogDetails) {
+        console.log("Using catalogDetails:", catalogDetails);
+        setEntitlementDetails(catalogDetails);
+        // Update nodeData with mapped catalog data
+        const mappedData = mapApiDataToNodeData(catalogDetails, localNodeData);
+        console.log("Mapped Data from catalogDetails:", mappedData);
+        // Update the grid row with the new data
+        try {
+          api.applyTransaction({
+            update: [mappedData]
+          });
+          // Also update the local nodeData state
+          setLocalNodeData(mappedData);
+        } catch (error) {
+          console.error("Error updating grid:", error);
+          // Fallback: just update the local state
+          setLocalNodeData(mappedData);
         }
-      } catch (error) {
-        console.error("Error fetching entitlement details:", error);
-        setEntitlementDetailsError(error instanceof Error ? error.message : "Failed to fetch entitlement details");
-      } finally {
-        setIsLoadingEntitlementDetails(false);
+      } else {
+        console.warn("No catalogDetails found in row data");
+        console.log("Available data fields:", Object.keys(localNodeData || {}));
+        // If no catalogDetails, try to use the data directly
+        console.log("Using row data directly for entitlement details");
+        setEntitlementDetails(localNodeData);
+        setLocalNodeData(localNodeData);
       }
     }
     
@@ -417,12 +415,7 @@ const EditReassignButtons = <T extends { status?: string }>({
                     <h2 className="text-lg font-semibold mb-8 border-b p-1.5">
                       {isEditMode ? "Edit Entitlement" : "Entitlement Details"}
                     </h2>
-                    {isLoadingEntitlementDetails ? (
-                      <div className="mt-4 flex items-center justify-center">
-                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                        <span className="ml-2 text-sm text-gray-600">Loading details...</span>
-                      </div>
-                    ) : entitlementDetailsError ? (
+                    {entitlementDetailsError ? (
                       <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
                         <p className="text-sm text-red-600">{entitlementDetailsError}</p>
                       </div>

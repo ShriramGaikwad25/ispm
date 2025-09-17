@@ -24,7 +24,7 @@ import Exports from "@/components/agTable/Exports";
 import CustomPagination from "@/components/agTable/CustomPagination";
 import EditReassignButtons from "@/components/agTable/EditReassignButtons";
 import ActionButtons from "@/components/agTable/ActionButtons";
-import { getAllRegisteredApps, searchUsers, getEntitlementDetails } from "@/lib/api";
+import { getAllRegisteredApps, searchUsers } from "@/lib/api";
 import Link from "next/link";
 import Tabs from "@/components/tabs";
 import EntitlementRiskSidebar from "@/components/EntitlementRiskSidebar";
@@ -98,57 +98,74 @@ export default function ApplicationDetailPage({
   const [rowData, setRowData] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [isLoadingEntitlementDetails, setIsLoadingEntitlementDetails] = useState(false);
   const [entitlementDetails, setEntitlementDetails] = useState<any>(null);
   const [entitlementDetailsError, setEntitlementDetailsError] = useState<string | null>(null);
 
-  // Helper function to map API response to nodeData fields
-  const mapApiDataToNodeData = (apiData: any, originalNodeData: any) => {
-    if (!apiData) return originalNodeData;
+  // Helper function to map catalogDetails to nodeData fields
+  const mapApiDataToNodeData = (catalogDetails: any, originalNodeData: any) => {
+    if (!catalogDetails) return originalNodeData;
     
+    // Create a mapping object that handles various possible field names
+    const fieldMappings = {
+      // Entitlement basic info
+      "Ent Name": catalogDetails.name || catalogDetails.entitlementName || catalogDetails.entitlement_name || originalNodeData?.["Ent Name"],
+      "Ent Description": catalogDetails.description || catalogDetails.entitlementDescription || catalogDetails.entitlement_description || originalNodeData?.["Ent Description"],
+      "Ent Type": catalogDetails.type || catalogDetails.entitlementType || catalogDetails.entitlement_type || originalNodeData?.["Ent Type"],
+      
+      // Application info
+      "App Name": catalogDetails.applicationName || catalogDetails.appName || catalogDetails.application_name || originalNodeData?.["App Name"],
+      "App Instance": catalogDetails.appInstanceId || catalogDetails.appinstanceid || catalogDetails.applicationInstanceId || originalNodeData?.["App Instance"],
+      "App Owner": catalogDetails.applicationOwner || catalogDetails.applicationowner || catalogDetails.app_owner || originalNodeData?.["App Owner"],
+      "Ent Owner": catalogDetails.entitlementOwner || catalogDetails.entitlementowner || catalogDetails.entitlement_owner || originalNodeData?.["Ent Owner"],
+      
+      // Business info
+      "Business Objective": catalogDetails.businessObjective || catalogDetails.business_objective || catalogDetails.businessObjective || originalNodeData?.["Business Objective"],
+      "Business Unit": catalogDetails.businessUnit || catalogDetails.businessunit_department || catalogDetails.business_unit || originalNodeData?.["Business Unit"],
+      "Compliance Type": catalogDetails.complianceType || catalogDetails.regulatory_scope || catalogDetails.compliance_type || originalNodeData?.["Compliance Type"],
+      "Data Classification": catalogDetails.dataClassification || catalogDetails.data_classification || catalogDetails.data_classification || originalNodeData?.["Data Classification"],
+      "Cost Center": catalogDetails.costCenter || catalogDetails.cost_center || catalogDetails.cost_center || originalNodeData?.["Cost Center"],
+      
+      // Dates
+      "Created On": catalogDetails.createdOn || catalogDetails.created_on || catalogDetails.createdOn || originalNodeData?.["Created On"],
+      "Last Sync": catalogDetails.lastSync || catalogDetails.last_sync || catalogDetails.lastSync || originalNodeData?.["Last Sync"],
+      "Last Reviewed on": catalogDetails.lastReviewedOn || catalogDetails.last_reviewed_on || catalogDetails.lastReviewedOn || originalNodeData?.["Last Reviewed on"],
+      
+      // Technical details
+      "Hierarchy": catalogDetails.hierarchy || catalogDetails.hierarchy || originalNodeData?.["Hierarchy"],
+      "MFA Status": catalogDetails.mfaStatus || catalogDetails.mfa_status || catalogDetails.mfaStatus || originalNodeData?.["MFA Status"],
+      "assignment": catalogDetails.assignment || catalogDetails.assigned_to || catalogDetails.assignment || originalNodeData?.["assignment"],
+      "License Type": catalogDetails.licenseType || catalogDetails.license_type || catalogDetails.licenseType || originalNodeData?.["License Type"],
+      
+      // Risk and security
+      "Risk": catalogDetails.risk || catalogDetails.riskLevel || catalogDetails.risk || originalNodeData?.["Risk"],
+      "Certifiable": catalogDetails.certifiable || catalogDetails.certifiable || originalNodeData?.["Certifiable"],
+      "Revoke on Disable": catalogDetails.revokeOnDisable || catalogDetails.revoke_on_disable || catalogDetails.revokeOnDisable || originalNodeData?.["Revoke on Disable"],
+      "Shared Pwd": catalogDetails.sharedPassword || catalogDetails.shared_pwd || catalogDetails.sharedPassword || originalNodeData?.["Shared Pwd"],
+      "SOD Check": catalogDetails.sodCheck || catalogDetails.toxic_combination || catalogDetails.sodCheck || originalNodeData?.["SOD Check"],
+      "Access Scope": catalogDetails.accessScope || catalogDetails.access_scope || catalogDetails.accessScope || originalNodeData?.["Access Scope"],
+      "Review Schedule": catalogDetails.reviewSchedule || catalogDetails.review_schedule || catalogDetails.reviewSchedule || originalNodeData?.["Review Schedule"],
+      "Privileged": catalogDetails.privileged || catalogDetails.privileged || originalNodeData?.["Privileged"],
+      "Non Persistent Access": catalogDetails.nonPersistentAccess || catalogDetails.non_persistent_access || catalogDetails.nonPersistentAccess || originalNodeData?.["Non Persistent Access"],
+      
+      // Additional details
+      "Audit Comments": catalogDetails.auditComments || catalogDetails.audit_comments || catalogDetails.auditComments || originalNodeData?.["Audit Comments"],
+      "Account Type Restriction": catalogDetails.accountTypeRestriction || catalogDetails.account_type_restriction || catalogDetails.accountTypeRestriction || originalNodeData?.["Account Type Restriction"],
+      "Requestable": catalogDetails.requestable || catalogDetails.requestable || originalNodeData?.["Requestable"],
+      "Pre- Requisite": catalogDetails.prerequisite || catalogDetails.prerequisite || originalNodeData?.["Pre- Requisite"],
+      "Pre-Requisite Details": catalogDetails.prerequisiteDetails || catalogDetails.prerequisite_details || catalogDetails.prerequisiteDetails || originalNodeData?.["Pre-Requisite Details"],
+      "Auto Assign Access Policy": catalogDetails.autoAssignAccessPolicy || catalogDetails.auto_assign_access_policy || catalogDetails.autoAssignAccessPolicy || originalNodeData?.["Auto Assign Access Policy"],
+      "Provisioner Group": catalogDetails.provisionerGroup || catalogDetails.provisioner_group || catalogDetails.provisionerGroup || originalNodeData?.["Provisioner Group"],
+      "Provisioning Steps": catalogDetails.provisioningSteps || catalogDetails.provisioning_steps || catalogDetails.provisioningSteps || originalNodeData?.["Provisioning Steps"],
+      "Provisioning Mechanism": catalogDetails.provisioningMechanism || catalogDetails.provisioning_mechanism || catalogDetails.provisioningMechanism || originalNodeData?.["Provisioning Mechanism"],
+      "Action on Native Change": catalogDetails.actionOnNativeChange || catalogDetails.action_on_native_change || catalogDetails.actionOnNativeChange || originalNodeData?.["Action on Native Change"],
+      "Total Assignments": catalogDetails.totalAssignments || catalogDetails.total_assignments || catalogDetails.totalAssignments || originalNodeData?.["Total Assignments"],
+      "Dynamic Tag": catalogDetails.tags || catalogDetails.dynamicTag || catalogDetails.tags || originalNodeData?.["Dynamic Tag"],
+    };
+    
+    // Return the original data with the mapped fields
     return {
       ...originalNodeData,
-      // Map API fields to existing nodeData structure based on actual API response
-      "Ent Name": apiData.name || originalNodeData?.["Ent Name"],
-      "Ent Description": apiData.description || originalNodeData?.["Ent Description"],
-      "Ent Type": apiData.type || originalNodeData?.["Ent Type"],
-      "App Name": apiData.applicationname || originalNodeData?.["App Name"],
-      "App Instance": apiData.appinstanceid || originalNodeData?.["App Instance"],
-      "App Owner": apiData.applicationowner || originalNodeData?.["App Owner"],
-      "Ent Owner": apiData.entitlementowner || originalNodeData?.["Ent Owner"],
-      "Business Objective": apiData.business_objective || originalNodeData?.["Business Objective"],
-      "Business Unit": apiData.businessunit_department || originalNodeData?.["Business Unit"],
-      "Compliance Type": apiData.regulatory_scope || originalNodeData?.["Compliance Type"],
-      "Data Classification": apiData.data_classification || originalNodeData?.["Data Classification"],
-      "Cost Center": apiData.cost_center || originalNodeData?.["Cost Center"],
-      "Created On": apiData.created_on || originalNodeData?.["Created On"],
-      "Last Sync": apiData.last_sync || originalNodeData?.["Last Sync"],
-      "Hierarchy": apiData.hierarchy || originalNodeData?.["Hierarchy"],
-      "MFA Status": apiData.mfa_status || originalNodeData?.["MFA Status"],
-      "assignment": apiData.assigned_to || originalNodeData?.["assignment"],
-      "License Type": apiData.license_type || originalNodeData?.["License Type"],
-      "Risk": apiData.risk || originalNodeData?.["Risk"],
-      "Certifiable": apiData.certifiable || originalNodeData?.["Certifiable"],
-      "Revoke on Disable": apiData.revoke_on_disable || originalNodeData?.["Revoke on Disable"],
-      "Shared Pwd": apiData.shared_pwd || originalNodeData?.["Shared Pwd"],
-      "SOD Check": apiData.toxic_combination || originalNodeData?.["SOD Check"],
-      "Access Scope": apiData.access_scope || originalNodeData?.["Access Scope"],
-      "Review Schedule": apiData.review_schedule || originalNodeData?.["Review Schedule"],
-      "Last Reviewed on": apiData.last_reviewed_on || originalNodeData?.["Last Reviewed on"],
-      "Privileged": apiData.privileged || originalNodeData?.["Privileged"],
-      "Non Persistent Access": apiData.non_persistent_access || originalNodeData?.["Non Persistent Access"],
-      "Audit Comments": apiData.audit_comments || originalNodeData?.["Audit Comments"],
-      "Account Type Restriction": apiData.account_type_restriction || originalNodeData?.["Account Type Restriction"],
-      "Requestable": apiData.requestable || originalNodeData?.["Requestable"],
-      "Pre- Requisite": apiData.prerequisite || originalNodeData?.["Pre- Requisite"],
-      "Pre-Requisite Details": apiData.prerequisite_details || originalNodeData?.["Pre-Requisite Details"],
-      "Auto Assign Access Policy": apiData.auto_assign_access_policy || originalNodeData?.["Auto Assign Access Policy"],
-      "Provisioner Group": apiData.provisioner_group || originalNodeData?.["Provisioner Group"],
-      "Provisioning Steps": apiData.provisioning_steps || originalNodeData?.["Provisioning Steps"],
-      "Provisioning Mechanism": apiData.provisioning_mechanism || originalNodeData?.["Provisioning Mechanism"],
-      "Action on Native Change": apiData.action_on_native_change || originalNodeData?.["Action on Native Change"],
-      "Total Assignments": apiData.totalassignmentstousers || originalNodeData?.["Total Assignments"],
-      "Dynamic Tag": apiData.tags || originalNodeData?.["Dynamic Tag"],
+      ...fieldMappings
     };
   };
 
@@ -166,34 +183,31 @@ export default function ApplicationDetailPage({
     }));
   };
 
-  const toggleSidePanel = async (data: any) => {
+  const toggleSidePanel = (data: any) => {
     setNodeData(data);
     
-    // If opening the sidebar, fetch entitlement details
+    // If opening the sidebar, use existing catalogDetails data
     if (!isSidePanelOpen) {
-      setIsLoadingEntitlementDetails(true);
-      setEntitlementDetailsError(null);
+      // Use the catalogDetails from the existing data instead of making API call
+      const catalogDetails = data?.catalogDetails;
       
-      try {
-        const appInstanceId = data?.applicationInstanceId || data?.appInstanceId;
-        const entitlementId = data?.entitlementId || data?.id;
-        
-        if (appInstanceId && entitlementId) {
-          const details = await getEntitlementDetails(appInstanceId, entitlementId);
-          console.log("API Response:", details);
-          setEntitlementDetails(details);
-          // Update nodeData with mapped API data
-          const mappedData = mapApiDataToNodeData(details, data);
-          console.log("Mapped Data:", mappedData);
-          setNodeData(mappedData);
-        } else {
-          setEntitlementDetailsError("Missing app instance ID or entitlement ID");
-        }
-      } catch (error) {
-        console.error("Error fetching entitlement details:", error);
-        setEntitlementDetailsError(error instanceof Error ? error.message : "Failed to fetch entitlement details");
-      } finally {
-        setIsLoadingEntitlementDetails(false);
+      console.log("Row data structure:", data);
+      console.log("Available keys in row data:", Object.keys(data || {}));
+      
+      if (catalogDetails) {
+        console.log("Using catalogDetails:", catalogDetails);
+        setEntitlementDetails(catalogDetails);
+        // Update nodeData with mapped catalog data
+        const mappedData = mapApiDataToNodeData(catalogDetails, data);
+        console.log("Mapped Data from catalogDetails:", mappedData);
+        setNodeData(mappedData);
+      } else {
+        console.warn("No catalogDetails found in row data");
+        console.log("Available data fields:", Object.keys(data || {}));
+        // If no catalogDetails, try to use the data directly
+        console.log("Using row data directly for entitlement details");
+        setEntitlementDetails(data);
+        setNodeData(data);
       }
     }
     
@@ -646,7 +660,6 @@ export default function ApplicationDetailPage({
         flex: 3,
         width: 350,
         wrapText: true,
-        autoHeight: true,
         cellRenderer: (params: ICellRendererParams) => {
           const risk = params.data?.risk;
           const isRiskHigh = risk === "High";
@@ -846,7 +859,6 @@ export default function ApplicationDetailPage({
         headerName: "Entitlement Name",
         width: 650,
         wrapText: true,
-        autoHeight: true,
         cellRenderer: (params: ICellRendererParams) => {
           const risk = params.data?.risk;
           const isRiskHigh = risk === "High";
@@ -1025,8 +1037,19 @@ export default function ApplicationDetailPage({
         return (
           <div
             className="ag-theme-alpine"
-            style={{ height: 500, width: "100%" }}
+            style={{ height: 600, width: "100%" }}
           >
+            <style jsx>{`
+              .ag-row {
+                height: 70px !important;
+                min-height: 70px !important;
+              }
+              .ag-row .ag-cell {
+                display: flex;
+                align-items: center;
+                height: 70px !important;
+              }
+            `}</style>
             {/* <div className="relative mb-2">
               <Accordion
                 iconClass="top-1 right-0 rounded-full text-white bg-purple-800"
@@ -1114,7 +1137,8 @@ export default function ApplicationDetailPage({
               columnDefs={colDefs}
               defaultColDef={defaultColDef}
               masterDetail={true}
-              domLayout="autoHeight"
+              rowHeight={70}
+              suppressRowTransform={false}
               detailCellRendererParams={detailCellRendererParams}
             />
           </div>
@@ -1126,7 +1150,18 @@ export default function ApplicationDetailPage({
       icon: ChevronDown,
       iconOff: ChevronRight,
       component: () => (
-        <div className="ag-theme-alpine" style={{ height: 500, width: "100%" }}>
+        <div className="ag-theme-alpine" style={{ height: 600, width: "100%" }}>
+          <style jsx>{`
+            .ag-row {
+              height: 70px !important;
+              min-height: 70px !important;
+            }
+            .ag-row .ag-cell {
+              display: flex;
+              align-items: center;
+              height: 70px !important;
+            }
+          `}</style>
           <div className="relative mb-4"></div>
           {/* <div className="relative mb-2">
             <Accordion
@@ -1215,7 +1250,8 @@ export default function ApplicationDetailPage({
             columnDefs={underReviewColDefs}
             defaultColDef={defaultColDef}
             masterDetail={true}
-            getRowHeight={() => 70}
+            rowHeight={70}
+            suppressRowTransform={false}
             detailCellRendererParams={detailCellRendererParams}
           />
         </div>
@@ -1421,7 +1457,7 @@ export default function ApplicationDetailPage({
         const [selectedUser, setSelectedUser] = useState<any>(null);
 
         // Use the same reviewerID as other parts of the application
-        const reviewerID = "430ea9e6-3cff-449c-a24e-59c057f81e3d";
+        const reviewerID = "d4cc2173-7471-4e26-8c72-a27be88ff6cb";
 
         // Fetch applications from API
         useEffect(() => {
@@ -2050,12 +2086,7 @@ export default function ApplicationDetailPage({
             <div className="flex justify-between items-start">
               <div className="flex-1">
                 <h2 className="text-lg font-semibold">Entitlement Details</h2>
-                {isLoadingEntitlementDetails ? (
-                  <div className="mt-4 flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                    <span className="ml-2 text-sm text-gray-600">Loading details...</span>
-                  </div>
-                ) : entitlementDetailsError ? (
+                {entitlementDetailsError ? (
                   <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
                     <p className="text-sm text-red-600">{entitlementDetailsError}</p>
                   </div>
