@@ -38,6 +38,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import Import from "@/components/agTable/Import";
+import "./TreeClient.css";
 
 interface UserPopupProps {
   username: string;
@@ -320,12 +321,16 @@ const TreeClient: React.FC<TreeClientProps> = ({
             } catch {}
           }
 
+          const entitlementInfo = item.entitlementInfo || item.entityEntitlement || {};
+          const entitlementName = item.entitlementName || entitlementInfo.entitlementName || item.name || item.entitlement_name || "";
+          const entitlementDescription = item.entitlementDescription || entitlementInfo.entitlementDescription || item.description || item.entitlement_description || "";
+          const entitlementType = item.entitlementType || entitlementInfo.entitlementType || item.type || "";
+
           return ({
           ...account,
-          entitlementName: item.entitlementInfo?.entitlementName ?? "",
-          entitlementDescription:
-            item.entitlementInfo?.entitlementDescription ?? "",
-          entitlementType: item.entitlementInfo?.entitlementType ?? "",
+          entitlementName,
+          entitlementDescription,
+          entitlementType,
           recommendation: item.aiassist?.Recommendation ?? "",
           accessedWithinAMonth: item.aiassist?.accessedWithinAMonth ?? "",
           itemRisk: item.entityEntitlements?.itemRisk ?? "",
@@ -339,9 +344,9 @@ const TreeClient: React.FC<TreeClientProps> = ({
             user.addedEntitlements?.includes(
               item.entitlementInfo?.entitlementName
             ) ?? false,
-          appTag: item.appTag || "",
-          appRisk: item.appRisk || "",
-          appType: item.appType || "",
+          appTag: item.appTag || account.appTag || "",
+          appRisk: item.appRisk || account.appRisk || "",
+          appType: item.appType || account.appType || "",
           complianceViolation: item.complianceViolation || "",
           deltaChange: item.deltaChange || "",
           // Use entitlement-level lineItem ID for actions, retain account line item for reference
@@ -608,7 +613,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
           }
           return (
             <div className="flex h-full py-1">
-              <span className="text-xs mt-2">{entitlementName}</span>
+              <span className="text-xs mt-3">{entitlementName}</span>
             </div>
           );
         },
@@ -1319,7 +1324,11 @@ const TreeClient: React.FC<TreeClientProps> = ({
                   defaultColDef={defaultColDef}
                   domLayout="autoHeight"
                   rowSelection={{ mode: "multiRow" }}
-                  getRowId={(params: GetRowIdParams) => params.data.lineItemId || params.data.accountLineItemId || params.data.taskId || `${params.data.applicationName}-${params.data.entitlementName}`}
+                  isRowSelectable={(node) => !node?.data?.__isDescRow}
+                  getRowId={(params: GetRowIdParams) => {
+                    const baseId = params.data.lineItemId || params.data.accountLineItemId || params.data.taskId || `${params.data.applicationName}-${params.data.entitlementName}`;
+                    return params.data.__isDescRow ? `${baseId}-desc` : baseId;
+                  }}
                   getRowClass={(params) => params?.data?.__isDescRow ? "ag-row-custom ag-row-desc" : "ag-row-custom"}
                   getRowHeight={(params) => (params?.data?.__isDescRow ? 32 : 40)}
                   onGridReady={(params) => {
