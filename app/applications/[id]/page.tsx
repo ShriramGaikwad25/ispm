@@ -107,7 +107,7 @@ export default function ApplicationDetailPage({
   
   // Pagination state for Entitlement tab tables
   const [entCurrentPage, setEntCurrentPage] = useState(1);
-  const [entPageSize, setEntPageSize] = useState(15);
+  const [entPageSize, setEntPageSize] = useState(20);
   const [entTotalItems, setEntTotalItems] = useState(0);
   const [entTotalPages, setEntTotalPages] = useState(0);
 
@@ -1127,7 +1127,7 @@ export default function ApplicationDetailPage({
         return (
           <div
             className="ag-theme-alpine"
-            style={{ height: 500, width: "100%" }}
+            style={{ height: 860, width: "100%" }}
           >
             {/* <div className="relative mb-2">
               <Accordion
@@ -1242,7 +1242,7 @@ export default function ApplicationDetailPage({
       icon: ChevronDown,
       iconOff: ChevronRight,
       component: () => (
-        <div className="ag-theme-alpine" style={{ height: 500, width: "100%" }}>
+        <div className="ag-theme-alpine" style={{ height: 880, width: "100%" }}>
           <div className="relative mb-4"></div>
           {/* <div className="relative mb-2">
             <Accordion
