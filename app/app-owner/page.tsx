@@ -941,16 +941,20 @@ function AppOwnerContent() {
             </div>
             <div className="flex items-center">
               <span className="text-lg text-gray-700">Generated On:</span>
-              <span className="ml-2 text-lg text-gray-900">N/A</span>
+              <span className="ml-2 text-lg text-gray-900">
+                {headerInfo.snapshotAt ? formatDateMMDDYY(headerInfo.snapshotAt) : "N/A"}
+              </span>
             </div>
             <div className="flex items-center">
               <span className="text-gray-400">•</span>
             </div>
             <div className="flex items-center">
-              <span className="text-lgtext-gray-700">Due on:</span>
+              <span className="text-lg text-gray-700">Due on:</span>
               <span className="ml-2 text-lg text-gray-900">
-                N/A
-                <span className="text-lg ml-1 text-red-600">(0 days left)</span>
+                {headerInfo.dueDate ? formatDateMMDDYY(headerInfo.dueDate) : "N/A"}
+                <span className="text-lg ml-1 text-red-600">
+                  ({headerInfo.daysLeft || 0} days left)
+                </span>
               </span>
             </div>
 

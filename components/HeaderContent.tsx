@@ -575,7 +575,7 @@ const HeaderContent = () => {
             </div>
             <div className="flex items-center px-4">
               <p className="text-sm font-medium text-white">
-                Generated On N/A
+                Generated On {headerInfo.snapshotAt ? formatDateMMDDYY(headerInfo.snapshotAt) : "N/A"}
               </p>
             </div>
             <div className="flex items-center px-2">
@@ -583,9 +583,9 @@ const HeaderContent = () => {
             </div>
             <div className="flex items-center px-4">
               <p className="text-sm font-medium text-white">
-                Due on N/A
+                Due on {headerInfo.dueDate ? formatDateMMDDYY(headerInfo.dueDate) : "N/A"}
                 <span className="font-bold ml-1 text-white">
-                  (0 days left)
+                  ({headerInfo.daysLeft || 0} days left)
                 </span>
               </p>
             </div>

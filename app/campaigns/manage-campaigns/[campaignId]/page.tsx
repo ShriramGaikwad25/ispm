@@ -84,7 +84,7 @@ export default function ManageCampaigns() {
   const router = useRouter();
   const params = useParams();
   const campaignId = params.campaignId as string;
-  const [tabIndex, setTabIndex] = useState(1);
+  const [tabIndex, setTabIndex] = useState(0);
   const [campaignData, setCampaignData] = useState<CampaignData | null>(null);
   const [reviewerRows, setReviewerRows] = useState<ReviewerRow[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
