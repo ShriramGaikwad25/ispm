@@ -4,7 +4,8 @@ import ChartComponent from "@/components/ChartComponent";
 import { ColDef, GridApi } from "ag-grid-enterprise";
 import { AgGridReact } from "ag-grid-react";
 import { useRouter } from "next/navigation"; // Updated import
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef, useState, useEffect } from "react";
+import { executeQuery } from "@/lib/api";
 import "@/lib/ag-grid-setup";
 
 interface DataItem {
@@ -25,13 +26,30 @@ const data: Record<string, DataItem[]> = {
   ],
 };
 
+interface UserData {
+  name: string;
+  email: string;
+  title: string;
+  department: string;
+  managerEmail: string;
+  status: string;
+  tags: string;
+  managerName?: string;
+  managerStatus?: string;
+}
+
 export default function User() {
   const router = useRouter();
   const gridApiRef = useRef<GridApi | null>(null);
   const [selected, setSelected] = useState<{ [key: string]: number | null }>(
     {}
   );
-  const rowData = [
+  const [rowData, setRowData] = useState<UserData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Default data for fallback
+  const defaultRowData: UserData[] = [
     {
       name: "Aamod Radwan",
       email: "aamod.radwan@zillasecurity.io",
@@ -52,10 +70,69 @@ export default function User() {
     },
   ];
 
+
+  // Fetch users data from API
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Execute query to get users from operations department
+        const query = "SELECT * FROM usr WHERE lower(department) = ?";
+        const parameters = ["operations"];
+        
+        const response = await executeQuery(query, parameters);
+        
+        // Transform API response to match our UserData interface
+        if (response && typeof response === 'object' && 'resultSet' in response && Array.isArray((response as any).resultSet)) {
+          const transformedData: UserData[] = (response as any).resultSet.map((user: any) => ({
+            name: user.displayname || user.displayName || user.firstname + " " + user.lastname || "Unknown",
+            email: user.email?.work || user.customattributes?.emails?.[0]?.value || user.username || "Unknown",
+            title: user.title || user.customattributes?.title || "Unknown",
+            department: user.department || user.customattributes?.enterpriseUser?.department || "Unknown",
+            managerEmail: user.managername || user.customattributes?.enterpriseUser?.manager?.value || "",
+            status: user.status || (user.customattributes?.active ? "Active" : "Inactive"),
+            tags: user.employeetype || user.customattributes?.userType || "",
+            managerName: user.managername || user.customattributes?.enterpriseUser?.manager?.value || "",
+            managerStatus: "Active" // Default status for manager
+          }));
+          setRowData(transformedData);
+        } else if (response && Array.isArray(response)) {
+          // Handle case where response is directly an array
+          const transformedData: UserData[] = response.map((user: any) => ({
+            name: user.displayname || user.displayName || user.firstname + " " + user.lastname || "Unknown",
+            email: user.email?.work || user.customattributes?.emails?.[0]?.value || user.username || "Unknown",
+            title: user.title || user.customattributes?.title || "Unknown",
+            department: user.department || user.customattributes?.enterpriseUser?.department || "Unknown",
+            managerEmail: user.managername || user.customattributes?.enterpriseUser?.manager?.value || "",
+            status: user.status || (user.customattributes?.active ? "Active" : "Inactive"),
+            tags: user.employeetype || user.customattributes?.userType || "",
+            managerName: user.managername || user.customattributes?.enterpriseUser?.manager?.value || "",
+            managerStatus: "Active" // Default status for manager
+          }));
+          setRowData(transformedData);
+        } else {
+          // Fallback to default data if API response is empty
+          setRowData(defaultRowData);
+        }
+      } catch (err) {
+        console.error("Error fetching users:", err);
+        setError(err instanceof Error ? err.message : "Failed to fetch users");
+        // Fallback to default data on error
+        setRowData(defaultRowData);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUsers();
+  }, []);
+
 const columnDefs = useMemo<ColDef[]>(
   () => [
     {
-      headerName: "User Name",
+      headerName: "Display Name",
       field: "name",
       flex: 1.5,
       cellRenderer: (params: any) => {
@@ -85,16 +162,16 @@ const columnDefs = useMemo<ColDef[]>(
               {initials}
             </div>
             <span style={{ color: "#1677ff", cursor: "pointer" }}>
-              {params.value} ({status})
+              {params.value}
             </span>
           </div>
         );
       },
     },
-    { headerName: "Title", field: "title", flex: 1.5 },
+    { headerName: "Job Title", field: "title", flex: 1.5 },
     { headerName: "Department", field: "department", flex: 1.5 },
     {
-      headerName: "Manager Name",
+      headerName: "Manager",
       field: "managerName",
       flex: 1.5,
       cellRenderer: (params: any) => {
@@ -124,12 +201,42 @@ const columnDefs = useMemo<ColDef[]>(
     router.push(`/user/${appId}`); // This should now work with App Router
   };
 
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center" style={{ height: 600 }}>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading users...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex justify-center items-center" style={{ height: 600 }}>
+        <div className="text-center">
+          <div className="text-red-500 mb-4">
+            <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
+          <p className="text-red-600 mb-2">Error loading users</p>
+          <p className="text-gray-600 text-sm">{error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="ag-theme-alpine" style={{ height: 600, width: "100%" }}>
       <div className="relative mb-4">
-        <h1 className="text-xl font-bold border-b border-gray-300 pb-2 text-blue-950">
-          Manager Actions
-        </h1>
         <div style={{ maxWidth: '600px', maxHeight: '200px' }}>
           <Accordion
             iconClass="absolute top-1 right-0 rounded-full text-white bg-purple-800"

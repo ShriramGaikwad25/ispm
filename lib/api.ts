@@ -274,3 +274,35 @@ export async function getCatalogEntitlements<T>(
 
   return res.json();
 }
+
+export async function executeQuery<T>(
+  query: string,
+  parameters: string[]
+): Promise<T> {
+  const endpoint = "https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery";
+  
+  const payload = {
+    query,
+    parameters
+  };
+
+  const headers = {
+    "Content-Type": "application/json",
+    "X-Requested-With": "XMLHttpRequest",
+  };
+
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const errorBody = await res.text();
+    throw new Error(
+      `Execute Query failed: ${res.status} ${res.statusText}\n${errorBody}`
+    );
+  }
+
+  return res.json();
+}
