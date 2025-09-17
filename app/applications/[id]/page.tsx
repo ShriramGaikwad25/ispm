@@ -102,6 +102,17 @@ export default function ApplicationDetailPage({
   const [entitlementDetails, setEntitlementDetails] = useState<any>(null);
   const [entitlementDetailsError, setEntitlementDetailsError] = useState<string | null>(null);
 
+  // Build separate row for description under each entitlement row (for Entitlements tab)
+  const entRowsWithDesc = useMemo(() => {
+    if (!entRowData || entRowData.length === 0) return [] as any[];
+    const rows: any[] = [];
+    for (const item of entRowData) {
+      rows.push(item);
+      rows.push({ ...item, __isDescRow: true });
+    }
+    return rows;
+  }, [entRowData]);
+
   // Helper function to map catalogDetails to nodeData fields
   const mapApiDataToNodeData = (catalogDetails: any, originalNodeData: any) => {
     if (!catalogDetails) return originalNodeData;
@@ -662,51 +673,60 @@ export default function ApplicationDetailPage({
         width: 350,
         wrapText: true,
         autoHeight: true,
+        colSpan: (params) => {
+          if (!params.data?.__isDescRow) return 1;
+          try {
+            const center = (params.api as any)?.getDisplayedCenterColumns?.() || [];
+            const left = (params.api as any)?.getDisplayedLeftColumns?.() || [];
+            const right = (params.api as any)?.getDisplayedRightColumns?.() || [];
+            const total = center.length + left.length + right.length;
+            if (total > 0) return total;
+          } catch {}
+          const all = (params as any)?.columnApi?.getAllDisplayedColumns?.() || [];
+          return all.length || 1;
+        },
         cellRenderer: (params: ICellRendererParams) => {
+          if (params.data?.__isDescRow) {
+            return (
+              <div className="text-gray-600 text-sm w-full break-words whitespace-pre-wrap">
+                {params.data?.description || params.data?.entitlementDescription || params.data?.["Ent Description"] || "-"}
+              </div>
+            );
+          }
+
           const risk = params.data?.risk;
           const isRiskHigh = risk === "High";
-          
-          return (
-            <div className="flex flex-col">
-              {/* Row 1: entitlement name */}
-              {isRiskHigh ? (
-                <div className="flex items-center h-full">
-                  <span
-                    className="px-2 py-1 text-sm font-medium rounded-full inline-flex items-center cursor-pointer hover:bg-red-200 transition-colors duration-200 break-words whitespace-normal"
-                    style={{ 
-                      backgroundColor: "#ffebee", 
-                      color: "#d32f2f",
-                      border: "1px solid #ffcdd2",
-                      minHeight: "24px"
-                    }}
-                    title="High Risk - Click for details"
-                    onClick={() => {
-                      setSelectedEntitlement({
-                        name: params.value,
-                        description: params.data?.description,
-                        type: params.data?.type,
-                        applicationName: params.data?.applicationName,
-                        risk: params.data?.risk,
-                        lastReviewed: params.data?.["Last Reviewed on"],
-                        lastSync: params.data?.["Last Sync"],
-                        appInstanceId: params.data?.applicationInstanceId || params.data?.appInstanceId,
-                        entitlementId: params.data?.entitlementId || params.data?.id
-                      });
-                      setIsEntitlementSidebarOpen(true);
-                    }}
-                  >
-                    {params.value}
-                  </span>
-                </div>
-              ) : (
-                <div className="font-semibold break-words whitespace-normal">{params.value}</div>
-              )}
-
-              {/* Row 2: full-width description */}
-              <div className="text-gray-600 text-sm w-full z-index-1 break-words whitespace-pre-wrap">
-                {params.data["description"]}
-              </div>
+          return isRiskHigh ? (
+            <div className="flex items-center h-full">
+              <span
+                className="px-2 py-1 text-sm font-medium rounded-full inline-flex items-center cursor-pointer hover:bg-red-200 transition-colors duration-200 break-words whitespace-normal"
+                style={{ 
+                  backgroundColor: "#ffebee", 
+                  color: "#d32f2f",
+                  border: "1px solid #ffcdd2",
+                  minHeight: "24px"
+                }}
+                title="High Risk - Click for details"
+                onClick={() => {
+                  setSelectedEntitlement({
+                    name: params.value,
+                    description: params.data?.description,
+                    type: params.data?.type,
+                    applicationName: params.data?.applicationName,
+                    risk: params.data?.risk,
+                    lastReviewed: params.data?.["Last Reviewed on"],
+                    lastSync: params.data?.["Last Sync"],
+                    appInstanceId: params.data?.applicationInstanceId || params.data?.appInstanceId,
+                    entitlementId: params.data?.entitlementId || params.data?.id
+                  });
+                  setIsEntitlementSidebarOpen(true);
+                }}
+              >
+                {params.value}
+              </span>
             </div>
+          ) : (
+            <div className="font-semibold break-words whitespace-normal">{params.value}</div>
           );
         },
       },
@@ -862,50 +882,60 @@ export default function ApplicationDetailPage({
         width: 650,
         wrapText: true,
         autoHeight: true,
+        colSpan: (params) => {
+          if (!params.data?.__isDescRow) return 1;
+          try {
+            const center = (params.api as any)?.getDisplayedCenterColumns?.() || [];
+            const left = (params.api as any)?.getDisplayedLeftColumns?.() || [];
+            const right = (params.api as any)?.getDisplayedRightColumns?.() || [];
+            const total = center.length + left.length + right.length;
+            if (total > 0) return total;
+          } catch {}
+          const all = (params as any)?.columnApi?.getAllDisplayedColumns?.() || [];
+          return all.length || 1;
+        },
         cellRenderer: (params: ICellRendererParams) => {
+          if (params.data?.__isDescRow) {
+            return (
+              <div className="text-gray-600 text-sm w-full break-words whitespace-pre-wrap">
+                {params.data?.description || params.data?.entitlementDescription || params.data?.["Ent Description"] || "-"}
+              </div>
+            );
+          }
+
           const risk = params.data?.risk;
           const isRiskHigh = risk === "High";
-          
-          return (
-            <div className="flex flex-col">
-              {/* Row 1: entitlement name */}
-              {isRiskHigh ? (
-                <div className="flex items-center h-full">
-                  <span
-                    className="px-2 py-1 text-sm font-medium rounded-full inline-flex items-center cursor-pointer hover:bg-red-200 transition-colors duration-200 break-words whitespace-normal"
-                    style={{ 
-                      backgroundColor: "#ffebee", 
-                      color: "#d32f2f",
-                      border: "1px solid #ffcdd2",
-                      minHeight: "24px"
-                    }}
-                    title="High Risk - Click for details"
-                    onClick={() => {
-                      setSelectedEntitlement({
-                        name: params.value,
-                        description: params.data?.description,
-                        type: params.data?.type,
-                        applicationName: params.data?.applicationName,
-                        risk: params.data?.risk,
-                        lastReviewed: params.data?.["Last Reviewed on"],
-                        lastSync: params.data?.["Last Sync"],
-                        appInstanceId: params.data?.applicationInstanceId || params.data?.appInstanceId,
-                        entitlementId: params.data?.entitlementId || params.data?.id
-                      });
-                      setIsEntitlementSidebarOpen(true);
-                    }}
-                  >
-                    {params.value}
-                  </span>
-                </div>
-              ) : (
-                <div className="font-semibold break-words whitespace-normal">{params.value}</div>
-              )}
-
-              <div className="text-gray-600 text-sm w-full">
-                <span className="break-words whitespace-pre-wrap">{params.data["description"]}</span>
-              </div>
+          return isRiskHigh ? (
+            <div className="flex items-center h-full">
+              <span
+                className="px-2 py-1 text-sm font-medium rounded-full inline-flex items-center cursor-pointer hover:bg-red-200 transition-colors duration-200 break-words whitespace-normal"
+                style={{ 
+                  backgroundColor: "#ffebee", 
+                  color: "#d32f2f",
+                  border: "1px solid #ffcdd2",
+                  minHeight: "24px"
+                }}
+                title="High Risk - Click for details"
+                onClick={() => {
+                  setSelectedEntitlement({
+                    name: params.value,
+                    description: params.data?.description,
+                    type: params.data?.type,
+                    applicationName: params.data?.applicationName,
+                    risk: params.data?.risk,
+                    lastReviewed: params.data?.["Last Reviewed on"],
+                    lastSync: params.data?.["Last Sync"],
+                    appInstanceId: params.data?.applicationInstanceId || params.data?.appInstanceId,
+                    entitlementId: params.data?.entitlementId || params.data?.id
+                  });
+                  setIsEntitlementSidebarOpen(true);
+                }}
+              >
+                {params.value}
+              </span>
             </div>
+          ) : (
+            <div className="font-semibold break-words whitespace-normal">{params.value}</div>
           );
         },
       },
@@ -1125,11 +1155,11 @@ export default function ApplicationDetailPage({
               <Exports gridApi={gridApiRef.current} />
             </div>
             <AgGridReact
-              rowData={entRowData}
+              rowData={entRowsWithDesc}
               columnDefs={colDefs}
               defaultColDef={defaultColDef}
               masterDetail={true}
-              getRowHeight={() => 70}
+              getRowHeight={(params) => (params?.data?.__isDescRow ? 36 : 40)}
               detailCellRendererParams={detailCellRendererParams}
             />
           </div>
@@ -1226,11 +1256,11 @@ export default function ApplicationDetailPage({
             <Exports gridApi={gridApiRef.current} />
           </div>
           <AgGridReact
-            rowData={entRowData}
+            rowData={entRowsWithDesc}
             columnDefs={underReviewColDefs}
             defaultColDef={defaultColDef}
             masterDetail={true}
-            getRowHeight={() => 70}
+            getRowHeight={(params) => (params?.data?.__isDescRow ? 36 : 40)}
             detailCellRendererParams={detailCellRendererParams}
           />
         </div>
