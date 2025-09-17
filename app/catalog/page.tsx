@@ -73,6 +73,7 @@ const page = () => {
   const [policyRiskError, setPolicyRiskError] = useState<string|null>(null);
   const [policyRiskData, setPolicyRiskData] = useState<any>(null);
   const [policySelections, setPolicySelections] = useState<Array<{ controls: string; accepted: string; lastUpdate: string }>>([]);
+  const [policyOpen, setPolicyOpen] = useState<boolean[]>([]);
   const [searchText, setSearchText] = useState("");
   const [selectedAppFilter, setSelectedAppFilter] = useState<string>("All");
   const [sectionsOpen, setSectionsOpen] = useState({
@@ -199,7 +200,7 @@ const page = () => {
               entitlementId = meta?.entitlementId || meta?.entitlementid || entitlementId;
             } catch {}
           }
-
+          
           return {
             // Fields used by grid columns
             entitlementName: name,
@@ -422,7 +423,7 @@ const page = () => {
     try {
       const entitlementId = data?.entitlementId || data?.entitlementid;
       if (entitlementId) {
-        const resp = await fetch(`https://preview.keyforge.ai/entities/api/v1/ACMECOM/policyrisk/entitlement/${encodeURIComponent(entitlementId)}`);
+        const resp = await fetch(`https://preview.keyforge.ai/entities/api/v1/ACMECOM/policyrisk/entitlement/11a2af37-bf8d-46c5-b18e-ed0d41e96490`);
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const json = await resp.json();
         setPolicyRiskData(json);
@@ -443,8 +444,10 @@ const page = () => {
       setPolicySelections(
         policyRiskData.items.map(() => ({ controls: "", accepted: "Under Review", lastUpdate: today }))
       );
+      setPolicyOpen(policyRiskData.items.map(() => false));
     } else {
       setPolicySelections([]);
+      setPolicyOpen([]);
     }
   }, [policyRiskData]);
 
@@ -474,7 +477,8 @@ const page = () => {
         autoHeight: true,
         wrapText: true,
         cellRenderer: (params: ICellRendererParams) => {
-          const isHighRisk = params.data.risk === "High";
+          const riskVal = (params.data?.risk || "").toString().toLowerCase();
+          const isHighRisk = riskVal === "high" || riskVal === "critical";
           
           return (
             <div className="flex flex-col">
@@ -649,7 +653,8 @@ const page = () => {
         autoHeight: true,
         wrapText: true,
         cellRenderer: (params: ICellRendererParams) => {
-          const isHighRisk = params.data.risk === "High";
+          const riskVal = (params.data?.risk || "").toString().toLowerCase();
+          const isHighRisk = riskVal === "high" || riskVal === "critical";
           
           return (
             <div className="flex flex-col">
@@ -866,14 +871,14 @@ const page = () => {
               <option key={opt} value={opt}>{opt}</option>
             ))}
           </select>
-          <Tabs
-            tabs={tabsDataEnt}
-            activeClass="bg-[#2563eb] text-white text-sm rounded-sm"
-            buttonClass="h-10 -mt-1 w-30"
-            className="border border-gray-300 w-61 h-8 rounded-md flex"
-            activeIndex={entTabIndex}
-            onChange={setEntTabIndex}
-          />
+        <Tabs
+          tabs={tabsDataEnt}
+          activeClass="bg-[#2563eb] text-white text-sm rounded-sm"
+          buttonClass="h-10 -mt-1 w-30"
+          className="border border-gray-300 w-61 h-8 rounded-md flex"
+          activeIndex={entTabIndex}
+          onChange={setEntTabIndex}
+        />
         </div>
       </div>
       {/* <div className="flex justify-end mb-2">
@@ -1033,16 +1038,13 @@ const page = () => {
         </div>
       )}
 
-      {/* High Risk Sidebar */}
+      {/* Policy Risk Sidebar (replaces High Risk Sidebar) */}
       {isHighRiskSidebarOpen && highRiskData && (
-        <div className="fixed right-0 top-16 h-[calc(100vh-4rem)] w-96 bg-white shadow-xl z-50 transform transition-transform duration-300 ease-in-out">
+        <div className="fixed right-0 top-16 h-[calc(100vh-4rem)] bg-white shadow-xl z-50 transform transition-transform duration-300 ease-in-out" style={{ width: 500 }}>
             <div className="flex flex-col h-full">
               {/* Header */}
-              <div className="flex items-center justify-between p-4 border-b bg-red-50">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                  <h2 className="text-lg font-semibold text-red-800">High Risk Entitlement</h2>
-                </div>
+              <div className="flex items-center justify-between p-4 border-b bg-gray-50">
+                <h2 className="text-lg font-semibold text-gray-800">Policy Risk Details:</h2>
                 <button
                   onClick={closeHighRiskSidebar}
                   className="text-gray-500 hover:text-gray-700 text-xl font-bold"
@@ -1053,92 +1055,8 @@ const page = () => {
               
               {/* Content */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {/* Entitlement Name */}
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Entitlement Name</label>
-                  <div className="mt-1 p-2 bg-red-100 text-red-800 rounded-md font-medium">
-                    {highRiskData.entitlementName}
-                  </div>
-                </div>
-                
-                {/* Risk Level */}
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Risk Level</label>
-                  <div className="mt-1">
-                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
-                      🔴 HIGH RISK
-                    </span>
-                  </div>
-                </div>
-                
-                {/* Description */}
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Description</label>
-                  <div className="mt-1 p-2 bg-gray-50 rounded-md text-sm">
-                    {highRiskData.description || 'No description available'}
-                  </div>
-                </div>
-                
-                {/* Application */}
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Application</label>
-                  <div className="mt-1 p-2 bg-gray-50 rounded-md text-sm">
-                    {highRiskData.applicationName || 'N/A'}
-                  </div>
-                </div>
-                
-                {/* Total Assignments */}
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Total Assignments</label>
-                  <div className="mt-1 p-2 bg-gray-50 rounded-md text-sm">
-                    {highRiskData["Total Assignments"] || 'N/A'}
-                  </div>
-                </div>
-                
-                {/* Last Reviewed */}
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Last Reviewed</label>
-                  <div className="mt-1 p-2 bg-gray-50 rounded-md text-sm">
-                    {highRiskData["Last Reviewed on"] || 'N/A'}
-                  </div>
-                </div>
-                
-                {/* SOD Check */}
-                <div>
-                  <label className="text-sm font-medium text-gray-700">SOD Check</label>
-                  <div className="mt-1">
-                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                      highRiskData["SOD Check"] === "Failed" 
-                        ? "bg-red-100 text-red-800" 
-                        : "bg-green-100 text-green-800"
-                    }`}>
-                      {highRiskData["SOD Check"] || 'N/A'}
-                    </span>
-                  </div>
-                </div>
-                
-                {/* Entitlement Owner */}
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Entitlement Owner</label>
-                  <div className="mt-1 p-2 bg-gray-50 rounded-md text-sm">
-                    {highRiskData["Ent Owner"] || 'N/A'}
-                  </div>
-                </div>
-                
-              {/* Risk Assessment */}
-                <div className="border-t pt-4">
-                  <h3 className="text-md font-semibold text-red-800 mb-2">Risk Assessment</h3>
-                  <div className="bg-red-50 border border-red-200 rounded-md p-3">
-                    <p className="text-sm text-red-700">
-                      This entitlement has been flagged as HIGH RISK due to its potential security implications. 
-                      Immediate review and action may be required.
-                    </p>
-                  </div>
-                </div>
-
               {/* Policy Risk (from API) */}
-              <div className="border-t pt-4">
-                <h3 className="text-md font-semibold text-gray-800 mb-2">Policy Risk Details</h3>
+              <div className="pt-4">
                 {policyRiskLoading && (
                   <div className="text-sm text-gray-600">Loading policy risk…</div>
                 )}
@@ -1148,38 +1066,44 @@ const page = () => {
                 {!policyRiskLoading && !policyRiskError && policyRiskData && Array.isArray(policyRiskData.items) && policyRiskData.items.length > 0 && (
                   <div className="space-y-3">
                     {/* Main Header */}
-                    <div className="bg-gray-50 border border-gray-200 rounded p-3 text-sm">
-                      <div className="grid grid-cols-3 gap-2">
-                        <div>
-                          <div className="text-[11px] uppercase text-gray-500">Policy Name</div>
-                          <div className="font-medium">{policyRiskData.items[0]?.policy_name || "-"}</div>
-                        </div>
-                        <div>
-                          <div className="text-[11px] uppercase text-gray-500">Risk Level</div>
-                          <div className="font-medium">{policyRiskData.items[0]?.risk_level || "-"}</div>
-                        </div>
-                        <div>
-                          <div className="text-[11px] uppercase text-gray-500">Compartment ID</div>
-                          <div className="font-medium break-all">{policyRiskData.items[0]?.compartment || "-"}</div>
-                        </div>
-                      </div>
-                    </div>
-
+                    <div className="bg-gray-50 border border-gray-200 rounded p-3 text-sm space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] uppercase text-gray-500">Policy Name:</span>
+                        <span className="font-medium">{policyRiskData.items[0]?.policy_name || "-"}</span>
+                  </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] uppercase text-gray-500">Risk Level:</span>
+                        <span className="font-medium">{policyRiskData.items[0]?.risk_level || "-"}</span>
+                </div>
+                <div>
+                        <div className="text-[11px] uppercase text-gray-500">Compartment ID</div>
+                        <div className="font-medium break-all">{policyRiskData.items[0]?.compartment || "-"}</div>
+                  </div>
+                </div>
+                
                     {/* Subsections per statement */}
                     {policyRiskData.items.map((it: any, idx: number) => (
                       <div key={idx} className="border border-gray-200 rounded">
-                        <div className="px-3 py-2 bg-white font-semibold text-sm border-b">{it.statement || "Statement"}</div>
+                        <button
+                          className="w-full flex items-start justify-between px-2 py-2 bg-white font-semibold text-sm no-underline"
+                          onClick={() => setPolicyOpen((prev) => prev.map((v, i) => i === idx ? !v : v))}
+                          aria-expanded={policyOpen[idx] ? 'true' : 'false'}
+                        >
+                          <span className="flex-1 text-left mr-2 whitespace-pre-wrap break-words break-all text-blue-600">{it.statement || "Statement"}</span>
+                          {policyOpen[idx] ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                        </button>
+                        {policyOpen[idx] && (
                         <div className="p-3 text-sm space-y-2">
                           <div className="grid grid-cols-2 gap-3">
                             <div><strong>Risk Score:</strong> {it.risk_score ?? "-"}</div>
                             <div><strong>Risk Level:</strong> {it.risk_level || "-"}</div>
-                          </div>
-                          <div>
+                  </div>
+                <div>
                             <strong>Risk Factors:</strong>
                             <div className="text-gray-700">{it.explanation || "-"}</div>
-                          </div>
+                  </div>
                           <div className="grid grid-cols-2 gap-3 items-center">
-                            <div>
+                <div>
                               <label className="block text-xs text-gray-500 mb-1">Mitigating Controls</label>
                               <select
                                 value={policySelections[idx]?.controls || ""}
@@ -1192,8 +1116,8 @@ const page = () => {
                                 <option>MFA Setup</option>
                                 <option>Dynamic Group Controls</option>
                               </select>
-                            </div>
-                            <div>
+                  </div>
+                <div>
                               <label className="block text-xs text-gray-500 mb-1">Risk Accepted</label>
                               <select
                                 value={policySelections[idx]?.accepted || "Under Review"}
@@ -1204,9 +1128,9 @@ const page = () => {
                                 <option>No</option>
                                 <option>Under Review</option>
                               </select>
-                            </div>
-                          </div>
-                          <div>
+                  </div>
+                </div>
+                <div>
                             <label className="block text-xs text-gray-500 mb-1">Last Update</label>
                             <input
                               type="date"
@@ -1214,32 +1138,16 @@ const page = () => {
                               value={policySelections[idx]?.lastUpdate || new Date().toISOString().slice(0,10)}
                               className="border border-gray-200 rounded px-2 py-1 text-sm text-gray-500 bg-gray-50 cursor-not-allowed"
                             />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-                
-                {/* Actions */}
-                <div className="border-t pt-4">
-                  <h3 className="text-md font-semibold text-gray-800 mb-3">Recommended Actions</h3>
-                  <div className="space-y-2">
-                    <button className="w-full text-left p-2 bg-yellow-50 hover:bg-yellow-100 rounded-md text-sm border border-yellow-200">
-                      🔍 Review Access Patterns
-                    </button>
-                    <button className="w-full text-left p-2 bg-orange-50 hover:bg-orange-100 rounded-md text-sm border border-orange-200">
-                      ⚠️ Escalate to Security Team
-                    </button>
-                    <button className="w-full text-left p-2 bg-red-50 hover:bg-red-100 rounded-md text-sm border border-red-200">
-                      🚨 Immediate Revocation Review
-                    </button>
-                    <button className="w-full text-left p-2 bg-blue-50 hover:bg-blue-100 rounded-md text-sm border border-blue-200">
-                      📋 Create Risk Mitigation Plan
-                    </button>
                   </div>
                 </div>
+                        )}
+                  </div>
+                    ))}
+                </div>
+                )}
+                </div>
+                
+                {/* Actions removed per request */}
               </div>
               
               {/* Footer */}
