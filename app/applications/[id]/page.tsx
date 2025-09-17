@@ -14,7 +14,7 @@ import {
   ChevronRight,
   CircleCheck,
   CircleX,
-  InfoIcon,
+  ArrowRightCircle,
   X,
 } from "lucide-react";
 import { useMemo, useRef, useState, useEffect, use } from "react";
@@ -992,8 +992,8 @@ export default function ApplicationDetailPage({
                 }`}
                 aria-label="View details"
               >
-                <InfoIcon
-                  color="#55544dff"
+                <ArrowRightCircle
+                  color="#2563eb"
                   size="36"
                   className="transform scale-[0.8]"
                 />

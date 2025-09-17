@@ -8,8 +8,8 @@ import {
   FileText,
   FileTextIcon,
   FolderIcon,
-  InfoIcon,
   UserPlus,
+  ArrowRightCircle,
   X,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
@@ -370,8 +370,8 @@ const EditReassignButtons = <T extends { status?: string }>({
         }`}
         aria-label="View details"
       >
-        <InfoIcon
-          color="#d53d3dff"
+        <ArrowRightCircle
+          color="#2563eb"
           size="42"
           className="transform scale-[0.6]"
         />
