@@ -95,7 +95,8 @@ export default function ApplicationDetailPage({
   const [comment, setComment] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [lastAction, setLastAction] = useState<string | null>(null);
-  const [rowData, setRowData] = useState([]);
+  const [accountsRowData, setAccountsRowData] = useState<any[]>([]);
+  const [entRowData, setEntRowData] = useState<any[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [entitlementDetails, setEntitlementDetails] = useState<any>(null);
@@ -170,11 +171,11 @@ export default function ApplicationDetailPage({
   };
 
   // Client-side pagination logic
-  const totalItems = rowData.length;
+  const totalItems = accountsRowData.length;
   const totalPages = Math.ceil(totalItems / pageSize);
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = startIndex + pageSize;
-  const paginatedData = rowData.slice(startIndex, endIndex);
+  const paginatedData = accountsRowData.slice(startIndex, endIndex);
 
   const handleSelect = (category: string, index: number) => {
     setSelected((prev) => ({
@@ -341,7 +342,7 @@ export default function ApplicationDetailPage({
         const data = await response.json();
         console.log(data);
         if (data.executionStatus === "success") {
-          setRowData(data.items);
+          setAccountsRowData(data.items);
           
           // Only update application details if they don't already exist
           // This prevents overriding the data from the applications list
@@ -388,7 +389,7 @@ export default function ApplicationDetailPage({
         const data = await response.json();
         console.log("Entitlements data:", data);
         if (data.executionStatus === "success") {
-          setRowData(data.items);
+          setEntRowData(data.items);
         }
       } catch (error) {
         console.error("Error fetching entitlements data:", error);
@@ -1124,7 +1125,7 @@ export default function ApplicationDetailPage({
               <Exports gridApi={gridApiRef.current} />
             </div>
             <AgGridReact
-              rowData={rowData}
+              rowData={entRowData}
               columnDefs={colDefs}
               defaultColDef={defaultColDef}
               masterDetail={true}
@@ -1225,7 +1226,7 @@ export default function ApplicationDetailPage({
             <Exports gridApi={gridApiRef.current} />
           </div>
           <AgGridReact
-            rowData={rowData}
+            rowData={entRowData}
             columnDefs={underReviewColDefs}
             defaultColDef={defaultColDef}
             masterDetail={true}
