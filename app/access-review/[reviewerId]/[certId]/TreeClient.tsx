@@ -148,7 +148,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const [sidebarLoading, setSidebarLoading] = useState(false);
   const [userSearch, setUserSearch] = useState("");
-  const [selectedFilters, setSelectedFilters] = useState<string[]>(["Pending"]);
+  const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
   const [selectedRowForPanel, setSelectedRowForPanel] = useState<any | null>(null);
 
@@ -181,7 +181,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
       const userInfo = task.userInfo || {};
       const access = task.access || {};
       const delta = task.deltaChanges || {};
-      const fullName = userInfo.firstname + userInfo.lastname;
+      const fullName = userInfo.firstname +` `+ userInfo.lastname;
 
       return {
         id: task.taskId,
@@ -348,8 +348,10 @@ const TreeClient: React.FC<TreeClientProps> = ({
           appRisk: item.appRisk || account.appRisk || "",
           appType: item.appType || account.appType || "",
           complianceViolation: item.complianceViolation || "",
-          deltaChange: item.deltaChange || "",
-          // Use entitlement-level lineItem ID for actions, retain account line item for reference
+            deltaChange: item.deltaChange || "",
+            // Add action field - default to "Pending" if not set
+            action: item.action || account.action ,
+            // Use entitlement-level lineItem ID for actions, retain account line item for reference
           lineItemId: entitlementLineItemId,
           accountLineItemId: lineItemId,
           });
@@ -357,6 +359,9 @@ const TreeClient: React.FC<TreeClientProps> = ({
       });
 
       const allRows = (await Promise.all(entitlementPromises)).flat();
+      
+      // Test data removed - filters are working correctly
+      
       setEntitlementsData(allRows);
       setEntitlementsTotalItems(allRows.length);
       setEntitlementsTotalPages(Math.ceil(allRows.length / defaultPageSize));
@@ -423,16 +428,16 @@ const TreeClient: React.FC<TreeClientProps> = ({
     let remediatedCount = 0;
 
     entitlements.forEach((entitlement) => {
-      const action = entitlement.action?.toLowerCase() || "";
+      const action = entitlement.action || "";
       const status = entitlement.status?.toLowerCase() || "";
 
-      if (action === "approve" || status === "approved") {
+      if (action === "Approve" || status === "approved") {
         approvedCount++;
-      } else if (action === "revoke" || status === "revoked") {
+      } else if (action === "Reject" || status === "revoked") {
         revokedCount++;
-      } else if (action === "delegate" || status === "delegated") {
+      } else if (action === "Delegate" || status === "delegated") {
         delegatedCount++;
-      } else if (action === "remediate" || status === "remediated") {
+      } else if (action === "Remediate" || status === "remediated") {
         remediatedCount++;
       } else {
         pendingCount++;
@@ -503,36 +508,36 @@ const TreeClient: React.FC<TreeClientProps> = ({
   // Filter entitlements based on selected filters
   const filteredEntitlements = useMemo(() => {
     if (selectedFilters.length === 0) {
+      console.log('No filters selected - showing all items:', entitlementsData.length);
       return entitlementsData;
     }
     
-    // Debug: Log the data structure to understand what we're working with
-    if (entitlementsData.length > 0) {
-      console.log('Sample entitlement data:', entitlementsData[0]);
-      console.log('Selected filters:', selectedFilters);
+    // Debug: Log filter state
+    if (entitlementsData.length > 0 && selectedFilters.length > 0) {
+      console.log('Filtering by:', selectedFilters, 'Total items:', entitlementsData.length);
     }
     
-    return entitlementsData.filter((entitlement) => {
-      const recommendation = entitlement.recommendation?.toLowerCase() || '';
+    const filtered = entitlementsData.filter((entitlement) => {
+      const action = entitlement.action || '';
       const status = entitlement.status?.toLowerCase() || '';
       
       return selectedFilters.some(filter => {
-        const filterLower = filter.toLowerCase();
-        if (filterLower === 'pending') {
-          // Only show items that are truly pending (no recommendation or empty recommendation)
-          return !recommendation || recommendation === '' || recommendation === 'pending';
-        } else if (filterLower === 'certify') {
-          return recommendation === 'certify' || status === 'approved';
-        } else if (filterLower === 'reject') {
-          return recommendation === 'reject' || status === 'revoked' || status === 'rejected';
-        } else if (filterLower === 'delegated') {
+        if (filter === 'Pending') {
+          return action === 'Pending';
+        } else if (filter === 'Certify') {
+          return action === 'Approve' || status === 'approved';
+        } else if (filter === 'Reject') {
+          return action === 'Reject' || status === 'revoked' || status === 'rejected';
+        } else if (filter === 'Delegated') {
           return status === 'delegated';
-        } else if (filterLower === 'remediated') {
+        } else if (filter === 'Remediated') {
           return status === 'remediated';
         }
         return false;
       });
     });
+    
+    return filtered;
   }, [entitlementsData, selectedFilters]);
 
   // Duplicate each entitlement row with a separate description row beneath
@@ -1281,7 +1286,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
                 />
                 <Filters 
                   appliedFilter={handleAppliedFilter}
-                  initialSelected="Pending"
                 />
               </div>
               <div className="flex items-center gap-2">

@@ -128,7 +128,7 @@ const Filters = ({
 
   const isActive = !!selectedFilter;
 
-  const options = context === "account" ? accountFilterOptions : statusOptions.map(opt => ({ label: opt, value: opt, count: 0 }));
+  const options = context === "account" ? accountFilterOptions : statusOptions.map(opt => ({ label: opt, value: opt, count: opt }));
 
   return (
     <div className={`relative ${isActive ? "w-48" : "w-44"}`}>
@@ -166,6 +166,7 @@ const Filters = ({
         {options.map((option) => {
           const isSelected = selectedFilter === option.value;
           const count = filterCounts[option.value] || option.count;
+          console.log(count)
           return (
             <li
               key={option.value}

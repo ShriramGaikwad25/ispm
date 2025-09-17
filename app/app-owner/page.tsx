@@ -931,8 +931,8 @@ function AppOwnerContent() {
         <div className="mb-6 p-4 bg-gray-50 rounded-lg">
           <div className="flex flex-wrap items-center gap-4 text-base">
             <div className="flex items-center">
-              <span className="font-bold text-gray-700">Campaign:</span>
-              <span className="ml-2 font-bold text-gray-900">
+              {/* <span className="font-bold text-gray-700">Campaign:</span> */}
+              <span className="text-lg ml-2 text-gray-900">
                 {headerInfo.campaignName || "Quarterly Access Review - Megan Jackson"}
               </span>
             </div>
@@ -940,31 +940,29 @@ function AppOwnerContent() {
               <span className="text-gray-400">•</span>
             </div>
             <div className="flex items-center">
-              <span className="font-bold text-gray-700">Generated On:</span>
-              <span className="ml-2 font-bold text-gray-900">N/A</span>
+              <span className="text-lg text-gray-700">Generated On:</span>
+              <span className="ml-2 text-lg text-gray-900">N/A</span>
             </div>
             <div className="flex items-center">
               <span className="text-gray-400">•</span>
             </div>
             <div className="flex items-center">
-              <span className="font-bold text-gray-700">Due on:</span>
-              <span className="ml-2 font-bold text-gray-900">
+              <span className="text-lgtext-gray-700">Due on:</span>
+              <span className="ml-2 text-lg text-gray-900">
                 N/A
-                <span className="font-bold ml-1 text-red-600">(0 days left)</span>
+                <span className="text-lg ml-1 text-red-600">(0 days left)</span>
               </span>
             </div>
-            <div className="flex items-center">
-              <span className="text-gray-400">•</span>
-            </div>
+
             <div className="flex items-center">
               <UserProgress progressData={userProgressData} />
             </div>
           </div>
         </div>
-        
+{/*         
         <h1 className="text-xl font-bold mb-6 border-b border-gray-300 pb-2 text-blue-950">
           Application Owner
-        </h1>
+        </h1> */}
         <Accordion
           iconClass="top-1 right-0 rounded-full text-white bg-purple-800"
           open={true}

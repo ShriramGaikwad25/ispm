@@ -75,15 +75,15 @@ const ActionButtons = <T extends { status?: string }>({
   const isApproved = rowStatus === "Approved";
   const isRejected = rowStatus === "Rejected";
   
-  // Check if recommendation is "Certify" for entitlement context
-  const isCertifyRecommendation = context === "entitlement" && 
+  // Check if action is "Approve" for entitlement context
+  const isApproveAction = context === "entitlement" && 
     definedRows.length > 0 && 
-    (definedRows[0] as any)?.recommendation === "Certify";
+    (definedRows[0] as any)?.action === "Approve";
   
-  // Check if recommendation is "Reject" for entitlement context
-  const isRejectRecommendation = context === "entitlement" && 
+  // Check if action is "Reject" for entitlement context
+  const isRejectAction = context === "entitlement" && 
     definedRows.length > 0 && 
-    (definedRows[0] as any)?.recommendation === "Reject";
+    (definedRows[0] as any)?.action === "Reject";
 
   // API call to update actions
 const updateActions = async (actionType: string, justification: string) => {
@@ -131,13 +131,13 @@ const updateActions = async (actionType: string, justification: string) => {
 
       await updateAction(reviewerId, certId, payload);
 
-      // Update grid with new status
+      // Update grid with new status and action
       definedRows.forEach((row) => {
         const rowId = row.lineItemId || row.id;
         if (rowId) {
           const rowNode = api.getRowNode(rowId);
           if (rowNode) {
-            rowNode.setData({ ...rowNode.data, status: actionType });
+            rowNode.setData({ ...rowNode.data, status: actionType, action: actionType });
           } else {
             // Fallback: try to find the row by data comparison
             let foundNode = null;
@@ -147,7 +147,7 @@ const updateActions = async (actionType: string, justification: string) => {
               }
             });
             if (foundNode) {
-              foundNode.setData({ ...foundNode.data, status: actionType });
+              foundNode.setData({ ...foundNode.data, status: actionType, action: actionType });
             }
           }
         }
@@ -268,20 +268,20 @@ const updateActions = async (actionType: string, justification: string) => {
       onClick={handleApprove}
       title="Approve"
       aria-label="Approve selected rows"
-      disabled={isCertifyRecommendation}
+      disabled={isApproveAction}
       className={`p-1 rounded transition-colors duration-200 ${
         isApproved ? "bg-green-500" : "hover:bg-green-100"
-      } ${isCertifyRecommendation ? "opacity-60 cursor-not-allowed" : ""}`}
+      } ${isApproveAction ? "opacity-60 cursor-not-allowed" : ""}`}
     >
       <div className="relative">
         <CircleCheck
-          className={isCertifyRecommendation ? "cursor-not-allowed" : "cursor-pointer"}
+          className={isApproveAction ? "cursor-not-allowed" : "cursor-pointer"}
           color="#1c821cff"
           strokeWidth="1"
           size="32"
-          fill={isApproved || isCertifyRecommendation ? "#1c821cff" : "none"}
+          fill={isApproved || isApproveAction ? "#1c821cff" : "none"}
         />
-        {isCertifyRecommendation && (
+        {isApproveAction && (
           <div className="absolute inset-0 flex items-center justify-center">
             <svg
               width="16"
@@ -304,20 +304,20 @@ const updateActions = async (actionType: string, justification: string) => {
         onClick={handleRevoke}
         title="Revoke"
         aria-label="Revoke selected rows"
-        disabled={isRejectRecommendation}
+        disabled={isRejectAction}
         className={`p-1 rounded transition-colors duration-200 ${
           isRejected ? "bg-red-500" : "hover:bg-red-100"
-        } ${isRejectRecommendation ? "opacity-60 cursor-not-allowed" : ""}`}
+        } ${isRejectAction ? "opacity-60 cursor-not-allowed" : ""}`}
       >
         <div className="relative">
           <CircleX
-            className={isRejectRecommendation ? "cursor-not-allowed" : "cursor-pointer hover:opacity-80"}
+            className={isRejectAction ? "cursor-not-allowed" : "cursor-pointer hover:opacity-80"}
             color="#FF2D55"
             strokeWidth="1"
             size="32"
-            fill={isRejected || isRejectRecommendation ? "#FF2D55" : "none"}
+            fill={isRejected || isRejectAction ? "#FF2D55" : "none"}
           />
-          {isRejectRecommendation && (
+          {isRejectAction && (
             <div className="absolute inset-0 flex items-center justify-center">
               <svg
                 width="16"
@@ -400,12 +400,12 @@ const updateActions = async (actionType: string, justification: string) => {
               }}
             >
               <ul className="py-2 text-sm text-gray-700">
-                <li
+                {/* <li
                   className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
                   onClick={openModal}
                 >
                   Proxy
-                </li>
+                </li> */}
                 <li 
                   className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
                   onClick={openDelegateModal}

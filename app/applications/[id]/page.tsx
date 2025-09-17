@@ -104,6 +104,12 @@ export default function ApplicationDetailPage({
   const [pageSize, setPageSize] = useState(10);
   const [entitlementDetails, setEntitlementDetails] = useState<any>(null);
   const [entitlementDetailsError, setEntitlementDetailsError] = useState<string | null>(null);
+  
+  // Pagination state for Entitlement tab tables
+  const [entCurrentPage, setEntCurrentPage] = useState(1);
+  const [entPageSize, setEntPageSize] = useState(15);
+  const [entTotalItems, setEntTotalItems] = useState(0);
+  const [entTotalPages, setEntTotalPages] = useState(0);
 
   // Build separate row for description under each entitlement row (for Entitlements tab)
   const entRowsWithDesc = useMemo(() => {
@@ -115,6 +121,24 @@ export default function ApplicationDetailPage({
     }
     return rows;
   }, [entRowData]);
+
+  // Paginated data for Entitlement tab tables
+  const entPaginatedData = useMemo(() => {
+    const startIndex = (entCurrentPage - 1) * entPageSize;
+    const endIndex = startIndex + entPageSize;
+    return entRowsWithDesc.slice(startIndex, endIndex);
+  }, [entRowsWithDesc, entCurrentPage, entPageSize]);
+
+  // Update total items and pages when entRowsWithDesc changes
+  useEffect(() => {
+    setEntTotalItems(entRowsWithDesc.length);
+    setEntTotalPages(Math.ceil(entRowsWithDesc.length / entPageSize));
+  }, [entRowsWithDesc, entPageSize]);
+
+  // Reset pagination when switching between entitlement tabs
+  useEffect(() => {
+    setEntCurrentPage(1);
+  }, [entTabIndex]);
 
   // Helper function to map catalogDetails to nodeData fields
   const mapApiDataToNodeData = (catalogDetails: any, originalNodeData: any) => {
@@ -717,7 +741,7 @@ export default function ApplicationDetailPage({
           if (params.data?.__isDescRow) {
             return (
               <div className="text-gray-600 text-sm w-full break-words whitespace-pre-wrap">
-                {params.data?.description || params.data?.entitlementDescription || params.data?.["Ent Description"] || "-"}
+                {params.data?.["Ent Description"] || params.data?.description || params.data?.entitlementDescription || "-"}
               </div>
             );
           }
@@ -927,7 +951,7 @@ export default function ApplicationDetailPage({
           if (params.data?.__isDescRow) {
             return (
               <div className="text-gray-600 text-sm w-full break-words whitespace-pre-wrap">
-                {params.data?.description || params.data?.entitlementDescription || params.data?.["Ent Description"] || "-"}
+                {params.data?.["Ent Description"] || params.data?.description || params.data?.entitlementDescription || "-"}
               </div>
             );
           }
@@ -1188,7 +1212,7 @@ export default function ApplicationDetailPage({
               <Exports gridApi={gridApiRef.current} />
             </div>
             <AgGridReact
-              rowData={entRowsWithDesc}
+              rowData={entPaginatedData}
               columnDefs={colDefs}
               defaultColDef={defaultColDef}
               masterDetail={true}
@@ -1200,6 +1224,15 @@ export default function ApplicationDetailPage({
                 return data.__isDescRow ? `${baseId}-desc` : baseId;
               }}
             />
+            <div className="flex justify-center mt-4">
+              <CustomPagination
+                totalItems={entTotalItems}
+                currentPage={entCurrentPage}
+                totalPages={entTotalPages}
+                pageSize={entPageSize}
+                onPageChange={setEntCurrentPage}
+              />
+            </div>
           </div>
         );
       },
@@ -1294,7 +1327,7 @@ export default function ApplicationDetailPage({
             <Exports gridApi={gridApiRef.current} />
           </div>
           <AgGridReact
-            rowData={entRowsWithDesc}
+            rowData={entPaginatedData}
             columnDefs={underReviewColDefs}
             defaultColDef={defaultColDef}
             masterDetail={true}
@@ -1306,6 +1339,15 @@ export default function ApplicationDetailPage({
               return data.__isDescRow ? `${baseId}-desc` : baseId;
             }}
           />
+          <div className="flex justify-center mt-4">
+            <CustomPagination
+              totalItems={entTotalItems}
+              currentPage={entCurrentPage}
+              totalPages={entTotalPages}
+              pageSize={entPageSize}
+              onPageChange={setEntCurrentPage}
+            />
+          </div>
         </div>
       ),
     },
