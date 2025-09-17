@@ -660,6 +660,7 @@ export default function ApplicationDetailPage({
         flex: 3,
         width: 350,
         wrapText: true,
+        autoHeight: true,
         cellRenderer: (params: ICellRendererParams) => {
           const risk = params.data?.risk;
           const isRiskHigh = risk === "High";
@@ -859,6 +860,7 @@ export default function ApplicationDetailPage({
         headerName: "Entitlement Name",
         width: 650,
         wrapText: true,
+        autoHeight: true,
         cellRenderer: (params: ICellRendererParams) => {
           const risk = params.data?.risk;
           const isRiskHigh = risk === "High";
@@ -1037,19 +1039,8 @@ export default function ApplicationDetailPage({
         return (
           <div
             className="ag-theme-alpine"
-            style={{ height: 600, width: "100%" }}
+            style={{ height: 500, width: "100%" }}
           >
-            <style jsx>{`
-              .ag-row {
-                height: 70px !important;
-                min-height: 70px !important;
-              }
-              .ag-row .ag-cell {
-                display: flex;
-                align-items: center;
-                height: 70px !important;
-              }
-            `}</style>
             {/* <div className="relative mb-2">
               <Accordion
                 iconClass="top-1 right-0 rounded-full text-white bg-purple-800"
@@ -1137,8 +1128,7 @@ export default function ApplicationDetailPage({
               columnDefs={colDefs}
               defaultColDef={defaultColDef}
               masterDetail={true}
-              rowHeight={70}
-              suppressRowTransform={false}
+              getRowHeight={() => 70}
               detailCellRendererParams={detailCellRendererParams}
             />
           </div>
@@ -1150,18 +1140,7 @@ export default function ApplicationDetailPage({
       icon: ChevronDown,
       iconOff: ChevronRight,
       component: () => (
-        <div className="ag-theme-alpine" style={{ height: 600, width: "100%" }}>
-          <style jsx>{`
-            .ag-row {
-              height: 70px !important;
-              min-height: 70px !important;
-            }
-            .ag-row .ag-cell {
-              display: flex;
-              align-items: center;
-              height: 70px !important;
-            }
-          `}</style>
+        <div className="ag-theme-alpine" style={{ height: 500, width: "100%" }}>
           <div className="relative mb-4"></div>
           {/* <div className="relative mb-2">
             <Accordion
@@ -1250,8 +1229,7 @@ export default function ApplicationDetailPage({
             columnDefs={underReviewColDefs}
             defaultColDef={defaultColDef}
             masterDetail={true}
-            rowHeight={70}
-            suppressRowTransform={false}
+            getRowHeight={() => 70}
             detailCellRendererParams={detailCellRendererParams}
           />
         </div>
@@ -1457,7 +1435,7 @@ export default function ApplicationDetailPage({
         const [selectedUser, setSelectedUser] = useState<any>(null);
 
         // Use the same reviewerID as other parts of the application
-        const reviewerID = "d4cc2173-7471-4e26-8c72-a27be88ff6cb";
+        const reviewerID = "430ea9e6-3cff-449c-a24e-59c057f81e3d";
 
         // Fetch applications from API
         useEffect(() => {
