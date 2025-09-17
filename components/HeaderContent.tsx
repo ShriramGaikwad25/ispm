@@ -304,9 +304,9 @@ const HeaderContent = () => {
     lastSync: string;
   } | null>(null);
 
-  // Check if we should show the header (for access-review and app-owner pages, but not individual applications)
+  // Check if we should show the header (for access-review pages, but not app-owner or individual applications)
   const shouldShowHeader =
-    (pathname?.includes('/access-review/') || pathname?.includes('/app-owner')) &&
+    pathname?.includes('/access-review/') &&
     !pathname?.includes('/applications/');
 
   // Check if we should show campaign-specific header (only when inside a specific campaign)

@@ -898,6 +898,15 @@ const CatalogPageClient = () => {
           onRowClicked={handleRowClick}
           getRowHeight={() => 80}
           suppressRowTransform={true}
+          getRowId={(params: any) => {
+            const d = params.data || {};
+            return (
+              d.entitlementId ||
+              d.entitlementid ||
+              d.catalogId ||
+              `${d.applicationName || ''}|${d.entitlementName || d.name || ''}`
+            );
+          }}
           onGridReady={(params: any) => setGridApi(params.api)}
         />
       </div>

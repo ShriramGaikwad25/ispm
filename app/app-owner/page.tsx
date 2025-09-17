@@ -25,6 +25,7 @@ import {
 import RightSidebar from "@/components/RightSideBar";
 import Accordion from "@/components/Accordion";
 import ChartAppOwnerComponent from "@/components/ChartForAppOwner";
+import UserProgress from "@/components/UserProgress";
 import "./AppOwner.css";
 import {
   getAppOwnerDetails,
@@ -235,6 +236,22 @@ function AppOwnerContent() {
   const [selectedRows, setSelectedRows] = useState<RowData[]>([]);
   const [quickFilterText, setQuickFilterText] = useState("");
   const [currentFilter, setCurrentFilter] = useState<string>("");
+  
+  // State for header info and user progress
+  const [headerInfo, setHeaderInfo] = useState({
+    campaignName: "",
+    status: "",
+    snapshotAt: "",
+    dueDate: "",
+    daysLeft: 0,
+  });
+
+  const [userProgressData, setUserProgressData] = useState({
+    totalItems: 0,
+    approvedCount: 0,
+    pendingCount: 0,
+    percentage: 0,
+  });
 
   // Get reviewerId and certificationId from URL parameters, with fallback to hardcoded values
   const reviewerId = searchParams.get('reviewerId') || "430ea9e6-3cff-449c-a24e-59c057f81e3d";
@@ -524,6 +541,99 @@ function AppOwnerContent() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Effect to populate header info from localStorage
+  useEffect(() => {
+    const updateHeaderData = () => {
+      try {
+        // Prefer campaign summary if available (for campaign manage pages)
+        const selectedCampaignSummary = localStorage.getItem("selectedCampaignSummary");
+        if (selectedCampaignSummary) {
+          const summary = JSON.parse(selectedCampaignSummary);
+          const daysLeft = calculateDaysLeft(summary.dueDate || "");
+
+          setHeaderInfo({
+            campaignName: summary.campaignName || "Campaign Name",
+            status: summary.status || "",
+            snapshotAt: summary.snapshotAt || "",
+            dueDate: summary.dueDate || "",
+            daysLeft: daysLeft,
+          });
+        }
+
+        const sharedRowData = localStorage.getItem("sharedRowData");
+        if (sharedRowData) {
+          const data = JSON.parse(sharedRowData);
+          if (Array.isArray(data) && data.length > 0) {
+            const firstItem = data[0];
+            const daysLeft = calculateDaysLeft(firstItem.certificationExpiration || "");
+
+            // Only update header info if we don't have campaign summary data
+            if (!selectedCampaignSummary) {
+              setHeaderInfo((prev) => ({
+                campaignName: firstItem.certificationName || prev.campaignName || "Campaign Name",
+                status: prev.status || "",
+                snapshotAt: prev.snapshotAt || "",
+                dueDate: firstItem.certificationExpiration || prev.dueDate || "",
+                daysLeft: prev.dueDate ? prev.daysLeft : daysLeft,
+              }));
+            }
+
+            // Calculate user-based progress
+            const userProgress = calculateUserProgress(firstItem);
+            setUserProgressData(userProgress);
+          }
+        }
+      } catch (error) {
+        console.error("Error parsing localStorage data:", error);
+      }
+    };
+
+    // Initial call
+    updateHeaderData();
+
+    // Listen for storage changes
+    const handleStorageChange = () => {
+      updateHeaderData();
+    };
+
+    // Listen for custom localStorage change event
+    const handleLocalStorageChange = () => {
+      updateHeaderData();
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('localStorageChange', handleLocalStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('localStorageChange', handleLocalStorageChange);
+    };
+  }, []);
+
+  // Calculate days left helper function
+  const calculateDaysLeft = (expirationDateStr: string): number => {
+    if (!expirationDateStr) return 0;
+    const expiration = new Date(expirationDateStr);
+    const now = new Date();
+    const diffTime = expiration.getTime() - now.getTime();
+    return Math.max(Math.ceil(diffTime / (1000 * 60 * 60 * 24)), 0);
+  };
+
+  // Calculate user-based progress helper function
+  const calculateUserProgress = (userData: any) => {
+    const total = userData.numOfEntitlements || 0;
+    const approved = userData.numOfEntitlementsCertified || 0;
+    const pending = total - approved;
+    const percentage = total > 0 ? Math.round((approved / total) * 100) : 0;
+
+    return {
+      totalItems: total,
+      approvedCount: approved,
+      pendingCount: pending,
+      percentage: percentage,
+    };
+  };
 
   const handleAction = async (
     lineItemId: string,
@@ -816,6 +926,41 @@ function AppOwnerContent() {
   return (
     <div className="w-full h-screen">
       <div className="max-w-full">
+        {/* Details section before Application Owner text */}
+        <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+          <div className="flex flex-wrap items-center gap-4 text-base">
+            <div className="flex items-center">
+              <span className="font-bold text-gray-700">Campaign:</span>
+              <span className="ml-2 font-bold text-gray-900">
+                {headerInfo.campaignName || "Quarterly Access Review - Megan Jackson"}
+              </span>
+            </div>
+            <div className="flex items-center">
+              <span className="text-gray-400">•</span>
+            </div>
+            <div className="flex items-center">
+              <span className="font-bold text-gray-700">Generated On:</span>
+              <span className="ml-2 font-bold text-gray-900">N/A</span>
+            </div>
+            <div className="flex items-center">
+              <span className="text-gray-400">•</span>
+            </div>
+            <div className="flex items-center">
+              <span className="font-bold text-gray-700">Due on:</span>
+              <span className="ml-2 font-bold text-gray-900">
+                N/A
+                <span className="font-bold ml-1 text-red-600">(0 days left)</span>
+              </span>
+            </div>
+            <div className="flex items-center">
+              <span className="text-gray-400">•</span>
+            </div>
+            <div className="flex items-center">
+              <UserProgress progressData={userProgressData} />
+            </div>
+          </div>
+        </div>
+        
         <h1 className="text-xl font-bold mb-6 border-b border-gray-300 pb-2 text-blue-950">
           Application Owner
         </h1>

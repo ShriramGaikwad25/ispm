@@ -143,13 +143,13 @@ const EditReassignButtons = <T extends { status?: string }>({
     setIsSidePanelOpen(true);
     setIsEditMode(true);
 
-    // Initialize editable fields with current localNodeData
-    setEditableFields({ ...localNodeData });
+    // Initialize editable fields with most recent node data
+    setEditableFields({ ...(nodeData as any) });
   };
 
   const handleSidebarEdit = () => {
     setIsEditMode(true);
-    setEditableFields({ ...localNodeData });
+    setEditableFields({ ...(localNodeData as any) });
   };
 
   const handleReassign = () => {
@@ -245,6 +245,15 @@ const EditReassignButtons = <T extends { status?: string }>({
     }
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isMenuOpen]);
+
+  // Ensure fields are prefilled on first render of edit sidebar
+  useEffect(() => {
+    if (isSidePanelOpen && isEditMode) {
+      if (!editableFields || Object.keys(editableFields).length === 0) {
+        setEditableFields({ ...(localNodeData as any) });
+      }
+    }
+  }, [isSidePanelOpen, isEditMode, localNodeData]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
