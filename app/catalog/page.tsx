@@ -46,7 +46,7 @@ const Tabs: React.FC<TabProps> = ({
   );
 };
 
-const page = () => {
+const CatalogPageClient = () => {
   const searchParams = useSearchParams();
   const [gridApi, setGridApi] = useState<GridApi | null>(null);
   const [rowData, setRowData] = useState<any[]>([]);
@@ -1167,4 +1167,10 @@ const page = () => {
   );
 };
 
-export default page;
+export default function Page() {
+  return (
+    <Suspense fallback={<div className="p-4 text-sm text-gray-600">Loading…</div>}>
+      <CatalogPageClient />
+    </Suspense>
+  );
+}
