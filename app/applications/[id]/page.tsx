@@ -404,8 +404,18 @@ export default function ApplicationDetailPage({
           if (data.items && data.items.length > 0) {
             console.log("First entitlement item:", data.items[0]);
             console.log("Available fields in first item:", Object.keys(data.items[0]));
+            
+            // Apply mapping to each entitlement item to map catalogDetails.risk
+            const mappedItems = data.items.map((item: any) => {
+              if (item.catalogDetails) {
+                return mapApiDataToNodeData(item.catalogDetails, item);
+              }
+              return item;
+            });
+            setEntRowData(mappedItems);
+          } else {
+            setEntRowData([]);
           }
-          setEntRowData(data.items);
         }
       } catch (error) {
         console.error("Error fetching entitlements data:", error);
