@@ -336,7 +336,7 @@
 }
 
 .ag-main .ag-row {
-  min-height: 50px;
+  min-height: unset;
   background-color: white;
 }
 

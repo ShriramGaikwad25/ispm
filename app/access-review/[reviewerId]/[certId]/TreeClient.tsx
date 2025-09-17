@@ -380,22 +380,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
     setSelectedUser(user);
     setEntitlementsPageNumber(1);
 
-    // Send user progress data to header
-    const totalEntitlements = user.numOfEntitlements || 0;
-    const approvedEntitlements = user.numOfEntitlementsCertified || 0;
-    const userProgress = {
-      total: totalEntitlements,
-      approved: approvedEntitlements,
-      pending: totalEntitlements - approvedEntitlements,
-      percentage: totalEntitlements > 0 ? 
-        Math.round((approvedEntitlements / totalEntitlements) * 100) : 0
-    };
-
-    const progressEvent = new CustomEvent('progressDataChange', {
-      detail: userProgress
-    });
-    window.dispatchEvent(progressEvent);
-
     loadUserEntitlements(user, 1);
     if (typeof onRowExpand === "function") {
       onRowExpand();
@@ -1330,7 +1314,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     return params.data.__isDescRow ? `${baseId}-desc` : baseId;
                   }}
                   getRowClass={(params) => params?.data?.__isDescRow ? "ag-row-custom ag-row-desc" : "ag-row-custom"}
-                  getRowHeight={(params) => (params?.data?.__isDescRow ? 32 : 40)}
                   onGridReady={(params) => {
                     entitlementsGridApiRef.current = params.api;
                     params.api.sizeColumnsToFit();
