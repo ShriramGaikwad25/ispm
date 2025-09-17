@@ -185,7 +185,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
       return {
         id: task.taskId,
         ...userInfo,
-        status: userInfo.status || "Unknown",
+        status: userInfo.status || "Active",
         manager: userInfo.manager || "Unknown",
         userType: userInfo.userType || "Internal",
         certificationId: certId,
@@ -1074,7 +1074,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       Status:
                     </span>
                     <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-800">
-                      {selectedUser.status || "Unknown"}
+                      {selectedUser.status || "ACTIVE"}
                     </span>
                   </div>
                   <button
@@ -1197,7 +1197,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       {selectedUser.department || "Unknown"}
                     </span>
                   </div>
-                  <div className="flex items-center space-x-2 ml-4">
+                  {/* <div className="flex items-center space-x-2 ml-4">
                     <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
                     <span className="text-xs font-medium text-gray-500">
                       Risk:
@@ -1205,7 +1205,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-orange-100 text-orange-800">
                       {selectedUser.risk || "Unknown"}
                     </span>
-                  </div>
+                  </div> */}
                 </div>
                 <div className="flex items-center gap-2 mt-4 flex-wrap">
                   <div className="flex items-center gap-2">

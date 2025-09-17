@@ -67,6 +67,8 @@ const page = () => {
   const [lastAction, setLastAction] = useState<string | null>(null);
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
   const [nodeData, setNodeData] = useState<any>(null);
+  const [isHighRiskSidebarOpen, setIsHighRiskSidebarOpen] = useState(false);
+  const [highRiskData, setHighRiskData] = useState<any>(null);
 
   // Define tabs data
   const tabsDataEnt = [{ label: "All" }, { label: "Under Review" }];
@@ -205,6 +207,34 @@ const page = () => {
             "Review Schedule": "Monthly",
             "Ent Owner": "Test Owner",
             "Created On": "2024-01-01",
+          }, {
+            entitlementName: "HIGH RISK Test Entitlement",
+            description: "This is a HIGH RISK test entitlement that should have red background and be clickable",
+            type: "High Risk Test",
+            risk: "High",
+            applicationName: "High Risk App",
+            assignment: "Direct",
+            "Last Sync": "2024-01-15",
+            "Last Reviewed on": "2024-01-10",
+            "Total Assignments": 2,
+            Requestable: "No",
+            Certifiable: "Yes",
+            "SOD Check": "Failed",
+            Hierarchy: "Level 3",
+            "Pre- Requisite": "Yes",
+            "Pre-Requisite Details": "Security Clearance Required",
+            "Revoke on Disable": "Yes",
+            "Shared Pwd": "No",
+            "Capability/Technical Scope": "High Risk Scope",
+            "Business Objective": "High Risk Objective",
+            "Compliance Type": "SOX",
+            "Access Scope": "Global",
+            Reviewed: "No",
+            "Dynamic Tag": "High Risk",
+            "MFA Status": "Required",
+            "Review Schedule": "Weekly",
+            "Ent Owner": "Security Manager",
+            "Created On": "2024-01-01",
           }];
           setRowData(testData);
         } else {
@@ -290,6 +320,23 @@ const page = () => {
     console.log('Custom event dispatched from catalog page');
   };
 
+  const handleHighRiskClick = (data: any) => {
+    console.log('High-risk entitlement clicked:', data);
+    
+    // Set the high-risk data and open the sidebar
+    setHighRiskData(data);
+    setIsHighRiskSidebarOpen(true);
+    
+    // Close other sidebars if open
+    setIsSidePanelOpen(false);
+    setNodeData(null);
+  };
+
+  const closeHighRiskSidebar = () => {
+    setIsHighRiskSidebarOpen(false);
+    setHighRiskData(null);
+  };
+
   const colDefs = useMemo<ColDef[]>(
     () => [
       {
@@ -300,13 +347,24 @@ const page = () => {
         autoHeight: true,
         wrapText: true,
         cellRenderer: (params: ICellRendererParams) => {
+          const isHighRisk = params.data.risk === "High";
+          
           return (
             <div className="flex flex-col">
               {/* Row 1: entitlement name */}
-              <div className="font-semibold">{params.value}</div>
+              <div className="font-semibold flex items-center gap-2">
+                {isHighRisk ? (
+                  <span className="bg-red-100 text-red-600 px-3 py-1 rounded-full text-sm font-medium cursor-pointer hover:bg-red-200"
+                        onClick={() => handleHighRiskClick(params.data)}>
+                    {params.value}
+                  </span>
+                ) : (
+                  <span>{params.value}</span>
+                )}
+              </div>
 
               {/* Row 2: full-width description */}
-              <div className="text-gray-600 text-sm w-full z-index-1">
+              <div className="text-gray-600 text-sm w-full z-index-1 mt-1">
                 {params.data["description"] || `Test description for ${params.value}`}
               </div>
             </div>
@@ -361,8 +419,8 @@ const page = () => {
         width: 100,
         hide: true,
       },
-        { field: "SOD Check", headerName: "SOD Check", flex: 1.5, hide: true },
-        { field: "Hierarchy", headerName: "Hierarchy", width: 100, hide: true },
+      { field: "SOD Check", headerName: "SOD Check", flex: 1.5, hide: true },
+      { field: "Hierarchy", headerName: "Hierarchy", width: 100, hide: true },
       {
         field: "Pre- Requisite",
         headerName: "Pre- Requisite",
@@ -466,12 +524,23 @@ const page = () => {
         autoHeight: true,
         wrapText: true,
         cellRenderer: (params: ICellRendererParams) => {
+          const isHighRisk = params.data.risk === "High";
+          
           return (
             <div className="flex flex-col">
               {/* Row 1: entitlement name */}
-              <div className="font-semibold">{params.value}</div>
+              <div className="font-semibold flex items-center gap-2">
+                {isHighRisk ? (
+                  <span className="bg-red-100 text-red-600 px-3 py-1 rounded-full text-sm font-medium cursor-pointer hover:bg-red-200"
+                        onClick={() => handleHighRiskClick(params.data)}>
+                    {params.value}
+                  </span>
+                ) : (
+                  <span>{params.value}</span>
+                )}
+              </div>
 
-              <div className="text-gray-600 text-sm w-full">
+              <div className="text-gray-600 text-sm w-full mt-1">
                 {params.data["description"] || `Test description for ${params.value}`}
               </div>
             </div>
@@ -479,6 +548,7 @@ const page = () => {
         },
       },
       { field: "type", headerName: "Type", width: 120 },
+      { field: "applicationName", headerName: "Application", width: 120 },
       {
         field: "risk",
         headerName: "Risk",
@@ -632,7 +702,7 @@ const page = () => {
     <div className="ag-theme-alpine" style={{ height: 600, width: "100%" }}>
       <div className="relative mb-4 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold pb-2 text-blue-950">Entitlements</h1>
+        <h1 className="text-xl font-bold pb-2 text-blue-950">Entitlements</h1>
           <div className="text-sm text-gray-600">
             App Instance: {appInstanceId} | Reviewer: {reviewerId} | Total Items: {totalItems}
           </div>
@@ -688,6 +758,143 @@ const page = () => {
           </button>
         </div>
       </div>
+      
+      {/* High Risk Sidebar */}
+      {isHighRiskSidebarOpen && highRiskData && (
+        <div className="fixed right-0 top-16 h-[calc(100vh-4rem)] w-96 bg-white shadow-xl z-50 transform transition-transform duration-300 ease-in-out">
+            <div className="flex flex-col h-full">
+              {/* Header */}
+              <div className="flex items-center justify-between p-4 border-b bg-red-50">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                  <h2 className="text-lg font-semibold text-red-800">High Risk Entitlement</h2>
+                </div>
+                <button
+                  onClick={closeHighRiskSidebar}
+                  className="text-gray-500 hover:text-gray-700 text-xl font-bold"
+                >
+                  ×
+                </button>
+              </div>
+              
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {/* Entitlement Name */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Entitlement Name</label>
+                  <div className="mt-1 p-2 bg-red-100 text-red-800 rounded-md font-medium">
+                    {highRiskData.entitlementName}
+                  </div>
+                </div>
+                
+                {/* Risk Level */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Risk Level</label>
+                  <div className="mt-1">
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                      🔴 HIGH RISK
+                    </span>
+                  </div>
+                </div>
+                
+                {/* Description */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Description</label>
+                  <div className="mt-1 p-2 bg-gray-50 rounded-md text-sm">
+                    {highRiskData.description || 'No description available'}
+                  </div>
+                </div>
+                
+                {/* Application */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Application</label>
+                  <div className="mt-1 p-2 bg-gray-50 rounded-md text-sm">
+                    {highRiskData.applicationName || 'N/A'}
+                  </div>
+                </div>
+                
+                {/* Total Assignments */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Total Assignments</label>
+                  <div className="mt-1 p-2 bg-gray-50 rounded-md text-sm">
+                    {highRiskData["Total Assignments"] || 'N/A'}
+                  </div>
+                </div>
+                
+                {/* Last Reviewed */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Last Reviewed</label>
+                  <div className="mt-1 p-2 bg-gray-50 rounded-md text-sm">
+                    {highRiskData["Last Reviewed on"] || 'N/A'}
+                  </div>
+                </div>
+                
+                {/* SOD Check */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">SOD Check</label>
+                  <div className="mt-1">
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                      highRiskData["SOD Check"] === "Failed" 
+                        ? "bg-red-100 text-red-800" 
+                        : "bg-green-100 text-green-800"
+                    }`}>
+                      {highRiskData["SOD Check"] || 'N/A'}
+                    </span>
+                  </div>
+                </div>
+                
+                {/* Entitlement Owner */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Entitlement Owner</label>
+                  <div className="mt-1 p-2 bg-gray-50 rounded-md text-sm">
+                    {highRiskData["Ent Owner"] || 'N/A'}
+                  </div>
+                </div>
+                
+                {/* Risk Assessment */}
+                <div className="border-t pt-4">
+                  <h3 className="text-md font-semibold text-red-800 mb-2">Risk Assessment</h3>
+                  <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                    <p className="text-sm text-red-700">
+                      This entitlement has been flagged as HIGH RISK due to its potential security implications. 
+                      Immediate review and action may be required.
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Actions */}
+                <div className="border-t pt-4">
+                  <h3 className="text-md font-semibold text-gray-800 mb-3">Recommended Actions</h3>
+                  <div className="space-y-2">
+                    <button className="w-full text-left p-2 bg-yellow-50 hover:bg-yellow-100 rounded-md text-sm border border-yellow-200">
+                      🔍 Review Access Patterns
+                    </button>
+                    <button className="w-full text-left p-2 bg-orange-50 hover:bg-orange-100 rounded-md text-sm border border-orange-200">
+                      ⚠️ Escalate to Security Team
+                    </button>
+                    <button className="w-full text-left p-2 bg-red-50 hover:bg-red-100 rounded-md text-sm border border-red-200">
+                      🚨 Immediate Revocation Review
+                    </button>
+                    <button className="w-full text-left p-2 bg-blue-50 hover:bg-blue-100 rounded-md text-sm border border-blue-200">
+                      📋 Create Risk Mitigation Plan
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Footer */}
+              <div className="border-t p-4 bg-gray-50">
+                <button
+                  onClick={closeHighRiskSidebar}
+                  className="w-full px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 text-sm font-medium"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        
+      )}
     </div>
   );
 };
