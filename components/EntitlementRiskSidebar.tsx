@@ -53,40 +53,94 @@ const EntitlementRiskSidebar: React.FC<EntitlementRiskSidebarProps> = ({
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-6">
             <div className="space-y-6">
-              {/* Heading 1 */}
+              {/* Entitlement Information */}
               <div className="bg-gray-50 rounded-lg p-4">
-                <h1 className="text-2xl font-bold text-gray-900 mb-3">Heading 1</h1>
-                <p className="text-sm text-gray-600 break-words whitespace-pre-wrap">Content for heading 1</p>
+                <h1 className="text-2xl font-bold text-gray-900 mb-3">Entitlement Details</h1>
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-sm font-semibold text-gray-700">Name:</span>
+                    <p className="text-sm text-gray-600 break-words whitespace-pre-wrap mt-1">
+                      {entitlementData.name || "N/A"}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-sm font-semibold text-gray-700">Description:</span>
+                    <p className="text-sm text-gray-600 break-words whitespace-pre-wrap mt-1">
+                      {entitlementData.description || "N/A"}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-sm font-semibold text-gray-700">Type:</span>
+                    <p className="text-sm text-gray-600 break-words whitespace-pre-wrap mt-1">
+                      {entitlementData.type || "N/A"}
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              {/* Heading 2 */}
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <h2 className="text-xl font-semibold text-red-800 mb-3">Heading 2</h2>
-                <p className="text-sm text-gray-600 break-words whitespace-pre-wrap">Content for heading 2</p>
-              </div>
-
-              {/* Heading 3 */}
+              {/* Application Information */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h3 className="text-lg font-semibold text-blue-800 mb-3">Heading 3</h3>
-                <p className="text-sm text-gray-600 break-words whitespace-pre-wrap">Content for heading 3</p>
+                <h2 className="text-xl font-semibold text-blue-800 mb-3">Application Information</h2>
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-sm font-semibold text-gray-700">Application Name:</span>
+                    <p className="text-sm text-gray-600 break-words whitespace-pre-wrap mt-1">
+                      {entitlementData.applicationName || "N/A"}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-sm font-semibold text-gray-700">App Instance ID:</span>
+                    <p className="text-sm text-gray-600 break-words whitespace-pre-wrap mt-1">
+                      {entitlementData.appInstanceId || "N/A"}
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              {/* Heading 4 */}
+              {/* Risk Information */}
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <h2 className="text-xl font-semibold text-red-800 mb-3">Risk Assessment</h2>
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-sm font-semibold text-gray-700">Risk Level:</span>
+                    <p className="text-sm text-gray-600 break-words whitespace-pre-wrap mt-1">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        entitlementData.risk === "High" 
+                          ? "bg-red-100 text-red-800" 
+                          : entitlementData.risk === "Medium"
+                          ? "bg-yellow-100 text-yellow-800"
+                          : "bg-green-100 text-green-800"
+                      }`}>
+                        {entitlementData.risk || "N/A"}
+                      </span>
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-sm font-semibold text-gray-700">Last Reviewed:</span>
+                    <p className="text-sm text-gray-600 break-words whitespace-pre-wrap mt-1">
+                      {entitlementData.lastReviewed || "N/A"}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-sm font-semibold text-gray-700">Last Sync:</span>
+                    <p className="text-sm text-gray-600 break-words whitespace-pre-wrap mt-1">
+                      {entitlementData.lastSync || "N/A"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Additional Information */}
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <h4 className="text-base font-semibold text-green-800 mb-3">Heading 4</h4>
-                <p className="text-sm text-gray-600 break-words whitespace-pre-wrap">Content for heading 4</p>
-              </div>
-
-              {/* Heading 5 */}
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <h5 className="text-sm font-semibold text-yellow-800 mb-3">Heading 5</h5>
-                <p className="text-sm text-gray-600 break-words whitespace-pre-wrap">Content for heading 5</p>
-              </div>
-
-              {/* Heading 6 */}
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                <h6 className="text-xs font-semibold text-purple-800 mb-3">Heading 6</h6>
-                <p className="text-sm text-gray-600 break-words whitespace-pre-wrap">Content for heading 6</p>
+                <h3 className="text-lg font-semibold text-green-800 mb-3">Additional Information</h3>
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-sm font-semibold text-gray-700">Entitlement ID:</span>
+                    <p className="text-sm text-gray-600 break-words whitespace-pre-wrap mt-1">
+                      {entitlementData.entitlementId || "N/A"}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

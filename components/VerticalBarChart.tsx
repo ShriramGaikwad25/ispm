@@ -34,7 +34,7 @@ const VerticalBarChart: React.FC<VerticalBarChartProps> = ({ data: propData }) =
           "#50BFA5",
           "#6EC6FF",
           "#E6A23C",
-          "#E74C3C",
+          "#22C55E",
         ],
         borderRadius: 4,
         barThickness: 40, // Adjust width of bars
@@ -54,7 +54,7 @@ const VerticalBarChart: React.FC<VerticalBarChartProps> = ({ data: propData }) =
         "#50BFA5", 
         "#6EC6FF",
         "#E6A23C",
-        "#E74C3C",
+        "#22C55E",
       ],
       borderRadius: dataset.borderRadius || 4,
       barThickness: dataset.barThickness || 40,

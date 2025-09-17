@@ -26,12 +26,41 @@
 }
 
 .ag-theme-quartz .ag-cell-wrapper {
-  padding-left: -4px !important; /* default is ~8px */
+  padding-left: 4px !important; /* reduced from default ~8px */
+}
+
+/* Reduce spacing between checkbox and first column */
+.ag-theme-quartz .ag-row .ag-cell:first-child {
+  padding-left: 4px !important;
+}
+
+.ag-theme-quartz .ag-row .ag-cell:nth-child(2) {
+  padding-left: 4px !important;
 }
 
 /* Optional: shrink checkbox size */
 .ag-theme-quartz .ag-checkbox-input-wrapper {
   transform: scale(0.85);
+  margin-right: 4px;
+}
+
+/* Reduce checkbox column width and spacing */
+.ag-theme-quartz .ag-row .ag-cell[col-id="0"] {
+  padding: 4px 2px !important;
+  width: 30px !important;
+  min-width: 30px !important;
+  max-width: 30px !important;
+}
+
+/* General cell padding reduction */
+.ag-theme-quartz .ag-cell {
+  padding-left: 4px !important;
+  padding-right: 4px !important;
+}
+
+/* Specific spacing for first data column after checkbox */
+.ag-theme-quartz .ag-row .ag-cell:nth-child(2) {
+  padding-left: 2px !important;
 }
 
 .ag-cell-no-padding {

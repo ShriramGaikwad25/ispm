@@ -357,11 +357,17 @@ export default function ManageCampaigns() {
                           };
                         }
                         
+                        // Calculate pending certifications: total - approved - revoked
+                        const totalItems = selectedCampaign.totalNumOfCertificationInstance;
+                        const approvedCount = selectedCampaign.numOfAccessCertified;
+                        const revokedCount = selectedCampaign.numOfAccessRevoked;
+                        const pendingCount = Math.max(0, totalItems - approvedCount - revokedCount);
+                        
                         return {
-                          totalItems: selectedCampaign.totalNumOfCertificationInstance,
-                          approvedCount: selectedCampaign.numOfAccessCertified,
-                          pendingCount: selectedCampaign.numOfPendingActions,
-                          revokedCount: selectedCampaign.numOfAccessRevoked,
+                          totalItems: totalItems,
+                          approvedCount: approvedCount,
+                          pendingCount: pendingCount,
+                          revokedCount: revokedCount,
                           delegatedCount: 0, // Not available in API
                           remediatedCount: 0, // Not available in API
                         };

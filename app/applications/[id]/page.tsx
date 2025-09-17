@@ -125,7 +125,7 @@ export default function ApplicationDetailPage({
       "Ent Type": catalogDetails.type || catalogDetails.entitlementType || catalogDetails.entitlement_type || originalNodeData?.["Ent Type"],
       
       // Application info
-      "App Name": catalogDetails.applicationName || catalogDetails.appName || catalogDetails.application_name || originalNodeData?.["App Name"],
+      "App Name": catalogDetails.applicationname || catalogDetails.appName || catalogDetails.application_name || originalNodeData?.["App Name"],
       "App Instance": catalogDetails.appInstanceId || catalogDetails.appinstanceid || catalogDetails.applicationInstanceId || originalNodeData?.["App Instance"],
       "App Owner": catalogDetails.applicationOwner || catalogDetails.applicationowner || catalogDetails.app_owner || originalNodeData?.["App Owner"],
       "Ent Owner": catalogDetails.entitlementOwner || catalogDetails.entitlementowner || catalogDetails.entitlement_owner || originalNodeData?.["Ent Owner"],
@@ -400,6 +400,11 @@ export default function ApplicationDetailPage({
         const data = await response.json();
         console.log("Entitlements data:", data);
         if (data.executionStatus === "success") {
+          console.log("Entitlements items:", data.items);
+          if (data.items && data.items.length > 0) {
+            console.log("First entitlement item:", data.items[0]);
+            console.log("Available fields in first item:", Object.keys(data.items[0]));
+          }
           setEntRowData(data.items);
         }
       } catch (error) {
@@ -504,12 +509,12 @@ export default function ApplicationDetailPage({
         // cellClass: "ag-cell-no-padding",
       },
       {
-        field: "risk",
+        field: "Risk",
         headerName: "Risk",
         width: 100,
         hide:true,
         cellRenderer: (params: ICellRendererParams) => {
-          const risk = params.data?.risk || "Unknown";
+          const risk = params.data?.Risk || params.data?.risk || "Unknown";
           const riskInitial =
             risk === "High" ? "H" : risk === "Medium" ? "M" : "L";
           const riskColor =
@@ -694,8 +699,9 @@ export default function ApplicationDetailPage({
             );
           }
 
-          const risk = params.data?.risk;
+          const risk = params.data?.risk || params.data?.Risk;
           const isRiskHigh = risk === "High";
+          
           return isRiskHigh ? (
             <div className="flex items-center h-full">
               <span
@@ -712,8 +718,8 @@ export default function ApplicationDetailPage({
                     name: params.value,
                     description: params.data?.description,
                     type: params.data?.type,
-                    applicationName: params.data?.applicationName,
-                    risk: params.data?.risk,
+                    applicationName: params.data?.["App Name"] || params.data?.applicationName,
+                    risk: params.data?.risk || params.data?.Risk,
                     lastReviewed: params.data?.["Last Reviewed on"],
                     lastSync: params.data?.["Last Sync"],
                     appInstanceId: params.data?.applicationInstanceId || params.data?.appInstanceId,
@@ -731,14 +737,14 @@ export default function ApplicationDetailPage({
         },
       },
       // { field:"Ent Description", headerName:"Entitlement Description", flex:2},
-      { field: "type", headerName: "Type", width: 120 },
+      { field: "type", headerName: "Type", width: 200 },
       { 
-        field: "risk", 
+        field: "Risk", 
         headerName: "Risk", 
         width: 120,
         hide:true,
         cellRenderer: (params: ICellRendererParams) => {
-          const risk = params.value;
+          const risk = params.value || params.data?.Risk || params.data?.risk;
           const riskColor =
             risk === "High" ? "red" : risk === "Medium" ? "orange" : "green";
           return <span className="font-medium" style={{ color: riskColor }}>{risk}</span>;
@@ -749,14 +755,14 @@ export default function ApplicationDetailPage({
       {
         field: "Last Sync",
         headerName: "Last Sync",
-        width: 140,
+        width: 200,
         valueFormatter: (params: ICellRendererParams) =>
           formatDateMMDDYY(params.value),
       },
       {
         field: "Last Reviewed on",
         headerName: "Last Reviewed",
-        width: 180,
+        width: 200,
         valueFormatter: (params: ICellRendererParams) =>
           formatDateMMDDYY(params.value),
       },
@@ -852,7 +858,7 @@ export default function ApplicationDetailPage({
       {
         field: "actionColumn",
         headerName: "Action",
-        width: 100,
+        width: 200,
         cellRenderer: (params: ICellRendererParams) => {
           return (
             <EditReassignButtons
@@ -879,7 +885,7 @@ export default function ApplicationDetailPage({
       {
         field: "entitlementName",
         headerName: "Entitlement Name",
-        width: 650,
+        width: 550,
         wrapText: true,
         autoHeight: true,
         colSpan: (params) => {
@@ -903,8 +909,9 @@ export default function ApplicationDetailPage({
             );
           }
 
-          const risk = params.data?.risk;
+          const risk = params.data?.risk || params.data?.Risk;
           const isRiskHigh = risk === "High";
+          
           return isRiskHigh ? (
             <div className="flex items-center h-full">
               <span
@@ -921,8 +928,8 @@ export default function ApplicationDetailPage({
                     name: params.value,
                     description: params.data?.description,
                     type: params.data?.type,
-                    applicationName: params.data?.applicationName,
-                    risk: params.data?.risk,
+                    applicationName: params.data?.["App Name"] || params.data?.applicationName,
+                    risk: params.data?.risk || params.data?.Risk,
                     lastReviewed: params.data?.["Last Reviewed on"],
                     lastSync: params.data?.["Last Sync"],
                     appInstanceId: params.data?.applicationInstanceId || params.data?.appInstanceId,
@@ -939,21 +946,21 @@ export default function ApplicationDetailPage({
           );
         },
       },
-      { field: "type", headerName: "Type", width: 120 },
+      { field: "type", headerName: "Type", width: 250 },
       {
-        field: "risk",
+        field: "Risk",
         headerName: "Risk",
         width: 120,
         hide:true,
         cellRenderer: (params: ICellRendererParams) => {
-          const risk = params.value;
+          const risk = params.value || params.data?.Risk || params.data?.risk;
           const riskColor =
             risk === "High" ? "red" : risk === "Medium" ? "orange" : "green";
           return <span className="font-medium" style={{ color: riskColor }}>{risk}</span>;
         },
       },
-      { field: "applicationName", headerName: "Application", width: 150 },
-      { field: "Last Reviewed on", headerName: "Last Reviewed", width: 180 },
+      { field: "applicationName", headerName: "Application", width: 250 },
+      { field: "Last Reviewed on", headerName: "Last Reviewed", width: 200 },
       {
         headerName: "Actions",
         width: 250,

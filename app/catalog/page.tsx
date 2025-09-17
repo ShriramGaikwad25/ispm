@@ -58,11 +58,6 @@ const CatalogPageClient = () => {
   const reviewerId = searchParams.get('reviewerId') || "ec527a50-0944-4b31-b239-05518c87a743";
 
   const [entTabIndex, setEntTabIndex] = useState<number>(0);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [hasNext, setHasNext] = useState(false);
-  const [hasPrevious, setHasPrevious] = useState(false);
-  const [totalItems, setTotalItems] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [lastAction, setLastAction] = useState<string | null>(null);
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
@@ -91,12 +86,8 @@ const CatalogPageClient = () => {
   const filteredRowData = rowData;
 
   const applicationOptions = useMemo(() => {
-    const set = new Set<string>();
-    rowData.forEach((r) => {
-      if (r.applicationName) set.add(r.applicationName);
-    });
-    return ["All", ...Array.from(set).sort()];
-  }, [rowData]);
+    return ["All", "ACMECorporateDirectory", "Workday", "Oracle_Fusion_HCM", "SAP_S4", "KF_OCI"];
+  }, []);
 
   // Action handlers for Under Review tab
   const handleApprove = () => {
@@ -326,10 +317,6 @@ const CatalogPageClient = () => {
         } else {
           setRowData(transformedData);
         }
-        setTotalItems(response.total_items || transformedData.length);
-        setTotalPages(response.total_pages || 1);
-        setHasNext(response.has_next || false);
-        setHasPrevious(response.has_previous || false);
         
       } catch (error) {
         console.error("Error fetching catalog entitlements:", error);
@@ -371,16 +358,8 @@ const CatalogPageClient = () => {
     };
 
     fetchData();
-  }, [appInstanceId, reviewerId, currentPage]);
+  }, [appInstanceId, reviewerId]);
 
-  // Pagination controls
-  const handleNextPage = () => {
-    if (hasNext) setCurrentPage((prev) => prev + 1);
-  };
-
-  const handlePreviousPage = () => {
-    if (hasPrevious) setCurrentPage((prev) => prev - 1);
-  };
 
   const handleRowClick = (event: any) => {
     const entitlementData = {
@@ -472,8 +451,7 @@ const CatalogPageClient = () => {
       {
         field: "entitlementName",
         headerName: "Entitlement",
-        flex: 3,
-        width: 350,
+        width: 950,
         autoHeight: true,
         wrapText: true,
         cellRenderer: (params: ICellRendererParams) => {
@@ -503,7 +481,7 @@ const CatalogPageClient = () => {
         },
       },
       // { field:"Ent Description", headerName:"Entitlement Description", flex:2},
-      { field: "type", headerName: "Type", width: 120 },
+      { field: "type", headerName: "Type", width: 130 },
       { 
         field: "risk", 
         headerName: "Risk", 
@@ -521,13 +499,13 @@ const CatalogPageClient = () => {
       {
         field: "Last Sync",
         headerName: "Last Sync",
-        width: 140,
+        width: 150,
         valueFormatter: (params: any) => formatDateMMDDYY(params.value),
       },
       {
         field: "Last Reviewed on",
         headerName: "Last Reviewed",
-        width: 180,
+        width: 200,
         valueFormatter: (params: any) => formatDateMMDDYY(params.value),
       },
       {
@@ -649,7 +627,7 @@ const CatalogPageClient = () => {
       {
         field: "entitlementName",
         headerName: "Entitlement Name",
-        width: 650,
+        width: 700,
         autoHeight: true,
         wrapText: true,
         cellRenderer: (params: ICellRendererParams) => {
@@ -829,7 +807,7 @@ const CatalogPageClient = () => {
   }
 
   return (
-    <div className={`ag-theme-alpine transition-all duration-300 ease-in-out ${isSidePanelOpen ? "mr-[500px]" : "mr-0"}`} style={{ height: 600, width: "100%" }}>
+    <div className={`ag-theme-alpine transition-all duration-300 ease-in-out ${isSidePanelOpen ? "mr-[500px]" : "mr-0"}`} style={{ height: "calc(100vh - 120px)", width: "100%" }}>
       <div className="relative mb-4 flex items-center justify-between">
         <div>
         <h1 className="text-xl font-bold pb-2 text-blue-950">Entitlements</h1>
@@ -888,7 +866,7 @@ const CatalogPageClient = () => {
           </svg>
         </button>
       </div> */}
-      <div style={{ height: "calc(100% - 120px)", width: "100%" }}>
+      <div style={{ height: "calc(100% - 60px)", width: "100%" }}>
         <AgGridReact
           rowData={filteredRowData}
           columnDefs={entTabIndex === 0 ? colDefs : underReviewColDefs}
@@ -911,28 +889,6 @@ const CatalogPageClient = () => {
         />
       </div>
       
-      {/* Pagination Controls */}
-      <div className="flex items-center justify-between mt-4 px-4 py-2 bg-gray-50 rounded">
-        <div className="text-sm text-gray-600">
-          Page {currentPage} of {totalPages} ({totalItems} total items)
-        </div>
-        <div className="flex space-x-2">
-          <button
-            onClick={handlePreviousPage}
-            disabled={!hasPrevious}
-            className="px-3 py-1 text-sm border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-          >
-            Previous
-          </button>
-          <button
-            onClick={handleNextPage}
-            disabled={!hasNext}
-            className="px-3 py-1 text-sm border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-          >
-            Next
-          </button>
-        </div>
-      </div>
       
       {/* Info Sidebar for Under Review tab (mirrors Applications Entitlements sidebar) */}
       {isSidePanelOpen && nodeData && entTabIndex === 1 && (

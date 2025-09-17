@@ -96,6 +96,7 @@ const data: {
   ],
 };
 
+
 const DetailCellRenderer = (props: IDetailCellRendererParams) => {
   const { data } = props;
   return (
@@ -185,7 +186,7 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
       userId: item.userInfo?.UserID || "",
       entitlementName: entitlement.entitlementInfo?.entitlementName || "",
       entitlementDescription:
-        entitlement.entitlementInfo?.entitlementDescription || "",
+        entitlement.entitlementInfo?.description || "",
       aiInsights: entitlement.aiassist?.recommendation || "",
       recommendation: entitlement.entityEntitlement?.action || undefined,
       accountSummary: item.accountInfo?.accountName?.includes("@")

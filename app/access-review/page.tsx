@@ -412,7 +412,7 @@ const AccessReview: React.FC = () => {
     }
     
     // Store campaign summary data for navigation to App Owner or User Access Review
-    if (e.data && (certificationType === "AppOwnerReview" || certificationType === "UserAccessReview")) {
+    if (e.data && (certificationType === "App Owner" || certificationType === "User Manager")) {
       const campaignSummary = {
         campaignName: e.data.certificationName,
         status: e.data.status,
@@ -423,11 +423,11 @@ const AccessReview: React.FC = () => {
     }
     
     if (clickedReviewerId && clickedCertificationId) {
-      if (certificationType === "UserAccessReview") {
+      if (certificationType === "User Manager") {
         router.push(
           `/access-review/${clickedReviewerId}/${clickedCertificationId}`
         );
-      } else if (certificationType === "AppOwnerReview") {
+      } else if (certificationType === "App Owner") {
         console.log('Navigating to App Owner with parameters:', {
           reviewerId: clickedReviewerId,
           certificationId: clickedCertificationId
