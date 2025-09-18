@@ -16,6 +16,7 @@ ChartJS.register(ArcElement, Tooltip, Legend);
 
 export default function Application() {
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
   const [rowData, setRowData] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -25,6 +26,7 @@ export default function Application() {
 
   // Fetch data from API
   useEffect(() => {
+    setMounted(true);
     const fetchData = async () => {
       try {
         const response = await fetch(`https://preview.keyforge.ai/entities/api/v1/ACMEPOC/getApplications/430ea9e6-3cff-449c-a24e-59c057f81e3d`);
@@ -73,13 +75,8 @@ export default function Application() {
             const lower = appName.toLowerCase();
             const kw = LOGO_BY_KEYWORD.find((k) => lower.includes(k.keyword));
             if (kw) return kw.src;
-            // 3) Slug fallback: put a file at /public/logos/<slug>.svg
-            const slug = appName
-              .toLowerCase()
-              .replace(/&/g, "and")
-              .replace(/[^a-z0-9]+/g, "-")
-              .replace(/(^-|-$)/g, "");
-            return `/logos/${slug}.svg`;
+            // 3) Deterministic fallback to a known existing asset to avoid hydration mismatch
+            return "/window.svg";
           };
           const riskStatus = params.data.risk || "Unknown";
           const riskInitial =
@@ -97,9 +94,7 @@ export default function Application() {
                   width={28}
                   height={28}
                   className="mr-2"
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).src = "/window.svg";
-                  }}
+                  loading="lazy"
                 />
                 <span
                   className="px-2 py-1 text-sm font-medium rounded-full inline-flex items-center cursor-help"
@@ -132,9 +127,7 @@ export default function Application() {
                 width={28}
                 height={28}
                 className="mr-2"
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).src = "/window.svg";
-                }}
+                loading="lazy"
               />
               <a
                 // href={`#${params.data.applicationInstanceId}`}
@@ -243,6 +236,7 @@ export default function Application() {
   };
 
   return (
+    !mounted ? null :
     <div className="ag-theme-alpine" style={{ height: 600, width: "100%" }}>
       <div className="relative mb-2">
         <h1 className="text-xl font-bold border-b border-gray-300 pb-2 text-blue-950">

@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { useMemo, useRef, useState, useEffect } from "react";
+import { useParams } from "next/navigation";
 import { createPortal } from "react-dom";
 import { formatDateMMDDYY } from "@/utils/utils";
 import "@/lib/ag-grid-setup";
@@ -69,12 +70,9 @@ const dataAccount: Record<string, DataItem[]> = {
   ],
 };
 
-export default function ApplicationDetailPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const { id } = params;
+export default function ApplicationDetailPage() {
+  const routeParams = useParams<{ id: string }>();
+  const id = routeParams?.id as string;
   const [tabIndex, setTabIndex] = useState(1);
   const [entTabIndex, setEntTabIndex] = useState(1); // Set to 1 for "Under Review"
   const gridApiRef = useRef<GridApi | null>(null);

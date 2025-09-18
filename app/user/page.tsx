@@ -86,7 +86,8 @@ export default function User() {
         
         // Transform API response to match our UserData interface
         if (response && typeof response === 'object' && 'resultSet' in response && Array.isArray((response as any).resultSet)) {
-          const transformedData: UserData[] = (response as any).resultSet.map((user: any) => ({
+          const sourceArray: any[] = (response as any).resultSet;
+          const transformedData: UserData[] = sourceArray.map((user: any) => ({
             name: user.displayname || user.displayName || user.firstname + " " + user.lastname || "Unknown",
             email: user.email?.work || user.customattributes?.emails?.[0]?.value || user.username || "Unknown",
             title: user.title || user.customattributes?.title || "Unknown",
@@ -98,6 +99,15 @@ export default function User() {
             managerStatus: "Active" // Default status for manager
           }));
           setRowData(transformedData);
+          // Persist a lookup map of raw users by email/username for detail page consumption
+          try {
+            const rawByKey: Record<string, any> = {};
+            for (const u of sourceArray) {
+              const key = (u.email?.work || u.customattributes?.emails?.[0]?.value || u.username || u.displayname || u.displayName || "").toString();
+              if (key) rawByKey[key] = u;
+            }
+            localStorage.setItem("usersRawByKey", JSON.stringify(rawByKey));
+          } catch {}
         } else if (response && Array.isArray(response)) {
           // Handle case where response is directly an array
           const transformedData: UserData[] = response.map((user: any) => ({
@@ -112,6 +122,14 @@ export default function User() {
             managerStatus: "Active" // Default status for manager
           }));
           setRowData(transformedData);
+          try {
+            const rawByKey: Record<string, any> = {};
+            for (const u of response as any[]) {
+              const key = (u.email?.work || u.customattributes?.emails?.[0]?.value || u.username || u.displayname || u.displayName || "").toString();
+              if (key) rawByKey[key] = u;
+            }
+            localStorage.setItem("usersRawByKey", JSON.stringify(rawByKey));
+          } catch {}
         } else {
           // Fallback to default data if API response is empty
           setRowData(defaultRowData);
@@ -197,8 +215,35 @@ const columnDefs = useMemo<ColDef[]>(
   };
 
   const handleRowClick = (event: any) => {
+    try {
+      // Persist the raw record for the detail page
+      const raw = event?.data ?? {};
+      // Attempt to enrich with full raw user from the last API result map
+      try {
+        const mapStr = localStorage.getItem("usersRawByKey");
+        if (mapStr) {
+          const map = JSON.parse(mapStr);
+          const key = raw.email || raw.name;
+          if (key && map && typeof map === 'object' && map[key]) {
+            localStorage.setItem("selectedUserRawFull", JSON.stringify(map[key]));
+          }
+        }
+      } catch {}
+      // Save a single selected row and also a tiny array form for any legacy reader
+      localStorage.setItem("selectedUserRaw", JSON.stringify(raw));
+      localStorage.setItem("sharedRowData", JSON.stringify([{ // legacy shape consumed by profile page
+        fullName: raw.name,
+        id: raw.email, // using email as a stable id-like alias if no id
+        status: raw.status,
+        manager: raw.managerName,
+        department: raw.department,
+        jobtitle: raw.title,
+        userType: raw.tags,
+        email: raw.email,
+      }]));
+    } catch {}
     const appId = event.data.name;
-    router.push(`/user/${appId}`); // This should now work with App Router
+    router.push(`/user/${encodeURIComponent(appId)}`);
   };
 
   if (loading) {

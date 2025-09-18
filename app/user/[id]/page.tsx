@@ -2,6 +2,7 @@
 import HorizontalTabs from "@/components/HorizontalTabs";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
+import type { ColDef } from "ag-grid-enterprise";
 import dynamic from "next/dynamic";
 
 // Dynamically import AgGridReact with SSR disabled
@@ -29,20 +30,83 @@ import ChartDataLabels from "chartjs-plugin-datalabels";
 // Register Chart.js components and plugin
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend, ChartDataLabels);
 
-// Sample user data
-const userData = {
-  firstName: "John",
-  lastName: "Doe",
-  email: "john.doe@example.com",
-  displayName: "John Doe",
-  alias: "jdoe",
-  phone: "+1 (555) 123-4567",
-  title: "Software Engineer",
-  department: "Engineering",
-  startDate: "2023-01-15",
-  userType: "Full-Time",
-  managerEmail: "jane.smith@example.com",
-  tags: ["Developer", "Team Lead", "Agile"],
+type ProfileUser = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  displayName: string;
+  alias: string;
+  phone?: string;
+  title?: string;
+  department?: string;
+  startDate?: string;
+  userType?: string;
+  managerEmail?: string;
+  tags: string[];
+};
+
+const buildUserFromStorage = (): ProfileUser => {
+  try {
+    // Prefer the full raw user saved from the list page
+    const fullStr = localStorage.getItem("selectedUserRawFull");
+    if (fullStr) {
+      const u = JSON.parse(fullStr);
+      const displayName = u.displayname || u.displayName || `${u.firstname ?? ""} ${u.lastname ?? ""}`.trim() || u.username || "Unknown";
+      const email = u.email?.work || u.customattributes?.emails?.[0]?.value || u.username || "no-email@example.com";
+      return {
+        firstName: u.firstname || u.customattributes?.name?.givenName || displayName.split(" ")[0] || "",
+        lastName: u.lastname || u.customattributes?.name?.familyName || displayName.split(" ").slice(1).join(" ") || "",
+        email,
+        displayName,
+        alias: u.username || u.customattributes?.id || email,
+        phone: u.phonenumber?.work || u.customattributes?.phoneNumbers?.[0]?.value || "",
+        title: u.title || u.customattributes?.title || "",
+        department: u.department || u.customattributes?.enterpriseUser?.department || "",
+        startDate: u.startdate || u.customattributes?.["urn:ietf:params:scim:schemas:extension:custom"]?.startdate || "",
+        userType: u.employeetype || u.customattributes?.userType || "",
+        managerEmail: u.managername || u.customattributes?.enterpriseUser?.manager?.value || "",
+        tags: [u.employeetype || u.customattributes?.userType || "User"].filter(Boolean),
+      };
+    }
+  } catch {}
+  try {
+    // Fallback to the lightweight selected row
+    const sel = localStorage.getItem("selectedUserRaw");
+    if (sel) {
+      const s = JSON.parse(sel);
+      const displayName = s.name || "Unknown";
+      const [fn, ...rest] = displayName.split(" ");
+      return {
+        firstName: fn || "",
+        lastName: rest.join(" "),
+        email: s.email || "no-email@example.com",
+        displayName,
+        alias: s.email || displayName,
+        phone: "",
+        title: s.title || "",
+        department: s.department || "",
+        startDate: "",
+        userType: s.tags || "",
+        managerEmail: s.managerName || "",
+        tags: [s.tags || "User"].filter(Boolean),
+      };
+    }
+  } catch {}
+  // Final fallback
+  return {
+    firstName: "",
+    lastName: "",
+    email: "no-email@example.com",
+    displayName: "Unknown",
+    alias: "",
+    phone: "",
+    title: "",
+    department: "",
+    startDate: "",
+    userType: "",
+    managerEmail: "",
+    tags: ["User"],
+  };
 };
 
 // Sample access data
@@ -91,17 +155,23 @@ const accountData = [
 export default function UserDetailPage() {
   const [tabIndex, setTabIndex] = useState(0);
   const [isMounted, setIsMounted] = useState(false);
+  const [userData, setUserData] = useState<ProfileUser>(() => buildUserFromStorage());
 
   // Ensure chart and grid render only on client
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
+  useEffect(() => {
+    // Re-read after mount to ensure access to localStorage
+    setUserData(buildUserFromStorage());
+  }, []);
+
   const ProfileTab = () => {
-    const initials = `${userData.firstName[0]}${userData.lastName[0]}`.toUpperCase();
+    const initials = `${(userData.firstName || "")[0] || "U"}${(userData.lastName || "")[0] || ""}`.toUpperCase();
     const colors = ["#7f3ff0", "#0099cc", "#777", "#d7263d", "#ffae00"];
     // Use a deterministic color based on user data to avoid server-client mismatch
-    const bgColor = colors[userData.email.length % colors.length];
+    const bgColor = colors[(userData.email || "").length % colors.length];
 
     return (
       <div className="flex flex-col md:flex-row gap-6 p-6 bg-white rounded-lg shadow-md">
@@ -136,7 +206,7 @@ export default function UserDetailPage() {
           </div>
           <div>
             <label className="text-sm font-medium text-gray-500">Phone Number</label>
-            <p className="text-base text-gray-900">{userData.phone}</p>
+            <p className="text-base text-gray-900">{userData.phone || "N/A"}</p>
           </div>
           <div>
             <label className="text-sm font-medium text-gray-500">Title</label>
@@ -148,7 +218,7 @@ export default function UserDetailPage() {
           </div>
           <div>
             <label className="text-sm font-medium text-gray-500">Start Date</label>
-            <p className="text-base text-gray-900">{userData.startDate}</p>
+            <p className="text-base text-gray-900">{userData.startDate || "N/A"}</p>
           </div>
           <div>
             <label className="text-sm font-medium text-gray-500">User Type</label>
@@ -161,7 +231,7 @@ export default function UserDetailPage() {
           <div>
             <label className="text-sm font-medium text-gray-500">Tags</label>
             <div className="flex flex-wrap gap-2">
-              {userData.tags.map((tag, index) => (
+              {userData.tags?.map((tag, index) => (
                 <span
                   key={index}
                   className="inline-block bg-blue-100 text-blue-800 text-sm px-2 py-1 rounded"
@@ -179,7 +249,7 @@ export default function UserDetailPage() {
   const AccessTab = () => {
     const [rowData] = useState(accountData);
 
-    const accountColumnDefs = useMemo(
+    const accountColumnDefs = useMemo<ColDef[]>(
       () => [
         {
           headerName: "Account ID",
@@ -220,7 +290,7 @@ export default function UserDetailPage() {
       []
     );
 
-    const entitlementColumnDefs = useMemo(
+    const entitlementColumnDefs = useMemo<ColDef[]>(
       () => [
         { headerName: "Entitlement Name", field: "entName", flex: 1.5 },
         { headerName: "Risk", field: "risk", flex: 1 },
