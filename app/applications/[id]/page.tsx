@@ -17,7 +17,7 @@ import {
   ArrowRightCircle,
   X,
 } from "lucide-react";
-import { useMemo, useRef, useState, useEffect, use } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { formatDateMMDDYY } from "@/utils/utils";
 import "@/lib/ag-grid-setup";
@@ -72,16 +72,16 @@ const dataAccount: Record<string, DataItem[]> = {
 export default function ApplicationDetailPage({
   params,
 }: {
-  params: Promise<{ appId: string }>;
+  params: { id: string };
 }) {
-  const resolvedParams = use(params);
-  const { id } = resolvedParams;
+  const { id } = params;
   const [tabIndex, setTabIndex] = useState(1);
   const [entTabIndex, setEntTabIndex] = useState(1); // Set to 1 for "Under Review"
   const gridApiRef = useRef<GridApi | null>(null);
   const [selected, setSelected] = useState<{ [key: string]: number | null }>(
     {}
   );
+  const [mounted, setMounted] = useState(false);
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
   const [nodeData, setNodeData] = useState<any>(null);
   const [isEntitlementSidebarOpen, setIsEntitlementSidebarOpen] = useState(false);
@@ -93,6 +93,10 @@ export default function ApplicationDetailPage({
     security: false,
     lifecycle: false,
   });
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   const [comment, setComment] = useState("");
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
   const [commentText, setCommentText] = useState("");
@@ -1211,6 +1215,7 @@ export default function ApplicationDetailPage({
             <div className="flex justify-end mb-4 relative z-10">
               <Exports gridApi={gridApiRef.current} />
             </div>
+            {mounted && (
             <AgGridReact
               rowData={entPaginatedData}
               columnDefs={colDefs}
@@ -1224,7 +1229,7 @@ export default function ApplicationDetailPage({
                 const baseId = data.entitlementId || data.entitlementid || data.id || `${data.applicationName || ''}-${data.entitlementName || data.name || ''}`;
                 return data.__isDescRow ? `${baseId}-desc` : baseId;
               }}
-            />
+            />)}
             <div className="flex justify-center mt-4">
               <CustomPagination
                 totalItems={entTotalItems}
@@ -1327,6 +1332,7 @@ export default function ApplicationDetailPage({
           <div className="flex justify-end mb-4 relative z-10">
             <Exports gridApi={gridApiRef.current} />
           </div>
+          {mounted && (
           <AgGridReact
             rowData={entPaginatedData}
             columnDefs={underReviewColDefs}
@@ -1340,7 +1346,7 @@ export default function ApplicationDetailPage({
               const baseId = data.entitlementId || data.entitlementid || data.id || `${data.applicationName || ''}-${data.entitlementName || data.name || ''}`;
               return data.__isDescRow ? `${baseId}-desc` : baseId;
             }}
-          />
+          />)}
           <div className="flex justify-center mt-4">
             <CustomPagination
               totalItems={entTotalItems}
@@ -1465,13 +1471,14 @@ export default function ApplicationDetailPage({
             <div className="flex justify-end mb-4 relative z-10 pt-4">
               <Exports gridApi={gridApiRef.current} />
             </div>
+            {mounted && (
             <AgGridReact
               rowData={paginatedData}
               columnDefs={columnDefs}
               defaultColDef={defaultColDef}
               masterDetail={true}
               // detailCellRendererParams={detailCellRendererParams}
-            />
+            />)}
             <div className="flex justify-center">
               <CustomPagination
                 totalItems={totalItems}

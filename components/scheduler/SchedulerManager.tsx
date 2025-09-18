@@ -145,39 +145,49 @@ export default function SchedulerManager() {
 
       // Map API response to our JobSchedule interface
       // Handle the format: ["groupname:jobname"]
-      const mappedJobs: JobSchedule[] = data.map(
-        (jobString: string, index: number) => {
-          // Parse the "groupname:jobname" format
-          const [groupName, jobName] = jobString.includes(":")
-            ? jobString.split(":")
-            : ["Default", jobString];
+      const mappedJobs: JobSchedule[] = data.map((jobString: string) => {
+        // Parse the "groupname:jobname" format
+        const [groupName, jobName] = jobString.includes(":")
+          ? jobString.split(":")
+          : ["Default", jobString];
 
-          return {
-            id: `job-${index}`,
-            name: jobName || `Job ${index + 1}`,
-            jobClass: DEFAULT_JOB_CLASS, // Default job class
-            misfireInstruction: MISFIRE_INSTRUCTIONS[0], // Default misfire instruction
-            startDate: "",
-            endDate: "",
-            repeatInterval: 5000, // Default 5 seconds
-            repeatCount: 10, // Default repeat count
-            status: "stopped" as const,
-            isRunning: false,
-            currentExecution: 0,
-            startTime: undefined,
-            nextExecutionTime: undefined,
-            // Store additional info for reference
-            groupName: groupName,
-            description: undefined, // Will be populated from job details API
-          };
-        }
-      );
+        // Use a stable ID so selection doesn't jump when list changes
+        const stableId = `${groupName}:${jobName}`;
+
+        return {
+          id: stableId,
+          name: jobName || "",
+          jobClass: DEFAULT_JOB_CLASS, // Default job class
+          misfireInstruction: MISFIRE_INSTRUCTIONS[0], // Default misfire instruction
+          startDate: "",
+          endDate: "",
+          repeatInterval: 5000, // Default 5 seconds
+          repeatCount: 10, // Default repeat count
+          status: "stopped" as const,
+          isRunning: false,
+          currentExecution: 0,
+          startTime: undefined,
+          nextExecutionTime: undefined,
+          // Store additional info for reference
+          groupName: groupName,
+          description: undefined, // Will be populated from job details API
+        };
+      });
 
       setSchedules(mappedJobs);
 
-      // If we have jobs and no selected schedule, select the first one
-      if (mappedJobs.length > 0 && !selectedSchedule) {
-        setSelectedSchedule(mappedJobs[0]);
+      // Preserve current selection if possible; otherwise select first job
+      if (mappedJobs.length > 0) {
+        if (selectedSchedule) {
+          const match = mappedJobs.find(
+            (j) => j.groupName === selectedSchedule.groupName && j.name === selectedSchedule.name
+          );
+          if (match) {
+            setSelectedSchedule(match);
+          }
+        } else {
+          setSelectedSchedule(mappedJobs[0]);
+        }
       }
     } catch (err) {
       console.error("Error fetching jobs:", err);
@@ -212,6 +222,13 @@ export default function SchedulerManager() {
 
       const data = await response.json();
       console.log("Fetched job details:", data);
+
+      // Before applying, ensure the user is still viewing this job
+      const targetId = `${groupName}:${jobName}`;
+      if (selectedSchedule && selectedSchedule.id !== targetId) {
+        // Selection changed while request was in-flight; ignore
+        return;
+      }
 
       // Store the raw API response data
       setJobDetailsData(data);
@@ -281,7 +298,10 @@ export default function SchedulerManager() {
             selectedSchedule.nextFireTime,
         };
 
-        setSelectedSchedule(updatedSchedule);
+        // Only apply if still the selected job
+        if (selectedSchedule.id === targetId) {
+          setSelectedSchedule(updatedSchedule);
+        }
 
         // Update the schedules array with the updated job
         setSchedules((prev) =>
@@ -318,6 +338,12 @@ export default function SchedulerManager() {
       }
 
       const data = await response.json();
+
+      // Ensure still viewing this job
+      const targetId = `${groupName}:${jobName}`;
+      if (selectedSchedule && selectedSchedule.id !== targetId) {
+        return;
+      }
 
       // Check if the response contains an error
       if (data && typeof data === "object" && (data.message || data.error)) {
@@ -1059,7 +1085,7 @@ export default function SchedulerManager() {
         isRunning: true,
         startTime: startTime,
         nextExecutionTime: new Date(
-          Date.now() + selectedSchedule.reviewInterval
+          Date.now() + selectedSchedule.repeatInterval
         ),
       };
 
@@ -1314,11 +1340,8 @@ export default function SchedulerManager() {
                       selectedSchedule?.id === schedule.id ? "selected" : ""
                     } ${schedule.status}`}
                     onClick={() => {
+                      // Only set selection; data fetching is driven by effect below
                       setSelectedSchedule(schedule);
-                      // Fetch job details if we have group name
-                      if (schedule.groupName) {
-                        fetchJobDetails(schedule.groupName, schedule.name);
-                      }
                     }}
                   >
                     <div className="trigger-name">{schedule.name}</div>
