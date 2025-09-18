@@ -304,6 +304,134 @@ const HeaderContent = () => {
     lastSync: string;
   } | null>(null);
 
+  // Avatar mapping and fallbacks (reuse logic from TreeClient)
+  const [avatarErrorIndexByKey, setAvatarErrorIndexByKey] = useState<Record<string, number>>({});
+  const [avatarMap, setAvatarMap] = useState<Record<string, string>>({});
+  const [availableRandomSvgs, setAvailableRandomSvgs] = useState<string[]>([]);
+  const [maleNames, setMaleNames] = useState<Set<string>>(new Set());
+  const [femaleNames, setFemaleNames] = useState<Set<string>>(new Set());
+
+  const getHeaderUserKey = (u: any): string => {
+    if (!u) return "";
+    return String(u.userId || u.username || u.email || u.id || u.username || "");
+  };
+
+  const getFirstName = (u: any): string => {
+    const full = String(u?.username || "").trim();
+    if (!full) return "";
+    return full.split(/\s+/)[0].toLowerCase();
+  };
+
+  const isLikelyMale = (u: any): boolean => {
+    const gender = String(u?.gender || u?.sex || "").toLowerCase();
+    if (gender === 'male' || gender === 'm') return true;
+    if (gender === 'female' || gender === 'f') return false;
+    const first = getFirstName(u);
+    if (!first) return false;
+    if (maleNames.size > 0 && maleNames.has(first)) return true;
+    if (femaleNames.size > 0 && femaleNames.has(first)) return false;
+    return false;
+  };
+
+  const getAvatarCandidates = (u: any): string[] => {
+    const candidates: string[] = [];
+    // Prefer a global header image if present
+    candidates.push(
+      "/pictures/user_image2.jpg",
+      "/pictures/user_image2.png",
+      "/pictures/user_image2.webp",
+      "/pictures/user_image2.jpeg",
+    );
+    if (u) {
+      if (isLikelyMale(u)) {
+        candidates.push(
+          "/pictures/user_male.svg",
+          "/pictures/user_male.png",
+          "/pictures/user_male.jpg",
+          "/pictures/user_male.webp",
+          "/pictures/user_male.jpeg",
+        );
+      } else {
+        candidates.push(
+          "/pictures/user_female.svg",
+          "/pictures/user_female.png",
+          "/pictures/user_female.jpg",
+          "/pictures/user_female.webp",
+          "/pictures/user_female.jpeg",
+        );
+      }
+    }
+    // Deterministic random SVG per user if provided
+    if (u && Array.isArray(availableRandomSvgs) && availableRandomSvgs.length > 0) {
+      const key = getHeaderUserKey(u);
+      let hash = 0;
+      for (let i = 0; i < key.length; i++) {
+        hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+      }
+      const filename = availableRandomSvgs[hash % availableRandomSvgs.length];
+      if (filename) {
+        const normalized = filename.startsWith('/') ? filename : `/pictures/${filename}`;
+        candidates.push(normalized);
+      }
+    }
+    if (u) {
+      const mapKeyCandidates = [
+        String(u.userId || "").trim(),
+        String(u.username || "").trim(),
+        String(u.email || "").trim(),
+        String(u.id || "").trim(),
+      ].filter(Boolean);
+      for (const k of mapKeyCandidates) {
+        const mapped = avatarMap[k];
+        if (mapped) {
+          const normalized = mapped.startsWith("/") ? mapped : `/pictures/${mapped}`;
+          candidates.push(normalized);
+          break;
+        }
+      }
+      const rawParts = [
+        String(u.photoFilename || "").trim(),
+        String(u.userId || "").trim(),
+        String(u.username || "").trim(),
+        String(u.email || "").trim(),
+        String(u.id || "").trim(),
+        String(u.username || "").trim(),
+        String(u.username || "").trim().replace(/\s+/g, "_")
+      ].filter(Boolean);
+      const exts = [".jpg", ".jpeg", ".png", ".webp", ".svg"];
+      for (const part of rawParts) {
+        for (const ext of exts) {
+          candidates.push(`/pictures/${part}${ext}`);
+        }
+      }
+    }
+    candidates.push("/User.jpg");
+    return Array.from(new Set(candidates));
+  };
+
+  const renderUserAvatar = (u: any, size: number, roundedClass: string) => {
+    const userKey = getHeaderUserKey(u);
+    const candidates = getAvatarCandidates(u);
+    const index = Math.max(0, avatarErrorIndexByKey[userKey] ?? 0);
+    const src = candidates[Math.min(index, candidates.length - 1)];
+    return (
+      <Image
+        src={src}
+        alt="User Avatar"
+        width={size}
+        height={size}
+        className={`${roundedClass}`}
+        onError={() => {
+          setAvatarErrorIndexByKey((prev) => {
+            const next = { ...prev } as Record<string, number>;
+            next[userKey] = Math.min((prev[userKey] ?? 0) + 1, candidates.length - 1);
+            return next;
+          });
+        }}
+      />
+    );
+  };
+
   // Check if we should show the header (for access-review pages, but not app-owner or individual applications)
   const shouldShowHeader =
     pathname?.includes('/access-review/') &&
@@ -483,6 +611,24 @@ const HeaderContent = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const controller1 = new AbortController();
+    const controller2 = new AbortController();
+    fetch('/pictures/male_names.json', { signal: controller1.signal })
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (Array.isArray(data)) setMaleNames(new Set(data.map((s: any) => String(s).toLowerCase())));
+      })
+      .catch(() => {});
+    fetch('/pictures/female_names.json', { signal: controller2.signal })
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (Array.isArray(data)) setFemaleNames(new Set(data.map((s: any) => String(s).toLowerCase())));
+      })
+      .catch(() => {});
+    return () => { controller1.abort(); controller2.abort(); };
+  }, []);
+
   // Effect to handle application details
   useEffect(() => {
     const handleApplicationDataChange = (event: CustomEvent) => {
@@ -513,6 +659,35 @@ const HeaderContent = () => {
     return () => {
       window.removeEventListener('applicationDataChange', handleApplicationDataChange as EventListener);
     };
+  }, []);
+
+  // Load optional avatars mapping shared with TreeClient
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/pictures/avatars.json', { signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data = await res.json().catch(() => null);
+        if (data && typeof data === 'object') {
+          setAvatarMap(data as Record<string, string>);
+        }
+      })
+      .catch(() => {})
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/pictures/random_svgs.json', { signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data = await res.json().catch(() => null);
+        if (Array.isArray(data)) {
+          setAvailableRandomSvgs(data.filter((s: any) => typeof s === 'string'));
+        }
+      })
+      .catch(() => {})
+    return () => controller.abort();
   }, []);
 
   // Debug logging
@@ -641,13 +816,7 @@ const HeaderContent = () => {
       {/* Right Section */}
       <div className="flex items-center h-full justify-end gap-4 px-4">
         <div className="flex items-center gap-3">
-          <Image
-            src="https://avatar.iran.liara.run/public/2"
-            alt="User Avatar"
-            width={28}
-            height={28}
-            className="object-cover rounded-full"
-          />
+          {renderUserAvatar(userDetails, 36, "object-cover rounded-full w-9 h-9")}
           <span className="text-white font-medium text-sm">
             {/* {userDetails?.username || "IAM Admin"} */}
             IAM Admin

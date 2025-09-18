@@ -156,6 +156,12 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const [accountFilter, setAccountFilter] = useState<string>("");
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
   const [selectedRowForPanel, setSelectedRowForPanel] = useState<any | null>(null);
+  const [avatarErrorIndexByKey, setAvatarErrorIndexByKey] = useState<Record<string, number>>({});
+  const [avatarMap, setAvatarMap] = useState<Record<string, string>>({});
+  const [availableRandomSvgs, setAvailableRandomSvgs] = useState<string[]>([]);
+  const [maleNames, setMaleNames] = useState<Set<string>>(new Set());
+  const [femaleNames, setFemaleNames] = useState<Set<string>>(new Set());
+  const [indexImageBases, setIndexImageBases] = useState<string[]>([]);
 
   const pageSizeSelector = [10, 20, 50, 100];
   const defaultPageSize = pageSizeSelector[0];
@@ -172,6 +178,204 @@ const TreeClient: React.FC<TreeClientProps> = ({
 
   const getUserStableKey = useCallback((u: any): string => {
     return String(u?.username || u?.email || u?.userId || u?.id || "");
+  }, []);
+
+  const getFirstName = useCallback((u: any): string => {
+    const full = String(u?.fullName || u?.username || "").trim();
+    if (!full) return "";
+    return full.split(/\s+/)[0].toLowerCase();
+  }, []);
+
+  const isLikelyMale = useCallback((u: any): boolean => {
+    const gender = String(u?.gender || u?.sex || "").toLowerCase();
+    if (gender === 'male' || gender === 'm') return true;
+    if (gender === 'female' || gender === 'f') return false;
+    const first = getFirstName(u);
+    if (!first) return false;
+    if (maleNames.size > 0 && maleNames.has(first)) return true;
+    if (femaleNames.size > 0 && femaleNames.has(first)) return false;
+    return false;
+  }, [femaleNames, maleNames, getFirstName]);
+
+  const getAvatarCandidates = useCallback((u: any, indexHint?: number): string[] => {
+    const candidates: string[] = [];
+    // Index-based mapping if provided (1-based index)
+    if (indexHint && indexImageBases.length > 0) {
+      const base = indexImageBases[(indexHint - 1) % indexImageBases.length];
+      if (base) {
+        candidates.push(
+          `/pictures/${base}.svg`,
+          `/pictures/${base}.png`,
+          `/pictures/${base}.jpg`,
+          `/pictures/${base}.webp`,
+          `/pictures/${base}.jpeg`,
+        );
+      }
+    }
+    // Prefer a global user image if present
+    candidates.push(
+      "/pictures/user_image2.jpg",
+      "/pictures/user_image2.png",
+      "/pictures/user_image2.webp",
+      "/pictures/user_image2.svg",
+      "/pictures/user_image2.jpeg",
+    );
+    // Gender-specific overrides if available
+    if (u) {
+      if (isLikelyMale(u)) {
+        candidates.push(
+          "/pictures/user_male.svg",
+          "/pictures/user_male.png",
+          "/pictures/user_male.jpg",
+          "/pictures/user_male.webp",
+          "/pictures/user_male.jpeg",
+        );
+      } else {
+        candidates.push(
+          "/pictures/user_female.svg",
+          "/pictures/user_female.png",
+          "/pictures/user_female.jpg",
+          "/pictures/user_female.webp",
+          "/pictures/user_female.jpeg",
+        );
+      }
+    }
+    // Add a deterministic random SVG per user if a list is provided
+    if (u && Array.isArray(availableRandomSvgs) && availableRandomSvgs.length > 0) {
+      const key = getUserStableKey(u);
+      let hash = 0;
+      for (let i = 0; i < key.length; i++) {
+        hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+      }
+      const filename = availableRandomSvgs[hash % availableRandomSvgs.length];
+      if (filename) {
+        const normalized = filename.startsWith('/') ? filename : `/pictures/${filename}`;
+        candidates.push(normalized);
+      }
+    }
+    // If a mapping exists, prioritize it
+    const mapKeyCandidates = [
+      String(u?.userId || "").trim(),
+      String(u?.username || "").trim(),
+      String(u?.email || "").trim(),
+      String(u?.id || "").trim(),
+    ].filter(Boolean);
+    for (const k of mapKeyCandidates) {
+      const mapped = avatarMap[k];
+      if (mapped) {
+        // If mapping already includes extension/path, use as-is under /pictures
+        const normalized = mapped.startsWith("/") ? mapped : `/pictures/${mapped}`;
+        candidates.push(normalized);
+        break; // First mapping hit wins
+      }
+    }
+    const rawParts = [
+      String(u?.photoFilename || "").trim(),
+      String(u?.userId || "").trim(),
+      String(u?.username || "").trim(),
+      String(u?.email || "").trim(),
+      String(u?.id || "").trim(),
+      String(u?.fullName || "").trim().replace(/\s+/g, "_")
+    ].filter(Boolean);
+
+    const exts = [".jpg", ".jpeg", ".png", ".webp", ".svg"];
+    for (const part of rawParts) {
+      for (const ext of exts) {
+        candidates.push(`/pictures/${part}${ext}`);
+      }
+    }
+    // Default fallback
+    candidates.push("/User.jpg");
+    // Ensure uniqueness while preserving order
+    return Array.from(new Set(candidates));
+  }, [avatarMap, availableRandomSvgs, getUserStableKey, indexImageBases, isLikelyMale]);
+
+  const renderUserAvatar = useCallback((u: any, size: number, roundedClass: string, indexHint?: number) => {
+    if (!u) return null;
+    const userKey = getUserStableKey(u);
+    const candidates = getAvatarCandidates(u, indexHint);
+    const index = Math.max(0, avatarErrorIndexByKey[userKey] ?? 0);
+    const src = candidates[Math.min(index, candidates.length - 1)];
+    return (
+      <Image
+        src={src}
+        alt="User Avatar"
+        width={size}
+        height={size}
+        className={`${roundedClass}`}
+        onError={() => {
+          setAvatarErrorIndexByKey((prev) => {
+            const next = { ...prev } as Record<string, number>;
+            next[userKey] = Math.min((prev[userKey] ?? 0) + 1, candidates.length - 1);
+            return next;
+          });
+        }}
+      />
+    );
+  }, [avatarErrorIndexByKey, getAvatarCandidates, getUserStableKey]);
+
+  useEffect(() => {
+    // Try to load optional avatar mapping file
+    const controller = new AbortController();
+    fetch('/pictures/avatars.json', { signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data = await res.json().catch(() => null);
+        if (data && typeof data === 'object') {
+          setAvatarMap(data as Record<string, string>);
+        }
+      })
+      .catch(() => {})
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    // Load optional list of random SVG filenames
+    const controller = new AbortController();
+    fetch('/pictures/random_svgs.json', { signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data = await res.json().catch(() => null);
+        if (Array.isArray(data)) {
+          setAvailableRandomSvgs(data.filter((s: any) => typeof s === 'string'));
+        }
+      })
+      .catch(() => {})
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    // Optional: load index-based image base names array
+    const controller = new AbortController();
+    fetch('/pictures/index_image_map.json', { signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data = await res.json().catch(() => null);
+        if (Array.isArray(data)) {
+          setIndexImageBases(data.filter((s: any) => typeof s === 'string'));
+        }
+      })
+      .catch(() => {})
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    // Optional: load male and female first-name lists to improve detection
+    const controller1 = new AbortController();
+    const controller2 = new AbortController();
+    fetch('/pictures/male_names.json', { signal: controller1.signal })
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (Array.isArray(data)) setMaleNames(new Set(data.map((s: any) => String(s).toLowerCase())));
+      })
+      .catch(() => {});
+    fetch('/pictures/female_names.json', { signal: controller2.signal })
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (Array.isArray(data)) setFemaleNames(new Set(data.map((s: any) => String(s).toLowerCase())));
+      })
+      .catch(() => {});
+    return () => { controller1.abort(); controller2.abort(); };
   }, []);
 
   const selectUser = useCallback((user: UserRowData | null) => {
@@ -1099,13 +1303,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                           {getUserInitials(user.fullName || "")}
                         </div>
                       ) : (
-                        <Image
-                          src="https://avatar.iran.liara.run/public/9"
-                          alt="User Avatar"
-                          width={28}
-                          height={28}
-                          className="w-7 h-7 rounded-full"
-                        />
+                        renderUserAvatar(user, 40, "w-10 h-10 rounded-full", index + 1)
                       )}
                     </div>
 
@@ -1189,20 +1387,11 @@ const TreeClient: React.FC<TreeClientProps> = ({
               <div className="flex items-center justify-between gap-3 bg-gray-50 p-3 rounded-md">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-14 h-14 rounded-full flex items-center justify-center text-white font-semibold text-lg flex-shrink-0">
-                    {/* {selectedUser.fullName
-                      ? selectedUser.fullName
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")
-                          .toUpperCase()
-                      : "??"} */}
-                    <Image
-                      src="https://avatar.iran.liara.run/public/2"
-                      alt="User Avatar"
-                      width={36}
-                      height={36}
-                      className="object-cover rounded-full"
-                    />
+                    {renderUserAvatar(selectedUser, 48, "object-cover rounded-full w-12 h-12") || (
+                      <div className="w-12 h-12 rounded-full bg-blue-200 text-blue-600 flex items-center justify-center font-semibold text-sm">
+                        {getUserInitials(selectedUser?.fullName || "")}
+                      </div>
+                    )}
                   </div>
                   <div className="flex flex-col min-w-0">
                     <h4 className="text-lg font-bold text-gray-900 truncate">
