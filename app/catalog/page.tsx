@@ -19,6 +19,7 @@ import {
 import { getCatalogEntitlements } from "@/lib/api";
 import { PaginatedResponse } from "@/types/api";
 import EntitlementRiskSidebar from "@/components/EntitlementRiskSidebar";
+import CustomPagination from "@/components/agTable/CustomPagination";
 
 interface TabProps {
   tabs: { label: string }[];
@@ -62,6 +63,10 @@ const CatalogPageContent = () => {
   const [rowData, setRowData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [pageSize, setPageSize] = useState<number>(20);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [totalItems, setTotalItems] = useState<number>(0);
 
   // Get appinstanceid and reviewerId from URL parameters with fallback values
   const appInstanceId =
@@ -915,6 +920,16 @@ const CatalogPageContent = () => {
     []
   );
 
+  const updatePaginationState = (api: GridApi | null) => {
+    if (!api) return;
+    const pageZeroBased = api.paginationGetCurrentPage?.() ?? 0;
+    const totalPageCount = api.paginationGetTotalPages?.() ?? 1;
+    const filteredRowCount = api.getDisplayedRowCount?.() ?? rowData.length;
+    setCurrentPage(Math.max(1, pageZeroBased + 1));
+    setTotalPages(Math.max(1, totalPageCount));
+    setTotalItems(filteredRowCount);
+  };
+
   if (loading) {
     return (
       <div className="ag-theme-alpine" style={{ height: 600, width: "100%" }}>
@@ -961,8 +976,11 @@ const CatalogPageContent = () => {
       className={`ag-theme-alpine transition-all duration-300 ease-in-out ${
         isSidePanelOpen ? "mr-[500px]" : "mr-0"
       }`}
-      style={{ height: "calc(100vh - 120px)", width: "100%" }}
+      style={{ width: "100%" }}
     >
+      <style jsx global>{`
+        .ag-paging-panel { display: none !important; }
+      `}</style>
       <div className="relative mb-4 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold pb-2 text-blue-950">Entitlements</h1>
@@ -1008,6 +1026,7 @@ const CatalogPageContent = () => {
               </option>
             ))}
           </select>
+          {/* Page size selector intentionally removed to match provided design */}
           <Tabs
             tabs={tabsDataEnt}
             activeClass="bg-[#2563eb] text-white text-sm rounded-sm"
@@ -1018,14 +1037,7 @@ const CatalogPageContent = () => {
           />
         </div>
       </div>
-      {/* <div className="flex justify-end mb-2">
-        <button className="p-2 hover:bg-gray-300 rounded-md transition-colors">
-          <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-        </button>
-      </div> */}
-      <div style={{ height: "calc(100% - 60px)", width: "100%" }}>
+      <div style={{ width: "100%" }}>
         <AgGridReact
           rowData={filteredRowData}
           columnDefs={entTabIndex === 0 ? colDefs : underReviewColDefs}
@@ -1033,7 +1045,9 @@ const CatalogPageContent = () => {
           animateRows={true}
           rowSelection="multiple"
           onRowClicked={handleRowClick}
-          getRowHeight={() => 80}
+          domLayout="autoHeight"
+          pagination={true}
+          paginationPageSize={pageSize}
           suppressRowTransform={true}
           getRowId={(params: any) => {
             const d = params.data || {};
@@ -1044,7 +1058,30 @@ const CatalogPageContent = () => {
               `${d.applicationName || ""}|${d.entitlementName || d.name || ""}`
             );
           }}
-          onGridReady={(params: any) => setGridApi(params.api)}
+          onGridReady={(params: any) => {
+            setGridApi(params.api);
+            params.api.setGridOption("paginationPageSize", pageSize);
+            updatePaginationState(params.api);
+            params.api.addEventListener("paginationChanged", () => updatePaginationState(params.api));
+            params.api.addEventListener("modelUpdated", () => updatePaginationState(params.api));
+            params.api.addEventListener("filterChanged", () => updatePaginationState(params.api));
+            params.api.addEventListener("sortChanged", () => updatePaginationState(params.api));
+          }}
+        />
+      </div>
+
+      <div className="mt-3">
+        <CustomPagination
+          totalItems={totalItems}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          onPageChange={(newPage) => {
+            if (!gridApi) return;
+            gridApi.paginationGoToPage(newPage - 1);
+            updatePaginationState(gridApi);
+          }}
+          gridApi={gridApi as any}
         />
       </div>
 

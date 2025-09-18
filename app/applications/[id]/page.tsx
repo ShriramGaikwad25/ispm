@@ -1218,6 +1218,7 @@ export default function ApplicationDetailPage({
               masterDetail={true}
               getRowHeight={(params) => (params?.data?.__isDescRow ? 36 : 40)}
               detailCellRendererParams={detailCellRendererParams}
+              domLayout="autoHeight"
               getRowId={(params) => {
                 const data = params.data || {};
                 const baseId = data.entitlementId || data.entitlementid || data.id || `${data.applicationName || ''}-${data.entitlementName || data.name || ''}`;
@@ -1242,7 +1243,7 @@ export default function ApplicationDetailPage({
       icon: ChevronDown,
       iconOff: ChevronRight,
       component: () => (
-        <div className="ag-theme-alpine" style={{ height: 880, width: "100%" }}>
+        <div className="ag-theme-alpine" style={{ width: "100%" }}>
           <div className="relative mb-4"></div>
           {/* <div className="relative mb-2">
             <Accordion
@@ -1333,6 +1334,7 @@ export default function ApplicationDetailPage({
             masterDetail={true}
             getRowHeight={(params) => (params?.data?.__isDescRow ? 36 : 40)}
             detailCellRendererParams={detailCellRendererParams}
+            domLayout="autoHeight"
             getRowId={(params) => {
               const data = params.data || {};
               const baseId = data.entitlementId || data.entitlementid || data.id || `${data.applicationName || ''}-${data.entitlementName || data.name || ''}`;
