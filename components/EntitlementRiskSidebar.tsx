@@ -86,7 +86,7 @@ const EntitlementRiskSidebar: React.FC<EntitlementRiskSidebarProps> = ({
       const entitlementId = entitlementData?.entitlementId;
       if (entitlementId) {
         const resp = await fetch(
-          `https://preview.keyforge.ai/entities/api/v1/ACMECOM/policyrisk/entitlement/11a2af37-bf8d-46c5-b18e-ed0d41e96490`
+          `https://preview.keyforge.ai/entities/api/v1/ACMECOM/policyrisk/entitlement/${encodeURIComponent(entitlementId)}`
         );
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const json = await resp.json();
