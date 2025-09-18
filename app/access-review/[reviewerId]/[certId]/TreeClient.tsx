@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import Import from "@/components/agTable/Import";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import "./TreeClient.css";
 
 interface UserPopupProps {
@@ -148,6 +149,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
   });
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [sidebarLoading, setSidebarLoading] = useState(false);
   const [userSearch, setUserSearch] = useState("");
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
@@ -165,6 +167,18 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const [entitlementsPageNumber, setEntitlementsPageNumber] = useState(1);
   const [entitlementsTotalItems, setEntitlementsTotalItems] = useState(0);
   const [entitlementsTotalPages, setEntitlementsTotalPages] = useState(1);
+  const suppressAutoSelectRef = useRef(false);
+  const selectedUserKeyRef = useRef<string | null>(null);
+
+  const getUserStableKey = useCallback((u: any): string => {
+    return String(u?.username || u?.email || u?.userId || u?.id || "");
+  }, []);
+
+  const selectUser = useCallback((user: UserRowData | null) => {
+    if (!user) return;
+    selectedUserKeyRef.current = getUserStableKey(user);
+    setSelectedUser(user);
+  }, [getUserStableKey]);
 
   const { data: certificationDetailsData, error, refetch: refetchUsers } = useCertificationDetails(
     reviewerId,
@@ -173,27 +187,21 @@ const TreeClient: React.FC<TreeClientProps> = ({
     pageNumber
   );
 
-  useEffect(() => {
-    if (!certificationDetailsData) {
-      console.log("No certificationDetailsData available");
-      return;
-    }
-    console.log("certificationDetailsData:", certificationDetailsData);
-
-    const mapped = certificationDetailsData.items.map((task: any) => {
+  const mapUsersFromDetails = useCallback((details: any) => {
+    if (!details || !details.items) return [] as any[];
+    return details.items.map((task: any) => {
       const userInfo = task.userInfo || {};
       const access = task.access || {};
       const delta = task.deltaChanges || {};
-      const fullName = userInfo.firstname +` `+ userInfo.lastname;
-
+      const fullName = (userInfo.firstname || "") + " " + (userInfo.lastname || "");
       return {
-        id: task.taskId,
+        id: String(task.taskId),
         ...userInfo,
         status: userInfo.status || "Active",
         manager: userInfo.manager || "Unknown",
         userType: userInfo.userType || "Internal",
         certificationId: certId,
-        taskId: task.taskId,
+        taskId: String(task.taskId),
         jobtitle: userInfo.jobtitle || "Unknown",
         department: userInfo.department || "Unknown",
         numOfApplications: access.numOfApplications || 0,
@@ -205,17 +213,18 @@ const TreeClient: React.FC<TreeClientProps> = ({
         SoDConflicts: delta.SoDConflicts || [],
         addedAccounts: delta.addedAccounts || [],
         addedEntitlements: delta.addedEntitlements || [],
-        fullName: fullName || "",
+        fullName: fullName.trim(),
       };
     });
+  }, [certId]);
 
-    console.log("Mapped users:", mapped);
+  useEffect(() => {
+    if (!certificationDetailsData) return;
+    const mapped = mapUsersFromDetails(certificationDetailsData);
     setUsers(mapped);
     setTotalItems(certificationDetailsData.total_items || 0);
     setTotalPages(certificationDetailsData.total_pages || 1);
 
-    // Store user data in localStorage for header component
-    // Only update if we don't have existing campaign data from access review
     const existingCampaignData = localStorage.getItem("selectedCampaignSummary");
     if (!existingCampaignData) {
       const headerData = mapped.map((user: any) => ({
@@ -229,26 +238,51 @@ const TreeClient: React.FC<TreeClientProps> = ({
         jobtitle: user.jobtitle,
         userType: user.userType,
       }));
-
       localStorage.setItem("sharedRowData", JSON.stringify(headerData));
-      // Dispatch custom event to notify header component
       window.dispatchEvent(new Event("localStorageChange"));
     }
-  }, [certificationDetailsData, certId]);
+  }, [certificationDetailsData, mapUsersFromDetails]);
+
+  const refreshUsersAndEntitlements = useCallback(async () => {
+    try {
+      suppressAutoSelectRef.current = true;
+      const result = await refetchUsers();
+      const latest = result?.data;
+      if (latest) {
+        const mapped = mapUsersFromDetails(latest);
+        setUsers(mapped);
+        setTotalItems(latest.total_items || mapped.length || 0);
+        setTotalPages(latest.total_pages || 1);
+        const desiredKey = selectedUserKeyRef.current || getUserStableKey(selectedUser);
+        const nextSelected = mapped.find((u: any) => getUserStableKey(u) === desiredKey) || mapped[0];
+        if (nextSelected) {
+          selectUser(nextSelected);
+          await loadUserEntitlements(nextSelected, entitlementsPageNumber);
+        }
+      } else {
+        // Fallback: just refetch entitlements for current selection
+        if (selectedUser) {
+          await loadUserEntitlements(selectedUser, entitlementsPageNumber);
+        }
+      }
+    } catch (e) {
+      // As a final fallback, try a soft refresh
+      if (selectedUser) {
+        await loadUserEntitlements(selectedUser, entitlementsPageNumber);
+      }
+    } finally {
+      suppressAutoSelectRef.current = false;
+    }
+  }, [refetchUsers, mapUsersFromDetails, selectedUser, entitlementsPageNumber, getUserStableKey, selectUser]);
 
   // Auto-select first user when users are loaded or page changes
   useEffect(() => {
+    if (suppressAutoSelectRef.current) return;
     if (users.length > 0) {
-      // If no user is selected or the selected user is not in the current page, select the first user
-      const isSelectedUserInCurrentPage =
-        selectedUser && users.some((user) => user.id === selectedUser.id);
-      if (!selectedUser || !isSelectedUserInCurrentPage) {
+      if (!selectedUser) {
         const firstUser = users[0];
-        setSelectedUser(firstUser);
+        selectUser(firstUser);
         setEntitlementsPageNumber(1);
-
-        // Don't send progress data to header from TreeClient
-
         loadUserEntitlements(firstUser, 1);
         if (typeof onRowExpand === "function") {
           onRowExpand();
@@ -419,7 +453,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
   };
 
   const handleUserSelect = (user: UserRowData) => {
-    setSelectedUser(user);
+    selectUser(user);
     setEntitlementsPageNumber(1);
 
     loadUserEntitlements(user, 1);
@@ -837,10 +871,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
               reviewerId={reviewerId}
               certId={certId}
               onActionSuccess={() => {
-                refetchUsers();
-                if (selectedUser) {
-                  loadUserEntitlements(selectedUser, entitlementsPageNumber);
-                }
+                // Fully refresh users and entitlements
+                refreshUsersAndEntitlements();
               }}
             />
           );
@@ -946,10 +978,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     reviewerId={reviewerId}
                     certId={certId}
                     onActionSuccess={() => {
-                      refetchUsers();
-                      if (selectedUser) {
-                        loadUserEntitlements(selectedUser, entitlementsPageNumber);
-                      }
+                      refreshUsersAndEntitlements();
                     }}
                   />
                 </div>
