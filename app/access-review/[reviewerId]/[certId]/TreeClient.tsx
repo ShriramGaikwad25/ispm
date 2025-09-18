@@ -325,6 +325,18 @@ const TreeClient: React.FC<TreeClientProps> = ({
           const entitlementName = item.entitlementName || entitlementInfo.entitlementName || item.name || item.entitlement_name || "";
           const entitlementDescription = item.entitlementDescription || entitlementInfo.entitlementDescription || item.description || item.entitlement_description || "";
           const entitlementType = item.entitlementType || entitlementInfo.entitlementType || item.type || "";
+          const nestedEntityEntitlement = item.entityEntitlement || {};
+          const normalizedAction = nestedEntityEntitlement.action || item.action || account.action || "";
+          const normalizedStatus = (() => {
+            const a = String(normalizedAction).trim().toLowerCase();
+            if (a === 'approve') return 'approved';
+            if (a === 'pending') return 'pending';
+            if (a === 'reject') return 'revoked';
+            if (a === 'delegate') return 'delegated';
+            if (a === 'remediate') return 'remediated';
+            return '';
+          })();
+          const normalizedItemRisk = nestedEntityEntitlement.itemRisk || item.itemRisk || item.entityEntitlements?.itemRisk || account.itemRisk || "";
 
           return ({
           ...account,
@@ -333,7 +345,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
           entitlementType,
           recommendation: item.aiassist?.Recommendation ?? "",
           accessedWithinAMonth: item.aiassist?.accessedWithinAMonth ?? "",
-          itemRisk: item.entityEntitlements?.itemRisk ?? "",
+          itemRisk: normalizedItemRisk,
           percAccessInSameDept: item.aiassist?.percAccessInSameDept ?? "",
           percAccessWithSameJobtitle:
             item.aiassist?.percAccessWithSameJobtitle ?? "",
@@ -350,7 +362,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
           complianceViolation: item.complianceViolation || "",
             deltaChange: item.deltaChange || "",
             // Add action field - default to "Pending" if not set
-            action: item.action || account.action ,
+            action: normalizedAction,
+            status: normalizedStatus,
             // Use entitlement-level lineItem ID for actions, retain account line item for reference
           lineItemId: entitlementLineItemId,
           accountLineItemId: lineItemId,
@@ -369,6 +382,27 @@ const TreeClient: React.FC<TreeClientProps> = ({
       // Calculate and update progress data
       const progress = calculateProgressData(allRows);
       setProgressData(progress);
+
+      // Update selected user's progress counts so the UI percentage reflects latest actions
+      setSelectedUser((prev) => {
+        if (!prev || prev.id !== user.id) return prev;
+        return {
+          ...prev,
+          numOfEntitlements: progress.totalItems,
+          numOfEntitlementsCertified: progress.approvedCount,
+        } as UserRowData;
+      });
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === user.id
+            ? {
+                ...u,
+                numOfEntitlements: progress.totalItems,
+                numOfEntitlementsCertified: progress.approvedCount,
+              }
+            : u
+        )
+      );
 
       // Don't send progress data to header from TreeClient
       // The header should get progress data from the page level
@@ -505,38 +539,64 @@ const TreeClient: React.FC<TreeClientProps> = ({
     }
   }, []);
 
+  // Reset entitlements pagination when filters change
+  useEffect(() => {
+    setEntitlementsPageNumber(1);
+  }, [selectedFilters]);
+
   // Filter entitlements based on selected filters
   const filteredEntitlements = useMemo(() => {
     if (selectedFilters.length === 0) {
-      console.log('No filters selected - showing all items:', entitlementsData.length);
       return entitlementsData;
     }
-    
-    // Debug: Log filter state
-    if (entitlementsData.length > 0 && selectedFilters.length > 0) {
-      console.log('Filtering by:', selectedFilters, 'Total items:', entitlementsData.length);
-    }
-    
+
+    const normalizedSelected = selectedFilters.map((f) => f.trim().toLowerCase());
+
     const filtered = entitlementsData.filter((entitlement) => {
-      const action = entitlement.action || '';
-      const status = entitlement.status?.toLowerCase() || '';
-      
-      return selectedFilters.some(filter => {
-        if (filter === 'Pending') {
-          return action === 'Pending';
-        } else if (filter === 'Certify') {
-          return action === 'Approve' || status === 'approved';
-        } else if (filter === 'Reject') {
-          return action === 'Reject' || status === 'revoked' || status === 'rejected';
-        } else if (filter === 'Delegated') {
-          return status === 'delegated';
-        } else if (filter === 'Remediated') {
-          return status === 'remediated';
+      const action = String(entitlement.action || '').trim().toLowerCase();
+      const status = String(entitlement.status || '').trim().toLowerCase();
+      const itemRisk = String(entitlement.itemRisk || '').trim().toLowerCase();
+      const deltaChange = String(entitlement.deltaChange || '').trim();
+      const hasViolation = Array.isArray(entitlement.SoDConflicts) && entitlement.SoDConflicts.length > 0;
+
+      return normalizedSelected.some((filter) => {
+        if (filter === 'pending') {
+          return action === 'pending' || status === 'pending';
         }
+        if (filter === 'certify') {
+          // Certify maps to Approve/Approved
+          return action === 'approve' || status === 'approved';
+        }
+        if (filter === 'reject') {
+          return action === 'reject' || status === 'revoked' || status === 'rejected';
+        }
+        if (filter === 'delegated') {
+          return action === 'delegate' || status === 'delegated';
+        }
+        if (filter === 'remediated') {
+          return action === 'remediate' || status === 'remediated';
+        }
+        // Handle chip filters shown above the table
+        if (filter === 'dormant access') {
+          // Treat as lastLogin older than a threshold or specific marker; fallback to pending non-use if available
+          // Here we approximate using accessedWithinAMonth === 'Not Accessed' if provided
+          const accessed = String(entitlement.accessedWithinAMonth || '').toLowerCase();
+          return accessed.includes('not accessed') || accessed.includes('no');
+        }
+        if (filter === 'violation') {
+          return hasViolation;
+        }
+        if (filter === 'high risk') {
+          return itemRisk === 'high' || itemRisk === 'critical';
+        }
+        if (filter === 'delta access') {
+          return deltaChange !== '' || entitlement.isNew === true;
+        }
+        // Unknown filter values (e.g., chip filters) are ignored
         return false;
       });
     });
-    
+
     return filtered;
   }, [entitlementsData, selectedFilters]);
 
