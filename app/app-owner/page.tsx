@@ -135,6 +135,16 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
         const access = account.access || {};
         const entityEntitlement = account.entityEntitlement || {};
         const recommendation = entityEntitlement.action || undefined;
+        const normalizedAction = String(entityEntitlement.action || "").trim();
+        const normalizedStatus = (() => {
+          const a = normalizedAction.toLowerCase();
+          if (a === 'approve') return 'approved';
+          if (a === 'reject') return 'revoked';
+          if (a === 'delegate') return 'delegated';
+          if (a === 'remediate') return 'remediated';
+          if (a === 'pending') return 'pending';
+          return 'pending';
+        })();
 
         return {
           accountId: accountInfo.accountId || `grouped-${index}`,
@@ -165,7 +175,7 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
             group.access?.numOfAccounts || accounts.length || 0,
           lineItemId: entityEntitlement.lineItemId || "",
           recommendation,
-          status: "Pending", // Default status for grouped data
+          status: normalizedStatus,
         };
       });
     });
@@ -180,7 +190,19 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
       );
       return [];
     }
-    return item.entityEntitlements.map((entitlement: any) => ({
+    return item.entityEntitlements.map((entitlement: any) => {
+      const entityEnt = entitlement.entityEntitlement || {};
+      const normalizedAction = String(entityEnt.action || "").trim();
+      const normalizedStatus = (() => {
+        const a = normalizedAction.toLowerCase();
+        if (a === 'approve') return 'approved';
+        if (a === 'reject') return 'revoked';
+        if (a === 'delegate') return 'delegated';
+        if (a === 'remediate') return 'remediated';
+        if (a === 'pending') return 'pending';
+        return 'pending';
+      })();
+      return ({
       accountId: item.accountInfo?.accountId || "",
       accountName: item.accountInfo?.accountName || "",
       userId: item.userInfo?.UserID || "",
@@ -188,7 +210,7 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
       entitlementDescription:
         entitlement.entitlementInfo?.description || "",
       aiInsights: entitlement.aiassist?.recommendation || "",
-      recommendation: entitlement.entityEntitlement?.action || undefined,
+      recommendation: entityEnt.action || undefined,
       accountSummary: item.accountInfo?.accountName?.includes("@")
         ? "Regular Accounts"
         : "Other",
@@ -206,8 +228,10 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
         "",
       numOfEntitlements: item.access?.numOfEntitlements || 0,
       lineItemId: entitlement.lineItemId || "",
-      status: "Pending", // Default status for ungrouped data
-    }));
+      status: normalizedStatus,
+      action: normalizedAction,
+    });
+    });
   });
 };
 
@@ -236,6 +260,7 @@ function AppOwnerContent() {
   const [groupByOption, setGroupByOption] = useState<string>("None");
   const [selectedRows, setSelectedRows] = useState<RowData[]>([]);
   const [quickFilterText, setQuickFilterText] = useState("");
+  const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
   const [currentFilter, setCurrentFilter] = useState<string>("");
   
   // State for header info and user progress
@@ -713,6 +738,12 @@ function AppOwnerContent() {
 
   const [columnDefs, setColumnDefs] = useState<ColDef[]>([
     {
+      field: "status",
+      headerName: "Status",
+      hide: true,
+      filter: true,
+    },
+    {
       field: "entitlementName",
       headerName: "Entitlement",
       autoHeight: true,
@@ -810,12 +841,16 @@ function AppOwnerContent() {
       flex: 2,
       cellRenderer: (params: ICellRendererParams) => {
         return (
-          <ActionButtons
+            <ActionButtons
             api={params.api}
             selectedRows={[params.data]}
             context="entitlement"
             reviewerId={reviewerId}
             certId={certificationId}
+              onActionSuccess={() => {
+                // Refresh data and recompute progress after action
+                fetchData();
+              }}
           />
         );
       },
@@ -895,10 +930,35 @@ function AppOwnerContent() {
     }
   };
 
+  const handleAppliedFilter = (filters: string[]) => {
+    setSelectedFilters(filters);
+  };
+
+  useEffect(() => {
+    setPageNumber(1);
+  }, [selectedFilters]);
+
   const handleFilterChange = (filter: string) => {
     setCurrentFilter(filter);
-    setPageNumber(1); // Reset to first page when filter changes
+    setPageNumber(1);
   };
+
+  const filteredRowData = useMemo(() => {
+    if (!selectedFilters || selectedFilters.length === 0) return rowData;
+    const normalized = selectedFilters.map((f) => f.trim().toLowerCase());
+    return rowData.filter((r) => {
+      const action = String((r as any).action || '').trim().toLowerCase();
+      const status = String((r as any).status || '').trim().toLowerCase();
+      return normalized.some((f) => {
+        if (f === 'pending') return action === 'pending' || status === 'pending';
+        if (f === 'certify') return action === 'approve' || status === 'approved';
+        if (f === 'reject') return action === 'reject' || status === 'revoked' || status === 'rejected';
+        if (f === 'delegated') return action === 'delegate' || status === 'delegated';
+        if (f === 'remediated') return action === 'remediate' || status === 'remediated';
+        return false;
+      });
+    });
+  }, [rowData, selectedFilters]);
 
   const onFirstDataRendered = useCallback((params: FirstDataRenderedEvent) => {
     params.api.forEachNode(function (node) {
@@ -1006,9 +1066,9 @@ function AppOwnerContent() {
                 }}
               />
               <Filters 
-                gridApi={gridApiRef} 
+                gridApi={gridApiRef}
                 context="status"
-                onFilterChange={handleFilterChange}
+                appliedFilter={handleAppliedFilter}
                 initialSelected="Pending"
               />
             </div>
@@ -1077,7 +1137,7 @@ function AppOwnerContent() {
           ) : (
             <div className="w-full">
               <AgGridReact
-                rowData={rowData}
+                rowData={filteredRowData}
                 getRowId={(params: GetRowIdParams) =>
                   `${params.data.accountId}-${params.data.entitlementName}`
                 }
@@ -1130,7 +1190,7 @@ function AppOwnerContent() {
               />
               <div className="mt-0">
                 <CustomPagination
-                  totalItems={totalItems}
+                  totalItems={filteredRowData.length || totalItems}
                   currentPage={pageNumber}
                   totalPages={totalPages}
                   pageSize={defaultPageSize}
@@ -1261,6 +1321,9 @@ function AppOwnerContent() {
                       context="entitlement"
                       reviewerId={reviewerId}
                       certId={certificationId}
+                      onActionSuccess={() => {
+                        fetchData();
+                      }}
                     />
                   </div>
                 </div>

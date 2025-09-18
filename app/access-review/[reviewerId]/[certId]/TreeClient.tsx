@@ -149,6 +149,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const [sidebarLoading, setSidebarLoading] = useState(false);
   const [userSearch, setUserSearch] = useState("");
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
+  const [accountFilter, setAccountFilter] = useState<string>("");
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
   const [selectedRowForPanel, setSelectedRowForPanel] = useState<any | null>(null);
 
@@ -539,6 +540,11 @@ const TreeClient: React.FC<TreeClientProps> = ({
     }
   }, []);
 
+  // Handle account-level filter (Elevated, Orphan, Dormant, etc.)
+  const handleAccountFilterChange = useCallback((filter: string) => {
+    setAccountFilter(filter || "");
+  }, []);
+
   // Reset entitlements pagination when filters change
   useEffect(() => {
     setEntitlementsPageNumber(1);
@@ -546,8 +552,43 @@ const TreeClient: React.FC<TreeClientProps> = ({
 
   // Filter entitlements based on selected filters
   const filteredEntitlements = useMemo(() => {
+    // Helper to apply account filter predicates
+    const applyAccountFilter = (rows: any[]) => {
+      if (!accountFilter) return rows;
+      const f = accountFilter.toLowerCase();
+      return rows.filter((entitlement) => {
+        const accountType = String(entitlement.accountType || "").toLowerCase();
+        const userStatus = String(entitlement.userStatus || selectedUser?.status || "").toLowerCase();
+        const lastLogin = entitlement.lastLogin;
+        const accessed = String(entitlement.accessedWithinAMonth || "").toLowerCase();
+        const isNew = Boolean(entitlement.isNew);
+        const itemRisk = String(entitlement.itemRisk || entitlement.appRisk || "").toLowerCase();
+        const hasViolation = Array.isArray(entitlement.SoDConflicts) && entitlement.SoDConflicts.length > 0;
+        const complianceViolation = Boolean(entitlement.complianceViolation);
+
+        if (f.includes("iselevated")) return accountType === "elevated";
+        if (f.includes("isorphan")) return false; // No definitive signal in current data
+        if (f.includes("isterminated")) return userStatus === "terminated" || userStatus === "inactive";
+        if (f.includes("isdormant")) {
+          if (accessed.includes("not accessed") || accessed.includes("no")) return true;
+          if (lastLogin) {
+            const d = new Date(lastLogin);
+            if (!isNaN(d.getTime())) {
+              const diffDays = (Date.now() - d.getTime()) / (1000 * 60 * 60 * 24);
+              return diffDays > 30;
+            }
+          }
+          return false;
+        }
+        if (f.includes("isnewaccess")) return isNew;
+        if (f.includes("isoverprivileged")) return itemRisk === "high" || itemRisk === "critical";
+        if (f.includes("iscomplianceviolation")) return hasViolation || complianceViolation;
+        return true;
+      });
+    };
+
     if (selectedFilters.length === 0) {
-      return entitlementsData;
+      return applyAccountFilter(entitlementsData);
     }
 
     const normalizedSelected = selectedFilters.map((f) => f.trim().toLowerCase());
@@ -597,8 +638,9 @@ const TreeClient: React.FC<TreeClientProps> = ({
       });
     });
 
-    return filtered;
-  }, [entitlementsData, selectedFilters]);
+    // Apply account filter on top of status filters
+    return applyAccountFilter(filtered);
+  }, [entitlementsData, selectedFilters, accountFilter, selectedUser]);
 
   // Duplicate each entitlement row with a separate description row beneath
   const entRowsWithDesc = useMemo(() => {
@@ -1346,6 +1388,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
                 />
                 <Filters 
                   appliedFilter={handleAppliedFilter}
+                  onFilterChange={handleAccountFilterChange}
+                  context="account"
                 />
               </div>
               <div className="flex items-center gap-2">
