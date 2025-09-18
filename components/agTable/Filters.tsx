@@ -128,7 +128,9 @@ const Filters = ({
 
   const isActive = !!selectedFilter;
 
-  const options = context === "account" ? accountFilterOptions : statusOptions.map(opt => ({ label: opt, value: opt, count: opt }));
+  const options = context === "account"
+    ? accountFilterOptions
+    : statusOptions.map(opt => ({ label: opt, value: opt } as any));
 
   return (
     <div className={`relative ${isActive ? "w-48" : "w-44"}`}>
@@ -165,8 +167,7 @@ const Filters = ({
         </li>
         {options.map((option) => {
           const isSelected = selectedFilter === option.value;
-          const count = filterCounts[option.value] || option.count;
-          console.log(count)
+          const count = filterCounts[option.value] || (option as any).count;
           return (
             <li
               key={option.value}
@@ -186,11 +187,13 @@ const Filters = ({
                   {option.label}
                 </span>
               </div>
-              <span className={`text-xs px-2 py-1 rounded ${
-                isSelected ? "bg-blue-100 text-blue-600" : "bg-gray-100 text-gray-600"
-              }`}>
-                {count}
-              </span>
+              {context === "account" && (
+                <span className={`text-xs px-2 py-1 rounded ${
+                  isSelected ? "bg-blue-100 text-blue-600" : "bg-gray-100 text-gray-600"
+                }`}>
+                  {typeof count === "number" ? count : 0}
+                </span>
+              )}
             </li>
           );
         })}
