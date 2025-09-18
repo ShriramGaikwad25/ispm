@@ -1034,6 +1034,8 @@ function AppOwnerContent() {
           <ChartAppOwnerComponent 
             rowData={rowData} 
             onFilterChange={handleFilterChange}
+            activeFilter={currentFilter}
+            activeCount={totalItems}
           />
         </Accordion>
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-4 relative z-10 pt-10 gap-4">

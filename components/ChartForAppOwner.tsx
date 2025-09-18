@@ -10,11 +10,16 @@ interface DataItem {
 interface ChartAppOwnerComponentProps {
   rowData?: any[];
   onFilterChange?: (filter: string) => void;
+  // When a filter is applied in the parent, pass it back so we can show the total next to the clicked item
+  activeFilter?: string;
+  activeCount?: number;
 }
 
 const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
   rowData = [],
   onFilterChange,
+  activeFilter,
+  activeCount,
 }) => {
   // Colors tuned to match the screenshot
   const allData: DataItem[] = [
@@ -44,6 +49,7 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
   // Track selection for left and right columns separately
   const [selected, setSelected] = useState<{ [key: string]: number | null }>({});
 
+
   const handleSelect = (column: "left" | "right", index: number) => {
     const newSelection = selected[column] === index ? null : index;
     setSelected((prev) => ({
@@ -64,6 +70,17 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
         onFilterChange("");
       }
     }
+  };
+
+  const getDisplayValue = (
+    itemLabel: string,
+    isSelected: boolean
+  ): number => {
+    const mapped = filterMapping[itemLabel];
+    if (isSelected && activeFilter && mapped === activeFilter) {
+      return typeof activeCount === "number" ? activeCount : 0;
+    }
+    return allData.find((d) => d.label === itemLabel)?.value ?? 0;
   };
 
   return (
@@ -176,7 +193,7 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
                       isSelected ? "text-blue-700 border-blue-300" : "text-gray-900 border-gray-300"
                     } bg-white border px-2 py-1 rounded text-xs min-w-[20px] text-center`}
                   >
-                    {item.value}
+                    {getDisplayValue(item.label, isSelected)}
                   </span>
                 </div>
               );
@@ -240,7 +257,7 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
                       isSelected ? "text-blue-700 border-blue-300" : "text-gray-900 border-gray-300"
                     } bg-white border px-2 py-1 rounded text-xs min-w-[20px] text-center`}
                   >
-                    {item.value}
+                    {getDisplayValue(item.label, isSelected)}
                   </span>
                 </div>
               );
