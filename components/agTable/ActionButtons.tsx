@@ -1,7 +1,14 @@
 "use client";
 import { GridApi } from "ag-grid-enterprise";
 import { createPortal } from "react-dom";
-import { CircleCheck, CircleOff, CircleX, Edit2Icon, MoreVertical } from "lucide-react";
+import {
+  CircleCheck,
+  CircleOff,
+  CircleX,
+  Edit2Icon,
+  HistoryIcon,
+  MoreVertical,
+} from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { optionsForRemidiate, revokeOption } from "@/utils/utils";
 import Select from "react-select";
@@ -53,18 +60,22 @@ const ActionButtons = <T extends { status?: string }>({
   const [isDelegateModalOpen, setIsDelegateModalOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [changeAccountOwner, setChangeAccountOwner] = useState(false);
   const [sendForApproval, setSendForApproval] = useState(false);
   const [modifyAccessChecked, setModifyAccessChecked] = useState(false);
   const [immediateRevokeChecked, setImmediateRevokeChecked] = useState(false);
-  const [modifyAccessSelectedOption, setModifyAccessSelectedOption] = useState(null);
+  const [modifyAccessSelectedOption, setModifyAccessSelectedOption] =
+    useState(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [revokeSelection, setRevokeSelection] = useState(null);
   const [comment, setComment] = useState("");
   const [commentText, setCommentText] = useState("");
   const [reviewerType, setReviewerType] = useState(null);
   const [selectedOwner, setSelectedOwner] = useState<User | Group | null>(null);
-  const [selectedDelegate, setSelectedDelegate] = useState<User | Group | null>(null);
+  const [selectedDelegate, setSelectedDelegate] = useState<User | Group | null>(
+    null
+  );
   const [error, setError] = useState<string | null>(null);
   const [lastAction, setLastAction] = useState<string | null>(null);
 
@@ -74,24 +85,26 @@ const ActionButtons = <T extends { status?: string }>({
   const rowStatus = definedRows.length > 0 ? definedRows[0].status : null;
   const isApproved = rowStatus === "Approved";
   const isRejected = rowStatus === "Rejected";
-  
+
   // Check if action is "Approve" for entitlement context
-  const isApproveAction = context === "entitlement" && 
-    definedRows.length > 0 && 
+  const isApproveAction =
+    context === "entitlement" &&
+    definedRows.length > 0 &&
     (definedRows[0] as any)?.action === "Approve";
-  
+
   // Check if action is "Reject" for entitlement context
-  const isRejectAction = context === "entitlement" && 
-    definedRows.length > 0 && 
+  const isRejectAction =
+    context === "entitlement" &&
+    definedRows.length > 0 &&
     (definedRows[0] as any)?.action === "Reject";
 
   // API call to update actions
-const updateActions = async (actionType: string, justification: string) => {
-  const payload: any = {
-    useraction: [],
-    accountAction: [],
-    entitlementAction: [],
-  };
+  const updateActions = async (actionType: string, justification: string) => {
+    const payload: any = {
+      useraction: [],
+      accountAction: [],
+      entitlementAction: [],
+    };
 
     if (context === "user") {
       payload.useraction = definedRows.map((row: any) => ({
@@ -110,7 +123,9 @@ const updateActions = async (actionType: string, justification: string) => {
         {
           actionType,
           lineItemIds: definedRows
-            .map((row: any) => row.lineItemId || (row as any)?.accountLineItemId)
+            .map(
+              (row: any) => row.lineItemId || (row as any)?.accountLineItemId
+            )
             .filter((id: any) => Boolean(id)),
           justification,
         },
@@ -137,7 +152,11 @@ const updateActions = async (actionType: string, justification: string) => {
         if (rowId) {
           const rowNode = api.getRowNode(rowId);
           if (rowNode) {
-            rowNode.setData({ ...rowNode.data, status: actionType, action: actionType });
+            rowNode.setData({
+              ...rowNode.data,
+              status: actionType,
+              action: actionType,
+            });
           } else {
             // Fallback: try to find the row by data comparison
             let foundNode = null;
@@ -147,7 +166,11 @@ const updateActions = async (actionType: string, justification: string) => {
               }
             });
             if (foundNode) {
-              foundNode.setData({ ...foundNode.data, status: actionType, action: actionType });
+              foundNode.setData({
+                ...foundNode.data,
+                status: actionType,
+                action: actionType,
+              });
             }
           }
         }
@@ -157,7 +180,6 @@ const updateActions = async (actionType: string, justification: string) => {
       if (onActionSuccess) {
         onActionSuccess();
       }
-      
     } catch (err: any) {
       setError(`Failed to update actions: ${err.message}`);
       console.error("API error:", err);
@@ -165,8 +187,8 @@ const updateActions = async (actionType: string, justification: string) => {
     }
   };
   useEffect(() => {
-  setLastAction(null);
-}, [selectedRows]);
+    setLastAction(null);
+  }, [selectedRows]);
 
   const handleChangeAccountOwner = (checked: boolean) => {
     setChangeAccountOwner(checked);
@@ -196,9 +218,14 @@ const updateActions = async (actionType: string, justification: string) => {
     setIsCommentModalOpen(true);
   };
 
+  const handleHistory = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsHistoryModalOpen(true);
+  };
+
   const handleSaveComment = () => {
     if (!commentText.trim()) return;
-    
+
     setComment(commentText);
     setIsCommentModalOpen(false);
     setCommentText("");
@@ -264,41 +291,43 @@ const updateActions = async (actionType: string, justification: string) => {
   return (
     <div className="flex space-x-4 h-full items-center">
       {error && <div className="text-red-500 text-sm">{error}</div>}
-    <button
-      onClick={handleApprove}
-      title="Approve"
-      aria-label="Approve selected rows"
-      disabled={isApproveAction}
-      className={`p-1 rounded transition-colors duration-200 ${
-        isApproved ? "bg-green-500" : "hover:bg-green-100"
-      } ${isApproveAction ? "opacity-60 cursor-not-allowed" : ""}`}
-    >
-      <div className="relative">
-        <CircleCheck
-          className={isApproveAction ? "cursor-not-allowed" : "cursor-pointer"}
-          color="#1c821cff"
-          strokeWidth="1"
-          size="32"
-          fill={isApproved || isApproveAction ? "#1c821cff" : "none"}
-        />
-        {isApproveAction && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              className="text-white"
-            >
-              <path
-                d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"
-                fill="currentColor"
-              />
-            </svg>
-          </div>
-        )}
-      </div>
-    </button>
+      <button
+        onClick={handleApprove}
+        title="Approve"
+        aria-label="Approve selected rows"
+        disabled={isApproveAction}
+        className={`p-1 rounded transition-colors duration-200 ${
+          isApproved ? "bg-green-500" : "hover:bg-green-100"
+        } ${isApproveAction ? "opacity-60 cursor-not-allowed" : ""}`}
+      >
+        <div className="relative">
+          <CircleCheck
+            className={
+              isApproveAction ? "cursor-not-allowed" : "cursor-pointer"
+            }
+            color="#1c821cff"
+            strokeWidth="1"
+            size="32"
+            fill={isApproved || isApproveAction ? "#1c821cff" : "none"}
+          />
+          {isApproveAction && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                className="text-white"
+              >
+                <path
+                  d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"
+                  fill="currentColor"
+                />
+              </svg>
+            </div>
+          )}
+        </div>
+      </button>
 
       <button
         onClick={handleRevoke}
@@ -311,7 +340,11 @@ const updateActions = async (actionType: string, justification: string) => {
       >
         <div className="relative">
           <CircleX
-            className={isRejectAction ? "cursor-not-allowed" : "cursor-pointer hover:opacity-80"}
+            className={
+              isRejectAction
+                ? "cursor-not-allowed"
+                : "cursor-pointer hover:opacity-80"
+            }
             color="#FF2D55"
             strokeWidth="1"
             size="32"
@@ -354,6 +387,14 @@ const updateActions = async (actionType: string, justification: string) => {
           />
         </svg>
       </button>
+      <button
+        onClick={handleHistory}
+        title="History"
+        aria-label="History"
+        className="p-1 rounded"
+      >
+        <HistoryIcon strokeWidth="1" size="32" color="#ae14f6ff" />
+      </button>
 
       {/* {viewChangeEnable && (
         <button
@@ -380,10 +421,16 @@ const updateActions = async (actionType: string, justification: string) => {
         ref={menuButtonRef}
         onClick={toggleMenu}
         title="More Actions"
-        className={`cursor-pointer rounded-sm hover:opacity-80 ${isMenuOpen ? "bg-[#6D6E73]/20" : ""}`}
+        className={`cursor-pointer rounded-sm hover:opacity-80 ${
+          isMenuOpen ? "bg-[#6D6E73]/20" : ""
+        }`}
         aria-label="More actions"
       >
-        <MoreVertical color="#35353A" size="32" className="transform scale-[0.6]" />
+        <MoreVertical
+          color="#35353A"
+          size="32"
+          className="transform scale-[0.6]"
+        />
       </button>
       <div className="relative flex items-center">
         {isMenuOpen &&
@@ -406,7 +453,7 @@ const updateActions = async (actionType: string, justification: string) => {
                 >
                   Proxy
                 </li> */}
-                <li 
+                <li
                   className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
                   onClick={openDelegateModal}
                 >
@@ -484,7 +531,7 @@ const updateActions = async (actionType: string, justification: string) => {
               <div className="mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">Comment</h3>
               </div>
-              
+
               <div className="mb-6">
                 <textarea
                   value={commentText}
@@ -494,7 +541,7 @@ const updateActions = async (actionType: string, justification: string) => {
                   autoFocus
                 />
               </div>
-              
+
               <div className="flex justify-end items-center gap-3">
                 <button
                   onClick={handleCancelComment}
@@ -519,6 +566,35 @@ const updateActions = async (actionType: string, justification: string) => {
           document.body
         )}
 
+      {/* History Modal */}
+      {isHistoryModalOpen &&
+        createPortal(
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">History</h3>
+              </div>
+              <div className="mb-2">
+                <textarea
+                  value={"Previous History.."}
+                  readOnly
+                  disabled
+                  className="w-full h-24 px-3 py-2 border border-gray-200 rounded-md resize-none bg-gray-100 text-gray-500"
+                />
+              </div>
+              <div className="mt-4 flex justify-end">
+                <button
+                  onClick={() => setIsHistoryModalOpen(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
       {isSidebarOpen &&
         createPortal(
           <div className="fixed inset-0 z-50 flex h-[calc(100%-4rem)] top-17">
@@ -529,7 +605,9 @@ const updateActions = async (actionType: string, justification: string) => {
               </div>
               <div className="flex items-center space-x-4 p-3 bg-gray-50 rounded-md">
                 <div className="flex-1">
-                  <p className="font-medium">{selectedRows[0]?.username || "N/A"}</p>
+                  <p className="font-medium">
+                    {selectedRows[0]?.username || "N/A"}
+                  </p>
                   <p className="text-gray-500">
                     {(selectedRows[0] as any)?.email || "N/A"} - User - SSO
                   </p>
@@ -583,7 +661,10 @@ const updateActions = async (actionType: string, justification: string) => {
                 <div className="mt-6 flex justify-center">
                   <Buttons
                     onClick={async () => {
-                      await updateActions("Approve", comment || "Saved via Remediate");
+                      await updateActions(
+                        "Approve",
+                        comment || "Saved via Remediate"
+                      );
                       closeSidebar();
                     }}
                     className="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700"
@@ -677,7 +758,10 @@ const updateActions = async (actionType: string, justification: string) => {
                         </button>
                         <button
                           onClick={async () => {
-                            await updateActions("Approve", comment || "Modified access");
+                            await updateActions(
+                              "Approve",
+                              comment || "Modified access"
+                            );
                             setShowConfirmation(false);
                             setModifyAccessSelectedOption(null);
                           }}
@@ -719,8 +803,15 @@ const updateActions = async (actionType: string, justification: string) => {
                     <Buttons
                       disabled={!revokeSelection}
                       onClick={async () => {
-                        if (window.confirm("Are you sure you want to revoke access?")) {
-                          await updateActions("Reject", comment || "Immediate revoke");
+                        if (
+                          window.confirm(
+                            "Are you sure you want to revoke access?"
+                          )
+                        ) {
+                          await updateActions(
+                            "Reject",
+                            comment || "Immediate revoke"
+                          );
                           setRevokeSelection(null);
                         }
                       }}
@@ -749,28 +840,37 @@ const updateActions = async (actionType: string, justification: string) => {
                     />
                   </div>
                 )}
-                {immediateRevokeChecked && revokeSelection?.value === "Revoke post approval" && (
-                  <div className="mt-2">
-                    <span className="flex items-center m-2">Select Reviewer</span>
-                    <Select
-                      options={[
-                        { label: "2nd level reviewer", value: "second_level" },
-                        { label: "Select custom user", value: "custom_user" },
-                      ]}
-                      value={reviewerType}
-                      onChange={(selected) => {
-                        setReviewerType(selected);
-                        if (selected?.value === "custom_user") {
-                          setIsModalOpen(true);
-                        }
-                      }}
-                      styles={{
-                        control: (base) => ({ ...base, fontSize: "0.875rem" }),
-                        menu: (base) => ({ ...base, fontSize: "0.875rem" }),
-                      }}
-                    />
-                  </div>
-                )}
+                {immediateRevokeChecked &&
+                  revokeSelection?.value === "Revoke post approval" && (
+                    <div className="mt-2">
+                      <span className="flex items-center m-2">
+                        Select Reviewer
+                      </span>
+                      <Select
+                        options={[
+                          {
+                            label: "2nd level reviewer",
+                            value: "second_level",
+                          },
+                          { label: "Select custom user", value: "custom_user" },
+                        ]}
+                        value={reviewerType}
+                        onChange={(selected) => {
+                          setReviewerType(selected);
+                          if (selected?.value === "custom_user") {
+                            setIsModalOpen(true);
+                          }
+                        }}
+                        styles={{
+                          control: (base) => ({
+                            ...base,
+                            fontSize: "0.875rem",
+                          }),
+                          menu: (base) => ({ ...base, fontSize: "0.875rem" }),
+                        }}
+                      />
+                    </div>
+                  )}
                 {immediateRevokeChecked && (
                   <div className="mt-2">
                     <span className="flex items-center m-2">Comments</span>

@@ -38,6 +38,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import Import from "@/components/agTable/Import";
+import { useRouter } from "next/navigation";
 import "./TreeClient.css";
 
 interface UserPopupProps {
@@ -146,6 +147,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
     remediatedCount: 0,
   });
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
+  const router = useRouter();
   const [sidebarLoading, setSidebarLoading] = useState(false);
   const [userSearch, setUserSearch] = useState("");
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
@@ -164,7 +166,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const [entitlementsTotalItems, setEntitlementsTotalItems] = useState(0);
   const [entitlementsTotalPages, setEntitlementsTotalPages] = useState(1);
 
-  const { data: certificationDetailsData, error } = useCertificationDetails(
+  const { data: certificationDetailsData, error, refetch: refetchUsers } = useCertificationDetails(
     reviewerId,
     certId,
     defaultPageSize,
@@ -675,7 +677,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
       {
         field: "entitlementName",
         headerName: "Entitlement",
-        width: 400,
+        width: 380,
         autoHeight: true,
         wrapText: true,
         colSpan: (params) => {
@@ -748,7 +750,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
       {
         field: "applicationName",
         headerName: "Application",
-        width: 250,
+        width: 150,
       },
       { 
         field: "lastLogin", 
@@ -825,7 +827,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
       },
       {
         headerName: "Actions",
-        width: 220,
+        width: 260,
         cellRenderer: (params: ICellRendererParams) => {
           return (
             <ActionButtons
@@ -835,7 +837,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
               reviewerId={reviewerId}
               certId={certId}
               onActionSuccess={() => {
-                // Refresh the entitlements data after action
+                refetchUsers();
                 if (selectedUser) {
                   loadUserEntitlements(selectedUser, entitlementsPageNumber);
                 }
@@ -943,6 +945,12 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     context="entitlement"
                     reviewerId={reviewerId}
                     certId={certId}
+                    onActionSuccess={() => {
+                      refetchUsers();
+                      if (selectedUser) {
+                        loadUserEntitlements(selectedUser, entitlementsPageNumber);
+                      }
+                    }}
                   />
                 </div>
               </div>
@@ -1389,7 +1397,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
                 <Filters 
                   appliedFilter={handleAppliedFilter}
                   onFilterChange={handleAccountFilterChange}
-                  context="account"
+                  context="status"
+                  initialSelected="Pending"
                 />
               </div>
               <div className="flex items-center gap-2">
