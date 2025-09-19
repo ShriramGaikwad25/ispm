@@ -2,20 +2,30 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {navLinks as navigation} from './Navi';
 
 export function Navigation() {
   const pathname = usePathname();
   const [isHovered, setIsHovered] = useState(false);
 
+  // Reset hover state when pathname changes (navigation occurs)
+  useEffect(() => {
+    setIsHovered(false);
+  }, [pathname]);
+
+  const handleLinkClick = () => {
+    // Reset hover state immediately when a link is clicked
+    setIsHovered(false);
+  };
+
   return (
     <div 
-      className="bg-white border-r border-gray-200 flex flex-col items-center transition-all duration-300 ease-in-out"
+      className={`bg-white border-r border-gray-200 flex flex-col items-center transition-all duration-300 ease-in-out ${
+        isHovered ? 'w-[280px]' : 'w-20'
+      }`}
       style={{
-        display: 'flex',
-        width: isHovered ? '280px' : '80px',
-        height: '1418px',
+        minHeight: '100vh',
         padding: '16px 0 24px 0',
         flexDirection: 'column',
         alignItems: 'center',
@@ -50,6 +60,7 @@ export function Navigation() {
             <Link
               key={item.name}
               href={item.href}
+              onClick={handleLinkClick}
               className={`flex items-center gap-3 px-3 py-3 rounded-md transition-colors ${
                 isActive 
                   ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600' 
