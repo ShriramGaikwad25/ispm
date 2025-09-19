@@ -719,14 +719,14 @@ const HeaderContent = () => {
         </div>
 
         {applicationDetails && pathname?.includes('/applications/') ? (
-          <div className="flex h-full">
+          <div className="flex h-full items-center header-content">
             <div className="flex items-center px-4">
               <p className="text-sm font-medium text-white">
                 Application: {applicationDetails.applicationName}
               </p>
             </div>
             <div className="flex items-center px-2">
-              <span className="text-blue-600 text-lg">•</span>
+              <span className="text-white text-lg">•</span>
             </div>
             <div className="flex items-center px-4">
               <p className="text-sm font-medium text-white">
@@ -734,7 +734,7 @@ const HeaderContent = () => {
               </p>
             </div>
             <div className="flex items-center px-2">
-              <span className="text-blue-600 text-lg">•</span>
+              <span className="text-white text-lg">•</span>
             </div>
             <div className="flex items-center px-4">
               <p className="text-sm font-medium text-white">
@@ -743,7 +743,7 @@ const HeaderContent = () => {
             </div>
           </div>
         ) : shouldShowHeader ? (
-          <div className="flex h-full">
+          <div className="flex h-full items-center header-content">
             <div className="flex items-center px-4">
               <p className="text-sm font-medium text-white">
                 {headerInfo.campaignName || "Quarterly Access Review - Megan Jackson"}
@@ -774,7 +774,7 @@ const HeaderContent = () => {
             </div>
           </div>
         ) : shouldShowCampaignHeader ? (
-          <div className="flex h-full">
+          <div className="flex h-full items-center header-content">
             <div className="flex items-center px-4">
               <p className="text-sm font-medium text-white">
                 {headerInfo.campaignName || "Campaign"}
@@ -809,7 +809,7 @@ const HeaderContent = () => {
             </div>
           </div>
         ) : shouldShowAppOwnerHeader ? (
-          <div className="flex h-full">
+          <div className="flex h-full items-center header-content">
             <div className="flex items-center px-4">
               <p className="text-sm font-medium text-white">
                 App Owner Review - d4cc2173-7471-4e26-8c72-a27be88ff6cb

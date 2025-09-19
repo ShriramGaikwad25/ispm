@@ -44,21 +44,38 @@ const ProgressDonutChart: React.FC<ProgressDonutChartProps> = ({
     remediatedCount: 0,
   };
 
-  // Calculate percentages
+  // Calculate percentages with validation to ensure they don't exceed 100%
+  const totalProcessedItems = progressData.approvedCount + progressData.revokedCount + 
+                             progressData.delegatedCount + progressData.remediatedCount;
+  
+  // If total processed items exceed total items, normalize the counts proportionally
+  let normalizedApproved = progressData.approvedCount;
+  let normalizedRevoked = progressData.revokedCount;
+  let normalizedDelegated = progressData.delegatedCount;
+  let normalizedRemediated = progressData.remediatedCount;
+  
+  if (totalProcessedItems > progressData.totalItems && progressData.totalItems > 0) {
+    const scaleFactor = progressData.totalItems / totalProcessedItems;
+    normalizedApproved = Math.round(progressData.approvedCount * scaleFactor);
+    normalizedRevoked = Math.round(progressData.revokedCount * scaleFactor);
+    normalizedDelegated = Math.round(progressData.delegatedCount * scaleFactor);
+    normalizedRemediated = Math.round(progressData.remediatedCount * scaleFactor);
+  }
+  
   const pendingPercentage = progressData.totalItems > 0 
     ? (progressData.pendingCount / progressData.totalItems) * 100 
     : 0;
   const approvedPercentage = progressData.totalItems > 0 
-    ? (progressData.approvedCount / progressData.totalItems) * 100 
+    ? (normalizedApproved / progressData.totalItems) * 100 
     : 0;
   const revokedPercentage = progressData.totalItems > 0 
-    ? (progressData.revokedCount / progressData.totalItems) * 100 
+    ? (normalizedRevoked / progressData.totalItems) * 100 
     : 0;
   const delegatedPercentage = progressData.totalItems > 0 
-    ? (progressData.delegatedCount / progressData.totalItems) * 100 
+    ? (normalizedDelegated / progressData.totalItems) * 100 
     : 0;
   const remediatedPercentage = progressData.totalItems > 0 
-    ? (progressData.remediatedCount / progressData.totalItems) * 100 
+    ? (normalizedRemediated / progressData.totalItems) * 100 
     : 0;
 
   // Data for the donut chart
@@ -149,7 +166,29 @@ const ProgressDonutChart: React.FC<ProgressDonutChartProps> = ({
           label: (context: any) => {
             const label = context.label || "";
             const value = context.parsed || 0;
-            const count = Math.round((value / 100) * progressData.totalItems);
+            let count = 0;
+            
+            // Use the appropriate count based on the label
+            switch (label) {
+              case "Pending":
+                count = progressData.pendingCount;
+                break;
+              case "Approved":
+                count = normalizedApproved;
+                break;
+              case "Revoked":
+                count = normalizedRevoked;
+                break;
+              case "Delegated":
+                count = normalizedDelegated;
+                break;
+              case "Remediated":
+                count = normalizedRemediated;
+                break;
+              default:
+                count = Math.round((value / 100) * progressData.totalItems);
+            }
+            
             return `${label}: ${count} items (${value.toFixed(1)}%)`;
           },
         },
@@ -174,15 +213,15 @@ const ProgressDonutChart: React.FC<ProgressDonutChartProps> = ({
           </div>
           <div className="flex justify-between">
             <span className="text-gray-600">Approved:</span>
-            <span className="font-medium text-green-600">{progressData.approvedCount}</span>
+            <span className="font-medium text-green-600">{normalizedApproved}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-gray-600">Revoked:</span>
-            <span className="font-medium text-purple-600">{progressData.revokedCount}</span>
+            <span className="font-medium text-purple-600">{normalizedRevoked}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-gray-600">Delegated:</span>
-            <span className="font-medium text-orange-600">{progressData.delegatedCount}</span>
+            <span className="font-medium text-orange-600">{normalizedDelegated}</span>
           </div>
         </div>
       ) : null}

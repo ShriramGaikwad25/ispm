@@ -113,3 +113,30 @@
   background-color: #f3f4f6;
   transform: scale(1.05);
 }
+
+/* Header content improvements for better alignment */
+.header-content {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.header-content > div {
+  flex-shrink: 0;
+}
+
+/* Responsive header adjustments */
+@media (max-width: 768px) {
+  .header-content {
+    flex-direction: column;
+    align-items: flex-start;
+    height: auto;
+    padding: 8px 0;
+  }
+  
+  .header-content > div {
+    margin-bottom: 4px;
+  }
+}

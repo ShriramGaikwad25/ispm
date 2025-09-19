@@ -361,13 +361,17 @@ export default function ManageCampaigns() {
                         const totalItems = selectedCampaign.totalNumOfCertificationInstance;
                         const approvedCount = selectedCampaign.numOfAccessCertified;
                         const revokedCount = selectedCampaign.numOfAccessRevoked;
-                        const pendingCount = Math.max(0, totalItems - approvedCount - revokedCount);
+                        
+                        // Ensure counts don't exceed total items
+                        const validatedApprovedCount = Math.min(approvedCount, totalItems);
+                        const validatedRevokedCount = Math.min(revokedCount, totalItems);
+                        const pendingCount = Math.max(0, totalItems - validatedApprovedCount - validatedRevokedCount);
                         
                         return {
                           totalItems: totalItems,
-                          approvedCount: approvedCount,
+                          approvedCount: validatedApprovedCount,
                           pendingCount: pendingCount,
-                          revokedCount: revokedCount,
+                          revokedCount: validatedRevokedCount,
                           delegatedCount: 0, // Not available in API
                           remediatedCount: 0, // Not available in API
                         };

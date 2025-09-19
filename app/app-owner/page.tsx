@@ -1027,11 +1027,11 @@ function AppOwnerContent() {
             <select
               value={groupByOption}
               onChange={handleGroupByOptionChange}
-              className="border border-gray-300 rounded-md px-3 h-8 text-sm w-44"
+              className="border border-gray-300 rounded-md px-3 h-8 text-sm w-48"
             >
-              <option value="None">All</option>
+              <option value="None">Group by Accounts</option>
               <option value="Entitlements">Group by Entitlements</option>
-              <option value="Accounts">Group by Accounts</option>
+              {/* <option value="Accounts">Group by Accounts</option> */}
             </select>
             {selectedRows.length > 0 && gridApiRef.current && (
               <ActionButtons
