@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AgGridReact } from "ag-grid-react";
 import "@/lib/ag-grid-setup";
 import { useRouter } from "next/navigation";
@@ -36,6 +36,8 @@ import { createPortal } from "react-dom";
 import { MasterDetailModule } from "ag-grid-enterprise";
 import { ModuleRegistry } from "ag-grid-community";
 import HorizontalProgressBar from "@/components/HorizontalProgressBar";
+import { useLoading } from "@/contexts/LoadingContext";
+import ActionCompletedToast from "@/components/ActionCompletedToast";
 import "./AccessReview.css"
 
 // Register AG Grid Enterprise modules
@@ -98,6 +100,10 @@ const AccessReview: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
+  const [showCompletionToast, setShowCompletionToast] = useState(false);
+  const [isActionLoading, setIsActionLoading] = useState(false);
+  
+  const { showApiLoader, hideApiLoader } = useLoading();
   const filterMenuRef = useRef<HTMLDivElement>(null);
   const [filterMenuPosition, setFilterMenuPosition] = useState<{
     top: number;
@@ -112,15 +118,15 @@ const AccessReview: React.FC = () => {
   }>({ top: 0, left: 0 });
   const [selectedRows, setSelectedRows] = useState<any[]>([]);
 
-  const activeColumnDefs: ColDef[] = [
+const activeColumnDefs = useMemo<ColDef[]>(() =>[
     {
       headerName: "Campaign Name",
       field: "certificationName",
-      width: 300,
+      width: 400,
       wrapText: true,
       autoHeight: true,
       cellRenderer: (params: any) => (
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-2">
           <span className="text-gray-800 font-medium">{params.value}</span>
           <span className="text-gray-500 text-sm leading-tight">
             {params.data?.description || "No description available"}
@@ -148,7 +154,7 @@ const AccessReview: React.FC = () => {
     {
       headerName: "Created On",
       field: "certificationCreatedOn",
-      width: 150,
+      width: 200,
       valueFormatter: (params) => formatDateMMDDYY(params.value),
     },
     {
@@ -163,6 +169,8 @@ const AccessReview: React.FC = () => {
             title="Reassign"
             aria-label="Reassign selected rows"
             className="p-1 rounded transition-colors duration-200"
+            onClick={handleReassign}
+            disabled={isActionLoading}
           >
             <UserRoundCheckIcon
               className="cursor-pointer"
@@ -175,6 +183,8 @@ const AccessReview: React.FC = () => {
             title="Sign Off"
             aria-label="Sign off selected rows"
             className="p-1 rounded transition-colors duration-200"
+            onClick={handleSignOff}
+            disabled={isActionLoading}
           >
             <CheckCircleIcon
               className="cursor-pointer"
@@ -187,6 +197,8 @@ const AccessReview: React.FC = () => {
             title="Download Excel"
             aria-label="Download Excel"
             className="p-1 rounded transition-colors duration-200"
+            onClick={handleDownloadExcel}
+            disabled={isActionLoading}
           >
             <DownloadIcon
               className="cursor-pointer"
@@ -224,7 +236,10 @@ const AccessReview: React.FC = () => {
                   }}
                 >
                   <ul className="py-2 text-sm text-gray-700">
-                    <li className="px-4 py-2 hover:bg-gray-100 cursor-pointer">
+                    <li 
+                      className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                      onClick={handleReleaseClaim}
+                    >
                       Release/Claim
                     </li>
                   </ul>
@@ -235,7 +250,9 @@ const AccessReview: React.FC = () => {
         </div>
       ),
     },
-  ];
+    ],
+    []
+  );
 
   const expiredColumnDefs: ColDef[] = [
     {
@@ -307,6 +324,36 @@ const AccessReview: React.FC = () => {
       });
     }
   };
+
+  // Generic action handler for all buttons
+  const handleAction = async (actionName: string) => {
+    try {
+      setIsActionLoading(true);
+      showApiLoader(`Performing ${actionName.toLowerCase()} action...`);
+      
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Show completion message for 2 seconds
+      setShowCompletionToast(true);
+      
+      // Keep loader visible for 2 seconds, then hide it
+      setTimeout(() => {
+        hideApiLoader();
+        setIsActionLoading(false);
+      }, 2000);
+      
+    } catch (error) {
+      console.error(`Error performing ${actionName}:`, error);
+      hideApiLoader();
+      setIsActionLoading(false);
+    }
+  };
+
+  const handleReassign = () => handleAction('Reassign');
+  const handleSignOff = () => handleAction('Sign Off');
+  const handleDownloadExcel = () => handleAction('Download Excel');
+  const handleReleaseClaim = () => handleAction('Release/Claim');
 
   const certificationData =
     data as unknown as PaginatedResponse<CertificationRow>;
@@ -607,6 +654,16 @@ const AccessReview: React.FC = () => {
             });
             setGridApi(params.api);
             params.api.sizeColumnsToFit();
+            const handleResize = () => {
+              try {
+                params.api.sizeColumnsToFit();
+              } catch {}
+            };
+            window.addEventListener("resize", handleResize);
+            // Clean up listener when grid is destroyed
+            params.api.addEventListener('gridPreDestroyed', () => {
+              window.removeEventListener("resize", handleResize);
+            });
           }}
           pagination={false}
           paginationPageSize={defaultPageSize}
@@ -615,7 +672,7 @@ const AccessReview: React.FC = () => {
           paginateChildRows={true}
           overlayLoadingTemplate={`<span class="ag-overlay-loading-center">⏳ Loading certification data...</span>`}
           overlayNoRowsTemplate={`<span class="ag-overlay-loading-center">No data to display.</span>`}
-          className="ag-theme-quartz ag-main"
+          className="ag-main"
           onRowClicked={handleRowClick}
           onSelectionChanged={handleSelectionChanged}
         />
@@ -629,6 +686,14 @@ const AccessReview: React.FC = () => {
           />
         </div>
       </div>
+
+      {/* Action Completed Toast */}
+      <ActionCompletedToast
+        isVisible={showCompletionToast}
+        messages={['Action success', 'Action completed']}
+        onClose={() => setShowCompletionToast(false)}
+        messageDuration={1000}
+      />
     </>
   );
 };

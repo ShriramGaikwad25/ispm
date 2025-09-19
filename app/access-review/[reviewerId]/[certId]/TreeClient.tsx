@@ -1092,6 +1092,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const defaultColDef = useMemo<ColDef>(
     () => ({
       flex: 1,
+      minWidth: 120,
       resizable: true,
     }),
     []
@@ -1674,6 +1675,15 @@ const TreeClient: React.FC<TreeClientProps> = ({
                   onGridReady={(params) => {
                     entitlementsGridApiRef.current = params.api;
                     params.api.sizeColumnsToFit();
+                    const handleResize = () => {
+                      try {
+                        params.api.sizeColumnsToFit();
+                      } catch {}
+                    };
+                    window.addEventListener("resize", handleResize);
+                    params.api.addEventListener('gridPreDestroyed', () => {
+                      window.removeEventListener("resize", handleResize);
+                    });
                   }}
                   pagination={true}
                   paginationPageSize={defaultPageSize}

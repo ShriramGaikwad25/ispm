@@ -7,6 +7,8 @@ export const defaultColDef = {
   sortable: true,
   filter: true,
   resizable: true,
+  flex: 1,
+  minWidth: 120,
 };
 
 interface CertificationData {

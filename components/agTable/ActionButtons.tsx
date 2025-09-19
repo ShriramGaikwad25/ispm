@@ -17,6 +17,8 @@ import Buttons from "react-multi-date-picker/components/button";
 import ProxyActionModal from "../ProxyActionModal";
 import DelegateActionModal from "../DelegateActionModal";
 import { updateAction } from "@/lib/api";
+import { useLoading } from "@/contexts/LoadingContext";
+import ActionCompletedToast from "../ActionCompletedToast";
 
 interface User {
   username: string;
@@ -78,6 +80,11 @@ const ActionButtons = <T extends { status?: string }>({
   );
   const [error, setError] = useState<string | null>(null);
   const [lastAction, setLastAction] = useState<string | null>(null);
+  const [isActionLoading, setIsActionLoading] = useState(false);
+  const [showCompletionToast, setShowCompletionToast] = useState(false);
+  const [completionMessage, setCompletionMessage] = useState('Action completed');
+  
+  const { showApiLoader, hideApiLoader } = useLoading();
 
   // Filter out undefined/null rows (e.g., group rows can pass undefined data)
   const definedRows = (selectedRows || []).filter((r): r is T => !!r);
@@ -144,6 +151,10 @@ const ActionButtons = <T extends { status?: string }>({
         return;
       }
 
+      // Show loading state
+      setIsActionLoading(true);
+      showApiLoader(`Performing ${actionType.toLowerCase()} action...`);
+
       await updateAction(reviewerId, certId, payload);
 
       // Update grid with new status and action
@@ -175,14 +186,28 @@ const ActionButtons = <T extends { status?: string }>({
           }
         }
       });
+      
       setLastAction(actionType);
       setError(null);
+      
+      // Show success and completion messages in sequence
+      setCompletionMessage('Action success');
+      setShowCompletionToast(true);
+      
+      // Keep loader visible for 2 seconds, then hide it
+      setTimeout(() => {
+        hideApiLoader();
+        setIsActionLoading(false);
+      }, 2000);
+      
       if (onActionSuccess) {
         onActionSuccess();
       }
     } catch (err: any) {
       setError(`Failed to update actions: ${err.message}`);
       console.error("API error:", err);
+      hideApiLoader();
+      setIsActionLoading(false);
       throw err;
     }
   };
@@ -201,13 +226,13 @@ const ActionButtons = <T extends { status?: string }>({
 
   const handleApprove = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!api || definedRows.length === 0) return;
+    if (!api || definedRows.length === 0 || isActionLoading) return;
     await updateActions("Approve", comment || "Approved via UI");
   };
 
   const handleRevoke = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!api || definedRows.length === 0) return;
+    if (!api || definedRows.length === 0 || isActionLoading) return;
     await updateActions("Reject", comment || "Revoked via UI");
   };
 
@@ -295,10 +320,10 @@ const ActionButtons = <T extends { status?: string }>({
         onClick={handleApprove}
         title="Approve"
         aria-label="Approve selected rows"
-        disabled={isApproveAction}
+        disabled={isApproveAction || isActionLoading}
         className={`p-1 rounded transition-colors duration-200 ${
           isApproved ? "bg-green-500" : "hover:bg-green-100"
-        } ${isApproveAction ? "opacity-60 cursor-not-allowed" : ""}`}
+        } ${isApproveAction || isActionLoading ? "opacity-60 cursor-not-allowed" : ""}`}
       >
         <div className="relative">
           <CircleCheck
@@ -333,10 +358,10 @@ const ActionButtons = <T extends { status?: string }>({
         onClick={handleRevoke}
         title="Revoke"
         aria-label="Revoke selected rows"
-        disabled={isRejectAction}
+        disabled={isRejectAction || isActionLoading}
         className={`p-1 rounded transition-colors duration-200 ${
           isRejected ? "bg-red-500" : "hover:bg-red-100"
-        } ${isRejectAction ? "opacity-60 cursor-not-allowed" : ""}`}
+        } ${isRejectAction || isActionLoading ? "opacity-60 cursor-not-allowed" : ""}`}
       >
         <div className="relative">
           <CircleX
@@ -360,8 +385,11 @@ const ActionButtons = <T extends { status?: string }>({
                 className="text-white"
               >
                 <path
-                  d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"
-                  fill="currentColor"
+                  d="M18 6L6 18M6 6l12 12"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 />
               </svg>
             </div>
@@ -667,9 +695,14 @@ const ActionButtons = <T extends { status?: string }>({
                       );
                       closeSidebar();
                     }}
-                    className="bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700"
+                    disabled={isActionLoading}
+                    className={`px-2 py-1 rounded-md transition-colors ${
+                      isActionLoading 
+                        ? "bg-gray-400 cursor-not-allowed" 
+                        : "bg-blue-600 text-white hover:bg-blue-700"
+                    }`}
                   >
-                    Save Action
+                    {isActionLoading ? "Saving..." : "Save Action"}
                   </Buttons>
                 </div>
               </div>
@@ -692,14 +725,14 @@ const ActionButtons = <T extends { status?: string }>({
                   {modifyAccessChecked && (
                     <Buttons
                       onClick={() => setShowConfirmation(true)}
-                      disabled={!modifyAccessSelectedOption}
+                      disabled={!modifyAccessSelectedOption || isActionLoading}
                       className={`cursor-pointer text-white rounded-sm p-2 ${
-                        !modifyAccessSelectedOption || immediateRevokeChecked
+                        !modifyAccessSelectedOption || immediateRevokeChecked || isActionLoading
                           ? "bg-gray-400 cursor-not-allowed"
                           : "bg-[#15274E]"
                       }`}
                     >
-                      Modify Access
+                      {isActionLoading ? "Processing..." : "Modify Access"}
                     </Buttons>
                   )}
                 </div>
@@ -899,6 +932,14 @@ const ActionButtons = <T extends { status?: string }>({
           </div>,
           document.body
         )}
+
+      {/* Action Completed Toast */}
+      <ActionCompletedToast
+        isVisible={showCompletionToast}
+        messages={['Action success', 'Action completed']}
+        onClose={() => setShowCompletionToast(false)}
+        messageDuration={1000}
+      />
     </div>
   );
 };

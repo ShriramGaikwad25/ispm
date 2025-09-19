@@ -5,17 +5,23 @@ import {
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import ProxyActionModal from "../ProxyActionModal";
+import { useLoading } from "@/contexts/LoadingContext";
+import ActionCompletedToast from "../ActionCompletedToast";
 
 const ChampaignActionButton = () => {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showCompletionToast, setShowCompletionToast] = useState(false);
+  const [isActionLoading, setIsActionLoading] = useState(false);
   
   const [menuPosition, setMenuPosition] = useState<{
     top: number;
     left: number;
   }>({ top: 0, left: 0 });
+
+  const { showApiLoader, hideApiLoader } = useLoading();
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -40,16 +46,49 @@ const ChampaignActionButton = () => {
     }
   };
 
-    const openModal = () => {
+  const openModal = () => {
     setIsModalOpen(true);
     setOpen(false); // close dropdown when modal opens
   };
+
+  // Generic action handler for all buttons
+  const handleAction = async (actionName: string) => {
+    try {
+      setIsActionLoading(true);
+      showApiLoader(`Performing ${actionName.toLowerCase()} action...`);
+      
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Show completion message for 2 seconds
+      setShowCompletionToast(true);
+      
+      // Keep loader visible for 2 seconds, then hide it
+      setTimeout(() => {
+        hideApiLoader();
+        setIsActionLoading(false);
+      }, 2000);
+      
+    } catch (error) {
+      console.error(`Error performing ${actionName}:`, error);
+      hideApiLoader();
+      setIsActionLoading(false);
+    }
+  };
+
+  const handleView = () => handleAction('View');
+  const handleSendReminder = () => handleAction('Send Reminder');
+  const handleEscalate = () => handleAction('Escalate');
+  const handleReassign = () => handleAction('Reassign');
+  const handleClaim = () => handleAction('Claim');
   return (
     <div className="flex items-center gap-2" ref={menuRef}>
       {/* Icon buttons */}
       <button
         title="View"
         className="text-blue-400 hover:text-blue-600 p-1 cursor-pointer"
+        onClick={handleView}
+        disabled={isActionLoading}
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -70,12 +109,16 @@ const ChampaignActionButton = () => {
       <button
         title="Send Reminder"
         className="text-yellow-400 hover:text-yellow-600 p-1 cursor-pointer"
+        onClick={handleSendReminder}
+        disabled={isActionLoading}
       >
         <BellIcon />
       </button>
       <button
         title="Escalate"
         className="text-red-400 hover:text-red-600 p-1 cursor-pointer"
+        onClick={handleEscalate}
+        disabled={isActionLoading}
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -127,11 +170,14 @@ const ChampaignActionButton = () => {
               <ul className="py-2 text-sm text-gray-700">
                 <li
                   className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                  onClick={openModal}
+                  onClick={handleReassign}
                 >
                   Reassign
                 </li>
-                <li className="px-4 py-2 hover:bg-gray-100 cursor-pointer">
+                <li 
+                  className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                  onClick={handleClaim}
+                >
                   Claim
                 </li>
               </ul>
@@ -164,6 +210,14 @@ const ChampaignActionButton = () => {
                 setIsModalOpen(false);
               }}
             />
+
+      {/* Action Completed Toast */}
+      <ActionCompletedToast
+        isVisible={showCompletionToast}
+        messages={['Action success', 'Action completed']}
+        onClose={() => setShowCompletionToast(false)}
+        messageDuration={1000}
+      />
 
       {/* <div className="relative inline-block text-left">
         <button
