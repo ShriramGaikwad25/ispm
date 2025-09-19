@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useRef, useState, useEffect, useCallback, Suspense } from "react";
+import React, { useMemo, useRef, useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { AgGridReact } from "ag-grid-react";
 import "@/lib/ag-grid-setup";
@@ -33,6 +33,7 @@ import {
   getAppAccounts,
   updateAction,
   getAPPOCertificationDetailsWithFilter,
+  getCertAnalytics,
 } from "@/lib/api";
 import { PaginatedResponse } from "@/types/api";
 
@@ -279,6 +280,10 @@ function AppOwnerContent() {
     percentage: 0,
   });
 
+  // State for analytics data
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
   // Get reviewerId and certificationId from URL parameters, with fallback to hardcoded values
   const reviewerId = searchParams.get('reviewerId') || "430ea9e6-3cff-449c-a24e-59c057f81e3d";
   const certificationId = searchParams.get('certificationId') || "4f5c20b8-1031-4114-a688-3b5be9cc2224";
@@ -289,6 +294,20 @@ function AppOwnerContent() {
     certificationId,
     allParams: Object.fromEntries(searchParams.entries())
   });
+
+  const fetchAnalyticsData = useCallback(async () => {
+    try {
+      setAnalyticsLoading(true);
+      const analytics = await getCertAnalytics(reviewerId);
+      console.log('Fetched analytics data:', analytics);
+      setAnalyticsData(analytics);
+    } catch (err: any) {
+      console.error("Error fetching analytics data:", err);
+      // Don't set error state for analytics, just log it
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  }, [reviewerId]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -567,6 +586,10 @@ function AppOwnerContent() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    fetchAnalyticsData();
+  }, [fetchAnalyticsData]);
 
   // Effect to populate header info from localStorage
   useEffect(() => {
@@ -1020,6 +1043,9 @@ function AppOwnerContent() {
             onFilterChange={handleFilterChange}
             activeFilter={currentFilter}
             activeCount={totalItems}
+            analyticsData={analyticsData}
+            analyticsLoading={analyticsLoading}
+            certificationId={certificationId}
           />
         </Accordion>
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-4 relative z-10 pt-10 gap-4">

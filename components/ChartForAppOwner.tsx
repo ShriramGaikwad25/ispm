@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import ProgressDonutChart from "./ProgressDonutChart";
 
 interface DataItem {
@@ -13,6 +13,9 @@ interface ChartAppOwnerComponentProps {
   // When a filter is applied in the parent, pass it back so we can show the total next to the clicked item
   activeFilter?: string;
   activeCount?: number;
+  analyticsData?: any;
+  analyticsLoading?: boolean;
+  certificationId?: string;
 }
 
 const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
@@ -20,6 +23,9 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
   onFilterChange,
   activeFilter,
   activeCount,
+  analyticsData,
+  analyticsLoading = false,
+  certificationId,
 }) => {
   // Colors tuned to match the screenshot
   const allData: DataItem[] = [
@@ -43,12 +49,46 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
     "Compliance Violations": "iscomplianceviolation eq Y",
   };
 
+  // Mapping between filter labels and analytics data fields
+  const analyticsMapping: { [key: string]: string } = {
+    "Elevated Accounts": "highriskaccount_count",
+    "Orphan Accounts": "orphan_count",
+    "Terminated User Accounts": "inactiveaccount_count",
+    "Dormant Accounts": "dormant_count",
+    "New Access": "newaccess_count",
+    "Over Privileged Users": "highriskentitlement_count",
+    "Compliance Violations": "violations_count",
+  };
+
   const leftColumnFilters = allData.slice(0, 4);
   const rightColumnFilters = allData.slice(4);
 
   // Track selection for left and right columns separately
   const [selected, setSelected] = useState<{ [key: string]: number | null }>({});
+  
+  // State for localStorage data to avoid SSR issues
+  const [localStorageData, setLocalStorageData] = useState<{
+    selectedCampaignSummary: any;
+    sharedRowData: any;
+  } | null>(null);
 
+  // Safely access localStorage only on client side
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const selectedCampaignSummary = localStorage.getItem("selectedCampaignSummary");
+        const sharedRowData = localStorage.getItem("sharedRowData");
+        
+        setLocalStorageData({
+          selectedCampaignSummary: selectedCampaignSummary ? JSON.parse(selectedCampaignSummary) : null,
+          sharedRowData: sharedRowData ? JSON.parse(sharedRowData) : null,
+        });
+      } catch (error) {
+        console.error("Error accessing localStorage:", error);
+        setLocalStorageData(null);
+      }
+    }
+  }, []);
 
   const handleSelect = (column: "left" | "right", index: number) => {
     const newSelection = selected[column] === index ? null : index;
@@ -72,6 +112,38 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
     }
   };
 
+  // Function to get analytics count for a specific filter category
+  const getAnalyticsCount = (itemLabel: string): number => {
+    if (!analyticsData || !analyticsData.analytics || !certificationId) {
+      return 0;
+    }
+
+    const analyticsField = analyticsMapping[itemLabel];
+    if (!analyticsField) {
+      return 0;
+    }
+
+    // Debug logging to understand the analytics data structure
+    console.log('Analytics data structure:', analyticsData);
+    console.log(`Looking for field: ${analyticsField} for certificationId: ${certificationId}`);
+    console.log('Available certification IDs in analytics:', Object.keys(analyticsData.analytics));
+
+    // Get analytics data for the specific certification ID
+    const analytics = analyticsData.analytics;
+    const certAnalytics = analytics[certificationId];
+
+    if (!certAnalytics) {
+      console.log(`No analytics data found for certificationId: ${certificationId}`);
+      return 0;
+    }
+
+    const count = certAnalytics[analyticsField];
+    const result = typeof count === 'number' ? count : 0;
+
+    console.log(`Count for ${itemLabel} (${analyticsField}) in certification ${certificationId}:`, result);
+    return result;
+  };
+
   const getDisplayValue = (
     itemLabel: string,
     isSelected: boolean
@@ -80,6 +152,13 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
     if (isSelected && activeFilter && mapped === activeFilter) {
       return typeof activeCount === "number" ? activeCount : 0;
     }
+    
+    // If analytics data is available, use it; otherwise fall back to hardcoded values
+    if (analyticsData && !analyticsLoading && certificationId) {
+      console.log(`Getting display value for ${itemLabel} with certificationId: ${certificationId}`);
+      return getAnalyticsCount(itemLabel);
+    }
+    
     return allData.find((d) => d.label === itemLabel)?.value ?? 0;
   };
 
@@ -105,10 +184,9 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
             remediatedCount: number;
           } => {
             // Try to get campaign-level progress data from localStorage first
-            const selectedCampaignSummary = localStorage.getItem("selectedCampaignSummary");
-            if (selectedCampaignSummary) {
+            if (localStorageData?.selectedCampaignSummary) {
               try {
-                const summary = JSON.parse(selectedCampaignSummary);
+                const summary = localStorageData.selectedCampaignSummary;
                 // If we have campaign data, use campaign-level progress
                 // Use the detailed progress data stored in campaign summary
                 if (summary.totalItems && summary.approvedCount !== undefined && summary.pendingCount !== undefined) {
@@ -231,7 +309,7 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
                       isSelected ? "text-blue-700 border-blue-300" : "text-gray-900 border-gray-300"
                     } bg-white border px-2 py-1 rounded text-xs min-w-[20px] text-center`}
                   >
-                    {getDisplayValue(item.label, isSelected)}
+                    {analyticsLoading ? "..." : getDisplayValue(item.label, isSelected)}
                   </span>
                 </div>
               );
@@ -295,7 +373,7 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
                       isSelected ? "text-blue-700 border-blue-300" : "text-gray-900 border-gray-300"
                     } bg-white border px-2 py-1 rounded text-xs min-w-[20px] text-center`}
                   >
-                    {getDisplayValue(item.label, isSelected)}
+                    {analyticsLoading ? "..." : getDisplayValue(item.label, isSelected)}
                   </span>
                 </div>
               );

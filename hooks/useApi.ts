@@ -6,6 +6,7 @@ import {
 } from "@/lib/api";
 
 import type { CertificationRow } from "@/types/certification";
+import type { CertAnalyticsResponse } from "@/types/api";
 
 export const useCertifications = (
   reviewerId: string,
@@ -14,19 +15,20 @@ export const useCertifications = (
   setTotalPages?: (totalPages: number) => void,
   setTotalItems?: (totalItems: number) => void,
   enabled = true
-): UseQueryResult<CertificationRow> => {
+): UseQueryResult<{ certifications: CertificationRow; analytics: CertAnalyticsResponse }> => {
   return useQuery({
     queryKey: ["certifications", reviewerId, pageSize, pageNumber],
     queryFn: async () => {
       const res = await getCertifications(reviewerId, pageSize, pageNumber);
-      setTotalPages?.(res.total_pages ?? 1);
-      setTotalItems?.(res.total_items ?? res.items?.length ?? 0);
-      return { ...res };
+      setTotalPages?.(res.certifications.total_pages ?? 1);
+      setTotalItems?.(res.certifications.total_items ?? res.certifications.items?.length ?? 0);
+      return res;
     },
     enabled,
     staleTime: 1000 * 60 * 5,
   });
 };
+
 
 export const useCertificationDetails = (
   reviewerId: string,

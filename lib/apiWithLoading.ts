@@ -1,5 +1,6 @@
 import { LineItemDetail } from "@/types/lineItem";
-import { PaginatedResponse } from "@/types/api";
+import { PaginatedResponse, CertAnalyticsResponse } from "@/types/api";
+import { getCertifications } from "@/lib/api";
 
 const BASE_URL = "https://preview.keyforge.ai/certification/api/v1/ACMEPOC";
 const BASE_URL2 = "https://preview.keyforge.ai/entities/api/v1/ACMEPOC";
@@ -53,9 +54,14 @@ export async function getCertificationsWithLoading<T>(
   pageSize?: number,
   pageNumber?: number,
   onLoadingChange?: (loading: boolean, message?: string) => void
-): Promise<PaginatedResponse<T>> {
-  const endpoint = `${BASE_URL}/getCertificationList/${reviewerId}`;
-  return fetchApiWithLoading(endpoint, pageSize, pageNumber, {}, onLoadingChange);
+): Promise<{ certifications: PaginatedResponse<T>; analytics: CertAnalyticsResponse }> {
+  onLoadingChange?.(true, "Loading certifications and analytics...");
+  try {
+    const res = await getCertifications<T>(reviewerId, pageSize, pageNumber);
+    return res;
+  } finally {
+    onLoadingChange?.(false);
+  }
 }
 
 export async function getCertificationDetailsWithLoading<T>(

@@ -9,6 +9,7 @@ import {
   getAccessDetails,
 } from "@/lib/api";
 import type { CertificationRow } from "@/types/certification";
+import type { CertAnalyticsResponse } from "@/types/api";
 
 export const useCertificationsWithLoading = (
   reviewerId: string,
@@ -17,18 +18,18 @@ export const useCertificationsWithLoading = (
   setTotalPages?: (totalPages: number) => void,
   setTotalItems?: (totalItems: number) => void,
   enabled = true
-): UseQueryResult<CertificationRow> => {
+): UseQueryResult<{ certifications: CertificationRow; analytics: CertAnalyticsResponse }> => {
   const { showApiLoader, hideApiLoader } = useLoading();
 
   const query = useQuery({
     queryKey: ["certifications", reviewerId, pageSize, pageNumber],
     queryFn: async () => {
-      showApiLoader("Loading certifications...");
+      showApiLoader("Loading certifications and analytics...");
       try {
         const res = await getCertifications(reviewerId, pageSize, pageNumber);
-        setTotalPages?.(res.total_pages ?? 1);
-        setTotalItems?.(res.total_items ?? res.items?.length ?? 0);
-        return { ...res };
+        setTotalPages?.(res.certifications.total_pages ?? 1);
+        setTotalItems?.(res.certifications.total_items ?? res.certifications.items?.length ?? 0);
+        return res;
       } finally {
         hideApiLoader();
       }
@@ -39,7 +40,7 @@ export const useCertificationsWithLoading = (
 
   useEffect(() => {
     if (query.isLoading) {
-      showApiLoader("Loading certifications...");
+      showApiLoader("Loading certifications and analytics...");
     } else {
       hideApiLoader();
     }
@@ -47,6 +48,7 @@ export const useCertificationsWithLoading = (
 
   return query;
 };
+
 
 export const useCertificationDetailsWithLoading = (
   reviewerId: string,

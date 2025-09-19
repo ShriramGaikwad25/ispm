@@ -1,5 +1,5 @@
 import { LineItemDetail } from "@/types/lineItem";
-import { PaginatedResponse } from "@/types/api";
+import { PaginatedResponse, CertAnalyticsResponse } from "@/types/api";
 import { string } from "yup";
 
 const BASE_URL = "https://preview.keyforge.ai/certification/api/v1/ACMEPOC";
@@ -48,10 +48,26 @@ export async function getCertifications<T>(
   reviewerId: string,
   pageSize?: number,
   pageNumber?: number
-): Promise<PaginatedResponse<T>> {
-  const endpoint = `${BASE_URL}/getCertificationList/${reviewerId}`;
-  return fetchApi(endpoint, pageSize, pageNumber);
+): Promise<{ certifications: PaginatedResponse<T>; analytics: CertAnalyticsResponse }> {
+  // Call both APIs in parallel for better performance
+  const [certifications, analytics] = await Promise.all([
+    fetchApi<PaginatedResponse<T>>(`${BASE_URL}/getCertificationList/${reviewerId}`, pageSize, pageNumber),
+    getCertAnalytics(reviewerId)
+  ]);
+
+  return {
+    certifications,
+    analytics
+  };
 }
+
+export async function getCertAnalytics(
+  reviewerId: string
+): Promise<CertAnalyticsResponse> {
+  const endpoint = `https://preview.keyforge.ai/certification/api/v1/CERTTEST/getCertAnalytics/${reviewerId}`;
+  return fetchApi(endpoint);
+}
+
 
 export async function getCertificationDetails<T>(
   reviewerId: string,

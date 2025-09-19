@@ -357,8 +357,7 @@ const activeColumnDefs = useMemo<ColDef[]>(() =>[
   const handleDownloadExcel = () => handleAction('Download Excel');
   const handleReleaseClaim = () => handleAction('Release/Claim');
 
-  const certificationData =
-    data as unknown as PaginatedResponse<CertificationRow>;
+  const certificationData = data?.certifications;
   useEffect(() => {
     if (certificationData) {
       console.log("API Response:", certificationData); // Debug API response
