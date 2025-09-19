@@ -314,7 +314,7 @@ const ActionButtons = <T extends { status?: string }>({
   };
 
   return (
-    <div className="flex space-x-4 h-full items-center">
+    <div className="flex space-x-3 h-full items-center">
       {error && <div className="text-red-500 text-sm">{error}</div>}
       <button
         onClick={handleApprove}

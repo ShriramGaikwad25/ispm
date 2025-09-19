@@ -193,6 +193,9 @@ export default function Campaigns() {
   const handleRowClick = (e: RowClickedEvent) => {
     const campaignId = e.data.id;
     try {
+      // Find the full campaign data to get detailed progress information
+      const fullCampaignData = rows.find(campaign => campaign.id === campaignId);
+      
       // Persist selected campaign summary for header display on detail page
       const payload = {
         campaignId,
@@ -200,6 +203,11 @@ export default function Campaigns() {
         status: "Running", // default/demo status; replace when real status available
         snapshotAt: new Date().toISOString(),
         dueDate: e.data.expiryDate,
+        progress: e.data.progress, // Include campaign progress percentage
+        // Add campaign-level progress details for app owner page
+        totalItems: e.data.instances, // totalNumOfCertificationInstance
+        approvedCount: Math.round((e.data.instances * e.data.progress) / 100), // calculated from progress
+        pendingCount: Math.round((e.data.instances * (100 - e.data.progress)) / 100), // remaining
       };
       localStorage.setItem("selectedCampaignSummary", JSON.stringify(payload));
       // notify other tabs/components if needed

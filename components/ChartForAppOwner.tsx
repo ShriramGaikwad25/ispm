@@ -104,6 +104,44 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
             delegatedCount: number;
             remediatedCount: number;
           } => {
+            // Try to get campaign-level progress data from localStorage first
+            const selectedCampaignSummary = localStorage.getItem("selectedCampaignSummary");
+            if (selectedCampaignSummary) {
+              try {
+                const summary = JSON.parse(selectedCampaignSummary);
+                // If we have campaign data, use campaign-level progress
+                // Use the detailed progress data stored in campaign summary
+                if (summary.totalItems && summary.approvedCount !== undefined && summary.pendingCount !== undefined) {
+                  return {
+                    totalItems: summary.totalItems,
+                    approvedCount: summary.approvedCount,
+                    pendingCount: summary.pendingCount,
+                    revokedCount: 0, // These would come from campaign analytics API
+                    delegatedCount: 0,
+                    remediatedCount: 0,
+                  };
+                }
+                
+                // Fallback to progress percentage calculation
+                const totalItems = activeCount || rowData.length;
+                const campaignProgress = summary.progress || 0; // Campaign progress percentage
+                const approvedCount = Math.round((totalItems * campaignProgress) / 100);
+                const pendingCount = totalItems - approvedCount;
+                
+                return {
+                  totalItems,
+                  approvedCount,
+                  pendingCount,
+                  revokedCount: 0, // These would come from campaign analytics
+                  delegatedCount: 0,
+                  remediatedCount: 0,
+                };
+              } catch (error) {
+                console.error("Error parsing campaign summary:", error);
+              }
+            }
+
+            // Fallback to row-level calculation if no campaign data
             const totalItems = rowData.length;
             let approvedCount = 0;
             let pendingCount = 0;

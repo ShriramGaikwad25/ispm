@@ -163,7 +163,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const [femaleNames, setFemaleNames] = useState<Set<string>>(new Set());
   const [indexImageBases, setIndexImageBases] = useState<string[]>([]);
 
-  const pageSizeSelector = [10, 20, 50, 100];
+  const pageSizeSelector = [20, 50, 100];
   const defaultPageSize = pageSizeSelector[0];
   const [pageNumber, setPageNumber] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
@@ -915,7 +915,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
       {
         field: "entitlementName",
         headerName: "Entitlement",
-        width: 380,
+        width: 350,
         autoHeight: true,
         wrapText: true,
         colSpan: (params) => {
@@ -1059,7 +1059,18 @@ const TreeClient: React.FC<TreeClientProps> = ({
           );
         },
         onCellClicked: (event: any) => {
-          setSelectedRowForPanel(event?.data || null);
+          const rowData = event?.data || null;
+          if (rowData && selectedUser) {
+            // Add job title and other user info to the row data for the sidebar
+            setSelectedRowForPanel({
+              ...rowData,
+              jobtitle: selectedUser.jobtitle,
+              fullName: selectedUser.fullName,
+              department: selectedUser.department
+            });
+          } else {
+            setSelectedRowForPanel(rowData);
+          }
           setIsRightSidebarOpen(true);
         },
       },
@@ -1104,7 +1115,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
         <div style={{ color: "red", padding: 10 }}>{String(error)}</div>
       )}
       {isRightSidebarOpen && (
-        <div className="fixed top-16 right-0 w-[500px] h-[calc(100vh-4rem)] flex-shrink-0 border-l border-gray-200 bg-white shadow-lg side-panel z-50">
+        <div className="fixed top-14 right-0 w-[500px] h-[calc(100vh-4rem)] flex-shrink-0 border-l border-gray-200 bg-white shadow-lg side-panel z-50">
           <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200 p-3 z-10 side-panel-header">
             <div className="flex justify-between items-center">
               <div className="flex items-center space-x-2">
@@ -1140,11 +1151,11 @@ const TreeClient: React.FC<TreeClientProps> = ({
             <div className="border-l-4 border-yellow-400 bg-yellow-50 p-3 rounded-md">
               <p className="font-semibold flex items-center text-yellow-700 mb-2 text-sm">
                 <AlertTriangle className="w-4 h-4 mr-2 flex-shrink-0" />
-                Copilot suggests taking a closer look at this access
+                We suggest taking a closer look at this access
               </p>
               <ul className="list-decimal list-inside text-xs text-yellow-800 space-y-1">
                 <li>This access is critical risk and this user might be over-permissioned</li>
-                <li>Users with the job title Sales don't usually have this access</li>
+                <li>Users with the job title <span>{selectedRowForPanel?.jobtitle}</span> don't usually have this access</li>
               </ul>
             </div>
 
@@ -1166,7 +1177,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                 <p>This entitlement is marked as <strong>{selectedRowForPanel?.itemRisk || selectedRowForPanel?.appRisk || "Critical"}</strong> risk</p>
               </div>
               <div className="text-xs text-gray-700 space-y-0.5">
-                <p>1 out of 11 users with the title Sales have this entitlement</p>
+                <p>1 out of 11 users with the title {selectedRowForPanel?.jobtitle} have this entitlement</p>
                 <p>1 out of 2495 users in your organization have this entitlement</p>
                 <p>1 out of 13 accounts in this application have this entitlement</p>
               </div>

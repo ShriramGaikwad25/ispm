@@ -585,7 +585,7 @@ const CatalogPageContent = () => {
       {
         field: "entitlementName",
         headerName: "Entitlement",
-        width: 950,
+        width: 750,
         autoHeight: true,
         wrapText: true,
         cellRenderer: (params: ICellRendererParams) => {
@@ -773,7 +773,7 @@ const CatalogPageContent = () => {
       {
         field: "entitlementName",
         headerName: "Entitlement Name",
-        width: 800,
+        width: 700,
         autoHeight: true,
         wrapText: true,
         cellRenderer: (params: ICellRendererParams) => {

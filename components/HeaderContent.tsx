@@ -437,6 +437,9 @@ const HeaderContent = () => {
     pathname?.includes('/access-review/') &&
     !pathname?.includes('/applications/');
 
+  // Check if we should show app-owner specific header
+  const shouldShowAppOwnerHeader = pathname?.includes('/app-owner');
+
   // Check if we should show campaign-specific header (only when inside a specific campaign)
   const shouldShowCampaignHeader = pathname?.includes('/campaigns/manage-campaigns/');
 
@@ -695,8 +698,9 @@ const HeaderContent = () => {
     console.log('HeaderContent - pathname:', pathname);
     console.log('HeaderContent - applicationDetails:', applicationDetails);
     console.log('HeaderContent - shouldShowHeader:', shouldShowHeader);
+    console.log('HeaderContent - shouldShowAppOwnerHeader:', shouldShowAppOwnerHeader);
     console.log('HeaderContent - shouldShowCampaignHeader:', shouldShowCampaignHeader);
-  }, [pathname, applicationDetails, shouldShowHeader, shouldShowCampaignHeader]);
+  }, [pathname, applicationDetails, shouldShowHeader, shouldShowAppOwnerHeader, shouldShowCampaignHeader]);
 
   return (
     <div className="flex h-[60px] w-full items-center justify-between text-sm px-4" style={{ backgroundColor: '#27B973' }}>
@@ -802,6 +806,37 @@ const HeaderContent = () => {
                   ({headerInfo.daysLeft || 0} days left)
                 </span>
               </p>
+            </div>
+          </div>
+        ) : shouldShowAppOwnerHeader ? (
+          <div className="flex h-full">
+            <div className="flex items-center px-4">
+              <p className="text-sm font-medium text-white">
+                App Owner Review - d4cc2173-7471-4e26-8c72-a27be88ff6cb
+              </p>
+            </div>
+            <div className="flex items-center px-2">
+              <span className="text-white text-lg">•</span>
+            </div>
+            <div className="flex items-center px-4">
+              <p className="text-sm font-medium text-white">
+                Generated On: {headerInfo.snapshotAt ? formatDateMMDDYY(headerInfo.snapshotAt) : "09-17-25"}
+              </p>
+            </div>
+            <div className="flex items-center px-2">
+              <span className="text-white text-lg">•</span>
+            </div>
+            <div className="flex items-center px-4">
+              <p className="text-sm font-medium text-white">
+                Due on: {headerInfo.dueDate ? formatDateMMDDYY(headerInfo.dueDate) : "10-02-25"}
+                <span className="font-bold ml-1 text-white">
+                  ({headerInfo.daysLeft || 13} days left)
+                </span>
+              </p>
+            </div>
+            {/* User Progress */}
+            <div className="flex items-center px-4">
+              <UserProgress progressData={userProgressData} />
             </div>
           </div>
         ) : (

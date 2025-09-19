@@ -648,6 +648,26 @@ function AppOwnerContent() {
 
   // Calculate user-based progress helper function
   const calculateUserProgress = (userData: any) => {
+    // First try to get campaign-level progress data
+    const selectedCampaignSummary = localStorage.getItem("selectedCampaignSummary");
+    if (selectedCampaignSummary) {
+      try {
+        const summary = JSON.parse(selectedCampaignSummary);
+        if (summary.totalItems && summary.approvedCount !== undefined && summary.pendingCount !== undefined) {
+          const percentage = summary.totalItems > 0 ? Math.round((summary.approvedCount / summary.totalItems) * 100) : 0;
+          return {
+            totalItems: summary.totalItems,
+            approvedCount: summary.approvedCount,
+            pendingCount: summary.pendingCount,
+            percentage: percentage,
+          };
+        }
+      } catch (error) {
+        console.error("Error parsing campaign summary in calculateUserProgress:", error);
+      }
+    }
+
+    // Fallback to user-level progress calculation
     const total = userData.numOfEntitlements || 0;
     const approved = userData.numOfEntitlementsCertified || 0;
     const pending = total - approved;
@@ -987,42 +1007,6 @@ function AppOwnerContent() {
   return (
     <div className="w-full h-screen">
       <div className="max-w-full">
-        {/* Details section before Application Owner text */}
-        <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-          <div className="flex flex-wrap items-center gap-4 text-base">
-            <div className="flex items-center">
-              {/* <span className="font-bold text-gray-700">Campaign:</span> */}
-              <span className="text-lg ml-2 text-gray-900">
-                {headerInfo.campaignName || "Quarterly Access Review - Megan Jackson"}
-              </span>
-            </div>
-            <div className="flex items-center">
-              <span className="text-gray-400">•</span>
-            </div>
-            <div className="flex items-center">
-              <span className="text-lg text-gray-700">Generated On:</span>
-              <span className="ml-2 text-lg text-gray-900">
-                {headerInfo.snapshotAt ? formatDateMMDDYY(headerInfo.snapshotAt) : "N/A"}
-              </span>
-            </div>
-            <div className="flex items-center">
-              <span className="text-gray-400">•</span>
-            </div>
-            <div className="flex items-center">
-              <span className="text-lg text-gray-700">Due on:</span>
-              <span className="ml-2 text-lg text-gray-900">
-                {headerInfo.dueDate ? formatDateMMDDYY(headerInfo.dueDate) : "N/A"}
-                <span className="text-lg ml-1 text-red-600">
-                  ({headerInfo.daysLeft || 0} days left)
-                </span>
-              </span>
-            </div>
-
-            <div className="flex items-center">
-              <UserProgress progressData={userProgressData} />
-            </div>
-          </div>
-        </div>
 {/*         
         <h1 className="text-xl font-bold mb-6 border-b border-gray-300 pb-2 text-blue-950">
           Application Owner
@@ -1359,6 +1343,29 @@ function AppOwnerContent() {
                   }}
                 >
                   Submit
+                </button>
+              </div>
+
+              {/* Close button at the bottom */}
+              <div className="border-t border-gray-200 pt-3 mt-4">
+                <button
+                  onClick={handleClose}
+                  className="w-full px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center justify-center space-x-2"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="blue"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                  <span>Close</span>
                 </button>
               </div>
             </div>

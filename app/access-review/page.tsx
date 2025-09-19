@@ -465,6 +465,11 @@ const activeColumnDefs = useMemo<ColDef[]>(() =>[
         status: e.data.status,
         snapshotAt: e.data.certificationCreatedOn,
         dueDate: e.data.certificationExpiration,
+        progress: e.data.progress, // Include campaign progress percentage
+        // Add campaign-level progress details for app owner page
+        totalItems: e.data.totalActions, // Total actions in the campaign
+        approvedCount: e.data.totalActionsCompleted, // Completed actions
+        pendingCount: e.data.totalActions - e.data.totalActionsCompleted, // Remaining actions
       };
       localStorage.setItem("selectedCampaignSummary", JSON.stringify(campaignSummary));
     }
