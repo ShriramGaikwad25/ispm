@@ -17,7 +17,7 @@ export const useActionButton = (options: UseActionButtonOptions = {}) => {
     showToast = true,
     toastMessage = 'Action completed',
     toastMessages = ['Action success', 'Action completed'],
-    loaderDuration = 2000
+    loaderDuration = 1000
   } = options;
 
   const [isActionLoading, setIsActionLoading] = useState(false);
@@ -30,21 +30,23 @@ export const useActionButton = (options: UseActionButtonOptions = {}) => {
   ) => {
     try {
       setIsActionLoading(true);
-      showApiLoader(`Performing ${actionName.toLowerCase()} action...`);
+      showApiLoader(`Performing ${actionName.toUpperCase()} action...`);
       
       // Execute the action function
       await actionFunction();
-      
-      // Show completion message if enabled
-      if (showToast) {
-        setShowCompletionToast(true);
-      }
       
       // Keep loader visible for specified duration, then hide it
       setTimeout(() => {
         hideApiLoader();
         setIsActionLoading(false);
       }, loaderDuration);
+      
+      // Show completion message after 2 seconds if enabled
+      if (showToast) {
+        setTimeout(() => {
+          setShowCompletionToast(true);
+        }, 2000);
+      }
       
       // Call success callback
       if (onSuccess) {

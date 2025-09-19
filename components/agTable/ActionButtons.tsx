@@ -153,7 +153,7 @@ const ActionButtons = <T extends { status?: string }>({
 
       // Show loading state
       setIsActionLoading(true);
-      showApiLoader(`Performing ${actionType.toLowerCase()} action...`);
+      showApiLoader(`Performing ${actionType.toUpperCase()} action...`);
 
       await updateAction(reviewerId, certId, payload);
 
@@ -190,14 +190,16 @@ const ActionButtons = <T extends { status?: string }>({
       setLastAction(actionType);
       setError(null);
       
-      // Show success and completion messages in sequence
-      setCompletionMessage('Action success');
-      setShowCompletionToast(true);
-      
-      // Keep loader visible for 2 seconds, then hide it
+      // Keep loader visible for 1 second, then hide it
       setTimeout(() => {
         hideApiLoader();
         setIsActionLoading(false);
+      }, 1000);
+      
+      // Show success and completion messages after 2 seconds
+      setTimeout(() => {
+        setCompletionMessage('Action success');
+        setShowCompletionToast(true);
       }, 2000);
       
       if (onActionSuccess) {

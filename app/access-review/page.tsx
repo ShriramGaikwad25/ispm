@@ -329,18 +329,20 @@ const activeColumnDefs = useMemo<ColDef[]>(() =>[
   const handleAction = async (actionName: string) => {
     try {
       setIsActionLoading(true);
-      showApiLoader(`Performing ${actionName.toLowerCase()} action...`);
+      showApiLoader(`Performing ${actionName.toUpperCase()} action...`);
       
       // Simulate API call delay
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Show completion message for 2 seconds
-      setShowCompletionToast(true);
-      
-      // Keep loader visible for 2 seconds, then hide it
+      // Keep loader visible for 1 second, then hide it
       setTimeout(() => {
         hideApiLoader();
         setIsActionLoading(false);
+      }, 1000);
+      
+      // Show completion message after 2 seconds
+      setTimeout(() => {
+        setShowCompletionToast(true);
       }, 2000);
       
     } catch (error) {

@@ -302,7 +302,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
         alt="User Avatar"
         width={size}
         height={size}
-        className={`${roundedClass}`}
+        className={`${roundedClass} object-cover`}
         onError={() => {
           setAvatarErrorIndexByKey((prev) => {
             const next = { ...prev } as Record<string, number>;
