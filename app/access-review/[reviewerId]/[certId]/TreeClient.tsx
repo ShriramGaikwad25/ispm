@@ -915,7 +915,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
       {
         field: "entitlementName",
         headerName: "Entitlement",
-        width: 350,
+        width: 300,
         autoHeight: true,
         wrapText: true,
         colSpan: (params) => {
