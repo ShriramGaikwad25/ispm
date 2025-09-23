@@ -379,6 +379,7 @@ const activeColumnDefs = useMemo<ColDef[]>(() =>[
             status: certInfo?.status ?? "",
             certificationSignedOff: certInfo?.certificationSignedOff ?? false,
             certificateRequester: certInfo?.certificateRequester ?? "",
+            certificateOwner: certInfo?.certificateRequester ?? "", // Map certificateRequester to certificateOwner for the Owner column
             percentageCompleted: actionInfo?.percentageCompleted ?? 0,
             totalActions: totalActions,
             totalActionsCompleted: totalActionsCompleted,

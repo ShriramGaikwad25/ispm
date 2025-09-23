@@ -35,6 +35,7 @@ export interface CertificationRow {
   status: string;
   certificationSignedOff: boolean;
   certificateRequester: string;
+  certificateOwner: string; // Add certificateOwner field for the Owner column
   percentageCompleted: number;
   // totalActions: number;
   // totalActionsCompleted: number;

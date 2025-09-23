@@ -29,6 +29,7 @@ import DateInput from "@/components/DatePicker";
 import { AgGridReact } from "ag-grid-react";
 import "@/lib/ag-grid-setup";
 import CustomMultiSelect from "@/components/CustomMultiSelect";
+import CustomMultiSelectBeforeExpiry from "@/components/CustomMultiSelectBeforeExpiry";
 import { ColDef, IDetailCellRendererParams } from "ag-grid-enterprise";
 
 
@@ -260,13 +261,11 @@ const Step4: React.FC<StepProps> = ({
                 End of Campaign
               </label>
 
-              <MultiSelect
+              <CustomMultiSelectBeforeExpiry
+                control={control}
+                name="eocReminders"
+                // options={beforeExpiryReminders}
                 placeholder="Select reminders or add custom value"
-                defaultValue={[beforeExpiryReminders[0]]}
-                isCreatable={true}
-                control={control as unknown as Control<FieldValues>}
-                options={beforeExpiryReminders}
-                {...register("eocReminders")}
               />
               {errors.eocReminders?.message &&
                 typeof errors.eocReminders.message === "string" && (
