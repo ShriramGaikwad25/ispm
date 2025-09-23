@@ -115,6 +115,17 @@ const isValidUUID = (str: string): boolean => {
   return uuidRegex.test(str);
 };
 
+// Format usernames like "tamara.schaefer" to "Tamara Schaefer"
+const formatDisplayName = (raw: string | undefined | null): string => {
+  if (!raw || typeof raw !== "string") return "";
+  const normalized = raw.replace(/[._]+/g, " ").trim();
+  return normalized
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+};
+
 const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
   if (!Array.isArray(items)) {
     console.error("transformApiData: items is not an array", items);
@@ -831,7 +842,7 @@ function AppOwnerContent() {
         return <span style={{ color: riskColor }}>{risk}</span>;
       },
     },
-    { field: "userName", headerName: "Identity", width: 120 },
+    { field: "userName", headerName: "Identity", width: 120, valueFormatter: (params) => formatDisplayName(params.value) },
     {
       field: "lastLoginDate",
       headerName: "Last Login",
@@ -1259,7 +1270,7 @@ function AppOwnerContent() {
                     </p>
                     <p className="text-xs text-gray-600">
                       {selectedRow?.accountName || "tye.davis@conductorone.com"}{" "}
-                      - User - SSO
+                      - User
                     </p>
                   </div>
                   <span className="text-gray-400 text-lg">→</span>

@@ -1206,7 +1206,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
               <div className="flex items-center space-x-2 p-2">
                 <div className="flex-1">
                   <p className="text-sm font-medium text-gray-900">{selectedRowForPanel?.user || selectedUser?.fullName}</p>
-                  <p className="text-xs text-gray-600">{selectedRowForPanel?.user || ""} - User - SSO</p>
+                  <p className="text-xs text-gray-600">{selectedRowForPanel?.user || ""} - User</p>
                 </div>
                 <span className="text-gray-400 text-lg">→</span>
                 <div className="flex-1">

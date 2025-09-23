@@ -523,7 +523,7 @@ const ActionButtons = <T extends { status?: string }>({
       <ProxyActionModal
         isModalOpen={isModalOpen}
         closeModal={() => setIsModalOpen(false)}
-        heading="Proxy Action"
+        heading={changeAccountOwner ? "Assign Account Owner" : "Proxy Action"}
         users={[
           { username: "john", email: "john@example.com", role: "admin" },
           { username: "jane", email: "jane@example.com", role: "user" },
@@ -707,20 +707,61 @@ const ActionButtons = <T extends { status?: string }>({
               
               {/* Scrollable Content */}
               <div className="flex-1 overflow-y-auto p-4 space-y-6 text-sm">
-              <div className="flex items-center space-x-4 p-3 bg-gray-50 rounded-md">
-                <div className="flex-1">
-                  <p className="font-medium">
-                    {selectedRows[0]?.username || "N/A"}
-                  </p>
-                  <p className="text-gray-500">
-                    {(selectedRows[0] as any)?.email || "N/A"} - User - SSO
-                  </p>
-                </div>
-                <span className="text-gray-400">→</span>
-                <div className="flex-1">
-                  <p className="font-medium">Admin</p>
-                  <p className="text-gray-500">AWS - IAM role</p>
-                </div>
+              <div className="space-y-2">
+                {definedRows.length > 0 ? (
+                  definedRows.map((row: any, index: number) => {
+                    const appName =
+                      row?.applicationName ||
+                      row?.application ||
+                      row?.appName ||
+                      row?.application_name ||
+                      row?.applicationDisplayName ||
+                      row?.application_display_name ||
+                      row?.app ||
+                      row?.app_display_name ||
+                      "N/A";
+                    const entName =
+                      row?.entitlementName ||
+                      row?.entitlement ||
+                      row?.name ||
+                      row?.entitlement_name ||
+                      "N/A";
+                    const userPrimary =
+                      row?.fullName ||
+                      row?.userName ||
+                      row?.username ||
+                      row?.user ||
+                      row?.userDisplayName ||
+                      row?.user_display_name ||
+                      "";
+                    const derivedEmail = (() => {
+                      const acc = String(row?.accountName || "");
+                      if (acc.includes("@")) return acc;
+                      return "";
+                    })();
+                    const userSecondary =
+                      row?.email ||
+                      row?.userEmail ||
+                      row?.user_email ||
+                      derivedEmail ||
+                      "";
+                    return (
+                    <div key={row.lineItemId || row.id || index} className="flex items-center p-3 bg-gray-50 rounded-md">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{userPrimary || userSecondary || "N/A"}</p>
+                        <p className="text-gray-500 truncate">{(userPrimary || userSecondary || "N/A") + " - User"}</p>
+                      </div>
+                      <span className="mx-4 text-gray-400">→</span>
+                      <div className="flex-1 min-w-0 text-right">
+                        <p className="font-medium truncate">{entName}</p>
+                        <p className="text-gray-500 truncate">{appName + " - IAM role"}</p>
+                      </div>
+                    </div>
+                    );
+                  })
+                ) : (
+                  <div className="p-3 bg-gray-50 rounded-md text-gray-500">No selection</div>
+                )}
               </div>
               <div className="items-center space-x-4 p-2 bg-gray-50 rounded-md">
                 <div className="mt-4 flex gap-5">

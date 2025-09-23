@@ -292,7 +292,7 @@ export default function Campaigns() {
             href="/campaigns/new"
             className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 transition-colors duration-200"
           >
-            Create Cert Definition
+            Create New
           </Link>
         </div>
         
