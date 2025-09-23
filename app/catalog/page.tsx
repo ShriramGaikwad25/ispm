@@ -1515,6 +1515,25 @@ const CatalogPageContent = () => {
                 <h3 className="text-lg font-semibold text-gray-900">Comment</h3>
               </div>
               
+              <div className="mb-3">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Quick comments</label>
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  defaultValue=""
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val) setCommentText(val);
+                  }}
+                >
+                  <option value="" disabled>Select a suggestion...</option>
+                  <option>Approved - access required for role</option>
+                  <option>Rejected - insufficient justification</option>
+                  <option>Approve temporarily, revisit next review</option>
+                  <option>Duplicate access detected - revoke</option>
+                  <option>Compliant per policy and controls</option>
+                </select>
+              </div>
+
               <div className="mb-6">
                 <textarea
                   value={commentText}

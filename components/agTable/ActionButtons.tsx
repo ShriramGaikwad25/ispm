@@ -117,6 +117,9 @@ const ActionButtons = <T extends { status?: string }>({
     definedRows.length > 0 &&
     (definedRows[0] as any)?.action === "Reject";
 
+  const approveFilled = isApprovePending || (!hasAnyPending && (isApproved || isApproveAction));
+  const rejectFilled = isRejectPending || (!hasAnyPending && (isRejected || isRejectAction));
+
   // API call to update actions
   const updateActions = async (actionType: string, justification: string) => {
     const payload: any = {
@@ -224,13 +227,25 @@ const ActionButtons = <T extends { status?: string }>({
   const handleApprove = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!api || definedRows.length === 0 || isActionLoading) return;
-    await updateActions("Approve", comment || "Approved via UI");
+    
+    // If already approved or has approve action, set to Pending to remove filled style
+    if (isApproved || isApproveAction) {
+      await updateActions("Pending", comment || "Reset to pending");
+    } else {
+      await updateActions("Approve", comment || "Approved via UI");
+    }
   };
 
   const handleRevoke = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!api || definedRows.length === 0 || isActionLoading) return;
-    await updateActions("Reject", comment || "Revoked via UI");
+    
+    // If already rejected or has reject action, set to Pending to remove filled style
+    if (isRejected || isRejectAction) {
+      await updateActions("Pending", comment || "Reset to pending");
+    } else {
+      await updateActions("Reject", comment || "Revoked via UI");
+    }
   };
 
   const handleUndo = async (
@@ -323,9 +338,7 @@ const ActionButtons = <T extends { status?: string }>({
     <div className="flex space-x-3 h-full items-center">
       {error && <div className="text-red-500 text-sm">{error}</div>}
       <button
-        onClick={(e) =>
-          isApproveAction ? handleUndo(e, "Approve") : handleApprove(e)
-        }
+        onClick={handleApprove}
         title={isApproveAction ? "Undo" : "Approve"}
         aria-label="Approve selected rows"
         disabled={isActionLoading}
@@ -341,11 +354,9 @@ const ActionButtons = <T extends { status?: string }>({
             color="#1c821cff"
             strokeWidth="1"
             size="32"
-            fill={(
-              isApprovePending || (!hasAnyPending && (isApproved || isApproveAction))
-            ) ? "#1c821cff" : "none"}
+            fill={approveFilled ? "#1c821cff" : "none"}
           />
-          {isApproveAction && (
+          {approveFilled && (
             <div className="absolute inset-0 flex items-center justify-center">
               <svg
                 width="16"
@@ -365,9 +376,7 @@ const ActionButtons = <T extends { status?: string }>({
       </button>
 
       <button
-        onClick={(e) =>
-          isRejectAction ? handleUndo(e, "Reject") : handleRevoke(e)
-        }
+        onClick={handleRevoke}
         title={isRejectAction ? "Undo" : "Revoke"}
         aria-label="Revoke selected rows"
         disabled={isActionLoading}
@@ -385,11 +394,9 @@ const ActionButtons = <T extends { status?: string }>({
             color="#FF2D55"
             strokeWidth="1"
             size="32"
-            fill={(
-              isRejectPending || (!hasAnyPending && (isRejected || isRejectAction))
-            ) ? "#FF2D55" : "none"}
+            fill={rejectFilled ? "#FF2D55" : "none"}
           />
-          {isRejectAction && (
+          {rejectFilled && (
             <div className="absolute inset-0 flex items-center justify-center">
               <svg
                 width="16"
@@ -569,9 +576,32 @@ const ActionButtons = <T extends { status?: string }>({
       {isCommentModalOpen &&
         createPortal(
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
+            <div className="bg-white p-6 rounded-lg shadow-lg max-w-lg w-full mx-4">
               <div className="mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">Comment</h3>
+              </div>
+
+              <div className="mb-3">
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  defaultValue=""
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val) setCommentText(val);
+                  }}
+                >
+                  <option value="" disabled>Select a suggestion...</option>
+                  <option className="text-xs">Approved - Access required to perform current job responsibilities.</option>
+                  <option className="text-xs">Approved - Access aligns with user’s role and department functions.</option>
+                  <option className="text-xs">Approved - Validated with manager/business owner – appropriate access.</option>
+                  <option className="text-xs">Approved- No SoD (Segregation of Duties) conflict identified.</option>
+                  <option className="text-xs">Approve- User continues to work on project/system requiring this access.</option>
+                  <option className="text-xs">Revoke-User no longer in role requiring this access.</option>
+                  <option className="text-xs">Revoke-Access redundant – duplicate with other approved entitlements.</option>
+                  <option className="text-xs">Revoke-Access not used in last 90 days (inactive entitlement).</option>
+                  <option className="text-xs">Revoke-SoD conflict identified – removing conflicting access.</option>
+                  <option className="text-xs">Revoke-Temporary/project-based access – no longer required.</option>
+                </select>
               </div>
 
               <div className="mb-6">

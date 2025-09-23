@@ -36,11 +36,15 @@ import {
   ChevronDown,
   AlertTriangle,
   CheckCircle,
+  MoreVertical,
 } from "lucide-react";
 import Import from "@/components/agTable/Import";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import "./TreeClient.css";
+import { createPortal } from "react-dom";
+import DelegateActionModal from "@/components/DelegateActionModal";
+import ProxyActionModal from "@/components/ProxyActionModal";
 
 interface UserPopupProps {
   username: string;
@@ -162,6 +166,15 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const [maleNames, setMaleNames] = useState<Set<string>>(new Set());
   const [femaleNames, setFemaleNames] = useState<Set<string>>(new Set());
   const [indexImageBases, setIndexImageBases] = useState<string[]>([]);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
+      const [menuPosition, setMenuPosition] = useState<{
+        top: number;
+        left: number;
+      }>({ top: 0, left: 0 });
+    const menuRef = useRef<HTMLDivElement>(null);
+  const [isDelegateModalOpen, setIsDelegateModalOpen] = useState(false);
+  const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);
 
   const pageSizeSelector = [20, 50, 100];
   const defaultPageSize = pageSizeSelector[0];
@@ -179,6 +192,29 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const getUserStableKey = useCallback((u: any): string => {
     return String(u?.username || u?.email || u?.userId || u?.id || "");
   }, []);
+
+    const toggleMenu = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsMenuOpen((prev) => !prev);
+
+    if (menuButtonRef.current) {
+      const rect = menuButtonRef.current.getBoundingClientRect();
+      setMenuPosition({
+        top: rect.bottom,
+        left: rect.left - 128,
+      });
+    }
+  };
+
+  const openDelegateModal = () => {
+    setIsDelegateModalOpen(true);
+    setIsMenuOpen(false);
+  };
+
+  const openReassignModal = () => {
+    setIsReassignModalOpen(true);
+    setIsMenuOpen(false);
+  };
 
   const getFirstName = useCallback((u: any): string => {
     const full = String(u?.fullName || u?.username || "").trim();
@@ -976,7 +1012,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
           }
           return (
             <div className="flex h-full py-1">
-              <span className="text-xs mt-3">{entitlementName}</span>
+              <span className="text-xs mt-3 font-bold">{entitlementName}</span>
             </div>
           );
         },
@@ -1568,6 +1604,59 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     </svg>
                     <span>AI Assist</span>
                   </button>
+                        <button
+                          ref={menuButtonRef}
+                          onClick={toggleMenu}
+                          title="More Actions"
+                          className={`cursor-pointer rounded-sm hover:opacity-80 ${
+                            isMenuOpen ? "bg-[#6D6E73]/20" : ""
+                          }`}
+                          aria-label="More actions"
+                        >
+                          <MoreVertical
+                            color="#35353A"
+                            size="32"
+                            className="transform scale-[0.6]"
+                          />
+                        </button>
+                        <div className="relative flex items-center">
+                          {isMenuOpen &&
+                            createPortal(
+                              <div
+                                ref={menuRef}
+                                className="absolute bg-white border border-gray-300 shadow-lg rounded-md z-50"
+                                style={{
+                                  position: "fixed",
+                                  top: `${menuPosition.top}px`,
+                                  left: `${menuPosition.left}px`,
+                                  minWidth: "160px",
+                                  padding: "8px",
+                                }}
+                              >
+                                <ul className="py-2 text-sm text-gray-700">
+                                  {/* <li
+                                    className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                                    onClick={openModal}
+                                  >
+                                    Proxy
+                                  </li> */}
+                                  <li
+                                    className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                                    onClick={openReassignModal}
+                                  >
+                                    Reassign
+                                  </li>
+                                  <li
+                                    className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                                    onClick={openDelegateModal}
+                                  >
+                                    Delegate
+                                  </li>
+                                </ul>
+                              </div>,
+                              document.body
+                            )}
+                        </div>
                 </div>
               </div>
 
@@ -1767,6 +1856,54 @@ const TreeClient: React.FC<TreeClientProps> = ({
           </div>
         )}
       </div>
+      <DelegateActionModal
+        isModalOpen={isDelegateModalOpen}
+        closeModal={() => setIsDelegateModalOpen(false)}
+        heading="Delegate Action"
+        users={[
+          { username: "john", email: "john@example.com", role: "admin" },
+          { username: "jane", email: "jane@example.com", role: "user" },
+        ]}
+        groups={[
+          { name: "admins", email: "admins@corp.com", role: "admin" },
+          { name: "devs", email: "devs@corp.com", role: "developer" },
+        ]}
+        userAttributes={[
+          { value: "username", label: "Username" },
+          { value: "email", label: "Email" },
+        ]}
+        groupAttributes={[
+          { value: "name", label: "Group Name" },
+          { value: "role", label: "Role" },
+        ]}
+        onSelectDelegate={() => {
+          setIsDelegateModalOpen(false);
+        }}
+      />
+      <ProxyActionModal
+        isModalOpen={isReassignModalOpen}
+        closeModal={() => setIsReassignModalOpen(false)}
+        heading="Reassign Action"
+        users={[
+          { username: "john", email: "john@example.com", role: "admin" },
+          { username: "jane", email: "jane@example.com", role: "user" },
+        ]}
+        groups={[
+          { name: "admins", email: "admins@corp.com", role: "admin" },
+          { name: "devs", email: "devs@corp.com", role: "developer" },
+        ]}
+        userAttributes={[
+          { value: "username", label: "Username" },
+          { value: "email", label: "Email" },
+        ]}
+        groupAttributes={[
+          { value: "name", label: "Group Name" },
+          { value: "role", label: "Role" },
+        ]}
+        onSelectOwner={() => {
+          setIsReassignModalOpen(false);
+        }}
+      />
     </div>
   );
 };

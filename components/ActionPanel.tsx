@@ -2,10 +2,12 @@
 
 import React, { useState } from 'react';
 import { useActionPanel } from '@/contexts/ActionPanelContext';
+import ActionCompletedToast from './ActionCompletedToast';
 
 const ActionPanel: React.FC = () => {
   const { actionCount, isVisible, submitAll } = useActionPanel();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showToast, setShowToast] = useState(false);
 
   if (!isVisible) return null;
 
@@ -18,7 +20,10 @@ const ActionPanel: React.FC = () => {
             if (isSubmitting) return;
             setIsSubmitting(true);
             await submitAll();
-            window.location.reload();
+            setShowToast(true);
+            setTimeout(() => {
+              window.location.reload();
+            }, 1200);
           }}
           className={`px-3 py-1 text-sm text-white rounded-full ${isSubmitting ? 'bg-blue-300' : 'bg-blue-600 hover:bg-blue-700'}`}
           disabled={isSubmitting}
@@ -26,6 +31,12 @@ const ActionPanel: React.FC = () => {
           {isSubmitting ? 'Submitting…' : 'Submit'}
         </button>
       </div>
+      <ActionCompletedToast
+        isVisible={showToast}
+        messages={['Actions submitted', 'Refreshing…']}
+        onClose={() => setShowToast(false)}
+        messageDuration={600}
+      />
     </div>
   );
 };
