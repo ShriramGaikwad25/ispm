@@ -6,6 +6,8 @@ import { Navigation } from "@/components/Navigation";
 import QueryProvider from "./QueryProvider";
 import { LoadingProvider } from "@/contexts/LoadingContext";
 import { PageTransitionLoader } from "@/components/PageTransitionLoader";
+import { ActionPanelProvider } from "@/contexts/ActionPanelContext";
+import ActionPanel from "@/components/ActionPanel";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -24,6 +26,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <QueryProvider>
           <LoadingProvider>
+            <ActionPanelProvider>
             <div className="flex flex-col h-screen">
               <Header />
               <div className="flex flex-1">
@@ -34,6 +37,8 @@ export default function RootLayout({
               </div>
             </div>
             <PageTransitionLoader />
+            <ActionPanel />
+            </ActionPanelProvider>
           </LoadingProvider>
         </QueryProvider>
       </body>

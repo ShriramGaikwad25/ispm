@@ -19,6 +19,7 @@ import DelegateActionModal from "../DelegateActionModal";
 import { updateAction } from "@/lib/api";
 import { useLoading } from "@/contexts/LoadingContext";
 import ActionCompletedToast from "../ActionCompletedToast";
+import { useActionPanel } from "@/contexts/ActionPanelContext";
 
 interface User {
   username: string;
@@ -51,6 +52,7 @@ const ActionButtons = <T extends { status?: string }>({
   viewChangeEnable,
   onActionSuccess,
 }: ActionButtonsProps<T>) => {
+  const { queueAction } = useActionPanel();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -83,6 +85,7 @@ const ActionButtons = <T extends { status?: string }>({
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [showCompletionToast, setShowCompletionToast] = useState(false);
   const [completionMessage, setCompletionMessage] = useState('Action completed');
+  const [pendingById, setPendingById] = useState<Record<string, 'Approve' | 'Reject' | 'Pending'>>({});
   
   const { showApiLoader, hideApiLoader } = useLoading();
 
@@ -92,6 +95,15 @@ const ActionButtons = <T extends { status?: string }>({
   const rowStatus = definedRows.length > 0 ? definedRows[0].status : null;
   const isApproved = rowStatus === "Approved";
   const isRejected = rowStatus === "Rejected";
+
+  // Local pending visualization: if all selected rows have same pending action, reflect it on the button
+  const selectedIds = definedRows
+    .map((row: any) => row.lineItemId || row.id)
+    .filter(Boolean) as string[];
+  const isApprovePending = selectedIds.length > 0 && selectedIds.every((id) => pendingById[id] === 'Approve');
+  const isRejectPending = selectedIds.length > 0 && selectedIds.every((id) => pendingById[id] === 'Reject');
+  const isPendingReset = selectedIds.some((id) => pendingById[id] === 'Pending');
+  const hasAnyPending = isApprovePending || isRejectPending || isPendingReset;
 
   // Check if action is "Approve" for entitlement context
   const isApproveAction =
@@ -154,36 +166,27 @@ const ActionButtons = <T extends { status?: string }>({
       // Prevent double submit but no global loading overlay
       setIsActionLoading(true);
 
-      await updateAction(reviewerId, certId, payload);
+      // Do not send now; queue for submit. Optimistically mark buttons as pending for current selection
+      const affectedCount =
+        context === "entitlement"
+          ? (payload.entitlementAction?.[0]?.lineItemIds?.length || 0)
+          : definedRows.length;
+      queueAction({ reviewerId, certId, payload, count: affectedCount });
 
-      // Update grid with new status and action
-      definedRows.forEach((row) => {
-        const rowId = row.lineItemId || row.id;
-        if (rowId) {
-          const rowNode = api.getRowNode(rowId);
-          if (rowNode) {
-            rowNode.setData({
-              ...rowNode.data,
-              status: actionType,
-              action: actionType,
-            });
-          } else {
-            // Fallback: try to find the row by data comparison
-            let foundNode = null;
-            api.forEachNode((node) => {
-              if (node.data && node.data.lineItemId === rowId) {
-                foundNode = node;
-              }
-            });
-            if (foundNode) {
-              foundNode.setData({
-                ...foundNode.data,
-                status: actionType,
-                action: actionType,
-              });
-            }
-          }
+      // Mark local pending state for button visuals
+      setPendingById((prev) => {
+        const next = { ...prev } as Record<string, 'Approve' | 'Reject' | 'Pending'>;
+        if (actionType === 'Pending') {
+          // Clear pending visual if user set back to Pending
+          selectedIds.forEach((id) => {
+            delete next[id];
+          });
+        } else {
+          selectedIds.forEach((id) => {
+            next[id] = actionType as any;
+          });
         }
+        return next;
       });
       
       setLastAction(actionType);
@@ -197,10 +200,7 @@ const ActionButtons = <T extends { status?: string }>({
       // Show success and completion messages immediately
       setCompletionMessage('Action success');
       setShowCompletionToast(true);
-      
-      if (onActionSuccess) {
-        onActionSuccess();
-      }
+      // Counter is managed by queueAction. Do not refresh here; Submit handles it.
     } catch (err: any) {
       setError(`Failed to update actions: ${err.message}`);
       console.error("API error:", err);
@@ -341,7 +341,9 @@ const ActionButtons = <T extends { status?: string }>({
             color="#1c821cff"
             strokeWidth="1"
             size="32"
-            fill={isApproved || isApproveAction ? "#1c821cff" : "none"}
+            fill={(
+              isApprovePending || (!hasAnyPending && (isApproved || isApproveAction))
+            ) ? "#1c821cff" : "none"}
           />
           {isApproveAction && (
             <div className="absolute inset-0 flex items-center justify-center">
@@ -383,7 +385,9 @@ const ActionButtons = <T extends { status?: string }>({
             color="#FF2D55"
             strokeWidth="1"
             size="32"
-            fill={isRejected || isRejectAction ? "#FF2D55" : "none"}
+            fill={(
+              isRejectPending || (!hasAnyPending && (isRejected || isRejectAction))
+            ) ? "#FF2D55" : "none"}
           />
           {isRejectAction && (
             <div className="absolute inset-0 flex items-center justify-center">

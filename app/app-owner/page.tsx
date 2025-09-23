@@ -31,10 +31,10 @@ import {
   getAppOwnerDetails,
   getGroupedAppOwnerDetails,
   getAppAccounts,
-  updateAction,
   getAPPOCertificationDetailsWithFilter,
   getCertAnalytics,
 } from "@/lib/api";
+import { useActionPanel } from "@/contexts/ActionPanelContext";
 import { PaginatedResponse } from "@/types/api";
 
 // Register AG Grid Enterprise modules
@@ -237,6 +237,7 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
 };
 
 function AppOwnerContent() {
+  const { queueAction } = useActionPanel();
   const searchParams = useSearchParams();
   const [selected, setSelected] = useState<{ [key: string]: number | null }>(
     {}
@@ -721,23 +722,17 @@ function AppOwnerContent() {
     actionType: "Approve" | "Reject",
     justification: string
   ) => {
-    try {
-      const payload = {
-        entitlementAction: [
-          {
-            lineItemIds: [lineItemId],
-            actionType,
-            justification,
-          },
-        ],
-      };
-      await updateAction(reviewerId, certificationId, payload);
-      alert(`${actionType} action submitted successfully`);
-      setPageNumber(1);
-    } catch (err: any) {
-      console.error("Error updating action:", err);
-      setError(err.message || "Failed to submit action. Please try again.");
-    }
+    const payload = {
+      entitlementAction: [
+        {
+          lineItemIds: [lineItemId],
+          actionType,
+          justification,
+        },
+      ],
+    };
+    // Queue instead of sending now; submit will flush and refresh
+    queueAction({ reviewerId, certId: certificationId, payload, count: 1 });
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
