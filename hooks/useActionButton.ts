@@ -30,16 +30,14 @@ export const useActionButton = (options: UseActionButtonOptions = {}) => {
   ) => {
     try {
       setIsActionLoading(true);
-      showApiLoader(`Performing ${actionName.toUpperCase()} action...`);
       
       // Execute the action function
       await actionFunction();
       
-      // Keep loader visible for specified duration, then hide it
+      // End local loading state quickly (no overlay)
       setTimeout(() => {
-        hideApiLoader();
         setIsActionLoading(false);
-      }, loaderDuration);
+      }, 100);
       
       // Show completion message after 2 seconds if enabled
       if (showToast) {
@@ -55,7 +53,6 @@ export const useActionButton = (options: UseActionButtonOptions = {}) => {
       
     } catch (error) {
       console.error(`Error performing ${actionName}:`, error);
-      hideApiLoader();
       setIsActionLoading(false);
       
       // Call error callback

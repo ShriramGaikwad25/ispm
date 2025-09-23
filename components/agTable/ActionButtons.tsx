@@ -151,9 +151,8 @@ const ActionButtons = <T extends { status?: string }>({
         return;
       }
 
-      // Show loading state
+      // Prevent double submit but no global loading overlay
       setIsActionLoading(true);
-      showApiLoader(`Performing ${actionType.toUpperCase()} action...`);
 
       await updateAction(reviewerId, certId, payload);
 
@@ -190,17 +189,14 @@ const ActionButtons = <T extends { status?: string }>({
       setLastAction(actionType);
       setError(null);
       
-      // Keep loader visible for 1 second, then hide it
+      // End local loading state quickly (no overlay)
       setTimeout(() => {
-        hideApiLoader();
         setIsActionLoading(false);
-      }, 1000);
+      }, 100);
       
-      // Show success and completion messages after 2 seconds
-      setTimeout(() => {
-        setCompletionMessage('Action success');
-        setShowCompletionToast(true);
-      }, 2000);
+      // Show success and completion messages immediately
+      setCompletionMessage('Action success');
+      setShowCompletionToast(true);
       
       if (onActionSuccess) {
         onActionSuccess();
@@ -208,7 +204,6 @@ const ActionButtons = <T extends { status?: string }>({
     } catch (err: any) {
       setError(`Failed to update actions: ${err.message}`);
       console.error("API error:", err);
-      hideApiLoader();
       setIsActionLoading(false);
       throw err;
     }
@@ -236,6 +231,15 @@ const ActionButtons = <T extends { status?: string }>({
     e.stopPropagation();
     if (!api || definedRows.length === 0 || isActionLoading) return;
     await updateActions("Reject", comment || "Revoked via UI");
+  };
+
+  const handleUndo = async (
+    e: React.MouseEvent,
+    originalAction: "Approve" | "Reject"
+  ) => {
+    e.stopPropagation();
+    if (!api || definedRows.length === 0 || isActionLoading) return;
+    await updateActions("Pending", `Undo ${originalAction}`);
   };
 
   const handleComment = (e: React.MouseEvent) => {
@@ -319,18 +323,20 @@ const ActionButtons = <T extends { status?: string }>({
     <div className="flex space-x-3 h-full items-center">
       {error && <div className="text-red-500 text-sm">{error}</div>}
       <button
-        onClick={handleApprove}
-        title="Approve"
+        onClick={(e) =>
+          isApproveAction ? handleUndo(e, "Approve") : handleApprove(e)
+        }
+        title={isApproveAction ? "Undo" : "Approve"}
         aria-label="Approve selected rows"
-        disabled={isApproveAction || isActionLoading}
+        disabled={isActionLoading}
         className={`p-1 rounded transition-colors duration-200 ${
           isApproved ? "bg-green-500" : "hover:bg-green-100"
-        } ${isApproveAction || isActionLoading ? "opacity-60 cursor-not-allowed" : ""}`}
+        } ${isActionLoading ? "opacity-60 cursor-not-allowed" : ""}`}
       >
         <div className="relative">
           <CircleCheck
             className={
-              isApproveAction ? "cursor-not-allowed" : "cursor-pointer"
+              isActionLoading ? "cursor-not-allowed" : "cursor-pointer"
             }
             color="#1c821cff"
             strokeWidth="1"
@@ -357,18 +363,20 @@ const ActionButtons = <T extends { status?: string }>({
       </button>
 
       <button
-        onClick={handleRevoke}
-        title="Revoke"
+        onClick={(e) =>
+          isRejectAction ? handleUndo(e, "Reject") : handleRevoke(e)
+        }
+        title={isRejectAction ? "Undo" : "Revoke"}
         aria-label="Revoke selected rows"
-        disabled={isRejectAction || isActionLoading}
+        disabled={isActionLoading}
         className={`p-1 rounded transition-colors duration-200 ${
           isRejected ? "bg-red-500" : "hover:bg-red-100"
-        } ${isRejectAction || isActionLoading ? "opacity-60 cursor-not-allowed" : ""}`}
+        } ${isActionLoading ? "opacity-60 cursor-not-allowed" : ""}`}
       >
         <div className="relative">
           <CircleX
             className={
-              isRejectAction
+              isActionLoading
                 ? "cursor-not-allowed"
                 : "cursor-pointer hover:opacity-80"
             }
