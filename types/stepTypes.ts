@@ -110,6 +110,7 @@ export interface Step4FormData {
   socReminders: { label: string; value: string }[];
   eocReminders: { label: string; value: string }[];
   msTeamsNotification: boolean;
+  msTeamsWebhookUrl?: string;
   remediationTicketing: boolean;
   allowDownloadUploadCropNetwork: boolean;
   markUndecidedRevoke: boolean;

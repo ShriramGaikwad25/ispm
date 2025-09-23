@@ -130,9 +130,9 @@ const MultiStageReviewForm: React.FC<MultiStageReviewFormProps> = ({
     <div className={className}>
       <div className="grid grid-cols-[280px_1.5fr] items-start gap-2 mb-2">
         {index === 0 ? <label className={`h-10 items-center flex ${asterisk}`}>
-           Stage Reviewers
+           Reviewer
         </label> : <label className={`h-10 items-center flex ${asterisk}`}>
-          Stage {index} Reviewers
+          Stage {index} Reviewer
         </label>}
         
         <div>
@@ -220,26 +220,35 @@ const MultiStageReviewForm: React.FC<MultiStageReviewFormProps> = ({
         </div>
       </div>
 
-      {/* Duration Input */}
-      <div className="grid grid-cols-[280px_1.5fr] items-start gap-2">
-
-        {index === 0 ? <label className={`h-10 items-center flex ${asterisk}`}>
-           Stage Duration (days)
-        </label> : <label className={`h-10 items-center flex ${asterisk}`}>
-          Stage {index} Duration (days)
-        </label>}
-        <div>
-          <input
-            type="text"
-            className="form-input bg-white"
-            {...register(duration as Path<Step3FormData>)}
-          />
-          {errors?.duration?.message && (
-            <p className="text-red-500">{String(errors.duration.message)}</p>
-          )}
-          {children}
+      {/* Duration Input - Hidden for initial reviewer (index === 0) */}
+      {index > 0 && (
+        <div className="grid grid-cols-[280px_1.5fr] items-start gap-2">
+          <label className={`h-10 items-center flex ${asterisk}`}>
+            Stage {index} Duration (days)
+          </label>
+          <div>
+            <input
+              type="text"
+              className="form-input bg-white"
+              {...register(duration as Path<Step3FormData>)}
+            />
+            {errors?.duration?.message && (
+              <p className="text-red-500">{String(errors.duration.message)}</p>
+            )}
+            {children}
+          </div>
         </div>
-      </div>
+      )}
+      
+      {/* Show children for initial reviewer without duration field */}
+      {index === 0 && (
+        <div className="grid grid-cols-[280px_1.5fr] items-start gap-2">
+          <div></div>
+          <div>
+            {children}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

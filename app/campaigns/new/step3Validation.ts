@@ -50,7 +50,19 @@ const validationSchema = yup.object({
   stages: yup.array().of(
     yup.object({
       reviewer: yup.string().required("Reviewer is required"),
-      duration: yup.string().required("Duration is required"),
+      duration: yup.string().test(
+        "duration-required-for-non-initial",
+        "Duration is required for stages after the initial reviewer",
+        function(value) {
+          const { parent, path } = this;
+          const stageIndex = parseInt(path.split('.')[1]);
+          // Duration is only required for stages after the initial reviewer (index > 0)
+          if (stageIndex > 0) {
+            return value && value.trim().length > 0;
+          }
+          return true; // Duration is optional for initial reviewer (index === 0)
+        }
+      ),
       nextReviewerAction: yup.boolean(),
       reviewerlistIsChecked: yup.boolean(),
       genericExpression: yup.array().of(yup.string()),

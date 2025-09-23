@@ -37,6 +37,11 @@ const validationSchema = yup.object().shape({
   socReminders: yup.array(),
   eocReminders: yup.array(),
   msTeamsNotification: yup.boolean(),
+  msTeamsWebhookUrl: yup.string().when("msTeamsNotification", {
+    is: true,
+    then: (schema) => schema.required("Microsoft Teams webhook URL is required"),
+    otherwise: (schema) => schema.notRequired(),
+  }),
   remediationTicketing: yup.boolean(),
   allowDownloadUploadCropNetwork: yup.boolean(),
 
@@ -112,6 +117,32 @@ const Step4: React.FC<StepProps> = ({
   const enforComments = watch("enforceComments");
   const showGenericExpression = enforComments === "Custom Fields";
   const [showTemplateSidebar, setShowTemplateSidebar] = useState(false);
+  const [msTeamsWebhookUrl, setMsTeamsWebhookUrl] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSaveMsTeamsWebhook = async () => {
+    if (!msTeamsWebhookUrl.trim()) {
+      return;
+    }
+    
+    setIsSaving(true);
+    try {
+      // Here you would typically make an API call to save the webhook URL
+      // For now, we'll just update the form value
+      setValue("msTeamsWebhookUrl", msTeamsWebhookUrl);
+      
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // You could add a success toast here
+      console.log("Microsoft Teams webhook URL saved:", msTeamsWebhookUrl);
+    } catch (error) {
+      console.error("Error saving Microsoft Teams webhook URL:", error);
+      // You could add an error toast here
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   useEffect(() => {
     onValidationChange(isValid);
@@ -256,14 +287,44 @@ const Step4: React.FC<StepProps> = ({
 
         <dd className="grid grid-cols-2">
           <span>Integrate with Microsoft Teams for notification(s)</span>
-          <span className="flex gap-2 items-center">
-            No
-            <ToggleSwitch
-              checked={watch("msTeamsNotification")}
-              onChange={(checked) => setValue("msTeamsNotification", checked)}
-            />
-            Yes
-          </span>
+          <div className="flex flex-col gap-2">
+            <span className="flex gap-2 items-center">
+              No
+              <ToggleSwitch
+                checked={watch("msTeamsNotification")}
+                onChange={(checked) => {
+                  setValue("msTeamsNotification", checked);
+                  if (!checked) {
+                    setMsTeamsWebhookUrl("");
+                    setValue("msTeamsWebhookUrl", "");
+                  }
+                }}
+              />
+              Yes
+            </span>
+            {watch("msTeamsNotification") && (
+              <div className="flex gap-2 items-center">
+                <span className="text-sm whitespace-nowrap">Channel:</span>
+                <input
+                  type="url"
+                  value={msTeamsWebhookUrl}
+                  onChange={(e) => setMsTeamsWebhookUrl(e.target.value)}
+                  className="w-64 px-3 py-2 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveMsTeamsWebhook}
+                  disabled={!msTeamsWebhookUrl.trim() || isSaving}
+                  className="px-4 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed whitespace-nowrap"
+                >
+                  {isSaving ? "Saving..." : "Save"}
+                </button>
+              </div>
+            )}
+            {watch("msTeamsNotification") && errors.msTeamsWebhookUrl?.message && (
+              <p className="text-red-500 text-sm">{errors.msTeamsWebhookUrl.message}</p>
+            )}
+          </div>
         </dd>
         <dd className="grid grid-cols-2">
           <span>Integrate with Ticketing tool for Remediation</span>
