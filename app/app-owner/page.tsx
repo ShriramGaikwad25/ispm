@@ -56,6 +56,7 @@ type RowData = {
   userName: string;
   entitlementName: string;
   entitlementDescription: string;
+  entitlementType?: string;
   aiInsights: string;
   recommendation?: string;
   accountSummary: string;
@@ -164,6 +165,11 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
           userId: userInfo.UserID || "",
           entitlementName: groupEntitlementName,
           entitlementDescription: groupEntitlementDescription,
+          entitlementType:
+            groupEntitlement.entitlementType ||
+            entityEntitlement.entitlementType ||
+            (account.entitlementType || account.type) ||
+            "",
           aiInsights: entityEntitlement.aiassist?.recommendation || "",
           accountSummary: accountInfo.accountName?.includes("@")
             ? "Regular Accounts"
@@ -221,6 +227,11 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
       entitlementName: entitlement.entitlementInfo?.entitlementName || "",
       entitlementDescription:
         entitlement.entitlementInfo?.description || "",
+      entitlementType:
+        entitlement.entitlementInfo?.entitlementType ||
+        entitlement.entitlementType ||
+        entitlement.type ||
+        "",
       aiInsights: entitlement.aiassist?.recommendation || "",
       recommendation: entityEnt.action || undefined,
       accountSummary: item.accountInfo?.accountName?.includes("@")
@@ -528,6 +539,7 @@ function AppOwnerContent() {
               userName: account.userDisplayName || "", // This is the key field for Display Name
               entitlementName: account.entitlementName || "Account Access",
               entitlementDescription: account.entitlementDescription || "",
+              entitlementType: account.entitlementType || account.type || "",
               aiInsights: "",
               accountSummary: (account.accountName || "").includes("@")
                 ? "Regular Accounts"

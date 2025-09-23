@@ -37,6 +37,59 @@ export const loadApps = async (inputValue: string): Promise<App[]> => {
     return [];
   }
 };
+
+// Mapping and helper to mirror Applications page logos
+const LOGO_BY_NAME: Record<string, string> = {
+  "Active Directory": "/ActiveDirectory.svg",
+  "AcmeCorporateDirectory": "/ActiveDirectory.svg",
+  "Oracle": "/Oracle.svg",
+  "SAP": "/SAP.svg",
+  "Workday": "/workday.svg",
+};
+
+const LOGO_BY_KEYWORD: Array<{ keyword: string; src: string }> = [
+  { keyword: "active directory", src: "/ActiveDirectory.svg" },
+  { keyword: "corporate directory", src: "/ActiveDirectory.svg" },
+  { keyword: "oracle", src: "/Oracle.svg" },
+  { keyword: "sap", src: "/SAP.svg" },
+  { keyword: "workday", src: "/workday.svg" },
+];
+
+const getLogoSrc = (appName: string) => {
+  if (!appName) return "/window.svg";
+  if (LOGO_BY_NAME[appName]) return LOGO_BY_NAME[appName];
+  const lower = appName.toLowerCase();
+  const kw = LOGO_BY_KEYWORD.find((k) => lower.includes(k.keyword));
+  if (kw) return kw.src;
+  return "/window.svg";
+};
+
+// Load Applications from ISPM API to match Applications component data and logos
+export const loadIspmApps = async (inputValue: string): Promise<App[]> => {
+  try {
+    const reviewerId = "430ea9e6-3cff-449c-a24e-59c057f81e3d";
+    const response = await fetch(
+      `https://preview.keyforge.ai/entities/api/v1/ACMEPOC/getApplications/${reviewerId}`
+    );
+    if (!response.ok) throw new Error("Failed to fetch applications");
+    const data = await response.json();
+    const items = Array.isArray(data.items) ? data.items : [];
+    return items
+      .filter((app: any) =>
+        (app.applicationinstancename || "")
+          .toLowerCase()
+          .includes((inputValue || "").toLowerCase())
+      )
+      .map((app: any) => ({
+        label: app.applicationinstancename,
+        value: app.applicationInstanceId,
+        image: getLogoSrc(app.applicationinstancename),
+      }));
+  } catch (error) {
+    console.error("Error fetching ISPM apps:", error);
+    return [];
+  }
+};
 type OptionData = {
   label: string;
   image: string; 

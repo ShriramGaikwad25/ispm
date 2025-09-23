@@ -333,6 +333,20 @@ const Step4: React.FC<StepProps> = ({
                 setValue={setValue as unknown as UseFormSetValue<FieldValues>}
                 watch={watch as unknown as UseFormWatch<FieldValues>}
                 fieldName={"genericExpression"}
+                attributesOptions={[
+                  { label: "Risk", value: "risk" },
+                  { label: "Pre-Requisite", value: "pre_requisite" },
+                  { label: "Shared Pwd", value: "shared_pwd" },
+                  { label: "Regulatory Scope", value: "regulatory_scope" },
+                  { label: "Access Scope", value: "access_scope" },
+                  { label: "Review Schedule", value: "review_schedule" },
+                  { label: "Business Unit", value: "business_unit" },
+                  { label: "Data Classification", value: "data_classification" },
+                  { label: "Privileged", value: "privileged" },
+                  { label: "Non Persistent Access", value: "non_persistent_access" },
+                  { label: "License Type", value: "license_type" },
+                  { label: "Tags", value: "tags" },
+                ]}
               />
               {errors.genericExpression?.message &&
                 typeof errors.genericExpression.message === "string" && (

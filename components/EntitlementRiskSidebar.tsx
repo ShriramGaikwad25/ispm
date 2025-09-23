@@ -183,7 +183,7 @@ const EntitlementRiskSidebar: React.FC<EntitlementRiskSidebarProps> = ({
                             Risk Level:
                           </span>
                           <span className="font-semibold text-gray-900 border border-red-300 bg-red-50 px-2 py-1 rounded text-red-800">
-                            {policyRiskData.items[0]?.risk_level || "-"}
+                            {entitlementData?.risk ?? "-"}
                           </span>
                         </div>
                         <div>

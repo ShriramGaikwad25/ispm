@@ -50,6 +50,7 @@ interface ExpressionBuilderProps {
   setValue: UseFormSetValue<FieldValues>;
   watch: UseFormWatch<FieldValues>;
   fieldName: string;
+  attributesOptions?: { label: string; value: string }[];
 }
 
 const ExpressionBuilder: React.FC<ExpressionBuilderProps> = ({
@@ -57,6 +58,7 @@ const ExpressionBuilder: React.FC<ExpressionBuilderProps> = ({
   control,
   setValue,
   fieldName,
+  attributesOptions,
 }) => {
   const watchedConditions = useWatch({ control, name: fieldName });
   const conditions: Condition[] = useMemo(() => {
@@ -139,7 +141,7 @@ const ExpressionBuilder: React.FC<ExpressionBuilderProps> = ({
               render={({ field }) => (
                 <Select
                   {...field}
-                  options={attributes}
+                  options={attributesOptions ?? attributes}
                   isSearchable={false}
                   placeholder="Select Attribute"
                 />

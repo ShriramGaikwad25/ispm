@@ -193,6 +193,20 @@ const MultiStageReviewForm: React.FC<MultiStageReviewFormProps> = ({
                     }
                     watch={watch as unknown as UseFormWatch<FieldValues>}
                     fieldName={genericExp}
+                    attributesOptions={[
+                      { label: "Risk", value: "risk" },
+                      { label: "Pre-Requisite", value: "pre_requisite" },
+                      { label: "Shared Pwd", value: "shared_pwd" },
+                      { label: "Regulatory Scope", value: "regulatory_scope" },
+                      { label: "Access Scope", value: "access_scope" },
+                      { label: "Review Schedule", value: "review_schedule" },
+                      { label: "Business Unit", value: "business_unit" },
+                      { label: "Data Classification", value: "data_classification" },
+                      { label: "Privileged", value: "privileged" },
+                      { label: "Non Persistent Access", value: "non_persistent_access" },
+                      { label: "License Type", value: "license_type" },
+                      { label: "Tags", value: "tags" },
+                    ]}
                   />
                   {errors?.genericExpression?.message && (
                     <p className="text-red-500">

@@ -9,7 +9,7 @@ import {
 } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import MultiSelect from "@/components/MultiSelect";
-import { customOption, loadApps } from "@/components/MsAsyncData";
+import { customOption, loadIspmApps } from "@/components/MsAsyncData";
 import FileDropzone from "@/components/FileDropzone";
 import ToggleSwitch from "@/components/ToggleSwitch";
 import {
@@ -285,7 +285,7 @@ const Step2: React.FC<StepProps> = ({
                     placeholder="Select Specific App(s)"
                     control={control as unknown as Control<FieldValues>}
                     isAsync
-                    loadOptions={loadApps}
+                    loadOptions={loadIspmApps}
                     components={{ Option: customOption }}
                     {...register("specificApps")}
                   />
@@ -305,6 +305,20 @@ const Step2: React.FC<StepProps> = ({
                     }
                     watch={watch as unknown as UseFormWatch<FieldValues>}
                     fieldName="expressionApps"
+                    attributesOptions={[
+                      { label: "Risk", value: "risk" },
+                      { label: "Pre-Requisite", value: "pre_requisite" },
+                      { label: "Shared Pwd", value: "shared_pwd" },
+                      { label: "Regulatory Scope", value: "regulatory_scope" },
+                      { label: "Access Scope", value: "access_scope" },
+                      { label: "Review Schedule", value: "review_schedule" },
+                      { label: "Business Unit", value: "business_unit" },
+                      { label: "Data Classification", value: "data_classification" },
+                      { label: "Privileged", value: "privileged" },
+                      { label: "Non Persistent Access", value: "non_persistent_access" },
+                      { label: "License Type", value: "license_type" },
+                      { label: "Tags", value: "tags" },
+                    ]}
                   />
                   {errors.expressionApps?.message &&
                     typeof errors.expressionApps.message === "string" && (
@@ -323,6 +337,20 @@ const Step2: React.FC<StepProps> = ({
                   setValue={setValue as unknown as UseFormSetValue<FieldValues>}
                   watch={watch as unknown as UseFormWatch<FieldValues>}
                   fieldName="expressionEntitlement"
+                  attributesOptions={[
+                    { label: "Risk", value: "risk" },
+                    { label: "Pre-Requisite", value: "pre_requisite" },
+                    { label: "Shared Pwd", value: "shared_pwd" },
+                    { label: "Regulatory Scope", value: "regulatory_scope" },
+                    { label: "Access Scope", value: "access_scope" },
+                    { label: "Review Schedule", value: "review_schedule" },
+                    { label: "Business Unit", value: "business_unit" },
+                    { label: "Data Classification", value: "data_classification" },
+                    { label: "Privileged", value: "privileged" },
+                    { label: "Non Persistent Access", value: "non_persistent_access" },
+                    { label: "License Type", value: "license_type" },
+                    { label: "Tags", value: "tags" },
+                  ]}
                 />
                 {errors.expressionEntitlement?.message &&
                   typeof errors.expressionEntitlement.message === "string" && (
