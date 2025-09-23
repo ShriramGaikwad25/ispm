@@ -631,6 +631,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
           ...prev,
           numOfEntitlements: progress.totalItems,
           numOfEntitlementsCertified: progress.approvedCount,
+          numOfEntitlementsRejected: progress.rejectedCount,
+          numOfEntitlementsRevoked: progress.revokedCount,
         } as UserRowData;
       });
       setUsers((prev) =>
@@ -640,6 +642,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
                 ...u,
                 numOfEntitlements: progress.totalItems,
                 numOfEntitlementsCertified: progress.approvedCount,
+                numOfEntitlementsRejected: progress.rejectedCount,
+                numOfEntitlementsRevoked: progress.revokedCount,
               }
             : u
         )
@@ -677,18 +681,42 @@ const TreeClient: React.FC<TreeClientProps> = ({
 
   // Calculate progress for a user based on their entitlements
   const getUserProgress = (user: UserRowData) => {
+    // If we have entitlements data for this user, calculate from actual data
+    if (selectedUser?.id === user.id && entitlementsData.length > 0) {
+      const progressData = calculateProgressData(entitlementsData);
+      const completed = progressData.approvedCount + progressData.rejectedCount + progressData.revokedCount + progressData.delegatedCount + progressData.remediatedCount;
+      const percentage = progressData.totalItems > 0 ? Math.round((completed / progressData.totalItems) * 100) : 0;
+
+      return {
+        total: progressData.totalItems,
+        approved: progressData.approvedCount,
+        rejected: progressData.rejectedCount,
+        revoked: progressData.revokedCount,
+        delegated: progressData.delegatedCount,
+        remediated: progressData.remediatedCount,
+        completed,
+        pending: progressData.pendingCount,
+        percentage,
+      };
+    }
+
+    // Fallback to API response data (less accurate)
     const total = user.numOfEntitlements || 0;
     const approved = user.numOfEntitlementsCertified || 0;
-    const pending = total - approved; // Remaining entitlements are pending
-    const revoked = 0; // This would need to come from actual revocation data
+    const rejected = user.numOfEntitlementsRejected || 0;
+    const revoked = user.numOfEntitlementsRevoked || 0;
+    const completed = approved + rejected + revoked; // Certified, rejected, and revoked all count as progress
+    const pending = total - completed; // Remaining entitlements are pending
 
-    const percentage = total > 0 ? Math.round((approved / total) * 100) : 0;
+    const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
 
     return {
       total,
       approved,
-      pending,
+      rejected,
       revoked,
+      completed,
+      pending,
       percentage,
     };
   };
@@ -698,6 +726,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
     const totalItems = entitlements.length;
     let approvedCount = 0;
     let pendingCount = 0;
+    let rejectedCount = 0;
     let revokedCount = 0;
     let delegatedCount = 0;
     let remediatedCount = 0;
@@ -708,7 +737,9 @@ const TreeClient: React.FC<TreeClientProps> = ({
 
       if (action === "Approve" || status === "approved") {
         approvedCount++;
-      } else if (action === "Reject" || status === "revoked") {
+      } else if (action === "Reject" || status === "rejected") {
+        rejectedCount++;
+      } else if (action === "Revoke" || status === "revoked") {
         revokedCount++;
       } else if (action === "Delegate" || status === "delegated") {
         delegatedCount++;
@@ -723,6 +754,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
       totalItems,
       approvedCount,
       pendingCount,
+      rejectedCount,
       revokedCount,
       delegatedCount,
       remediatedCount,

@@ -58,6 +58,8 @@ export interface UserRowData {
   numOfApplicationsCertified?: number;
   numOfRolesCertified?: number;
   numOfEntitlementsCertified?: number;
+  numOfEntitlementsRejected?: number;
+  numOfEntitlementsRevoked?: number;
   profileChange?: string;
   SoDConflicts?: string;
   addedAccounts?: string;

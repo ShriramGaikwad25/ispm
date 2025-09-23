@@ -677,10 +677,16 @@ function AppOwnerContent() {
       try {
         const summary = JSON.parse(selectedCampaignSummary);
         if (summary.totalItems && summary.approvedCount !== undefined && summary.pendingCount !== undefined) {
-          const percentage = summary.totalItems > 0 ? Math.round((summary.approvedCount / summary.totalItems) * 100) : 0;
+          const rejectedCount = summary.rejectedCount || 0;
+          const revokedCount = summary.revokedCount || 0;
+          const completedCount = summary.approvedCount + rejectedCount + revokedCount; // Certified, rejected, and revoked all count as progress
+          const percentage = summary.totalItems > 0 ? Math.round((completedCount / summary.totalItems) * 100) : 0;
           return {
             totalItems: summary.totalItems,
             approvedCount: summary.approvedCount,
+            rejectedCount: rejectedCount,
+            revokedCount: revokedCount,
+            completedCount: completedCount,
             pendingCount: summary.pendingCount,
             percentage: percentage,
           };
@@ -693,12 +699,18 @@ function AppOwnerContent() {
     // Fallback to user-level progress calculation
     const total = userData.numOfEntitlements || 0;
     const approved = userData.numOfEntitlementsCertified || 0;
-    const pending = total - approved;
-    const percentage = total > 0 ? Math.round((approved / total) * 100) : 0;
+    const rejected = userData.numOfEntitlementsRejected || 0;
+    const revoked = userData.numOfEntitlementsRevoked || 0;
+    const completed = approved + rejected + revoked; // Certified, rejected, and revoked all count as progress
+    const pending = total - completed;
+    const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
 
     return {
       totalItems: total,
       approvedCount: approved,
+      rejectedCount: rejected,
+      revokedCount: revoked,
+      completedCount: completed,
       pendingCount: pending,
       percentage: percentage,
     };

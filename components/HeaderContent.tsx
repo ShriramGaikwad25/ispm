@@ -495,12 +495,18 @@ const HeaderContent = () => {
   const calculateUserProgress = (userData: any) => {
     const total = userData.numOfEntitlements || 0;
     const approved = userData.numOfEntitlementsCertified || 0;
-    const pending = total - approved;
-    const percentage = total > 0 ? Math.round((approved / total) * 100) : 0;
+    const rejected = userData.numOfEntitlementsRejected || 0;
+    const revoked = userData.numOfEntitlementsRevoked || 0;
+    const completed = approved + rejected + revoked; // Certified, rejected, and revoked all count as progress
+    const pending = total - completed;
+    const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
 
     return {
       totalItems: total,
       approvedCount: approved,
+      rejectedCount: rejected,
+      revokedCount: revoked,
+      completedCount: completed,
       pendingCount: pending,
       percentage: percentage,
     };
