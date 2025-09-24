@@ -60,6 +60,29 @@ export const formatDateMMDDYY = (input?: string | Date | null): string => {
     .replaceAll("/", "-");
 };
 
+// Formats a date input into MM/dd/yy (slashes). Accepts Date or parsable string.
+export const formatDateMMDDYYSlashes = (input?: string | Date | null): string => {
+  if (!input) return "";
+  const date = input instanceof Date ? input : new Date(input);
+  if (isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("en-US", {
+    month: "2-digit",
+    day: "2-digit",
+    year: "2-digit",
+  });
+};
+
+// Formats a date input into dd/mm/yyyy. Accepts Date or parsable string.
+export const formatDateDDMMYYYY = (input?: string | Date | null): string => {
+  if (!input) return "";
+  const date = input instanceof Date ? input : new Date(input);
+  if (isNaN(date.getTime())) return "";
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = String(date.getFullYear());
+  return `${day}/${month}/${year}`;
+};
+
 export const defaultExpression = {
   id: uuidv4(),
   attribute: null,

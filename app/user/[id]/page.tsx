@@ -1,9 +1,12 @@
 "use client";
 import HorizontalTabs from "@/components/HorizontalTabs";
+import SegmentedControl from "@/components/SegmentedControl";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
+import { executeQuery } from "@/lib/api";
 import type { ColDef } from "ag-grid-enterprise";
 import dynamic from "next/dynamic";
+import "@/components/scheduler/SchedulerManager.css";
 
 // Dynamically import AgGridReact with SSR disabled
 const AgGridReact = dynamic(() => import("ag-grid-react").then((mod) => mod.AgGridReact), {
@@ -170,8 +173,11 @@ export default function UserDetailPage() {
   const ProfileTab = () => {
     const initials = `${(userData.firstName || "")[0] || "U"}${(userData.lastName || "")[0] || ""}`.toUpperCase();
     const colors = ["#7f3ff0", "#0099cc", "#777", "#d7263d", "#ffae00"];
-    // Use a deterministic color based on user data to avoid server-client mismatch
-    const bgColor = colors[(userData.email || "").length % colors.length];
+    // Ensure same color on server and initial client render to avoid hydration mismatch
+    const bgColor = isMounted
+      ? colors[(userData.email || "").length % colors.length]
+      : colors[0];
+    const displayedInitials = isMounted ? initials : "";
 
     return (
       <div className="flex flex-col md:flex-row gap-6 p-6 bg-white rounded-lg shadow-md">
@@ -180,7 +186,7 @@ export default function UserDetailPage() {
             className="w-24 h-24 rounded-full flex items-center justify-center text-white text-2xl font-semibold"
             style={{ backgroundColor: bgColor }}
           >
-            {initials}
+            {displayedInitials}
           </div>
         </div>
         <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -246,164 +252,540 @@ export default function UserDetailPage() {
     );
   };
 
-  const AccessTab = () => {
-    const [rowData] = useState(accountData);
+  const AllAccessTab = () => {
+    const [rowData, setRowData] = useState<any[]>([]);
+    const [dynamicCols, setDynamicCols] = useState<ColDef[]>([]);
 
-    const accountColumnDefs = useMemo<ColDef[]>(
-      () => [
-        {
-          headerName: "Account ID",
-          field: "accountId",
-          flex: 1.5,
-          cellRenderer: (params: any) => (
-            <span>
-              {params.value} ({params.data.accountStatus}, {params.data.risk})
-            </span>
-          ),
-        },
-        { headerName: "App Name", field: "appName", flex: 1.5 },
-        { headerName: "Discovery Date", field: "discoveryDate", flex: 1, valueFormatter: (p:any)=> require("@/utils/utils").formatDateMMDDYY(p.value) },
-        { headerName: "Last Sync Date", field: "lastSyncDate", flex: 1, valueFormatter: (p:any)=> require("@/utils/utils").formatDateMMDDYY(p.value) },
-        { headerName: "Last Access Review", field: "lastAccessReview", flex: 1 },
-        { headerName: "Insights", field: "insights", flex: 1.5 },
-        {
-          headerName: "MFA",
-          field: "mfa",
-          flex: 1,
-          cellRenderer: (params: any) => (
-            <span className={params.value === "Enabled" ? "text-green-600" : "text-red-600"}>
-              {params.value}
-            </span>
-          ),
-        },
-        {
-          headerName: "Compliance Violation",
-          field: "complianceViolation",
-          flex: 1.5,
-          cellRenderer: (params: any) => (
-            <span className={params.value === "None" ? "text-green-600" : "text-red-600"}>
-              {params.value}
-            </span>
-          ),
-        },
-      ],
-      []
-    );
+    useEffect(() => {
+      const getUserIdFromStorage = (): string => {
+        try {
+          const fullStr = localStorage.getItem("selectedUserRawFull");
+          if (fullStr) {
+            const u = JSON.parse(fullStr);
+            return (
+              u.userid || u.id || u.userId || u.customattributes?.id || "0109868e-b00c-4f24-ae5f-258029cce1d6"
+            );
+          }
+        } catch {}
+        try {
+          const sel = localStorage.getItem("selectedUserRaw");
+          if (sel) {
+            const s = JSON.parse(sel);
+            return s.id || s.userId || "0109868e-b00c-4f24-ae5f-258029cce1d6";
+          }
+        } catch {}
+        return "0109868e-b00c-4f24-ae5f-258029cce1d6";
+      };
 
-    const entitlementColumnDefs = useMemo<ColDef[]>(
-      () => [
-        { headerName: "Entitlement Name", field: "entName", flex: 1.5 },
-        { headerName: "Risk", field: "risk", flex: 1 },
-        { headerName: "Description", field: "description", flex: 2 },
-        { headerName: "Assigned On", field: "assignedOn", flex: 1 },
-        { headerName: "Last Reviewed", field: "lastReviewed", flex: 1 },
-        {
-          headerName: "Tags",
-          field: "tags",
-          flex: 1.5,
-          cellRenderer: (params: any) => (
-            <div className="flex flex-wrap gap-1">
-              {params.value?.map((tag: string, index: number) => (
-                <span
-                  key={index}
-                  className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-          ),
-        },
-      ],
-      []
-    );
+      const fetchAllAccess = async () => {
+        try {
+          const userId = getUserIdFromStorage();
+          const res: any = await executeQuery<any>(
+            "select * from vw_user_with_applications_entitlements where userid = ?::uuid",
+            [userId]
+          );
+          // Handle concrete response shape: { resultSet: [ { applications: [ { entitlements: [...] } ] } ] }
+          if (Array.isArray(res?.resultSet)) {
+            const flatEntRows: any[] = [];
+            for (const user of res.resultSet) {
+              const apps = Array.isArray(user?.applications) ? user.applications : [];
+              for (const app of apps) {
+                const ents = Array.isArray(app?.entitlements) ? app.entitlements : [];
+                for (const ent of ents) {
+                  flatEntRows.push({
+                    entitlementName: ent?.entitlementname,
+                    entitlementType: ent?.entitlementType,
+                    application: app?.application,
+                    accountName: app?.accountname,
+                    lastLogin: app?.lastlogin,
+                  });
+                }
+              }
+            }
 
-    // Bar chart data
-    const chartData: ChartData<"bar"> = {
-      labels: ["Accounts", "Apps", "Entitlements", "Violations"],
-      datasets: [
-        {
-          label: "Access Metrics",
-          data: [accessData.accounts, accessData.apps, accessData.entitlements, accessData.violations],
-          backgroundColor: ["#4CAF50", "#2196F3", "#FF9800", "#F44336"],
-          borderColor: ["#388E3C", "#1976D2", "#F57C00", "#D32F2F"],
-          borderWidth: 1,
-        },
-      ],
-    };
+            setRowData(flatEntRows);
 
-    const chartOptions = {
-      scales: {
-        y: {
-          beginAtZero: true,
-          title: {
-            display: true,
-            text: "Count",
-          },
-        },
-        x: {
-          title: {
-            display: true,
-            text: "Categories",
-          },
-        },
-      },
-      plugins: {
-        legend: {
-          display: false, // Hide legend since we have only one dataset
-        },
-        datalabels: {
-          color: "#fff",
-          font: {
-            weight: "bold" as const,
-            size: 14,
-          },
-          formatter: (value: number) => value, // Display the value on each bar
-          anchor: "center" as const,
-          align: "center" as const,
-        },
-        title: {
-          display: true,
-          text: "Access Metrics",
-          font: {
-            size: 18,
-          },
-        },
-      },
-      maintainAspectRatio: false,
-    };
+            const desiredCols: ColDef[] = [
+              { headerName: "Entitlement Name", field: "entitlementName", flex: 1.5 },
+              { headerName: "entitlementType", field: "entitlementType", flex: 1 },
+              { headerName: "Application", field: "application", flex: 1.2 },
+              { headerName: "Account name", field: "accountName", flex: 1.2 },
+              {
+                headerName: "Last Login",
+                field: "lastLogin",
+                flex: 1,
+                valueFormatter: (p: any) => require("@/utils/utils").formatDateMMDDYYSlashes(p.value),
+              },
+            ];
+            setDynamicCols(desiredCols);
+            return;
+          }
+          // Normalize possible response shapes
+          const items = ((): any[] => {
+            if (Array.isArray(res?.items)) return res.items;
+            if (Array.isArray(res?.data?.items)) return res.data.items;
+            if (Array.isArray(res?.rows)) return res.rows;
+            if (Array.isArray(res?.data?.rows)) return res.data.rows;
+            if (Array.isArray(res?.results)) return res.results;
+            if (Array.isArray(res?.data?.results)) return res.data.results;
+            if (Array.isArray(res?.data)) return res.data;
+            if (Array.isArray(res)) return res;
+            if (res && typeof res === "object") {
+              // As a last resort, try to find an array property
+              const firstArray = Object.values(res).find((v: any) => Array.isArray(v));
+              if (Array.isArray(firstArray)) return firstArray as any[];
+            }
+            return [];
+          })();
+          setRowData(items);
+          // Helper to resolve a value from multiple possible key aliases on each row
+          const valueByAliases = (data: any, aliases: string[]) => {
+            for (const a of aliases) {
+              if (data[a] !== undefined) return data[a];
+              const lower = a.toLowerCase();
+              const hit = Object.keys(data).find((k) => k.toLowerCase() === lower);
+              if (hit) return data[hit];
+            }
+            return undefined;
+          };
+
+          const desiredCols: ColDef[] = [
+            {
+              headerName: "Entitlement Name",
+              colId: "entitlementName",
+              valueGetter: (p: any) =>
+                valueByAliases(p.data, ["entitlementname", "entitlement_name", "ent_name", "entname"]),
+              flex: 1.5,
+            },
+            {
+              headerName: "entitlementType",
+              colId: "entitlementType",
+              valueGetter: (p: any) =>
+                valueByAliases(p.data, [
+                  "entitlementtype",
+                  "entitlement_type",
+                  "ent_type",
+                  "enttype",
+                  "entitlementcategory",
+                ]),
+              flex: 1,
+            },
+            {
+              headerName: "Application",
+              colId: "application",
+              valueGetter: (p: any) =>
+                valueByAliases(p.data, [
+                  "application",
+                  "applicationname",
+                  "application_name",
+                  "appname",
+                  "app_name",
+                  "applicationdisplayname",
+                ]),
+              flex: 1.2,
+            },
+            {
+              headerName: "Account name",
+              colId: "accountName",
+              valueGetter: (p: any) =>
+                valueByAliases(p.data, [
+                  "account",
+                  "accountname",
+                  "account_name",
+                  "username",
+                  "useraccount",
+                  "user_name",
+                ]),
+              flex: 1.2,
+            },
+            {
+              headerName: "Last Login",
+              colId: "lastLogin",
+              valueGetter: (p: any) =>
+                valueByAliases(p.data, [
+                  "lastlogin",
+                  "last_login",
+                  "lastlogindate",
+                  "last_login_date",
+                ]),
+              flex: 1,
+            },
+          ];
+          // If none of the desired columns resolve for the first row, fall back to showing all keys
+          const desiredResolved = desiredCols.some((c) => {
+            try {
+              const val = (c as any).valueGetter?.({ data: items[0] });
+              return val !== undefined && val !== null;
+            } catch {
+              return false;
+            }
+          });
+          if (desiredResolved) {
+            setDynamicCols(desiredCols);
+          } else {
+            const keys = Object.keys(items[0] || {});
+            const fallback = keys.map((k) => ({ headerName: k, field: k, flex: 1 } as ColDef));
+            setDynamicCols(fallback);
+          }
+        } catch (e) {
+          setRowData([]);
+          setDynamicCols([]);
+        }
+      };
+
+      fetchAllAccess();
+    }, []);
 
     return (
       <div className="p-6 bg-gray-50 ">
-        {/* Bar Chart */}
-        {isMounted && (
-          <div className="bg-white p-4 rounded-lg shadow-md mb-6 w-120">
-            <div className="h-64">
-              <Bar data={chartData} options={chartOptions} />
-            </div>
-          </div>
-        )}
-        {/* Accounts Table */}
         {isMounted && (
           <div className="ag-theme-alpine" style={{ height: 400, width: "100%" }}>
             <AgGridReact
               rowData={rowData}
-              columnDefs={accountColumnDefs}
-              masterDetail={true}
-              detailCellRendererParams={{
-                detailGridOptions: {
-                  columnDefs: entitlementColumnDefs,
-                  defaultColDef: { flex: 1 },
-                },
-                getDetailRowData: (params: any) => {
-                  params.successCallback(params.data.entitlements);
-                },
-              }}
-              detailRowHeight={200}
-              defaultColDef={{ sortable: true, filter: true }}
+              columnDefs={dynamicCols}
+              defaultColDef={{ sortable: true, filter: true, resizable: true }}
             />
           </div>
         )}
+      </div>
+    );
+  };
+
+  const UnderReviewTab = () => {
+    const transientItems = [
+      {
+        title: "Fusion HCM Admin Account",
+        description:
+          "Operates core HCM administration. Provides governed workflows and traceability.",
+        application: "Oracle_Fusion_HCM",
+        account: "kelly.marks",
+        entitlement: "HCM Admin Account",
+      },
+      {
+        title: "SAP Finance Ops",
+        description:
+          "Performs financial postings, inquiries, and reconciliations under governed workflows.",
+        application: "SAP_S4",
+        account: "kelly.marks",
+        entitlement: "Finance Analyst",
+      },
+    ];
+
+    const [selectedIdx, setSelectedIdx] = useState(0);
+    const selectedItem = transientItems[selectedIdx] || transientItems[0];
+
+    // Side panel state for Start Access
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+    const [accessMode, setAccessMode] = useState<"now" | "schedule">("now");
+    const [hours, setHours] = useState<string>("");
+    const [scheduleDate, setScheduleDate] = useState<string>("");
+    const [startTime, setStartTime] = useState<string>("");
+    const [endTime, setEndTime] = useState<string>("");
+    const [justification, setJustification] = useState<string>("");
+
+    const resetForm = () => {
+      setAccessMode("now");
+      setHours("");
+      setScheduleDate("");
+      setStartTime("");
+      setEndTime("");
+      setJustification("");
+    };
+
+    const openDrawer = () => {
+      resetForm();
+      setIsDrawerOpen(true);
+    };
+
+    const closeDrawer = () => {
+      setIsDrawerOpen(false);
+    };
+
+    const handleSubmit = (e: React.FormEvent) => {
+      e.preventDefault();
+      // TODO: Wire to API
+      console.log("Start Access submit", {
+        item: selectedItem,
+        accessMode,
+        hours,
+        scheduleDate,
+        startTime,
+        endTime,
+        justification,
+      });
+      setIsDrawerOpen(false);
+    };
+
+    const historyRows = [
+      { startDate: "2025-09-01", endDate: "2025-09-07", duration: "7 days", status: "Completed" },
+      { startDate: "2025-09-10", endDate: "2025-09-12", duration: "3 days", status: "Revoked" },
+      { startDate: "2025-09-18", endDate: null, duration: "Active", status: "In Progress" },
+    ];
+
+    const fmt = (d?: string | null) => (d ? require("@/utils/utils").formatDateMMDDYYSlashes(d) : "-");
+
+    return (
+      <div className="p-6 bg-gray-50">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ gridTemplateColumns: isDrawerOpen ? "280px 1fr 0" : undefined }}>
+          {/* Left: Transient Access list */}
+          <div className="lg:col-span-1">
+            <div className="triggers-panel" style={{ width: "100%", height: "100%" }}>
+              <div className="triggers-header">
+                <h3>TRANSIENT ACCESS</h3>
+                <button
+                  className="px-3 py-1.5 rounded-md bg-blue-600 text-white text-xs font-medium hover:bg-blue-700"
+                  onClick={() => { /* TODO: open create transient access modal */ }}
+                >
+                  New
+                </button>
+              </div>
+              <div className="trigger-list">
+                {transientItems.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className={`trigger-item ${selectedIdx === idx ? "selected" : ""}`}
+                    onClick={() => setSelectedIdx(idx)}
+                  >
+                    <div className="trigger-name">{item.title}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Right: Access History */}
+          <div className="lg:col-span-2" style={{ marginRight: isDrawerOpen ? 420 : 0, transition: "margin-right 200ms ease" }}>
+            {/* Top card styled like scheduler trigger card */}
+            <div className="jobs-section" style={{ padding: 0, marginBottom: 20, height: "auto", gap: 0, display: "block" }}>
+              <div className="trigger-card-section" style={{ height: "auto", marginBottom: 4 }}>
+                <div className="trigger-card" style={{ marginBottom: 0 }}>
+                  <div className="trigger-card-header" style={{ paddingTop: 6, paddingBottom: 6 }}>
+                    <h4>{selectedItem?.title || "Fusion HCM Admin Account"}</h4>
+                  </div>
+                  <div className="trigger-card-content" style={{ padding: 8 }}>
+                    <div className="trigger-info-rows" style={{ gap: 8 }}>
+                      <div className="trigger-info-row">
+                        <div
+                          className="info-item bg-gray-100 rounded"
+                          style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "row", alignItems: "center", gap: 8, padding: "8px 12px" }}
+                        >
+                          <span className="info-label" style={{ marginRight: 4 }}>Description:</span>
+                          <span className="info-value whitespace-nowrap">{selectedItem?.description || "N/A"}</span>
+                        </div>
+                      </div>
+                      <div className="trigger-info-row" style={{ gridTemplateColumns: "1fr 1fr auto", columnGap: 16 }}>
+                        <div className="info-item">
+                          <span className="info-label">Account</span>
+                          <span className="info-value">{selectedItem?.account || "N/A"}</span>
+                        </div>
+                        <div className="info-item">
+                          <span className="info-label">Application</span>
+                          <span className="info-value">{selectedItem?.application || "N/A"}</span>
+                        </div>
+                        <div className="info-item">
+                          <span className="info-label">Action</span>
+                          <button
+                            className="px-3 py-2 bg-green-600 text-white rounded-md text-sm hover:bg-green-700"
+                            onClick={openDrawer}
+                          >
+                            Start Access
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="trigger-card-section" style={{ height: "auto" }}>
+              <div className="trigger-card">
+                <div className="trigger-card-header" style={{ paddingTop: 8, paddingBottom: 8 }}>
+                  <h4>Access History</h4>
+                </div>
+                <div className="trigger-card-content" style={{ padding: 0 }}>
+                  <div className="grid grid-cols-4 gap-2 px-4 py-3 text-xs font-semibold text-gray-600 bg-gray-100 border-b">
+                    <div>Start Date</div>
+                    <div>End Date</div>
+                    <div>Duration</div>
+                    <div>Status</div>
+                  </div>
+                  <div className="divide-y">
+                    {historyRows.map((h, i) => (
+                      <div key={i} className="grid grid-cols-4 gap-2 px-4 py-3 text-sm text-gray-700">
+                        <div>{fmt(h.startDate)}</div>
+                        <div>{fmt(h.endDate)}</div>
+                        <div>{h.duration}</div>
+                        <div>
+                          <span
+                            className={`inline-block px-2 py-0.5 rounded text-xs ${
+                              h.status === "Completed"
+                                ? "bg-green-100 text-green-700"
+                                : h.status === "Revoked"
+                                ? "bg-red-100 text-red-700"
+                                : "bg-yellow-100 text-yellow-700"
+                            }`}
+                          >
+                            {h.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+            {/* Right Drawer for Start Access */}
+            {isDrawerOpen && (
+              <>
+                {/* Drawer */}
+                <div className="fixed right-0 w-96 md:w-[420px] bg-white shadow-2xl z-50 flex flex-col" style={{ top: 80, height: "calc(100% - 80px)" }}>
+                  <div className="px-4 py-3 border-b flex items-center justify-between">
+                    <div className="text-base font-semibold">Start Transient Access</div>
+                    <button
+                      className="text-gray-500 hover:text-gray-700 text-xl leading-none"
+                      onClick={closeDrawer}
+                      aria-label="Close"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <form onSubmit={handleSubmit} className="p-4 overflow-y-auto flex-1">
+                    {/* Toggle NOW / Schedule */}
+                    <div className="mb-4">
+                      <div className="text-xs font-semibold text-gray-500 mb-1">Access Duration</div>
+                      <div className="inline-flex bg-gray-100 rounded-md p-1">
+                        <button
+                          type="button"
+                          onClick={() => setAccessMode("now")}
+                          className={`px-3 py-1 text-sm rounded ${
+                            accessMode === "now" ? "bg-blue-600 text-white" : "text-gray-600"
+                          }`}
+                        >
+                          Now
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAccessMode("schedule")}
+                          className={`px-3 py-1 text-sm rounded ${
+                            accessMode === "schedule" ? "bg-blue-600 text-white" : "text-gray-600"
+                          }`}
+                        >
+                          Schedule for Later
+                        </button>
+                      </div>
+                    </div>
+
+                    {accessMode === "now" ? (
+                      <div className="mb-4">
+                        <label className="block text-xs font-semibold text-gray-500 mb-1">
+                          Duration (hours)
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          className="w-full border rounded px-3 py-2 text-sm"
+                          placeholder="e.g., 4"
+                          value={hours}
+                          onChange={(e) => setHours(e.target.value)}
+                          required
+                        />
+                      </div>
+                    ) : (
+                      <div className="mb-4 space-y-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-500 mb-1">Date</label>
+                          <input
+                            type="date"
+                            className="w-full border rounded px-3 py-2 text-sm"
+                            value={scheduleDate}
+                            onChange={(e) => setScheduleDate(e.target.value)}
+                            required
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-500 mb-1">Start Time</label>
+                            <input
+                              type="time"
+                              className="w-full border rounded px-3 py-2 text-sm"
+                              value={startTime}
+                              onChange={(e) => setStartTime(e.target.value)}
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-500 mb-1">End Time</label>
+                            <input
+                              type="time"
+                              className="w-full border rounded px-3 py-2 text-sm"
+                              value={endTime}
+                              onChange={(e) => setEndTime(e.target.value)}
+                              required
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="mb-4">
+                      <label className="block text-xs font-semibold text-gray-500 mb-1">Justification</label>
+                      <textarea
+                        className="w-full border rounded px-3 py-2 text-sm"
+                        rows={4}
+                        placeholder="Why is this access needed?"
+                        value={justification}
+                        onChange={(e) => setJustification(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="pt-2 flex justify-end gap-2">
+                      <button
+                        type="button"
+                        className="px-4 py-2 rounded border text-sm"
+                        onClick={closeDrawer}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-4 py-2 rounded bg-green-600 hover:bg-green-700 text-white text-sm"
+                      >
+                        Submit
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const AccessTab = () => {
+    const [accessTabIndex, setAccessTabIndex] = useState(0);
+
+    const accessSegments = [
+      {
+        label: "All",
+        component: AllAccessTab,
+      },
+      {
+        label: "Transient Access",
+        component: UnderReviewTab,
+      },
+    ];
+
+    return (
+      <div>
+        <SegmentedControl
+          segments={accessSegments}
+          activeIndex={accessTabIndex}
+          onChange={setAccessTabIndex}
+        />
       </div>
     );
   };
