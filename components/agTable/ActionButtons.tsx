@@ -169,12 +169,22 @@ const ActionButtons = <T extends { status?: string }>({
       // Prevent double submit but no global loading overlay
       setIsActionLoading(true);
 
-      // Do not send now; queue for submit. Optimistically mark buttons as pending for current selection
-      const affectedCount =
+      // Do not send now; queue for submit. Adjust floating count based on toggle intent and current pending state
+      const targetIds =
         context === "entitlement"
-          ? (payload.entitlementAction?.[0]?.lineItemIds?.length || 0)
-          : definedRows.length;
-      queueAction({ reviewerId, certId, payload, count: affectedCount });
+          ? ((payload.entitlementAction?.[0]?.lineItemIds as string[]) || [])
+          : selectedIds;
+      const isTogglingToPending = actionType === 'Pending';
+      const previouslyPendingIds = targetIds.filter((id) => pendingById[id]);
+      const notPreviouslyPendingIds = targetIds.filter((id) => !pendingById[id]);
+      // Rules:
+      // - Approve/Reject adds count only for ids not already pending
+      // - Pending removes count for ids already pending; if none were pending (e.g., certified status), treat as a new change (+)
+      const countDelta = isTogglingToPending
+        ? (previouslyPendingIds.length > 0 ? -previouslyPendingIds.length : targetIds.length)
+        : notPreviouslyPendingIds.length;
+
+      queueAction({ reviewerId, certId, payload, count: countDelta });
 
       // Mark local pending state for button visuals
       setPendingById((prev) => {
@@ -228,8 +238,8 @@ const ActionButtons = <T extends { status?: string }>({
     e.stopPropagation();
     if (!api || definedRows.length === 0 || isActionLoading) return;
     
-    // If already approved or has approve action, set to Pending to remove filled style
-    if (isApproved || isApproveAction) {
+    // If already marked approve (pending state) OR underlying state approved, toggle to Pending
+    if (isApprovePending || isApproved || isApproveAction) {
       await updateActions("Pending", comment || "Reset to pending");
     } else {
       await updateActions("Approve", comment || "Approved via UI");
@@ -240,8 +250,8 @@ const ActionButtons = <T extends { status?: string }>({
     e.stopPropagation();
     if (!api || definedRows.length === 0 || isActionLoading) return;
     
-    // If already rejected or has reject action, set to Pending to remove filled style
-    if (isRejected || isRejectAction) {
+    // If already marked reject (pending state) OR underlying state rejected, toggle to Pending
+    if (isRejectPending || isRejected || isRejectAction) {
       await updateActions("Pending", comment || "Reset to pending");
     } else {
       await updateActions("Reject", comment || "Revoked via UI");
@@ -1071,9 +1081,9 @@ const ActionButtons = <T extends { status?: string }>({
       {/* Action Completed Toast */}
       <ActionCompletedToast
         isVisible={showCompletionToast}
-        messages={['Action success', 'Action completed']}
+        message={"Action completed"}
         onClose={() => setShowCompletionToast(false)}
-        messageDuration={1000}
+        duration={1500}
       />
     </div>
   );

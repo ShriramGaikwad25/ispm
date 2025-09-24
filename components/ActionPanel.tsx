@@ -33,9 +33,9 @@ const ActionPanel: React.FC = () => {
       </div>
       <ActionCompletedToast
         isVisible={showToast}
-        messages={['Actions submitted', 'Refreshing…']}
+        message={'Action completed'}
         onClose={() => setShowToast(false)}
-        messageDuration={600}
+        duration={1500}
       />
     </div>
   );

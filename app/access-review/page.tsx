@@ -692,9 +692,9 @@ const activeColumnDefs = useMemo<ColDef[]>(() =>[
       {/* Action Completed Toast */}
       <ActionCompletedToast
         isVisible={showCompletionToast}
-        messages={['Action success', 'Action completed']}
+        message={"Action completed"}
         onClose={() => setShowCompletionToast(false)}
-        messageDuration={1000}
+        duration={1500}
       />
     </>
   );
