@@ -574,7 +574,7 @@ export default function UserDetailPage() {
           <div className="lg:col-span-1">
             <div className="triggers-panel" style={{ width: "100%", height: "100%" }}>
               <div className="triggers-header">
-                <h3>TRANSIENT ACCESS</h3>
+                <h3>JIT Privilege Access</h3>
                 <button
                   className="px-3 py-1.5 rounded-md bg-blue-600 text-white text-xs font-medium hover:bg-blue-700"
                   onClick={() => { /* TODO: open create transient access modal */ }}
@@ -853,10 +853,10 @@ export default function UserDetailPage() {
         label: "All",
         component: AllAccessTab,
       },
-      {
-        label: "Transient Access",
-        component: UnderReviewTab,
-      },
+    {
+      label: "JIT Privilege Access",
+      component: UnderReviewTab,
+    },
     ];
 
     return (
