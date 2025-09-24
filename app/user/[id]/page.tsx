@@ -524,45 +524,45 @@ export default function UserDetailPage() {
       { 
         date: todayFormatted, 
         requestedDuration: 4, 
-        startTime: "9:00 AM", 
+        startTime: "02:00 PM", 
         endTime: null, 
         status: "Active" 
       },
       { 
         date: "09/24/2025", 
-        requestedDuration: 4, 
-        startTime: "9:00 AM", 
+        requestedDuration: 1, 
+        startTime: "11:00 AM", 
+        endTime: "12:00 PM", 
+        status: "Completed" 
+      },
+      { 
+        date: "09/24/2025", 
+        requestedDuration: 1, 
+        startTime: "09:00 AM", 
         endTime: "10:00 AM", 
         status: "Completed" 
       },
-      { 
-        date: "09/24/2025", 
-        requestedDuration: 4, 
-        startTime: "10:30 AM", 
-        endTime: "12:30 PM", 
-        status: "Completed" 
-      },
-      { 
-        date: "09/24/2025", 
-        requestedDuration: 1, 
-        startTime: "1:00 PM", 
-        endTime: "1:30 PM", 
-        status: "Completed" 
-      },
-      { 
-        date: "09/23/2025", 
-        requestedDuration: 1, 
-        startTime: "2:00 PM", 
-        endTime: "2:45 PM", 
-        status: "Completed" 
-      },
-      { 
-        date: "09/22/2025", 
-        requestedDuration: 2, 
-        startTime: "4:00 PM", 
-        endTime: "5:30 PM", 
-        status: "Completed" 
-      }
+      // { 
+      //   date: "09/24/2025", 
+      //   requestedDuration: 1, 
+      //   startTime: "1:00 PM", 
+      //   endTime: "1:30 PM", 
+      //   status: "Completed" 
+      // },
+      // { 
+      //   date: "09/23/2025", 
+      //   requestedDuration: 1, 
+      //   startTime: "2:00 PM", 
+      //   endTime: "2:45 PM", 
+      //   status: "Completed" 
+      // },
+      // { 
+      //   date: "09/22/2025", 
+      //   requestedDuration: 2, 
+      //   startTime: "4:00 PM", 
+      //   endTime: "5:30 PM", 
+      //   status: "Completed" 
+      // }
     ];
 
     const fmt = (d?: string | null) => (d ? require("@/utils/utils").formatDateMMDDYYSlashes(d) : "-");
