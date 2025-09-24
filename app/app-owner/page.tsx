@@ -833,8 +833,9 @@ function AppOwnerContent() {
     {
       field: "accountName",
       headerName: "Account",
+      width:150,
       // cellRenderer: "agGroupCellRenderer",
-      cellClass: "ag-cell-no-padding",
+      // cellClass: "ag-cell-no-padding",
       cellRenderer: (params: ICellRendererParams) => {
         const risk = params.data?.accountName || "Low";
         const riskColor =
