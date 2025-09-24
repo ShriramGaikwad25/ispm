@@ -177,12 +177,13 @@ const Filters = ({
               }`}
             >
               <div className="flex items-center">
-                <Check
-                  size={16}
-                  className={`mx-2 ${
-                    isSelected ? "text-blue-600" : "text-gray-400"
-                  }`}
-                />
+                <span className="mx-2 w-4 flex justify-center">
+                  {isSelected ? (
+                    <Check size={16} className="text-blue-600" />
+                  ) : (
+                    <span className="w-4" />
+                  )}
+                </span>
                 <span className={option.label === "Terminated User Accounts" ? "text-gray-400" : ""}>
                   {option.label}
                 </span>
