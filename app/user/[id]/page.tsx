@@ -1,7 +1,7 @@
 "use client";
 import HorizontalTabs from "@/components/HorizontalTabs";
 import SegmentedControl from "@/components/SegmentedControl";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, History, CircleX, CirclePlus } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { executeQuery } from "@/lib/api";
 import type { ColDef } from "ag-grid-enterprise";
@@ -516,10 +516,53 @@ export default function UserDetailPage() {
       setIsDrawerOpen(false);
     };
 
+    // Get today's date in MM/DD/YYYY format
+    const today = new Date();
+    const todayFormatted = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
+
     const historyRows = [
-      { startDate: "2025-09-01", endDate: "2025-09-07", duration: "7 days", status: "Completed" },
-      { startDate: "2025-09-10", endDate: "2025-09-12", duration: "3 days", status: "Revoked" },
-      { startDate: "2025-09-18", endDate: null, duration: "Active", status: "In Progress" },
+      { 
+        date: todayFormatted, 
+        requestedDuration: 4, 
+        startTime: "9:00 AM", 
+        endTime: null, 
+        status: "Active" 
+      },
+      { 
+        date: "09/24/2025", 
+        requestedDuration: 4, 
+        startTime: "9:00 AM", 
+        endTime: "10:00 AM", 
+        status: "Completed" 
+      },
+      { 
+        date: "09/24/2025", 
+        requestedDuration: 4, 
+        startTime: "10:30 AM", 
+        endTime: "12:30 PM", 
+        status: "Completed" 
+      },
+      { 
+        date: "09/24/2025", 
+        requestedDuration: 1, 
+        startTime: "1:00 PM", 
+        endTime: "1:30 PM", 
+        status: "Completed" 
+      },
+      { 
+        date: "09/23/2025", 
+        requestedDuration: 1, 
+        startTime: "2:00 PM", 
+        endTime: "2:45 PM", 
+        status: "Completed" 
+      },
+      { 
+        date: "09/22/2025", 
+        requestedDuration: 2, 
+        startTime: "4:00 PM", 
+        endTime: "5:30 PM", 
+        status: "Completed" 
+      }
     ];
 
     const fmt = (d?: string | null) => (d ? require("@/utils/utils").formatDateMMDDYYSlashes(d) : "-");
@@ -604,34 +647,71 @@ export default function UserDetailPage() {
                   <h4>Access History</h4>
                 </div>
                 <div className="trigger-card-content" style={{ padding: 0 }}>
-                  <div className="grid grid-cols-4 gap-2 px-4 py-3 text-xs font-semibold text-gray-600 bg-gray-100 border-b">
-                    <div>Start Date</div>
-                    <div>End Date</div>
-                    <div>Duration</div>
-                    <div>Status</div>
-                  </div>
-                  <div className="divide-y">
-                    {historyRows.map((h, i) => (
-                      <div key={i} className="grid grid-cols-4 gap-2 px-4 py-3 text-sm text-gray-700">
-                        <div>{fmt(h.startDate)}</div>
-                        <div>{fmt(h.endDate)}</div>
-                        <div>{h.duration}</div>
-                        <div>
-                          <span
-                            className={`inline-block px-2 py-0.5 rounded text-xs ${
-                              h.status === "Completed"
-                                ? "bg-green-100 text-green-700"
-                                : h.status === "Revoked"
-                                ? "bg-red-100 text-red-700"
-                                : "bg-yellow-100 text-yellow-700"
-                            }`}
-                          >
-                            {h.status}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-gray-100 border-b">
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Date</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Requested Duration</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Start Time</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">End Time</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {historyRows.map((h, i) => (
+                        <tr key={i} className="border-b hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm text-gray-700">{h.date}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{h.requestedDuration} hours</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{h.startTime}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{h.endTime || "-"}</td>
+                          <td className="px-4 py-3 text-sm">
+                            <span
+                              className={`inline-block px-2 py-0.5 rounded text-xs ${
+                                h.status === "Completed"
+                                  ? "bg-gray-100 text-gray-700"
+                                  : h.status === "Active"
+                                  ? "bg-green-100 text-green-700"
+                                  : "bg-yellow-100 text-yellow-700"
+                              }`}
+                            >
+                              {h.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm">
+                            <div className="flex items-center gap-2">
+                              {/* Activity icon first */}
+                              <button
+                                className="text-blue-600 hover:text-blue-800 flex items-center justify-center"
+                                onClick={() => console.log('Activity', h)}
+                                title="Activity"
+                              >
+                                <History size={24} />
+                              </button>
+                              {h.status === "Active" && (
+                                <>
+                                  <button
+                                    className="text-red-600 hover:text-red-800 flex items-center justify-center ml-2"
+                                    onClick={() => console.log('End Session')}
+                                    title="End Session"
+                                  >
+                                    <CircleX size={24} />
+                                  </button>
+                                  <button
+                                    className="text-green-600 hover:text-green-800 flex items-center justify-center ml-2"
+                                    onClick={() => console.log('Extend')}
+                                    title="Extend"
+                                  >
+                                    <CirclePlus size={24} />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
