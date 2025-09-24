@@ -145,12 +145,12 @@ export default function ManageCampaigns() {
   const columnDefs = useMemo<ColDef[]>(
     () => [
       { headerName: "Reviewer Name", field: "reviewerName" },
-      { headerName: "Title", field: "title", flex: 2 },
-      { headerName: "Department", field: "department", flex: 2 },
+      { headerName: "Title", field: "title", flex: 1.5 },
+      { headerName: "Department", field: "department", flex: 1.5 },
       {
         headerName: "Progress",
         field: "progress",
-        flex: 2,
+        flex: 1.5,
         cellRenderer: (params: ICellRendererParams) => {
           const value = parseInt(params.value.replace("%", ""));
           const bgColor = value === 100 ? "bg-green-500" : "bg-blue-500";
@@ -168,7 +168,7 @@ export default function ManageCampaigns() {
         },
       },
 
-      { headerName: "Risk Score", field: "riskScore", flex: 2 },
+      { headerName: "Risk Score", field: "riskScore", flex: 1 },
       { headerName: "Last Update", field: "lastUpdate", flex: 1 },
       {
         field: "actions",

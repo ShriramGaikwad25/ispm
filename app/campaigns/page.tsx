@@ -120,9 +120,7 @@ export default function Campaigns() {
         headerName: "Campaign Name",
         field: "campaignName",
         // cellRenderer: "agGroupCellRenderer",
-        width: 250,
-        wrapText: true,
-        autoHeight: true,
+        width:300,
       },
       {
         headerName: "Description",
@@ -130,19 +128,19 @@ export default function Campaigns() {
         flex: 2,
         hide: true, // Hide in main grid, show in detail row
       },
-      { headerName: "Instances", field: "instances", flex: 1 },
+      { headerName: "Instances", field: "instances", width:100,},
       { 
         headerName: "Progress", 
         field: "progress", 
-        flex: 1.5,
+        width:200,
         cellRenderer: ProgressCellRenderer
       },
-      { headerName: "Expiry Date", field: "expiryDate", flex: 1.5, valueFormatter: (p:any)=> require("@/utils/utils").formatDateMMDDYY(p.value) },
+      { headerName: "Expiry Date", field: "expiryDate", width:200,flex: 1, valueFormatter: (p:any)=> require("@/utils/utils").formatDateMMDDYY(p.value) },
       { headerName: "Owner", field: "owner", flex: 1 },
       {
         field: "actions",
         headerName: "Actions",
-        width: 250,
+        width:200,
         cellRenderer: (params: ICellRendererParams) => {
           return (
             <div className="flex space-x-4 h-full items-center">

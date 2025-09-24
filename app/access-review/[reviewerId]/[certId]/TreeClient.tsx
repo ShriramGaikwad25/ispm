@@ -45,6 +45,7 @@ import "./TreeClient.css";
 import { createPortal } from "react-dom";
 import DelegateActionModal from "@/components/DelegateActionModal";
 import ProxyActionModal from "@/components/ProxyActionModal";
+import { formatDateMMDDYY as formatDate } from "@/utils/utils";
 
 interface UserPopupProps {
   username: string;
@@ -1067,17 +1068,11 @@ const TreeClient: React.FC<TreeClientProps> = ({
           if (!lastLogin) return <span className="text-gray-400">-</span>;
           
           try {
-            // Parse the date and format as mm-dd-yy
-            const date = new Date(lastLogin);
-            if (isNaN(date.getTime())) {
+            const formatted = formatDate(lastLogin);
+            if (!formatted) {
               return <span className="text-gray-400">-</span>;
             }
-            
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            const year = String(date.getFullYear()).slice(-2);
-            
-            return <span className="text-sm">{`${month}-${day}-${year}`}</span>;
+            return <span className="text-sm">{formatted}</span>;
           } catch (error) {
             return <span className="text-gray-400">-</span>;
           }
@@ -1859,7 +1854,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
       <DelegateActionModal
         isModalOpen={isDelegateModalOpen}
         closeModal={() => setIsDelegateModalOpen(false)}
-        heading="Delegate Action"
+        heading="Delegate"
         users={[
           { username: "john", email: "john@example.com", role: "admin" },
           { username: "jane", email: "jane@example.com", role: "user" },
@@ -1883,7 +1878,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
       <ProxyActionModal
         isModalOpen={isReassignModalOpen}
         closeModal={() => setIsReassignModalOpen(false)}
-        heading="Reassign Action"
+        heading="Reassign"
         users={[
           { username: "john", email: "john@example.com", role: "admin" },
           { username: "jane", email: "jane@example.com", role: "user" },
