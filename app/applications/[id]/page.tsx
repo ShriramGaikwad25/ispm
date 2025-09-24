@@ -1114,11 +1114,11 @@ export default function ApplicationDetailPage() {
     };
   }, []);
 
-  const defaultColDef = {
+  const defaultColDef = useMemo(() => ({
     sortable: true,
     filter: true,
     resizable: true,
-  };
+  }), []);
 
   const tabsDataEnt = [
     {
