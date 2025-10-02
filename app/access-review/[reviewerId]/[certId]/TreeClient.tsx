@@ -179,8 +179,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const [isDelegateModalOpen, setIsDelegateModalOpen] = useState(false);
   const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);
 
-  const pageSizeSelector = [20, 50, 100];
-  const defaultPageSize = pageSizeSelector[0];
+  const pageSizeSelector = [10, 20, 50, 100];
+  const [pageSize, setPageSize] = useState(pageSizeSelector[0]);
   const [pageNumber, setPageNumber] = useState(() => {
     const pageParam = searchParams.get('page');
     return pageParam ? parseInt(pageParam, 10) : 1;
@@ -436,7 +436,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const { data: certificationDetailsData, error, refetch: refetchUsers } = useCertificationDetails(
     reviewerId,
     certId,
-    defaultPageSize,
+    pageSize,
     pageNumber
   );
 
@@ -590,7 +590,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
         certId,
         user.taskId,
         undefined,
-        defaultPageSize,
+        pageSize,
         page
       );
 
@@ -688,7 +688,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
       
       setEntitlementsData(allRows);
       setEntitlementsTotalItems(allRows.length);
-      setEntitlementsTotalPages(Math.ceil(allRows.length / defaultPageSize));
+      setEntitlementsTotalPages(Math.ceil(allRows.length / pageSize));
 
       // Calculate and update progress data
       const progress = calculateProgressData(allRows);
@@ -996,6 +996,19 @@ const TreeClient: React.FC<TreeClientProps> = ({
     }
     return rows;
   }, [filteredEntitlements]);
+
+  // Paginated data for entitlements (custom pagination to handle record-description pairs)
+  const entPaginatedData = useMemo(() => {
+    // Since entRowsWithDesc is structured as [record1, desc1, record2, desc2, ...]
+    // We need to slice by pairs: each record has its description right after it
+    
+    // Calculate the start and end indices for the entRowsWithDesc array
+    // Each "page" contains pageSize records, which means pageSize * 2 rows total
+    const startIndex = (entitlementsPageNumber - 1) * pageSize * 2;
+    const endIndex = startIndex + (pageSize * 2);
+    
+    return entRowsWithDesc.slice(startIndex, endIndex);
+  }, [entRowsWithDesc, entitlementsPageNumber, pageSize]);
 
   const filterOptions = [
     {
@@ -1822,8 +1835,24 @@ const TreeClient: React.FC<TreeClientProps> = ({
                   </div>
                 </div>
               ) : filteredEntitlements.length > 0 ? (
+                <>
+                  {/* Pagination at top of table */}
+                  <div className="flex justify-center mb-2">
+                    <CustomPagination
+                      totalItems={filteredEntitlements.length}
+                      currentPage={entitlementsPageNumber}
+                      totalPages={Math.ceil(filteredEntitlements.length / pageSize)}
+                      pageSize={pageSize}
+                      onPageChange={handleEntitlementsPageChange}
+                      onPageSizeChange={(newPageSize) => {
+                        setPageSize(newPageSize);
+                        setEntitlementsPageNumber(1); // Reset to first page when changing page size
+                      }}
+                      pageSizeOptions={pageSizeSelector}
+                    />
+                  </div>
                 <AgGridReact
-                  rowData={entRowsWithDesc}
+                  rowData={entPaginatedData}
                   columnDefs={entitlementsColumnDefs}
                   defaultColDef={defaultColDef}
                   domLayout="autoHeight"
@@ -1847,13 +1876,12 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       window.removeEventListener("resize", handleResize);
                     });
                   }}
-                  pagination={true}
-                  paginationPageSize={defaultPageSize}
-                  paginationPageSizeSelector={pageSizeSelector}
+                  pagination={false}
                   overlayLoadingTemplate={`<span class="ag-overlay-loading-center">⏳ Loading entitlements...</span>`}
                   overlayNoRowsTemplate={`<span class="ag-overlay-loading-center">No entitlements found for this user.</span>`}
                   className="ag-main"
                 />
+                </>
               ) : (
                 <div className="flex items-center justify-center h-64">
                   <div className="text-gray-500">
@@ -1869,9 +1897,14 @@ const TreeClient: React.FC<TreeClientProps> = ({
                 <CustomPagination
                   totalItems={filteredEntitlements.length}
                   currentPage={entitlementsPageNumber}
-                  totalPages={Math.ceil(filteredEntitlements.length / defaultPageSize)}
-                  pageSize={defaultPageSize}
+                  totalPages={Math.ceil(filteredEntitlements.length / pageSize)}
+                  pageSize={pageSize}
                   onPageChange={handleEntitlementsPageChange}
+                  onPageSizeChange={(newPageSize) => {
+                    setPageSize(newPageSize);
+                    setEntitlementsPageNumber(1); // Reset to first page when changing page size
+                  }}
+                  pageSizeOptions={pageSizeSelector}
                 />
               </div>
             )}

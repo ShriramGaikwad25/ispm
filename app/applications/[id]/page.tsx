@@ -127,15 +127,23 @@ export default function ApplicationDetailPage() {
 
   // Paginated data for Entitlement tab tables
   const entPaginatedData = useMemo(() => {
-    const startIndex = (entCurrentPage - 1) * entPageSize;
-    const endIndex = startIndex + entPageSize;
+    // Since entRowsWithDesc is structured as [record1, desc1, record2, desc2, ...]
+    // We need to slice by pairs: each record has its description right after it
+    
+    // Calculate the start and end indices for the entRowsWithDesc array
+    // Each "page" contains entPageSize records, which means entPageSize * 2 rows total
+    const startIndex = (entCurrentPage - 1) * entPageSize * 2;
+    const endIndex = startIndex + (entPageSize * 2);
+    
     return entRowsWithDesc.slice(startIndex, endIndex);
   }, [entRowsWithDesc, entCurrentPage, entPageSize]);
 
   // Update total items and pages when entRowsWithDesc changes
   useEffect(() => {
-    setEntTotalItems(entRowsWithDesc.length);
-    setEntTotalPages(Math.ceil(entRowsWithDesc.length / entPageSize));
+    // Only count actual data rows, not description rows
+    const actualDataRows = entRowsWithDesc.filter(row => !row.__isDescRow);
+    setEntTotalItems(actualDataRows.length);
+    setEntTotalPages(Math.ceil(actualDataRows.length / entPageSize));
   }, [entRowsWithDesc, entPageSize]);
 
   // Reset pagination when switching between entitlement tabs
@@ -1211,8 +1219,24 @@ export default function ApplicationDetailPage() {
                 </div>
               </Accordion>
             </div> */}
-            <div className="flex justify-end mb-4 relative z-10">
-              <Exports gridApi={gridApiRef.current} />
+            <div className="mb-2 relative z-10">
+              <div className="flex justify-end mb-2">
+                <Exports gridApi={gridApiRef.current} />
+              </div>
+              <div className="flex justify-center">
+                <CustomPagination
+                  totalItems={entTotalItems}
+                  currentPage={entCurrentPage}
+                  totalPages={entTotalPages}
+                  pageSize={entPageSize}
+                  onPageChange={setEntCurrentPage}
+                  onPageSizeChange={(newPageSize) => {
+                    setEntPageSize(newPageSize);
+                    setEntCurrentPage(1); // Reset to first page when changing page size
+                  }}
+                  pageSizeOptions={[10, 20, 50, 100]}
+                />
+              </div>
             </div>
             {mounted && (
             <AgGridReact
@@ -1229,13 +1253,18 @@ export default function ApplicationDetailPage() {
                 return data.__isDescRow ? `${baseId}-desc` : baseId;
               }}
             />)}
-            <div className="flex justify-center mt-4">
+            <div className="flex justify-center">
               <CustomPagination
                 totalItems={entTotalItems}
                 currentPage={entCurrentPage}
                 totalPages={entTotalPages}
                 pageSize={entPageSize}
                 onPageChange={setEntCurrentPage}
+                onPageSizeChange={(newPageSize) => {
+                  setEntPageSize(newPageSize);
+                  setEntCurrentPage(1); // Reset to first page when changing page size
+                }}
+                pageSizeOptions={[10, 20, 50, 100]}
               />
             </div>
           </div>
@@ -1328,8 +1357,24 @@ export default function ApplicationDetailPage() {
               </div>
             </Accordion>
           </div> */}
-          <div className="flex justify-end mb-4 relative z-10">
-            <Exports gridApi={gridApiRef.current} />
+          <div className="mb-2 relative z-10">
+            <div className="flex justify-end mb-2">
+              <Exports gridApi={gridApiRef.current} />
+            </div>
+            <div className="flex justify-center">
+              <CustomPagination
+                totalItems={entTotalItems}
+                currentPage={entCurrentPage}
+                totalPages={entTotalPages}
+                pageSize={entPageSize}
+                onPageChange={setEntCurrentPage}
+                onPageSizeChange={(newPageSize) => {
+                  setEntPageSize(newPageSize);
+                  setEntCurrentPage(1); // Reset to first page when changing page size
+                }}
+                pageSizeOptions={[10, 20, 50, 100]}
+              />
+            </div>
           </div>
           {mounted && (
           <AgGridReact
@@ -1346,13 +1391,18 @@ export default function ApplicationDetailPage() {
               return data.__isDescRow ? `${baseId}-desc` : baseId;
             }}
           />)}
-          <div className="flex justify-center mt-4">
+          <div className="flex justify-center">
             <CustomPagination
               totalItems={entTotalItems}
               currentPage={entCurrentPage}
               totalPages={entTotalPages}
               pageSize={entPageSize}
               onPageChange={setEntCurrentPage}
+              onPageSizeChange={(newPageSize) => {
+                setEntPageSize(newPageSize);
+                setEntCurrentPage(1); // Reset to first page when changing page size
+              }}
+              pageSizeOptions={[10, 20, 50, 100]}
             />
           </div>
         </div>
@@ -1467,8 +1517,24 @@ export default function ApplicationDetailPage() {
                 </div>
               </Accordion>
             </div>
-            <div className="flex justify-end mb-4 relative z-10 pt-4">
-              <Exports gridApi={gridApiRef.current} />
+            <div className="mb-2 relative z-10 pt-4">
+              <div className="flex justify-end mb-2">
+                <Exports gridApi={gridApiRef.current} />
+              </div>
+              <div className="flex justify-center">
+                <CustomPagination
+                  totalItems={totalItems}
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  pageSize={pageSize}
+                  onPageChange={setCurrentPage}
+                  onPageSizeChange={(newPageSize) => {
+                    setPageSize(newPageSize);
+                    setCurrentPage(1); // Reset to first page when changing page size
+                  }}
+                  pageSizeOptions={[10, 20, 50, 100]}
+                />
+              </div>
             </div>
             {mounted && (
             <AgGridReact
@@ -1485,6 +1551,11 @@ export default function ApplicationDetailPage() {
                 totalPages={totalPages}
                 pageSize={pageSize}
                 onPageChange={setCurrentPage}
+                onPageSizeChange={(newPageSize) => {
+                  setPageSize(newPageSize);
+                  setCurrentPage(1); // Reset to first page when changing page size
+                }}
+                pageSizeOptions={[10, 20, 50, 100]}
               />
             </div>
           </div>

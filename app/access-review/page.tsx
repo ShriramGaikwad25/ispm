@@ -92,7 +92,7 @@ const AccessReview: React.FC = () => {
   );
   const router = useRouter();
   const pageSizeSelector = [10, 20, 50, 100];
-  const defaultPageSize = pageSizeSelector[0];
+  const [pageSize, setPageSize] = useState(pageSizeSelector[0]);
   const [pageNumber, setPageNumber] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -311,7 +311,7 @@ const activeColumnDefs = useMemo<ColDef[]>(() =>[
 
   const { data, error } = useCertifications(
     reviewerId,
-    defaultPageSize,
+    pageSize,
     pageNumber
   );
   const [authChecked, setAuthChecked] = useState(false);
@@ -656,6 +656,23 @@ const activeColumnDefs = useMemo<ColDef[]>(() =>[
           detailGridApis={detailGridApis}
         />
       </div>
+      
+      {/* Top pagination */}
+      <div className="mb-2">
+        <CustomPagination
+          totalItems={totalItems}
+          currentPage={pageNumber}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          onPageChange={handlePageChange}
+          onPageSizeChange={(newPageSize) => {
+            setPageSize(newPageSize);
+            setPageNumber(1); // Reset to first page when changing page size
+          }}
+          pageSizeOptions={pageSizeSelector}
+        />
+      </div>
+      
       <div className="w-full">
         <AgGridReact
           rowData={filteredRowData}
@@ -692,9 +709,9 @@ const activeColumnDefs = useMemo<ColDef[]>(() =>[
             });
           }}
           pagination={false}
-          paginationPageSize={defaultPageSize}
+          paginationPageSize={pageSize}
           paginationPageSizeSelector={pageSizeSelector}
-          cacheBlockSize={defaultPageSize}
+          cacheBlockSize={pageSize}
           paginateChildRows={true}
           overlayLoadingTemplate={`<span class="ag-overlay-loading-center">⏳ Loading certification data...</span>`}
           overlayNoRowsTemplate={`<span class="ag-overlay-loading-center">No data to display.</span>`}
@@ -706,8 +723,13 @@ const activeColumnDefs = useMemo<ColDef[]>(() =>[
             totalItems={totalItems}
             currentPage={pageNumber}
             totalPages={totalPages}
-            pageSize={defaultPageSize}
+            pageSize={pageSize}
             onPageChange={handlePageChange}
+            onPageSizeChange={(newPageSize) => {
+              setPageSize(newPageSize);
+              setPageNumber(1); // Reset to first page when changing page size
+            }}
+            pageSizeOptions={pageSizeSelector}
           />
         </div>
       </div>

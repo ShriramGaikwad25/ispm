@@ -64,7 +64,7 @@ const CatalogPageContent = () => {
   const [rowData, setRowData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
-  const [pageSize, setPageSize] = useState<number>(20);
+  const [pageSize, setPageSize] = useState<number>(10);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [totalPages, setTotalPages] = useState<number>(1);
   const [totalItems, setTotalItems] = useState<number>(0);
@@ -1038,6 +1038,29 @@ const CatalogPageContent = () => {
           />
         </div>
       </div>
+      {/* Top pagination - minimal gap to table */}
+      <div className="mb-2">
+        <CustomPagination
+          totalItems={totalItems}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          onPageChange={(newPage) => {
+            if (!gridApi) return;
+            gridApi.paginationGoToPage(newPage - 1);
+            updatePaginationState(gridApi);
+          }}
+          onPageSizeChange={(newPageSize) => {
+            setPageSize(newPageSize);
+            if (gridApi) {
+              gridApi.setGridOption("paginationPageSize", newPageSize);
+              gridApi.paginationGoToPage(0);
+              updatePaginationState(gridApi);
+            }
+          }}
+          gridApi={gridApi as any}
+        />
+      </div>
       <div style={{ width: "100%" }}>
         <AgGridReact
           rowData={filteredRowData}
@@ -1071,7 +1094,7 @@ const CatalogPageContent = () => {
         />
       </div>
 
-      <div className="mt-3">
+      <div className="mt-1">
         <CustomPagination
           totalItems={totalItems}
           currentPage={currentPage}
@@ -1081,6 +1104,14 @@ const CatalogPageContent = () => {
             if (!gridApi) return;
             gridApi.paginationGoToPage(newPage - 1);
             updatePaginationState(gridApi);
+          }}
+          onPageSizeChange={(newPageSize) => {
+            setPageSize(newPageSize);
+            if (gridApi) {
+              gridApi.setGridOption("paginationPageSize", newPageSize);
+              gridApi.paginationGoToPage(0); // Go to first page when changing page size
+              updatePaginationState(gridApi);
+            }
           }}
           gridApi={gridApi as any}
         />

@@ -9,7 +9,9 @@ export interface CustomPaginationProps {
   totalPages: number;
   pageSize: number;
   onPageChange: (newPage: number) => void;
+  onPageSizeChange?: (newPageSize: number) => void;
   gridApi?: GridApi | null;
+  pageSizeOptions?: number[];
 }
 
 const CustomPagination: React.FC<CustomPaginationProps> = ({
@@ -18,10 +20,19 @@ const CustomPagination: React.FC<CustomPaginationProps> = ({
   totalPages,
   pageSize,
   onPageChange,
+  onPageSizeChange,
+  pageSizeOptions = [10, 25, 50, 100],
 }) => {
   const goToPage = (page: number) => {
     if (page < 1 || page > totalPages) return;
     onPageChange(page);
+  };
+
+  const handlePageSizeChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const newPageSize = parseInt(event.target.value);
+    if (onPageSizeChange) {
+      onPageSizeChange(newPageSize);
+    }
   };
 
   const startRow = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1;
@@ -29,8 +40,9 @@ const CustomPagination: React.FC<CustomPaginationProps> = ({
     totalItems === 0 ? 0 : Math.min(currentPage * pageSize, totalItems);
 
   return (
-    <div className="bg-white rounded-lg px-4 py-3 w-full border border-gray-200">
+    <div className="bg-white rounded-lg px-3 py-2 w-full border border-gray-200">
       <div className="flex justify-between items-center">
+        {/* Prev Button - Start */}
         <button
           className={`flex items-center gap-1 text-sm ${
             currentPage === 1 ? "text-gray-400 cursor-not-allowed" : "text-gray-600 hover:text-gray-800 cursor-pointer"
@@ -41,11 +53,27 @@ const CustomPagination: React.FC<CustomPaginationProps> = ({
           <ChevronLeft className="w-4 h-4" />
           <span>Prev</span>
         </button>
-        
-        <div className="text-sm text-gray-600">
-          Page {currentPage} of {totalPages}
+
+        {/* Page Size Selector - Middle */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-sm text-gray-600">Show:</span>
+          <select
+            value={pageSize}
+            onChange={handlePageSizeChange}
+            className="text-sm border border-gray-300 rounded px-2 py-0.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            disabled={!onPageSizeChange}
+            style={{ minWidth: '60px' }}
+          >
+            {pageSizeOptions.map((size) => (
+              <option key={size} value={size}>
+                {size}
+              </option>
+            ))}
+          </select>
+          <span className="text-sm text-gray-600">entries</span>
         </div>
-        
+
+        {/* Next Button - End */}
         <button
           className={`flex items-center gap-1 text-sm ${
             currentPage === totalPages ? "text-gray-400 cursor-not-allowed" : "text-gray-600 hover:text-gray-800 cursor-pointer"

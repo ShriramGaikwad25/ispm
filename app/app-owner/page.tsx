@@ -271,7 +271,7 @@ function AppOwnerContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const pageSizeSelector = [10, 20, 50, 100];
-  const defaultPageSize = pageSizeSelector[0];
+  const [pageSize, setPageSize] = useState(pageSizeSelector[0]);
   const [pageNumber, setPageNumber] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
@@ -346,13 +346,13 @@ function AppOwnerContent() {
       if (!Number.isInteger(pageNumber) || pageNumber < 1) {
         throw new Error("Invalid page number: must be a positive integer");
       }
-      if (!Number.isInteger(defaultPageSize) || defaultPageSize < 1) {
+      if (!Number.isInteger(pageSize) || pageSize < 1) {
         throw new Error("Invalid page size: must be a positive integer");
       }
 
       console.log("Fetching data with:", {
         pageNumber,
-        pageSize: defaultPageSize,
+        pageSize: pageSize,
         reviewerId,
         certificationId,
         groupBy: groupByOption,
@@ -368,14 +368,14 @@ function AppOwnerContent() {
           reviewerId,
           certificationId,
           currentFilter,
-          defaultPageSize,
+          pageSize,
           pageNumber
         );
       } else if (isGroupedEnts) {
         response = await getGroupedAppOwnerDetails(
           reviewerId,
           certificationId,
-          defaultPageSize,
+          pageSize,
           pageNumber
         );
       } else if (isGroupedAccounts) {
@@ -416,7 +416,7 @@ function AppOwnerContent() {
           const ungResp = await getAppOwnerDetails(
             reviewerId,
             certificationId,
-            defaultPageSize,
+            pageSize,
             pageNumber
           );
           console.log(
@@ -504,7 +504,7 @@ function AppOwnerContent() {
         response = await getAppOwnerDetails(
           reviewerId,
           certificationId,
-          defaultPageSize,
+          pageSize,
           pageNumber
         );
       }
@@ -605,7 +605,7 @@ function AppOwnerContent() {
     } finally {
       setLoading(false);
     }
-  }, [pageNumber, defaultPageSize, reviewerId, certificationId, groupByOption, currentFilter]);
+  }, [pageNumber, pageSize, reviewerId, certificationId, groupByOption, currentFilter]);
 
   useEffect(() => {
     fetchData();
@@ -1236,8 +1236,13 @@ function AppOwnerContent() {
                   totalItems={filteredRowData.length || totalItems}
                   currentPage={pageNumber}
                   totalPages={totalPages}
-                  pageSize={defaultPageSize}
+                  pageSize={pageSize}
                   onPageChange={handlePageChange}
+                  onPageSizeChange={(newPageSize) => {
+                    setPageSize(newPageSize);
+                    setPageNumber(1); // Reset to first page when changing page size
+                  }}
+                  pageSizeOptions={pageSizeSelector}
                 />
               </div>
             </div>

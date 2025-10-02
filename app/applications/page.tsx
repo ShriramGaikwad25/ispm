@@ -10,6 +10,7 @@ import Accordion from "@/components/Accordion";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 import { Doughnut } from "react-chartjs-2";
 import { formatDateMMDDYY } from "../access-review/page";
+import CustomPagination from "@/components/agTable/CustomPagination";
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -21,22 +22,19 @@ export default function Application() {
   const [rowData, setRowData] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [hasNext, setHasNext] = useState(false);
-  const [hasPrevious, setHasPrevious] = useState(false);
   const [totalItems, setTotalItems] = useState(0);
+  const [pageSize, setPageSize] = useState(20);
 
   // Fetch data from API
   useEffect(() => {
     setMounted(true);
     const fetchData = async () => {
       try {
-        const response = await fetch(`https://preview.keyforge.ai/entities/api/v1/ACMEPOC/getApplications/430ea9e6-3cff-449c-a24e-59c057f81e3d`);
+        const response = await fetch(`https://preview.keyforge.ai/entities/api/v1/ACMEPOC/getApplications/430ea9e6-3cff-449c-a24e-59c057f81e3d?page=${currentPage}&page_size=${pageSize}`);
         const data = await response.json();
         if (data.executionStatus === "success") {
           setRowData(data.items);
           setTotalPages(data.total_pages);
-          setHasNext(data.has_next);
-          setHasPrevious(data.has_previous);
           setTotalItems(data.total_items);
         }
       } catch (error) {
@@ -44,7 +42,7 @@ export default function Application() {
       }
     };
     fetchData();
-  }, [currentPage]);
+  }, [currentPage, pageSize]);
 
   const columnDefs = useMemo<ColDef[]>(
     () => [
@@ -227,14 +225,6 @@ export default function Application() {
     };
   }, [rowData]);
 
-  // Pagination controls
-  const handleNextPage = () => {
-    if (hasNext) setCurrentPage((prev) => prev + 1);
-  };
-
-  const handlePreviousPage = () => {
-    if (hasPrevious) setCurrentPage((prev) => prev - 1);
-  };
 
   return (
     !mounted ? null :
@@ -275,35 +265,48 @@ export default function Application() {
           </div>
         </Accordion> */}
       </div>
+      
+      {/* Top pagination */}
+      <div className="mb-2">
+        <CustomPagination
+          totalItems={totalItems}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={(newPageSize) => {
+            setPageSize(newPageSize);
+            setCurrentPage(1); // Reset to first page when changing page size
+          }}
+          pageSizeOptions={[10, 20, 50, 100]}
+        />
+      </div>
+      
       <AgGridReact
         rowData={rowData}
         columnDefs={columnDefs}
-        pagination={true}
-        paginationPageSize={20}
+        pagination={false}
         domLayout="autoHeight"
         onRowClicked={handleRowClick}
         rowHeight={60}
         headerHeight={50}
       />
-      {/* <div className="flex justify-between">
-        <button
-          onClick={handlePreviousPage}
-          disabled={!hasPrevious}
-          className="px-4 py-2 bg-blue-600 text-white rounded disabled:bg-gray-300"
-        >
-          Previous
-        </button>
-        <span>
-          Page {currentPage} of {totalPages}
-        </span>
-        <button
-          onClick={handleNextPage}
-          disabled={!hasNext}
-          className="px-4 py-2 bg-blue-600 text-white rounded disabled:bg-gray-300"
-        >
-          Next
-        </button>
-      </div> */}
+      
+      {/* Bottom pagination */}
+      <div className="mt-1">
+        <CustomPagination
+          totalItems={totalItems}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={(newPageSize) => {
+            setPageSize(newPageSize);
+            setCurrentPage(1); // Reset to first page when changing page size
+          }}
+          pageSizeOptions={[10, 20, 50, 100]}
+        />
+      </div>
     </div>
   );
 }
