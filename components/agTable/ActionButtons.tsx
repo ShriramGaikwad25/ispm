@@ -91,10 +91,13 @@ const ActionButtons = <T extends { status?: string }>({
 
   // Filter out undefined/null rows (e.g., group rows can pass undefined data)
   const definedRows = (selectedRows || []).filter((r): r is T => !!r);
-  // Determine if all selected rows have the same status
-  const rowStatus = definedRows.length > 0 ? definedRows[0].status : null;
-  const isApproved = rowStatus === "Approved";
-  const isRejected = rowStatus === "Rejected";
+  // Determine if all selected rows have the same status (normalized)
+  const rowStatusRaw = definedRows.length > 0 ? (definedRows[0] as any)?.status : null;
+  const rowStatus = typeof rowStatusRaw === 'string' ? rowStatusRaw : (rowStatusRaw ? String(rowStatusRaw) : null);
+  const normalizedStatus = (rowStatus || "").toString().trim().toLowerCase();
+  // Treat approved/certified similarly; rejected/revoked similarly
+  const isApproved = normalizedStatus === "approved" || normalizedStatus === "certified";
+  const isRejected = normalizedStatus === "rejected" || normalizedStatus === "revoked";
 
   // Local pending visualization: if all selected rows have same pending action, reflect it on the button
   const selectedIds = definedRows
@@ -105,17 +108,11 @@ const ActionButtons = <T extends { status?: string }>({
   const isPendingReset = selectedIds.some((id) => pendingById[id] === 'Pending');
   const hasAnyPending = isApprovePending || isRejectPending || isPendingReset;
 
-  // Check if action is "Approve" for entitlement context
-  const isApproveAction =
-    context === "entitlement" &&
-    definedRows.length > 0 &&
-    (definedRows[0] as any)?.action === "Approve";
-
-  // Check if action is "Reject" for entitlement context
-  const isRejectAction =
-    context === "entitlement" &&
-    definedRows.length > 0 &&
-    (definedRows[0] as any)?.action === "Reject";
+  // Check if action is Approve/Reject for entitlement context (normalized)
+  const actionRaw = definedRows.length > 0 ? (definedRows[0] as any)?.action : null;
+  const actionLower = (actionRaw ? String(actionRaw) : "").trim().toLowerCase();
+  const isApproveAction = context === "entitlement" && actionLower === "approve";
+  const isRejectAction = context === "entitlement" && actionLower === "reject";
 
   const approveFilled = isApprovePending || (!hasAnyPending && (isApproved || isApproveAction));
   const rejectFilled = isRejectPending || (!hasAnyPending && (isRejected || isRejectAction));
@@ -352,35 +349,29 @@ const ActionButtons = <T extends { status?: string }>({
         title={isApproveAction ? "Undo" : "Approve"}
         aria-label="Approve selected rows"
         disabled={isActionLoading}
-        className={`p-1 rounded transition-colors duration-200 ${
-          isApproved ? "bg-green-500" : "hover:bg-green-100"
-        } ${isActionLoading ? "opacity-60 cursor-not-allowed" : ""}`}
+        className={`p-1 rounded flex items-center justify-center ${isActionLoading ? "opacity-60 cursor-not-allowed" : ""}`}
       >
-        <div className="relative">
+        <div className="relative inline-flex items-center justify-center w-8 h-8">
           <CircleCheck
-            className={
-              isActionLoading ? "cursor-not-allowed" : "cursor-pointer"
-            }
+            className={isActionLoading ? "cursor-not-allowed" : "cursor-pointer"}
             color="#1c821cff"
             strokeWidth="1"
             size="32"
             fill={approveFilled ? "#1c821cff" : "none"}
           />
           {approveFilled && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                className="text-white"
-              >
-                <path
-                  d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"
-                  fill="currentColor"
-                />
-              </svg>
-            </div>
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              className="absolute pointer-events-none"
+              style={{ left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}
+            >
+              <path
+                d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"
+                fill="#ffffff"
+              />
+            </svg>
           )}
         </div>
       </button>
@@ -390,41 +381,16 @@ const ActionButtons = <T extends { status?: string }>({
         title={isRejectAction ? "Undo" : "Revoke"}
         aria-label="Revoke selected rows"
         disabled={isActionLoading}
-        className={`p-1 rounded transition-colors duration-200 ${
-          isRejected ? "bg-red-500" : "hover:bg-red-100"
-        } ${isActionLoading ? "opacity-60 cursor-not-allowed" : ""}`}
+        className={`p-1 rounded flex items-center justify-center ${isActionLoading ? "opacity-60 cursor-not-allowed" : ""}`}
       >
-        <div className="relative">
+        <div className="inline-flex items-center justify-center w-8 h-8">
           <CircleX
-            className={
-              isActionLoading
-                ? "cursor-not-allowed"
-                : "cursor-pointer hover:opacity-80"
-            }
+            className={isActionLoading ? "cursor-not-allowed" : "cursor-pointer"}
             color="#FF2D55"
             strokeWidth="1"
             size="32"
             fill={rejectFilled ? "#FF2D55" : "none"}
           />
-          {rejectFilled && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                className="text-white"
-              >
-                <path
-                  d="M18 6L6 18M6 6l12 12"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </div>
-          )}
         </div>
       </button>
 
