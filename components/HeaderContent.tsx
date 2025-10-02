@@ -13,6 +13,7 @@ import ChartDataLabels from "chartjs-plugin-datalabels";
 import "@/lib/ag-grid-setup";
 import CertificationProgress from "./CertificationProgress";
 import UserProgress from "./UserProgress";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Register Chart.js components and plugin
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend, ChartDataLabels);
@@ -256,6 +257,7 @@ const PopupButton = ({
 const HeaderContent = () => {
   const pathname = usePathname();
   const router = useRouter();
+  const { logout, user } = useAuth();
 
   // State for header info and user details
   const [headerInfo, setHeaderInfo] = useState({
@@ -458,6 +460,11 @@ const HeaderContent = () => {
     if (userDetails) {
       router.push(`/profile`);
     }
+  };
+
+  // Handler for Logout click in dropdown
+  const handleLogoutClick = () => {
+    logout();
   };
 
   // Update header data function
@@ -859,8 +866,7 @@ const HeaderContent = () => {
         <div className="flex items-center gap-3">
           {renderUserAvatar(userDetails, 36, "object-cover rounded-full w-9 h-9")}
           <span className="text-white font-medium text-sm">
-            {/* {userDetails?.username || "IAM Admin"} */}
-            IAM Admin
+            {user?.email || userDetails?.username || "IAM Admin"}
           </span>
           <Dropdown
             Icon={() => (
@@ -883,12 +889,12 @@ const HeaderContent = () => {
             >
               Settings
             </a>
-            <a
-              href="#"
-              className="block px-4 py-2 text-gray-700 hover:bg-gray-100"
+            <button
+              onClick={handleLogoutClick}
+              className="block px-4 py-2 text-gray-700 hover:bg-gray-100 w-full text-left"
             >
               Logout
-            </a>
+            </button>
           </Dropdown>
         </div>
       </div>

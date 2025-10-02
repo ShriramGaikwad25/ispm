@@ -3,8 +3,10 @@
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { ChevronDown, ChevronRight, MoreVertical } from "lucide-react";
-import { AgGridReact } from "ag-grid-react";
-import { AgGridReact as AgGridReactType } from "ag-grid-react";
+import dynamic from "next/dynamic";
+const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
+// Type import only - component is dynamically loaded
+type AgGridReactType = any;
 import "@/lib/ag-grid-setup";
 import { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 import HorizontalTabs from "@/components/HorizontalTabs";

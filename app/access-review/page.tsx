@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { AgGridReact } from "ag-grid-react";
+import AgGridReact from "@/components/ClientOnlyAgGrid";
 import "@/lib/ag-grid-setup";
 import { useRouter } from "next/navigation";
 import { formatDateMMDDYY as formatDateShared } from "@/utils/utils";
@@ -133,14 +133,26 @@ const activeColumnDefs = useMemo<ColDef[]>(() =>[
           </span>
         </div>
       ),
+      onCellClicked: handleRowClick,
     },
-    { headerName: "Type", field: "certificationType", width: 150 },
-    { headerName: "Owner", field: "certificateOwner", width: 150 },
+    { 
+      headerName: "Type", 
+      field: "certificationType", 
+      width: 150,
+      onCellClicked: handleRowClick,
+    },
+    { 
+      headerName: "Owner", 
+      field: "certificateOwner", 
+      width: 150,
+      onCellClicked: handleRowClick,
+    },
     {
       headerName: "Progress",
       field: "progress",
       width: 200,
       cellRenderer: HorizontalProgressRenderer,
+      onCellClicked: handleRowClick,
     },
     { headerName: "Due On", field: "certificationExpiration", width: 150,valueFormatter: (params) => formatDateMMDDYY(params.value), },
     {
@@ -262,14 +274,26 @@ const activeColumnDefs = useMemo<ColDef[]>(() =>[
       wrapText: true,
       autoHeight: true,
       cellRenderer: "agGroupCellRenderer",
+      onCellClicked: handleRowClick,
     },
-    { headerName: "Type", field: "certificationType", width: 150 },
-    { headerName: "Owner", field: "certificateRequester", width: 150 },
+    { 
+      headerName: "Type", 
+      field: "certificationType", 
+      width: 150,
+      onCellClicked: handleRowClick,
+    },
+    { 
+      headerName: "Owner", 
+      field: "certificateRequester", 
+      width: 150,
+      onCellClicked: handleRowClick,
+    },
     {
       headerName: "Assigned On",
       field: "certificationCreatedOn",
       width: 150,
       valueFormatter: (params) => formatDateMMDDYY(params.value),
+      onCellClicked: handleRowClick,
     },
     {
       headerName: "Completed On",
@@ -437,7 +461,7 @@ const activeColumnDefs = useMemo<ColDef[]>(() =>[
     }
   };
 
-  const handleRowClick = (e: RowClickedEvent<CertificationRow>) => {
+  function handleRowClick(e: RowClickedEvent<CertificationRow>) {
     const clickedReviewerId = e.data?.reviewerId;
     const clickedCertificationId = e.data?.certificationId;
     const certificationType = e.data?.certificationType;
@@ -484,7 +508,7 @@ const activeColumnDefs = useMemo<ColDef[]>(() =>[
         router.push(`/app-owner?reviewerId=${clickedReviewerId}&certificationId=${clickedCertificationId}`);
       }
     }
-  };
+  }
 
   const handleSelectionChanged = () => {
     if (gridApi) {
@@ -675,7 +699,6 @@ const activeColumnDefs = useMemo<ColDef[]>(() =>[
           overlayLoadingTemplate={`<span class="ag-overlay-loading-center">⏳ Loading certification data...</span>`}
           overlayNoRowsTemplate={`<span class="ag-overlay-loading-center">No data to display.</span>`}
           className="ag-main"
-          onRowClicked={handleRowClick}
           onSelectionChanged={handleSelectionChanged}
         />
         <div className="flex justify-center">

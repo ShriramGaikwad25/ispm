@@ -1,7 +1,7 @@
 "use client";
 import React, { useMemo, useRef, useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { AgGridReact } from "ag-grid-react";
+import AgGridReact from "@/components/ClientOnlyAgGrid";
 import "@/lib/ag-grid-setup";
 import CustomPagination from "@/components/agTable/CustomPagination";
 import Filters from "@/components/agTable/Filters";

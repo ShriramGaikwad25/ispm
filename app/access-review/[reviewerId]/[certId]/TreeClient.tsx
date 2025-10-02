@@ -7,7 +7,8 @@ import React, {
   useState,
   useCallback,
 } from "react";
-import { AgGridReact } from "ag-grid-react";
+import dynamic from "next/dynamic";
+const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
 import { themeQuartz } from "ag-grid-community";
 import "@/lib/ag-grid-setup"; // Ensure Enterprise modules and license are loaded
 import Image from "next/image";
@@ -39,7 +40,7 @@ import {
   MoreVertical,
 } from "lucide-react";
 import Import from "@/components/agTable/Import";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import "./TreeClient.css";
 import { createPortal } from "react-dom";
@@ -154,6 +155,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
   });
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const [sidebarLoading, setSidebarLoading] = useState(false);
   const [userSearch, setUserSearch] = useState("");
@@ -179,7 +181,13 @@ const TreeClient: React.FC<TreeClientProps> = ({
 
   const pageSizeSelector = [20, 50, 100];
   const defaultPageSize = pageSizeSelector[0];
-  const [pageNumber, setPageNumber] = useState(1);
+  const [pageNumber, setPageNumber] = useState(() => {
+    const pageParam = searchParams.get('page');
+    return pageParam ? parseInt(pageParam, 10) : 1;
+  });
+  
+  // Get selected user ID from URL parameters
+  const selectedUserIdFromUrl = searchParams.get('userId');
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -415,11 +423,15 @@ const TreeClient: React.FC<TreeClientProps> = ({
     return () => { controller1.abort(); controller2.abort(); };
   }, []);
 
-  const selectUser = useCallback((user: UserRowData | null) => {
+  const selectUser = useCallback((user: UserRowData | null, updateUrl = true) => {
     if (!user) return;
     selectedUserKeyRef.current = getUserStableKey(user);
     setSelectedUser(user);
-  }, [getUserStableKey]);
+    // Update URL with selected user ID only when explicitly requested
+    if (updateUrl) {
+      updateUrlWithPage(pageNumber, user.id);
+    }
+  }, [getUserStableKey, pageNumber]);
 
   const { data: certificationDetailsData, error, refetch: refetchUsers } = useCertificationDetails(
     reviewerId,
@@ -497,7 +509,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
         const desiredKey = selectedUserKeyRef.current || getUserStableKey(selectedUser);
         const nextSelected = mapped.find((u: any) => getUserStableKey(u) === desiredKey) || mapped[0];
         if (nextSelected) {
-          selectUser(nextSelected);
+          selectUser(nextSelected, true);
           await loadUserEntitlements(nextSelected, entitlementsPageNumber);
         }
       } else {
@@ -516,25 +528,46 @@ const TreeClient: React.FC<TreeClientProps> = ({
     }
   }, [refetchUsers, mapUsersFromDetails, selectedUser, entitlementsPageNumber, getUserStableKey, selectUser]);
 
-  // Auto-select first user when users are loaded or page changes
+  // Auto-select user when users are loaded or page changes
   useEffect(() => {
     if (suppressAutoSelectRef.current) return;
     if (users.length > 0) {
       if (!selectedUser) {
-        const firstUser = users[0];
-        selectUser(firstUser);
+        // Try to find the user from URL parameters first
+        let userToSelect = null;
+        if (selectedUserIdFromUrl) {
+          userToSelect = users.find(user => user.id === selectedUserIdFromUrl);
+        }
+        
+        // If no user found from URL or no URL parameter, select first user
+        if (!userToSelect) {
+          userToSelect = users[0];
+        }
+        
+        // Don't update URL when restoring from URL parameters
+        selectUser(userToSelect, false);
         setEntitlementsPageNumber(1);
-        loadUserEntitlements(firstUser, 1);
+        loadUserEntitlements(userToSelect, 1);
         if (typeof onRowExpand === "function") {
           onRowExpand();
         }
       }
     }
-  }, [users, selectedUser, onRowExpand]);
+  }, [users, selectedUser, onRowExpand, selectedUserIdFromUrl]);
+
+  const updateUrlWithPage = (page: number, userId?: string) => {
+    const currentUrl = new URL(window.location.href);
+    currentUrl.searchParams.set('page', page.toString());
+    if (userId) {
+      currentUrl.searchParams.set('userId', userId);
+    }
+    router.replace(currentUrl.pathname + currentUrl.search, { scroll: false });
+  };
 
   const handlePageChange = (newPage: number) => {
     if (newPage !== pageNumber) {
       setPageNumber(newPage);
+      updateUrlWithPage(newPage);
     }
   };
 
@@ -698,7 +731,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
   };
 
   const handleUserSelect = (user: UserRowData) => {
-    selectUser(user);
+    selectUser(user, true);
     setEntitlementsPageNumber(1);
 
     loadUserEntitlements(user, 1);
@@ -804,6 +837,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
       try {
         const newPage = pageNumber - 1;
         setPageNumber(newPage);
+        updateUrlWithPage(newPage);
         // The useCertificationDetails hook will automatically refetch with the new page number
       } catch (error) {
         console.error("Error loading previous page:", error);
@@ -819,6 +853,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
       try {
         const newPage = pageNumber + 1;
         setPageNumber(newPage);
+        updateUrlWithPage(newPage);
         // The useCertificationDetails hook will automatically refetch with the new page number
       } catch (error) {
         console.error("Error loading next page:", error);
@@ -1288,8 +1323,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
       <div
         className={`absolute left-0 top-0 bottom-0 bg-white border-r border-gray-200 flex flex-col transition-all duration-300 ease-in-out z-30 shadow-lg ${
           isSidebarHovered
-            ? "w-64 translate-x-0 pr-0"
-            : "w-12 -translate-x-0 pr-2"
+            ? "w-72 translate-x-0 pr-0"
+            : "w-14 -translate-x-0 pr-2"
         }`}
         onMouseEnter={() => setIsSidebarHovered(true)}
         onMouseLeave={() => setIsSidebarHovered(false)}
@@ -1360,18 +1395,18 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     className={`flex items-center ${
                       isSidebarHovered
                         ? "gap-3 justify-start"
-                        : "justify-center"
+                        : "justify-center w-full"
                     }`}
                   >
                     {/* User Avatar/Initials */}
                     <div
                       className={`relative flex-shrink-0 ${
-                        !isSidebarHovered ? "mx-auto" : ""
+                        !isSidebarHovered ? "ml-2" : ""
                       }`}
                     >
                       {!isSidebarHovered ? (
                         <div
-                          className={`w-7 h-7 rounded-full bg-blue-200 text-blue-600 flex items-center justify-center font-semibold text-xs ${
+                          className={`w-8 h-8 rounded-full bg-blue-200 text-blue-600 flex items-center justify-center font-semibold text-xs mx-auto ${
                             selectedUser?.id === user.id ? "bg-blue-200 " : ""
                           }`}
                         >

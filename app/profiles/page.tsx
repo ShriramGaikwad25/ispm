@@ -1,6 +1,7 @@
 "use client";
 import React, { useMemo } from "react";
-import { AgGridReact } from "ag-grid-react";
+import dynamic from "next/dynamic";
+const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
 import "@/lib/ag-grid-setup";
 import { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 import ActionButtons from "@/components/agTable/ActionButtons";

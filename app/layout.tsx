@@ -8,6 +8,8 @@ import { LoadingProvider } from "@/contexts/LoadingContext";
 import { PageTransitionLoader } from "@/components/PageTransitionLoader";
 import { ActionPanelProvider } from "@/contexts/ActionPanelContext";
 import ActionPanel from "@/components/ActionPanel";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthWrapper } from "@/components/AuthWrapper";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -24,23 +26,19 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <QueryProvider>
-          <LoadingProvider>
-            <ActionPanelProvider>
-            <div className="flex flex-col h-screen">
-              <Header />
-              <div className="flex flex-1">
-                <Navigation />
-                <main className="flex-1 overflow-auto p-6 bg-gray-50">
+        <AuthProvider>
+          <QueryProvider>
+            <LoadingProvider>
+              <ActionPanelProvider>
+                <AuthWrapper>
                   {children}
-                </main>
-              </div>
-            </div>
-            <PageTransitionLoader />
-            <ActionPanel />
-            </ActionPanelProvider>
-          </LoadingProvider>
-        </QueryProvider>
+                </AuthWrapper>
+                <PageTransitionLoader />
+                <ActionPanel />
+              </ActionPanelProvider>
+            </LoadingProvider>
+          </QueryProvider>
+        </AuthProvider>
       </body>
     </html>
   );

@@ -2,7 +2,8 @@
 import Accordion from "@/components/Accordion";
 import ChartComponent from "@/components/ChartComponent";
 import { ColDef, GridApi } from "ag-grid-enterprise";
-import { AgGridReact } from "ag-grid-react";
+import dynamic from "next/dynamic";
+const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
 import { useRouter } from "next/navigation"; // Updated import
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import { executeQuery } from "@/lib/api";

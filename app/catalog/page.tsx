@@ -1,6 +1,7 @@
 "use client";
 import React, { useMemo, useState, useEffect, Suspense } from "react";
-import { AgGridReact } from "ag-grid-react";
+import dynamic from "next/dynamic";
+const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
 import { ColDef, ICellRendererParams, GridApi } from "ag-grid-community";
 import { useSearchParams } from "next/navigation";
 import { createPortal } from "react-dom";

@@ -1,6 +1,7 @@
 "use-client";
 import React, { useMemo, useState } from "react";
-import { AgGridReact } from "ag-grid-react";
+import dynamic from "next/dynamic";
+const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
 import "@/lib/ag-grid-setup";
 import { BellIcon, DownloadIcon } from "lucide-react";
 import { IDetailCellRendererParams, ColDef } from "ag-grid-enterprise";

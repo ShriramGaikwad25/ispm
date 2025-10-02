@@ -8,7 +8,8 @@ import {
   ICellRendererParams,
   IDetailCellRendererParams,
 } from "ag-grid-enterprise";
-import { AgGridReact } from "ag-grid-react";
+import dynamic from "next/dynamic";
+const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
 import {
   ChevronDown,
   ChevronRight,

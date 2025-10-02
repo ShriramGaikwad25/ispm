@@ -16,8 +16,20 @@ const nextConfig: NextConfig = {
     // your project has ESLint errors.
     ignoreDuringBuilds: true,
   },
-    typescript: {
+  typescript: {
     ignoreBuildErrors: true,
+  },
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      // Exclude ag-grid from server-side rendering
+      config.externals = config.externals || [];
+      config.externals.push({
+        'ag-grid-react': 'ag-grid-react',
+        'ag-grid-community': 'ag-grid-community',
+        'ag-grid-enterprise': 'ag-grid-enterprise',
+      });
+    }
+    return config;
   },
 };
 
