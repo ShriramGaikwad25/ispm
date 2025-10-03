@@ -94,6 +94,9 @@ const CatalogPageContent = () => {
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
   const [comment, setComment] = useState("");
   const [commentText, setCommentText] = useState("");
+  const [commentCategory, setCommentCategory] = useState("");
+  const [commentSubcategory, setCommentSubcategory] = useState("");
+  const [isCommentDropdownOpen, setIsCommentDropdownOpen] = useState(false);
 
   // Define tabs data
   const tabsDataEnt = [{ label: "All" }, { label: "Under Review" }];
@@ -127,6 +130,9 @@ const CatalogPageContent = () => {
 
   const handleComment = () => {
     setCommentText(comment); // Load existing comment into the textarea
+    setCommentCategory(""); // Reset category selection
+    setCommentSubcategory(""); // Reset subcategory selection
+    setIsCommentDropdownOpen(false); // Reset dropdown state
     setIsCommentModalOpen(true);
   };
 
@@ -141,6 +147,38 @@ const CatalogPageContent = () => {
   const handleCancelComment = () => {
     setIsCommentModalOpen(false);
     setCommentText("");
+    setCommentCategory("");
+    setCommentSubcategory("");
+    setIsCommentDropdownOpen(false);
+  };
+
+  // Comment options data structure
+  const commentOptions = {
+    "Approve": [
+      "Access required to perform current job responsibilities.",
+      "Access aligns with user's role and department functions.",
+      "Validated with manager/business owner – appropriate access.",
+      "No SoD (Segregation of Duties) conflict identified.",
+      "User continues to work on project/system requiring this access."
+    ],
+    "Revoke": [
+      "User no longer in role requiring this access.",
+      "Access redundant – duplicate with other approved entitlements.",
+      "Access not used in last 90 days (inactive entitlement).",
+      "SoD conflict identified – removing conflicting access.",
+      "Temporary/project-based access – no longer required."
+    ]
+  };
+
+  const handleCategoryChange = (category: string) => {
+    setCommentCategory(category);
+    setCommentSubcategory(""); // Reset subcategory when category changes
+    setCommentText(""); // Clear text when category changes
+  };
+
+  const handleSubcategoryChange = (subcategory: string) => {
+    setCommentSubcategory(subcategory);
+    setCommentText(`${commentCategory} - ${subcategory}`);
   };
 
   const toggleSidePanel = (data: any) => {
@@ -1548,29 +1586,100 @@ const CatalogPageContent = () => {
               </div>
               
               <div className="mb-3">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Quick comments</label>
-                <select
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  defaultValue=""
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val) setCommentText(val);
-                  }}
-                >
-                  <option value="" disabled>Select a suggestion...</option>
-                  <option>Approved - access required for role</option>
-                  <option>Rejected - insufficient justification</option>
-                  <option>Approve temporarily, revisit next review</option>
-                  <option>Duplicate access detected - revoke</option>
-                  <option>Compliant per policy and controls</option>
-                </select>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Comment Suggestions
+                </label>
+                <div className="relative">
+                  <button
+                    type="button"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-left focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white flex items-center justify-between"
+                    onClick={() => setIsCommentDropdownOpen(!isCommentDropdownOpen)}
+                  >
+                    <span className="text-gray-500">
+                      {commentSubcategory ? `${commentCategory} - ${commentSubcategory}` : 'Select a comment suggestion...'}
+                    </span>
+                    <svg
+                      className={`w-4 h-4 transition-transform ${isCommentDropdownOpen ? 'rotate-180' : ''}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+
+                  {isCommentDropdownOpen && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-80 overflow-y-auto">
+                      <div className="p-2 space-y-2">
+                        {/* Approve Section */}
+                        <div>
+                          <div className="flex items-center p-1">
+                            <div className="w-3 h-3 rounded-full border-2 mr-2 flex items-center justify-center border-green-500 bg-green-500">
+                              <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                            </div>
+                            <span className="text-xs font-medium text-gray-900">Approve</span>
+                          </div>
+                          
+                          <div className="ml-5 mt-1 space-y-1">
+                            {commentOptions["Approve"].map((option, index) => (
+                              <div
+                                key={index}
+                                className="text-xs text-gray-600 cursor-pointer hover:text-blue-600 hover:bg-blue-50 p-1 rounded transition-colors"
+                                onClick={() => {
+                                  handleCategoryChange("Approve");
+                                  handleSubcategoryChange(option);
+                                  setIsCommentDropdownOpen(false);
+                                }}
+                              >
+                                {option}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Revoke Section */}
+                        <div>
+                          <div className="flex items-center p-1">
+                            <div className="w-3 h-3 rounded-full border-2 mr-2 flex items-center justify-center border-red-500 bg-red-500">
+                              <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                            </div>
+                            <span className="text-xs font-medium text-gray-900">Revoke</span>
+                          </div>
+                          
+                          <div className="ml-5 mt-1 space-y-1">
+                            {commentOptions["Revoke"].map((option, index) => (
+                              <div
+                                key={index}
+                                className="text-xs text-gray-600 cursor-pointer hover:text-blue-600 hover:bg-blue-50 p-1 rounded transition-colors"
+                                onClick={() => {
+                                  handleCategoryChange("Revoke");
+                                  handleSubcategoryChange(option);
+                                  setIsCommentDropdownOpen(false);
+                                }}
+                              >
+                                {option}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Comment
+                </label>
                 <textarea
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
-                  placeholder="Enter your comment here..."
+                  placeholder={
+                    commentCategory 
+                      ? `Enter additional details for ${commentCategory.toLowerCase()}...` 
+                      : "Select an action type and reason, or enter your comment here..."
+                  }
                   className="w-full h-24 px-3 py-2 border border-gray-300 rounded-md resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   autoFocus
                 />
