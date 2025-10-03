@@ -250,6 +250,7 @@ const columnDefs = useMemo<ColDef[]>(
         userType: raw.tags,
         email: raw.email,
       }]));
+      try { window.dispatchEvent(new Event("localStorageChange")); } catch {}
     } catch {}
     const appId = event.data.name;
     router.push(`/user/${encodeURIComponent(appId)}`);
