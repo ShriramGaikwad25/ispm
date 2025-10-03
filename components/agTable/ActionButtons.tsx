@@ -551,8 +551,8 @@ const ActionButtons = <T extends { status?: string }>({
       {/* Comment Modal */}
       {isCommentModalOpen &&
         createPortal(
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg shadow-lg max-w-lg w-full mx-4">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-3">
+            <div className="bg-white p-4 rounded-lg shadow-lg max-w-md w-full mx-4">
               <div className="mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">Comment</h3>
               </div>
@@ -580,7 +580,7 @@ const ActionButtons = <T extends { status?: string }>({
                 </select>
               </div>
 
-              <div className="mb-6">
+              <div className="mb-4">
                 <textarea
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
@@ -593,14 +593,14 @@ const ActionButtons = <T extends { status?: string }>({
               <div className="flex justify-end items-center gap-3">
                 <button
                   onClick={handleCancelComment}
-                  className="px-6 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors min-w-[80px]"
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors min-w-[72px]"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSaveComment}
                   disabled={!commentText.trim()}
-                  className={`px-6 py-2 text-sm font-medium rounded-md focus:outline-none focus:ring-2 transition-colors min-w-[80px] ${
+                  className={`px-4 py-2 text-sm font-medium rounded-md focus:outline-none focus:ring-2 transition-colors min-w-[72px] ${
                     commentText.trim()
                       ? "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500"
                       : "bg-gray-300 text-gray-500 cursor-not-allowed"
@@ -617,8 +617,8 @@ const ActionButtons = <T extends { status?: string }>({
       {/* History Modal */}
       {isHistoryModalOpen &&
         createPortal(
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-3">
+            <div className="bg-white p-4 rounded-lg shadow-lg max-w-sm w-full mx-4">
               <div className="mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">History</h3>
               </div>
@@ -630,10 +630,10 @@ const ActionButtons = <T extends { status?: string }>({
                   className="w-full h-24 px-3 py-2 border border-gray-200 rounded-md resize-none bg-gray-100 text-gray-500"
                 />
               </div>
-              <div className="mt-4 flex justify-end">
+              <div className="mt-3 flex justify-end">
                 <button
                   onClick={() => setIsHistoryModalOpen(false)}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                  className="px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
                 >
                   Close
                 </button>
