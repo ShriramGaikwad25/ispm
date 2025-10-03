@@ -1375,12 +1375,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
           </div>
         )}
 
-        {/* Users List - Fixed Height */}
-        <div
-          className={`flex-1 flex flex-col justify-start pt-0 pb-1 ${
-            isSidebarHovered ? "overflow-y-auto" : "overflow-hidden"
-          }`}
-        >
+        {/* Users List */}
+        <div className="flex-1 flex flex-col justify-start pt-2 pb-2 px-1">
           {sidebarLoading ? (
             <div className="flex items-center justify-center h-32">
               <div className="text-gray-500 text-sm">Loading users...</div>
@@ -1396,8 +1392,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
                 <div
                   key={user.id}
                   onClick={() => handleUserSelect(user)}
-                  className={`px-3 py-2 rounded-none cursor-pointer hover:bg-blue-50 transition-all duration-200 ${
-                    index === 0 ? "mt-0" : "mt-0"
+                  className={`user-item px-3 py-2 rounded-none cursor-pointer hover:bg-blue-50 transition-all duration-200 ${
+                    isSidebarHovered ? "expanded" : "minimized"
                   } ${
                     selectedUser?.id === user.id
                       ? "border-s-4 border-blue-500"

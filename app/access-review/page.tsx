@@ -418,6 +418,7 @@ const activeColumnDefs = useMemo<ColDef[]>(() =>[
       console.log("Mapped Row Data:", mapped); // Debug mapped data
       setRowData(mapped as unknown as UserRowData[]);
       localStorage.setItem("sharedRowData", JSON.stringify(mapped));
+      try { window.dispatchEvent(new Event("localStorageChange")); } catch {}
       setTotalItems(certificationData.total_items || 0);
       setTotalPages(certificationData.total_pages || 1);
       
@@ -493,6 +494,7 @@ const activeColumnDefs = useMemo<ColDef[]>(() =>[
         pendingCount: e.data.totalActions - e.data.totalActionsCompleted, // Remaining actions
       };
       localStorage.setItem("selectedCampaignSummary", JSON.stringify(campaignSummary));
+      try { window.dispatchEvent(new Event("localStorageChange")); } catch {}
     }
     
     if (clickedReviewerId && clickedCertificationId) {

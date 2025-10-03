@@ -36,17 +36,19 @@
 }
 
 .user-item {
-  padding: 0.25rem 0.75rem;
+  padding: 0.5rem 0.75rem;
+  margin: 0.125rem 0;
   border-bottom: 1px solid #f3f4f6;
   cursor: pointer;
   transition: all 0.3s ease-in-out;
   position: relative;
-  flex: 1;
-  min-height: 0;
+  flex: 0 0 auto; /* Changed from flex: 1 to prevent stretching */
+  min-height: 48px; /* Consistent height for both states */
   display: flex;
   align-items: center;
-  height: calc((100vh - 200px) / 10); /* Dynamic height calculation for perfect fit */
-  max-height: 36px; /* Maximum height constraint */
+  height: 48px; /* Fixed height for consistency */
+  max-height: 48px; /* Same as height for consistency */
+  border-radius: 0.25rem; /* Added subtle border radius */
 }
 
 .user-item:hover {
@@ -295,6 +297,27 @@
   align-items: center;
   justify-content: center;
   font-weight: 600;
+}
+
+/* User list container improvements */
+.users-list-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem 0.25rem;
+}
+
+/* Ensure user items are properly sized in both states */
+.user-item.minimized {
+  min-height: 48px; /* Same height as expanded state */
+  justify-content: center;
+  padding: 0.5rem 0.25rem; /* Reduced horizontal padding for minimized state */
+}
+
+.user-item.expanded {
+  min-height: 48px; /* Same height as minimized state */
+  justify-content: flex-start;
+  padding: 0.5rem 0.75rem; /* Standard padding for expanded state */
 }
 
 /* Responsive Design */
