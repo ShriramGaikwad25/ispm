@@ -51,7 +51,7 @@ const ActionButtons = <T extends { status?: string }>({
   certId,
   viewChangeEnable,
   onActionSuccess,
-}: ActionButtonsProps<T>) => {
+}: ActionButtonsProps<T>): JSX.Element => {
   const { queueAction } = useActionPanel();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
