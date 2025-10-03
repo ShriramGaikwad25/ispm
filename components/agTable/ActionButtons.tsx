@@ -75,9 +75,6 @@ const ActionButtons = <T extends { status?: string }>({
   const [revokeSelection, setRevokeSelection] = useState(null);
   const [comment, setComment] = useState("");
   const [commentText, setCommentText] = useState("");
-  const [commentCategory, setCommentCategory] = useState("");
-  const [commentSubcategory, setCommentSubcategory] = useState("");
-  const [isCommentDropdownOpen, setIsCommentDropdownOpen] = useState(false);
   const [reviewerType, setReviewerType] = useState(null);
   const [selectedOwner, setSelectedOwner] = useState<User | Group | null>(null);
   const [selectedDelegate, setSelectedDelegate] = useState<User | Group | null>(
@@ -94,13 +91,10 @@ const ActionButtons = <T extends { status?: string }>({
 
   // Filter out undefined/null rows (e.g., group rows can pass undefined data)
   const definedRows = (selectedRows || []).filter((r): r is T => !!r);
-  // Determine if all selected rows have the same status (normalized)
-  const rowStatusRaw = definedRows.length > 0 ? (definedRows[0] as any)?.status : null;
-  const rowStatus = typeof rowStatusRaw === 'string' ? rowStatusRaw : (rowStatusRaw ? String(rowStatusRaw) : null);
-  const normalizedStatus = (rowStatus || "").toString().trim().toLowerCase();
-  // Treat approved/certified similarly; rejected/revoked similarly
-  const isApproved = normalizedStatus === "approved" || normalizedStatus === "certified";
-  const isRejected = normalizedStatus === "rejected" || normalizedStatus === "revoked";
+  // Determine if all selected rows have the same status
+  const rowStatus = definedRows.length > 0 ? definedRows[0].status : null;
+  const isApproved = rowStatus === "Approved";
+  const isRejected = rowStatus === "Rejected";
 
   // Local pending visualization: if all selected rows have same pending action, reflect it on the button
   const selectedIds = definedRows
@@ -111,11 +105,17 @@ const ActionButtons = <T extends { status?: string }>({
   const isPendingReset = selectedIds.some((id) => pendingById[id] === 'Pending');
   const hasAnyPending = isApprovePending || isRejectPending || isPendingReset;
 
-  // Check if action is Approve/Reject for entitlement context (normalized)
-  const actionRaw = definedRows.length > 0 ? (definedRows[0] as any)?.action : null;
-  const actionLower = (actionRaw ? String(actionRaw) : "").trim().toLowerCase();
-  const isApproveAction = context === "entitlement" && actionLower === "approve";
-  const isRejectAction = context === "entitlement" && actionLower === "reject";
+  // Check if action is "Approve" for entitlement context
+  const isApproveAction =
+    context === "entitlement" &&
+    definedRows.length > 0 &&
+    (definedRows[0] as any)?.action === "Approve";
+
+  // Check if action is "Reject" for entitlement context
+  const isRejectAction =
+    context === "entitlement" &&
+    definedRows.length > 0 &&
+    (definedRows[0] as any)?.action === "Reject";
 
   const approveFilled = isApprovePending || (!hasAnyPending && (isApproved || isApproveAction));
   const rejectFilled = isRejectPending || (!hasAnyPending && (isRejected || isRejectAction));
@@ -271,9 +271,6 @@ const ActionButtons = <T extends { status?: string }>({
     e.stopPropagation();
     if (definedRows.length === 0) return;
     setCommentText(comment); // Load existing comment into the textarea
-    setCommentCategory(""); // Reset category selection
-    setCommentSubcategory(""); // Reset subcategory selection
-    setIsCommentDropdownOpen(false); // Reset dropdown state
     setIsCommentModalOpen(true);
   };
 
@@ -293,38 +290,6 @@ const ActionButtons = <T extends { status?: string }>({
   const handleCancelComment = () => {
     setIsCommentModalOpen(false);
     setCommentText("");
-    setCommentCategory("");
-    setCommentSubcategory("");
-    setIsCommentDropdownOpen(false);
-  };
-
-  // Comment options data structure
-  const commentOptions = {
-    "Approve": [
-      "Access required to perform current job responsibilities.",
-      "Access aligns with user's role and department functions.",
-      "Validated with manager/business owner – appropriate access.",
-      "No SoD (Segregation of Duties) conflict identified.",
-      "User continues to work on project/system requiring this access."
-    ],
-    "Revoke": [
-      "User no longer in role requiring this access.",
-      "Access redundant – duplicate with other approved entitlements.",
-      "Access not used in last 90 days (inactive entitlement).",
-      "SoD conflict identified – removing conflicting access.",
-      "Temporary/project-based access – no longer required."
-    ]
-  };
-
-  const handleCategoryChange = (category: string) => {
-    setCommentCategory(category);
-    setCommentSubcategory(""); // Reset subcategory when category changes
-    setCommentText(""); // Clear text when category changes
-  };
-
-  const handleSubcategoryChange = (subcategory: string) => {
-    setCommentSubcategory(subcategory);
-    setCommentText(`${commentCategory} - ${subcategory}`);
   };
 
   const toggleMenu = (e: React.MouseEvent) => {
@@ -387,29 +352,35 @@ const ActionButtons = <T extends { status?: string }>({
         title={isApproveAction ? "Undo" : "Approve"}
         aria-label="Approve selected rows"
         disabled={isActionLoading}
-        className={`p-1 rounded flex items-center justify-center ${isActionLoading ? "opacity-60 cursor-not-allowed" : ""}`}
+        className={`p-1 rounded transition-colors duration-200 ${
+          isApproved ? "bg-green-500" : "hover:bg-green-100"
+        } ${isActionLoading ? "opacity-60 cursor-not-allowed" : ""}`}
       >
-        <div className="relative inline-flex items-center justify-center w-8 h-8">
+        <div className="relative">
           <CircleCheck
-            className={isActionLoading ? "cursor-not-allowed" : "cursor-pointer"}
+            className={
+              isActionLoading ? "cursor-not-allowed" : "cursor-pointer"
+            }
             color="#1c821cff"
             strokeWidth="1"
             size="32"
             fill={approveFilled ? "#1c821cff" : "none"}
           />
           {approveFilled && (
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              className="absolute pointer-events-none"
-              style={{ left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}
-            >
-              <path
-                d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"
-                fill="#ffffff"
-              />
-            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                className="text-white"
+              >
+                <path
+                  d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"
+                  fill="currentColor"
+                />
+              </svg>
+            </div>
           )}
         </div>
       </button>
@@ -419,16 +390,41 @@ const ActionButtons = <T extends { status?: string }>({
         title={isRejectAction ? "Undo" : "Revoke"}
         aria-label="Revoke selected rows"
         disabled={isActionLoading}
-        className={`p-1 rounded flex items-center justify-center ${isActionLoading ? "opacity-60 cursor-not-allowed" : ""}`}
+        className={`p-1 rounded transition-colors duration-200 ${
+          isRejected ? "bg-red-500" : "hover:bg-red-100"
+        } ${isActionLoading ? "opacity-60 cursor-not-allowed" : ""}`}
       >
-        <div className="inline-flex items-center justify-center w-8 h-8">
+        <div className="relative">
           <CircleX
-            className={isActionLoading ? "cursor-not-allowed" : "cursor-pointer"}
+            className={
+              isActionLoading
+                ? "cursor-not-allowed"
+                : "cursor-pointer hover:opacity-80"
+            }
             color="#FF2D55"
             strokeWidth="1"
             size="32"
             fill={rejectFilled ? "#FF2D55" : "none"}
           />
+          {rejectFilled && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                className="text-white"
+              >
+                <path
+                  d="M18 6L6 18M6 6l12 12"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+          )}
         </div>
       </button>
 
@@ -589,104 +585,40 @@ const ActionButtons = <T extends { status?: string }>({
       {/* Comment Modal */}
       {isCommentModalOpen &&
         createPortal(
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-3">
-            <div className="bg-white p-4 rounded-lg shadow-lg max-w-md w-full mx-4">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg shadow-lg max-w-lg w-full mx-4">
               <div className="mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">Comment</h3>
               </div>
 
               <div className="mb-3">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Comment Suggestions
-                </label>
-                <div className="relative">
-                  <button
-                    type="button"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-left focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white flex items-center justify-between"
-                    onClick={() => setIsCommentDropdownOpen(!isCommentDropdownOpen)}
-                  >
-                    <span className="text-gray-500">
-                      {commentSubcategory ? `${commentCategory} - ${commentSubcategory}` : 'Select a comment suggestion...'}
-                    </span>
-                    <svg
-                      className={`w-4 h-4 transition-transform ${isCommentDropdownOpen ? 'rotate-180' : ''}`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-
-                  {isCommentDropdownOpen && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-80 overflow-y-auto">
-                      <div className="p-2 space-y-2">
-                        {/* Approve Section */}
-                        <div>
-                          <div className="flex items-center p-1">
-                            <div className="w-3 h-3 rounded-full border-2 mr-2 flex items-center justify-center border-green-500 bg-green-500">
-                              <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
-                            </div>
-                            <span className="text-xs font-medium text-gray-900">Approve</span>
-                          </div>
-                          
-                          <div className="ml-5 mt-1 space-y-1">
-                            {commentOptions["Approve"].map((option, index) => (
-                              <div
-                                key={index}
-                                className="text-xs text-gray-600 cursor-pointer hover:text-blue-600 hover:bg-blue-50 p-1 rounded transition-colors"
-                                onClick={() => {
-                                  handleCategoryChange("Approve");
-                                  handleSubcategoryChange(option);
-                                  setIsCommentDropdownOpen(false);
-                                }}
-                              >
-                                {option}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Revoke Section */}
-                        <div>
-                          <div className="flex items-center p-1">
-                            <div className="w-3 h-3 rounded-full border-2 mr-2 flex items-center justify-center border-red-500 bg-red-500">
-                              <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
-                            </div>
-                            <span className="text-xs font-medium text-gray-900">Revoke</span>
-                          </div>
-                          
-                          <div className="ml-5 mt-1 space-y-1">
-                            {commentOptions["Revoke"].map((option, index) => (
-                              <div
-                                key={index}
-                                className="text-xs text-gray-600 cursor-pointer hover:text-blue-600 hover:bg-blue-50 p-1 rounded transition-colors"
-                                onClick={() => {
-                                  handleCategoryChange("Revoke");
-                                  handleSubcategoryChange(option);
-                                  setIsCommentDropdownOpen(false);
-                                }}
-                              >
-                                {option}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  defaultValue=""
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val) setCommentText(val);
+                  }}
+                >
+                  <option value="" disabled>Select a suggestion...</option>
+                  <option className="text-xs">Approved - Access required to perform current job responsibilities.</option>
+                  <option className="text-xs">Approved - Access aligns with user’s role and department functions.</option>
+                  <option className="text-xs">Approved - Validated with manager/business owner – appropriate access.</option>
+                  <option className="text-xs">Approved- No SoD (Segregation of Duties) conflict identified.</option>
+                  <option className="text-xs">Approve- User continues to work on project/system requiring this access.</option>
+                  <option className="text-xs">Revoke-User no longer in role requiring this access.</option>
+                  <option className="text-xs">Revoke-Access redundant – duplicate with other approved entitlements.</option>
+                  <option className="text-xs">Revoke-Access not used in last 90 days (inactive entitlement).</option>
+                  <option className="text-xs">Revoke-SoD conflict identified – removing conflicting access.</option>
+                  <option className="text-xs">Revoke-Temporary/project-based access – no longer required.</option>
+                </select>
               </div>
 
-              <div className="mb-4">
+              <div className="mb-6">
                 <textarea
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
-                  placeholder={
-                    commentCategory 
-                      ? `Enter additional details for ${commentCategory.toLowerCase()}...` 
-                      : "Select an action type and reason, or enter your comment here..."
-                  }
+                  placeholder="Enter your comment here..."
                   className="w-full h-24 px-3 py-2 border border-gray-300 rounded-md resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   autoFocus
                 />
@@ -695,14 +627,14 @@ const ActionButtons = <T extends { status?: string }>({
               <div className="flex justify-end items-center gap-3">
                 <button
                   onClick={handleCancelComment}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors min-w-[72px]"
+                  className="px-6 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors min-w-[80px]"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSaveComment}
                   disabled={!commentText.trim()}
-                  className={`px-4 py-2 text-sm font-medium rounded-md focus:outline-none focus:ring-2 transition-colors min-w-[72px] ${
+                  className={`px-6 py-2 text-sm font-medium rounded-md focus:outline-none focus:ring-2 transition-colors min-w-[80px] ${
                     commentText.trim()
                       ? "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500"
                       : "bg-gray-300 text-gray-500 cursor-not-allowed"
@@ -719,8 +651,8 @@ const ActionButtons = <T extends { status?: string }>({
       {/* History Modal */}
       {isHistoryModalOpen &&
         createPortal(
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-3">
-            <div className="bg-white p-4 rounded-lg shadow-lg max-w-sm w-full mx-4">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
               <div className="mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">History</h3>
               </div>
@@ -732,10 +664,10 @@ const ActionButtons = <T extends { status?: string }>({
                   className="w-full h-24 px-3 py-2 border border-gray-200 rounded-md resize-none bg-gray-100 text-gray-500"
                 />
               </div>
-              <div className="mt-3 flex justify-end">
+              <div className="mt-4 flex justify-end">
                 <button
                   onClick={() => setIsHistoryModalOpen(false)}
-                  className="px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
                 >
                   Close
                 </button>

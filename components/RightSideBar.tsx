@@ -8,7 +8,7 @@ interface RightSidebarProps {
   children?: React.ReactNode;
 }
 
-const DEFAULT_WIDTH = 500;
+const DEFAULT_WIDTH = 600;
 
 const RightSidebar = ({ isOpen, widthPx = DEFAULT_WIDTH, onClose, children }: RightSidebarProps) => {
   if (!isOpen) return null;

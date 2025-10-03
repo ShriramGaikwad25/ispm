@@ -611,24 +611,6 @@ function AppOwnerContent() {
     fetchData();
   }, [fetchData]);
 
-  // Restore previously selected grouping from localStorage on mount
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem("appOwnerGroupBy");
-      if (stored) {
-        setGroupByOption(stored);
-        const selectedField =
-          stored === "Entitlements"
-            ? "entitlementName"
-            : stored === "Accounts"
-            ? "accountName"
-            : null;
-        setGroupByColumn(selectedField);
-        applyRowGrouping(selectedField);
-      }
-    } catch {}
-  }, []);
-
   useEffect(() => {
     fetchAnalyticsData();
   }, [fetchAnalyticsData]);
@@ -821,35 +803,8 @@ function AppOwnerContent() {
       cellRendererParams: {
         suppressExpand: true,
       },
-      cellRenderer: (params: ICellRendererParams) => {
-        if (params.node.group && groupByOption === "Entitlements") {
-          // For entitlement grouping, show both name and description
-          const groupKey = params.value;
-          // Try to get description from the first available leaf child
-          const node: any = params.node;
-          const firstLeafData =
-            node?.childrenAfterFilter?.find((c: any) => !c.group)?.data ||
-            node?.childrenAfterGroup?.find((c: any) => !c.group)?.data ||
-            node?.childrenAfterSort?.find((c: any) => !c.group)?.data ||
-            node?.allLeafChildren?.[0]?.data ||
-            params.data;
-          const description = firstLeafData?.entitlementDescription || "";
-
-          // Inline: Name — Description (description optional)
-          return (
-            <div className="flex items-center gap-2">
-              <span className="ag-group-value">{groupKey}</span>
-              {description && (
-                <span className="entitlement-description">— {description}</span>
-              )}
-            </div>
-          );
-        }
-        // Default group renderer for other cases
-        return <span className="ag-group-value">{params.value}</span>;
-      },
     }),
-    [groupByOption]
+    []
   );
 
   const detailCellRenderer = useCallback(DetailCellRenderer, []);
@@ -868,25 +823,11 @@ function AppOwnerContent() {
       wrapText: true,
       enableRowGroup: true,
       cellStyle: { whiteSpace: 'normal', lineHeight: '1.4' },
-      cellRenderer: (params: ICellRendererParams) => {
-        // Check if this is a group row
-        if (params.node.group) {
-          return (
-            <div className="flex flex-col gap-1">
-              <span className="ag-group-value">{params.value}</span>
-              {params.data?.entitlementDescription && (
-                <span className="entitlement-description">{params.data.entitlementDescription}</span>
-              )}
-            </div>
-          );
-        }
-        // Regular row
-        return (
-          <div className="flex flex-col gap-0">
-            <span className="text-gray-800 break-words font-bold">{params.value}</span>
-          </div>
-        );
-      },
+      cellRenderer: (params: ICellRendererParams) => (
+        <div className="flex flex-col gap-0">
+          <span className="text-gray-800 break-words font-bold">{params.value}</span>
+        </div>
+      ),
     },
     { field: "entitlementType", headerName: "Type", width:100},
     {
@@ -1051,9 +992,6 @@ function AppOwnerContent() {
   ) => {
     const selectedOption = event.target.value;
     setGroupByOption(selectedOption);
-    try {
-      localStorage.setItem("appOwnerGroupBy", selectedOption);
-    } catch {}
     const selectedField =
       selectedOption === "Entitlements"
         ? "entitlementName"
@@ -1061,8 +999,9 @@ function AppOwnerContent() {
         ? "accountName"
         : null;
     setGroupByColumn(selectedField);
-    // Always try to apply grouping; helper will retry if grid isn't ready yet
-    applyRowGrouping(selectedField);
+    if (isGridReady) {
+      applyRowGrouping(selectedField);
+    }
   };
 
   const handleAppliedFilter = (filters: string[]) => {
@@ -1117,7 +1056,7 @@ function AppOwnerContent() {
       });
       applyRowGrouping(groupByColumn);
     }
-  }, [isGridReady, groupByColumn, rowData]);
+  }, [isGridReady, groupByColumn]);
 
   return (
     <div className="w-full h-screen">
@@ -1178,6 +1117,7 @@ function AppOwnerContent() {
             </div>
           </div>
           <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
+            {/* Pagination moved to bottom below the grid */}
             <Exports gridApi={gridApiRef.current} />
             <MailIcon
               size={32}
@@ -1211,24 +1151,6 @@ function AppOwnerContent() {
             />
           </div>
         </div>
-
-        {/* Pagination at the top */}
-        {!loading && !error && rowData.length > 0 && (
-          <div className="mb-4">
-            <CustomPagination
-              totalItems={filteredRowData.length || totalItems}
-              currentPage={pageNumber}
-              totalPages={totalPages}
-              pageSize={pageSize}
-              onPageChange={handlePageChange}
-              onPageSizeChange={(newPageSize) => {
-                setPageSize(newPageSize);
-                setPageNumber(1); // Reset to first page when changing page size
-              }}
-              pageSizeOptions={pageSizeSelector}
-            />
-          </div>
-        )}
       </div>
 
       <div className="flex w-full relative">
@@ -1264,7 +1186,6 @@ function AppOwnerContent() {
                 }
                 columnDefs={columnDefs}
                 groupDefaultExpanded={-1}
-                groupDisplayType="groupRows"
                 defaultColDef={defaultColDef}
                 autoGroupColumnDef={autoGroupColumnDef}
                 rowGroupPanelShow={"never"}
@@ -1273,7 +1194,7 @@ function AppOwnerContent() {
                   mode: "multiRow",
                   masterSelects: "detail",
                 }}
-                masterDetail={groupByOption !== "Entitlements"}
+                masterDetail={true}
                 detailCellRenderer={detailCellRenderer}
                 detailRowAutoHeight={true}
                 onGridReady={(params: any) => {
@@ -1310,7 +1231,7 @@ function AppOwnerContent() {
                 suppressHorizontalScroll={true}
                 className="ag-theme-quartz ag-main"
               />
-              <div className="mt-4">
+              <div className="mt-0">
                 <CustomPagination
                   totalItems={filteredRowData.length || totalItems}
                   currentPage={pageNumber}

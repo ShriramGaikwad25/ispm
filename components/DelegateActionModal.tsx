@@ -79,8 +79,8 @@ const DelegateActionModal: React.FC<DelegateActionModalProps> = ({
     <>
       {isModalOpen &&
         createPortal(
-          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-3">
-            <div className="bg-white rounded-lg p-4 w-[420px] shadow-lg relative">
+          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center">
+            <div className="bg-white rounded-lg p-6 w-[550px] shadow-lg relative">
               {/* Close button */}
               <button
                 onClick={handleClose}
@@ -102,14 +102,14 @@ const DelegateActionModal: React.FC<DelegateActionModalProps> = ({
                 </svg>
               </button>
 
-              <h2 className="text-lg font-semibold mb-4 pr-8">{heading}</h2>
+              <h2 className="text-xl font-semibold mb-6 pr-8">{heading}</h2>
 
               {/* Tabs */}
-              <div className="flex mb-4 bg-gray-100 p-1 rounded-md">
+              <div className="flex mb-6 bg-gray-100 p-1 rounded-md">
                 {["User", "Group"].map((type) => (
                   <button
                     key={type}
-                    className={`flex-1 py-2.5 px-3 text-sm font-medium transition-colors ${
+                    className={`flex-1 py-3 px-4 text-sm font-medium transition-colors ${
                       delegateType === type
                         ? "bg-white text-[#15274E] border border-gray-300 shadow-sm relative z-10"
                         : "bg-transparent text-gray-500 hover:text-gray-700"
@@ -130,7 +130,7 @@ const DelegateActionModal: React.FC<DelegateActionModalProps> = ({
               </div>
 
               {/* Select Attribute */}
-              <div className="mb-3">
+              <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Select Attribute</label>
                 <div className="relative">
                   <select
@@ -163,7 +163,7 @@ const DelegateActionModal: React.FC<DelegateActionModalProps> = ({
               </div>
 
               {/* Search Value */}
-              <div className="mb-3">
+              <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Search Value</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -193,7 +193,7 @@ const DelegateActionModal: React.FC<DelegateActionModalProps> = ({
 
               {/* Filtered List */}
               {searchValue.trim() !== "" && (
-                <div className="max-h-36 overflow-auto border rounded p-2 mb-3 text-sm bg-gray-50">
+                <div className="max-h-40 overflow-auto border rounded p-2 mb-4 text-sm bg-gray-50">
                   {filteredData.length === 0 ? (
                     <p className="text-gray-500 italic">No results found.</p>
                   ) : (
@@ -202,7 +202,7 @@ const DelegateActionModal: React.FC<DelegateActionModalProps> = ({
                         <li
                           key={index}
                           className="p-2 border rounded hover:bg-gray-100 cursor-pointer"
-                            onClick={() => {
+                          onClick={() => {
                             onSelectDelegate(item);
                             resetState(); // reset internal state
                           }}
@@ -217,14 +217,14 @@ const DelegateActionModal: React.FC<DelegateActionModalProps> = ({
                             <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-200">
                 <button
                   onClick={handleCancel}
-                  className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSubmit}
                   disabled={!searchValue}
-                  className="px-3 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                 >
                   Submit
                 </button>

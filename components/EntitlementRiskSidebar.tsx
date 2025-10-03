@@ -115,7 +115,7 @@ const EntitlementRiskSidebar: React.FC<EntitlementRiskSidebarProps> = ({
     <>
       {/* Sidebar */}
       <div
-        className={`fixed right-0 top-16 h-[calc(100vh-4rem)] w-[500px] bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${
+        className={`fixed right-0 top-16 h-[calc(100vh-4rem)] w-[32rem] bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >

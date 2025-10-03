@@ -236,8 +236,8 @@ const PopupButton = ({
   ];
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-50 px-3">
-      <div className="bg-white p-3 rounded-lg shadow-lg w-full max-w-sm max-h-[75vh] overflow-y-auto relative">
+    <div className="fixed inset-0 flex items-center justify-center z-50">
+      <div className="bg-white p-4 rounded-lg shadow-lg w-full max-w-md max-h-[80vh] overflow-y-auto relative">
         <button
           onClick={onClose}
           className="absolute top-2 right-4 text-gray-500 hover:text-gray-700 text-lg font-semibold"
@@ -825,7 +825,7 @@ const HeaderContent = () => {
           <div className="flex h-full items-center header-content">
             <div className="flex items-center px-4">
               <p className="text-sm font-medium text-white">
-                {headerInfo.campaignName || "App Owner Review"}
+                App Owner Review - d4cc2173-7471-4e26-8c72-a27be88ff6cb
               </p>
             </div>
             <div className="flex items-center px-2">
@@ -833,7 +833,7 @@ const HeaderContent = () => {
             </div>
             <div className="flex items-center px-4">
               <p className="text-sm font-medium text-white">
-                Generated On: {headerInfo.snapshotAt ? formatDateMMDDYY(headerInfo.snapshotAt) : "N/A"}
+                Generated On: {headerInfo.snapshotAt ? formatDateMMDDYY(headerInfo.snapshotAt) : "09-17-25"}
               </p>
             </div>
             <div className="flex items-center px-2">
@@ -841,9 +841,9 @@ const HeaderContent = () => {
             </div>
             <div className="flex items-center px-4">
               <p className="text-sm font-medium text-white">
-                Due on: {headerInfo.dueDate ? formatDateMMDDYY(headerInfo.dueDate) : "N/A"}
+                Due on: {headerInfo.dueDate ? formatDateMMDDYY(headerInfo.dueDate) : "10-02-25"}
                 <span className="font-bold ml-1 text-white">
-                  ({headerInfo.daysLeft || 0} days left)
+                  ({headerInfo.daysLeft || 13} days left)
                 </span>
               </p>
             </div>

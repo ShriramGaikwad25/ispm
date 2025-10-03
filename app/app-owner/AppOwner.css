@@ -127,34 +127,6 @@
   flex-shrink: 0;
 }
 
-/* Group header styling for entitlement grouping */
-.ag-theme-quartz .ag-row-group {
-  background-color: #f8fafc !important;
-  border-bottom: 2px solid #e2e8f0 !important;
-  font-weight: 600 !important;
-}
-
-.ag-theme-quartz .ag-row-group .ag-group-cell-wrapper {
-  padding: 12px 8px !important;
-  background-color: #f1f5f9 !important;
-  border-left: 4px solid #3b82f6 !important;
-}
-
-.ag-theme-quartz .ag-row-group .ag-group-cell-wrapper .ag-group-value {
-  font-size: 16px !important;
-  font-weight: 700 !important;
-  color: #1e293b !important;
-}
-
-/* Entitlement description in group headers */
-.ag-theme-quartz .ag-row-group .ag-group-cell-wrapper .entitlement-description {
-  font-size: 14px !important;
-  font-weight: 400 !important;
-  color: #64748b !important;
-  margin-top: 4px !important;
-  line-height: 1.4 !important;
-}
-
 /* Responsive header adjustments */
 @media (max-width: 768px) {
   .header-content {
