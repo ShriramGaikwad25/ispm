@@ -679,6 +679,12 @@ const ActionButtons = <T extends { status?: string }>({
               </div>
 
               <div className="mb-4">
+<<<<<<< HEAD
+=======
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Comment
+                </label>
+>>>>>>> fb0f2607b2f40901a18bad4f04eea588b59943c9
                 <textarea
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
