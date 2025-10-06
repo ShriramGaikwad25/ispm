@@ -44,6 +44,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import "./TreeClient.css";
 import { createPortal } from "react-dom";
+import { useRightSidebar } from "@/contexts/RightSidebarContext";
+import TaskSummaryPanel from "@/components/TaskSummaryPanel";
 import DelegateActionModal from "@/components/DelegateActionModal";
 import ProxyActionModal from "@/components/ProxyActionModal";
 import { formatDateMMDDYY as formatDate } from "@/utils/utils";
@@ -161,7 +163,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const [userSearch, setUserSearch] = useState("");
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
   const [accountFilter, setAccountFilter] = useState<string>("");
-  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
+  const { openSidebar } = useRightSidebar();
   const [selectedRowForPanel, setSelectedRowForPanel] = useState<any | null>(null);
   const [avatarErrorIndexByKey, setAvatarErrorIndexByKey] = useState<Record<string, number>>({});
   const [avatarMap, setAvatarMap] = useState<Record<string, string>>({});
@@ -1182,7 +1184,38 @@ const TreeClient: React.FC<TreeClientProps> = ({
           } else {
             setSelectedRowForPanel(rowData);
           }
-          setIsRightSidebarOpen(true);
+          const panel = (
+            <div>
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200 p-3 z-10 side-panel-header">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-1.5 h-6 bg-blue-600 rounded-full"></div>
+                    <h2 className="text-lg font-bold text-gray-800">Task Summary</h2>
+                  </div>
+                </div>
+              </div>
+              <TaskSummaryPanel
+                headerLeft={{
+                  primary: selectedUser?.fullName || rowData?.user || "",
+                  secondary: rowData?.user || "",
+                }}
+                headerRight={{
+                  primary: rowData?.entitlementName || "",
+                  secondary: rowData?.applicationName || "Application",
+                }}
+                riskLabel={rowData?.itemRisk || rowData?.appRisk || "Critical"}
+                jobTitle={selectedUser?.jobtitle}
+                applicationName={rowData?.applicationName}
+                reviewerId={reviewerId}
+                certId={certId}
+                selectedRow={rowData}
+                onActionSuccess={() => {
+                  refreshUsersAndEntitlements();
+                }}
+              />
+            </div>
+          );
+          openSidebar(panel, { widthPx: 500 });
         },
       },
       {
@@ -1225,112 +1258,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
       {error && (
         <div style={{ color: "red", padding: 10 }}>{String(error)}</div>
       )}
-      {isRightSidebarOpen && (
-        <div className="fixed top-14 right-0 w-[500px] h-[calc(100vh-4rem)] flex-shrink-0 border-l border-gray-200 bg-white shadow-lg side-panel z-50">
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200 p-3 z-10 side-panel-header">
-            <div className="flex justify-between items-center">
-              <div className="flex items-center space-x-2">
-                <div className="w-1.5 h-6 bg-blue-600 rounded-full"></div>
-                <h2 className="text-lg font-bold text-gray-800">Task Summary</h2>
-              </div>
-              <button
-                onClick={() => setIsRightSidebarOpen(false)}
-                className="text-gray-500 hover:text-gray-700 p-1.5 rounded-full hover:bg-white transition-colors duration-200"
-                title="Close panel"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          </div>
-          <div className="p-3 space-y-3">
-            <div className="bg-gray-50 rounded-lg p-3">
-              <div className="flex items-center space-x-2 p-2">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900">{selectedRowForPanel?.user || selectedUser?.fullName}</p>
-                  <p className="text-xs text-gray-600">{selectedRowForPanel?.user || ""} - User</p>
-                </div>
-                <span className="text-gray-400 text-lg">→</span>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900">{selectedRowForPanel?.entitlementName}</p>
-                  <p className="text-xs text-gray-600">{selectedRowForPanel?.applicationName || "Application"} - IAM role</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="border-l-4 border-yellow-400 bg-yellow-50 p-3 rounded-md">
-              <p className="font-semibold flex items-center text-yellow-700 mb-2 text-sm">
-                <AlertTriangle className="w-4 h-4 mr-2 flex-shrink-0" />
-                We suggest taking a closer look at this access
-              </p>
-              <ul className="list-decimal list-inside text-xs text-yellow-800 space-y-1">
-                <li>This access is critical risk and this user might be over-permissioned</li>
-                <li>Users with the job title <span>{selectedRowForPanel?.jobtitle}</span> don't usually have this access</li>
-              </ul>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-start space-x-2">
-                <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-xs text-gray-700">
-                    <strong>{selectedUser?.fullName || selectedRowForPanel?.user}</strong> is <strong>active</strong> in Okta
-                  </p>
-                </div>
-              </div>
-              <div className="text-xs text-gray-700">
-                <p>
-                  {selectedUser?.fullName || selectedRowForPanel?.user} last logged into {selectedRowForPanel?.applicationName || "the application"} recently
-                </p>
-              </div>
-              <div className="text-red-600 text-xs">
-                <p>This entitlement is marked as <strong>{selectedRowForPanel?.itemRisk || selectedRowForPanel?.appRisk || "Critical"}</strong> risk</p>
-              </div>
-              <div className="text-xs text-gray-700 space-y-0.5">
-                <p>1 out of 11 users with the title {selectedRowForPanel?.jobtitle} have this entitlement</p>
-                <p>1 out of 2495 users in your organization have this entitlement</p>
-                <p>1 out of 13 accounts in this application have this entitlement</p>
-              </div>
-            </div>
-
-            <div className="border-t border-gray-200 pt-3">
-              <div className="flex justify-between items-center mb-2">
-                <h3 className="text-xs font-semibold text-gray-700">Should this user have this access?</h3>
-                <div className="space-x-2">
-                  <ActionButtons
-                    api={{} as any}
-                    selectedRows={selectedRowForPanel ? [selectedRowForPanel] : []}
-                    context="entitlement"
-                    reviewerId={reviewerId}
-                    certId={certId}
-                    onActionSuccess={() => {
-                      refreshUsersAndEntitlements();
-                    }}
-                  />
-                </div>
-              </div>
-              <p className="text-xs text-gray-500 mb-2">
-                Certify or recommend removing this user's access.
-                <a href="#" className="text-blue-600 hover:underline ml-1">More about decisions</a>
-              </p>
-            </div>
-
-            <div className="border-t border-gray-200 pt-3">
-              <input
-                type="text"
-                placeholder="Ask me Anything"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-              />
-              <button
-                className="mt-2 w-full px-3 py-2 rounded-lg text-xs font-medium transition-colors bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                Submit
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Right sidebar content is rendered globally via RightSideBarHost */}
 
       {/* Users Sidebar */}
       <div

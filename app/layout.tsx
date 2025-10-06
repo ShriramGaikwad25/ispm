@@ -10,6 +10,9 @@ import { ActionPanelProvider } from "@/contexts/ActionPanelContext";
 import ActionPanel from "@/components/ActionPanel";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AuthWrapper } from "@/components/AuthWrapper";
+import { RightSidebarProvider } from "@/contexts/RightSidebarContext";
+import RightSideBarHost from "@/components/RightSideBarHost";
+import LayoutContentShift from "@/components/LayoutContentShift";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -30,11 +33,16 @@ export default function RootLayout({
           <QueryProvider>
             <LoadingProvider>
               <ActionPanelProvider>
-                <AuthWrapper>
-                  {children}
-                </AuthWrapper>
-                <PageTransitionLoader />
-                <ActionPanel />
+                <RightSidebarProvider>
+                  <AuthWrapper>
+                    <LayoutContentShift>
+                      {children}
+                    </LayoutContentShift>
+                  </AuthWrapper>
+                  <RightSideBarHost />
+                  <PageTransitionLoader />
+                  <ActionPanel />
+                </RightSidebarProvider>
               </ActionPanelProvider>
             </LoadingProvider>
           </QueryProvider>

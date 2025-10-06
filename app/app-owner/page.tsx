@@ -23,6 +23,8 @@ import {
   MailIcon,
 } from "lucide-react";
 import RightSidebar from "@/components/RightSideBar";
+import { useRightSidebar } from "@/contexts/RightSidebarContext";
+import TaskSummaryPanel from "@/components/TaskSummaryPanel";
 import Accordion from "@/components/Accordion";
 import ChartAppOwnerComponent from "@/components/ChartForAppOwner";
 import UserProgress from "@/components/UserProgress";
@@ -264,7 +266,7 @@ function AppOwnerContent() {
   const [selected, setSelected] = useState<{ [key: string]: number | null }>(
     {}
   );
-  const [isSidebarOpen, setSidebarOpen] = useState(false);
+  const { openSidebar } = useRightSidebar();
   const [groupByColumn, setGroupByColumn] = useState<string | null>(null);
   const [isGridReady, setIsGridReady] = useState(false);
   const [rowData, setRowData] = useState<RowData[]>([]);
@@ -794,8 +796,40 @@ function AppOwnerContent() {
   };
 
   const handleOpen = (event: any) => {
-    setSelectedRow(event?.data);
-    setSidebarOpen(true);
+    const row = event?.data;
+    setSelectedRow(row);
+    const panel = (
+      <div>
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200 p-3 z-10 side-panel-header">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center space-x-2">
+              <div className="w-1.5 h-6 bg-blue-600 rounded-full"></div>
+              <h2 className="text-lg font-bold text-gray-800">Task Summary</h2>
+            </div>
+          </div>
+        </div>
+        <TaskSummaryPanel
+          headerLeft={{
+            primary: row?.userName || "",
+            secondary: row?.accountName || "",
+          }}
+          headerRight={{
+            primary: row?.entitlementName || "",
+            secondary: row?.applicationName || "Application",
+          }}
+          riskLabel={row?.risk || "Critical"}
+          jobTitle={row?.accountType}
+          applicationName={row?.applicationName}
+          reviewerId={reviewerId}
+          certId={certificationId}
+          selectedRow={row}
+          onActionSuccess={() => {
+            fetchData();
+          }}
+        />
+      </div>
+    );
+    openSidebar(panel, { widthPx: 500 });
   };
 
   const handleClose = () => {
@@ -1327,191 +1361,7 @@ function AppOwnerContent() {
             </div>
           )}
         </div>
-        {isSidebarOpen && (
-          <div className="fixed top-16 right-0 w-[500px] h-[calc(100vh-4rem)] flex-shrink-0 border-l border-gray-200 bg-white shadow-lg side-panel z-50">
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200 p-3 z-10 side-panel-header">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center space-x-2">
-                  <div className="w-1.5 h-6 bg-blue-600 rounded-full"></div>
-                  <h2 className="text-lg font-bold text-gray-800">
-                    Task Summary
-                  </h2>
-                </div>
-                <button
-                  onClick={handleClose}
-                  className="text-gray-500 hover:text-gray-700 p-1.5 rounded-full hover:bg-white transition-colors duration-200"
-                  title="Close panel"
-                >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                </button>
-              </div>
-            </div>
-            <div className="p-3 space-y-3">
-              <div className="bg-gray-50 rounded-lg p-3">
-                <div className="flex items-center space-x-2 p-2">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">
-                      {selectedRow?.userName || "Tye Davis"}
-                    </p>
-                    <p className="text-xs text-gray-600">
-                      {selectedRow?.accountName || "tye.davis@conductorone.com"}{" "}
-                      - User
-                    </p>
-                  </div>
-                  <span className="text-gray-400 text-lg">→</span>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">
-                      {selectedRow?.entitlementName || "Admin"}
-                    </p>
-                    <p className="text-xs text-gray-600">AWS - IAM role</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="border-l-4 border-yellow-400 bg-yellow-50 p-3 rounded-md">
-                <p className="font-semibold flex items-center text-yellow-700 mb-2 text-sm">
-                  <AlertTriangle className="w-4 h-4 mr-2 flex-shrink-0" />
-                  Copilot suggests taking a closer look at this access
-                </p>
-                <ul className="list-decimal list-inside text-xs text-yellow-800 space-y-1">
-                  <li>
-                    This access is critical risk and this user might be
-                    over-permissioned
-                  </li>
-                  <li>
-                    Users with the job title Sales don't usually have this
-                    access
-                  </li>
-                </ul>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-start space-x-2">
-                  <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-700">
-                      <strong>{selectedRow?.userName || "Tye Davis"}</strong> is{" "}
-                      <strong>active</strong> in Okta
-                    </p>
-                  </div>
-                </div>
-
-                <div className="text-xs text-gray-700">
-                  <p>
-                    {selectedRow?.userName || "Tye Davis"} last logged into AWS
-                    on Nov 1, 2023: <strong>1 month ago</strong>
-                  </p>
-                </div>
-
-                <div className="text-red-600 text-xs">
-                  <p>
-                    This entitlement is marked as <strong>Critical</strong> risk
-                  </p>
-                </div>
-
-                <div className="text-xs text-gray-700 space-y-0.5">
-                  <p>
-                    1 out of 11 users with the title Sales have this entitlement
-                  </p>
-                  <p>
-                    1 out of 2495 users in your organization have this
-                    entitlement
-                  </p>
-                  <p>
-                    1 out of 13 accounts in this application have this
-                    entitlement
-                  </p>
-                </div>
-              </div>
-
-              <div className="border-t border-gray-200 pt-3">
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className="text-xs font-semibold text-gray-700">
-                    Should this user have this access?
-                  </h3>
-                  <div className="space-x-2">
-                    <ActionButtons
-                      api={{} as any}
-                      selectedRows={selectedRow ? [selectedRow] : []}
-                      context="entitlement"
-                      reviewerId={reviewerId}
-                      certId={certificationId}
-                      onActionSuccess={() => {
-                        fetchData();
-                      }}
-                    />
-                  </div>
-                </div>
-                <p className="text-xs text-gray-500 mb-2">
-                  Certify or recommend removing this user's access.
-                  <a href="#" className="text-blue-600 hover:underline ml-1">
-                    More about decisions
-                  </a>
-                </p>
-              </div>
-
-              <div className="border-t border-gray-200 pt-3">
-                <input
-                  type="text"
-                  placeholder="Ask me Anything"
-                  value={comment}
-                  onChange={handleInputChange}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                />
-                <button
-                  disabled={!comment.trim() || !selectedRow?.lineItemId}
-                  className={`mt-2 w-full px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-                    comment.trim() && selectedRow?.lineItemId
-                      ? "bg-blue-600 hover:bg-blue-700 text-white"
-                      : "bg-gray-100 text-gray-400 cursor-not-allowed"
-                  }`}
-                  onClick={() => {
-                    if (selectedRow?.lineItemId) {
-                      handleAction(selectedRow.lineItemId, "Approve", comment);
-                    }
-                  }}
-                >
-                  Submit
-                </button>
-              </div>
-
-              {/* Close button at the bottom */}
-              <div className="border-t border-gray-200 pt-3 mt-4">
-                <button
-                  onClick={handleClose}
-                  className="w-full px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center justify-center space-x-2"
-                >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="blue"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                  <span>Close</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Right sidebar content is rendered globally via RightSideBarHost */}
       </div>
     </div>
   );
