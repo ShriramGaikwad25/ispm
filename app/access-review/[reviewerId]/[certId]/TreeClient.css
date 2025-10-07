@@ -52,6 +52,11 @@
 }
 
 .user-item:hover {
+  background-color: transparent;
+}
+
+/* Hover background only when hovering avatar/initials circle */
+.user-item:has(.avatar-hover-trigger:hover) {
   background-color: #dcfce7;
 }
 

@@ -180,6 +180,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
     const menuRef = useRef<HTMLDivElement>(null);
   const [isDelegateModalOpen, setIsDelegateModalOpen] = useState(false);
   const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);
+  const hoverTimerRef = useRef<number | null>(null);
 
   const pageSizeSelector = [10, 20, 50, 100];
   const [pageSize, setPageSize] = useState(pageSizeSelector[0]);
@@ -202,6 +203,23 @@ const TreeClient: React.FC<TreeClientProps> = ({
 
   const getUserStableKey = useCallback((u: any): string => {
     return String(u?.username || u?.email || u?.userId || u?.id || "");
+  }, []);
+
+  const handleAvatarEnter = useCallback(() => {
+    if (hoverTimerRef.current) {
+      window.clearTimeout(hoverTimerRef.current);
+    }
+    hoverTimerRef.current = window.setTimeout(() => {
+      setIsSidebarHovered(true);
+      hoverTimerRef.current = null;
+    }, 150);
+  }, []);
+
+  const handleAvatarLeave = useCallback(() => {
+    if (hoverTimerRef.current) {
+      window.clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
   }, []);
 
     const toggleMenu = (e: React.MouseEvent) => {
@@ -1267,7 +1285,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
             ? "w-72 translate-x-0 pr-0"
             : "w-14 -translate-x-0 pr-2"
         }`}
-        onMouseEnter={() => setIsSidebarHovered(true)}
         onMouseLeave={() => setIsSidebarHovered(false)}
       >
         {/* Navigation Arrow - Up */}
@@ -1320,12 +1337,12 @@ const TreeClient: React.FC<TreeClientProps> = ({
                 <div
                   key={user.id}
                   onClick={() => handleUserSelect(user)}
-                  className={`user-item px-3 py-2 rounded-none cursor-pointer hover:bg-blue-50 transition-all duration-200 ${
+                  className={`user-item px-3 py-2 rounded-none cursor-pointer transition-all duration-200 ${
                     isSidebarHovered ? "expanded" : "minimized"
                   } ${
                     selectedUser?.id === user.id
                       ? "border-s-4 border-blue-500"
-                      : "hover:bg-gray-50"
+                      : ""
                   }`}
                 >
                   <div
@@ -1340,17 +1357,19 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       className={`relative flex-shrink-0 ${
                         !isSidebarHovered ? "ml-2" : ""
                       }`}
+                      onMouseEnter={handleAvatarEnter}
+                      onMouseLeave={handleAvatarLeave}
                     >
                       {!isSidebarHovered ? (
                         <div
-                          className={`w-8 h-8 rounded-full bg-blue-200 text-blue-600 flex items-center justify-center font-semibold text-xs mx-auto ${
+                          className={`w-8 h-8 rounded-full bg-blue-200 text-blue-600 flex items-center justify-center font-semibold text-xs mx-auto avatar-hover-trigger ${
                             selectedUser?.id === user.id ? "bg-blue-200 " : ""
                           }`}
                         >
                           {getUserInitials(user.fullName || "")}
                         </div>
                       ) : (
-                        renderUserAvatar(user, 40, "w-10 h-10 rounded-full", index + 1)
+                        renderUserAvatar(user, 40, "w-10 h-10 rounded-full avatar-hover-trigger", index + 1)
                       )}
                     </div>
 
