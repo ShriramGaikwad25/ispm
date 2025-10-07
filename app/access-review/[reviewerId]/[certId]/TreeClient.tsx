@@ -1282,8 +1282,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
       <div
         className={`absolute left-0 top-0 bottom-0 bg-white border-r border-gray-200 flex flex-col transition-all duration-300 ease-in-out z-30 shadow-lg ${
           isSidebarHovered
-            ? "w-72 translate-x-0 pr-0"
-            : "w-14 -translate-x-0 pr-2"
+            ? "w-72 translate-x-0 pr-0 pointer-events-auto"
+            : "w-14 -translate-x-0 pr-0 pointer-events-none"
         }`}
         onMouseLeave={() => setIsSidebarHovered(false)}
       >
@@ -1356,7 +1356,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     <div
                       className={`relative flex-shrink-0 ${
                         !isSidebarHovered ? "ml-2" : ""
-                      }`}
+                      } pointer-events-auto`}
                       onMouseEnter={handleAvatarEnter}
                       onMouseLeave={handleAvatarLeave}
                     >
@@ -1443,7 +1443,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
       </div>
 
       {/* Entitlements Table */}
-      <div className="flex-1 flex flex-col ml-12">
+      <div className={`flex-1 flex flex-col ${isSidebarHovered ? "ml-72" : "ml-14"}`}>
         {selectedUser ? (
           <>
             {/* Selected User Header */}
