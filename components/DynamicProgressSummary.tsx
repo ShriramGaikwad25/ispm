@@ -174,7 +174,7 @@ const DynamicProgressSummary: React.FC<DynamicProgressSummaryProps> = ({
       datalabels: {
         color: "#fafafa",
         font: { weight: "bold" as const },
-        formatter: (value: number) => (value > 0 ? `${value.toFixed(1)}%` : ""),
+        formatter: (value: number) => (value > 0 ? `${Math.round(value)}%` : ""),
         offset: 0,
         clip: false,
       },
@@ -206,7 +206,7 @@ const DynamicProgressSummary: React.FC<DynamicProgressSummaryProps> = ({
                 count = Math.round((value / 100) * progressData.totalItems);
             }
             
-            return `${label}: ${count} items (${value.toFixed(1)}%)`;
+            return `${label}: ${count} items (${Math.round(value)}%)`;
           },
         },
       },

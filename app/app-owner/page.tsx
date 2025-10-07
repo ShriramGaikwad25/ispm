@@ -1,5 +1,12 @@
 "use client";
-import React, { useMemo, useRef, useState, useEffect, useCallback, Suspense } from "react";
+import React, {
+  useMemo,
+  useRef,
+  useState,
+  useEffect,
+  useCallback,
+  Suspense,
+} from "react";
 import { useSearchParams } from "next/navigation";
 import AgGridReact from "@/components/ClientOnlyAgGrid";
 import "@/lib/ag-grid-setup";
@@ -38,6 +45,8 @@ import {
 } from "@/lib/api";
 import { useActionPanel } from "@/contexts/ActionPanelContext";
 import { PaginatedResponse } from "@/types/api";
+import { BackButton } from "@/components/BackButton";
+import { useRouter } from "next/navigation";
 
 // Register AG Grid Enterprise modules
 import { MasterDetailModule } from "ag-grid-enterprise";
@@ -100,7 +109,6 @@ const data: {
   ],
 };
 
-
 const DetailCellRenderer = (props: IDetailCellRendererParams) => {
   const { data } = props;
   return (
@@ -153,12 +161,12 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
         const normalizedAction = String(entityEntitlement.action || "").trim();
         const normalizedStatus = (() => {
           const a = normalizedAction.toLowerCase();
-          if (a === 'approve') return 'approved';
-          if (a === 'reject') return 'revoked';
-          if (a === 'delegate') return 'delegated';
-          if (a === 'remediate') return 'remediated';
-          if (a === 'pending') return 'pending';
-          return 'pending';
+          if (a === "approve") return "approved";
+          if (a === "reject") return "revoked";
+          if (a === "delegate") return "delegated";
+          if (a === "remediate") return "remediated";
+          if (a === "pending") return "pending";
+          return "pending";
         })();
 
         return {
@@ -170,7 +178,8 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
           entitlementType:
             groupEntitlement.entitlementType ||
             entityEntitlement.entitlementType ||
-            (account.entitlementType || account.type) ||
+            account.entitlementType ||
+            account.type ||
             "",
           aiInsights: entityEntitlement.aiassist?.recommendation || "",
           accountSummary: accountInfo.accountName?.includes("@")
@@ -215,47 +224,46 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
       const normalizedAction = String(entityEnt.action || "").trim();
       const normalizedStatus = (() => {
         const a = normalizedAction.toLowerCase();
-        if (a === 'approve') return 'approved';
-        if (a === 'reject') return 'revoked';
-        if (a === 'delegate') return 'delegated';
-        if (a === 'remediate') return 'remediated';
-        if (a === 'pending') return 'pending';
-        return 'pending';
+        if (a === "approve") return "approved";
+        if (a === "reject") return "revoked";
+        if (a === "delegate") return "delegated";
+        if (a === "remediate") return "remediated";
+        if (a === "pending") return "pending";
+        return "pending";
       })();
-      return ({
-      accountId: item.accountInfo?.accountId || "",
-      accountName: item.accountInfo?.accountName || "",
-      userId: item.userInfo?.UserID || "",
-      entitlementName: entitlement.entitlementInfo?.entitlementName || "",
-      entitlementDescription:
-        entitlement.entitlementInfo?.description || "",
-      entitlementType:
-        entitlement.entitlementInfo?.entitlementType ||
-        entitlement.entitlementType ||
-        entitlement.type ||
-        "",
-      aiInsights: entitlement.aiassist?.recommendation || "",
-      recommendation: entityEnt.action || undefined,
-      accountSummary: item.accountInfo?.accountName?.includes("@")
-        ? "Regular Accounts"
-        : "Other",
-      changeSinceLastReview: "New entitlements",
-      accountType: item.campaignType || "",
-      userName: item.userInfo?.UserName || "",
-      lastLoginDate: "2025-05-25",
-      department: "Unknown",
-      manager: "Unknown",
-      risk: item.userInfo?.Risk || "Low",
-      applicationName: item.applicationInfo?.applicationName || "",
-      applicationInstanceId:
-        item.applicationInfo?.applicationInstanceId ||
-        item.applicationInfo?.applicationinstanceid ||
-        "",
-      numOfEntitlements: item.access?.numOfEntitlements || 0,
-      lineItemId: entitlement.lineItemId || "",
-      status: normalizedStatus,
-      action: normalizedAction,
-    });
+      return {
+        accountId: item.accountInfo?.accountId || "",
+        accountName: item.accountInfo?.accountName || "",
+        userId: item.userInfo?.UserID || "",
+        entitlementName: entitlement.entitlementInfo?.entitlementName || "",
+        entitlementDescription: entitlement.entitlementInfo?.description || "",
+        entitlementType:
+          entitlement.entitlementInfo?.entitlementType ||
+          entitlement.entitlementType ||
+          entitlement.type ||
+          "",
+        aiInsights: entitlement.aiassist?.recommendation || "",
+        recommendation: entityEnt.action || undefined,
+        accountSummary: item.accountInfo?.accountName?.includes("@")
+          ? "Regular Accounts"
+          : "Other",
+        changeSinceLastReview: "New entitlements",
+        accountType: item.campaignType || "",
+        userName: item.userInfo?.UserName || "",
+        lastLoginDate: "2025-05-25",
+        department: "Unknown",
+        manager: "Unknown",
+        risk: item.userInfo?.Risk || "Low",
+        applicationName: item.applicationInfo?.applicationName || "",
+        applicationInstanceId:
+          item.applicationInfo?.applicationInstanceId ||
+          item.applicationInfo?.applicationinstanceid ||
+          "",
+        numOfEntitlements: item.access?.numOfEntitlements || 0,
+        lineItemId: entitlement.lineItemId || "",
+        status: normalizedStatus,
+        action: normalizedAction,
+      };
     });
   });
 };
@@ -263,6 +271,7 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
 function AppOwnerContent() {
   const { queueAction } = useActionPanel();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [selected, setSelected] = useState<{ [key: string]: number | null }>(
     {}
   );
@@ -288,7 +297,7 @@ function AppOwnerContent() {
   const [quickFilterText, setQuickFilterText] = useState("");
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
   const [currentFilter, setCurrentFilter] = useState<string>("");
-  
+
   // State for header info and user progress
   const [headerInfo, setHeaderInfo] = useState({
     campaignName: "",
@@ -310,21 +319,24 @@ function AppOwnerContent() {
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
   // Get reviewerId and certificationId from URL parameters, with fallback to hardcoded values
-  const reviewerId = searchParams.get('reviewerId') || "430ea9e6-3cff-449c-a24e-59c057f81e3d";
-  const certificationId = searchParams.get('certificationId') || "4f5c20b8-1031-4114-a688-3b5be9cc2224";
-  
+  const reviewerId =
+    searchParams.get("reviewerId") || "430ea9e6-3cff-449c-a24e-59c057f81e3d";
+  const certificationId =
+    searchParams.get("certificationId") ||
+    "4f5c20b8-1031-4114-a688-3b5be9cc2224";
+
   // Debug logging
-  console.log('App Owner - URL Parameters:', {
+  console.log("App Owner - URL Parameters:", {
     reviewerId,
     certificationId,
-    allParams: Object.fromEntries(searchParams.entries())
+    allParams: Object.fromEntries(searchParams.entries()),
   });
 
   const fetchAnalyticsData = useCallback(async () => {
     try {
       setAnalyticsLoading(true);
       const analytics = await getCertAnalytics(reviewerId);
-      console.log('Fetched analytics data:', analytics);
+      console.log("Fetched analytics data:", analytics);
       setAnalyticsData(analytics);
     } catch (err: any) {
       console.error("Error fetching analytics data:", err);
@@ -363,7 +375,7 @@ function AppOwnerContent() {
       let response: PaginatedResponse<any>;
       const isGroupedEnts = groupByOption === "Entitlements";
       const isGroupedAccounts = groupByOption === "Accounts";
-      
+
       // If a filter is applied, use the filtered API
       if (currentFilter) {
         response = await getAPPOCertificationDetailsWithFilter(
@@ -582,7 +594,9 @@ function AppOwnerContent() {
 
       // Store header data in localStorage for header component
       // Only update if we don't have existing campaign data from access review
-      const existingCampaignData = localStorage.getItem("selectedCampaignSummary");
+      const existingCampaignData = localStorage.getItem(
+        "selectedCampaignSummary"
+      );
       if (!existingCampaignData) {
         const headerData = transformedData.map((item: any) => ({
           id: item.accountId,
@@ -607,7 +621,14 @@ function AppOwnerContent() {
     } finally {
       setLoading(false);
     }
-  }, [pageNumber, pageSize, reviewerId, certificationId, groupByOption, currentFilter]);
+  }, [
+    pageNumber,
+    pageSize,
+    reviewerId,
+    certificationId,
+    groupByOption,
+    currentFilter,
+  ]);
 
   useEffect(() => {
     fetchData();
@@ -640,7 +661,9 @@ function AppOwnerContent() {
     const updateHeaderData = () => {
       try {
         // Prefer campaign summary if available (for campaign manage pages)
-        const selectedCampaignSummary = localStorage.getItem("selectedCampaignSummary");
+        const selectedCampaignSummary = localStorage.getItem(
+          "selectedCampaignSummary"
+        );
         if (selectedCampaignSummary) {
           const summary = JSON.parse(selectedCampaignSummary);
           const daysLeft = calculateDaysLeft(summary.dueDate || "");
@@ -659,15 +682,21 @@ function AppOwnerContent() {
           const data = JSON.parse(sharedRowData);
           if (Array.isArray(data) && data.length > 0) {
             const firstItem = data[0];
-            const daysLeft = calculateDaysLeft(firstItem.certificationExpiration || "");
+            const daysLeft = calculateDaysLeft(
+              firstItem.certificationExpiration || ""
+            );
 
             // Only update header info if we don't have campaign summary data
             if (!selectedCampaignSummary) {
               setHeaderInfo((prev) => ({
-                campaignName: firstItem.certificationName || prev.campaignName || "Campaign Name",
+                campaignName:
+                  firstItem.certificationName ||
+                  prev.campaignName ||
+                  "Campaign Name",
                 status: prev.status || "",
                 snapshotAt: prev.snapshotAt || "",
-                dueDate: firstItem.certificationExpiration || prev.dueDate || "",
+                dueDate:
+                  firstItem.certificationExpiration || prev.dueDate || "",
                 daysLeft: prev.dueDate ? prev.daysLeft : daysLeft,
               }));
             }
@@ -695,12 +724,15 @@ function AppOwnerContent() {
       updateHeaderData();
     };
 
-    window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('localStorageChange', handleLocalStorageChange);
+    window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("localStorageChange", handleLocalStorageChange);
 
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('localStorageChange', handleLocalStorageChange);
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener(
+        "localStorageChange",
+        handleLocalStorageChange
+      );
     };
   }, []);
 
@@ -716,15 +748,25 @@ function AppOwnerContent() {
   // Calculate user-based progress helper function
   const calculateUserProgress = (userData: any) => {
     // First try to get campaign-level progress data
-    const selectedCampaignSummary = localStorage.getItem("selectedCampaignSummary");
+    const selectedCampaignSummary = localStorage.getItem(
+      "selectedCampaignSummary"
+    );
     if (selectedCampaignSummary) {
       try {
         const summary = JSON.parse(selectedCampaignSummary);
-        if (summary.totalItems && summary.approvedCount !== undefined && summary.pendingCount !== undefined) {
+        if (
+          summary.totalItems &&
+          summary.approvedCount !== undefined &&
+          summary.pendingCount !== undefined
+        ) {
           const rejectedCount = summary.rejectedCount || 0;
           const revokedCount = summary.revokedCount || 0;
-          const completedCount = summary.approvedCount + rejectedCount + revokedCount; // Certified, rejected, and revoked all count as progress
-          const percentage = summary.totalItems > 0 ? Math.round((completedCount / summary.totalItems) * 100) : 0;
+          const completedCount =
+            summary.approvedCount + rejectedCount + revokedCount; // Certified, rejected, and revoked all count as progress
+          const percentage =
+            summary.totalItems > 0
+              ? Math.round((completedCount / summary.totalItems) * 100)
+              : 0;
           return {
             totalItems: summary.totalItems,
             approvedCount: summary.approvedCount,
@@ -736,7 +778,10 @@ function AppOwnerContent() {
           };
         }
       } catch (error) {
-        console.error("Error parsing campaign summary in calculateUserProgress:", error);
+        console.error(
+          "Error parsing campaign summary in calculateUserProgress:",
+          error
+        );
       }
     }
 
@@ -901,7 +946,7 @@ function AppOwnerContent() {
       autoHeight: true,
       wrapText: true,
       enableRowGroup: true,
-      cellStyle: { whiteSpace: 'normal', lineHeight: '1.4' },
+      cellStyle: { whiteSpace: "normal", lineHeight: "1.4" },
       cellRenderer: (params: ICellRendererParams) => {
         // Check if this is a group row
         if (params.node.group) {
@@ -909,7 +954,9 @@ function AppOwnerContent() {
             <div className="flex flex-col gap-1">
               <span className="ag-group-value">{params.value}</span>
               {params.data?.entitlementDescription && (
-                <span className="entitlement-description">{params.data.entitlementDescription}</span>
+                <span className="entitlement-description">
+                  {params.data.entitlementDescription}
+                </span>
               )}
             </div>
           );
@@ -917,16 +964,18 @@ function AppOwnerContent() {
         // Regular row
         return (
           <div className="flex flex-col gap-0">
-            <span className="text-gray-800 break-words font-bold">{params.value}</span>
+            <span className="text-gray-800 break-words font-bold">
+              {params.value}
+            </span>
           </div>
         );
       },
     },
-    { field: "entitlementType", headerName: "Type", width:100},
+    { field: "entitlementType", headerName: "Type", width: 100 },
     {
       field: "accountName",
       headerName: "Account",
-      width:150,
+      width: 150,
       // cellRenderer: "agGroupCellRenderer",
       // cellClass: "ag-cell-no-padding",
       cellRenderer: (params: ICellRendererParams) => {
@@ -940,7 +989,7 @@ function AppOwnerContent() {
       field: "risk",
       headerName: "Risk",
       width: 100,
-      hide:true,
+      hide: true,
       cellRenderer: (params: ICellRendererParams) => {
         const risk = params.data?.risk || "Low";
         const riskColor =
@@ -948,7 +997,12 @@ function AppOwnerContent() {
         return <span style={{ color: riskColor }}>{risk}</span>;
       },
     },
-    { field: "userName", headerName: "Identity", width: 120, valueFormatter: (params) => formatDisplayName(params.value) },
+    {
+      field: "userName",
+      headerName: "Identity",
+      width: 120,
+      valueFormatter: (params) => formatDisplayName(params.value),
+    },
     {
       field: "lastLoginDate",
       headerName: "Last Login",
@@ -1008,16 +1062,16 @@ function AppOwnerContent() {
       flex: 2,
       cellRenderer: (params: ICellRendererParams) => {
         return (
-            <ActionButtons
+          <ActionButtons
             api={params.api}
             selectedRows={[params.data]}
             context="entitlement"
             reviewerId={reviewerId}
             certId={certificationId}
-              onActionSuccess={() => {
-                // Refresh data and recompute progress after action
-                fetchData();
-              }}
+            onActionSuccess={() => {
+              // Refresh data and recompute progress after action
+              fetchData();
+            }}
           />
         );
       },
@@ -1116,14 +1170,25 @@ function AppOwnerContent() {
     if (!selectedFilters || selectedFilters.length === 0) return rowData;
     const normalized = selectedFilters.map((f) => f.trim().toLowerCase());
     return rowData.filter((r) => {
-      const action = String((r as any).action || '').trim().toLowerCase();
-      const status = String((r as any).status || '').trim().toLowerCase();
+      const action = String((r as any).action || "")
+        .trim()
+        .toLowerCase();
+      const status = String((r as any).status || "")
+        .trim()
+        .toLowerCase();
       return normalized.some((f) => {
-        if (f === 'pending') return action === 'pending' || status === 'pending';
-        if (f === 'certify') return action === 'approve' || status === 'approved';
-        if (f === 'reject') return action === 'reject' || status === 'revoked' || status === 'rejected';
-        if (f === 'delegated') return action === 'delegate' || status === 'delegated';
-        if (f === 'remediated') return action === 'remediate' || status === 'remediated';
+        if (f === "pending")
+          return action === "pending" || status === "pending";
+        if (f === "certify")
+          return action === "approve" || status === "approved";
+        if (f === "reject")
+          return (
+            action === "reject" || status === "revoked" || status === "rejected"
+          );
+        if (f === "delegated")
+          return action === "delegate" || status === "delegated";
+        if (f === "remediated")
+          return action === "remediate" || status === "remediated";
         return false;
       });
     });
@@ -1155,8 +1220,11 @@ function AppOwnerContent() {
 
   return (
     <div className="w-full h-screen">
+      <div className="mb-4">
+        <BackButton text="Back" onClick={() => router.push("/access-review")} />
+      </div>
       <div className="max-w-full">
-{/*         
+        {/*         
         <h1 className="text-xl font-bold mb-6 border-b border-gray-300 pb-2 text-blue-950">
           Application Owner
         </h1> */}
@@ -1164,8 +1232,8 @@ function AppOwnerContent() {
           iconClass="top-1 right-0 rounded-full text-white bg-purple-800"
           open={true}
         >
-          <ChartAppOwnerComponent 
-            rowData={rowData} 
+          <ChartAppOwnerComponent
+            rowData={rowData}
             onFilterChange={handleFilterChange}
             activeFilter={currentFilter}
             activeCount={totalItems}
@@ -1203,7 +1271,7 @@ function AppOwnerContent() {
                   setQuickFilterText(e.target.value);
                 }}
               />
-              <Filters 
+              <Filters
                 gridApi={gridApiRef}
                 context="status"
                 appliedFilter={handleAppliedFilter}
@@ -1213,11 +1281,89 @@ function AppOwnerContent() {
           </div>
           <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
             <Exports gridApi={gridApiRef.current} />
-            <MailIcon
-              size={32}
-              color="#35353A"
-              className="transform scale-[.6]"
-            />
+            <button
+              className="flex items-center px-3 py-2 text-white rounded-md hover:bg-blue-400 transition-colors duration-200 text-xs font-medium"
+              title="Open in Microsoft Teams"
+            >
+              <svg
+                width="32px"
+                height="32px"
+                viewBox="0 0 16 16"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+              >
+                <path
+                  fill="#5059C9"
+                  d="M10.765 6.875h3.616c.342 0 .619.276.619.617v3.288a2.272 2.272 0 01-2.274 2.27h-.01a2.272 2.272 0 01-2.274-2.27V7.199c0-.179.145-.323.323-.323zM13.21 6.225c.808 0 1.464-.655 1.464-1.462 0-.808-.656-1.463-1.465-1.463s-1.465.655-1.465 1.463c0 .807.656 1.462 1.465 1.462z"
+                />
+                <path
+                  fill="#7B83EB"
+                  d="M8.651 6.225a2.114 2.114 0 002.117-2.112A2.114 2.114 0 008.65 2a2.114 2.114 0 00-2.116 2.112c0 1.167.947 2.113 2.116 2.113zM11.473 6.875h-5.97a.611.611 0 00-.596.625v3.75A3.669 3.669 0 008.488 15a3.669 3.669 0 003.582-3.75V7.5a.611.611 0 00-.597-.625z"
+                />
+                <path
+                  fill="#000000"
+                  d="M8.814 6.875v5.255a.598.598 0 01-.596.595H5.193a3.951 3.951 0 01-.287-1.476V7.5a.61.61 0 01.597-.624h3.31z"
+                  opacity=".1"
+                />
+                <path
+                  fill="#000000"
+                  d="M8.488 6.875v5.58a.6.6 0 01-.596.595H5.347a3.22 3.22 0 01-.267-.65 3.951 3.951 0 01-.172-1.15V7.498a.61.61 0 01.596-.624h2.985z"
+                  opacity=".2"
+                />
+                <path
+                  fill="#000000"
+                  d="M8.488 6.875v4.93a.6.6 0 01-.596.595H5.08a3.951 3.951 0 01-.172-1.15V7.498a.61.61 0 01.596-.624h2.985z"
+                  opacity=".2"
+                />
+                <path
+                  fill="#000000"
+                  d="M8.163 6.875v4.93a.6.6 0 01-.596.595H5.079a3.951 3.951 0 01-.172-1.15V7.498a.61.61 0 01.596-.624h2.66z"
+                  opacity=".2"
+                />
+                <path
+                  fill="#000000"
+                  d="M8.814 5.195v1.024c-.055.003-.107.006-.163.006-.055 0-.107-.003-.163-.006A2.115 2.115 0 016.593 4.6h1.625a.598.598 0 01.596.594z"
+                  opacity=".1"
+                />
+                <path
+                  fill="#000000"
+                  d="M8.488 5.52v.699a2.115 2.115 0 01-1.79-1.293h1.195a.598.598 0 01.595.594z"
+                  opacity=".2"
+                />
+                <path
+                  fill="#000000"
+                  d="M8.488 5.52v.699a2.115 2.115 0 01-1.79-1.293h1.195a.598.598 0 01.595.594z"
+                  opacity=".2"
+                />
+                <path
+                  fill="#000000"
+                  d="M8.163 5.52v.647a2.115 2.115 0 01-1.465-1.242h.87a.598.598 0 01.595.595z"
+                  opacity=".2"
+                />
+                <path
+                  fill="url(#microsoft-teams-color-16__paint0_linear_2372_494)"
+                  d="M1.597 4.925h5.969c.33 0 .597.267.597.596v5.958a.596.596 0 01-.597.596h-5.97A.596.596 0 011 11.479V5.521c0-.33.267-.596.597-.596z"
+                />
+                <path
+                  fill="#ffffff"
+                  d="M6.152 7.193H4.959v3.243h-.76V7.193H3.01v-.63h3.141v.63z"
+                />
+                <defs>
+                  <linearGradient
+                    id="microsoft-teams-color-16__paint0_linear_2372_494"
+                    x1="2.244"
+                    x2="6.906"
+                    y1="4.46"
+                    y2="12.548"
+                    gradientUnits="userSpaceOnUse"
+                  >
+                    <stop stopColor="#5A62C3" />
+                    <stop offset=".5" stopColor="#4D55BD" />
+                    <stop offset="1" stopColor="#3940AB" />
+                  </linearGradient>
+                </defs>
+              </svg>
+            </button>
             <button
               title="Sign Off"
               aria-label="Sign off selected rows"
@@ -1369,15 +1515,17 @@ function AppOwnerContent() {
 
 export default function AppOwner() {
   return (
-    <Suspense fallback={
-      <div className="w-full h-screen flex items-center justify-center">
-        <div className="text-center py-4">
-          <span className="ag-overlay-loading-center">
-            ⏳ Loading application owner data...
-          </span>
+    <Suspense
+      fallback={
+        <div className="w-full h-screen flex items-center justify-center">
+          <div className="text-center py-4">
+            <span className="ag-overlay-loading-center">
+              ⏳ Loading application owner data...
+            </span>
+          </div>
         </div>
-      </div>
-    }>
+      }
+    >
       <AppOwnerContent />
     </Suspense>
   );

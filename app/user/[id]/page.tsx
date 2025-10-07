@@ -29,6 +29,7 @@ import {
   ChartData,
 } from "chart.js";
 import ChartDataLabels from "chartjs-plugin-datalabels";
+import { BackButton } from "@/components/BackButton";
 
 // Register Chart.js components and plugin
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend, ChartDataLabels);
@@ -887,6 +888,9 @@ export default function UserDetailPage() {
 
   return (
     <>
+      <div className="mb-4">
+        <BackButton />
+      </div>
       <HorizontalTabs
         tabs={tabsData}
         activeIndex={tabIndex}

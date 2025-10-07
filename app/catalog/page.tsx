@@ -19,7 +19,8 @@ import {
 } from "lucide-react";
 import { getCatalogEntitlements } from "@/lib/api";
 import { PaginatedResponse } from "@/types/api";
-import EntitlementRiskSidebar from "@/components/EntitlementRiskSidebar";
+import PolicyRiskDetails from "@/components/PolicyRiskDetails";
+import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import CustomPagination from "@/components/agTable/CustomPagination";
 
 interface TabProps {
@@ -59,6 +60,7 @@ const Tabs: React.FC<TabProps> = ({
 };
 
 const CatalogPageContent = () => {
+  const { openSidebar, closeSidebar } = useRightSidebar();
   const searchParams = useSearchParams();
   const [gridApi, setGridApi] = useState<GridApi | null>(null);
   const [rowData, setRowData] = useState<any[]>([]);
@@ -80,7 +82,6 @@ const CatalogPageContent = () => {
   const [lastAction, setLastAction] = useState<string | null>(null);
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
   const [nodeData, setNodeData] = useState<any>(null);
-  const [isHighRiskSidebarOpen, setIsHighRiskSidebarOpen] = useState(false);
   const [highRiskData, setHighRiskData] = useState<any>(null);
   const [searchText, setSearchText] = useState("");
   const [selectedAppFilter, setSelectedAppFilter] = useState<string>("All");
@@ -593,9 +594,28 @@ const CatalogPageContent = () => {
   const handleHighRiskClick = (data: any) => {
     console.log("High-risk entitlement clicked:", data);
 
-    // Set the high-risk data and open the sidebar
+    const appNameForCheck = (data?.applicationName || data?.["App Name"] || "").toString();
+    const isOciApp = appNameForCheck.toLowerCase().includes("oci");
+    if (!isOciApp) {
+      return;
+    }
+
+    // Set the high-risk data and open the sidebar only for OCI
     setHighRiskData(data);
-    setIsHighRiskSidebarOpen(true);
+    openSidebar(
+      <PolicyRiskDetails entitlementData={{
+        name: data.entitlementName || data.name || "N/A",
+        description: data.description || "N/A",
+        type: data.type || "N/A",
+        applicationName: data.applicationName || "N/A",
+        risk: data.risk || "N/A",
+        lastReviewed: data["Last Reviewed on"] || "N/A",
+        lastSync: data["Last Sync"] || "N/A",
+        appInstanceId: data.appInstanceId,
+        entitlementId: data.entitlementId,
+      }} />,
+      { widthPx: 500 }
+    );
 
     // Close other sidebars if open
     setIsSidePanelOpen(false);
@@ -604,7 +624,7 @@ const CatalogPageContent = () => {
 
 
   const closeHighRiskSidebar = () => {
-    setIsHighRiskSidebarOpen(false);
+    closeSidebar();
     setHighRiskData(null);
   };
 
@@ -1559,22 +1579,7 @@ const CatalogPageContent = () => {
         </div>
       )}
 
-      {/* Policy Risk Sidebar */}
-      <EntitlementRiskSidebar
-        isOpen={isHighRiskSidebarOpen}
-        onClose={closeHighRiskSidebar}
-        entitlementData={highRiskData ? {
-          name: highRiskData.entitlementName || highRiskData.name || "N/A",
-          description: highRiskData.description || "N/A",
-          type: highRiskData.type || "N/A",
-          applicationName: highRiskData.applicationName || "N/A",
-          risk: highRiskData.risk || "N/A",
-          lastReviewed: highRiskData["Last Reviewed on"] || "N/A",
-          lastSync: highRiskData["Last Sync"] || "N/A",
-          appInstanceId: highRiskData.appInstanceId,
-          entitlementId: highRiskData.entitlementId
-        } : null}
-      />
+      {/* Global Right Sidebar used via openSidebar */}
 
       {/* Comment Modal */}
       {isCommentModalOpen &&

@@ -30,7 +30,9 @@ import ActionButtons from "@/components/agTable/ActionButtons";
 import { getAllRegisteredApps, searchUsers } from "@/lib/api";
 import Link from "next/link";
 import Tabs from "@/components/tabs";
-import EntitlementRiskSidebar from "@/components/EntitlementRiskSidebar";
+import PolicyRiskDetails from "@/components/PolicyRiskDetails";
+import { useRightSidebar } from "@/contexts/RightSidebarContext";
+import { BackButton } from "@/components/BackButton";
 
 interface DataItem {
   label: string;
@@ -72,6 +74,7 @@ const dataAccount: Record<string, DataItem[]> = {
 };
 
 export default function ApplicationDetailPage() {
+  const { openSidebar, closeSidebar } = useRightSidebar();
   const routeParams = useParams<{ id: string }>();
   const id = routeParams?.id as string;
   const [tabIndex, setTabIndex] = useState(1);
@@ -83,7 +86,6 @@ export default function ApplicationDetailPage() {
   const [mounted, setMounted] = useState(false);
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
   const [nodeData, setNodeData] = useState<any>(null);
-  const [isEntitlementSidebarOpen, setIsEntitlementSidebarOpen] = useState(false);
   const [selectedEntitlement, setSelectedEntitlement] = useState<any>(null);
   const [expandedFrames, setExpandedFrames] = useState({
     general: false,
@@ -772,6 +774,11 @@ export default function ApplicationDetailPage() {
                 }}
                 title="High Risk - Click for details"
                 onClick={() => {
+                  const appNameForCheck = (params.data?.["App Name"] || params.data?.applicationName || "").toString();
+                  const isOciApp = appNameForCheck.toLowerCase().includes("oci");
+                  if (!isOciApp) {
+                    return;
+                  }
                   setSelectedEntitlement({
                     name: params.value,
                     description: params.data?.description,
@@ -783,7 +790,20 @@ export default function ApplicationDetailPage() {
                     appInstanceId: params.data?.applicationInstanceId || params.data?.appInstanceId,
                     entitlementId: params.data?.entitlementId || params.data?.id
                   });
-                  setIsEntitlementSidebarOpen(true);
+                  openSidebar(
+                    <PolicyRiskDetails entitlementData={{
+                      name: params.data?.name || params.data?.entitlementName || "N/A",
+                      description: params.data?.description,
+                      type: params.data?.type,
+                      applicationName: params.data?.applicationName,
+                      risk: params.data?.risk ?? params.data?.risk_level,
+                      lastReviewed: params.data?.["Last Reviewed on"],
+                      lastSync: params.data?.["Last Sync"],
+                      appInstanceId: params.data?.appInstanceId,
+                      entitlementId: params.data?.entitlementId || params.data?.id,
+                    }} />,
+                    { widthPx: 500 }
+                  );
                 }}
               >
                 {params.value}
@@ -982,6 +1002,11 @@ export default function ApplicationDetailPage() {
                 }}
                 title="High Risk - Click for details"
                 onClick={() => {
+                  const appNameForCheck = (params.data?.["App Name"] || params.data?.applicationName || "").toString();
+                  const isOciApp = appNameForCheck.toLowerCase().includes("oci");
+                  if (!isOciApp) {
+                    return;
+                  }
                   setSelectedEntitlement({
                     name: params.value,
                     description: params.data?.description,
@@ -993,7 +1018,20 @@ export default function ApplicationDetailPage() {
                     appInstanceId: params.data?.applicationInstanceId || params.data?.appInstanceId,
                     entitlementId: params.data?.entitlementId || params.data?.id
                   });
-                  setIsEntitlementSidebarOpen(true);
+                  openSidebar(
+                    <PolicyRiskDetails entitlementData={{
+                      name: params.data?.name || params.data?.entitlementName || "N/A",
+                      description: params.data?.description,
+                      type: params.data?.type,
+                      applicationName: params.data?.applicationName,
+                      risk: params.data?.risk ?? params.data?.risk_level,
+                      lastReviewed: params.data?.["Last Reviewed on"],
+                      lastSync: params.data?.["Last Sync"],
+                      appInstanceId: params.data?.appInstanceId,
+                      entitlementId: params.data?.entitlementId || params.data?.id,
+                    }} />,
+                    { widthPx: 500 }
+                  );
                 }}
               >
                 {params.value}
@@ -2242,6 +2280,9 @@ export default function ApplicationDetailPage() {
         isSidePanelOpen ? "mr-[500px]" : "mr-0"
       }`}
     >
+      <div className="mb-4">
+        <BackButton />
+      </div>
       <HorizontalTabs
         tabs={tabsData}
         activeClass="bg-[#15274E] text-white rounded-sm -ml-1"
@@ -2586,12 +2627,7 @@ export default function ApplicationDetailPage() {
         </div>
       )}
       
-      {/* Entitlement Risk Sidebar */}
-      <EntitlementRiskSidebar
-        isOpen={isEntitlementSidebarOpen}
-        onClose={() => setIsEntitlementSidebarOpen(false)}
-        entitlementData={selectedEntitlement}
-      />
+      {/* Global Right Sidebar used via openSidebar */}
 
       {/* Comment Modal */}
       {isCommentModalOpen &&

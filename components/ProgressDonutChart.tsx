@@ -157,7 +157,7 @@ const ProgressDonutChart: React.FC<ProgressDonutChartProps> = ({
           weight: "bold" as const,
           size: 10,
         },
-        formatter: (value: number) => (value > 0 ? `${value.toFixed(1)}%` : ""), // Show percentage only if value > 0
+        formatter: (value: number) => (value > 0 ? `${Math.round(value)}%` : ""), // Show percentage only if value > 0
         offset: 0,
         clip: false,
       },
@@ -189,7 +189,7 @@ const ProgressDonutChart: React.FC<ProgressDonutChartProps> = ({
                 count = Math.round((value / 100) * progressData.totalItems);
             }
             
-            return `${label}: ${count} items (${value.toFixed(1)}%)`;
+            return `${label}: ${count} items (${Math.round(value)}%)`;
           },
         },
       },

@@ -3,6 +3,7 @@ import { use, useState, useCallback } from "react";
 import TreeClient from "./TreeClient";
 import dynamic from "next/dynamic";
 import Accordion from "@/components/Accordion";
+import { BackButton } from "@/components/BackButton";
 
 const ChartComponent = dynamic(() => import("@/components/ChartComponent"), {
   ssr: false,
@@ -65,6 +66,9 @@ export default function CertificationDetailsPage({
 
   return (
     <>
+      <div className="mb-4">
+        <BackButton />
+      </div>
       <div className="relative mb-4">
         <div className="flex items-center gap-4 flex-wrap justify-between">
           <h2 className="text-xl font-bold border-b border-gray-300 pb-2 text-blue-950">

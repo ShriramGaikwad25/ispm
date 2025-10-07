@@ -16,6 +16,7 @@ import VerticalBarChart from "@/components/VerticalBarChart";
 import ChampaignActionButton from "@/components/agTable/ChampaignActionButton";
 import AuditorsCorner from "../AuditorsCorner";
 import Revocations from "./Revocations";
+import { BackButton } from "@/components/BackButton";
 
 type CampaignReviewer = {
   reviewerId: string;
@@ -420,6 +421,9 @@ export default function ManageCampaigns() {
 
   return (
     <>
+      <div className="mb-4">
+        <BackButton />
+      </div>
       <HorizontalTabs
         tabs={tabsData}
         activeIndex={tabIndex}
