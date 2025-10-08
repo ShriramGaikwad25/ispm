@@ -71,7 +71,7 @@ const CustomPagination: React.FC<CustomPaginationProps> = ({
                 </option>
               ))}
             </select>
-            <span className="text-sm text-gray-600">entries</span>
+            {/* <span className="text-sm text-gray-600">entries</span> */}
           </div>
           <button
             className={`flex items-center gap-1 text-sm ${

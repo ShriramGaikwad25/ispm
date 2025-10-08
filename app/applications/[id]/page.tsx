@@ -17,6 +17,10 @@ import {
   CircleX,
   ArrowRightCircle,
   X,
+  Edit,
+  Trash2,
+  Info,
+  HelpCircle,
 } from "lucide-react";
 import { useMemo, useRef, useState, useEffect } from "react";
 import { useParams } from "next/navigation";
@@ -109,6 +113,74 @@ export default function ApplicationDetailPage() {
   const [pageSize, setPageSize] = useState(10);
   const [entitlementDetails, setEntitlementDetails] = useState<any>(null);
   const [entitlementDetailsError, setEntitlementDetailsError] = useState<string | null>(null);
+  
+  // Attribute mapping pagination state
+  const [attributeMappingPage, setAttributeMappingPage] = useState(1);
+  const [activeMappingTab, setActiveMappingTab] = useState("provisioning");
+  const [isEditingAttribute, setIsEditingAttribute] = useState(false);
+  const [editingAttribute, setEditingAttribute] = useState<any>(null);
+  const [isAttributeMappingExpanded, setIsAttributeMappingExpanded] = useState(false);
+  const [isHookExpanded, setIsHookExpanded] = useState(true);
+  const [activeEventTab, setActiveEventTab] = useState("pre-process");
+  const [activeOperation, setActiveOperation] = useState("create");
+  const [hookName, setHookName] = useState("");
+  
+  // Attribute mapping data
+  const attributeMappingData = {
+    provisioning: {
+      1: [
+        { source: "addresses.region[type:work]", target: "st", defaultValue: "" },
+        { source: "password", target: "userPassword", defaultValue: "" },
+        { source: "preferredLanguage", target: "preferredLanguage", defaultValue: "" },
+        { source: "phoneNumbers.value[type:work]", target: "telephoneNumber", defaultValue: "" },
+        { source: "emails.value[type:work]", target: "mail", defaultValue: "" },
+        { source: "name.middleName", target: "initials", defaultValue: "" },
+        { source: "name.givenName", target: "givenName", defaultValue: "" },
+        { source: "addresses.postalCode[type:work]", target: "postalCode", defaultValue: "" },
+        { source: "displayName", target: "cn", defaultValue: "" },
+        { source: "addresses.locality[type:work]", target: "l", defaultValue: "" }
+      ],
+      2: [
+        { source: "title", target: "title", defaultValue: "" },
+        { source: "enterpriseUser.organization", target: "o", defaultValue: "" },
+        { source: "enterpriseUser.employeeNumber", target: "employeeNumber", defaultValue: "" },
+        { source: "userName", target: "uid", defaultValue: "" },
+        { source: "addresses.streetAddress[type:work]", target: "street", defaultValue: "" },
+        { source: "enterpriseUser.department", target: "departmentNumber", defaultValue: "" },
+        { source: "id", target: "id", defaultValue: "" },
+        { source: "name.familyName", target: "sn", defaultValue: "" }
+      ]
+    },
+    reconciliation: {
+      1: [
+        { source: "addresses.streetAddress[type:work]", target: "street", defaultValue: "" },
+        { source: "preferredLanguage", target: "preferredLanguage", defaultValue: "" },
+        { source: "emails.value[type:work]", target: "mail", defaultValue: "" },
+        { source: "enterpriseUser.employeeNumber", target: "employeeNumber", defaultValue: "" },
+        { source: "displayName", target: "cn", defaultValue: "" },
+        { source: "name.middleName", target: "initials", defaultValue: "" },
+        { source: "addresses.postalCode[type:work]", target: "postalCode", defaultValue: "" },
+        { source: "enterpriseUser.organization", target: "o", defaultValue: "" },
+        { source: "title", target: "title", defaultValue: "" },
+        { source: "userName", target: "uid", defaultValue: "" }
+      ],
+      2: [
+        { source: "phoneNumbers.value[type:work]", target: "telephoneNumber", defaultValue: "" },
+        { source: "name.familyName", target: "sn", defaultValue: "" },
+        { source: "password", target: "userPassword", defaultValue: "" },
+        { source: "addresses.locality[type:work]", target: "l", defaultValue: "" },
+        { source: "addresses.region[type:work]", target: "st", defaultValue: "" },
+        { source: "enterpriseUser.department", target: "departmentNumber", defaultValue: "" },
+        { source: "name.givenName", target: "givenName", defaultValue: "" },
+        { source: "id", target: "id", defaultValue: "" }
+      ]
+    }
+  };
+  
+  const getCurrentPageData = () => {
+    const tabData = attributeMappingData[activeMappingTab as keyof typeof attributeMappingData];
+    return tabData?.[attributeMappingPage as keyof typeof tabData] || [];
+  };
   
   // Pagination state for Entitlement tab tables
   const [entCurrentPage, setEntCurrentPage] = useState(1);
@@ -1453,7 +1525,550 @@ export default function ApplicationDetailPage() {
       label: "About",
       icon: ChevronDown,
       iconOff: ChevronRight,
-      component: () => <p>Coming Soon...</p>,
+      component: () => (
+        <div className="p-6 bg-white">
+          <Accordion
+            title="Application Information"
+            iconClass="text-blue-600"
+          >
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Application Details Section */}
+                <div className="space-y-3">
+                  <h4 className="text-md font-semibold text-gray-800 border-b border-gray-300 pb-2">
+                    Application Details
+                  </h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center py-2 border-b border-gray-200">
+                      <span className="text-sm font-medium text-gray-600">Hostname:</span>
+                      <span className="text-sm text-gray-800">localhost</span>
+                    </div>
+                    <div className="flex justify-between items-center py-2 border-b border-gray-200">
+                      <span className="text-sm font-medium text-gray-600">Password:</span>
+                      <span className="text-sm text-gray-800">••••••••••••••••</span>
+                    </div>
+                    <div className="flex justify-between items-center py-2 border-b border-gray-200">
+                      <span className="text-sm font-medium text-gray-600">Port:</span>
+                      <span className="text-sm text-gray-800">389</span>
+                    </div>
+                    <div className="flex justify-between items-center py-2 border-b border-gray-200">
+                      <span className="text-sm font-medium text-gray-600">User Search Base:</span>
+                      <span className="text-sm text-gray-800">ou=People,dc=keyforge,dc=ai</span>
+                    </div>
+                    <div className="flex justify-between items-center py-2 border-b border-gray-200">
+                      <span className="text-sm font-medium text-gray-600">Group Search Base:</span>
+                      <span className="text-sm text-gray-800">ou=Groups,dc=keyforge,dc=ai</span>
+                    </div>
+                    <div className="flex justify-between items-center py-2">
+                      <span className="text-sm font-medium text-gray-600">Username:</span>
+                      <span className="text-sm text-gray-800">cn=admin,dc=keyforge,dc=ai</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* OAuth Details Section */}
+                <div className="space-y-3">
+                  <h4 className="text-md font-semibold text-gray-800 border-b border-gray-300 pb-2">
+                    OAuth Details
+                  </h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center py-2 border-b border-gray-200">
+                      <span className="text-sm font-medium text-gray-600">Client ID:</span>
+                      <span className="text-sm text-gray-800">4jfwbvmuhf73osjnzs74tbmtmdqdyiwi</span>
+                    </div>
+                    <div className="flex justify-between items-center py-2 border-b border-gray-200">
+                      <span className="text-sm font-medium text-gray-600">OAuth Type:</span>
+                      <span className="text-sm text-gray-800">KPOAUTH</span>
+                    </div>
+                    <div className="flex justify-between items-center py-2">
+                      <span className="text-sm font-medium text-gray-600">Admin ID:</span>
+                      <span className="text-sm text-gray-800">ACMEADMIN</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Accordion>
+
+          {/* Attribute Mapping Collapsible Section */}
+          <div className="mt-6 bg-white border border-gray-200 rounded-lg shadow-sm">
+            {/* Header with Chevron */}
+            <div 
+              className="px-6 py-3 border-b border-gray-200 flex items-center justify-between cursor-pointer hover:bg-gray-50"
+              onClick={() => setIsAttributeMappingExpanded(!isAttributeMappingExpanded)}
+            >
+              <div className="flex items-center">
+                <div className="w-6 h-6 mr-3 flex items-center justify-center">
+                <div className="w-6 h-6 mr-3 flex items-center justify-center">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-monitor-cog-icon lucide-monitor-cog"><path d="M12 17v4"/><path d="m14.305 7.53.923-.382"/><path d="m15.228 4.852-.923-.383"/><path d="m16.852 3.228-.383-.924"/><path d="m16.852 8.772-.383.923"/><path d="m19.148 3.228.383-.924"/><path d="m19.53 9.696-.382-.924"/><path d="m20.772 4.852.924-.383"/><path d="m20.772 7.148.924.383"/><path d="M22 13v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><path d="M8 21h8"/><circle cx="18" cy="6" r="3"/></svg>
+                </div>
+                </div>
+                <h2 className="text-lg font-semibold text-gray-800">Attribute Mapping</h2>
+              </div>
+              {isAttributeMappingExpanded ? (
+                <ChevronDown className="w-5 h-5 text-gray-500" />
+              ) : (
+                <ChevronRight className="w-5 h-5 text-gray-500" />
+              )}
+            </div>
+
+            {/* Collapsible Content */}
+            {isAttributeMappingExpanded && (
+              <div className="p-6">
+              {/* Tabs */}
+              <div className="border-b border-gray-200 mb-6">
+                <div className="flex">
+                  <button 
+                    className={`px-6 py-3 text-sm font-medium ${
+                      activeMappingTab === "provisioning" 
+                        ? "text-blue-600 border-b-2 border-blue-600" 
+                        : "text-gray-500 hover:text-gray-700"
+                    }`}
+                    onClick={() => {
+                      setActiveMappingTab("provisioning");
+                      setAttributeMappingPage(1);
+                      setIsEditingAttribute(false);
+                    }}
+                  >
+                    Provisioning
+                  </button>
+                  <button 
+                    className={`px-6 py-3 text-sm font-medium ${
+                      activeMappingTab === "reconciliation" 
+                        ? "text-blue-600 border-b-2 border-blue-600" 
+                        : "text-gray-500 hover:text-gray-700"
+                    }`}
+                    onClick={() => {
+                      setActiveMappingTab("reconciliation");
+                      setAttributeMappingPage(1);
+                      setIsEditingAttribute(false);
+                    }}
+                  >
+                    Reconciliation
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Existing Mappings Table */}
+                <div className="space-y-4">
+                  <h3 className="text-md font-semibold text-gray-800">Existing Mappings</h3>
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <table className="w-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            {activeMappingTab === "reconciliation" ? "Target Attribute" : "Source Attribute"}
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            {activeMappingTab === "reconciliation" ? "Source Attribute" : "Target Attribute"}
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Default Value</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {getCurrentPageData().map((mapping, index) => (
+                          <tr key={index}>
+                            <td className="px-4 py-3 text-sm text-gray-900">
+                              {activeMappingTab === "reconciliation" ? mapping.target : mapping.source}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-900">
+                              {activeMappingTab === "reconciliation" ? mapping.source : mapping.target}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-500">{mapping.defaultValue || ""}</td>
+                            <td className="px-4 py-3 text-sm text-gray-500">
+                            <div className="flex space-x-2">
+                              <button 
+                                className="text-blue-600 hover:text-blue-800"
+                                onClick={() => {
+                                  setEditingAttribute(mapping);
+                                  setIsEditingAttribute(true);
+                                }}
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button className="text-red-600 hover:text-red-800">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <button 
+                        className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50"
+                        onClick={() => setAttributeMappingPage(Math.max(1, attributeMappingPage - 1))}
+                        disabled={attributeMappingPage === 1}
+                      >
+                        &lt;
+                      </button>
+                      <button 
+                        className={`px-3 py-1 text-sm rounded ${
+                          attributeMappingPage === 1 
+                            ? 'bg-blue-600 text-white' 
+                            : 'border border-gray-300 hover:bg-gray-50'
+                        }`}
+                        onClick={() => setAttributeMappingPage(1)}
+                      >
+                        1
+                      </button>
+                      <button 
+                        className={`px-3 py-1 text-sm rounded ${
+                          attributeMappingPage === 2 
+                            ? 'bg-blue-600 text-white' 
+                            : 'border border-gray-300 hover:bg-gray-50'
+                        }`}
+                        onClick={() => setAttributeMappingPage(2)}
+                      >
+                        2
+                      </button>
+                      <button 
+                        className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50"
+                        onClick={() => setAttributeMappingPage(Math.min(2, attributeMappingPage + 1))}
+                        disabled={attributeMappingPage === 2}
+                      >
+                        &gt;
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex space-x-3">
+                    <button className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700">
+                      Save
+                    </button>
+                    <button className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+
+                {/* Add New Attribute Form or Edit Attribute Form */}
+                <div className="space-y-4">
+                  {isEditingAttribute ? (
+                    <>
+                      <h3 className="text-md font-semibold text-gray-800">Edit Attribute</h3>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Mapping Type</label>
+                          <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" defaultValue="direct">
+                            <option value="direct">Direct</option>
+                            <option value="expression">Expression</option>
+                            <option value="constant">Constant</option>
+                          </select>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Target Attribute
+                            <Info className="w-4 h-4 inline ml-1 text-gray-400" />
+                          </label>
+                          <input 
+                            type="text" 
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            defaultValue={editingAttribute?.target || ""}
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Source Attribute
+                            <Info className="w-4 h-4 inline ml-1 text-gray-400" />
+                            <span className="text-xs text-gray-500 ml-1">Help</span>
+                          </label>
+                          <div className="relative">
+                            <input 
+                              type="text" 
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              defaultValue={editingAttribute?.source || ""}
+                            />
+                            <button className="absolute right-2 top-2 text-gray-400">
+                              <ChevronDown className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Default value (optional)</label>
+                          <input 
+                            type="text" 
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            defaultValue={editingAttribute?.defaultValue || ""}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Edit Form Action Buttons */}
+                      <div className="flex space-x-3 pt-4">
+                        <button className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700">
+                          Update
+                        </button>
+                        <button 
+                          className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50"
+                          onClick={() => setIsEditingAttribute(false)}
+                        >
+                          Discard
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <h3 className="text-md font-semibold text-gray-800">Add New Attribute</h3>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Mapping Type</label>
+                          <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="direct">Direct</option>
+                            <option value="expression">Expression</option>
+                            <option value="constant">Constant</option>
+                          </select>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Source Attribute
+                            <Info className="w-4 h-4 inline ml-1 text-gray-400" />
+                            <span className="text-xs text-gray-500 ml-1">Help</span>
+                          </label>
+                          <div className="relative">
+                            <input 
+                              type="text" 
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="Enter source attribute"
+                            />
+                            <button className="absolute right-2 top-2 text-gray-400">
+                              <ChevronDown className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Target Attribute
+                            <Info className="w-4 h-4 inline ml-1 text-gray-400" />
+                          </label>
+                          <div className="relative">
+                            <input 
+                              type="text" 
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="Enter target attribute"
+                            />
+                            <button className="absolute right-2 top-2 text-gray-400">
+                              <ChevronDown className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Default value (optional)</label>
+                          <input 
+                            type="text" 
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Enter default value"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Add Form Action Buttons */}
+                      <div className="flex space-x-3 pt-4">
+                        <button className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50">
+                          Add
+                        </button>
+                        <button className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50">
+                          Discard
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+              </div>
+            )}
+          </div>
+
+          {/* Hook Configuration Card */}
+          <div className="mt-6 bg-white border border-gray-200 rounded-lg shadow-sm">
+            {/* Header with Chevron */}
+            <div 
+              className="px-6 py-3 border-b border-gray-200 flex items-center justify-between cursor-pointer hover:bg-gray-50"
+              onClick={() => setIsHookExpanded(!isHookExpanded)}
+            >
+              <div className="flex items-center">
+                <div className="w-6 h-6 mr-3 flex items-center justify-center">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-monitor-cog-icon lucide-monitor-cog"><path d="M12 17v4"/><path d="m14.305 7.53.923-.382"/><path d="m15.228 4.852-.923-.383"/><path d="m16.852 3.228-.383-.924"/><path d="m16.852 8.772-.383.923"/><path d="m19.148 3.228.383-.924"/><path d="m19.53 9.696-.382-.924"/><path d="m20.772 4.852.924-.383"/><path d="m20.772 7.148.924.383"/><path d="M22 13v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><path d="M8 21h8"/><circle cx="18" cy="6" r="3"/></svg>
+                </div>
+                <h2 className="text-lg font-semibold text-gray-800">Application Configuration</h2>
+              </div>
+              {isHookExpanded ? (
+                <ChevronDown className="w-5 h-5 text-gray-500" />
+              ) : (
+                <ChevronRight className="w-5 h-5 text-gray-500" />
+              )}
+            </div>
+
+            {/* Collapsible Content */}
+            {isHookExpanded && (
+              <div className="p-6">
+                {/* Name Field */}
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
+                  <input 
+                    type="text" 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter hook name"
+                    value={hookName}
+                    onChange={(e) => setHookName(e.target.value)}
+                  />
+                </div>
+
+                {/* Event Tabs */}
+                <div className="border-b border-gray-200 mb-6">
+                  <div className="flex">
+                    <button 
+                      className={`px-6 py-3 text-sm font-medium ${
+                        activeEventTab === "pre-process" 
+                          ? "text-white bg-blue-600 border-b-2 border-blue-600" 
+                          : "text-gray-500 hover:text-gray-700"
+                      }`}
+                      onClick={() => setActiveEventTab("pre-process")}
+                    >
+                      Pre Process Event
+                    </button>
+                    <button 
+                      className={`px-6 py-3 text-sm font-medium ${
+                        activeEventTab === "post-process" 
+                          ? "text-white bg-blue-600 border-b-2 border-blue-600" 
+                          : "text-gray-500 hover:text-gray-700"
+                      }`}
+                      onClick={() => setActiveEventTab("post-process")}
+                    >
+                      Post Process Event
+                    </button>
+                  </div>
+                </div>
+
+                {/* Service Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-md font-semibold text-gray-800 flex items-center">
+                      <svg className="w-5 h-5 text-green-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      Service
+                    </h3>
+                  </div>
+
+                  {/* Operation Buttons */}
+                  <div className="flex space-x-2 mb-4">
+                    <button 
+                      className={`px-4 py-2 text-sm font-medium rounded ${
+                        activeOperation === "create" 
+                          ? "bg-blue-600 text-white" 
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                      onClick={() => setActiveOperation("create")}
+                    >
+                      Create
+                    </button>
+                    <button 
+                      className={`px-4 py-2 text-sm font-medium rounded ${
+                        activeOperation === "update" 
+                          ? "bg-blue-600 text-white" 
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                      onClick={() => setActiveOperation("update")}
+                    >
+                      Update
+                    </button>
+                    <button 
+                      className={`px-4 py-2 text-sm font-medium rounded ${
+                        activeOperation === "delete" 
+                          ? "bg-blue-600 text-white" 
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                      onClick={() => setActiveOperation("delete")}
+                    >
+                      Delete
+                    </button>
+                    <button 
+                      className={`px-4 py-2 text-sm font-medium rounded ${
+                        activeOperation === "getuser" 
+                          ? "bg-blue-600 text-white" 
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                      onClick={() => setActiveOperation("getuser")}
+                    >
+                      GetUser
+                    </button>
+                    <button 
+                      className={`px-4 py-2 text-sm font-medium rounded ${
+                        activeOperation === "getalluser" 
+                          ? "bg-blue-600 text-white" 
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                      onClick={() => setActiveOperation("getalluser")}
+                    >
+                      GetAllUser
+                    </button>
+                  </div>
+
+                  {/* Service Table */}
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <table className="w-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Endpoint</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Authorization</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Operation</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        <tr>
+                          <td className="px-4 py-3 text-sm text-gray-500">-</td>
+                          <td className="px-4 py-3 text-sm text-gray-500">-</td>
+                          <td className="px-4 py-3 text-sm text-gray-900">Create</td>
+                          <td className="px-4 py-3 text-sm text-gray-500">
+                            <div className="flex space-x-2">
+                              <button className="text-blue-600 hover:text-blue-800">
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button className="text-red-600 hover:text-red-800">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Add Service Button and Pagination */}
+                  <div className="flex items-center justify-between">
+                    <button className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700">
+                      Add Service
+                    </button>
+                    
+                    {/* Pagination */}
+                    <div className="flex items-center space-x-2">
+                      <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">&lt;</button>
+                      <button className="px-3 py-1 text-sm bg-blue-600 text-white rounded">1</button>
+                      <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">&gt;</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      ),
     },
     {
       label: "Accounts",

@@ -775,7 +775,7 @@ const HeaderContent = () => {
             </div>
             <div className="flex items-center px-4">
               <p className="text-sm font-medium text-white">
-                Due In : {headerInfo.daysLeft || 0} days left
+                Due In {headerInfo.daysLeft || 0} days
                 <span className="font-bold ml-1 text-white">
                   ({headerInfo.dueDate ? formatDateMMDDYY(headerInfo.dueDate) : "N/A"})
                 </span>
@@ -841,7 +841,7 @@ const HeaderContent = () => {
             </div>
             <div className="flex items-center px-4">
               <p className="text-sm font-medium text-white">
-                Due In: {headerInfo.daysLeft || 0} days left 
+                Due In {headerInfo.daysLeft || 0} days
                 <span className="font-bold ml-1 text-white">
                   ({headerInfo.dueDate ? formatDateMMDDYY(headerInfo.dueDate) : "N/A"})
                 </span>
