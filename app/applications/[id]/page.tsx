@@ -9,7 +9,10 @@ import {
   IDetailCellRendererParams,
 } from "ag-grid-enterprise";
 import dynamic from "next/dynamic";
-const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
+const AgGridReact = dynamic(
+  () => import("ag-grid-react").then((mod) => mod.AgGridReact),
+  { ssr: false }
+);
 import {
   ChevronDown,
   ChevronRight,
@@ -112,76 +115,158 @@ export default function ApplicationDetailPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [entitlementDetails, setEntitlementDetails] = useState<any>(null);
-  const [entitlementDetailsError, setEntitlementDetailsError] = useState<string | null>(null);
-  
+  const [entitlementDetailsError, setEntitlementDetailsError] = useState<
+    string | null
+  >(null);
+
   // Attribute mapping pagination state
   const [attributeMappingPage, setAttributeMappingPage] = useState(1);
   const [activeMappingTab, setActiveMappingTab] = useState("provisioning");
   const [isEditingAttribute, setIsEditingAttribute] = useState(false);
   const [editingAttribute, setEditingAttribute] = useState<any>(null);
-  const [isAttributeMappingExpanded, setIsAttributeMappingExpanded] = useState(false);
+  const [isAttributeMappingExpanded, setIsAttributeMappingExpanded] =
+    useState(false);
   const [isHookExpanded, setIsHookExpanded] = useState(true);
   const [activeEventTab, setActiveEventTab] = useState("pre-process");
   const [activeOperation, setActiveOperation] = useState("create");
+  const [activeSDKOperation, setActiveSDKOperation] = useState("create");
+  const [isServiceExpanded, setIsServiceExpanded] = useState(true);
+  const [isSDKExpanded, setIsSDKExpanded] = useState(true);
+  const [isThresholdExpanded, setIsThresholdExpanded] = useState(true);
   const [hookName, setHookName] = useState("");
-  
+
   // Attribute mapping data
   const attributeMappingData = {
     provisioning: {
       1: [
-        { source: "addresses.region[type:work]", target: "st", defaultValue: "" },
+        {
+          source: "addresses.region[type:work]",
+          target: "st",
+          defaultValue: "",
+        },
         { source: "password", target: "userPassword", defaultValue: "" },
-        { source: "preferredLanguage", target: "preferredLanguage", defaultValue: "" },
-        { source: "phoneNumbers.value[type:work]", target: "telephoneNumber", defaultValue: "" },
+        {
+          source: "preferredLanguage",
+          target: "preferredLanguage",
+          defaultValue: "",
+        },
+        {
+          source: "phoneNumbers.value[type:work]",
+          target: "telephoneNumber",
+          defaultValue: "",
+        },
         { source: "emails.value[type:work]", target: "mail", defaultValue: "" },
         { source: "name.middleName", target: "initials", defaultValue: "" },
         { source: "name.givenName", target: "givenName", defaultValue: "" },
-        { source: "addresses.postalCode[type:work]", target: "postalCode", defaultValue: "" },
+        {
+          source: "addresses.postalCode[type:work]",
+          target: "postalCode",
+          defaultValue: "",
+        },
         { source: "displayName", target: "cn", defaultValue: "" },
-        { source: "addresses.locality[type:work]", target: "l", defaultValue: "" }
+        {
+          source: "addresses.locality[type:work]",
+          target: "l",
+          defaultValue: "",
+        },
       ],
       2: [
         { source: "title", target: "title", defaultValue: "" },
-        { source: "enterpriseUser.organization", target: "o", defaultValue: "" },
-        { source: "enterpriseUser.employeeNumber", target: "employeeNumber", defaultValue: "" },
+        {
+          source: "enterpriseUser.organization",
+          target: "o",
+          defaultValue: "",
+        },
+        {
+          source: "enterpriseUser.employeeNumber",
+          target: "employeeNumber",
+          defaultValue: "",
+        },
         { source: "userName", target: "uid", defaultValue: "" },
-        { source: "addresses.streetAddress[type:work]", target: "street", defaultValue: "" },
-        { source: "enterpriseUser.department", target: "departmentNumber", defaultValue: "" },
+        {
+          source: "addresses.streetAddress[type:work]",
+          target: "street",
+          defaultValue: "",
+        },
+        {
+          source: "enterpriseUser.department",
+          target: "departmentNumber",
+          defaultValue: "",
+        },
         { source: "id", target: "id", defaultValue: "" },
-        { source: "name.familyName", target: "sn", defaultValue: "" }
-      ]
+        { source: "name.familyName", target: "sn", defaultValue: "" },
+      ],
     },
     reconciliation: {
       1: [
-        { source: "addresses.streetAddress[type:work]", target: "street", defaultValue: "" },
-        { source: "preferredLanguage", target: "preferredLanguage", defaultValue: "" },
+        {
+          source: "addresses.streetAddress[type:work]",
+          target: "street",
+          defaultValue: "",
+        },
+        {
+          source: "preferredLanguage",
+          target: "preferredLanguage",
+          defaultValue: "",
+        },
         { source: "emails.value[type:work]", target: "mail", defaultValue: "" },
-        { source: "enterpriseUser.employeeNumber", target: "employeeNumber", defaultValue: "" },
+        {
+          source: "enterpriseUser.employeeNumber",
+          target: "employeeNumber",
+          defaultValue: "",
+        },
         { source: "displayName", target: "cn", defaultValue: "" },
         { source: "name.middleName", target: "initials", defaultValue: "" },
-        { source: "addresses.postalCode[type:work]", target: "postalCode", defaultValue: "" },
-        { source: "enterpriseUser.organization", target: "o", defaultValue: "" },
+        {
+          source: "addresses.postalCode[type:work]",
+          target: "postalCode",
+          defaultValue: "",
+        },
+        {
+          source: "enterpriseUser.organization",
+          target: "o",
+          defaultValue: "",
+        },
         { source: "title", target: "title", defaultValue: "" },
-        { source: "userName", target: "uid", defaultValue: "" }
+        { source: "userName", target: "uid", defaultValue: "" },
       ],
       2: [
-        { source: "phoneNumbers.value[type:work]", target: "telephoneNumber", defaultValue: "" },
+        {
+          source: "phoneNumbers.value[type:work]",
+          target: "telephoneNumber",
+          defaultValue: "",
+        },
         { source: "name.familyName", target: "sn", defaultValue: "" },
         { source: "password", target: "userPassword", defaultValue: "" },
-        { source: "addresses.locality[type:work]", target: "l", defaultValue: "" },
-        { source: "addresses.region[type:work]", target: "st", defaultValue: "" },
-        { source: "enterpriseUser.department", target: "departmentNumber", defaultValue: "" },
+        {
+          source: "addresses.locality[type:work]",
+          target: "l",
+          defaultValue: "",
+        },
+        {
+          source: "addresses.region[type:work]",
+          target: "st",
+          defaultValue: "",
+        },
+        {
+          source: "enterpriseUser.department",
+          target: "departmentNumber",
+          defaultValue: "",
+        },
         { source: "name.givenName", target: "givenName", defaultValue: "" },
-        { source: "id", target: "id", defaultValue: "" }
-      ]
-    }
+        { source: "id", target: "id", defaultValue: "" },
+      ],
+    },
   };
-  
+
   const getCurrentPageData = () => {
-    const tabData = attributeMappingData[activeMappingTab as keyof typeof attributeMappingData];
+    const tabData =
+      attributeMappingData[
+        activeMappingTab as keyof typeof attributeMappingData
+      ];
     return tabData?.[attributeMappingPage as keyof typeof tabData] || [];
   };
-  
+
   // Pagination state for Entitlement tab tables
   const [entCurrentPage, setEntCurrentPage] = useState(1);
   const [entPageSize, setEntPageSize] = useState(20);
@@ -203,19 +288,19 @@ export default function ApplicationDetailPage() {
   const entPaginatedData = useMemo(() => {
     // Since entRowsWithDesc is structured as [record1, desc1, record2, desc2, ...]
     // We need to slice by pairs: each record has its description right after it
-    
+
     // Calculate the start and end indices for the entRowsWithDesc array
     // Each "page" contains entPageSize records, which means entPageSize * 2 rows total
     const startIndex = (entCurrentPage - 1) * entPageSize * 2;
-    const endIndex = startIndex + (entPageSize * 2);
-    
+    const endIndex = startIndex + entPageSize * 2;
+
     return entRowsWithDesc.slice(startIndex, endIndex);
   }, [entRowsWithDesc, entCurrentPage, entPageSize]);
 
   // Update total items and pages when entRowsWithDesc changes
   useEffect(() => {
     // Only count actual data rows, not description rows
-    const actualDataRows = entRowsWithDesc.filter(row => !row.__isDescRow);
+    const actualDataRows = entRowsWithDesc.filter((row) => !row.__isDescRow);
     setEntTotalItems(actualDataRows.length);
     setEntTotalPages(Math.ceil(actualDataRows.length / entPageSize));
   }, [entRowsWithDesc, entPageSize]);
@@ -228,68 +313,223 @@ export default function ApplicationDetailPage() {
   // Helper function to map catalogDetails to nodeData fields
   const mapApiDataToNodeData = (catalogDetails: any, originalNodeData: any) => {
     if (!catalogDetails) return originalNodeData;
-    
+
     // Create a mapping object that handles various possible field names
     const fieldMappings = {
       // Entitlement basic info
-      "Ent Name": catalogDetails.name || catalogDetails.entitlementName || catalogDetails.entitlement_name || originalNodeData?.["Ent Name"],
-      "Ent Description": catalogDetails.description || catalogDetails.entitlementDescription || catalogDetails.entitlement_description || originalNodeData?.["Ent Description"],
-      "Ent Type": catalogDetails.type || catalogDetails.entitlementType || catalogDetails.entitlement_type || originalNodeData?.["Ent Type"],
-      
+      "Ent Name":
+        catalogDetails.name ||
+        catalogDetails.entitlementName ||
+        catalogDetails.entitlement_name ||
+        originalNodeData?.["Ent Name"],
+      "Ent Description":
+        catalogDetails.description ||
+        catalogDetails.entitlementDescription ||
+        catalogDetails.entitlement_description ||
+        originalNodeData?.["Ent Description"],
+      "Ent Type":
+        catalogDetails.type ||
+        catalogDetails.entitlementType ||
+        catalogDetails.entitlement_type ||
+        originalNodeData?.["Ent Type"],
+
       // Application info
-      "App Name": catalogDetails.applicationname || catalogDetails.appName || catalogDetails.application_name || originalNodeData?.["App Name"],
-      "App Instance": catalogDetails.appInstanceId || catalogDetails.appinstanceid || catalogDetails.applicationInstanceId || originalNodeData?.["App Instance"],
-      "App Owner": catalogDetails.applicationOwner || catalogDetails.applicationowner || catalogDetails.app_owner || originalNodeData?.["App Owner"],
-      "Ent Owner": catalogDetails.entitlementOwner || catalogDetails.entitlementowner || catalogDetails.entitlement_owner || originalNodeData?.["Ent Owner"],
-      
+      "App Name":
+        catalogDetails.applicationname ||
+        catalogDetails.appName ||
+        catalogDetails.application_name ||
+        originalNodeData?.["App Name"],
+      "App Instance":
+        catalogDetails.appInstanceId ||
+        catalogDetails.appinstanceid ||
+        catalogDetails.applicationInstanceId ||
+        originalNodeData?.["App Instance"],
+      "App Owner":
+        catalogDetails.applicationOwner ||
+        catalogDetails.applicationowner ||
+        catalogDetails.app_owner ||
+        originalNodeData?.["App Owner"],
+      "Ent Owner":
+        catalogDetails.entitlementOwner ||
+        catalogDetails.entitlementowner ||
+        catalogDetails.entitlement_owner ||
+        originalNodeData?.["Ent Owner"],
+
       // Business info
-      "Business Objective": catalogDetails.businessObjective || catalogDetails.business_objective || catalogDetails.businessObjective || originalNodeData?.["Business Objective"],
-      "Business Unit": catalogDetails.businessUnit || catalogDetails.businessunit_department || catalogDetails.business_unit || originalNodeData?.["Business Unit"],
-      "Compliance Type": catalogDetails.complianceType || catalogDetails.regulatory_scope || catalogDetails.compliance_type || originalNodeData?.["Compliance Type"],
-      "Data Classification": catalogDetails.dataClassification || catalogDetails.data_classification || catalogDetails.data_classification || originalNodeData?.["Data Classification"],
-      "Cost Center": catalogDetails.costCenter || catalogDetails.cost_center || catalogDetails.cost_center || originalNodeData?.["Cost Center"],
-      
+      "Business Objective":
+        catalogDetails.businessObjective ||
+        catalogDetails.business_objective ||
+        catalogDetails.businessObjective ||
+        originalNodeData?.["Business Objective"],
+      "Business Unit":
+        catalogDetails.businessUnit ||
+        catalogDetails.businessunit_department ||
+        catalogDetails.business_unit ||
+        originalNodeData?.["Business Unit"],
+      "Compliance Type":
+        catalogDetails.complianceType ||
+        catalogDetails.regulatory_scope ||
+        catalogDetails.compliance_type ||
+        originalNodeData?.["Compliance Type"],
+      "Data Classification":
+        catalogDetails.dataClassification ||
+        catalogDetails.data_classification ||
+        catalogDetails.data_classification ||
+        originalNodeData?.["Data Classification"],
+      "Cost Center":
+        catalogDetails.costCenter ||
+        catalogDetails.cost_center ||
+        catalogDetails.cost_center ||
+        originalNodeData?.["Cost Center"],
+
       // Dates
-      "Created On": catalogDetails.createdOn || catalogDetails.created_on || catalogDetails.createdOn || originalNodeData?.["Created On"],
-      "Last Sync": catalogDetails.lastSync || catalogDetails.last_sync || catalogDetails.lastSync || originalNodeData?.["Last Sync"],
-      "Last Reviewed on": catalogDetails.lastReviewedOn || catalogDetails.last_reviewed_on || catalogDetails.lastReviewedOn || originalNodeData?.["Last Reviewed on"],
-      
+      "Created On":
+        catalogDetails.createdOn ||
+        catalogDetails.created_on ||
+        catalogDetails.createdOn ||
+        originalNodeData?.["Created On"],
+      "Last Sync":
+        catalogDetails.lastSync ||
+        catalogDetails.last_sync ||
+        catalogDetails.lastSync ||
+        originalNodeData?.["Last Sync"],
+      "Last Reviewed on":
+        catalogDetails.lastReviewedOn ||
+        catalogDetails.last_reviewed_on ||
+        catalogDetails.lastReviewedOn ||
+        originalNodeData?.["Last Reviewed on"],
+
       // Technical details
-      "Hierarchy": catalogDetails.hierarchy || catalogDetails.hierarchy || originalNodeData?.["Hierarchy"],
-      "MFA Status": catalogDetails.mfaStatus || catalogDetails.mfa_status || catalogDetails.mfaStatus || originalNodeData?.["MFA Status"],
-      "assignment": catalogDetails.assignment || catalogDetails.assigned_to || catalogDetails.assignment || originalNodeData?.["assignment"],
-      "License Type": catalogDetails.licenseType || catalogDetails.license_type || catalogDetails.licenseType || originalNodeData?.["License Type"],
-      
+      Hierarchy:
+        catalogDetails.hierarchy ||
+        catalogDetails.hierarchy ||
+        originalNodeData?.["Hierarchy"],
+      "MFA Status":
+        catalogDetails.mfaStatus ||
+        catalogDetails.mfa_status ||
+        catalogDetails.mfaStatus ||
+        originalNodeData?.["MFA Status"],
+      assignment:
+        catalogDetails.assignment ||
+        catalogDetails.assigned_to ||
+        catalogDetails.assignment ||
+        originalNodeData?.["assignment"],
+      "License Type":
+        catalogDetails.licenseType ||
+        catalogDetails.license_type ||
+        catalogDetails.licenseType ||
+        originalNodeData?.["License Type"],
+
       // Risk and security
-      "Risk": catalogDetails.risk || catalogDetails.riskLevel || catalogDetails.risk || originalNodeData?.["Risk"],
-      "Certifiable": catalogDetails.certifiable || catalogDetails.certifiable || originalNodeData?.["Certifiable"],
-      "Revoke on Disable": catalogDetails.revokeOnDisable || catalogDetails.revoke_on_disable || catalogDetails.revokeOnDisable || originalNodeData?.["Revoke on Disable"],
-      "Shared Pwd": catalogDetails.sharedPassword || catalogDetails.shared_pwd || catalogDetails.sharedPassword || originalNodeData?.["Shared Pwd"],
-      "SOD Check": catalogDetails.sodCheck || catalogDetails.toxic_combination || catalogDetails.sodCheck || originalNodeData?.["SOD Check"],
-      "Access Scope": catalogDetails.accessScope || catalogDetails.access_scope || catalogDetails.accessScope || originalNodeData?.["Access Scope"],
-      "Review Schedule": catalogDetails.reviewSchedule || catalogDetails.review_schedule || catalogDetails.reviewSchedule || originalNodeData?.["Review Schedule"],
-      "Privileged": catalogDetails.privileged || catalogDetails.privileged || originalNodeData?.["Privileged"],
-      "Non Persistent Access": catalogDetails.nonPersistentAccess || catalogDetails.non_persistent_access || catalogDetails.nonPersistentAccess || originalNodeData?.["Non Persistent Access"],
-      
+      Risk:
+        catalogDetails.risk ||
+        catalogDetails.riskLevel ||
+        catalogDetails.risk ||
+        originalNodeData?.["Risk"],
+      Certifiable:
+        catalogDetails.certifiable ||
+        catalogDetails.certifiable ||
+        originalNodeData?.["Certifiable"],
+      "Revoke on Disable":
+        catalogDetails.revokeOnDisable ||
+        catalogDetails.revoke_on_disable ||
+        catalogDetails.revokeOnDisable ||
+        originalNodeData?.["Revoke on Disable"],
+      "Shared Pwd":
+        catalogDetails.sharedPassword ||
+        catalogDetails.shared_pwd ||
+        catalogDetails.sharedPassword ||
+        originalNodeData?.["Shared Pwd"],
+      "SOD Check":
+        catalogDetails.sodCheck ||
+        catalogDetails.toxic_combination ||
+        catalogDetails.sodCheck ||
+        originalNodeData?.["SOD Check"],
+      "Access Scope":
+        catalogDetails.accessScope ||
+        catalogDetails.access_scope ||
+        catalogDetails.accessScope ||
+        originalNodeData?.["Access Scope"],
+      "Review Schedule":
+        catalogDetails.reviewSchedule ||
+        catalogDetails.review_schedule ||
+        catalogDetails.reviewSchedule ||
+        originalNodeData?.["Review Schedule"],
+      Privileged:
+        catalogDetails.privileged ||
+        catalogDetails.privileged ||
+        originalNodeData?.["Privileged"],
+      "Non Persistent Access":
+        catalogDetails.nonPersistentAccess ||
+        catalogDetails.non_persistent_access ||
+        catalogDetails.nonPersistentAccess ||
+        originalNodeData?.["Non Persistent Access"],
+
       // Additional details
-      "Audit Comments": catalogDetails.auditComments || catalogDetails.audit_comments || catalogDetails.auditComments || originalNodeData?.["Audit Comments"],
-      "Account Type Restriction": catalogDetails.accountTypeRestriction || catalogDetails.account_type_restriction || catalogDetails.accountTypeRestriction || originalNodeData?.["Account Type Restriction"],
-      "Requestable": catalogDetails.requestable || catalogDetails.requestable || originalNodeData?.["Requestable"],
-      "Pre- Requisite": catalogDetails.prerequisite || catalogDetails.prerequisite || originalNodeData?.["Pre- Requisite"],
-      "Pre-Requisite Details": catalogDetails.prerequisiteDetails || catalogDetails.prerequisite_details || catalogDetails.prerequisiteDetails || originalNodeData?.["Pre-Requisite Details"],
-      "Auto Assign Access Policy": catalogDetails.autoAssignAccessPolicy || catalogDetails.auto_assign_access_policy || catalogDetails.autoAssignAccessPolicy || originalNodeData?.["Auto Assign Access Policy"],
-      "Provisioner Group": catalogDetails.provisionerGroup || catalogDetails.provisioner_group || catalogDetails.provisionerGroup || originalNodeData?.["Provisioner Group"],
-      "Provisioning Steps": catalogDetails.provisioningSteps || catalogDetails.provisioning_steps || catalogDetails.provisioningSteps || originalNodeData?.["Provisioning Steps"],
-      "Provisioning Mechanism": catalogDetails.provisioningMechanism || catalogDetails.provisioning_mechanism || catalogDetails.provisioningMechanism || originalNodeData?.["Provisioning Mechanism"],
-      "Action on Native Change": catalogDetails.actionOnNativeChange || catalogDetails.action_on_native_change || catalogDetails.actionOnNativeChange || originalNodeData?.["Action on Native Change"],
-      "Total Assignments": catalogDetails.totalAssignments || catalogDetails.total_assignments || catalogDetails.totalAssignments || originalNodeData?.["Total Assignments"],
-      "Dynamic Tag": catalogDetails.tags || catalogDetails.dynamicTag || catalogDetails.tags || originalNodeData?.["Dynamic Tag"],
+      "Audit Comments":
+        catalogDetails.auditComments ||
+        catalogDetails.audit_comments ||
+        catalogDetails.auditComments ||
+        originalNodeData?.["Audit Comments"],
+      "Account Type Restriction":
+        catalogDetails.accountTypeRestriction ||
+        catalogDetails.account_type_restriction ||
+        catalogDetails.accountTypeRestriction ||
+        originalNodeData?.["Account Type Restriction"],
+      Requestable:
+        catalogDetails.requestable ||
+        catalogDetails.requestable ||
+        originalNodeData?.["Requestable"],
+      "Pre- Requisite":
+        catalogDetails.prerequisite ||
+        catalogDetails.prerequisite ||
+        originalNodeData?.["Pre- Requisite"],
+      "Pre-Requisite Details":
+        catalogDetails.prerequisiteDetails ||
+        catalogDetails.prerequisite_details ||
+        catalogDetails.prerequisiteDetails ||
+        originalNodeData?.["Pre-Requisite Details"],
+      "Auto Assign Access Policy":
+        catalogDetails.autoAssignAccessPolicy ||
+        catalogDetails.auto_assign_access_policy ||
+        catalogDetails.autoAssignAccessPolicy ||
+        originalNodeData?.["Auto Assign Access Policy"],
+      "Provisioner Group":
+        catalogDetails.provisionerGroup ||
+        catalogDetails.provisioner_group ||
+        catalogDetails.provisionerGroup ||
+        originalNodeData?.["Provisioner Group"],
+      "Provisioning Steps":
+        catalogDetails.provisioningSteps ||
+        catalogDetails.provisioning_steps ||
+        catalogDetails.provisioningSteps ||
+        originalNodeData?.["Provisioning Steps"],
+      "Provisioning Mechanism":
+        catalogDetails.provisioningMechanism ||
+        catalogDetails.provisioning_mechanism ||
+        catalogDetails.provisioningMechanism ||
+        originalNodeData?.["Provisioning Mechanism"],
+      "Action on Native Change":
+        catalogDetails.actionOnNativeChange ||
+        catalogDetails.action_on_native_change ||
+        catalogDetails.actionOnNativeChange ||
+        originalNodeData?.["Action on Native Change"],
+      "Total Assignments":
+        catalogDetails.totalAssignments ||
+        catalogDetails.total_assignments ||
+        catalogDetails.totalAssignments ||
+        originalNodeData?.["Total Assignments"],
+      "Dynamic Tag":
+        catalogDetails.tags ||
+        catalogDetails.dynamicTag ||
+        catalogDetails.tags ||
+        originalNodeData?.["Dynamic Tag"],
     };
-    
+
     // Return the original data with the mapped fields
     return {
       ...originalNodeData,
-      ...fieldMappings
+      ...fieldMappings,
     };
   };
 
@@ -309,15 +549,15 @@ export default function ApplicationDetailPage() {
 
   const toggleSidePanel = (data: any) => {
     setNodeData(data);
-    
+
     // If opening the sidebar, use existing catalogDetails data
     if (!isSidePanelOpen) {
       // Use the catalogDetails from the existing data instead of making API call
       const catalogDetails = data?.catalogDetails;
-      
+
       console.log("Row data structure:", data);
       console.log("Available keys in row data:", Object.keys(data || {}));
-      
+
       if (catalogDetails) {
         console.log("Using catalogDetails:", catalogDetails);
         setEntitlementDetails(catalogDetails);
@@ -334,7 +574,7 @@ export default function ApplicationDetailPage() {
         setNodeData(data);
       }
     }
-    
+
     setIsSidePanelOpen((prev) => !prev);
   };
 
@@ -362,7 +602,7 @@ export default function ApplicationDetailPage() {
 
   const handleSaveComment = () => {
     if (!commentText.trim()) return;
-    
+
     setComment(commentText);
     setIsCommentModalOpen(false);
     setCommentText("");
@@ -476,10 +716,10 @@ export default function ApplicationDetailPage() {
         console.log(data);
         if (data.executionStatus === "success") {
           setAccountsRowData(data.items);
-          
+
           // Only update application details if they don't already exist
           // This prevents overriding the data from the applications list
-          const existingDetails = localStorage.getItem('applicationDetails');
+          const existingDetails = localStorage.getItem("applicationDetails");
           if (!existingDetails) {
             // Extract application details from the first item or API response
             if (data.items && data.items.length > 0) {
@@ -487,23 +727,33 @@ export default function ApplicationDetailPage() {
               console.log("First item data:", firstItem);
               const applicationDetails = {
                 applicationName: firstItem.applicationinstancename || "N/A",
-                owner: firstItem.ownername || "N/A", 
-                lastSync: firstItem.lastSync || firstItem.lastlogindate || "N/A"
+                owner: firstItem.ownername || "N/A",
+                lastSync:
+                  firstItem.lastSync || firstItem.lastlogindate || "N/A",
               };
-              console.log("Application details to dispatch:", applicationDetails);
-              
+              console.log(
+                "Application details to dispatch:",
+                applicationDetails
+              );
+
               // Store application data in localStorage for HeaderContent
-              localStorage.setItem('applicationDetails', JSON.stringify(applicationDetails));
-              
+              localStorage.setItem(
+                "applicationDetails",
+                JSON.stringify(applicationDetails)
+              );
+
               // Also dispatch custom event
-              const event = new CustomEvent('applicationDataChange', {
-                detail: applicationDetails
+              const event = new CustomEvent("applicationDataChange", {
+                detail: applicationDetails,
               });
               window.dispatchEvent(event);
               console.log("Event dispatched:", event);
             }
           } else {
-            console.log("Application details already exist, not overriding:", JSON.parse(existingDetails));
+            console.log(
+              "Application details already exist, not overriding:",
+              JSON.parse(existingDetails)
+            );
           }
         }
       } catch (error) {
@@ -525,8 +775,11 @@ export default function ApplicationDetailPage() {
           console.log("Entitlements items:", data.items);
           if (data.items && data.items.length > 0) {
             console.log("First entitlement item:", data.items[0]);
-            console.log("Available fields in first item:", Object.keys(data.items[0]));
-            
+            console.log(
+              "Available fields in first item:",
+              Object.keys(data.items[0])
+            );
+
             // Apply mapping to each entitlement item to map catalogDetails.risk
             const mappedItems = data.items.map((item: any) => {
               if (item.catalogDetails) {
@@ -644,7 +897,7 @@ export default function ApplicationDetailPage() {
         field: "Risk",
         headerName: "Risk",
         width: 100,
-        hide:true,
+        hide: true,
         cellRenderer: (params: ICellRendererParams) => {
           const risk = params.data?.Risk || params.data?.risk || "Unknown";
           const riskInitial =
@@ -661,7 +914,7 @@ export default function ApplicationDetailPage() {
                   style={{
                     backgroundColor: "#ffebee",
                     color: "#d32f2f",
-                    border: "1px solid #ffcdd2"
+                    border: "1px solid #ffcdd2",
                   }}
                 >
                   {risk}
@@ -679,7 +932,7 @@ export default function ApplicationDetailPage() {
                   style={{
                     backgroundColor: "#e8f5e8",
                     color: "#2e7d32",
-                    border: "1px solid #c8e6c9"
+                    border: "1px solid #c8e6c9",
                   }}
                 >
                   {risk}
@@ -729,7 +982,7 @@ export default function ApplicationDetailPage() {
         field: "entitlementName",
         headerName: "Entitlement",
         enableRowGroup: true,
-        flex:2,
+        flex: 2,
         cellRenderer: (params: ICellRendererParams) => (
           <div className="flex flex-col gap-0">
             <span className="text-md text-gray-800">{params.value}</span>
@@ -813,41 +1066,53 @@ export default function ApplicationDetailPage() {
         colSpan: (params) => {
           if (!params.data?.__isDescRow) return 1;
           try {
-            const center = (params.api as any)?.getDisplayedCenterColumns?.() || [];
+            const center =
+              (params.api as any)?.getDisplayedCenterColumns?.() || [];
             const left = (params.api as any)?.getDisplayedLeftColumns?.() || [];
-            const right = (params.api as any)?.getDisplayedRightColumns?.() || [];
+            const right =
+              (params.api as any)?.getDisplayedRightColumns?.() || [];
             const total = center.length + left.length + right.length;
             if (total > 0) return total;
           } catch {}
-          const all = (params as any)?.columnApi?.getAllDisplayedColumns?.() || [];
+          const all =
+            (params as any)?.columnApi?.getAllDisplayedColumns?.() || [];
           return all.length || 1;
         },
         cellRenderer: (params: ICellRendererParams) => {
           if (params.data?.__isDescRow) {
             return (
               <div className="text-gray-600 text-sm w-full break-words whitespace-pre-wrap">
-                {params.data?.["Ent Description"] || params.data?.description || params.data?.entitlementDescription || "-"}
+                {params.data?.["Ent Description"] ||
+                  params.data?.description ||
+                  params.data?.entitlementDescription ||
+                  "-"}
               </div>
             );
           }
 
           const risk = params.data?.risk || params.data?.Risk;
           const isRiskHigh = risk === "High";
-          
+
           return isRiskHigh ? (
             <div className="flex items-center h-full">
               <span
                 className="px-2 py-1 text-sm font-medium rounded-full inline-flex items-center cursor-pointer hover:bg-red-200 transition-colors duration-200 break-words whitespace-normal"
-                style={{ 
-                  backgroundColor: "#ffebee", 
+                style={{
+                  backgroundColor: "#ffebee",
                   color: "#d32f2f",
                   border: "1px solid #ffcdd2",
-                  minHeight: "24px"
+                  minHeight: "24px",
                 }}
                 title="High Risk - Click for details"
                 onClick={() => {
-                  const appNameForCheck = (params.data?.["App Name"] || params.data?.applicationName || "").toString();
-                  const isOciApp = appNameForCheck.toLowerCase().includes("oci");
+                  const appNameForCheck = (
+                    params.data?.["App Name"] ||
+                    params.data?.applicationName ||
+                    ""
+                  ).toString();
+                  const isOciApp = appNameForCheck
+                    .toLowerCase()
+                    .includes("oci");
                   if (!isOciApp) {
                     return;
                   }
@@ -855,25 +1120,35 @@ export default function ApplicationDetailPage() {
                     name: params.value,
                     description: params.data?.description,
                     type: params.data?.type,
-                    applicationName: params.data?.["App Name"] || params.data?.applicationName,
+                    applicationName:
+                      params.data?.["App Name"] || params.data?.applicationName,
                     risk: params.data?.risk || params.data?.Risk,
                     lastReviewed: params.data?.["Last Reviewed on"],
                     lastSync: params.data?.["Last Sync"],
-                    appInstanceId: params.data?.applicationInstanceId || params.data?.appInstanceId,
-                    entitlementId: params.data?.entitlementId || params.data?.id
+                    appInstanceId:
+                      params.data?.applicationInstanceId ||
+                      params.data?.appInstanceId,
+                    entitlementId:
+                      params.data?.entitlementId || params.data?.id,
                   });
                   openSidebar(
-                    <PolicyRiskDetails entitlementData={{
-                      name: params.data?.name || params.data?.entitlementName || "N/A",
-                      description: params.data?.description,
-                      type: params.data?.type,
-                      applicationName: params.data?.applicationName,
-                      risk: params.data?.risk ?? params.data?.risk_level,
-                      lastReviewed: params.data?.["Last Reviewed on"],
-                      lastSync: params.data?.["Last Sync"],
-                      appInstanceId: params.data?.appInstanceId,
-                      entitlementId: params.data?.entitlementId || params.data?.id,
-                    }} />,
+                    <PolicyRiskDetails
+                      entitlementData={{
+                        name:
+                          params.data?.name ||
+                          params.data?.entitlementName ||
+                          "N/A",
+                        description: params.data?.description,
+                        type: params.data?.type,
+                        applicationName: params.data?.applicationName,
+                        risk: params.data?.risk ?? params.data?.risk_level,
+                        lastReviewed: params.data?.["Last Reviewed on"],
+                        lastSync: params.data?.["Last Sync"],
+                        appInstanceId: params.data?.appInstanceId,
+                        entitlementId:
+                          params.data?.entitlementId || params.data?.id,
+                      }}
+                    />,
                     { widthPx: 500 }
                   );
                 }}
@@ -882,26 +1157,37 @@ export default function ApplicationDetailPage() {
               </span>
             </div>
           ) : (
-            <div className="font-semibold break-words whitespace-normal">{params.value}</div>
+            <div className="font-semibold break-words whitespace-normal">
+              {params.value}
+            </div>
           );
         },
       },
       // { field:"Ent Description", headerName:"Entitlement Description", flex:2},
       { field: "type", headerName: "Type", width: 200 },
-      { 
-        field: "Risk", 
-        headerName: "Risk", 
+      {
+        field: "Risk",
+        headerName: "Risk",
         width: 120,
-        hide:true,
+        hide: true,
         cellRenderer: (params: ICellRendererParams) => {
           const risk = params.value || params.data?.Risk || params.data?.risk;
           const riskColor =
             risk === "High" ? "red" : risk === "Medium" ? "orange" : "green";
-          return <span className="font-medium" style={{ color: riskColor }}>{risk}</span>;
+          return (
+            <span className="font-medium" style={{ color: riskColor }}>
+              {risk}
+            </span>
+          );
         },
       },
-      { field: "applicationName", headerName: "Application", width: 150,hide:true },
-      { field: "assignment", headerName: "Assignment", width: 150,hide:true },
+      {
+        field: "applicationName",
+        headerName: "Application",
+        width: 150,
+        hide: true,
+      },
+      { field: "assignment", headerName: "Assignment", width: 150, hide: true },
       {
         field: "Last Sync",
         headerName: "Last Sync",
@@ -1041,41 +1327,53 @@ export default function ApplicationDetailPage() {
         colSpan: (params) => {
           if (!params.data?.__isDescRow) return 1;
           try {
-            const center = (params.api as any)?.getDisplayedCenterColumns?.() || [];
+            const center =
+              (params.api as any)?.getDisplayedCenterColumns?.() || [];
             const left = (params.api as any)?.getDisplayedLeftColumns?.() || [];
-            const right = (params.api as any)?.getDisplayedRightColumns?.() || [];
+            const right =
+              (params.api as any)?.getDisplayedRightColumns?.() || [];
             const total = center.length + left.length + right.length;
             if (total > 0) return total;
           } catch {}
-          const all = (params as any)?.columnApi?.getAllDisplayedColumns?.() || [];
+          const all =
+            (params as any)?.columnApi?.getAllDisplayedColumns?.() || [];
           return all.length || 1;
         },
         cellRenderer: (params: ICellRendererParams) => {
           if (params.data?.__isDescRow) {
             return (
               <div className="text-gray-600 text-sm w-full break-words whitespace-pre-wrap">
-                {params.data?.["Ent Description"] || params.data?.description || params.data?.entitlementDescription || "-"}
+                {params.data?.["Ent Description"] ||
+                  params.data?.description ||
+                  params.data?.entitlementDescription ||
+                  "-"}
               </div>
             );
           }
 
           const risk = params.data?.risk || params.data?.Risk;
           const isRiskHigh = risk === "High";
-          
+
           return isRiskHigh ? (
             <div className="flex items-center h-full">
               <span
                 className="px-2 py-1 text-sm font-medium rounded-full inline-flex items-center cursor-pointer hover:bg-red-200 transition-colors duration-200 break-words whitespace-normal"
-                style={{ 
-                  backgroundColor: "#ffebee", 
+                style={{
+                  backgroundColor: "#ffebee",
                   color: "#d32f2f",
                   border: "1px solid #ffcdd2",
-                  minHeight: "24px"
+                  minHeight: "24px",
                 }}
                 title="High Risk - Click for details"
                 onClick={() => {
-                  const appNameForCheck = (params.data?.["App Name"] || params.data?.applicationName || "").toString();
-                  const isOciApp = appNameForCheck.toLowerCase().includes("oci");
+                  const appNameForCheck = (
+                    params.data?.["App Name"] ||
+                    params.data?.applicationName ||
+                    ""
+                  ).toString();
+                  const isOciApp = appNameForCheck
+                    .toLowerCase()
+                    .includes("oci");
                   if (!isOciApp) {
                     return;
                   }
@@ -1083,25 +1381,35 @@ export default function ApplicationDetailPage() {
                     name: params.value,
                     description: params.data?.description,
                     type: params.data?.type,
-                    applicationName: params.data?.["App Name"] || params.data?.applicationName,
+                    applicationName:
+                      params.data?.["App Name"] || params.data?.applicationName,
                     risk: params.data?.risk || params.data?.Risk,
                     lastReviewed: params.data?.["Last Reviewed on"],
                     lastSync: params.data?.["Last Sync"],
-                    appInstanceId: params.data?.applicationInstanceId || params.data?.appInstanceId,
-                    entitlementId: params.data?.entitlementId || params.data?.id
+                    appInstanceId:
+                      params.data?.applicationInstanceId ||
+                      params.data?.appInstanceId,
+                    entitlementId:
+                      params.data?.entitlementId || params.data?.id,
                   });
                   openSidebar(
-                    <PolicyRiskDetails entitlementData={{
-                      name: params.data?.name || params.data?.entitlementName || "N/A",
-                      description: params.data?.description,
-                      type: params.data?.type,
-                      applicationName: params.data?.applicationName,
-                      risk: params.data?.risk ?? params.data?.risk_level,
-                      lastReviewed: params.data?.["Last Reviewed on"],
-                      lastSync: params.data?.["Last Sync"],
-                      appInstanceId: params.data?.appInstanceId,
-                      entitlementId: params.data?.entitlementId || params.data?.id,
-                    }} />,
+                    <PolicyRiskDetails
+                      entitlementData={{
+                        name:
+                          params.data?.name ||
+                          params.data?.entitlementName ||
+                          "N/A",
+                        description: params.data?.description,
+                        type: params.data?.type,
+                        applicationName: params.data?.applicationName,
+                        risk: params.data?.risk ?? params.data?.risk_level,
+                        lastReviewed: params.data?.["Last Reviewed on"],
+                        lastSync: params.data?.["Last Sync"],
+                        appInstanceId: params.data?.appInstanceId,
+                        entitlementId:
+                          params.data?.entitlementId || params.data?.id,
+                      }}
+                    />,
                     { widthPx: 500 }
                   );
                 }}
@@ -1110,7 +1418,9 @@ export default function ApplicationDetailPage() {
               </span>
             </div>
           ) : (
-            <div className="font-semibold break-words whitespace-normal">{params.value}</div>
+            <div className="font-semibold break-words whitespace-normal">
+              {params.value}
+            </div>
           );
         },
       },
@@ -1119,12 +1429,16 @@ export default function ApplicationDetailPage() {
         field: "Risk",
         headerName: "Risk",
         width: 120,
-        hide:true,
+        hide: true,
         cellRenderer: (params: ICellRendererParams) => {
           const risk = params.value || params.data?.Risk || params.data?.risk;
           const riskColor =
             risk === "High" ? "red" : risk === "Medium" ? "orange" : "green";
-          return <span className="font-medium" style={{ color: riskColor }}>{risk}</span>;
+          return (
+            <span className="font-medium" style={{ color: riskColor }}>
+              {risk}
+            </span>
+          );
         },
       },
       { field: "applicationName", headerName: "Application", width: 250 },
@@ -1233,11 +1547,14 @@ export default function ApplicationDetailPage() {
     };
   }, []);
 
-  const defaultColDef = useMemo(() => ({
-    sortable: true,
-    filter: true,
-    resizable: true,
-  }), []);
+  const defaultColDef = useMemo(
+    () => ({
+      sortable: true,
+      filter: true,
+      resizable: true,
+    }),
+    []
+  );
 
   const tabsDataEnt = [
     {
@@ -1349,20 +1666,27 @@ export default function ApplicationDetailPage() {
               </div>
             </div>
             {mounted && (
-            <AgGridReact
-              rowData={entPaginatedData}
-              columnDefs={colDefs}
-              defaultColDef={defaultColDef}
-              masterDetail={true}
-              getRowHeight={(params) => (params?.data?.__isDescRow ? 36 : 40)}
-              detailCellRendererParams={detailCellRendererParams}
-              domLayout="autoHeight"
-              getRowId={(params) => {
-                const data = params.data || {};
-                const baseId = data.entitlementId || data.entitlementid || data.id || `${data.applicationName || ''}-${data.entitlementName || data.name || ''}`;
-                return data.__isDescRow ? `${baseId}-desc` : baseId;
-              }}
-            />)}
+              <AgGridReact
+                rowData={entPaginatedData}
+                columnDefs={colDefs}
+                defaultColDef={defaultColDef}
+                masterDetail={true}
+                getRowHeight={(params) => (params?.data?.__isDescRow ? 36 : 40)}
+                detailCellRendererParams={detailCellRendererParams}
+                domLayout="autoHeight"
+                getRowId={(params) => {
+                  const data = params.data || {};
+                  const baseId =
+                    data.entitlementId ||
+                    data.entitlementid ||
+                    data.id ||
+                    `${data.applicationName || ""}-${
+                      data.entitlementName || data.name || ""
+                    }`;
+                  return data.__isDescRow ? `${baseId}-desc` : baseId;
+                }}
+              />
+            )}
             <div className="flex justify-center">
               <CustomPagination
                 totalItems={entTotalItems}
@@ -1487,20 +1811,27 @@ export default function ApplicationDetailPage() {
             </div>
           </div>
           {mounted && (
-          <AgGridReact
-            rowData={entPaginatedData}
-            columnDefs={underReviewColDefs}
-            defaultColDef={defaultColDef}
-            masterDetail={true}
-            getRowHeight={(params) => (params?.data?.__isDescRow ? 36 : 40)}
-            detailCellRendererParams={detailCellRendererParams}
-            domLayout="autoHeight"
-            getRowId={(params) => {
-              const data = params.data || {};
-              const baseId = data.entitlementId || data.entitlementid || data.id || `${data.applicationName || ''}-${data.entitlementName || data.name || ''}`;
-              return data.__isDescRow ? `${baseId}-desc` : baseId;
-            }}
-          />)}
+            <AgGridReact
+              rowData={entPaginatedData}
+              columnDefs={underReviewColDefs}
+              defaultColDef={defaultColDef}
+              masterDetail={true}
+              getRowHeight={(params) => (params?.data?.__isDescRow ? 36 : 40)}
+              detailCellRendererParams={detailCellRendererParams}
+              domLayout="autoHeight"
+              getRowId={(params) => {
+                const data = params.data || {};
+                const baseId =
+                  data.entitlementId ||
+                  data.entitlementid ||
+                  data.id ||
+                  `${data.applicationName || ""}-${
+                    data.entitlementName || data.name || ""
+                  }`;
+                return data.__isDescRow ? `${baseId}-desc` : baseId;
+              }}
+            />
+          )}
           <div className="flex justify-center">
             <CustomPagination
               totalItems={entTotalItems}
@@ -1527,10 +1858,7 @@ export default function ApplicationDetailPage() {
       iconOff: ChevronRight,
       component: () => (
         <div className="p-6 bg-white">
-          <Accordion
-            title="Application Information"
-            iconClass="text-blue-600"
-          >
+          <Accordion title="Application Information" iconClass="text-blue-600">
             <div className="p-4 bg-gray-50 rounded-lg">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Application Details Section */}
@@ -1540,28 +1868,48 @@ export default function ApplicationDetailPage() {
                   </h4>
                   <div className="space-y-2">
                     <div className="flex justify-between items-center py-2 border-b border-gray-200">
-                      <span className="text-sm font-medium text-gray-600">Hostname:</span>
+                      <span className="text-sm font-medium text-gray-600">
+                        Hostname:
+                      </span>
                       <span className="text-sm text-gray-800">localhost</span>
                     </div>
                     <div className="flex justify-between items-center py-2 border-b border-gray-200">
-                      <span className="text-sm font-medium text-gray-600">Password:</span>
-                      <span className="text-sm text-gray-800">••••••••••••••••</span>
+                      <span className="text-sm font-medium text-gray-600">
+                        Password:
+                      </span>
+                      <span className="text-sm text-gray-800">
+                        ••••••••••••••••
+                      </span>
                     </div>
                     <div className="flex justify-between items-center py-2 border-b border-gray-200">
-                      <span className="text-sm font-medium text-gray-600">Port:</span>
+                      <span className="text-sm font-medium text-gray-600">
+                        Port:
+                      </span>
                       <span className="text-sm text-gray-800">389</span>
                     </div>
                     <div className="flex justify-between items-center py-2 border-b border-gray-200">
-                      <span className="text-sm font-medium text-gray-600">User Search Base:</span>
-                      <span className="text-sm text-gray-800">ou=People,dc=keyforge,dc=ai</span>
+                      <span className="text-sm font-medium text-gray-600">
+                        User Search Base:
+                      </span>
+                      <span className="text-sm text-gray-800">
+                        ou=People,dc=keyforge,dc=ai
+                      </span>
                     </div>
                     <div className="flex justify-between items-center py-2 border-b border-gray-200">
-                      <span className="text-sm font-medium text-gray-600">Group Search Base:</span>
-                      <span className="text-sm text-gray-800">ou=Groups,dc=keyforge,dc=ai</span>
+                      <span className="text-sm font-medium text-gray-600">
+                        Group Search Base:
+                      </span>
+                      <span className="text-sm text-gray-800">
+                        ou=Groups,dc=keyforge,dc=ai
+                      </span>
                     </div>
                     <div className="flex justify-between items-center py-2">
-                      <span className="text-sm font-medium text-gray-600">Username:</span>
-                      <span className="text-sm text-gray-800">cn=admin,dc=keyforge,dc=ai</span>
+                      <span className="text-sm font-medium text-gray-600">
+                        Username:
+                      </span>
+                      <span className="text-sm text-gray-800">
+                        cn=admin,dc=keyforge,dc=ai
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -1573,15 +1921,23 @@ export default function ApplicationDetailPage() {
                   </h4>
                   <div className="space-y-2">
                     <div className="flex justify-between items-center py-2 border-b border-gray-200">
-                      <span className="text-sm font-medium text-gray-600">Client ID:</span>
-                      <span className="text-sm text-gray-800">4jfwbvmuhf73osjnzs74tbmtmdqdyiwi</span>
+                      <span className="text-sm font-medium text-gray-600">
+                        Client ID:
+                      </span>
+                      <span className="text-sm text-gray-800">
+                        4jfwbvmuhf73osjnzs74tbmtmdqdyiwi
+                      </span>
                     </div>
                     <div className="flex justify-between items-center py-2 border-b border-gray-200">
-                      <span className="text-sm font-medium text-gray-600">OAuth Type:</span>
+                      <span className="text-sm font-medium text-gray-600">
+                        OAuth Type:
+                      </span>
                       <span className="text-sm text-gray-800">KPOAUTH</span>
                     </div>
                     <div className="flex justify-between items-center py-2">
-                      <span className="text-sm font-medium text-gray-600">Admin ID:</span>
+                      <span className="text-sm font-medium text-gray-600">
+                        Admin ID:
+                      </span>
                       <span className="text-sm text-gray-800">ACMEADMIN</span>
                     </div>
                   </div>
@@ -1593,17 +1949,45 @@ export default function ApplicationDetailPage() {
           {/* Attribute Mapping Collapsible Section */}
           <div className="mt-6 bg-white border border-gray-200 rounded-lg shadow-sm">
             {/* Header with Chevron */}
-            <div 
+            <div
               className="px-6 py-3 border-b border-gray-200 flex items-center justify-between cursor-pointer hover:bg-gray-50"
-              onClick={() => setIsAttributeMappingExpanded(!isAttributeMappingExpanded)}
+              onClick={() =>
+                setIsAttributeMappingExpanded(!isAttributeMappingExpanded)
+              }
             >
               <div className="flex items-center">
                 <div className="w-6 h-6 mr-3 flex items-center justify-center">
-                <div className="w-6 h-6 mr-3 flex items-center justify-center">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" stroke-linejoin="round" className="lucide lucide-monitor-cog-icon lucide-monitor-cog"><path d="M12 17v4"/><path d="m14.305 7.53.923-.382"/><path d="m15.228 4.852-.923-.383"/><path d="m16.852 3.228-.383-.924"/><path d="m16.852 8.772-.383.923"/><path d="m19.148 3.228.383-.924"/><path d="m19.53 9.696-.382-.924"/><path d="m20.772 4.852.924-.383"/><path d="m20.772 7.148.924.383"/><path d="M22 13v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><path d="M8 21h8"/><circle cx="18" cy="6" r="3"/></svg>
+                  <div className="w-6 h-6 mr-3 flex items-center justify-center">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      stroke-linejoin="round"
+                      className="lucide lucide-monitor-cog-icon lucide-monitor-cog"
+                    >
+                      <path d="M12 17v4" />
+                      <path d="m14.305 7.53.923-.382" />
+                      <path d="m15.228 4.852-.923-.383" />
+                      <path d="m16.852 3.228-.383-.924" />
+                      <path d="m16.852 8.772-.383.923" />
+                      <path d="m19.148 3.228.383-.924" />
+                      <path d="m19.53 9.696-.382-.924" />
+                      <path d="m20.772 4.852.924-.383" />
+                      <path d="m20.772 7.148.924.383" />
+                      <path d="M22 13v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7" />
+                      <path d="M8 21h8" />
+                      <circle cx="18" cy="6" r="3" />
+                    </svg>
+                  </div>
                 </div>
-                </div>
-                <h2 className="text-lg font-semibold text-gray-800">Attribute Mapping</h2>
+                <h2 className="text-md font-semibold text-gray-800">
+                  Attribute Mapping
+                </h2>
               </div>
               {isAttributeMappingExpanded ? (
                 <ChevronDown className="w-5 h-5 text-gray-500" />
@@ -1615,280 +1999,325 @@ export default function ApplicationDetailPage() {
             {/* Collapsible Content */}
             {isAttributeMappingExpanded && (
               <div className="p-6">
-              {/* Tabs */}
-              <div className="border-b border-gray-200 mb-6">
-                <div className="flex">
-                  <button 
-                    className={`px-6 py-3 text-sm font-medium ${
-                      activeMappingTab === "provisioning" 
-                        ? "text-blue-600 border-b-2 border-blue-600" 
-                        : "text-gray-500 hover:text-gray-700"
-                    }`}
-                    onClick={() => {
-                      setActiveMappingTab("provisioning");
-                      setAttributeMappingPage(1);
-                      setIsEditingAttribute(false);
-                    }}
-                  >
-                    Provisioning
-                  </button>
-                  <button 
-                    className={`px-6 py-3 text-sm font-medium ${
-                      activeMappingTab === "reconciliation" 
-                        ? "text-blue-600 border-b-2 border-blue-600" 
-                        : "text-gray-500 hover:text-gray-700"
-                    }`}
-                    onClick={() => {
-                      setActiveMappingTab("reconciliation");
-                      setAttributeMappingPage(1);
-                      setIsEditingAttribute(false);
-                    }}
-                  >
-                    Reconciliation
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Existing Mappings Table */}
-                <div className="space-y-4">
-                  <h3 className="text-md font-semibold text-gray-800">Existing Mappings</h3>
-                  <div className="border border-gray-200 rounded-lg overflow-hidden">
-                    <table className="w-full">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            {activeMappingTab === "reconciliation" ? "Target Attribute" : "Source Attribute"}
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            {activeMappingTab === "reconciliation" ? "Source Attribute" : "Target Attribute"}
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Default Value</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {getCurrentPageData().map((mapping, index) => (
-                          <tr key={index}>
-                            <td className="px-4 py-3 text-sm text-gray-900">
-                              {activeMappingTab === "reconciliation" ? mapping.target : mapping.source}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-900">
-                              {activeMappingTab === "reconciliation" ? mapping.source : mapping.target}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-500">{mapping.defaultValue || ""}</td>
-                            <td className="px-4 py-3 text-sm text-gray-500">
-                            <div className="flex space-x-2">
-                              <button 
-                                className="text-blue-600 hover:text-blue-800"
-                                onClick={() => {
-                                  setEditingAttribute(mapping);
-                                  setIsEditingAttribute(true);
-                                }}
-                              >
-                                <Edit className="w-4 h-4" />
-                              </button>
-                              <button className="text-red-600 hover:text-red-800">
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                {/* Tabs */}
+                <div className="border-b border-gray-200 mb-6">
+                  <div className="flex">
+                    <button
+                      className={`px-6 py-3 text-sm font-medium ${
+                        activeMappingTab === "provisioning"
+                          ? "text-blue-600 border-b-2 border-blue-600"
+                          : "text-gray-500 hover:text-gray-700"
+                      }`}
+                      onClick={() => {
+                        setActiveMappingTab("provisioning");
+                        setAttributeMappingPage(1);
+                        setIsEditingAttribute(false);
+                      }}
+                    >
+                      Provisioning
+                    </button>
+                    <button
+                      className={`px-6 py-3 text-sm font-medium ${
+                        activeMappingTab === "reconciliation"
+                          ? "text-blue-600 border-b-2 border-blue-600"
+                          : "text-gray-500 hover:text-gray-700"
+                      }`}
+                      onClick={() => {
+                        setActiveMappingTab("reconciliation");
+                        setAttributeMappingPage(1);
+                        setIsEditingAttribute(false);
+                      }}
+                    >
+                      Reconciliation
+                    </button>
                   </div>
+                </div>
 
-                  {/* Pagination */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <button 
-                        className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50"
-                        onClick={() => setAttributeMappingPage(Math.max(1, attributeMappingPage - 1))}
-                        disabled={attributeMappingPage === 1}
-                      >
-                        &lt;
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* Existing Mappings Table */}
+                  <div className="space-y-4">
+                    <h3 className="text-md font-semibold text-gray-800">
+                      Existing Mappings
+                    </h3>
+                    <div className="border border-gray-200 rounded-lg overflow-hidden">
+                      <table className="w-full">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              {activeMappingTab === "reconciliation"
+                                ? "Target Attribute"
+                                : "Source Attribute"}
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              {activeMappingTab === "reconciliation"
+                                ? "Source Attribute"
+                                : "Target Attribute"}
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Default Value
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Action
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {getCurrentPageData().map((mapping, index) => (
+                            <tr key={index}>
+                              <td className="px-4 py-3 text-sm text-gray-900">
+                                {activeMappingTab === "reconciliation"
+                                  ? mapping.target
+                                  : mapping.source}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-900">
+                                {activeMappingTab === "reconciliation"
+                                  ? mapping.source
+                                  : mapping.target}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-500">
+                                {mapping.defaultValue || ""}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-500">
+                                <div className="flex space-x-2">
+                                  <button
+                                    className="text-blue-600 hover:text-blue-800"
+                                    onClick={() => {
+                                      setEditingAttribute(mapping);
+                                      setIsEditingAttribute(true);
+                                    }}
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </button>
+                                  <button className="text-red-600 hover:text-red-800">
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Pagination */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <button
+                          className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50"
+                          onClick={() =>
+                            setAttributeMappingPage(
+                              Math.max(1, attributeMappingPage - 1)
+                            )
+                          }
+                          disabled={attributeMappingPage === 1}
+                        >
+                          &lt;
+                        </button>
+                        <button
+                          className={`px-3 py-1 text-sm rounded ${
+                            attributeMappingPage === 1
+                              ? "bg-blue-600 text-white"
+                              : "border border-gray-300 hover:bg-gray-50"
+                          }`}
+                          onClick={() => setAttributeMappingPage(1)}
+                        >
+                          1
+                        </button>
+                        <button
+                          className={`px-3 py-1 text-sm rounded ${
+                            attributeMappingPage === 2
+                              ? "bg-blue-600 text-white"
+                              : "border border-gray-300 hover:bg-gray-50"
+                          }`}
+                          onClick={() => setAttributeMappingPage(2)}
+                        >
+                          2
+                        </button>
+                        <button
+                          className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50"
+                          onClick={() =>
+                            setAttributeMappingPage(
+                              Math.min(2, attributeMappingPage + 1)
+                            )
+                          }
+                          disabled={attributeMappingPage === 2}
+                        >
+                          &gt;
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex space-x-3">
+                      <button className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700">
+                        Save
                       </button>
-                      <button 
-                        className={`px-3 py-1 text-sm rounded ${
-                          attributeMappingPage === 1 
-                            ? 'bg-blue-600 text-white' 
-                            : 'border border-gray-300 hover:bg-gray-50'
-                        }`}
-                        onClick={() => setAttributeMappingPage(1)}
-                      >
-                        1
-                      </button>
-                      <button 
-                        className={`px-3 py-1 text-sm rounded ${
-                          attributeMappingPage === 2 
-                            ? 'bg-blue-600 text-white' 
-                            : 'border border-gray-300 hover:bg-gray-50'
-                        }`}
-                        onClick={() => setAttributeMappingPage(2)}
-                      >
-                        2
-                      </button>
-                      <button 
-                        className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50"
-                        onClick={() => setAttributeMappingPage(Math.min(2, attributeMappingPage + 1))}
-                        disabled={attributeMappingPage === 2}
-                      >
-                        &gt;
+                      <button className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50">
+                        Cancel
                       </button>
                     </div>
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="flex space-x-3">
-                    <button className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700">
-                      Save
-                    </button>
-                    <button className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50">
-                      Cancel
-                    </button>
+                  {/* Add New Attribute Form or Edit Attribute Form */}
+                  <div className="space-y-4">
+                    {isEditingAttribute ? (
+                      <>
+                        <h3 className="text-md font-semibold text-gray-800">
+                          Edit Attribute
+                        </h3>
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Mapping Type
+                            </label>
+                            <select
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              defaultValue="direct"
+                            >
+                              <option value="direct">Direct</option>
+                              <option value="expression">Expression</option>
+                              <option value="constant">Constant</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Target Attribute
+                              <Info className="w-4 h-4 inline ml-1 text-gray-400" />
+                            </label>
+                            <input
+                              type="text"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              defaultValue={editingAttribute?.target || ""}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Source Attribute
+                              <Info className="w-4 h-4 inline ml-1 text-gray-400" />
+                              <span className="text-xs text-gray-500 ml-1">
+                                Help
+                              </span>
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                defaultValue={editingAttribute?.source || ""}
+                              />
+                              <button className="absolute right-2 top-2 text-gray-400">
+                                <ChevronDown className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Default value (optional)
+                            </label>
+                            <input
+                              type="text"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              defaultValue={
+                                editingAttribute?.defaultValue || ""
+                              }
+                            />
+                          </div>
+                        </div>
+
+                        {/* Edit Form Action Buttons */}
+                        <div className="flex space-x-3 pt-4">
+                          <button className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700">
+                            Update
+                          </button>
+                          <button
+                            className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50"
+                            onClick={() => setIsEditingAttribute(false)}
+                          >
+                            Discard
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <h3 className="text-md font-semibold text-gray-800">
+                          Add New Attribute
+                        </h3>
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Mapping Type
+                            </label>
+                            <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                              <option value="direct">Direct</option>
+                              <option value="expression">Expression</option>
+                              <option value="constant">Constant</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Source Attribute
+                              <Info className="w-4 h-4 inline ml-1 text-gray-400" />
+                              <span className="text-xs text-gray-500 ml-1">
+                                Help
+                              </span>
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="Enter source attribute"
+                              />
+                              <button className="absolute right-2 top-2 text-gray-400">
+                                <ChevronDown className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Target Attribute
+                              <Info className="w-4 h-4 inline ml-1 text-gray-400" />
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="Enter target attribute"
+                              />
+                              <button className="absolute right-2 top-2 text-gray-400">
+                                <ChevronDown className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Default value (optional)
+                            </label>
+                            <input
+                              type="text"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="Enter default value"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Add Form Action Buttons */}
+                        <div className="flex space-x-3 pt-4">
+                          <button className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50">
+                            Add
+                          </button>
+                          <button className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50">
+                            Discard
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
-
-                {/* Add New Attribute Form or Edit Attribute Form */}
-                <div className="space-y-4">
-                  {isEditingAttribute ? (
-                    <>
-                      <h3 className="text-md font-semibold text-gray-800">Edit Attribute</h3>
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Mapping Type</label>
-                          <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" defaultValue="direct">
-                            <option value="direct">Direct</option>
-                            <option value="expression">Expression</option>
-                            <option value="constant">Constant</option>
-                          </select>
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Target Attribute
-                            <Info className="w-4 h-4 inline ml-1 text-gray-400" />
-                          </label>
-                          <input 
-                            type="text" 
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            defaultValue={editingAttribute?.target || ""}
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Source Attribute
-                            <Info className="w-4 h-4 inline ml-1 text-gray-400" />
-                            <span className="text-xs text-gray-500 ml-1">Help</span>
-                          </label>
-                          <div className="relative">
-                            <input 
-                              type="text" 
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              defaultValue={editingAttribute?.source || ""}
-                            />
-                            <button className="absolute right-2 top-2 text-gray-400">
-                              <ChevronDown className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Default value (optional)</label>
-                          <input 
-                            type="text" 
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            defaultValue={editingAttribute?.defaultValue || ""}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Edit Form Action Buttons */}
-                      <div className="flex space-x-3 pt-4">
-                        <button className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700">
-                          Update
-                        </button>
-                        <button 
-                          className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50"
-                          onClick={() => setIsEditingAttribute(false)}
-                        >
-                          Discard
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <h3 className="text-md font-semibold text-gray-800">Add New Attribute</h3>
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Mapping Type</label>
-                          <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <option value="direct">Direct</option>
-                            <option value="expression">Expression</option>
-                            <option value="constant">Constant</option>
-                          </select>
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Source Attribute
-                            <Info className="w-4 h-4 inline ml-1 text-gray-400" />
-                            <span className="text-xs text-gray-500 ml-1">Help</span>
-                          </label>
-                          <div className="relative">
-                            <input 
-                              type="text" 
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              placeholder="Enter source attribute"
-                            />
-                            <button className="absolute right-2 top-2 text-gray-400">
-                              <ChevronDown className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Target Attribute
-                            <Info className="w-4 h-4 inline ml-1 text-gray-400" />
-                          </label>
-                          <div className="relative">
-                            <input 
-                              type="text" 
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              placeholder="Enter target attribute"
-                            />
-                            <button className="absolute right-2 top-2 text-gray-400">
-                              <ChevronDown className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Default value (optional)</label>
-                          <input 
-                            type="text" 
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="Enter default value"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Add Form Action Buttons */}
-                      <div className="flex space-x-3 pt-4">
-                        <button className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50">
-                          Add
-                        </button>
-                        <button className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50">
-                          Discard
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
               </div>
             )}
           </div>
@@ -1896,15 +2325,41 @@ export default function ApplicationDetailPage() {
           {/* Hook Configuration Card */}
           <div className="mt-6 bg-white border border-gray-200 rounded-lg shadow-sm">
             {/* Header with Chevron */}
-            <div 
+            <div
               className="px-6 py-3 border-b border-gray-200 flex items-center justify-between cursor-pointer hover:bg-gray-50"
               onClick={() => setIsHookExpanded(!isHookExpanded)}
             >
               <div className="flex items-center">
                 <div className="w-6 h-6 mr-3 flex items-center justify-center">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" stroke-linejoin="round" className="lucide lucide-monitor-cog-icon lucide-monitor-cog"><path d="M12 17v4"/><path d="m14.305 7.53.923-.382"/><path d="m15.228 4.852-.923-.383"/><path d="m16.852 3.228-.383-.924"/><path d="m16.852 8.772-.383.923"/><path d="m19.148 3.228.383-.924"/><path d="m19.53 9.696-.382-.924"/><path d="m20.772 4.852.924-.383"/><path d="m20.772 7.148.924.383"/><path d="M22 13v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><path d="M8 21h8"/><circle cx="18" cy="6" r="3"/></svg>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    stroke-linejoin="round"
+                    className="lucide lucide-monitor-cog-icon lucide-monitor-cog"
+                  >
+                    <path d="M12 17v4" />
+                    <path d="m14.305 7.53.923-.382" />
+                    <path d="m15.228 4.852-.923-.383" />
+                    <path d="m16.852 3.228-.383-.924" />
+                    <path d="m16.852 8.772-.383.923" />
+                    <path d="m19.148 3.228.383-.924" />
+                    <path d="m19.53 9.696-.382-.924" />
+                    <path d="m20.772 4.852.924-.383" />
+                    <path d="m20.772 7.148.924.383" />
+                    <path d="M22 13v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7" />
+                    <path d="M8 21h8" />
+                    <circle cx="18" cy="6" r="3" />
+                  </svg>
                 </div>
-                <h2 className="text-lg font-semibold text-gray-800">Application Configuration</h2>
+                <h2 className="text-md font-semibold text-gray-800">
+                  Application Configuration
+                </h2>
               </div>
               {isHookExpanded ? (
                 <ChevronDown className="w-5 h-5 text-gray-500" />
@@ -1918,9 +2373,11 @@ export default function ApplicationDetailPage() {
               <div className="p-6">
                 {/* Name Field */}
                 <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
-                  <input 
-                    type="text" 
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Name
+                  </label>
+                  <input
+                    type="text"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Enter hook name"
                     value={hookName}
@@ -1931,20 +2388,20 @@ export default function ApplicationDetailPage() {
                 {/* Event Tabs */}
                 <div className="border-b border-gray-200 mb-6">
                   <div className="flex">
-                    <button 
+                    <button
                       className={`px-6 py-3 text-sm font-medium ${
-                        activeEventTab === "pre-process" 
-                          ? "text-white bg-blue-600 border-b-2 border-blue-600" 
+                        activeEventTab === "pre-process"
+                          ? "text-white bg-blue-600 border-b-2 border-blue-600"
                           : "text-gray-500 hover:text-gray-700"
                       }`}
                       onClick={() => setActiveEventTab("pre-process")}
                     >
                       Pre Process Event
                     </button>
-                    <button 
+                    <button
                       className={`px-6 py-3 text-sm font-medium ${
-                        activeEventTab === "post-process" 
-                          ? "text-white bg-blue-600 border-b-2 border-blue-600" 
+                        activeEventTab === "post-process"
+                          ? "text-white bg-blue-600 border-b-2 border-blue-600"
                           : "text-gray-500 hover:text-gray-700"
                       }`}
                       onClick={() => setActiveEventTab("post-process")}
@@ -1956,114 +2413,421 @@ export default function ApplicationDetailPage() {
 
                 {/* Service Section */}
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
+                  <div
+                    className="flex items-center justify-between cursor-pointer bg-blue-50 hover:bg-blue-100 p-2 rounded"
+                    onClick={() => setIsServiceExpanded(!isServiceExpanded)}
+                  >
                     <h3 className="text-md font-semibold text-gray-800 flex items-center">
-                      <svg className="w-5 h-5 text-green-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      <svg
+                        className="w-5 h-5 text-gray-600 mr-2"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path d="M3 3h18v2H3V3zm0 4h18v2H3V7zm0 4h18v2H3v-2zm0 4h18v2H3v-2zm0 4h18v2H3v-2z" />
                       </svg>
                       Service
                     </h3>
+                    {isServiceExpanded ? (
+                      <ChevronDown className="w-5 h-5 text-gray-500" />
+                    ) : (
+                      <ChevronRight className="w-5 h-5 text-gray-500" />
+                    )}
                   </div>
 
-                  {/* Operation Buttons */}
-                  <div className="flex space-x-2 mb-4">
-                    <button 
-                      className={`px-4 py-2 text-sm font-medium rounded ${
-                        activeOperation === "create" 
-                          ? "bg-blue-600 text-white" 
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
-                      onClick={() => setActiveOperation("create")}
-                    >
-                      Create
-                    </button>
-                    <button 
-                      className={`px-4 py-2 text-sm font-medium rounded ${
-                        activeOperation === "update" 
-                          ? "bg-blue-600 text-white" 
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
-                      onClick={() => setActiveOperation("update")}
-                    >
-                      Update
-                    </button>
-                    <button 
-                      className={`px-4 py-2 text-sm font-medium rounded ${
-                        activeOperation === "delete" 
-                          ? "bg-blue-600 text-white" 
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
-                      onClick={() => setActiveOperation("delete")}
-                    >
-                      Delete
-                    </button>
-                    <button 
-                      className={`px-4 py-2 text-sm font-medium rounded ${
-                        activeOperation === "getuser" 
-                          ? "bg-blue-600 text-white" 
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
-                      onClick={() => setActiveOperation("getuser")}
-                    >
-                      GetUser
-                    </button>
-                    <button 
-                      className={`px-4 py-2 text-sm font-medium rounded ${
-                        activeOperation === "getalluser" 
-                          ? "bg-blue-600 text-white" 
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
-                      onClick={() => setActiveOperation("getalluser")}
-                    >
-                      GetAllUser
-                    </button>
-                  </div>
+                  {/* Service Content - Only show when expanded */}
+                  {isServiceExpanded && (
+                    <>
+                      {/* Operation Buttons */}
+                      <div className="flex space-x-2 mb-4">
+                        <button
+                          className={`px-4 py-2 text-sm font-medium rounded ${
+                            activeOperation === "create"
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          }`}
+                          onClick={() => setActiveOperation("create")}
+                        >
+                          Create
+                        </button>
+                        <button
+                          className={`px-4 py-2 text-sm font-medium rounded ${
+                            activeOperation === "update"
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          }`}
+                          onClick={() => setActiveOperation("update")}
+                        >
+                          Update
+                        </button>
+                        <button
+                          className={`px-4 py-2 text-sm font-medium rounded ${
+                            activeOperation === "delete"
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          }`}
+                          onClick={() => setActiveOperation("delete")}
+                        >
+                          Delete
+                        </button>
+                        <button
+                          className={`px-4 py-2 text-sm font-medium rounded ${
+                            activeOperation === "getuser"
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          }`}
+                          onClick={() => setActiveOperation("getuser")}
+                        >
+                          GetUser
+                        </button>
+                        <button
+                          className={`px-4 py-2 text-sm font-medium rounded ${
+                            activeOperation === "getalluser"
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          }`}
+                          onClick={() => setActiveOperation("getalluser")}
+                        >
+                          GetAllUser
+                        </button>
+                      </div>
 
-                  {/* Service Table */}
-                  <div className="border border-gray-200 rounded-lg overflow-hidden">
-                    <table className="w-full">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Endpoint</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Authorization</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Operation</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        <tr>
-                          <td className="px-4 py-3 text-sm text-gray-500">-</td>
-                          <td className="px-4 py-3 text-sm text-gray-500">-</td>
-                          <td className="px-4 py-3 text-sm text-gray-900">Create</td>
-                          <td className="px-4 py-3 text-sm text-gray-500">
-                            <div className="flex space-x-2">
-                              <button className="text-blue-600 hover:text-blue-800">
-                                <Edit className="w-4 h-4" />
-                              </button>
-                              <button className="text-red-600 hover:text-red-800">
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
+                      {/* Service Table */}
+                      <div className="border border-gray-200 rounded-lg overflow-hidden">
+                        <table className="w-full">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Endpoint
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Authorization
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Operation
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Actions
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            <tr>
+                              <td className="px-4 py-3 text-sm text-gray-500">
+                                -
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-500">
+                                -
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-900">
+                                Create
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-500">
+                                <div className="flex space-x-2">
+                                  <button className="text-blue-600 hover:text-blue-800">
+                                    <Edit className="w-4 h-4" />
+                                  </button>
+                                  <button className="text-red-600 hover:text-red-800">
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
 
-                  {/* Add Service Button and Pagination */}
-                  <div className="flex items-center justify-between">
-                    <button className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700">
-                      Add Service
-                    </button>
-                    
-                    {/* Pagination */}
-                    <div className="flex items-center space-x-2">
-                      <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">&lt;</button>
-                      <button className="px-3 py-1 text-sm bg-blue-600 text-white rounded">1</button>
-                      <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">&gt;</button>
-                    </div>
-                  </div>
+                      {/* Add Service Button and Pagination */}
+                      <div className="flex items-center justify-between">
+                        <button className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700">
+                          Add Service
+                        </button>
+
+                        {/* Pagination */}
+                        <div className="flex items-center space-x-2">
+                          <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">
+                            &lt;
+                          </button>
+                          <button className="px-3 py-1 text-sm bg-blue-600 text-white rounded">
+                            1
+                          </button>
+                          <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">
+                            &gt;
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
+
+                {/* SDK Section */}
+                <div className="space-y-4 mt-8">
+                  <div
+                    className="flex items-center justify-between cursor-pointer bg-blue-50 hover:bg-blue-100 p-2 rounded"
+                    onClick={() => setIsSDKExpanded(!isSDKExpanded)}
+                  >
+                    <h3 className="text-md font-semibold text-gray-800 flex items-center">
+                      <svg
+                        className="w-5 h-5 text-gray-600 mr-2"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path d="M3 3h18v2H3V3zm0 4h18v2H3V7zm0 4h18v2H3v-2zm0 4h18v2H3v-2zm0 4h18v2H3v-2z" />
+                      </svg>
+                      SDK
+                    </h3>
+                    {isSDKExpanded ? (
+                      <ChevronDown className="w-5 h-5 text-gray-500" />
+                    ) : (
+                      <ChevronRight className="w-5 h-5 text-gray-500" />
+                    )}
+                  </div>
+
+                  {/* SDK Content - Only show when expanded */}
+                  {isSDKExpanded && (
+                    <>
+                      {/* SDK Operation Buttons */}
+                      <div className="flex space-x-2 mb-4">
+                        <button
+                          className={`px-4 py-2 text-sm font-medium rounded ${
+                            activeSDKOperation === "create"
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          }`}
+                          onClick={() => setActiveSDKOperation("create")}
+                        >
+                          Create
+                        </button>
+                        <button
+                          className={`px-4 py-2 text-sm font-medium rounded ${
+                            activeSDKOperation === "update"
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          }`}
+                          onClick={() => setActiveSDKOperation("update")}
+                        >
+                          Update
+                        </button>
+                        <button
+                          className={`px-4 py-2 text-sm font-medium rounded ${
+                            activeSDKOperation === "delete"
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          }`}
+                          onClick={() => setActiveSDKOperation("delete")}
+                        >
+                          Delete
+                        </button>
+                        <button
+                          className={`px-4 py-2 text-sm font-medium rounded ${
+                            activeSDKOperation === "getuser"
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          }`}
+                          onClick={() => setActiveSDKOperation("getuser")}
+                        >
+                          GetUser
+                        </button>
+                        <button
+                          className={`px-4 py-2 text-sm font-medium rounded ${
+                            activeSDKOperation === "getalluser"
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          }`}
+                          onClick={() => setActiveSDKOperation("getalluser")}
+                        >
+                          GetAllUser
+                        </button>
+                      </div>
+
+                      {/* SDK Table */}
+                      <div className="border border-gray-200 rounded-lg overflow-hidden">
+                        <table className="w-full">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Implementation Class
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Agent Id
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Operation
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Actions
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            <tr>
+                              <td className="px-4 py-3 text-sm text-gray-500">
+                                -
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-500">
+                                -
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-500">
+                                -
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-500">
+                                <div className="flex space-x-2">
+                                  <button className="text-blue-600 hover:text-blue-800">
+                                    <Edit className="w-4 h-4" />
+                                  </button>
+                                  <button className="text-red-600 hover:text-red-800">
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Add SDK Button and Pagination */}
+                      <div className="flex items-center justify-between">
+                        <button className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700">
+                          Add SDK
+                        </button>
+
+                        {/* Pagination */}
+                        <div className="flex items-center space-x-2">
+                          <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">
+                            &lt;
+                          </button>
+                          <button className="px-3 py-1 text-sm bg-blue-600 text-white rounded">
+                            1
+                          </button>
+                          <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">
+                            &gt;
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Target System Provisioning Threshold Section */}
+                <div className="space-y-4 mt-8">
+                  <div
+                    className="flex items-center justify-between cursor-pointer bg-blue-50 hover:bg-blue-100 p-2 rounded"
+                    onClick={() => setIsThresholdExpanded(!isThresholdExpanded)}
+                  >
+                    <h3 className="text-md font-semibold text-gray-800 flex items-center">
+                      <svg
+                        className="w-5 h-5 text-gray-600 mr-2"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path d="M3 3h18v2H3V3zm0 4h18v2H3V7zm0 4h18v2H3v-2zm0 4h18v2H3v-2zm0 4h18v2H3v-2z" />
+                      </svg>
+                      Target System Provisioning Threshold
+                    </h3>
+                    {isThresholdExpanded ? (
+                      <ChevronDown className="w-5 h-5 text-gray-500" />
+                    ) : (
+                      <ChevronRight className="w-5 h-5 text-gray-500" />
+                    )}
+                  </div>
+
+                  {/* Threshold Content - Only show when expanded */}
+                  {isThresholdExpanded && (
+                    <div className="space-y-4">
+                      {/* Disable Operation Threshold */}
+                      <div className="p-4 bg-gray-50 rounded-lg">
+                        <div className="flex items-center space-x-2 text-sm text-gray-700">
+                          <span>
+                            If the Disable Operation exceeds the maximum limit of
+                          </span>
+                          <input
+                            type="number"
+                            className="w-16 px-2 py-1 border border-gray-300 rounded text-center"
+                            defaultValue="-1"
+                          />
+                          <span>operations within</span>
+                          <input
+                            type="number"
+                            className="w-16 px-2 py-1 border border-gray-300 rounded text-center"
+                            placeholder="0"
+                          />
+                          <span>minutes then</span>
+                          <select className="px-2 py-1 border border-gray-300 rounded bg-white">
+                            <option value="continue">Continue</option>
+                            <option value="stop">Stop</option>
+                            <option value="pause">Pause</option>
+                          </select>
+                          <span>further operations and send alert to email</span>
+                          <input
+                            type="email"
+                            className="w-48 px-2 py-1 border border-gray-300 rounded"
+                            placeholder="email@example.com"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Create Operation Threshold */}
+                      <div className="p-4 bg-gray-50 rounded-lg">
+                        <div className="flex items-center space-x-2 text-sm text-gray-700">
+                          <span>If the Create Operation exceeds the maximum limit of</span>
+                          <input
+                            type="number"
+                            className="w-16 px-2 py-1 border border-gray-300 rounded text-center"
+                            defaultValue="-1"
+                          />
+                          <span>operations within</span>
+                          <input
+                            type="number"
+                            className="w-16 px-2 py-1 border border-gray-300 rounded text-center"
+                            placeholder="0"
+                          />
+                          <span>minutes then</span>
+                          <select className="px-2 py-1 border border-gray-300 rounded bg-white">
+                            <option value="continue">Continue</option>
+                            <option value="stop">Stop</option>
+                            <option value="pause">Pause</option>
+                          </select>
+                          <span>further operations and send alert to email</span>
+                          <input
+                            type="email"
+                            className="w-48 px-2 py-1 border border-gray-300 rounded"
+                            placeholder="email@example.com"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Delete Operation Threshold */}
+                      <div className="p-4 bg-gray-50 rounded-lg">
+                        <div className="flex items-center space-x-2 text-sm text-gray-700">
+                          <span>If the Delete Operation exceeds the maximum limit of</span>
+                          <input
+                            type="number"
+                            className="w-16 px-2 py-1 border border-gray-300 rounded text-center"
+                            defaultValue="-1"
+                          />
+                          <span>operations within</span>
+                          <input
+                            type="number"
+                            className="w-16 px-2 py-1 border border-gray-300 rounded text-center"
+                            placeholder="0"
+                          />
+                          <span>minutes then</span>
+                          <select className="px-2 py-1 border border-gray-300 rounded bg-white">
+                            <option value="continue">Continue</option>
+                            <option value="stop">Stop</option>
+                            <option value="pause">Pause</option>
+                          </select>
+                          <span>further operations and send alert to email</span>
+                          <input
+                            type="email"
+                            className="w-48 px-2 py-1 border border-gray-300 rounded"
+                            placeholder="email@example.com"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
               </div>
             )}
           </div>
@@ -2090,7 +2854,9 @@ export default function ApplicationDetailPage() {
               >
                 <div className="p-2">
                   <div className="flex justify-between items-center mb-3">
-                    <h3 className="text-base font-medium text-gray-800">Filters</h3>
+                    <h3 className="text-base font-medium text-gray-800">
+                      Filters
+                    </h3>
                   </div>
                   <div className="space-y-3">
                     {/* First row - Account Summary (4 items) */}
@@ -2103,17 +2869,26 @@ export default function ApplicationDetailPage() {
                               ? "bg-blue-100 border-blue-300"
                               : "bg-gray-100"
                           } ${item.color || ""}`}
-                          onClick={() => handleSelect('accountSummary', index)}
+                          onClick={() => handleSelect("accountSummary", index)}
                         >
                           <div className="flex items-center gap-2">
                             <div
                               className="w-3 h-3 rounded-full border-2"
                               style={{
                                 borderColor: "#6EC6FF",
-                                backgroundColor: selected.accountSummary === index ? "#6EC6FF" : "transparent",
+                                backgroundColor:
+                                  selected.accountSummary === index
+                                    ? "#6EC6FF"
+                                    : "transparent",
                               }}
                             ></div>
-                            <span className={`text-sm ${selected.accountSummary === index ? "text-blue-900" : "text-gray-700"}`}>
+                            <span
+                              className={`text-sm ${
+                                selected.accountSummary === index
+                                  ? "text-blue-900"
+                                  : "text-gray-700"
+                              }`}
+                            >
                               {item.label}
                             </span>
                           </div>
@@ -2129,7 +2904,7 @@ export default function ApplicationDetailPage() {
                         </div>
                       ))}
                     </div>
-                    
+
                     {/* Second row - Account Activity (3 items) */}
                     <div className="flex">
                       {dataAccount.accountActivity.map((item, index) => (
@@ -2140,17 +2915,26 @@ export default function ApplicationDetailPage() {
                               ? "bg-blue-100 border-blue-300"
                               : "bg-gray-100"
                           } ${item.color || ""}`}
-                          onClick={() => handleSelect('accountActivity', index)}
+                          onClick={() => handleSelect("accountActivity", index)}
                         >
                           <div className="flex items-center gap-2">
                             <div
                               className="w-3 h-3 rounded-full border-2"
                               style={{
                                 borderColor: "#6EC6FF",
-                                backgroundColor: selected.accountActivity === index ? "#6EC6FF" : "transparent",
+                                backgroundColor:
+                                  selected.accountActivity === index
+                                    ? "#6EC6FF"
+                                    : "transparent",
                               }}
                             ></div>
-                            <span className={`text-sm ${selected.accountActivity === index ? "text-blue-900" : "text-gray-700"}`}>
+                            <span
+                              className={`text-sm ${
+                                selected.accountActivity === index
+                                  ? "text-blue-900"
+                                  : "text-gray-700"
+                              }`}
+                            >
                               {item.label}
                             </span>
                           </div>
@@ -2190,13 +2974,14 @@ export default function ApplicationDetailPage() {
               </div>
             </div>
             {mounted && (
-            <AgGridReact
-              rowData={paginatedData}
-              columnDefs={columnDefs}
-              defaultColDef={defaultColDef}
-              masterDetail={true}
-              // detailCellRendererParams={detailCellRendererParams}
-            />)}
+              <AgGridReact
+                rowData={paginatedData}
+                columnDefs={columnDefs}
+                defaultColDef={defaultColDef}
+                masterDetail={true}
+                // detailCellRendererParams={detailCellRendererParams}
+              />
+            )}
             <div className="flex justify-center">
               <CustomPagination
                 totalItems={totalItems}
@@ -2236,8 +3021,8 @@ export default function ApplicationDetailPage() {
                       key={index}
                       onClick={() => setEntTabIndex(index)}
                       className={`flex items-center justify-center px-2 gap-2 py-2 cursor-pointer h-10 -mt-1 w-40 right-0 ${
-                        entTabIndex === index 
-                          ? "bg-[#2563eb] text-white text-sm rounded-sm" 
+                        entTabIndex === index
+                          ? "bg-[#2563eb] text-white text-sm rounded-sm"
                           : "text-gray-500 hover:text-blue-500"
                       }`}
                     >
@@ -2249,9 +3034,7 @@ export default function ApplicationDetailPage() {
             </div>
             {/* Render the active tab content */}
             {tabsDataEnt[entTabIndex]?.component && (
-              <div>
-                {tabsDataEnt[entTabIndex].component()}
-              </div>
+              <div>{tabsDataEnt[entTabIndex].component()}</div>
             )}
           </div>
         );
@@ -2917,7 +3700,9 @@ export default function ApplicationDetailPage() {
                 <h2 className="text-lg font-semibold">Entitlement Details</h2>
                 {entitlementDetailsError ? (
                   <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
-                    <p className="text-sm text-red-600">{entitlementDetailsError}</p>
+                    <p className="text-sm text-red-600">
+                      {entitlementDetailsError}
+                    </p>
                   </div>
                 ) : (
                   <>
@@ -3241,7 +4026,7 @@ export default function ApplicationDetailPage() {
           </button>
         </div>
       )}
-      
+
       {/* Global Right Sidebar used via openSidebar */}
 
       {/* Comment Modal */}
@@ -3252,9 +4037,11 @@ export default function ApplicationDetailPage() {
               <div className="mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">Comment</h3>
               </div>
-              
+
               <div className="mb-3">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Quick comments</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Quick comments
+                </label>
                 <select
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   defaultValue=""
@@ -3263,7 +4050,9 @@ export default function ApplicationDetailPage() {
                     if (val) setCommentText(val);
                   }}
                 >
-                  <option value="" disabled>Select a suggestion...</option>
+                  <option value="" disabled>
+                    Select a suggestion...
+                  </option>
                   <option>Approved - access required for role</option>
                   <option>Rejected - insufficient justification</option>
                   <option>Approve temporarily, revisit next review</option>
@@ -3281,7 +4070,7 @@ export default function ApplicationDetailPage() {
                   autoFocus
                 />
               </div>
-              
+
               <div className="flex justify-end items-center gap-3">
                 <button
                   onClick={handleCancelComment}
