@@ -116,35 +116,10 @@ export default function OnboardAppPage() {
   }
 
   return (
-    <div className="min-h-screen p-6 flex flex-col items-center justify-center">
-      <div className="w-full max-w-3xl">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6 text-center">Onboard App</h1>
-        <div className="bg-white rounded-lg shadow p-6">
-          {/* Mode Toggle */}
-          <div className="flex gap-2 mb-4">
-            <button
-              type="button"
-              onClick={() => resetSelection("define")}
-              className={`px-4 py-2 rounded border text-sm font-medium ${
-                mode === "define"
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-              }`}
-            >
-              Define New
-            </button>
-            <button
-              type="button"
-              onClick={() => resetSelection("select")}
-              className={`px-4 py-2 rounded border text-sm font-medium ${
-                mode === "select"
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-              }`}
-            >
-              Select from List
-            </button>
-          </div>
+    <div className="min-h-screen flex flex-col">
+      <div className="w-full">
+        <h1 className="text-2xl font-bold text-gray-900 mb-6 px-6 pt-6">Onboard App</h1>
+        <div className="bg-white p-6 flex-1">
 
           {/* Step 1: Name or Select */}
           {step === 1 && (
@@ -154,64 +129,109 @@ export default function OnboardAppPage() {
                   App Name
                 </label>
                 {mode === "define" ? (
-                  <input
-                    value={appName}
-                    onChange={(e) => setAppName(e.target.value)}
-                    placeholder="Enter a unique app name"
-                    className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                  <div className="flex items-start justify-between gap-6 w-full">
+                    <div className="flex items-center gap-3">
+                      <input
+                        value={appName}
+                        onChange={(e) => setAppName(e.target.value)}
+                        placeholder="Enter a unique app name"
+                        className="w-full max-w-lg px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={goNext}
+                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                        disabled={!appName.trim()}
+                      >
+                        Next
+                      </button>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => resetSelection("define")}
+                        className="px-4 py-2 rounded border text-sm font-medium bg-blue-600 text-white border-blue-600"
+                      >
+                        Define New
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => resetSelection("select")}
+                        className="px-4 py-2 rounded border text-sm font-medium bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                      >
+                        Select from List
+                      </button>
+                    </div>
+                  </div>
                 ) : (
-                  <div>
-                    <input
-                      value={appName}
-                      onChange={(e) => {
-                        setAppName(e.target.value);
-                        setSelectedIndex(null);
-                        setShowResults(true);
-                      }}
-                      placeholder="Search apps..."
-                      className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    {appName.trim().length > 0 && showResults && (
-                      <div className="mt-2 max-h-44 overflow-auto border rounded">
-                        {filteredApps.length === 0 && (
-                          <div className="px-3 py-2 text-sm text-gray-500">No results</div>
+                  <div className="flex items-start justify-between gap-6 w-full">
+                    <div className="flex items-start gap-3">
+                      <div className="w-full max-w-lg">
+                        <input
+                          value={appName}
+                          onChange={(e) => {
+                            setAppName(e.target.value);
+                            setSelectedIndex(null);
+                            setShowResults(true);
+                          }}
+                          placeholder="Search apps..."
+                          className="w-full max-w-lg px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        {appName.trim().length > 0 && showResults && (
+                          <div className="mt-2 max-h-44 overflow-auto border rounded w-full">
+                            {filteredApps.length === 0 && (
+                              <div className="px-3 py-2 text-sm text-gray-500">No results</div>
+                            )}
+                            {filteredApps.map((a, i) => (
+                              <button
+                                key={a.name}
+                                type="button"
+                                onClick={() => handleSelectFromList(i)}
+                                className={`w-full text-left px-3 py-2 text-sm border-b last:border-b-0 ${
+                                  selectedIndex === i ? "bg-blue-50" : "bg-white hover:bg-gray-50"
+                                }`}
+                              >
+                                {a.name}
+                              </button>
+                            ))}
+                          </div>
                         )}
-                        {filteredApps.map((a, i) => (
-                          <button
-                            key={a.name}
-                            type="button"
-                            onClick={() => handleSelectFromList(i)}
-                            className={`w-full text-left px-3 py-2 text-sm border-b last:border-b-0 ${
-                              selectedIndex === i ? "bg-blue-50" : "bg-white hover:bg-gray-50"
-                            }`}
-                          >
-                            {a.name}
-                          </button>
-                        ))}
                       </div>
-                    )}
+                      <button
+                        type="button"
+                        onClick={goNext}
+                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                        disabled={selectedIndex == null}
+                      >
+                        Next
+                      </button>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => resetSelection("define")}
+                        className="px-4 py-2 rounded border text-sm font-medium bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                      >
+                        Define New
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => resetSelection("select")}
+                        className="px-4 py-2 rounded border text-sm font-medium bg-blue-600 text-white border-blue-600"
+                      >
+                        Select from List
+                      </button>
+                    </div>
                   </div>
                 )}
-              </div>
-
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={goNext}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                  disabled={mode === "define" ? !appName.trim() : selectedIndex == null}
-                >
-                  Next
-                </button>
               </div>
             </div>
           )}
 
           {/* Step 2: Connection Details */}
           {step === 2 && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-4">
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 w-full max-w-sm mx-auto">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Database Type</label>
                   <input
@@ -279,35 +299,36 @@ export default function OnboardAppPage() {
             </div>
           )}
         </div>
-        <div className="mt-6 flex justify-center">
+        <div className="mt-6 flex flex-col items-center">
           <button
             type="button"
             onClick={() => setAiOpen(true)}
-            className="px-5 py-2.5 bg-purple-600 text-white rounded hover:bg-purple-700"
+            className="px-5 py-2.5 text-white rounded bg-[#27B973] hover:bg-[#22a667]"
           >
             Run AI Assist
           </button>
+          {aiOpen && (
+            <div className="mt-4 w-full max-w-md bg-white border shadow rounded-lg overflow-hidden">
+              <div className="px-4 py-3 border-b flex items-center justify-between">
+                <div className="font-medium">AI Assist</div>
+                <button
+                  type="button"
+                  onClick={() => setAiOpen(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="p-4 text-sm text-gray-600">
+                Chat experience will appear here. Hook up your AI chat later.
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {aiOpen && (
-        <div className="fixed bottom-6 right-6 w-96 bg-white border shadow-xl rounded-lg overflow-hidden">
-          <div className="px-4 py-3 border-b flex items-center justify-between">
-            <div className="font-medium">AI Assist</div>
-            <button
-              type="button"
-              onClick={() => setAiOpen(false)}
-              className="text-gray-500 hover:text-gray-700"
-              aria-label="Close"
-            >
-              ✕
-            </button>
-          </div>
-          <div className="p-4 text-sm text-gray-600">
-            Chat experience will appear here. Hook up your AI chat later.
-          </div>
-        </div>
-      )}
+      
     </div>
   );
 }

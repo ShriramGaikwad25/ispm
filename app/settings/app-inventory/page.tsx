@@ -153,7 +153,7 @@ useEffect(() => {
       {
         headerName: "Name",
         field: "name",
-        width: 250,
+        width: 200,
         cellRenderer: (params: any) => {
           const name = params.data.name;
           return (
@@ -168,7 +168,7 @@ useEffect(() => {
       {
         headerName: "Description",
         field: "description",
-        width: 400,
+        width: 650,
         wrapText: true,
         autoHeight: true,
         cellRenderer: (params: any) => (
@@ -190,7 +190,7 @@ useEffect(() => {
       {
         headerName: "Service URL",
         field: "serviceUrl",
-        width: 260,
+        width: 250,
         cellRenderer: (params: any) => (
           <a
             href={params.value}
@@ -206,7 +206,7 @@ useEffect(() => {
       {
         headerName: "Created On",
         field: "createdOn",
-        width: 140,
+        width: 150,
         cellRenderer: (params: any) => (
           <span className="text-sm text-gray-600">
             {new Date(params.value).toLocaleDateString()}
