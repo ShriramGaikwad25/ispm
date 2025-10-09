@@ -7,11 +7,11 @@ export interface CustomPaginationProps {
   totalItems: number;
   currentPage: number;
   totalPages: number;
-  pageSize: number;
+  pageSize: number | "all";
   onPageChange: (newPage: number) => void;
-  onPageSizeChange?: (newPageSize: number) => void;
+  onPageSizeChange?: (newPageSize: number | "all") => void;
   gridApi?: GridApi | null;
-  pageSizeOptions?: number[];
+  pageSizeOptions?: Array<number | "all">;
 }
 
 const CustomPagination: React.FC<CustomPaginationProps> = ({
@@ -21,7 +21,7 @@ const CustomPagination: React.FC<CustomPaginationProps> = ({
   pageSize,
   onPageChange,
   onPageSizeChange,
-  pageSizeOptions = [10, 25, 50, 100],
+  pageSizeOptions = [10, 25, 50, 100, "all"],
 }) => {
   const goToPage = (page: number) => {
     if (page < 1 || page > totalPages) return;
@@ -29,15 +29,17 @@ const CustomPagination: React.FC<CustomPaginationProps> = ({
   };
 
   const handlePageSizeChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const newPageSize = parseInt(event.target.value);
+    const value = event.target.value;
+    const newPageSize = value === "all" ? "all" : parseInt(value, 10);
     if (onPageSizeChange) {
       onPageSizeChange(newPageSize);
     }
   };
 
-  const startRow = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1;
-  const endRow =
-    totalItems === 0 ? 0 : Math.min(currentPage * pageSize, totalItems);
+  const isAll = pageSize === "all";
+  const numericPageSize = isAll ? totalItems || 0 : (pageSize as number);
+  const startRow = totalItems === 0 ? 0 : (currentPage - 1) * (numericPageSize || 1) + 1;
+  const endRow = totalItems === 0 ? 0 : Math.min(currentPage * (numericPageSize || 1), totalItems);
 
   return (
     <div className="bg-white rounded-lg px-3 py-2 w-full border border-gray-200">
@@ -65,11 +67,15 @@ const CustomPagination: React.FC<CustomPaginationProps> = ({
               disabled={!onPageSizeChange}
               style={{ minWidth: '60px' }}
             >
-              {pageSizeOptions.map((size) => (
-                <option key={size} value={size}>
-                  {size}
-                </option>
-              ))}
+              {pageSizeOptions.map((size) => {
+                const val = size === "all" ? "all" : String(size);
+                const label = size === "all" ? "All" : String(size);
+                return (
+                  <option key={val} value={val}>
+                    {label}
+                  </option>
+                );
+              })}
             </select>
             {/* <span className="text-sm text-gray-600">entries</span> */}
           </div>

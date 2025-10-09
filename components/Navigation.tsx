@@ -3,11 +3,13 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import {navLinks as navigation} from './Navi';
+import { ChevronDown, ChevronRight } from 'lucide-react';
+import {navLinks as navigation, NavItem} from './Navi';
 
 export function Navigation() {
   const pathname = usePathname();
   const [isHovered, setIsHovered] = useState(false);
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
 
   // Reset hover state when pathname changes (navigation occurs)
   useEffect(() => {
@@ -17,6 +19,30 @@ export function Navigation() {
   const handleLinkClick = () => {
     // Reset hover state immediately when a link is clicked
     setIsHovered(false);
+  };
+
+  const toggleExpanded = (itemName: string) => {
+    setExpandedItems(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(itemName)) {
+        newSet.delete(itemName);
+      } else {
+        newSet.add(itemName);
+      }
+      return newSet;
+    });
+  };
+
+  const isItemActive = (item: NavItem): boolean => {
+    if (pathname === item.href) return true;
+    if (item.subItems) {
+      return item.subItems.some(subItem => pathname === subItem.href);
+    }
+    return false;
+  };
+
+  const isSubItemActive = (subItem: NavItem): boolean => {
+    return pathname === subItem.href;
   };
 
   return (
@@ -55,35 +81,123 @@ export function Navigation() {
       <nav className="flex flex-col px-4 py-6 space-y-1">
         {navigation.map((item) => {
           const Icon = item.icon;
-          const isActive = pathname === item.href;
+          const isActive = isItemActive(item);
+          const isExpanded = expandedItems.has(item.name);
+          const hasSubItems = item.subItems && item.subItems.length > 0;
+
           return (
-            <Link
-              key={item.name}
-              href={item.href}
-              onClick={handleLinkClick}
-              className={`flex items-center gap-3 px-3 py-3 rounded-md transition-colors ${
-                isActive 
-                  ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600' 
-                  : 'hover:bg-gray-50'
-              } ${!isHovered ? 'justify-center' : ''}`}
-              style={{
-                color: isActive ? '#2563eb' : 'var(--text-icons-base-second, #68727D)',
-                fontFamily: 'Inter',
-                fontSize: '15px',
-                fontStyle: 'normal',
-                fontWeight: '600',
-                lineHeight: '22px'
-              }}
-              title={!isHovered ? item.name : undefined}
-            >
-              <Icon 
-                className="h-5 w-5 flex-shrink-0" 
-                style={{
-                  color: isActive ? '#2563eb' : 'var(--text-icons-base-second, #68727D)'
-                }}
-              />
-              {isHovered && <span>{item.name}</span>}
-            </Link>
+            <div key={item.name} className="w-full">
+              {/* Main Item */}
+              <div className="flex items-center">
+                {hasSubItems ? (
+                  // For items with sub-items, make the entire area clickable to toggle
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      toggleExpanded(item.name);
+                    }}
+                    className={`flex items-center gap-3 px-3 py-3 rounded-md transition-colors flex-1 w-full ${
+                      isActive 
+                        ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600' 
+                        : 'hover:bg-gray-50'
+                    } ${!isHovered ? 'justify-center' : ''}`}
+                    style={{
+                      color: isActive ? '#2563eb' : 'var(--text-icons-base-second, #68727D)',
+                      fontFamily: 'Inter',
+                      fontSize: '15px',
+                      fontStyle: 'normal',
+                      fontWeight: '600',
+                      lineHeight: '22px'
+                    }}
+                    title={!isHovered ? item.name : undefined}
+                  >
+                    <Icon 
+                      className="h-5 w-5 flex-shrink-0" 
+                      style={{
+                        color: isActive ? '#2563eb' : 'var(--text-icons-base-second, #68727D)'
+                      }}
+                    />
+                    {isHovered && <span>{item.name}</span>}
+                    {isHovered && (
+                      <div className="ml-auto">
+                        {isExpanded ? (
+                          <ChevronDown className="h-4 w-4" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4" />
+                        )}
+                      </div>
+                    )}
+                  </button>
+                ) : (
+                  // For items without sub-items, use regular Link
+                  <Link
+                    href={item.href}
+                    onClick={handleLinkClick}
+                    className={`flex items-center gap-3 px-3 py-3 rounded-md transition-colors flex-1 ${
+                      isActive 
+                        ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600' 
+                        : 'hover:bg-gray-50'
+                    } ${!isHovered ? 'justify-center' : ''}`}
+                    style={{
+                      color: isActive ? '#2563eb' : 'var(--text-icons-base-second, #68727D)',
+                      fontFamily: 'Inter',
+                      fontSize: '15px',
+                      fontStyle: 'normal',
+                      fontWeight: '600',
+                      lineHeight: '22px'
+                    }}
+                    title={!isHovered ? item.name : undefined}
+                  >
+                    <Icon 
+                      className="h-5 w-5 flex-shrink-0" 
+                      style={{
+                        color: isActive ? '#2563eb' : 'var(--text-icons-base-second, #68727D)'
+                      }}
+                    />
+                    {isHovered && <span>{item.name}</span>}
+                  </Link>
+                )}
+              </div>
+
+              {/* Sub Items */}
+              {hasSubItems && isExpanded && isHovered && (
+                <div className="ml-6 mt-1 space-y-1">
+                  {item.subItems!.map((subItem) => {
+                    const SubIcon = subItem.icon;
+                    const isSubActive = isSubItemActive(subItem);
+                    
+                    return (
+                      <Link
+                        key={subItem.name}
+                        href={subItem.href}
+                        onClick={handleLinkClick}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm ${
+                          isSubActive 
+                            ? 'bg-blue-50 text-blue-600 border-l-2 border-blue-600' 
+                            : 'hover:bg-gray-50'
+                        }`}
+                        style={{
+                          color: isSubActive ? '#2563eb' : 'var(--text-icons-base-second, #68727D)',
+                          fontFamily: 'Inter',
+                          fontSize: '14px',
+                          fontStyle: 'normal',
+                          fontWeight: '500',
+                          lineHeight: '20px'
+                        }}
+                      >
+                        <SubIcon 
+                          className="h-4 w-4 flex-shrink-0" 
+                          style={{
+                            color: isSubActive ? '#2563eb' : 'var(--text-icons-base-second, #68727D)'
+                          }}
+                        />
+                        <span>{subItem.name}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           );
         })}
       </nav>
