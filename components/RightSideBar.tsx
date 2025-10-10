@@ -25,7 +25,7 @@ const RightSidebar = ({ isOpen, widthPx = DEFAULT_WIDTH, onClose, children, topO
           ✕
         </button>
       </div>
-      <div className="p-4 overflow-auto">{children}</div>
+      <div className="p-4 overflow-auto" style={{ height: `calc(100% - 80px)` }}>{children}</div>
     </div>
   );
 };
