@@ -136,135 +136,72 @@ export default function ApplicationDetailPage() {
   const [hookName, setHookName] = useState("");
 
   // Attribute mapping data
-  const attributeMappingData = {
-    provisioning: {
-      1: [
-        {
-          source: "addresses.region[type:work]",
-          target: "st",
-          defaultValue: "",
-        },
-        { source: "password", target: "userPassword", defaultValue: "" },
-        {
-          source: "preferredLanguage",
-          target: "preferredLanguage",
-          defaultValue: "",
-        },
-        {
-          source: "phoneNumbers.value[type:work]",
-          target: "telephoneNumber",
-          defaultValue: "",
-        },
-        { source: "emails.value[type:work]", target: "mail", defaultValue: "" },
-        { source: "name.middleName", target: "initials", defaultValue: "" },
-        { source: "name.givenName", target: "givenName", defaultValue: "" },
-        {
-          source: "addresses.postalCode[type:work]",
-          target: "postalCode",
-          defaultValue: "",
-        },
-        { source: "displayName", target: "cn", defaultValue: "" },
-        {
-          source: "addresses.locality[type:work]",
-          target: "l",
-          defaultValue: "",
-        },
-      ],
-      2: [
-        { source: "title", target: "title", defaultValue: "" },
-        {
-          source: "enterpriseUser.organization",
-          target: "o",
-          defaultValue: "",
-        },
-        {
-          source: "enterpriseUser.employeeNumber",
-          target: "employeeNumber",
-          defaultValue: "",
-        },
-        { source: "userName", target: "uid", defaultValue: "" },
-        {
-          source: "addresses.streetAddress[type:work]",
-          target: "street",
-          defaultValue: "",
-        },
-        {
-          source: "enterpriseUser.department",
-          target: "departmentNumber",
-          defaultValue: "",
-        },
-        { source: "id", target: "id", defaultValue: "" },
-        { source: "name.familyName", target: "sn", defaultValue: "" },
-      ],
-    },
-    reconciliation: {
-      1: [
-        {
-          source: "addresses.streetAddress[type:work]",
-          target: "street",
-          defaultValue: "",
-        },
-        {
-          source: "preferredLanguage",
-          target: "preferredLanguage",
-          defaultValue: "",
-        },
-        { source: "emails.value[type:work]", target: "mail", defaultValue: "" },
-        {
-          source: "enterpriseUser.employeeNumber",
-          target: "employeeNumber",
-          defaultValue: "",
-        },
-        { source: "displayName", target: "cn", defaultValue: "" },
-        { source: "name.middleName", target: "initials", defaultValue: "" },
-        {
-          source: "addresses.postalCode[type:work]",
-          target: "postalCode",
-          defaultValue: "",
-        },
-        {
-          source: "enterpriseUser.organization",
-          target: "o",
-          defaultValue: "",
-        },
-        { source: "title", target: "title", defaultValue: "" },
-        { source: "userName", target: "uid", defaultValue: "" },
-      ],
-      2: [
-        {
-          source: "phoneNumbers.value[type:work]",
-          target: "telephoneNumber",
-          defaultValue: "",
-        },
-        { source: "name.familyName", target: "sn", defaultValue: "" },
-        { source: "password", target: "userPassword", defaultValue: "" },
-        {
-          source: "addresses.locality[type:work]",
-          target: "l",
-          defaultValue: "",
-        },
-        {
-          source: "addresses.region[type:work]",
-          target: "st",
-          defaultValue: "",
-        },
-        {
-          source: "enterpriseUser.department",
-          target: "departmentNumber",
-          defaultValue: "",
-        },
-        { source: "name.givenName", target: "givenName", defaultValue: "" },
-        { source: "id", target: "id", defaultValue: "" },
-      ],
-    },
+  type AttributeMapping = { source: string; target: string; defaultValue?: string };
+  const [attributeMappingData, setAttributeMappingData] = useState<{
+    provisioning: Record<number, AttributeMapping[]>;
+    reconciliation: Record<number, AttributeMapping[]>;
+  }>({ provisioning: {}, reconciliation: {} });
+  const ATTR_MAPPING_PAGE_SIZE = 10;
+
+  // Fetch schema mapping from Keyforge and populate attribute mappings
+  useEffect(() => {
+    try {
+      const applicationID = localStorage.getItem("keyforgeApplicationID");
+      if (!applicationID) return;
+      const url = `https://preview.keyforge.ai/schemamapper/getmappedschema/ACMECOM/${encodeURIComponent(
+        applicationID
+      )}`;
+      (async () => {
+        try {
+          const resp = await fetch(url);
+          if (!resp.ok) return;
+          const json = await resp.json();
+          const provisioningMap = json?.provisioningAttrMap?.scimTargetMap || {};
+          const reconciliationMap = json?.reconcilliationAttrMap?.scimTargetMap || {};
+
+          // For provisioning: keys are target attributes, values.variable are source attributes
+          const provisioningList: AttributeMapping[] = Object.entries(provisioningMap).map(
+            ([target, value]: any) => ({
+              source: (value?.variable ?? "").toString(),
+              target: target.toString(),
+            })
+          );
+
+          // For reconciliation: keys are source attributes, values.variable are target attributes
+          const reconciliationList: AttributeMapping[] = Object.entries(reconciliationMap).map(
+            ([source, value]: any) => ({
+              source: source.toString(),
+              target: (value?.variable ?? "").toString(),
+            })
+          );
+
+          setAttributeMappingData({
+            provisioning: { 1: provisioningList },
+            reconciliation: { 1: reconciliationList },
+          });
+        } catch {
+          // ignore schema fetch errors for now
+        }
+      })();
+    } catch {
+      // localStorage not available
+    }
+  }, []);
+
+  const getCurrentPageData = (): AttributeMapping[] => {
+    const tabKey = (activeMappingTab as unknown) as "provisioning" | "reconciliation";
+    const tabData = attributeMappingData[tabKey] || {};
+    const fullList: AttributeMapping[] = Object.values(tabData).flat() as AttributeMapping[];
+    const start = (attributeMappingPage - 1) * ATTR_MAPPING_PAGE_SIZE;
+    const end = start + ATTR_MAPPING_PAGE_SIZE;
+    return fullList.slice(start, end);
   };
 
-  const getCurrentPageData = () => {
-    const tabData =
-      attributeMappingData[
-        activeMappingTab as keyof typeof attributeMappingData
-      ];
-    return tabData?.[attributeMappingPage as keyof typeof tabData] || [];
+  const getAttributeMappingTotalPages = (): number => {
+    const tabKey = (activeMappingTab as unknown) as "provisioning" | "reconciliation";
+    const tabData = attributeMappingData[tabKey] || {};
+    const fullList: AttributeMapping[] = Object.values(tabData).flat() as AttributeMapping[];
+    return Math.max(1, Math.ceil(fullList.length / ATTR_MAPPING_PAGE_SIZE));
   };
 
   // Pagination state for Entitlement tab tables
@@ -1039,6 +976,188 @@ export default function ApplicationDetailPage() {
         flex: 1,
         valueFormatter: (params: ICellRendererParams) =>
           formatDateMMDDYY(params.value),
+      },
+      {
+        field: "__action__",
+        headerName: "Action",
+        width: 100,
+        sortable: false,
+        filter: false,
+        suppressHeaderMenuButton: true,
+        cellRenderer: (params: ICellRendererParams) => (
+          <div className="flex items-center h-full" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="p-1.5 rounded hover:bg-gray-100 text-gray-600 hover:text-gray-900"
+              title="Edit"
+              aria-label="Edit account"
+              onClick={() => {
+                const row = params?.data || {};
+                const EditAccountSidebar = () => {
+                  const [accountType, setAccountType] = useState("");
+                  const [changeOwner, setChangeOwner] = useState(false);
+
+                  // Assign Account Owner state (inline copy of modal content)
+                  const [ownerType, setOwnerType] = useState<"User" | "Group">("User");
+                  const [selectedAttribute, setSelectedAttribute] = useState<string>("username");
+                  const [searchValue, setSearchValue] = useState("");
+                  const [selectedItem, setSelectedItem] = useState<Record<string, string> | null>(null);
+
+                  const users: Record<string, string>[] = [
+                    { username: "john", email: "john@example.com", role: "admin" },
+                    { username: "jane", email: "jane@example.com", role: "user" },
+                  ];
+                  const groups: Record<string, string>[] = [
+                    { name: "admins", email: "admins@corp.com", role: "admin" },
+                    { name: "devs", email: "devs@corp.com", role: "developer" },
+                  ];
+                  const userAttributes = [
+                    { value: "username", label: "Username" },
+                    { value: "email", label: "Email" },
+                  ];
+                  const groupAttributes = [
+                    { value: "name", label: "Group Name" },
+                    { value: "role", label: "Role" },
+                  ];
+                  const sourceData = ownerType === "User" ? users : groups;
+                  const currentAttributes = ownerType === "User" ? userAttributes : groupAttributes;
+                  const filteredData =
+                    searchValue.trim() === ""
+                      ? []
+                      : sourceData.filter((item) => {
+                          const value = item[selectedAttribute];
+                          return value?.toLowerCase().includes(searchValue.toLowerCase());
+                        });
+                  
+                  return (
+                    <div className="flex flex-col h-full">
+                      <div className="flex-1 overflow-y-auto p-3 space-y-4">
+                        <div className="border border-gray-300 rounded-md p-3 bg-gray-50">
+                          <div className="text-sm text-gray-700 break-words">
+                            {row.userDisplayName || "-"} → {row.accountName || "-"}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Select Account Type</label>
+                          <select 
+                            value={accountType}
+                            onChange={(e) => setAccountType(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          >
+                            <option value=""></option>
+                            <option value="Regular">Regular</option>
+                            <option value="Orphan">Orphan</option>
+                            <option value="Service">Service</option>
+                          </select>
+                        </div>
+                        <div className="flex items-center space-x-3">
+                          <span className="text-sm font-medium text-gray-700">Change Account Owner</span>
+                          <span className="text-sm text-gray-900">No</span>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              checked={changeOwner}
+                              onChange={(e) => setChangeOwner(e.target.checked)}
+                              className="sr-only peer" 
+                            />
+                            <div className="w-12 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-6 peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:left-[1px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gray-600"></div>
+                          </label>
+                          <span className="text-sm text-gray-900">Yes</span>
+                        </div>
+                        {changeOwner && (
+                          <div className="mt-2">
+                            <div className="flex mt-3 bg-gray-100 p-1 rounded-md">
+                              {(["User", "Group"] as const).map((type) => (
+                                <button
+                                  key={type}
+                                  className={`flex-1 py-2.5 px-3 text-sm font-medium transition-colors ${
+                                    ownerType === type
+                                      ? "bg-white text-[#15274E] border border-gray-300 shadow-sm relative z-10 rounded-md"
+                                      : "bg-transparent text-gray-500 hover:text-gray-700 rounded-md"
+                                  }`}
+                                  onClick={() => {
+                                    setOwnerType(type);
+                                    const initialAttr = type === "User" ? userAttributes[0] : groupAttributes[0];
+                                    setSelectedAttribute(initialAttr?.value || "");
+                                    setSearchValue("");
+                                    setSelectedItem(null);
+                                  }}
+                                >
+                                  {type}
+                                </button>
+                              ))}
+                            </div>
+                            <div className="mt-4">
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Select Attribute</label>
+                              <div className="relative">
+                                <select
+                                  value={selectedAttribute}
+                                  onChange={(e) => setSelectedAttribute(e.target.value)}
+                                  className="w-full border border-gray-300 rounded-md px-3 py-2 pr-8 appearance-none bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                >
+                                  {currentAttributes.map((attr) => (
+                                    <option key={attr.value} value={attr.value}>
+                                      {attr.label}
+                                    </option>
+                                  ))}
+                                </select>
+                                <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="mt-4">
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Search Value</label>
+                              <div className="relative">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                                </div>
+                                <input type="text" value={searchValue} onChange={(e) => setSearchValue(e.target.value)} className="w-full border border-gray-300 rounded-md pl-10 pr-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Search" />
+                              </div>
+                            </div>
+                            {searchValue.trim() !== "" && (
+                              <div className="max-h-36 overflow-auto border rounded p-2 mt-3 text-sm bg-gray-50">
+                                {filteredData.length === 0 ? (
+                                  <p className="text-gray-500 italic">No results found.</p>
+                                ) : (
+                                  <ul className="space-y-1">
+                                    {filteredData.map((item, index) => (
+                                      <li key={index} className={`p-2 border rounded cursor-pointer transition-colors ${selectedItem === item ? "bg-blue-100 border-blue-300" : "hover:bg-gray-100"}`} onClick={() => {
+                                        setSelectedItem(item);
+                                        setSearchValue(item[selectedAttribute]);
+                                      }}>
+                                        {Object.values(item).join(" | ")}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-shrink-0 flex justify-center items-center p-3 border-t border-gray-200 bg-gray-50 min-h-[60px]">
+                        <button 
+                          onClick={() => { 
+                            // Handle save logic here
+                            console.log("Save clicked", { accountType, changeOwner, selectedItem });
+                          }} 
+                          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                        >
+                          Save
+                        </button>
+                      </div>
+                    </div>
+                  );
+                };
+                
+                openSidebar(<EditAccountSidebar />, { widthPx: 450 });
+              }}
+            >
+              <Edit className="w-4 h-4" />
+            </button>
+          </div>
+        ),
       },
     ],
     []
@@ -1866,52 +1985,7 @@ export default function ApplicationDetailPage() {
                   <h4 className="text-md font-semibold text-gray-800 border-b border-gray-300 pb-2">
                     Application Details
                   </h4>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center py-2 border-b border-gray-200">
-                      <span className="text-sm font-medium text-gray-600">
-                        Hostname:
-                      </span>
-                      <span className="text-sm text-gray-800">localhost</span>
-                    </div>
-                    <div className="flex justify-between items-center py-2 border-b border-gray-200">
-                      <span className="text-sm font-medium text-gray-600">
-                        Password:
-                      </span>
-                      <span className="text-sm text-gray-800">
-                        ••••••••••••••••
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center py-2 border-b border-gray-200">
-                      <span className="text-sm font-medium text-gray-600">
-                        Port:
-                      </span>
-                      <span className="text-sm text-gray-800">389</span>
-                    </div>
-                    <div className="flex justify-between items-center py-2 border-b border-gray-200">
-                      <span className="text-sm font-medium text-gray-600">
-                        User Search Base:
-                      </span>
-                      <span className="text-sm text-gray-800">
-                        ou=People,dc=keyforge,dc=ai
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center py-2 border-b border-gray-200">
-                      <span className="text-sm font-medium text-gray-600">
-                        Group Search Base:
-                      </span>
-                      <span className="text-sm text-gray-800">
-                        ou=Groups,dc=keyforge,dc=ai
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center py-2">
-                      <span className="text-sm font-medium text-gray-600">
-                        Username:
-                      </span>
-                      <span className="text-sm text-gray-800">
-                        cn=admin,dc=keyforge,dc=ai
-                      </span>
-                    </div>
-                  </div>
+                  <div className="text-sm text-gray-500 py-2">No details available.</div>
                 </div>
 
                 {/* OAuth Details Section */}
@@ -1919,28 +1993,7 @@ export default function ApplicationDetailPage() {
                   <h4 className="text-md font-semibold text-gray-800 border-b border-gray-300 pb-2">
                     OAuth Details
                   </h4>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center py-2 border-b border-gray-200">
-                      <span className="text-sm font-medium text-gray-600">
-                        Client ID:
-                      </span>
-                      <span className="text-sm text-gray-800">
-                        4jfwbvmuhf73osjnzs74tbmtmdqdyiwi
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center py-2 border-b border-gray-200">
-                      <span className="text-sm font-medium text-gray-600">
-                        OAuth Type:
-                      </span>
-                      <span className="text-sm text-gray-800">KPOAUTH</span>
-                    </div>
-                    <div className="flex justify-between items-center py-2">
-                      <span className="text-sm font-medium text-gray-600">
-                        Admin ID:
-                      </span>
-                      <span className="text-sm text-gray-800">ACMEADMIN</span>
-                    </div>
-                  </div>
+                  <div className="text-sm text-gray-500 py-2">No details available.</div>
                 </div>
               </div>
             </div>
@@ -1967,7 +2020,7 @@ export default function ApplicationDetailPage() {
                       stroke="currentColor"
                       strokeWidth="2"
                       strokeLinecap="round"
-                      stroke-linejoin="round"
+                      strokeLinejoin="round"
                       className="lucide lucide-monitor-cog-icon lucide-monitor-cog"
                     >
                       <path d="M12 17v4" />
@@ -2062,7 +2115,14 @@ export default function ApplicationDetailPage() {
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                          {getCurrentPageData().map((mapping, index) => (
+                          {getCurrentPageData().length === 0 ? (
+                            <tr>
+                              <td colSpan={4} className="px-4 py-6 text-center text-sm text-gray-500">
+                                No attribute mappings configured.
+                              </td>
+                            </tr>
+                          ) : (
+                            getCurrentPageData().map((mapping, index) => (
                             <tr key={index}>
                               <td className="px-4 py-3 text-sm text-gray-900">
                                 {activeMappingTab === "reconciliation"
@@ -2094,53 +2154,29 @@ export default function ApplicationDetailPage() {
                                 </div>
                               </td>
                             </tr>
-                          ))}
+                            ))
+                          )}
                         </tbody>
                       </table>
                     </div>
 
                     {/* Pagination */}
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2">
                         <button
                           className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50"
-                          onClick={() =>
-                            setAttributeMappingPage(
-                              Math.max(1, attributeMappingPage - 1)
-                            )
-                          }
-                          disabled={attributeMappingPage === 1}
+                        onClick={() => setAttributeMappingPage(Math.max(1, attributeMappingPage - 1))}
+                        disabled={attributeMappingPage === 1}
                         >
                           &lt;
                         </button>
-                        <button
-                          className={`px-3 py-1 text-sm rounded ${
-                            attributeMappingPage === 1
-                              ? "bg-blue-600 text-white"
-                              : "border border-gray-300 hover:bg-gray-50"
-                          }`}
-                          onClick={() => setAttributeMappingPage(1)}
-                        >
-                          1
-                        </button>
-                        <button
-                          className={`px-3 py-1 text-sm rounded ${
-                            attributeMappingPage === 2
-                              ? "bg-blue-600 text-white"
-                              : "border border-gray-300 hover:bg-gray-50"
-                          }`}
-                          onClick={() => setAttributeMappingPage(2)}
-                        >
-                          2
-                        </button>
+                      <span className="text-sm text-gray-700">
+                        Page {attributeMappingPage} of {getAttributeMappingTotalPages()}
+                      </span>
                         <button
                           className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50"
-                          onClick={() =>
-                            setAttributeMappingPage(
-                              Math.min(2, attributeMappingPage + 1)
-                            )
-                          }
-                          disabled={attributeMappingPage === 2}
+                        onClick={() => setAttributeMappingPage(Math.min(getAttributeMappingTotalPages(), attributeMappingPage + 1))}
+                        disabled={attributeMappingPage === getAttributeMappingTotalPages()}
                         >
                           &gt;
                         </button>
@@ -2340,7 +2376,7 @@ export default function ApplicationDetailPage() {
                     stroke="currentColor"
                     strokeWidth="2"
                     strokeLinecap="round"
-                    stroke-linejoin="round"
+                    strokeLinejoin="round"
                     className="lucide lucide-monitor-cog-icon lucide-monitor-cog"
                   >
                     <path d="M12 17v4" />
@@ -3068,16 +3104,66 @@ export default function ApplicationDetailPage() {
         // Use the same reviewerID as other parts of the application
         const reviewerID = "430ea9e6-3cff-449c-a24e-59c057f81e3d";
 
-        // Fetch applications from API
+        // Fetch applications from API and Keyforge endpoint in parallel
         useEffect(() => {
           const fetchApplications = async () => {
             try {
               setLoading(true);
               setError(null);
-              const response = await getAllRegisteredApps(reviewerID);
+              const keyforgeUrl =
+                "https://preview.keyforge.ai/registerscimapp/registerfortenant/ACMECOM/getAllApplications";
 
-              if (response.executionStatus === "success") {
-                setApplications(response.items);
+              const [ownResp, keyforgeResp] = await Promise.all([
+                getAllRegisteredApps(reviewerID),
+                fetch(keyforgeUrl)
+                  .then((r) => (r.ok ? r.json() : null))
+                  .catch(() => null),
+              ]);
+
+              const ownItems =
+                ownResp && ownResp.executionStatus === "success"
+                  ? (ownResp.items as Array<{
+                      applicationId: string;
+                      applicationName: string;
+                      scimurl: string;
+                      filter: string;
+                    }>)
+                  : [];
+
+              const keyforgeItems: Array<{
+                applicationId: string;
+                applicationName: string;
+                scimurl: string;
+                filter: string;
+              }> = keyforgeResp?.Applications
+                ? keyforgeResp.Applications.map((a: any) => ({
+                    applicationId: a.ApplicationID,
+                    applicationName: a.ApplicationName,
+                    scimurl: a.SCIMURL,
+                    filter: "",
+                  }))
+                : [];
+
+              // Merge by applicationId or name to avoid duplicates
+              const mergedMap = new Map<
+                string,
+                {
+                  applicationId: string;
+                  applicationName: string;
+                  scimurl: string;
+                  filter: string;
+                }
+              >();
+
+              for (const item of [...ownItems, ...keyforgeItems]) {
+                const key = item.applicationId || item.applicationName;
+                if (!mergedMap.has(key)) mergedMap.set(key, item);
+              }
+
+              const merged = Array.from(mergedMap.values());
+
+              if (merged.length > 0) {
+                setApplications(merged);
               } else {
                 setError("Failed to fetch applications");
               }

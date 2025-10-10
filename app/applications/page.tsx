@@ -31,6 +31,9 @@ export default function Application() {
     const fetchData = async () => {
       try {
         const response = await fetch(`https://preview.keyforge.ai/entities/api/v1/ACMEPOC/getApplications/430ea9e6-3cff-449c-a24e-59c057f81e3d?page=${currentPage}&page_size=${pageSize}`);
+        // Fire parallel background requests alongside getApplications
+        void fetch("https://preview.keyforge.ai/registerscimapp/registerfortenant/ACMECOM/getAllApplications").catch(() => null);
+        void fetch("https://preview.keyforge.ai/schemamapper/getmappedschema/ACMECOM/16APLDOY").catch(() => null);
         const data = await response.json();
         if (data.executionStatus === "success") {
           setRowData(data.items);
@@ -197,6 +200,27 @@ export default function Application() {
     window.dispatchEvent(customEvent);
     console.log('Custom event dispatched from applications page');
     
+    // In parallel, resolve ApplicationID from Keyforge getAllApplications and call getApp/{ApplicationID}
+    (async () => {
+      try {
+        const keyforgeAllUrl = "https://preview.keyforge.ai/registerscimapp/registerfortenant/ACMECOM/getAllApplications";
+        const allResp = await fetch(keyforgeAllUrl);
+        if (!allResp.ok) return;
+        const allJson = await allResp.json();
+        const targetName = (event.data.applicationinstancename || "").toString().trim().toLowerCase();
+        const match = Array.isArray(allJson?.Applications)
+          ? allJson.Applications.find((a: any) => (a?.ApplicationName || "").toString().trim().toLowerCase() === targetName)
+          : null;
+        const applicationID = match?.ApplicationID;
+        if (!applicationID) return;
+        try { localStorage.setItem("keyforgeApplicationID", applicationID); } catch {}
+        const keyforgeGetAppUrl = `https://preview.keyforge.ai/registerscimapp/registerfortenant/ACMECOM/getApp/${encodeURIComponent(applicationID)}`;
+        void fetch(keyforgeGetAppUrl, { method: "GET", keepalive: true }).catch(() => null);
+      } catch {
+        // ignore background errors
+      }
+    })();
+
     router.push(`/applications/${appId}`);
   };
 
