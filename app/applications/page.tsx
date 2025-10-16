@@ -14,7 +14,6 @@ import CustomPagination from "@/components/agTable/CustomPagination";
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
-// const reviewerID = "430ea9e6-3cff-449c-a24e-59c057f81e3d";
 
 export default function Application() {
   const router = useRouter();
@@ -110,12 +109,7 @@ export default function Application() {
                 >
                   {name}
                 </span>
-                {/* <span
-                  className="ml-2 px-2 py-1 text-xs rounded"
-                  style={{ backgroundColor: riskColor, color: "white" }}
-                >
-                  {riskInitial}
-                </span> */}
+                {}
               </div>
             );
           }
@@ -139,12 +133,7 @@ export default function Application() {
               >
                 {name}
               </a>
-              {/* <span
-                className="ml-2 px-2 py-1 text-xs rounded"
-                style={{ backgroundColor: riskColor, color: "white" }}
-              >
-                {riskInitial}
-              </span> */}
+              {}
             </div>
           );
         },
@@ -264,30 +253,7 @@ export default function Application() {
             </p>
           </div>
         </div>
-        {/* <Accordion
-          iconClass="absolute right-0 rounded-full text-white bg-purple-800"
-          title="Expand/Collapse"
-        >
-          <div>
-            <h2 className="text-sm font-semibold">App Distribution by Sync Type</h2>
-            <div className="w-80 h-80">
-              <Doughnut
-                data={syncTypeData}
-                options={{
-                  responsive: true,
-                  plugins: {
-                    legend: { position: "right" },
-                    tooltip: {
-                      callbacks: {
-                        label: (context) => `${context.label}: ${context.raw}`,
-                      },
-                    },
-                  },
-                }}
-              />
-            </div>
-          </div>
-        </Accordion> */}
+        {}
       </div>
       
       {/* Top pagination */}

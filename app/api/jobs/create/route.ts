@@ -23,12 +23,10 @@ export async function POST(request: NextRequest) {
       throw new Error(`External API error: ${response.status} ${response.statusText} - ${responseText}`);
     }
 
-    // Try to parse as JSON, if it fails, return as text
     let data;
     try {
       data = JSON.parse(responseText);
     } catch (parseError) {
-      // If response is not JSON, return the text response
       data = { message: responseText, success: true };
     }
     

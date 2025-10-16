@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "cleanup:comments": "node scripts/remove-commented-code.js"
   },
   "dependencies": {
     "@dnd-kit/sortable": "^10.0.0",

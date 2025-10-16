@@ -45,8 +45,6 @@ const Page = () => {
     ],
     []
   );
-  // const rowSelection = useMemo(() => {
-  //   return {
   //     mode: "multiRow",
   //   };
   // }, []);

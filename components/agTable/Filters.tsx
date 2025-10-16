@@ -134,14 +134,7 @@ const Filters = ({
 
   return (
     <div className={`relative ${isActive ? "w-48" : "w-44"}`}>
-      {/* {selectedFilter && (
-        <span
-          title="Clear Filters"
-          className="rounded-full bg-red-700 absolute -top-1 -left-1 w-4 h-4 text-[11px] text-white text-center z-10"
-        >
-          1
-        </span>
-      )} */}
+      {}
 
       <Dropdown
         Icon={

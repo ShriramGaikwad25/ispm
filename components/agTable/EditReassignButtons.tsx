@@ -355,21 +355,7 @@ const EditReassignButtons = <T extends { status?: string }>({
         />
       </button>
 
-      {/* <button
-        ref={menuButtonRef}
-        onClick={toggleMenu}
-        title="Reassign"
-        className={`cursor-pointer rounded-sm hover:opacity-80 ${
-          isMenuOpen ? "bg-[#6D6E73]/20" : ""
-        }`}
-        aria-label="Reassign task"
-      >
-        <UserPlus
-          color="#e32929ff"
-          size="34"
-          className="transform scale-[0.6]"
-        />
-      </button> */}
+      {}
 
       <button
         onClick={toggleSidePanel}

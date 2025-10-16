@@ -854,9 +854,7 @@ const HeaderContent = () => {
           </div>
         ) : (
           <div className="flex items-center px-4">
-            {/* <p className="text-sm font-medium text-gray-600">
-              Welcome to ISPM
-            </p> */}
+            {}
           </div>
         )}
       </div>

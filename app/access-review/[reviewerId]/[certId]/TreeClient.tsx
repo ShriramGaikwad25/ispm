@@ -1102,12 +1102,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                 <span className="font-normal text-sm">{lines[0]}</span>
               </div>
               <div className="flex items-center gap-2">
-                {/* <div
-                  className="flex items-center justify-center w-5 h-5 rounded-full bg-[#27685b] text-white text-sm"
-                  title={`Account Type: ${typeLabel}`}
-                >
-                  {typeLabel.charAt(0)}
-                </div> */}
+                {}
                 {hasViolation && (
                   <div
                     className="flex items-center justify-center w-5 h-5 rounded-full bg-gray-200 relative z-50"
@@ -1620,12 +1615,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                                 }}
                               >
                                 <ul className="py-2 text-sm text-gray-700">
-                                  {/* <li
-                                    className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                                    onClick={openModal}
-                                  >
-                                    Proxy
-                                  </li> */}
+                                  {}
                                   <li
                                     className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
                                     onClick={openReassignModal}
@@ -1667,15 +1657,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       {selectedUser.department || "Unknown"}
                     </span>
                   </div>
-                  {/* <div className="flex items-center space-x-2 ml-4">
-                    <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                    <span className="text-xs font-medium text-gray-500">
-                      Risk:
-                    </span>
-                    <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-orange-100 text-orange-800">
-                      {selectedUser.risk || "Unknown"}
-                    </span>
-                  </div> */}
+                  {}
                 </div>
                 <div className="flex items-center gap-2 mt-4 flex-wrap">
                   <div className="flex items-center gap-2">

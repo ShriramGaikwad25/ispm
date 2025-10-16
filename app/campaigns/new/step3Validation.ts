@@ -40,10 +40,8 @@ export const stageSchema = yup.object().shape({
   }),
 });
 
-// const validationSchema = yup.object().shape({
 //   multiStageReview: yup.boolean().default(false),
 //   stages: yup.array().of(stageSchema).min(1).required("At least one stage is required"),
-// });
 
 const validationSchema = yup.object({
   multiStageReview: yup.boolean().required(),

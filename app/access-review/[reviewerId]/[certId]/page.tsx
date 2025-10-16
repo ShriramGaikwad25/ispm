@@ -102,14 +102,7 @@ export default function CertificationDetailsPage({
           </div>
         </div>
 
-        {/* <Accordion
-          // open={isAccordionOpen}
-          onToggle={() => setAccordionOpen((prev) => !prev)}
-          iconClass="absolute top-1 right-0 rounded-full text-white bg-purple-800"
-          title="Expand/Collapse"
-        >
-          <ChartComponent progressData={progressData} />
-        </Accordion> */}
+        {}
       </div>
       <TreeClient
         reviewerId={reviewerId}

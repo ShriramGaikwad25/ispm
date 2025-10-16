@@ -36,32 +36,10 @@ export const appOwnerColumns: ColDef[] = [
       return (
         <div className="flex items-center space-x-2">
           {/* Checkbox */}
-          {/* <input
-            type="checkbox"
-            checked={node.isSelected()}
-            style={{ marginBlockEnd: "40px" }}
-            onChange={() => node.setSelected(!node.isSelected())}
-            className={`${depth > 1 ? "ml-1" : ""}`}
-          /> */}
+          {}
 
           {/* Avatar or Icons */}
-          {/* {depth === 0 ? (
-            data.avatar ? (
-              <Image
-                src={data.avatar}
-                alt="User Avatar"
-                width={30}
-                height={30}
-                className="rounded-full"
-              />
-            ) : (
-              <MoveUp strokeWidth={1} />
-            )
-          ) : depth === 1 ? (
-            <MoveUp strokeWidth={1} />
-          ) : (
-            <User strokeWidth={1} />
-          )} */}
+          {}
 
           {/* Text */}
           <div className="flex flex-col gap-0 cursor-pointer hover:underline" onClick={openModal}>
@@ -79,19 +57,8 @@ export const appOwnerColumns: ColDef[] = [
   // {
   //   field: "risk",
   //   headerName: "Risk",
-  //   cellRenderer: (params: ICellRendererParams) => {
-  //     const value = params.value as RiskLevel;
-  //     const riskConfig: Record<RiskLevel, JSX.Element> = {
-  //       Critical: <div className="bg-red-600 w-3 h-3 rounded-full" />,
-  //       High: <div className="bg-orange-500 w-3 h-3 rounded-full" />,
-  //       Medium: <div className="bg-yellow-500 w-3 h-3 rounded-full" />,
-  //       Low: <div className="bg-green-500 w-3 h-3 rounded-full" />,
   //     };
 
-  //     return (
-  //       <div className="flex flex-col gap-0">
-  //         <span className="font-semibold text-[#175AE4] text-[12px]">Risk</span>
-  //         <span className="text-gray-800 font-bold">{riskConfig[value]}</span>
   //       </div>
   //     );
   //   },
@@ -159,9 +126,7 @@ export const appOwnerColumns: ColDef[] = [
 
       return (
         <div className="flex flex-col gap-0">
-          {/* <span className="font-semibold text-[#175AE4] text-[12px]">
-            AI Assist Confidence
-          </span> */}
+          {}
           <span className="text-gray-800">{icon}</span>
         </div>
       );

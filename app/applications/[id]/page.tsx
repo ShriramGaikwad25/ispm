@@ -631,7 +631,6 @@ export default function ApplicationDetailPage() {
     </div>
   );
 
-  // const rowData = [
   //   {
   //     account: "Aaliyah Munoz",
   //     accountStatus: "Active",
@@ -739,7 +738,6 @@ export default function ApplicationDetailPage() {
     }
   }, [id, tabIndex]);
 
-  // const rowData2 = [
   //   {
   //     "Ent ID": "ENT201",
   //     "Ent Name": "Server Admin",

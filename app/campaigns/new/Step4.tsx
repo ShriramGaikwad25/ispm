@@ -238,14 +238,7 @@ const Step4: React.FC<StepProps> = ({
               <label className="h-10 flex gap-4 items-center">
                 During the Campaign
               </label>
-              {/* <MultiSelect
-                placeholder="Select reminders or add custom value"
-                defaultValue={[startOfCampaign[0]]}
-                isCreatable={true}
-                control={control as unknown as Control<FieldValues>}
-                options={startOfCampaign}
-                {...register("socReminders")}
-              /> */}
+              {}
               <CustomMultiSelect
                 control={control}
                 name="socReminders"
@@ -488,20 +481,7 @@ const Step4: React.FC<StepProps> = ({
                 />
               </div>
 
-              {/* {watch("options") === "userAttribute" && (
-                <div>
-                  <span className={`flex items-center ${asterisk}`}>
-                    Select Attribute
-                  </span>
-                  <MultiSelect
-                    placeholder="Select Attribute"
-                    control={control as unknown as Control<FieldValues>}
-                    isMulti={false}
-                    options={selectAttribute}
-                    {...register("userAttribute")}
-                  />
-                </div>
-              )} */}
+              {}
             </div>
           )}
         </dd>

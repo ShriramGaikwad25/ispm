@@ -1010,8 +1010,6 @@ function AppOwnerContent() {
       width: 130,
       valueFormatter: (params) => formatDateMMDDYY(params.value),
       // cellRenderer: (params: ICellRendererParams) => (
-      //   <div className="flex flex-col gap-0">
-      //     <span className="text-gray-800">{params.value}</span>
       //   </div>
       // ),
     },
@@ -1224,10 +1222,7 @@ function AppOwnerContent() {
         <BackButton text="Back" onClick={() => router.push("/access-review")} />
       </div>
       <div className="max-w-full">
-        {/*         
-        <h1 className="text-xl font-bold mb-6 border-b border-gray-300 pb-2 text-blue-950">
-          Application Owner
-        </h1> */}
+        {}
         <Accordion
           iconClass="top-1 right-0 rounded-full text-white bg-purple-800"
           open={true}
@@ -1251,7 +1246,7 @@ function AppOwnerContent() {
             >
               <option value="None">Group by Accounts</option>
               <option value="Entitlements">Group by Entitlements</option>
-              {/* <option value="Accounts">Group by Accounts</option> */}
+              {}
             </select>
             {selectedRows.length > 0 && gridApiRef.current && (
               <ActionButtons

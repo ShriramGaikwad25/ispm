@@ -178,7 +178,6 @@ export default function ManageCampaigns() {
         headerName: "Actions",
         width: 200,
         cellRenderer: (params: ICellRendererParams) => {
-          // const selectedRows = params.api.getSelectedNodes().map((n) => n.data);
           return <ChampaignActionButton />;
         },
       },
@@ -187,8 +186,6 @@ export default function ManageCampaigns() {
   );
 
   const rowSelection = useMemo<"single" | "multiple">(() => "multiple", []);
-  // const handleRowClick = (e: RowClickedEvent) => {
-  //   const campaignId = e.data.id;
   //   router.push(`/campaigns/manage-campaigns/${campaignId}`);
   // };
 

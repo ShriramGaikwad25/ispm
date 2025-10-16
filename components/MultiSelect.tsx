@@ -86,25 +86,10 @@ function MultiSelect<FormValues extends FieldValues>({
             field.onChange(selected ? selected.value : "");
           }
         };
-/*
-        // Handle custom value creation when using Creatable
-        const handleCreate = (inputValue: string) => {
-          const newOption = { value: inputValue, label: inputValue };
-          // Update the field value by adding the new option, creating a new array
-          const updatedValue = [...field.value, newOption];  // If isMulti is true
-          // For single selection, return the new option
-          if (!isMulti) { return newOption;}
-          // Otherwise, update the field with the new array of selected options
-          field.onChange(updatedValue);
-          // Optionally, you could also update the options array if needed:
-          // options.push(newOption); // if you're adding it to the options list
-          return updatedValue;
-        };
-        */
+
         
        // Handle custom value creation when using Creatable
         const handleCreate = (inputValue: string) => {
-         // const newOption = { value: inputValue, label: inputValue };
 
           // Check if there is already a custom value added
           if (field.value && field.value.length > 0) {
