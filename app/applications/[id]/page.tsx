@@ -2091,7 +2091,7 @@ export default function ApplicationDetailPage() {
                       Existing Mappings
                     </h3>
                     <div className="border border-gray-200 rounded-lg overflow-hidden">
-                      <table className="w-full">
+                      <table className="w-full table-auto">
                         <thead className="bg-gray-50">
                           <tr>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -2122,12 +2122,12 @@ export default function ApplicationDetailPage() {
                           ) : (
                             getCurrentPageData().map((mapping, index) => (
                             <tr key={index}>
-                              <td className="px-4 py-3 text-sm text-gray-900">
+                              <td className="px-4 py-3 text-sm text-gray-900 whitespace-pre-wrap break-words break-all align-top" style={{ position: "static", whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "anywhere" }}>
                                 {activeMappingTab === "reconciliation"
                                   ? mapping.target
                                   : mapping.source}
                               </td>
-                              <td className="px-4 py-3 text-sm text-gray-900">
+                              <td className="px-4 py-3 text-sm text-gray-900 whitespace-pre-wrap break-words break-all align-top" style={{ position: "static", whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "anywhere" }}>
                                 {activeMappingTab === "reconciliation"
                                   ? mapping.source
                                   : mapping.target}

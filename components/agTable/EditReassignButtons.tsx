@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
+import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import ProxyActionModal from "../ProxyActionModal";
 import { formatDateMMDDYY } from "@/utils/utils";
 // Removed getEntitlementDetails import - now using existing data
@@ -49,7 +50,8 @@ const EditReassignButtons = <T extends { status?: string }>({
   onActionSuccess,
 }: EditReassignButtonsProps<T>) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
+  const { openSidebar, closeSidebar, isOpen: isGlobalSidebarOpen } = useRightSidebar();
+  const [isSidePanelOpen, setIsSidePanelOpen] = useState(false); // deprecated local state, kept for minimal churn in styling
   const [isEditMode, setIsEditMode] = useState(false); // Initialize as false
   const [expandedFrames, setExpandedFrames] = useState({
     general: false,
@@ -130,6 +132,488 @@ const EditReassignButtons = <T extends { status?: string }>({
     };
   };
 
+  type FramesState = {
+    general: boolean;
+    business: boolean;
+    technical: boolean;
+    security: boolean;
+    lifecycle: boolean;
+  };
+
+  const EntitlementDetailsSidebar = ({
+    data,
+    errorMessage,
+    editModeInitial,
+    onSave,
+  }: {
+    data: any;
+    errorMessage: string | null;
+    editModeInitial: boolean;
+    onSave: (edited: any) => void;
+  }) => {
+    const [isEditModeLocal, setIsEditModeLocal] = useState<boolean>(editModeInitial);
+    const [expandedFramesLocal, setExpandedFramesLocal] = useState<FramesState>({
+      general: false,
+      business: false,
+      technical: false,
+      security: false,
+      lifecycle: false,
+    });
+    const [editableFieldsLocal, setEditableFieldsLocal] = useState<any>({ ...(data as any) });
+
+    const toggleFrameLocal = (frame: keyof FramesState) => {
+      setExpandedFramesLocal((prev) => ({ ...prev, [frame]: !prev[frame] }));
+    };
+
+    const renderSideBySideFieldLocal = (
+      label1: string,
+      key1: string,
+      value1: any,
+      label2: string,
+      key2: string,
+      value2: any
+    ) => (
+      <div className="flex space-x-4 text-sm text-gray-700">
+        <div className="flex-1">
+          <strong>{label1}:</strong>{" "}
+          {isEditModeLocal ? (
+            <input
+              type="text"
+              value={editableFieldsLocal[key1] || value1 || ""}
+              onChange={(e) => setEditableFieldsLocal((prev: any) => ({ ...prev, [key1]: e.target.value }))}
+              className="form-input w-full text-sm border-gray-300 rounded"
+            />
+          ) : (
+            value1?.toString() || "N/A"
+          )}
+        </div>
+        <div className="flex-1">
+          <strong>{label2}:</strong>{" "}
+          {isEditModeLocal ? (
+            <input
+              type="text"
+              value={editableFieldsLocal[key2] || value2 || ""}
+              onChange={(e) => setEditableFieldsLocal((prev: any) => ({ ...prev, [key2]: e.target.value }))}
+              className="form-input w-full text-sm border-gray-300 rounded"
+            />
+          ) : (
+            value2?.toString() || "N/A"
+          )}
+        </div>
+      </div>
+    );
+
+    const renderSingleFieldLocal = (label: string, key: string, value: any) => (
+      <div className="text-sm text-gray-700">
+        <strong>{label}:</strong>{" "}
+        {isEditModeLocal ? (
+          <input
+            type="text"
+            value={editableFieldsLocal[key] || value || ""}
+            onChange={(e) => setEditableFieldsLocal((prev: any) => ({ ...prev, [key]: e.target.value }))}
+            className="form-input w-full text-sm border-gray-300 rounded"
+          />
+        ) : (
+          value?.toString() || "N/A"
+        )}
+      </div>
+    );
+
+    return (
+    <div className="w-full">
+      <div className="p-4 border-b bg-gray-50">
+        <div className="flex justify-between items-start">
+          <div className="flex-1">
+            <h2 className="text-lg font-semibold mb-8 ">
+              {isEditModeLocal ? "Edit Entitlement" : "Entitlement Details"}
+            </h2>
+            {errorMessage ? (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-sm text-red-600">{errorMessage}</p>
+              </div>
+            ) : (
+              <>
+                {isEditModeLocal ? (
+                  <input
+                    type="text"
+                    value={
+                      (editableFieldsLocal as any)["Ent Name"] ||
+                      (data as any)?.["Ent Name"] ||
+                      ""
+                    }
+                    onChange={(e) =>
+                      setEditableFieldsLocal((prev: any) => ({
+                        ...prev,
+                        "Ent Name": e.target.value,
+                      }))
+                    }
+                    className="form-input w-full text-md font-medium mt-2 rounded"
+                  />
+                ) : (
+                  <>
+                    <h3 className="text-md font-semibold text-gray-600">Entitlement Name :-</h3>
+                    <h4 className="text-md font-medium mt-2 break-words break-all whitespace-normal leading-snug max-w-full">
+                      {(data as any)?.["Ent Name"] ||
+                        (data as any)?.["entitlementName"] ||
+                        "Name: -"}
+                    </h4>
+                  </>
+                )}
+                {isEditModeLocal ? (
+                  <textarea
+                    value={
+                      (editableFieldsLocal as any)["Ent Description"] ||
+                      (data as any)?.["Ent Description"] ||
+                      ""
+                    }
+                    onChange={(e) =>
+                      setEditableFieldsLocal((prev: any) => ({
+                        ...prev,
+                        "Ent Description": e.target.value,
+                      }))
+                    }
+                    className="form-input w-full text-sm text-gray-600 mt-2 rounded"
+                    rows={2}
+                  />
+                ) : (
+                  <>
+                    <h3 className="text-md font-semibold text-gray-600 mt-4">Description :-</h3>
+                    <p className="text-sm text-gray-600 mt-1 break-words break-all whitespace-pre-wrap max-w-full">
+                      {(data as any)?.["Ent Description"] ||
+                        (data as any)?.["description"] ||
+                        "description: -"}
+                    </p>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+        <div className="mt-4 flex space-x-2">
+          {!isEditModeLocal && (
+            <button
+              onClick={() => { setIsEditModeLocal(true); setEditableFieldsLocal({ ...(data as any) }); }}
+              className="p-1 rounded bg-blue-500 text-white hover:bg-blue-600 w-full"
+              aria-label="Edit entitlement"
+            >
+              Edit
+            </button>
+          )}
+          {isEditModeLocal && (
+            <button
+              onClick={() => onSave(editableFieldsLocal)}
+              className="p-1 rounded bg-blue-500 text-white hover:bg-blue-600 w-full"
+              aria-label="Save edits"
+            >
+              Save
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="p-4 space-y-4">
+        {/* General Frame */}
+        <div className="bg-white border border-gray-200 rounded-md shadow-sm">
+          <button
+            className="flex items-center justify-between w-full text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
+            onClick={() => toggleFrameLocal("general")}
+          >
+            <span className="flex items-center">
+              <FolderIcon size={18} className="mr-2 text-gray-600" />
+              General
+            </span>
+            {expandedFramesLocal.general ? (
+              <ChevronDown size={20} className="text-gray-600" />
+            ) : (
+              <ChevronRight size={20} className="text-gray-600" />
+            )}
+          </button>
+          {expandedFramesLocal.general && (
+            <div className="p-4 space-y-2">
+              {renderSideBySideFieldLocal(
+                "Ent Type",
+                "Ent Type",
+                (data as any)?.["Ent Type"],
+                "#Assignments",
+                "Total Assignments",
+                (data as any)?.["Total Assignments"]
+              )}
+              {renderSideBySideFieldLocal(
+                "App Name",
+                "App Name",
+                (data as any)?.["App Name"],
+                "Tag(s)",
+                "Dynamic Tag",
+                (data as any)?.["Dynamic Tag"]
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Business Frame */}
+        <div className="bg-white border border-gray-200 rounded-md shadow-sm">
+          <button
+            className="flex items-center w-full justify-between text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
+            onClick={() => toggleFrameLocal("business")}
+          >
+            <span className="flex items-center">
+              <FolderIcon size={18} className="mr-2 text-gray-600" />
+              Business
+            </span>
+            {expandedFramesLocal.business ? (
+              <ChevronDown size={20} className="text-gray-600" />
+            ) : (
+              <ChevronRight size={20} className="text-gray-600" />
+            )}
+          </button>
+
+          {expandedFramesLocal.business && (
+            <div className="p-4 space-y-2">
+              {renderSingleFieldLocal(
+                "Objective",
+                "Business Objective",
+                (data as any)?.["Business Objective"]
+              )}
+              {renderSideBySideFieldLocal(
+                "Business Unit",
+                "Business Unit",
+                (data as any)?.["Business Unit"],
+                "Business Owner",
+                "Ent Owner",
+                (data as any)?.["Ent Owner"]
+              )}
+              {renderSingleFieldLocal(
+                "Regulatory Scope",
+                "Compliance Type",
+                (data as any)?.["Compliance Type"]
+              )}
+              {renderSideBySideFieldLocal(
+                "Data Classification",
+                "Data Classification",
+                (data as any)?.["Data Classification"],
+                "Cost Center",
+                "Cost Center",
+                (data as any)?.["Cost Center"]
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Technical Frame */}
+        <div className="bg-white border border-gray-200 rounded-md shadow-sm">
+          <button
+            className="flex items-center w-full justify-between text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
+            onClick={() => toggleFrameLocal("technical")}
+          >
+            <span className="flex items-center">
+              <FolderIcon size={18} className="mr-2 text-gray-600" />
+              Technical
+            </span>
+            {expandedFramesLocal.technical ? (
+              <ChevronDown size={20} className="text-gray-600" />
+            ) : (
+              <ChevronRight size={20} className="text-gray-600" />
+            )}
+          </button>
+          {expandedFramesLocal.technical && (
+            <div className="p-4 space-y-2">
+              {renderSideBySideFieldLocal(
+                "Created On",
+                "Created On",
+                formatDate((data as any)?.["Created On"]),
+                "Last Sync",
+                "Last Sync",
+                formatDate((data as any)?.["Last Sync"])
+              )}
+              {renderSideBySideFieldLocal(
+                "App Name",
+                "App Name",
+                (data as any)?.["App Name"],
+                "App Instance",
+                "App Instance",
+                (data as any)?.["App Instance"]
+              )}
+              {renderSideBySideFieldLocal(
+                "App Owner",
+                "App Owner",
+                (data as any)?.["App Owner"],
+                "Ent Owner",
+                "Ent Owner",
+                (data as any)?.["Ent Owner"]
+              )}
+              {renderSideBySideFieldLocal(
+                "Hierarchy",
+                "Hierarchy",
+                (data as any)?.["Hierarchy"],
+                "MFA Status",
+                "MFA Status",
+                (data as any)?.["MFA Status"]
+              )}
+              {renderSingleFieldLocal(
+                "Assigned to/Member of",
+                "assignment",
+                (data as any)?.["assignment"]
+              )}
+              {renderSingleFieldLocal(
+                "License Type",
+                "License Type",
+                (data as any)?.["License Type"]
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Security Frame */}
+        <div className="bg-white border border-gray-200 rounded-md shadow-sm">
+          <button
+            className="flex items-center w-full justify-between text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
+            onClick={() => toggleFrameLocal("security")}
+          >
+            <span className="flex items-center">
+              <FolderIcon size={18} className="mr-2 text-gray-600" />
+              Security
+            </span>
+            {expandedFramesLocal.security ? (
+              <ChevronDown size={20} className="text-gray-600" />
+            ) : (
+              <ChevronRight size={20} className="text-gray-600" />
+            )}
+          </button>
+          {expandedFramesLocal.security && (
+            <div className="p-4 space-y-2">
+              {renderSideBySideFieldLocal(
+                "Risk",
+                "Risk",
+                (data as any)?.["Risk"],
+                "Certifiable",
+                "Certifiable",
+                (data as any)?.["Certifiable"]
+              )}
+              {renderSideBySideFieldLocal(
+                "Revoke on Disable",
+                "Revoke on Disable",
+                (data as any)?.["Revoke on Disable"],
+                "Shared Pwd",
+                "Shared Pwd",
+                (data as any)?.["Shared Pwd"]
+              )}
+              {renderSingleFieldLocal(
+                "SoD/Toxic Combination",
+                "SOD Check",
+                (data as any)?.["SOD Check"]
+              )}
+              {renderSingleFieldLocal(
+                "Access Scope",
+                "Access Scope",
+                (data as any)?.["Access Scope"]
+              )}
+              {renderSideBySideFieldLocal(
+                "Review Schedule",
+                "Review Schedule",
+                (data as any)?.["Review Schedule"],
+                "Last Reviewed On",
+                "Last Reviewed on",
+                formatDate((data as any)?.["Last Reviewed on"])
+              )}
+              {renderSideBySideFieldLocal(
+                "Privileged",
+                "Privileged",
+                (data as any)?.["Privileged"],
+                "Non Persistent Access",
+                "Non Persistent Access",
+                (data as any)?.["Non Persistent Access"]
+              )}
+              {renderSingleFieldLocal(
+                "Audit Comments",
+                "Audit Comments",
+                (data as any)?.["Audit Comments"]
+              )}
+              {renderSingleFieldLocal(
+                "Account Type Restriction",
+                "Account Type Restriction",
+                (data as any)?.["Account Type Restriction"]
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Lifecycle Frame */}
+        <div className="bg-white border border-gray-200 rounded-md shadow-sm">
+          <button
+            className="flex items-center w-full justify-between text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
+            onClick={() => toggleFrameLocal("lifecycle")}
+          >
+            <span className="flex items-center">
+              <FolderIcon size={18} className="mr-2 text-gray-600" />
+              Lifecycle
+            </span>
+            {expandedFramesLocal.lifecycle ? (
+              <ChevronDown size={20} className="text-gray-600" />
+            ) : (
+              <ChevronRight size={20} className="text-gray-600" />
+            )}
+          </button>
+          {expandedFramesLocal.lifecycle && (
+            <div className="p-4 space-y-2">
+              {renderSideBySideFieldLocal(
+                "Requestable",
+                "Requestable",
+                (data as any)?.["Requestable"],
+                "Pre-Requisite",
+                "Pre- Requisite",
+                (data as any)?.["Pre- Requisite"]
+              )}
+              {renderSingleFieldLocal(
+                "Pre-Req Details",
+                "Pre-Requisite Details",
+                (data as any)?.["Pre-Requisite Details"]
+              )}
+              {renderSingleFieldLocal(
+                "Auto Assign Access Policy",
+                "Auto Assign Access Policy",
+                (data as any)?.["Auto Assign Access Policy"]
+              )}
+              {renderSingleFieldLocal(
+                "Provisioner Group",
+                "Provisioner Group",
+                (data as any)?.["Provisioner Group"]
+              )}
+              {renderSingleFieldLocal(
+                "Provisioning Steps",
+                "Provisioning Steps",
+                (data as any)?.["Provisioning Steps"]
+              )}
+              {renderSingleFieldLocal(
+                "Provisioning Mechanism",
+                "Provisioning Mechanism",
+                (data as any)?.["Provisioning Mechanism"]
+              )}
+              {renderSingleFieldLocal(
+                "Action on Native Change",
+                "Action on Native Change",
+                (data as any)?.["Action on Native Change"]
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="p-4 border-t bg-gray-50 flex space-x-2">
+        <button
+          onClick={() => {
+            closeSidebar();
+            setIsEditMode(false);
+          }}
+          className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 text-gray-800 w-full"
+          aria-label="Close panel"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+    );
+  };
+
   const handleEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!api || selectedRows.length === 0) return;
@@ -139,9 +623,26 @@ const EditReassignButtons = <T extends { status?: string }>({
       update: selectedRows.map((row) => ({ ...row, status: "Editing" })),
     });
 
-    // Open side panel in edit mode
-    setIsSidePanelOpen(true);
+    // Open global side panel in edit mode
     setIsEditMode(true);
+    openSidebar(
+      <EntitlementDetailsSidebar
+        data={localNodeData}
+        errorMessage={entitlementDetailsError}
+        editModeInitial={true}
+        onSave={(edited) => {
+          if (!api || !selectedRows.length) return;
+          setEditableFields(edited);
+          api.applyTransaction({
+            update: selectedRows.map((row) => ({ ...row, ...edited, status: "Edited" })),
+          });
+          closeSidebar();
+          setIsEditMode(false);
+          alert("Changes saved successfully");
+        }}
+      />,
+      { widthPx: 500 }
+    );
 
     // Initialize editable fields with most recent node data
     setEditableFields({ ...(nodeData as any) });
@@ -172,9 +673,8 @@ const EditReassignButtons = <T extends { status?: string }>({
 
   const toggleSidePanel = (e: React.MouseEvent) => {
     e.stopPropagation();
-    
     // If opening the sidebar, use existing catalogDetails data
-    if (!isSidePanelOpen) {
+    if (!isGlobalSidebarOpen) {
       console.log("Opening sidebar for All tab, nodeData:", localNodeData);
       
       // Use the catalogDetails from the existing data instead of making API call
@@ -210,10 +710,28 @@ const EditReassignButtons = <T extends { status?: string }>({
         setLocalNodeData(localNodeData);
       }
     }
-    
-    setIsSidePanelOpen((prev) => !prev);
     setIsEditMode(false); // Open in non-edit mode
     setEditableFields({}); // Reset editable fields
+    openSidebar(
+      <EntitlementDetailsSidebar
+        data={localNodeData}
+        errorMessage={entitlementDetailsError}
+        editModeInitial={false}
+        onSave={(edited) => {
+          if (!api) return;
+          setEditableFields(edited);
+          if (selectedRows.length) {
+            api.applyTransaction({
+              update: selectedRows.map((row) => ({ ...row, ...edited, status: "Edited" })),
+            });
+          }
+          closeSidebar();
+          setIsEditMode(false);
+          alert("Changes saved successfully");
+        }}
+      />,
+      { widthPx: 500 }
+    );
   };
 
   const toggleFrame = (frame: keyof typeof expandedFrames) => {
@@ -248,25 +766,14 @@ const EditReassignButtons = <T extends { status?: string }>({
 
   // Ensure fields are prefilled on first render of edit sidebar
   useEffect(() => {
-    if (isSidePanelOpen && isEditMode) {
+    if (isGlobalSidebarOpen && isEditMode) {
       if (!editableFields || Object.keys(editableFields).length === 0) {
         setEditableFields({ ...(localNodeData as any) });
       }
     }
-  }, [isSidePanelOpen, isEditMode, localNodeData]);
+  }, [isGlobalSidebarOpen, isEditMode, localNodeData]);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setIsSidePanelOpen(false);
-        setIsEditMode(false);
-      }
-    };
-    if (isSidePanelOpen) {
-      document.addEventListener("keydown", handleKeyDown);
-    }
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isSidePanelOpen]);
+  // Escape handling provided by global host; no local key listeners needed
 
   const handleClickOutside = (event: MouseEvent) => {
     if (
@@ -361,7 +868,7 @@ const EditReassignButtons = <T extends { status?: string }>({
         onClick={toggleSidePanel}
         title="Info"
         className={`cursor-pointer rounded-sm hover:opacity-80 ${
-          isSidePanelOpen ? "bg-[#6D6E73]/20" : ""
+          isGlobalSidebarOpen ? "bg-[#6D6E73]/20" : ""
         }`}
         aria-label="View details"
       >
@@ -398,413 +905,7 @@ const EditReassignButtons = <T extends { status?: string }>({
             document.body
           )}
 
-        {isSidePanelOpen &&
-          createPortal(
-            <div
-              className="fixed top-0 right-0 h-full bg-white shadow-xl z-50 overflow-y-auto overflow-x-hidden mt-16 w-200"
-              style={{ width: 500 }}
-            >
-              <div className="p-4 border-b bg-gray-50">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <h2 className="text-lg font-semibold mb-8 border-b p-1.5">
-                      {isEditMode ? "Edit Entitlement" : "Entitlement Details"}
-                    </h2>
-                    {entitlementDetailsError ? (
-                      <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
-                        <p className="text-sm text-red-600">{entitlementDetailsError}</p>
-                      </div>
-                    ) : (
-                      <>
-                        {isEditMode ? (
-                          <input
-                            type="text"
-                            value={
-                              editableFields["Ent Name" as keyof T] ||
-                              (localNodeData as any)?.["Ent Name"] ||
-                              ""
-                            }
-                            onChange={(e) =>
-                              setEditableFields((prev) => ({
-                                ...prev,
-                                "Ent Name": e.target.value,
-                              }))
-                            }
-                            className="form-input w-full text-md font-medium mt-2 rounded"
-                          />
-                        ) : (
-                          <>
-                          <h3 className="text-md font-semibold text-gray-600">Entitlement Name :-</h3>
-                          <h4 className="text-md font-medium mt-2 break-words break-all whitespace-normal leading-snug max-w-full">
-                            {(localNodeData as any)?.["Ent Name"] || 
-                              (localNodeData as any)?.["entitlementName"] || 
-                              "Name: -"}
-                          </h4>
-                          </>
-                        )}
-                        {isEditMode ? (
-                          <textarea
-                            value={
-                              editableFields["Ent Description" as keyof T] ||
-                              (localNodeData as any)?.["Ent Description"] ||
-                              ""
-                            }
-                            onChange={(e) =>
-                              setEditableFields((prev) => ({
-                                ...prev,
-                                "Ent Description": e.target.value,
-                              }))
-                            }
-                            className="form-input w-full text-sm text-gray-600 mt-2 rounded"
-                            rows={2}
-                          />
-                        ) : (
-                          <>
-                           <h3 className="text-md font-semibold text-gray-600 mt-4">Description :-</h3>
-                          <p className="text-sm text-gray-600 mt-1 break-words break-all whitespace-pre-wrap max-w-full">
-                            {(localNodeData as any)?.["Ent Description"] ||
-                              (localNodeData as any)?.["description"] ||
-                              "description: -"}
-                          </p>
-                          </>
-                        )}
-                      </>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => {
-                      setIsSidePanelOpen(false);
-                      setIsEditMode(false);
-                    }}
-                    className="text-gray-600 hover:text-gray-800"
-                    aria-label="Close panel"
-                  >
-                    <X size={24} />
-                  </button>
-                </div>
-                <div className="mt-4 flex space-x-2">
-                  {!isEditMode && (
-                    <button
-                      onClick={handleSidebarEdit}
-                      className="p-1 rounded bg-blue-500 text-white hover:bg-blue-600 w-full"
-                      aria-label="Edit entitlement"
-                    >
-                      Edit
-                    </button>
-                  )}
-                  {isEditMode && (
-                    <button
-                      onClick={handleSaveEdits}
-                      className="p-1 rounded bg-blue-500 text-white hover:bg-blue-600 w-full"
-                      aria-label="Save edits"
-                    >
-                      Save
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="p-4 space-y-4">
-                {/* General Frame */}
-                <div className="bg-white border border-gray-200 rounded-md shadow-sm">
-                  <button
-                    className="flex items-center justify-between w-full text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
-                    onClick={() => toggleFrame("general")}
-                  >
-                    <span className="flex items-center">
-                      <FolderIcon size={18} className="mr-2 text-gray-600" />
-                      General
-                    </span>
-                    {expandedFrames.general ? (
-                      <ChevronDown size={20} className="text-gray-600" />
-                    ) : (
-                      <ChevronRight size={20} className="text-gray-600" />
-                    )}
-                  </button>
-                  {expandedFrames.general && (
-                    <div className="p-4 space-y-2">
-                      {renderSideBySideField(
-                        "Ent Type",
-                        "Ent Type",
-                        (localNodeData as any)?.["Ent Type"],
-                        "#Assignments",
-                        "Total Assignments",
-                        (localNodeData as any)?.["Total Assignments"]
-                      )}
-                      {renderSideBySideField(
-                        "App Name",
-                        "App Name",
-                        (localNodeData as any)?.["App Name"],
-                        "Tag(s)",
-                        "Dynamic Tag",
-                        (localNodeData as any)?.["Dynamic Tag"]
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Business Frame */}
-                <div className="bg-white border border-gray-200 rounded-md shadow-sm">
-                  <button
-                    className="flex items-center w-full justify-between text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
-                    onClick={() => toggleFrame("business")}
-                  >
-                    <span className="flex items-center">
-                      <FolderIcon size={18} className="mr-2 text-gray-600" />
-                      Business
-                    </span>
-                    {expandedFrames.business ? (
-                      <ChevronDown size={20} className="text-gray-600" />
-                    ) : (
-                      <ChevronRight size={20} className="text-gray-600" />
-                    )}
-                  </button>
-
-                  {expandedFrames.business && (
-                    <div className="p-4 space-y-2">
-                      {renderSingleField(
-                        "Objective",
-                        "Business Objective",
-                        (localNodeData as any)?.["Business Objective"]
-                      )}
-                      {renderSideBySideField(
-                        "Business Unit",
-                        "Business Unit",
-                        (localNodeData as any)?.["Business Unit"],
-                        "Business Owner",
-                        "Ent Owner",
-                        (localNodeData as any)?.["Ent Owner"]
-                      )}
-                      {renderSingleField(
-                        "Regulatory Scope",
-                        "Compliance Type",
-                        (localNodeData as any)?.["Compliance Type"]
-                      )}
-                      {renderSideBySideField(
-                        "Data Classification",
-                        "Data Classification",
-                        (localNodeData as any)?.["Data Classification"],
-                        "Cost Center",
-                        "Cost Center",
-                        (localNodeData as any)?.["Cost Center"]
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Technical Frame */}
-                <div className="bg-white border border-gray-200 rounded-md shadow-sm">
-                  <button
-                    className="flex items-center w-full justify-between text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
-                    onClick={() => toggleFrame("technical")}
-                  >
-                    <span className="flex items-center">
-                      <FolderIcon size={18} className="mr-2 text-gray-600" />
-                      Technical
-                    </span>
-                    {expandedFrames.technical ? (
-                      <ChevronDown size={20} className="text-gray-600" />
-                    ) : (
-                      <ChevronRight size={20} className="text-gray-600" />
-                    )}
-                  </button>
-                  {expandedFrames.technical && (
-                    <div className="p-4 space-y-2">
-                      {renderSideBySideField(
-                        "Created On",
-                        "Created On",
-                        formatDate((localNodeData as any)?.["Created On"]),
-                        "Last Sync",
-                        "Last Sync",
-                        formatDate((localNodeData as any)?.["Last Sync"])
-                      )}
-                      {renderSideBySideField(
-                        "App Name",
-                        "App Name",
-                        (localNodeData as any)?.["App Name"],
-                        "App Instance",
-                        "App Instance",
-                        (localNodeData as any)?.["App Instance"]
-                      )}
-                      {renderSideBySideField(
-                        "App Owner",
-                        "App Owner",
-                        (localNodeData as any)?.["App Owner"],
-                        "Ent Owner",
-                        "Ent Owner",
-                        (localNodeData as any)?.["Ent Owner"]
-                      )}
-                      {renderSideBySideField(
-                        "Hierarchy",
-                        "Hierarchy",
-                        (localNodeData as any)?.["Hierarchy"],
-                        "MFA Status",
-                        "MFA Status",
-                        (localNodeData as any)?.["MFA Status"]
-                      )}
-                      {renderSingleField(
-                        "Assigned to/Member of",
-                        "assignment",
-                        (localNodeData as any)?.["assignment"]
-                      )}
-                      {renderSingleField(
-                        "License Type",
-                        "License Type",
-                        (localNodeData as any)?.["License Type"]
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Security Frame */}
-                <div className="bg-white border border-gray-200 rounded-md shadow-sm">
-                  <button
-                    className="flex items-center w-full justify-between text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
-                    onClick={() => toggleFrame("security")}
-                  >
-                    <span className="flex items-center">
-                      <FolderIcon size={18} className="mr-2 text-gray-600" />
-                      Security
-                    </span>
-                    {expandedFrames.security ? (
-                      <ChevronDown size={20} className="text-gray-600" />
-                    ) : (
-                      <ChevronRight size={20} className="text-gray-600" />
-                    )}
-                  </button>
-                  {expandedFrames.security && (
-                    <div className="p-4 space-y-2">
-                      {renderSideBySideField(
-                        "Risk",
-                        "Risk",
-                        (localNodeData as any)?.["Risk"],
-                        "Certifiable",
-                        "Certifiable",
-                        (localNodeData as any)?.["Certifiable"]
-                      )}
-                      {renderSideBySideField(
-                        "Revoke on Disable",
-                        "Revoke on Disable",
-                        (localNodeData as any)?.["Revoke on Disable"],
-                        "Shared Pwd",
-                        "Shared Pwd",
-                        (localNodeData as any)?.["Shared Pwd"]
-                      )}
-                      {renderSingleField(
-                        "SoD/Toxic Combination",
-                        "SOD Check",
-                        (localNodeData as any)?.["SOD Check"]
-                      )}
-                      {renderSingleField(
-                        "Access Scope",
-                        "Access Scope",
-                        (localNodeData as any)?.["Access Scope"]
-                      )}
-                      {renderSideBySideField(
-                        "Review Schedule",
-                        "Review Schedule",
-                        (localNodeData as any)?.["Review Schedule"],
-                        "Last Reviewed On",
-                        "Last Reviewed on",
-                        formatDate((localNodeData as any)?.["Last Reviewed on"])
-                      )}
-                      {renderSideBySideField(
-                        "Privileged",
-                        "Privileged",
-                        (localNodeData as any)?.["Privileged"],
-                        "Non Persistent Access",
-                        "Non Persistent Access",
-                        (localNodeData as any)?.["Non Persistent Access"]
-                      )}
-                      {renderSingleField(
-                        "Audit Comments",
-                        "Audit Comments",
-                        (localNodeData as any)?.["Audit Comments"]
-                      )}
-                      {renderSingleField(
-                        "Account Type Restriction",
-                        "Account Type Restriction",
-                        (localNodeData as any)?.["Account Type Restriction"]
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Lifecycle Frame */}
-                <div className="bg-white border border-gray-200 rounded-md shadow-sm">
-                  <button
-                    className="flex items-center w-full justify-between text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
-                    onClick={() => toggleFrame("lifecycle")}
-                  >
-                    <span className="flex items-center">
-                      <FolderIcon size={18} className="mr-2 text-gray-600" />
-                      Lifecycle
-                    </span>
-                    {expandedFrames.lifecycle ? (
-                      <ChevronDown size={20} className="text-gray-600" />
-                    ) : (
-                      <ChevronRight size={20} className="text-gray-600" />
-                    )}
-                  </button>
-                  {expandedFrames.lifecycle && (
-                    <div className="p-4 space-y-2">
-                      {renderSideBySideField(
-                        "Requestable",
-                        "Requestable",
-                        (localNodeData as any)?.["Requestable"],
-                        "Pre-Requisite",
-                        "Pre- Requisite",
-                        (localNodeData as any)?.["Pre- Requisite"]
-                      )}
-                      {renderSingleField(
-                        "Pre-Req Details",
-                        "Pre-Requisite Details",
-                        (localNodeData as any)?.["Pre-Requisite Details"]
-                      )}
-                      {renderSingleField(
-                        "Auto Assign Access Policy",
-                        "Auto Assign Access Policy",
-                        (localNodeData as any)?.["Auto Assign Access Policy"]
-                      )}
-                      {renderSingleField(
-                        "Provisioner Group",
-                        "Provisioner Group",
-                        (localNodeData as any)?.["Provisioner Group"]
-                      )}
-                      {renderSingleField(
-                        "Provisioning Steps",
-                        "Provisioning Steps",
-                        (localNodeData as any)?.["Provisioning Steps"]
-                      )}
-                      {renderSingleField(
-                        "Provisioning Mechanism",
-                        "Provisioning Mechanism",
-                        (localNodeData as any)?.["Provisioning Mechanism"]
-                      )}
-                      {renderSingleField(
-                        "Action on Native Change",
-                        "Action on Native Change",
-                        (localNodeData as any)?.["Action on Native Change"]
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="p-4 border-t bg-gray-50 flex justify-end">
-                <button
-                  onClick={() => {
-                    setIsSidePanelOpen(false);
-                    setIsEditMode(false);
-                  }}
-                  className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 text-gray-800 w-full"
-                  aria-label="Close panel"
-                >
-                  Close
-                </button>
-              </div>
-            </div>,
-            document.body
-          )}
+        {/* Local portal-based sidebar removed in favor of global right sidebar */}
       </div>
 
       <ProxyActionModal
