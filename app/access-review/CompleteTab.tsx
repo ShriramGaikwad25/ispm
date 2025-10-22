@@ -133,7 +133,7 @@ const CompleteTab: React.FC = () => {
     { 
       headerName: "Owner", 
       field: "certificateRequester", 
-      width: 150,
+      width: 140,
       onCellClicked: handleRowClick,
     },
     {

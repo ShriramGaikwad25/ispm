@@ -140,17 +140,17 @@ const OpenTab: React.FC = () => {
     { 
       headerName: "Owner", 
       field: "certificateOwner", 
-      width: 150,
+      width: 140,
       onCellClicked: handleRowClick,
     },
     {
       headerName: "Progress",
       field: "progress",
-      width: 200,
+      width: 180,
       cellRenderer: HorizontalProgressRenderer,
       onCellClicked: handleRowClick,
     },
-    { headerName: "Due On", field: "certificationExpiration", width: 150,valueFormatter: (params) => formatDateMMDDYY(params.value), },
+    { headerName: "Due On", field: "certificationExpiration", width: 140,valueFormatter: (params) => formatDateMMDDYY(params.value), },
     {
       headerName: "Estimated time to completion",
       field: "estimatedTimeToCompletion",
@@ -162,7 +162,7 @@ const OpenTab: React.FC = () => {
     {
       headerName: "Created On",
       field: "certificationCreatedOn",
-      width: 200,
+      width: 160,
       valueFormatter: (params) => formatDateMMDDYY(params.value),
     },
     {
