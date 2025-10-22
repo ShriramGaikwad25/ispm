@@ -5,11 +5,13 @@ import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import {navLinks as navigation, NavItem} from './Navi';
+import { useLeftSidebar } from '@/contexts/LeftSidebarContext';
 
 export function Navigation() {
   const pathname = usePathname();
   const [isHovered, setIsHovered] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const { isVisible } = useLeftSidebar();
 
   // Reset hover state when pathname changes (navigation occurs)
   useEffect(() => {
@@ -45,10 +47,15 @@ export function Navigation() {
     return pathname === subItem.href;
   };
 
+  // Don't render if sidebar is hidden
+  if (!isVisible) {
+    return null;
+  }
+
   return (
     <div 
       className={`bg-white border-r border-gray-200 flex flex-col items-center transition-all duration-300 ease-in-out ${
-        isHovered ? 'w-[280px]' : 'w-20'
+        isHovered ? 'w-[240px]' : 'w-16'
       }`}
       style={{
         minHeight: '100vh',

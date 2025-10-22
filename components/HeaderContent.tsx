@@ -14,6 +14,7 @@ import "@/lib/ag-grid-setup";
 import CertificationProgress from "./CertificationProgress";
 import UserProgress from "./UserProgress";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
 
 // Register Chart.js components and plugin
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend, ChartDataLabels);
@@ -258,6 +259,7 @@ const HeaderContent = () => {
   const pathname = usePathname();
   const router = useRouter();
   const { logout, user } = useAuth();
+  const { isVisible, toggleSidebar } = useLeftSidebar();
 
   // State for header info and user details
   const [headerInfo, setHeaderInfo] = useState({
@@ -719,6 +721,30 @@ const HeaderContent = () => {
     <div className="flex h-[60px] w-full items-center justify-between text-sm px-4" style={{ backgroundColor: '#27B973' }}>
       {/* Left Section */}
       <div className="flex items-center h-full">
+        {/* Hamburger Menu Button */}
+        <button
+          onClick={toggleSidebar}
+          className="flex items-center justify-center w-10 h-10 mr-4 text-white hover:bg-white/10 rounded-md transition-colors"
+          title={isVisible ? "Hide sidebar" : "Show sidebar"}
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            className="transition-transform duration-200"
+          >
+            <path
+              d="M3 12H21M3 6H21M3 18H21"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+
         {/* Logo and Brand */}
         <div className="flex items-center gap-2 mr-8">
 

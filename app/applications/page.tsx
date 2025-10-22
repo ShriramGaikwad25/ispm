@@ -19,6 +19,8 @@ export default function Application() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [rowData, setRowData] = useState([]);
+  const [filteredData, setFilteredData] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
@@ -46,12 +48,24 @@ export default function Application() {
     fetchData();
   }, [currentPage, pageSize]);
 
+  // Filter data based on search query
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredData(rowData);
+    } else {
+      const filtered = rowData.filter((item: any) =>
+        item.applicationinstancename?.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      setFilteredData(filtered);
+    }
+  }, [rowData, searchQuery]);
+
   const columnDefs = useMemo<ColDef[]>(
     () => [
       {
-        headerName: "App Name",
+        headerName: "Application",
         field: "applicationinstancename",
-        width:300,
+        width:220,
         cellRenderer: (params: any) => {
           const name = params.data.applicationinstancename;
           const LOGO_BY_NAME: Record<string, string> = {
@@ -138,29 +152,35 @@ export default function Application() {
           );
         },
       },
-      { headerName: "Department", field: "businessUnit",width:180 },
-      { headerName: "Owner", field: "ownername",width:180 },
+      { headerName: "Department", field: "businessUnit",width:140 },
+      { headerName: "Owner", field: "ownername",width:140 },
       {
         headerName: "#Accounts",
         field: "numofaccounts",
-        width:180,
+        width:140,
         valueFormatter: (params: any) =>
           params.value?.toLocaleString("en-US") || "0",
       },
       {
         headerName: "Last Review",
         field: "lastAccessReview",
-        width:200,
+        width:140,
         valueFormatter: (params) => formatDateMMDDYY(params.value),
        
       },
       {
         headerName: "Last Sync",
         field: "lastSync",
-        width:180,
+        width:140,
       valueFormatter: (params) => formatDateMMDDYY(params.value),
       },
-      { headerName: "Sync Type", field: "syncType",width:160, },
+      {
+        headerName: "Next Sync",
+        field: "nextSync",
+        width:140,
+        valueFormatter: (params) => formatDateMMDDYY(params.value),
+      },
+      { headerName: "Sync Type", field: "syncType",width:140 },
       { headerName: "App Risk", field: "risk", hide: true,width:200, },
       { headerName: "App Type", field: "applicationtype", hide: true,width:200, },
       { headerName: "App Description", field: "applicationcategory", hide: true,width:200, },
@@ -215,9 +235,9 @@ export default function Application() {
 
   // Data for the doughnut chart (based on syncType)
   const syncTypeData = useMemo(() => {
-    const syncTypes = [...new Set(rowData.map((row: any) => row.syncType))];
+    const syncTypes = [...new Set(filteredData.map((row: any) => row.syncType))];
     const counts = syncTypes.map(
-      (type) => rowData.filter((row: any) => row.syncType === type).length
+      (type) => filteredData.filter((row: any) => row.syncType === type).length
     );
     return {
       labels: syncTypes,
@@ -236,7 +256,7 @@ export default function Application() {
         },
       ],
     };
-  }, [rowData]);
+  }, [filteredData]);
 
 
   return (
@@ -249,9 +269,42 @@ export default function Application() {
         <div className="mb-1">
           <div className="bg-gray-100 p-2 rounded-lg shadow-sm">
             <p className="text-sm font-semibold text-gray-700">
-              Total Number of Applications: <span className="text-blue-600">{totalItems}</span>
+              Integrated Applications: <span className="text-blue-600">{totalItems}</span>
             </p>
           </div>
+        </div>
+        
+        {/* Search Bar */}
+        <div className="mb-4 pt-4">
+          <div className="relative max-w-sm">
+            <input
+              type="text"
+              placeholder="Search by Application Name..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+            />
+            <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+              <svg
+                className="h-5 w-5 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+            </div>
+          </div>
+          {searchQuery && (
+            <p className="text-sm text-gray-600 mt-1">
+              Showing {filteredData.length} of {totalItems} applications
+            </p>
+          )}
         </div>
         {}
       </div>
@@ -259,7 +312,7 @@ export default function Application() {
       {/* Top pagination */}
       <div className="mb-2">
         <CustomPagination
-          totalItems={totalItems}
+          totalItems={searchQuery ? filteredData.length : totalItems}
           currentPage={currentPage}
           totalPages={totalPages}
           pageSize={pageSize}
@@ -273,7 +326,7 @@ export default function Application() {
       </div>
       
       <AgGridReact
-        rowData={rowData}
+        rowData={filteredData}
         columnDefs={columnDefs}
         pagination={false}
         domLayout="autoHeight"
@@ -285,7 +338,7 @@ export default function Application() {
       {/* Bottom pagination */}
       <div className="mt-1">
         <CustomPagination
-          totalItems={totalItems}
+          totalItems={searchQuery ? filteredData.length : totalItems}
           currentPage={currentPage}
           totalPages={totalPages}
           pageSize={pageSize}

@@ -11,6 +11,7 @@ import ActionPanel from "@/components/ActionPanel";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AuthWrapper } from "@/components/AuthWrapper";
 import { RightSidebarProvider } from "@/contexts/RightSidebarContext";
+import { LeftSidebarProvider } from "@/contexts/LeftSidebarContext";
 import RightSideBarHost from "@/components/RightSideBarHost";
 import LayoutContentShift from "@/components/LayoutContentShift";
 
@@ -34,14 +35,16 @@ export default function RootLayout({
             <LoadingProvider>
               <ActionPanelProvider>
                 <RightSidebarProvider>
-                  <AuthWrapper>
-                    <LayoutContentShift>
-                      {children}
-                    </LayoutContentShift>
-                  </AuthWrapper>
-                  <RightSideBarHost />
-                  <PageTransitionLoader />
-                  <ActionPanel />
+                  <LeftSidebarProvider>
+                    <AuthWrapper>
+                      <LayoutContentShift>
+                        {children}
+                      </LayoutContentShift>
+                    </AuthWrapper>
+                    <RightSideBarHost />
+                    <PageTransitionLoader />
+                    <ActionPanel />
+                  </LeftSidebarProvider>
                 </RightSidebarProvider>
               </ActionPanelProvider>
             </LoadingProvider>

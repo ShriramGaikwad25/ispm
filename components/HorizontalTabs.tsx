@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 interface Tab {
   label: string;
   component: React.ComponentType;
+  icon?: React.ElementType;
+  iconOff?: React.ElementType;
 }
 
 interface TabsProps {
@@ -42,17 +44,22 @@ const HorizontalTabs: React.FC<TabsProps> = ({
   return (
     <div className="w-full">
       {/* Tab Headers */}
-      <div className="flex border-b border-gray-200">
+      <div className="flex">
         {tabs.map((tab, index) => (
           <button
             key={index}
-            className={`px-4 py-2 ml-8 text-sm font-medium transition-all duration-200 border-b-2 ${
+            className={`px-4 py-2 text-sm font-medium transition-all duration-200 rounded-lg flex items-center gap-2 ${
               index === activeIndex
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-blue-500 hover:border-blue-300'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
             onClick={() => handleTabClick(index)}
           >
+            {tab.icon && index === activeIndex ? (
+              <tab.icon size={16} className="text-white" />
+            ) : tab.iconOff ? (
+              <tab.iconOff size={16} className="text-gray-500" />
+            ) : null}
             {tab.label}
           </button>
         ))}

@@ -6,7 +6,7 @@ import Tabs from "@/components/tabs";
 import {
   CheckCircleIcon,
   ChevronDown,
-  ChevronRight,
+  ChevronUp,
   DownloadIcon,
   EyeIcon,
 } from "lucide-react";
@@ -229,7 +229,7 @@ export default function Campaigns() {
     {
       label: "Active",
       icon: ChevronDown,
-      iconOff: ChevronRight,
+      iconOff: ChevronUp,
       component: () => {
         if (isLoading) return <div>Loading...</div>;
         if (error) return <div className="text-red-600">{error}</div>;
@@ -265,13 +265,13 @@ export default function Campaigns() {
     {
       label: "Completed",
       icon: ChevronDown,
-      iconOff: ChevronRight,
+      iconOff: ChevronUp,
       component: () => <p>Coming Soon...</p>,
     },
     {
       label: "Template",
       icon: ChevronDown,
-      iconOff: ChevronRight,
+      iconOff: ChevronUp,
       component: () => <p>Coming Soon...</p>,
     },
   ];
