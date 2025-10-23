@@ -1,36 +1,78 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
+import { getCookie, verifyToken, COOKIE_NAMES } from '@/lib/auth';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
+  const [userid, setUserid] = useState('');
   const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const { login } = useAuth();
+  const [isCheckingToken, setIsCheckingToken] = useState(true);
+  const { login, isLoading } = useAuth();
   const router = useRouter();
+
+  // Check for existing valid token on page load
+  useEffect(() => {
+    const checkExistingToken = async () => {
+      try {
+        const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
+        const jwtToken = getCookie(COOKIE_NAMES.JWT_TOKEN);
+        console.log('Access token found:', !!accessToken);
+        console.log('JWT token found:', !!jwtToken);
+        
+        if (accessToken && jwtToken) {
+          // For now, assume token is valid if both tokens exist
+          console.log('Both tokens found, redirecting to applications');
+          router.push('/applications');
+          return;
+        } else {
+          console.log('Missing tokens, showing login form');
+        }
+      } catch (error) {
+        console.error('Token check error:', error);
+      } finally {
+        setIsCheckingToken(false);
+      }
+    };
+
+    checkExistingToken();
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
     setError('');
 
     try {
-      const success = await login(email, password);
+      console.log('Attempting login with userid:', userid);
+      const success = await login(userid, password);
+      console.log('Login success:', success);
       if (success) {
+        console.log('Login successful, redirecting to applications');
         // Use window.location for a full page redirect to avoid router issues
-        window.location.href = '/';
+        window.location.href = '/applications';
       } else {
-        setError('Invalid email or password');
+        console.log('Login failed');
+        setError('Invalid user ID or password');
       }
     } catch (error) {
+      console.error('Login error:', error);
       setError('Login failed. Please try again.');
-    } finally {
-      setIsLoading(false);
     }
   };
+
+  // Show loading state while checking token
+  if (isCheckingToken) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex">
@@ -79,17 +121,17 @@ export default function LoginPage() {
                 </div>
               )}
 
-              {/* Email Field */}
+              {/* User ID Field */}
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                  Email Address*
+                <label htmlFor="userid" className="block text-sm font-medium text-gray-700 mb-2">
+                  User ID*
                 </label>
                 <input
-                  type="email"
-                  id="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Insert your Email"
+                  type="text"
+                  id="userid"
+                  value={userid}
+                  onChange={(e) => setUserid(e.target.value)}
+                  placeholder="Insert your User ID"
                   className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                   required
                   disabled={isLoading}

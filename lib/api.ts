@@ -1,6 +1,7 @@
 import { LineItemDetail } from "@/types/lineItem";
 import { PaginatedResponse, CertAnalyticsResponse } from "@/types/api";
 import { string } from "yup";
+import { apiRequestWithAuth } from "./auth";
 
 const BASE_URL = "https://preview.keyforge.ai/certification/api/v1/ACMEPOC";
 
@@ -41,6 +42,30 @@ export async function fetchApi<T>(
     return res.json();
   } catch (error) {
     throw new Error(`API request failed: ${error.message}`);
+  }
+}
+
+// New authenticated API function
+export async function fetchApiWithAuth<T>(
+  endpoint: string,
+  pageSize?: number,
+  pageNumber?: number,
+  options: RequestInit = {}
+): Promise<T> {
+  try {
+    const url = new URL(endpoint);
+
+    if (pageSize !== undefined) {
+      url.searchParams.append("pageSize", pageSize.toString());
+    }
+
+    if (pageNumber !== undefined) {
+      url.searchParams.append("pageNumber", pageNumber.toString());
+    }
+
+    return apiRequestWithAuth<T>(url.toString(), options);
+  } catch (error) {
+    throw new Error(`Authenticated API request failed: ${error.message}`);
   }
 }
 
