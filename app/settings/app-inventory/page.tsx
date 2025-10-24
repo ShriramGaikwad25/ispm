@@ -5,9 +5,10 @@ import dynamic from "next/dynamic";
 const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
 import "@/lib/ag-grid-setup";
 import { ColDef } from "ag-grid-enterprise";
-import { Pencil, Upload, Download, Search } from "lucide-react";
+import { Pencil, Upload, Download, Search, Plus } from "lucide-react";
 import Filters from "@/components/agTable/Filters";
 import CustomPagination from "@/components/agTable/CustomPagination";
+import { useRouter } from "next/navigation";
 
 interface AppInventoryItem {
   id: string;
@@ -20,6 +21,7 @@ interface AppInventoryItem {
 }
 
 export default function AppInventoryPage() {
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [rowData, setRowData] = useState<AppInventoryItem[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -243,6 +245,10 @@ useEffect(() => {
     console.log("Edit clicked for:", item);
   };
 
+  const handleAddApplication = () => {
+    router.push("/settings/app-inventory/add-application");
+  };
+
   const handleDownload = (data: AppInventoryItem[]) => {
     const headers = [
       "Name",
@@ -377,6 +383,18 @@ useEffect(() => {
                 aria-label="Download"
               >
                 <Download className="w-4 h-4" />
+              </button>
+
+              {/* Add Application */}
+              <button
+                type="button"
+                className="flex items-center gap-2 px-3 py-2 border border-blue-300 rounded hover:bg-blue-50 text-sm font-medium text-blue-700 bg-blue-50"
+                onClick={handleAddApplication}
+                title="Add Application"
+                aria-label="Add Application"
+              >
+                <Plus className="w-4 h-4" />
+                Add Application
               </button>
             </div>
           </div>
