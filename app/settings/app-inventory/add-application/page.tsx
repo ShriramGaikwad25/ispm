@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { ChevronLeft, ChevronRight, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight, Check, ChevronDown, Edit, Trash2, Info } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 interface FormData {
@@ -38,17 +38,33 @@ interface FormData {
   };
 }
 
-const steps = [
-  { id: 1, title: "Select System", description: "" },
-  { id: 2, title: "Add Details", description: "" },
-  { id: 3, title: "Integration Setting", description: "" },
-  { id: 4, title: "Finish Up", description: "" }
-];
+  const steps = [
+    { id: 1, title: "Select System", description: "" },
+    { id: 2, title: "Add Details", description: "" },
+    { id: 3, title: "Integration Setting", description: "" },
+    { id: 4, title: "Schema Mapping", description: "" },
+    { id: 5, title: "Finish Up", description: "" }
+  ];
 
 export default function AddApplicationPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
+  
+  // Attribute mapping state
+  type AttributeMapping = { source: string; target: string; defaultValue?: string; type: string };
+  const [attributeMappingData, setAttributeMappingData] = useState<AttributeMapping[]>([
+    {
+      source: "user.name",
+      target: "displayName", 
+      defaultValue: "",
+      type: "provisioning"
+    }
+  ]);
+  const [attributeMappingPage, setAttributeMappingPage] = useState(1);
+  const [isEditingAttribute, setIsEditingAttribute] = useState(false);
+  const [editingAttribute, setEditingAttribute] = useState<any>(null);
+  const ATTR_MAPPING_PAGE_SIZE = 10;
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     step1: {
@@ -94,7 +110,7 @@ export default function AddApplicationPage() {
   };
 
   const handleNext = () => {
-    if (currentStep < 4) {
+    if (currentStep < 5) {
       setCurrentStep(currentStep + 1);
     }
   };
@@ -110,6 +126,17 @@ export default function AddApplicationPage() {
     // Here you would typically submit to your API
     alert("Application added successfully!");
     router.push("/settings/app-inventory");
+  };
+
+  // Attribute mapping helper functions
+  const getCurrentPageData = (): AttributeMapping[] => {
+    const start = (attributeMappingPage - 1) * ATTR_MAPPING_PAGE_SIZE;
+    const end = start + ATTR_MAPPING_PAGE_SIZE;
+    return attributeMappingData.slice(start, end);
+  };
+
+  const getAttributeMappingTotalPages = (): number => {
+    return Math.max(1, Math.ceil(attributeMappingData.length / ATTR_MAPPING_PAGE_SIZE));
   };
 
   const renderStepContent = () => {
@@ -241,6 +268,19 @@ export default function AddApplicationPage() {
       case 2:
         return (
           <div className="space-y-6">
+            {/* Selected summary from Step 1 */}
+            <div className="p-4 border border-blue-100 rounded-md bg-blue-50 text-sm text-blue-800">
+              <div className="flex flex-wrap gap-4">
+                <div>
+                  <span className="font-medium">Selected System:</span>{' '}
+                  <span>{formData.step1.type || "Not selected"}</span>
+                </div>
+                <div>
+                  <span className="font-medium">OAuth Type:</span>{' '}
+                  <span>{formData.step1.oauthType || "Not selected"}</span>
+                </div>
+              </div>
+            </div>
             <div className="flex items-center gap-3">
               <div className="flex-1 relative">
                 <input
@@ -5529,6 +5569,283 @@ export default function AddApplicationPage() {
       case 4:
         return (
           <div className="space-y-6">
+
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Existing Mappings Table */}
+              <div className="space-y-4">
+                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <table className="w-full table-auto">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Source Attribute
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Target Attribute
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Default Value
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Lifecycle
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Action
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {getCurrentPageData().length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="px-4 py-6 text-center text-sm text-gray-500">
+                            No attribute mappings configured.
+                          </td>
+                        </tr>
+                      ) : (
+                        getCurrentPageData().map((mapping, index) => (
+                        <tr key={index}>
+                          <td className="px-4 py-3 text-sm text-gray-900 whitespace-pre-wrap break-words break-all align-top" style={{ position: "static", whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "anywhere" }}>
+                            {mapping.source}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900 whitespace-pre-wrap break-words break-all align-top" style={{ position: "static", whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "anywhere" }}>
+                            {mapping.target}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-500">
+                            {mapping.defaultValue || ""}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900">
+                            <select 
+                              className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                              value={mapping.type || "provisioning"}
+                              onChange={(e) => {
+                                const updatedData = [...attributeMappingData];
+                                updatedData[index] = { ...mapping, type: e.target.value };
+                                setAttributeMappingData(updatedData);
+                              }}
+                            >
+                              <option value="provisioning">Provisioning</option>
+                              <option value="reconciliation">Reconciliation</option>
+                              <option value="both">Both</option>
+                            </select>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-500">
+                            <div className="flex space-x-2">
+                              <button
+                                className="text-blue-600 hover:text-blue-800"
+                                onClick={() => {
+                                  setEditingAttribute(mapping);
+                                  setIsEditingAttribute(true);
+                                }}
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button className="text-red-600 hover:text-red-800">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination */}
+                <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                    <button
+                      className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50"
+                    onClick={() => setAttributeMappingPage(Math.max(1, attributeMappingPage - 1))}
+                    disabled={attributeMappingPage === 1}
+                    >
+                      &lt;
+                    </button>
+                  <span className="text-sm text-gray-700">
+                    Page {attributeMappingPage} of {getAttributeMappingTotalPages()}
+                  </span>
+                    <button
+                      className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50"
+                    onClick={() => setAttributeMappingPage(Math.min(getAttributeMappingTotalPages(), attributeMappingPage + 1))}
+                    disabled={attributeMappingPage === getAttributeMappingTotalPages()}
+                    >
+                      &gt;
+                    </button>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex space-x-3">
+                  <button className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700">
+                    Save
+                  </button>
+                  <button className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+
+              {/* Add New Attribute Form or Edit Attribute Form */}
+              <div className="space-y-4">
+                {isEditingAttribute ? (
+                  <>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Mapping Type
+                        </label>
+                        <select
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          defaultValue="direct"
+                        >
+                          <option value="direct">Direct</option>
+                          <option value="expression">Expression</option>
+                          <option value="constant">Constant</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Target Attribute
+                          <Info className="w-4 h-4 inline ml-1 text-gray-400" />
+                        </label>
+                        <input
+                          type="text"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          defaultValue={editingAttribute?.target || ""}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Source Attribute
+                          <Info className="w-4 h-4 inline ml-1 text-gray-400" />
+                          <span className="text-xs text-gray-500 ml-1">
+                            Help
+                          </span>
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            defaultValue={editingAttribute?.source || ""}
+                          />
+                          <button className="absolute right-2 top-2 text-gray-400">
+                            <ChevronDown className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Default value (optional)
+                        </label>
+                        <input
+                          type="text"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          defaultValue={
+                            editingAttribute?.defaultValue || ""
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    {/* Edit Form Action Buttons */}
+                    <div className="flex space-x-3 pt-4">
+                      <button className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700">
+                        Update
+                      </button>
+                      <button
+                        className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50"
+                        onClick={() => setIsEditingAttribute(false)}
+                      >
+                        Discard
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Mapping Type
+                        </label>
+                        <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                          <option value="direct">Direct</option>
+                          <option value="expression">Expression</option>
+                          <option value="constant">Constant</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Source Attribute
+                          <Info className="w-4 h-4 inline ml-1 text-gray-400" />
+                          <span className="text-xs text-gray-500 ml-1">
+                            Help
+                          </span>
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Enter source attribute"
+                          />
+                          <button className="absolute right-2 top-2 text-gray-400">
+                            <ChevronDown className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Target Attribute
+                          <Info className="w-4 h-4 inline ml-1 text-gray-400" />
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Enter target attribute"
+                          />
+                          <button className="absolute right-2 top-2 text-gray-400">
+                            <ChevronDown className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Default value (optional)
+                        </label>
+                        <input
+                          type="text"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Enter default value"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Add Form Action Buttons */}
+                    <div className="flex space-x-3 pt-4">
+                      <button className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50">
+                        Add
+                      </button>
+                      <button className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50">
+                        Discard
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+
+      case 5:
+        return (
+          <div className="space-y-6">
             <p className="text-gray-500 text-center py-8">Finish Up fields will be added later</p>
           </div>
         );
@@ -5577,13 +5894,8 @@ export default function AddApplicationPage() {
            </div>
          </div>
 
-        {/* Form Content */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-          {renderStepContent()}
-        </div>
-
-        {/* Navigation Buttons */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        {/* Navigation Buttons - moved to top */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
           <div className="flex justify-between">
             <button
               onClick={handlePrevious}
@@ -5598,26 +5910,31 @@ export default function AddApplicationPage() {
               Previous
             </button>
 
-             <div className="flex gap-3">
-               {currentStep < 4 ? (
-                 <button
-                   onClick={handleNext}
-                   className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
-                 >
-                   Next
-                   <ChevronRight className="w-4 h-4 ml-2" />
-                 </button>
-               ) : (
-                 <button
-                   onClick={handleSubmit}
-                   className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium"
-                 >
-                   <Check className="w-4 h-4 mr-2" />
-                   Submit Application
-                 </button>
-               )}
-             </div>
+            <div className="flex gap-3">
+              {currentStep < 5 ? (
+                <button
+                  onClick={handleNext}
+                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4 ml-2" />
+                </button>
+              ) : (
+                <button
+                  onClick={handleSubmit}
+                  className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium"
+                >
+                  <Check className="w-4 h-4 mr-2" />
+                  Submit Application
+                </button>
+              )}
+            </div>
           </div>
+        </div>
+
+        {/* Form Content */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+          {renderStepContent()}
         </div>
       </div>
     </div>
