@@ -82,6 +82,12 @@ const dataAccount: Record<string, DataItem[]> = {
 
 export default function ApplicationDetailPage() {
   const { openSidebar, closeSidebar } = useRightSidebar();
+  
+  // Wrapper function to handle page changes and close sidebar
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+    closeSidebar();
+  };
   const routeParams = useParams<{ id: string }>();
   const id = routeParams?.id as string;
   const [tabIndex, setTabIndex] = useState(1);
@@ -2879,9 +2885,25 @@ export default function ApplicationDetailPage() {
             style={{ height: 500, width: "100%" }}
           >
             <div className="relative mb-2">
-              <h1 className="text-xl font-bold border-b border-gray-300 pb-2 text-blue-950">
-                Accounts
-              </h1>
+              <div className="flex items-center justify-between border-b border-gray-300 pb-2">
+                <h1 className="text-xl font-bold text-blue-950">
+                  Accounts
+                </h1>
+                <button
+                  onClick={() => openSidebar(null)}
+                  className="flex items-center space-x-2 px-3 py-2 bg-[#27B973] text-white rounded-md hover:bg-[#22a667] transition-all duration-200 text-sm font-medium"
+                  title="AI Assist Analysis"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                  >
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                  </svg>
+                  <span>AI Assist</span>
+                </button>
+              </div>
               <Accordion
                 iconClass="top-1 right-0 rounded-full text-white bg-purple-800"
                 open={true}
@@ -2998,10 +3020,11 @@ export default function ApplicationDetailPage() {
                   currentPage={currentPage}
                   totalPages={totalPages}
                   pageSize={pageSize}
-                  onPageChange={setCurrentPage}
+                  onPageChange={handlePageChange}
                   onPageSizeChange={(newPageSize) => {
                     setPageSize(newPageSize);
                     setCurrentPage(1); // Reset to first page when changing page size
+                    closeSidebar();
                   }}
                   pageSizeOptions={[10, 20, 50, 100]}
                 />
@@ -3022,10 +3045,11 @@ export default function ApplicationDetailPage() {
                 currentPage={currentPage}
                 totalPages={totalPages}
                 pageSize={pageSize}
-                onPageChange={setCurrentPage}
+                onPageChange={handlePageChange}
                 onPageSizeChange={(newPageSize) => {
                   setPageSize(newPageSize);
                   setCurrentPage(1); // Reset to first page when changing page size
+                  closeSidebar();
                 }}
                 pageSizeOptions={[10, 20, 50, 100]}
               />

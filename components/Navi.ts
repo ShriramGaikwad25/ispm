@@ -1,4 +1,4 @@
-import { Settings, ListTodo, ListTree, LayoutDashboard, LayoutPanelLeft, User2Icon, UserCircle2Icon, ScreenShareIcon, Clock, Package, Plus } from 'lucide-react';
+import { Settings, ListTodo, ListTree, LayoutDashboard, LayoutPanelLeft, User2Icon, UserCircle2Icon, ScreenShareIcon, Clock, Package, Plus, Shield } from 'lucide-react';
 
 export interface NavItem {
   name: string;
@@ -22,7 +22,8 @@ export const navLinks: NavItem[] = [
     subItems: [
       { name: 'Scheduler', href: '/settings/scheduler', icon: Clock },
       { name: 'App Inventory', href: '/settings/app-inventory', icon: Package },
-      { name: 'Onboard App', href: '/settings/onboard-app', icon: Plus }
+      { name: 'Onboard App', href: '/settings/onboard-app', icon: Plus },
+      { name: 'SAM', href: '/settings/sam', icon: Shield }
     ]
   },
 ];
