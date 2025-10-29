@@ -290,7 +290,7 @@ export default function SAMSettingsPage() {
                               <h4 className="text-sm font-semibold text-gray-700 mb-2">Backup Owner</h4>
                               <button
                                 onClick={() => toggleDropdown('backupOwner')}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-left flex items-center justify-between"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-left flex items-center justify-between bg-white"
                               >
                                 <span className="text-sm text-gray-700">
                                   {ownershipItems.backupOwner.length === 0 
@@ -330,7 +330,7 @@ export default function SAMSettingsPage() {
                               <h4 className="text-sm font-semibold text-gray-700 mb-2">Custodian</h4>
                               <button
                                 onClick={() => toggleDropdown('custodian')}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-left flex items-center justify-between"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-left flex items-center justify-between bg-white"
                               >
                                 <span className="text-sm text-gray-700">
                                   {ownershipItems.custodian.length === 0 
@@ -370,7 +370,7 @@ export default function SAMSettingsPage() {
                               <h4 className="text-sm font-semibold text-gray-700 mb-2">End User/SME</h4>
                               <button
                                 onClick={() => toggleDropdown('endUserSME')}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-left flex items-center justify-between"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-left flex items-center justify-between bg-white"
                               >
                                 <span className="text-sm text-gray-700">
                                   {ownershipItems.endUserSME.length === 0 

@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { ChevronLeft, ChevronRight, Check, ChevronDown, Edit, Trash2, Info } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { getAllSupportedApplicationTypesViaProxy } from "@/lib/api";
 
 interface FormData {
   step1: {
@@ -66,6 +67,25 @@ export default function AddApplicationPage() {
   const [editingAttribute, setEditingAttribute] = useState<any>(null);
   const ATTR_MAPPING_PAGE_SIZE = 10;
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  
+  // SCIM Attributes state
+  const [scimAttributes, setScimAttributes] = useState<string[]>([]);
+  const [isLoadingAttributes, setIsLoadingAttributes] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isEditDropdownOpen, setIsEditDropdownOpen] = useState(false);
+  const [sourceAttributeValue, setSourceAttributeValue] = useState("");
+  const [editSourceAttributeValue, setEditSourceAttributeValue] = useState("");
+  const [filteredAttributes, setFilteredAttributes] = useState<string[]>([]);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const editDropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Application types from API
+  const [applicationTypes, setApplicationTypes] = useState<Array<{ id: string; title: string; subtitle: string; icon: string }>>([]);
+  const [oauthTypes, setOauthTypes] = useState<string[]>([]);
+  const [isLoadingAppTypes, setIsLoadingAppTypes] = useState(false);
+  // Field definitions from API
+  const [applicationTypeFields, setApplicationTypeFields] = useState<Record<string, string[]>>({});
+  const [oauthTypeFields, setOauthTypeFields] = useState<Record<string, string[]>>({});
   const [formData, setFormData] = useState<FormData>({
     step1: {
       applicationName: "",
@@ -139,6 +159,181 @@ export default function AddApplicationPage() {
     return Math.max(1, Math.ceil(attributeMappingData.length / ATTR_MAPPING_PAGE_SIZE));
   };
 
+  // Fetch application types from API
+  const fetchApplicationTypes = async () => {
+    setIsLoadingAppTypes(true);
+    try {
+      console.log("Fetching application types from API...");
+      const data = await getAllSupportedApplicationTypesViaProxy();
+      console.log("API Response:", data);
+      
+      // Extract application types from API response
+      // API returns: { applicationType: [{ "LDAP": [...] }, { "Generic LDAP": [...] }, ...] }
+      if (data?.applicationType && Array.isArray(data.applicationType)) {
+        const fieldMap: Record<string, string[]> = {};
+        const extractedTypes = data.applicationType.map((item: any) => {
+          // Each item is an object with one key (the app type name)
+          const typeName = Object.keys(item)[0];
+          const fields = item[typeName];
+          if (Array.isArray(fields)) fieldMap[typeName] = fields;
+          return {
+            id: typeName,
+            title: typeName,
+            subtitle: `${typeName} application type`,
+            icon: "📦" // Default icon, you can customize based on typeName
+          };
+        });
+        console.log("Extracted application types:", extractedTypes);
+        setApplicationTypes(extractedTypes);
+        setApplicationTypeFields(fieldMap);
+      } else {
+        console.warn("No applicationType found in API response or invalid format:", data);
+      }
+      
+      // Extract OAuth types from API response
+      // API returns: { oauthType: [{ "OKTA": [...] }, { "IDCS": [...] }, ...] }
+      if (data?.oauthType && Array.isArray(data.oauthType)) {
+        const oauthFieldMap: Record<string, string[]> = {};
+        const extractedOauthTypes = data.oauthType.map((item: any) => {
+          // Each item is an object with one key (the oauth type name)
+          const key = Object.keys(item)[0];
+          const fields = item[key];
+          if (Array.isArray(fields)) oauthFieldMap[key] = fields;
+          return key;
+        });
+        console.log("Extracted OAuth types:", extractedOauthTypes);
+        setOauthTypes(extractedOauthTypes);
+        setOauthTypeFields(oauthFieldMap);
+      } else {
+        console.warn("No oauthType found in API response or invalid format:", data);
+      }
+    } catch (error) {
+      console.error("Error fetching application types:", error);
+      setApplicationTypes([]);
+      setOauthTypes([]);
+      setApplicationTypeFields({});
+      setOauthTypeFields({});
+    } finally {
+      setIsLoadingAppTypes(false);
+    }
+  };
+
+  // Fetch application types on component mount
+  useEffect(() => {
+    fetchApplicationTypes();
+  }, []);
+
+  // Fetch SCIM attributes from API
+  const fetchScimAttributes = async () => {
+    setIsLoadingAttributes(true);
+    try {
+      const response = await fetch("https://preview.keyforge.ai/schemamapper/getscim/ACMECOM", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch SCIM attributes: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      if (data.status === "success" && Array.isArray(data.scimAttributes)) {
+        setScimAttributes(data.scimAttributes);
+        setFilteredAttributes(data.scimAttributes);
+      } else {
+        console.error("Invalid API response format");
+        setScimAttributes([]);
+        setFilteredAttributes([]);
+      }
+    } catch (error) {
+      console.error("Error fetching SCIM attributes:", error);
+      setScimAttributes([]);
+      setFilteredAttributes([]);
+    } finally {
+      setIsLoadingAttributes(false);
+    }
+  };
+
+  // Handle dropdown click - fetch attributes if not already fetched
+  const handleDropdownToggle = () => {
+    if (scimAttributes.length === 0 && !isLoadingAttributes) {
+      fetchScimAttributes();
+    }
+    setIsDropdownOpen(!isDropdownOpen);
+    setFilteredAttributes(scimAttributes);
+  };
+
+  const handleEditDropdownToggle = () => {
+    if (scimAttributes.length === 0 && !isLoadingAttributes) {
+      fetchScimAttributes();
+    }
+    setIsEditDropdownOpen(!isEditDropdownOpen);
+    setFilteredAttributes(scimAttributes);
+  };
+
+  // Filter attributes based on search input
+  const filterAttributes = (searchTerm: string, isEdit: boolean = false) => {
+    if (searchTerm === "") {
+      setFilteredAttributes(scimAttributes);
+    } else {
+      const search = searchTerm.toLowerCase();
+      const filtered = scimAttributes.filter((attr) =>
+        attr.toLowerCase().includes(search)
+      );
+      setFilteredAttributes(filtered);
+    }
+    
+    if (isEdit) {
+      setEditSourceAttributeValue(searchTerm);
+    } else {
+      setSourceAttributeValue(searchTerm);
+    }
+  };
+
+  // Select an attribute from dropdown
+  const selectAttribute = (attribute: string, isEdit: boolean = false) => {
+    if (isEdit) {
+      setEditSourceAttributeValue(attribute);
+      setIsEditDropdownOpen(false);
+    } else {
+      setSourceAttributeValue(attribute);
+      setIsDropdownOpen(false);
+    }
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsDropdownOpen(false);
+      }
+      if (
+        editDropdownRef.current &&
+        !editDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsEditDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  // Initialize edit source attribute value when editing starts
+  useEffect(() => {
+    if (isEditingAttribute && editingAttribute) {
+      setEditSourceAttributeValue(editingAttribute.source || "");
+    }
+  }, [isEditingAttribute, editingAttribute]);
+
   const renderStepContent = () => {
     switch (currentStep) {
       case 1:
@@ -169,11 +364,14 @@ export default function AddApplicationPage() {
                    onChange={(e) => handleInputChange("step1", "oauthType", e.target.value)}
                    className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
                    required
+                   disabled={isLoadingAppTypes}
                  >
                    <option value=""></option>
-                   <option value="OKTA">OKTA</option>
-                   <option value="IDCS">IDCS</option>
-                   <option value="KPOAUTH">KPOAUTH</option>
+                   {oauthTypes.map((oauthType) => (
+                     <option key={oauthType} value={oauthType}>
+                       {oauthType}
+                     </option>
+                   ))}
                  </select>
                  <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
                    formData.step1.oauthType 
@@ -188,51 +386,25 @@ export default function AddApplicationPage() {
                <label className="block text-sm font-medium text-gray-700 mb-4">
                  Application Type *
                </label>
+               {isLoadingAppTypes ? (
+                 <div className="flex items-center justify-center p-8">
+                   <div className="text-gray-500">Loading application types...</div>
+                 </div>
+               ) : (
                <div className="grid grid-cols-3 gap-4">
-                 {[
-                   { id: "LDAP", title: "LDAP", subtitle: "Lightweight Directory Access Protocol", icon: "📁" },
-                   { id: "Generic LDAP", title: "Generic LDAP", subtitle: "Generic LDAP connection", icon: "📁" },
-                   { id: "Active Directory", title: "Active Directory", subtitle: "Microsoft Active Directory", icon: "🏢" },
-                   { id: "Active Directory Collector", title: "AD Collector", subtitle: "Active Directory Collector", icon: "📊" },
-                   { id: "LogicalApp Active Directory", title: "LogicalApp AD", subtitle: "Logical Application AD", icon: "🔗" },
-                   { id: "Logical Application", title: "Logical Application", subtitle: "Logical application", icon: "⚙️" },
-                   { id: "Provisioning Agent", title: "Provisioning Agent", subtitle: "Provisioning agent", icon: "🤖" },
-                   { id: "Database", title: "Database", subtitle: "Database system", icon: "🗄️" },
-                   { id: "Database Collector", title: "DB Collector", subtitle: "Database collector", icon: "📊" },
-                   { id: "Disconnected Application", title: "Disconnected App", subtitle: "Disconnected application", icon: "🔌" },
-                   { id: "Flatfile", title: "Flatfile", subtitle: "Flat file system", icon: "📄" },
-                   { id: "Service Now Ticketing", title: "ServiceNow", subtitle: "ServiceNow ticketing", icon: "🎫" },
-                   { id: "AWS", title: "AWS", subtitle: "Amazon Web Services", icon: "☁️" },
-                   { id: "OKTA", title: "OKTA", subtitle: "OKTA identity platform", icon: "🔐" },
-                   { id: "RESTService Application", title: "REST Service", subtitle: "REST service application", icon: "🌐" },
-                   { id: "OracleFusionApps", title: "Oracle Fusion", subtitle: "Oracle Fusion Applications", icon: "🏛️" },
-                   { id: "SalesForce", title: "SalesForce", subtitle: "SalesForce CRM", icon: "💼" },
-                   { id: "Centrify", title: "Centrify", subtitle: "Centrify identity platform", icon: "🔒" },
-                   { id: "E2EMigration Client", title: "E2E Migration", subtitle: "End-to-end migration client", icon: "🔄" },
-                   { id: "SailPointIdentityIQ", title: "SailPoint IIQ", subtitle: "SailPoint IdentityIQ", icon: "⛵" },
-                   { id: "SailPointIIQApplications", title: "SailPoint Apps", subtitle: "SailPoint IIQ Applications", icon: "⛵" },
-                   { id: "RSA", title: "RSA", subtitle: "RSA security platform", icon: "🔐" },
-                   { id: "Oracle E-Business", title: "Oracle E-Business", subtitle: "Oracle E-Business Suite", icon: "🏛️" },
-                   { id: "PeopleSoft", title: "PeopleSoft", subtitle: "PeopleSoft system", icon: "👥" },
-                   { id: "PeopleSoftHR", title: "PeopleSoft HR", subtitle: "PeopleSoft Human Resources", icon: "👥" },
-                   { id: "PeopleSoftUM", title: "PeopleSoft UM", subtitle: "PeopleSoft User Management", icon: "👥" },
-                   { id: "SAP", title: "SAP", subtitle: "SAP system", icon: "🏢" },
-                   { id: "OIMOUD Management", title: "OIM OUD", subtitle: "Oracle Identity Manager OUD", icon: "🏛️" },
-                   { id: "Azure", title: "Azure", subtitle: "Microsoft Azure", icon: "☁️" },
-                   { id: "Oracle Identity Manager", title: "Oracle IAM", subtitle: "Oracle Identity Manager", icon: "🏛️" },
-                   { id: "Oracle IDCS", title: "Oracle IDCS", subtitle: "Oracle Identity Cloud Service", icon: "🏛️" },
-                   { id: "Epic", title: "Epic", subtitle: "Epic system", icon: "🏥" },
-                   { id: "Unix", title: "Unix", subtitle: "Unix system", icon: "🐧" },
-                   { id: "ATG Web Commerce", title: "ATG Commerce", subtitle: "ATG Web Commerce", icon: "🛒" },
-                   { id: "Database User Management", title: "DB User Mgmt", subtitle: "Database User Management", icon: "👤" }
-                 ]
-                 .filter((type) => 
-                   searchQuery === "" || 
-                   type.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                   type.subtitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                   type.id.toLowerCase().includes(searchQuery.toLowerCase())
-                 )
-                 .map((type) => (
+                 {applicationTypes.length === 0 ? (
+                   <div className="col-span-3 text-center text-gray-500 p-4">
+                     No application types available. Please check the API connection.
+                   </div>
+                 ) : (
+                   applicationTypes
+                     .filter((type) => 
+                       searchQuery === "" || 
+                       type.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                       type.subtitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                       type.id.toLowerCase().includes(searchQuery.toLowerCase())
+                     )
+                     .map((type) => (
                    <div
                      key={type.id}
                      onClick={() => handleInputChange("step1", "type", type.id)}
@@ -259,8 +431,10 @@ export default function AddApplicationPage() {
                        )}
                      </div>
                    </div>
-                 ))}
+                     ))
+                 )}
                </div>
+               )}
              </div>
           </div>
         );
@@ -375,6 +549,77 @@ export default function AddApplicationPage() {
         const selectedAppType = formData.step1.type;
         
         const renderIntegrationFields = () => {
+          // Dynamic rendering based on API-provided fields
+          const typeFields = applicationTypeFields[selectedAppType] || [];
+          const selectedOauth = formData.step1.oauthType;
+          const oauthFieldsForType = oauthTypeFields[selectedOauth] || [];
+
+          if (typeFields.length > 0 || oauthFieldsForType.length > 0) {
+            const renderField = (fieldKey: string) => {
+              const label = fieldKey
+                .replace(/_/g, ' ')
+                .replace(/\b\w/g, (c) => c.toUpperCase());
+              const value = (formData.step3 as any)[fieldKey] ?? "";
+              return (
+                <div className="flex-1 relative" key={fieldKey}>
+                  <input
+                    type="text"
+                    value={value}
+                    onChange={(e) => handleInputChange("step3", fieldKey, e.target.value)}
+                    className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                    placeholder=" "
+                  />
+                  <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                    value
+                      ? 'top-0.5 text-xs text-blue-600' 
+                      : 'top-3.5 text-sm text-gray-500'
+                  }`}>
+                    {label}
+                  </label>
+                </div>
+              );
+            };
+
+            return (
+              <div className="space-y-6">
+                {typeFields.length > 0 && (
+                  <div>
+                    <div className="text-sm font-medium text-gray-700 mb-3">{selectedAppType} Settings</div>
+                    <div className="flex flex-col gap-3">
+                      {/* Render in rows of two inputs */}
+                      {typeFields.reduce<string[][]>((rows, field, idx) => {
+                        if (idx % 2 === 0) rows.push([field]); else rows[rows.length - 1].push(field);
+                        return rows;
+                      }, []).map((row, i) => (
+                        <div className="flex items-center gap-3" key={`type-row-${i}`}>
+                          {row.map((f) => renderField(f))}
+                          {row.length === 1 && <div className="flex-1" />}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {oauthFieldsForType.length > 0 && (
+                  <div>
+                    <div className="text-sm font-medium text-gray-700 mb-3">{selectedOauth} OAuth Settings</div>
+                    <div className="flex flex-col gap-3">
+                      {oauthFieldsForType.reduce<string[][]>((rows, field, idx) => {
+                        if (idx % 2 === 0) rows.push([field]); else rows[rows.length - 1].push(field);
+                        return rows;
+                      }, []).map((row, i) => (
+                        <div className="flex items-center gap-3" key={`oauth-row-${i}`}>
+                          {row.map((f) => renderField(f))}
+                          {row.length === 1 && <div className="flex-1" />}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          // Fallback to existing hardcoded layouts if API did not return fields for the selected type
           switch (selectedAppType) {
             case "LDAP":
             case "Generic LDAP":
@@ -5725,15 +5970,48 @@ export default function AddApplicationPage() {
                             Help
                           </span>
                         </label>
-                        <div className="relative">
+                        <div className="relative" ref={editDropdownRef}>
                           <input
                             type="text"
                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            defaultValue={editingAttribute?.source || ""}
+                            value={editSourceAttributeValue || editingAttribute?.source || ""}
+                            onChange={(e) => {
+                              filterAttributes(e.target.value, true);
+                            }}
+                            onFocus={() => {
+                              if (scimAttributes.length === 0 && !isLoadingAttributes) {
+                                fetchScimAttributes();
+                              }
+                              setIsEditDropdownOpen(true);
+                            }}
+                            placeholder="Select or enter source attribute"
                           />
-                          <button className="absolute right-2 top-2 text-gray-400">
-                            <ChevronDown className="w-4 h-4" />
+                          <button
+                            type="button"
+                            className="absolute right-2 top-2 text-gray-400 hover:text-gray-600"
+                            onClick={handleEditDropdownToggle}
+                          >
+                            <ChevronDown className={`w-4 h-4 transition-transform ${isEditDropdownOpen ? 'rotate-180' : ''}`} />
                           </button>
+                          {isEditDropdownOpen && (
+                            <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100" style={{ scrollBehavior: 'smooth' }}>
+                              {isLoadingAttributes ? (
+                                <div className="px-4 py-2 text-sm text-gray-500">Loading attributes...</div>
+                              ) : filteredAttributes.length > 0 ? (
+                                filteredAttributes.map((attr, index) => (
+                                  <div
+                                    key={index}
+                                    className="px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                                    onClick={() => selectAttribute(attr, true)}
+                                  >
+                                    {attr}
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="px-4 py-2 text-sm text-gray-500">No attributes found</div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -5758,7 +6036,11 @@ export default function AddApplicationPage() {
                       </button>
                       <button
                         className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50"
-                        onClick={() => setIsEditingAttribute(false)}
+                        onClick={() => {
+                          setIsEditingAttribute(false);
+                          setEditSourceAttributeValue("");
+                          setIsEditDropdownOpen(false);
+                        }}
                       >
                         Discard
                       </button>
@@ -5786,15 +6068,48 @@ export default function AddApplicationPage() {
                             Help
                           </span>
                         </label>
-                        <div className="relative">
+                        <div className="relative" ref={dropdownRef}>
                           <input
                             type="text"
                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="Enter source attribute"
+                            value={sourceAttributeValue}
+                            onChange={(e) => {
+                              filterAttributes(e.target.value, false);
+                            }}
+                            onFocus={() => {
+                              if (scimAttributes.length === 0 && !isLoadingAttributes) {
+                                fetchScimAttributes();
+                              }
+                              setIsDropdownOpen(true);
+                            }}
+                            placeholder="Select or enter source attribute"
                           />
-                          <button className="absolute right-2 top-2 text-gray-400">
-                            <ChevronDown className="w-4 h-4" />
+                          <button
+                            type="button"
+                            className="absolute right-2 top-2 text-gray-400 hover:text-gray-600"
+                            onClick={handleDropdownToggle}
+                          >
+                            <ChevronDown className={`w-4 h-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
                           </button>
+                          {isDropdownOpen && (
+                            <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100" style={{ scrollBehavior: 'smooth' }}>
+                              {isLoadingAttributes ? (
+                                <div className="px-4 py-2 text-sm text-gray-500">Loading attributes...</div>
+                              ) : filteredAttributes.length > 0 ? (
+                                filteredAttributes.map((attr, index) => (
+                                  <div
+                                    key={index}
+                                    className="px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                                    onClick={() => selectAttribute(attr, false)}
+                                  >
+                                    {attr}
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="px-4 py-2 text-sm text-gray-500">No attributes found</div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -5832,7 +6147,13 @@ export default function AddApplicationPage() {
                       <button className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50">
                         Add
                       </button>
-                      <button className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50">
+                      <button
+                        className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50"
+                        onClick={() => {
+                          setSourceAttributeValue("");
+                          setIsDropdownOpen(false);
+                        }}
+                      >
                         Discard
                       </button>
                     </div>

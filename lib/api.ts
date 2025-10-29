@@ -347,3 +347,24 @@ export async function executeQuery<T>(
 
   return res.json();
 }
+
+// Get all supported application types for registration
+export async function getAllSupportedApplicationTypes(): Promise<any> {
+  const endpoint = "https://preview.keyforge.ai/registerscimapp/registerfortenant/ACMECOM/getAllSupportedObjects";
+  return fetchApi(endpoint);
+}
+
+// Client-safe proxy call (avoids CORS by using Next.js API route)
+export async function getAllSupportedApplicationTypesViaProxy(): Promise<any> {
+  const headers = {
+    "Content-Type": "application/json",
+    "X-Requested-With": "XMLHttpRequest",
+  };
+
+  const res = await fetch(`/api/supported-objects`, { headers, cache: 'no-store' });
+  if (!res.ok) {
+    const errorBody = await res.text();
+    throw new Error(`Proxy fetch failed: ${res.status} ${res.statusText}\n${errorBody}`);
+  }
+  return res.json();
+}
