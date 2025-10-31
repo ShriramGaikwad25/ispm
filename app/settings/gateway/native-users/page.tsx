@@ -168,11 +168,23 @@ export default function GatewayNativeUsersSettings() {
       const [firstName, setFirstName] = useState(row.firstName);
       const [lastName, setLastName] = useState(row.lastName);
       const [email, setEmail] = useState(row.email);
-      const roles = row.adminRoles ?? ["User Administrator"];
+      const [roles, setRoles] = useState<string[]>(row.adminRoles ?? ["User Administrator"]);
       const [showReset, setShowReset] = useState(false);
       const [newPassword, setNewPassword] = useState("");
       const [confirmPassword, setConfirmPassword] = useState("");
       const [resetSubmitting, setResetSubmitting] = useState(false);
+      const [updateSubmitting, setUpdateSubmitting] = useState(false);
+      const [showAddRole, setShowAddRole] = useState(false);
+      const [selectedRoleToAdd, setSelectedRoleToAdd] = useState("");
+
+      const allRoles = [
+        "Domain Administrator",
+        "Security Administrator",
+        "Application Administrator",
+        "User Administrator",
+        "Help Desk Administrator",
+        "Audit Administrator",
+      ];
 
       return (
         <div>
@@ -180,8 +192,47 @@ export default function GatewayNativeUsersSettings() {
             <h3 className="text-lg font-semibold">Modify User</h3>
             <div className="flex items-center gap-2">
               <button className="px-3 py-1.5 rounded text-sm text-white" style={{ backgroundColor: '#0EA5E9' }} onClick={() => setShowReset(!showReset)}>Reset Password</button>
-              <button className="px-3 py-1.5 rounded text-sm text-white" style={{ backgroundColor: '#0EA5E9' }}>Add Role</button>
-              <button className="px-3 py-1.5 rounded text-sm text-white" style={{ backgroundColor: '#27B973' }}>Update</button>
+              <button
+                className="px-3 py-1.5 rounded text-sm text-white"
+                style={{ backgroundColor: '#0EA5E9' }}
+                onClick={() => setShowAddRole((s) => !s)}
+              >
+                {showAddRole ? 'Cancel' : 'Add Role'}
+              </button>
+              <button
+                className={`px-3 py-1.5 rounded text-sm text-white ${updateSubmitting ? 'opacity-60 cursor-not-allowed' : ''}`}
+                style={{ backgroundColor: '#27B973' }}
+                disabled={updateSubmitting}
+                onClick={async () => {
+                  if (updateSubmitting) return;
+                  try {
+                    setUpdateSubmitting(true);
+                    const payload = {
+                      id: row.id,
+                      userName: row.userName,
+                      firstName: firstName.trim(),
+                      lastName: lastName.trim(),
+                      displayName: displayName.trim(),
+                      email: email.trim(),
+                      adminRoles: roles,
+                    };
+                    const res = await fetch('https://preview.keyforge.ai/nativeusers/api/v1/ACMECOM/updateuser', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(payload),
+                    });
+                    if (!res.ok) throw new Error(`POST failed: ${res.status}`);
+                    setRows(prev => prev.map(u => u.id === row.id ? { ...u, firstName: payload.firstName, lastName: payload.lastName, displayName: payload.displayName, email: payload.email, adminRoles: payload.adminRoles } : u));
+                    closeSidebar();
+                  } catch (e) {
+                    console.error(e);
+                  } finally {
+                    setUpdateSubmitting(false);
+                  }
+                }}
+              >
+                {updateSubmitting ? 'Updating...' : 'Update'}
+              </button>
             </div>
           </div>
 
@@ -231,6 +282,40 @@ export default function GatewayNativeUsersSettings() {
             </div>
           )}
 
+          {showAddRole && (
+            <div className="mb-5 border border-gray-200 rounded p-4">
+              <div className="grid grid-cols-[120px_1fr_auto] items-center gap-3">
+                <label className="text-sm text-gray-700">Select Role</label>
+                <select
+                  value={selectedRoleToAdd}
+                  onChange={(e) => setSelectedRoleToAdd(e.target.value)}
+                  className="border rounded px-3 py-2 text-sm w-full"
+                >
+                  <option value="">Select role</option>
+                  {allRoles.map((r) => (
+                    <option key={r} value={r} disabled={roles.includes(r)}>
+                      {r} {roles.includes(r) ? '(current)' : ''}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className={`px-3 py-2 rounded text-sm text-white ${selectedRoleToAdd && !roles.includes(selectedRoleToAdd) ? '' : 'opacity-60 cursor-not-allowed'}`}
+                  style={{ backgroundColor: '#0EA5E9' }}
+                  disabled={!selectedRoleToAdd || roles.includes(selectedRoleToAdd)}
+                  onClick={() => {
+                    if (!selectedRoleToAdd || roles.includes(selectedRoleToAdd)) return;
+                    setRoles((prev) => [...prev, selectedRoleToAdd]);
+                    setSelectedRoleToAdd("");
+                    setShowAddRole(false);
+                  }}
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 gap-4">
             <div className="grid grid-cols-1 gap-4">
               <div className="grid grid-cols-[120px_1fr] items-center gap-3">
@@ -272,7 +357,13 @@ export default function GatewayNativeUsersSettings() {
                   <tr key={idx} className="border-t border-gray-200">
                     <td className="px-4 py-2">{r}</td>
                     <td className="px-4 py-2">
-                      <button title="Delete" className="text-red-600">🗑️</button>
+                      <button
+                        title="Delete"
+                        className="text-red-600"
+                        onClick={() => setRoles((prev) => prev.filter((x) => x !== r))}
+                      >
+                        🗑️
+                      </button>
                     </td>
                   </tr>
                 ))}
