@@ -4,13 +4,16 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { 
   requestToken, 
   verifyToken, 
-  requestJWTToken, 
+  requestJWTToken,
+  generateJWTToken,
+  extractJWTToken,
   isAuthenticated, 
   getCurrentUser, 
   clearAllAuthCookies,
   setCookie,
   getCookie,
-  COOKIE_NAMES
+  COOKIE_NAMES,
+  forceLogout
 } from '@/lib/auth';
 
 interface AuthContextType {
@@ -39,11 +42,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('AuthContext: JWT token found:', !!jwtToken);
         
         if (accessToken && jwtToken) {
-          // For now, assume authenticated if both tokens exist
-          console.log('AuthContext: Both tokens found, setting authenticated');
-          setIsAuthenticated(true);
-          const currentUser = getCurrentUser();
-          setUser(currentUser);
+          // Verify that the access token is still valid
+          console.log('AuthContext: Both tokens found, verifying access token');
+          const verificationResult = await verifyToken(accessToken);
+          
+          if (verificationResult.valid) {
+            console.log('AuthContext: Token verification successful, setting authenticated');
+            setIsAuthenticated(true);
+            const currentUser = getCurrentUser();
+            setUser(currentUser);
+          } else {
+            // Token verification failed - logout will be handled by verifyToken
+            console.log('AuthContext: Token verification failed');
+            setIsAuthenticated(false);
+            setUser(null);
+          }
         } else {
           console.log('AuthContext: Missing tokens, not authenticated');
           setIsAuthenticated(false);
@@ -70,14 +83,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const tokenResponse = await requestToken(userid, password);
       console.log('AuthContext: Token response received:', tokenResponse);
       
-      // Step 2: Set access token and UID tenant cookies
-      setCookie(COOKIE_NAMES.ACCESS_TOKEN, tokenResponse.tokenResponse.accessToken);
+      // Step 2: Set access token (master token) and UID tenant cookies
+      // The access token is a long-lived token used to generate new JWT tokens when they expire
+      const accessToken = tokenResponse.tokenResponse.accessToken;
+      setCookie(COOKIE_NAMES.ACCESS_TOKEN, accessToken);
       setCookie(COOKIE_NAMES.UID_TENANT, JSON.stringify({ userid, tenantId: 'ACMECOM' }));
-      console.log('AuthContext: Access token cookie set');
+      console.log('AuthContext: Access token (master token) cookie set');
       
-      // Step 3: Use access token as JWT token (no separate JWT request)
-      setCookie(COOKIE_NAMES.JWT_TOKEN, tokenResponse.tokenResponse.accessToken);
-      console.log('AuthContext: JWT token cookie set');
+      // Step 3: Generate short-lived JWT token using the new API endpoint
+      // This JWT token is used for API calls and will be refreshed using the access token
+      const jwtResponse = await generateJWTToken(accessToken);
+      console.log('AuthContext: JWT token response received:', jwtResponse);
+      
+      // Extract JWT token from response (handle different possible response formats)
+      const jwtToken = extractJWTToken(jwtResponse);
+      
+      if (!jwtToken) {
+        console.error('AuthContext: JWT token not found in response');
+        // Logout will be handled by generateJWTToken if it detects failure
+        forceLogout('JWT token not found in response');
+        throw new Error('Failed to generate JWT token');
+      }
+      
+      setCookie(COOKIE_NAMES.JWT_TOKEN, jwtToken);
+      console.log('AuthContext: JWT token (for API calls) cookie set');
       
       // Update auth state
       setIsAuthenticated(true);

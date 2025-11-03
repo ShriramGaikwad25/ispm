@@ -5,10 +5,13 @@ import dynamic from "next/dynamic";
 const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
 import "@/lib/ag-grid-setup";
 import { ColDef } from "ag-grid-enterprise";
-import { Pencil, Upload, Download, Search, Plus } from "lucide-react";
+import { Pencil, Upload, Download, Search, Plus, Sparkles } from "lucide-react";
 import Filters from "@/components/agTable/Filters";
 import CustomPagination from "@/components/agTable/CustomPagination";
 import { useRouter } from "next/navigation";
+import { getAllApplications, getAllAppsForUserWithAI, type Application } from "@/lib/api";
+import { getCookie, COOKIE_NAMES, getCurrentUser } from "@/lib/auth";
+import HorizontalTabs from "@/components/HorizontalTabs";
 
 interface AppInventoryItem {
   id: string;
@@ -22,6 +25,7 @@ interface AppInventoryItem {
 
 export default function AppInventoryPage() {
   const router = useRouter();
+  const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [mounted, setMounted] = useState(false);
   const [rowData, setRowData] = useState<AppInventoryItem[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -31,9 +35,145 @@ export default function AppInventoryPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [selectedRisk, setSelectedRisk] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Sample data - replace with actual API call
+  // Convert API Application to AppInventoryItem - handle any format
+  const convertApplicationToItem = (app: any): AppInventoryItem => {
+    // Handle different possible field names and types
+    const applicationId = app.ApplicationID || app.applicationID || app.id || app.Id || '';
+    const applicationName = app.ApplicationName || app.applicationName || app.name || app.Name || '';
+    const applicationType = app.ApplicationType || app.applicationType || app.type || app.Type || '';
+    const tenantId = app.TenantID || app.tenantID || app.tenantId || app.tenant || '';
+    const scimUrl = app.SCIMURL || app.scimURL || app.scimUrl || app.url || app.Url || '';
+    
+    return {
+      id: String(applicationId),
+      name: String(applicationName),
+      description: `${applicationType} application registered for tenant ${tenantId}`,
+      category: String(applicationType),
+      riskLevel: "Medium", // Default risk level
+      serviceUrl: String(scimUrl),
+      createdOn: new Date().toISOString().split('T')[0], // Current date as placeholder
+    };
+  };
+
+  const [applicationsData, setApplicationsData] = useState<AppInventoryItem[]>([]);
+  const [aiApplicationsData, setAiApplicationsData] = useState<AppInventoryItem[]>([]);
+
+  // Fetch applications from API
+  useEffect(() => {
+    const fetchApplications = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        // Use any type to avoid strict type checking issues
+        const response: any = await getAllApplications();
+        console.log('API Response received:', response);
+        console.log('Response type:', typeof response);
+        console.log('Response Applications:', response?.Applications);
+        console.log('Response status:', response?.status, typeof response?.status);
+        
+        // Handle different possible response formats - be very flexible
+        if (response && response.Applications) {
+          // Ensure Applications is an array
+          const applications = Array.isArray(response.Applications) 
+            ? response.Applications 
+            : [];
+          
+          if (applications.length === 0) {
+            console.warn('Applications array is empty');
+          }
+          
+          // Check status only if it exists and indicates an error
+          const status = response.status;
+          if (status !== undefined && status !== null) {
+            const statusStr = String(status).toLowerCase();
+            if (statusStr === 'error' || statusStr === 'failed') {
+              const message = response.message || 'Failed to fetch applications';
+              throw new Error(message);
+            }
+          }
+          
+          const convertedData = applications.map(convertApplicationToItem);
+          setApplicationsData(convertedData);
+        } else {
+          throw new Error(response?.message || 'Invalid response format: Applications array not found');
+        }
+      } catch (err) {
+        console.error('Error fetching applications:', err);
+        console.error('Error details:', {
+          message: err instanceof Error ? err.message : String(err),
+          stack: err instanceof Error ? err.stack : undefined
+        });
+        setError(err instanceof Error ? err.message : 'Failed to fetch applications');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (mounted) {
+      fetchApplications();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted]);
+
+  // Fetch AI Assist apps when switching to the AI tab
+  useEffect(() => {
+    const fetchAiApps = async () => {
+      try {
+        // Determine login id from cookie or current user
+        let loginId = '';
+        const raw = getCookie(COOKIE_NAMES.UID_TENANT);
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw);
+            loginId = parsed?.userid || parsed?.email || '';
+          } catch {}
+        }
+        if (!loginId) {
+          const current = getCurrentUser();
+          loginId = (current?.email as string) || '';
+        }
+        if (!loginId) return;
+
+        const resp: any = await getAllAppsForUserWithAI(loginId);
+        // API returns { items: [...] , status: 'success' }
+        const appsArray = Array.isArray(resp)
+          ? resp
+          : (resp?.items || resp?.Applications || resp?.apps || resp?.data || []);
+
+        const converted = (appsArray as any[]).map((app: any) => {
+          // Map AI Assist item shape to AppInventoryItem
+          const applicationName = app.applicationName || app.name || '';
+          const applicationType = app.applicationType || app.type || '';
+          const description = app.applicationDescription || app.comments || '';
+          const scimOrConnUrl = app.connectionDetails?.connectionURL || app.url || '';
+          const id = app.requestId || app.id || applicationName || '';
+
+          return {
+            id: String(id),
+            name: String(applicationName),
+            description: String(description || `${applicationType} application`),
+            category: String(applicationType || 'Unknown'),
+            riskLevel: 'Medium',
+            serviceUrl: String(scimOrConnUrl),
+            createdOn: new Date().toISOString().split('T')[0],
+          } as AppInventoryItem;
+        });
+        setAiApplicationsData(converted);
+      } catch (e) {
+        console.error('AI Assist fetch error', e);
+      }
+    };
+
+    if (mounted && activeTabIndex === 1 && aiApplicationsData.length === 0) {
+      fetchAiApps();
+    }
+  }, [activeTabIndex, mounted]);
+
+  // Sample data - fallback if API fails
   const sampleData: AppInventoryItem[] = [
     {
       id: "1",
@@ -115,13 +255,21 @@ useEffect(() => {
 
 const categoryOptions = useMemo(() => {
   const set = new Set<string>();
-  for (const item of sampleData) set.add(item.category);
+  const base = activeTabIndex === 0
+    ? (applicationsData.length > 0 ? applicationsData : sampleData)
+    : aiApplicationsData;
+  const data = base || [];
+  for (const item of data) set.add(item.category);
   return Array.from(set).sort();
-}, []);
+}, [applicationsData, aiApplicationsData, activeTabIndex]);
 
 const filteredData = useMemo(() => {
   const q = searchQuery.trim().toLowerCase();
-  return sampleData.filter((item) => {
+  const base = activeTabIndex === 0
+    ? (applicationsData.length > 0 ? applicationsData : sampleData)
+    : aiApplicationsData;
+  const data = base || [];
+  return data.filter((item) => {
     const matchesQuery =
       q.length === 0 ||
       item.name.toLowerCase().includes(q) ||
@@ -132,7 +280,7 @@ const filteredData = useMemo(() => {
     const matchesRisk = !selectedRisk || item.riskLevel === selectedRisk;
     return matchesQuery && matchesCategory && matchesRisk;
   });
-}, [searchQuery, selectedCategory, selectedRisk]);
+}, [searchQuery, selectedCategory, selectedRisk, applicationsData, aiApplicationsData, activeTabIndex]);
 
 useEffect(() => {
   const total = filteredData.length;
@@ -144,7 +292,7 @@ useEffect(() => {
   setRowData(paginatedData);
   setTotalItems(total);
   setTotalPages(Math.max(1, isAll ? 1 : Math.ceil(total / numericPageSize)));
-}, [filteredData, currentPage, pageSize]);
+  }, [filteredData, currentPage, pageSize]);
 
 useEffect(() => {
   setCurrentPage(1);
@@ -155,7 +303,7 @@ useEffect(() => {
       {
         headerName: "Name",
         field: "name",
-        width: 200,
+        width: 250,
         cellRenderer: (params: any) => {
           const name = params.data.name;
           return (
@@ -170,7 +318,7 @@ useEffect(() => {
       {
         headerName: "Description",
         field: "description",
-        width: 650,
+        width: 450,
         wrapText: true,
         autoHeight: true,
         cellRenderer: (params: any) => (
@@ -182,26 +330,26 @@ useEffect(() => {
         ),
       },
       {
-        headerName: "Category",
+        headerName: "Application Type",
         field: "category",
-        width: 180,
+        width: 200,
         cellRenderer: (params: any) => (
           <span className="text-sm text-gray-700">{params.value}</span>
         ),
       },
       {
-        headerName: "Service URL",
+        headerName: "SCIM URL",
         field: "serviceUrl",
-        width: 250,
+        width: 300,
         cellRenderer: (params: any) => (
           <a
             href={params.value}
             target="_blank"
             rel="noreferrer"
-            className="text-blue-600 hover:text-blue-800 underline decoration-blue-300 underline-offset-2"
+            className="text-blue-600 hover:text-blue-800 underline decoration-blue-300 underline-offset-2 text-sm"
             title={params.value}
           >
-            {params.value}
+            {params.value.length > 50 ? `${params.value.substring(0, 50)}...` : params.value}
           </a>
         ),
       },
@@ -294,30 +442,97 @@ useEffect(() => {
     e.target.value = "";
   };
 
-  if (!mounted) {
+  if (!mounted || isLoading) {
     return (
       <div className="h-screen flex flex-col">
         <div className="bg-white border-b border-gray-200 px-6 py-4">
           <h1 className="text-2xl font-bold text-gray-900">App Inventory</h1>
         </div>
         <div className="flex-1 flex items-center justify-center">
-          <div className="text-gray-500">Loading...</div>
+          <div className="text-gray-500">Loading applications...</div>
         </div>
       </div>
     );
   }
 
+  if (error) {
+    return (
+      <div className="h-screen flex flex-col">
+        <div className="bg-white border-b border-gray-200 px-6 py-4">
+          <h1 className="text-2xl font-bold text-gray-900">App Inventory</h1>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-red-600">Error: {error}</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Tab components
+  const WithoutAIAssistTab = () => (
+    <div className="w-full">
+      <AgGridReact
+        rowData={rowData}
+        columnDefs={columnDefs}
+        pagination={false}
+        domLayout="autoHeight"
+        rowHeight={80}
+        headerHeight={50}
+        suppressRowClickSelection={true}
+        suppressCellFocus={true}
+        defaultColDef={{
+          resizable: true,
+          sortable: true,
+          filter: true,
+        }}
+        style={{ width: "100%" }}
+      />
+    </div>
+  );
+
+  const WithAIAssistTab = () => (
+    <div className="w-full">
+      <AgGridReact
+        rowData={rowData}
+        columnDefs={columnDefs}
+        pagination={false}
+        domLayout="autoHeight"
+        rowHeight={80}
+        headerHeight={50}
+        suppressRowClickSelection={true}
+        suppressCellFocus={true}
+        defaultColDef={{
+          resizable: true,
+          sortable: true,
+          filter: true,
+        }}
+        style={{ width: "100%" }}
+      />
+    </div>
+  );
+
+  const tabsData = [
+    {
+      label: "Without AI Assist",
+      component: WithoutAIAssistTab,
+    },
+    {
+      label: "With AI Assist",
+      component: WithAIAssistTab,
+    },
+  ];
+
   return (
-    <div className="h-screen flex flex-col">
+    <div className="h-screen flex flex-col w-full">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className="bg-white border-b border-gray-200 px-6 py-4 w-full">
         <h1 className="text-2xl font-bold text-gray-900">App Inventory</h1>
       </div>
       
-      {/* Content Area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Content Area with Tabs */}
+      <div className="flex-1 flex flex-col w-full overflow-visible">
         {/* Toolbar: search, filters, upload/download */}
-        <div className="bg-white border-b border-gray-200 px-6 py-3">
+        <div className="bg-white border-b border-gray-200 px-6 py-3 w-full">
           <div className="flex flex-wrap items-center gap-3">
             {/* Search */}
             <div className="flex items-center gap-2 border border-gray-300 rounded px-3 py-1.5 bg-white">
@@ -334,8 +549,6 @@ useEffect(() => {
             {/* Filters (TreeClient-style) */}
             <Filters
               appliedFilter={(filters) => {
-                // We will map status-like filters to our riskLevel when relevant
-                // and also allow account-style predicates via selectedRisk
                 const f = (filters && filters[0]) || "";
                 if (f === "High" || f === "Medium" || f === "Low") {
                   setSelectedRisk(f);
@@ -344,16 +557,11 @@ useEffect(() => {
                 }
               }}
               onFilterChange={(filter) => {
-                // Accept account-style filter strings; for now map to risk chips
-                // Not used directly for server queries; influences our client filter
                 if (!filter) return;
               }}
               context="status"
               initialSelected=""
             />
-
-            {/* Clear Filters */}
-            
 
             <div className="ml-auto flex items-center gap-2">
               {/* Upload */}
@@ -385,6 +593,18 @@ useEffect(() => {
                 <Download className="w-4 h-4" />
               </button>
 
+              {/* AI Assist App */}
+              <button
+                type="button"
+                className="flex items-center gap-2 px-3 py-2 border border-blue-300 rounded hover:bg-blue-50 text-sm font-medium text-blue-700 bg-blue-50"
+                onClick={() => router.push("/settings/app-inventory/ai-assist-app")}
+                title="AI Assist App"
+                aria-label="AI Assist App"
+              >
+                <Sparkles className="w-4 h-4" />
+                AI Assist App
+              </button>
+
               {/* Add Application */}
               <button
                 type="button"
@@ -399,8 +619,9 @@ useEffect(() => {
             </div>
           </div>
         </div>
+
         {/* Top pagination */}
-        <div className="bg-white border-b border-gray-200 px-6 py-3">
+        <div className="bg-white border-b border-gray-200 px-6 py-3 w-full">
           <CustomPagination
             totalItems={totalItems}
             currentPage={currentPage}
@@ -415,30 +636,13 @@ useEffect(() => {
           />
         </div>
 
-        {/* Table */}
-        <div className="flex-1 min-h-0">
-          <div className="h-full">
-            <AgGridReact
-              rowData={rowData}
-              columnDefs={columnDefs}
-              pagination={false}
-              domLayout="normal"
-              rowHeight={80}
-              headerHeight={50}
-              suppressRowClickSelection={true}
-              suppressCellFocus={true}
-              defaultColDef={{
-                resizable: true,
-                sortable: true,
-                filter: true,
-              }}
-              style={{ width: "100%", height: "100%" }}
-            />
-          </div>
+        {/* Tabs only switch the table */}
+        <div className="flex flex-col w-full px-6 py-4">
+          <HorizontalTabs tabs={tabsData} defaultIndex={0} activeIndex={activeTabIndex} onChange={setActiveTabIndex} />
         </div>
 
         {/* Bottom pagination */}
-        <div className="bg-white border-t border-gray-200 px-6 py-3">
+        <div className="bg-white border-t border-gray-200 px-6 py-3 w-full">
           <CustomPagination
             totalItems={totalItems}
             currentPage={currentPage}

@@ -14,6 +14,7 @@ import "@/lib/ag-grid-setup";
 import CertificationProgress from "./CertificationProgress";
 import UserProgress from "./UserProgress";
 import { useAuth } from "@/contexts/AuthContext";
+import { getCookie, COOKIE_NAMES, getCurrentUser } from "@/lib/auth";
 import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
 
 // Register Chart.js components and plugin
@@ -890,7 +891,22 @@ const HeaderContent = () => {
         <div className="flex items-center gap-3">
           {renderUserAvatar(userDetails, 36, "object-cover rounded-full w-9 h-9")}
           <span className="text-white font-medium text-sm">
-            {user?.email || userDetails?.username || "IAM Admin"}
+            {(() => {
+              // Prefer authenticated user from context (set to userid at login)
+              if (user?.email) return user.email;
+              // Fallback to cookie `uidTenant`
+              try {
+                const raw = getCookie(COOKIE_NAMES.UID_TENANT);
+                if (raw) {
+                  const parsed = JSON.parse(raw);
+                  if (parsed?.userid) return parsed.userid;
+                }
+              } catch {}
+              // Fallback to any current user util
+              const current = getCurrentUser();
+              if (current?.email) return current.email;
+              return userDetails?.username || "IAM Admin";
+            })()}
           </span>
           <Dropdown
             Icon={() => (

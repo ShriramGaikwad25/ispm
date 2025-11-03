@@ -354,6 +354,53 @@ export async function getAllSupportedApplicationTypes(): Promise<any> {
   return fetchApi(endpoint);
 }
 
+// Get all registered applications
+export interface Application {
+  ApplicationType: string;
+  TenantID: string;
+  ApplicationName: string;
+  SCIMURL: string;
+  APIToken: string;
+  ApplicationID: string;
+}
+
+export interface GetAllApplicationsResponse {
+  Applications: Application[];
+  message?: string;
+  status?: string;
+}
+
+export async function getAllApplications(): Promise<any> {
+  const endpoint = "https://preview.keyforge.ai/registerscimapp/registerfortenant/ACMECOM/getAllApplications";
+  
+  try {
+    // This API doesn't require authentication headers
+    const response = await fetch(endpoint, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API request failed: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    console.log('getAllApplications response:', data);
+    return data;
+  } catch (error) {
+    console.error('Error fetching applications:', error);
+    throw error;
+  }
+}
+
+// Get all applications for a user (AI Assist) - requires JWT in Authorization header
+export async function getAllAppsForUserWithAI(loginId: string): Promise<any> {
+  const encoded = encodeURIComponent(loginId);
+  const endpoint = `https://preview.keyforge.ai/aiagentcontroller/api/v1/ACMECOM/getallapps/${encoded}`;
+  // Use authenticated request to include JWT token
+  return apiRequestWithAuth<any>(endpoint, { method: 'GET' });
+}
+
 // Client-safe proxy call (avoids CORS by using Next.js API route)
 export async function getAllSupportedApplicationTypesViaProxy(): Promise<any> {
   const headers = {

@@ -42,9 +42,9 @@ const HorizontalTabs: React.FC<TabsProps> = ({
   }, [defaultIndex]);
 
   return (
-    <div className="w-full">
+    <div className="w-full h-full flex flex-col">
       {/* Tab Headers */}
-      <div className="flex">
+      <div className="flex flex-shrink-0 w-full">
         {tabs.map((tab, index) => (
           <button
             key={index}
@@ -66,7 +66,7 @@ const HorizontalTabs: React.FC<TabsProps> = ({
       </div>
 
       {/* Active Tab Content */}
-      <div className="mt-4">
+      <div className="mt-4 flex-1 flex flex-col overflow-visible">
         <ActiveComponent />
       </div>
     </div>
