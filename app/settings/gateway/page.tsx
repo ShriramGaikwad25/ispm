@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Settings, FileText, Users, Shield } from 'lucide-react';
+import { Settings, FileText, Users, Shield, Mail } from 'lucide-react';
 
 export default function GatewaySettings() {
   const router = useRouter();
@@ -35,6 +35,13 @@ export default function GatewaySettings() {
       subtitle: 'Create and assign privileged administrative roles.',
       href: '/settings/gateway/admin-roles',
       icon: <Shield className="w-5 h-5 text-gray-600" />,
+    },
+    {
+      id: 'email-templates',
+      title: 'Email Templates',
+      subtitle: 'Create and manage email templates for notifications.',
+      href: '/settings/gateway/email-templates',
+      icon: <Mail className="w-5 h-5 text-gray-600" />,
     },
   ];
 

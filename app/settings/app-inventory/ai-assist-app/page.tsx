@@ -142,6 +142,35 @@ export default function AIAssistAppPage() {
     }
   };
 
+  // Check if all required fields are filled
+  const isFormValid = () => {
+    // Step 1: type and oauthType are required
+    if (!formData.step1.type || !formData.step1.oauthType) {
+      return false;
+    }
+    
+    // Step 2: applicationName, description, applicationType are required
+    if (!formData.step2.applicationName || !formData.step2.description || !formData.step2.applicationType) {
+      return false;
+    }
+    
+    // Step 3: Connection Details - all fields required
+    if (!formData.step3.databaseType || 
+        !formData.step3.connectionURL || 
+        !formData.step3.driver || 
+        !formData.step3.username || 
+        !formData.step3.password) {
+      return false;
+    }
+    
+    // Step 3: Application Signature - View fields are required
+    if (!formData.step3.allUsersView || !formData.step3.allEntitlementsView) {
+      return false;
+    }
+    
+    return true;
+  };
+
   const handleSubmit = async () => {
     // Get JWT token from cookies
     const jwtToken = getCookie(COOKIE_NAMES.JWT_TOKEN);
@@ -763,18 +792,13 @@ export default function AIAssistAppPage() {
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="relative">
-                  <select
+                  <input
+                    type="text"
                     value={formData.step3.databaseType || ""}
                     onChange={(e) => handleInputChange("step3", "databaseType", e.target.value)}
                     className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
-                  >
-                    <option value=""></option>
-                    <option value="postgres">PostgreSQL</option>
-                    <option value="mysql">MySQL</option>
-                    <option value="oracle">Oracle</option>
-                    <option value="sqlserver">SQL Server</option>
-                    <option value="mongodb">MongoDB</option>
-                  </select>
+                    placeholder=" "
+                  />
                   <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
                     formData.step3.databaseType
                       ? 'top-0.5 text-xs text-blue-600' 
@@ -1035,9 +1059,9 @@ export default function AIAssistAppPage() {
               ) : (
                 <button
                   onClick={handleSubmit}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !isFormValid()}
                   className={`flex items-center px-4 py-2 rounded-md text-sm font-medium ${
-                    isSubmitting
+                    isSubmitting || !isFormValid()
                       ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                       : 'bg-green-600 text-white hover:bg-green-700'
                   }`}
