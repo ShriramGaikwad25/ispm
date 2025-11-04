@@ -1,4 +1,4 @@
-import { Settings, ListTodo, ListTree, LayoutDashboard, LayoutPanelLeft, User2Icon, UserCircle2Icon, ScreenShareIcon, Clock, Package, Plus, Shield, Server } from 'lucide-react';
+import { Settings, ListTodo, ListTree, LayoutDashboard, LayoutPanelLeft, User2Icon, UserCircle2Icon, ScreenShareIcon, Clock, Package, Plus, Shield, Server, Key, FileText } from 'lucide-react';
 
 export interface NavItem {
   name: string;
@@ -15,6 +15,8 @@ export const navLinks: NavItem[] = [
   { name: 'Users', href: '/user', icon: User2Icon },
   { name: 'Profiles', href: '/profiles', icon: UserCircle2Icon },
   { name: 'Catalog', href: '/catalog', icon: ScreenShareIcon },
+  { name: 'Service Account', href: '/service-account', icon: Key },
+  { name: 'Reports', href: '/reports', icon: FileText },
   { 
     name: 'Settings', 
     href: '/settings', 
