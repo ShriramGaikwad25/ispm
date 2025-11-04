@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Settings, FileText, Users, Shield, Mail } from 'lucide-react';
+import { Settings, FileText, Users, Shield, Mail, ShieldCheck } from 'lucide-react';
 
 export default function GatewaySettings() {
   const router = useRouter();
@@ -42,6 +42,13 @@ export default function GatewaySettings() {
       subtitle: 'Create and manage email templates for notifications.',
       href: '/settings/gateway/email-templates',
       icon: <Mail className="w-5 h-5 text-gray-600" />,
+    },
+    {
+      id: 'sam',
+      title: 'SAM',
+      subtitle: 'Service Account Management settings and configuration.',
+      href: '/settings/gateway/sam',
+      icon: <ShieldCheck className="w-5 h-5 text-gray-600" />,
     },
   ];
 

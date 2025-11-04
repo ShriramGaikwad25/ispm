@@ -36,7 +36,7 @@ const SegmentedControl: React.FC<SegmentedControlProps> = ({
   return (
     <div className="w-full">
       {/* Segmented Control */}
-      <div className="flex items-center justify-center mb-4">
+      <div className="flex items-center justify-end mb-4">
         {/* Segmented control container */}
         <div className="flex bg-gray-100 rounded-lg p-1 w-80">
           {segments.map((segment, index) => (

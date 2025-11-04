@@ -15,6 +15,7 @@ import {
   Plus,
   X
 } from 'lucide-react';
+import { BackButton } from "@/components/BackButton";
 
 export default function SAMSettingsPage() {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['discovery']));
@@ -189,6 +190,7 @@ export default function SAMSettingsPage() {
   return (
     <div className="h-full p-6">
       <div className="max-w-7xl mx-auto">
+        <div className="mb-4"><BackButton /></div>
         {/* SAM Heading */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">SAM</h1>
@@ -601,3 +603,4 @@ export default function SAMSettingsPage() {
     </div>
   );
 }
+

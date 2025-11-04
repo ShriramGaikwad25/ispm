@@ -1,8 +1,7 @@
 "use client";
-import HorizontalTabs from "@/components/HorizontalTabs";
 import SegmentedControl from "@/components/SegmentedControl";
-import { ChevronDown, ChevronRight, History, CircleX, CirclePlus } from "lucide-react";
-import { useState, useMemo, useEffect } from "react";
+import { History, CircleX, CirclePlus } from "lucide-react";
+import { useState, useEffect } from "react";
 import { executeQuery } from "@/lib/api";
 import type { ColDef } from "ag-grid-enterprise";
 import dynamic from "next/dynamic";
@@ -157,7 +156,6 @@ const accountData = [
 ];
 
 export default function UserDetailPage() {
-  const [tabIndex, setTabIndex] = useState(0);
   const [isMounted, setIsMounted] = useState(false);
   const [userData, setUserData] = useState<ProfileUser>(() => buildUserFromStorage());
 
@@ -181,72 +179,90 @@ export default function UserDetailPage() {
     const displayedInitials = isMounted ? initials : "";
 
     return (
-      <div className="flex flex-col md:flex-row gap-6 p-6 bg-white rounded-lg shadow-md">
-        <div className="flex-shrink-0">
-          <div
-            className="w-24 h-24 rounded-full flex items-center justify-center text-white text-2xl font-semibold"
-            style={{ backgroundColor: bgColor }}
-          >
-            {displayedInitials}
-          </div>
-        </div>
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="text-sm font-medium text-gray-500">First Name</label>
-            <p className="text-base text-gray-900">{userData.firstName}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-500">Last Name</label>
-            <p className="text-base text-gray-900">{userData.lastName}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-500">Email</label>
-            <p className="text-base text-blue-600">{userData.email}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-500">Display Name</label>
-            <p className="text-base text-gray-900">{userData.displayName}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-500">Alias</label>
-            <p className="text-base text-gray-900">{userData.alias}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-500">Phone Number</label>
-            <p className="text-base text-gray-900">{userData.phone || "N/A"}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-500">Title</label>
-            <p className="text-base text-gray-900">{userData.title}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-500">Department</label>
-            <p className="text-base text-gray-900">{userData.department}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-500">Start Date</label>
-            <p className="text-base text-gray-900">{userData.startDate || "N/A"}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-500">User Type</label>
-            <p className="text-base text-gray-900">{userData.userType}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-500">Manager Email</label>
-            <p className="text-base text-blue-600">{userData.managerEmail}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-500">Tags</label>
-            <div className="flex flex-wrap gap-2">
-              {userData.tags?.map((tag, index) => (
-                <span
-                  key={index}
-                  className="inline-block bg-blue-100 text-blue-800 text-sm px-2 py-1 rounded"
-                >
-                  {tag}
-                </span>
-              ))}
+      <div className="bg-white rounded-lg shadow-md p-3">
+        <div className="flex flex-col md:flex-row gap-8 items-center">
+          {/* Profile Picture - Centered */}
+          <div className="flex-shrink-0 flex justify-center">
+            <div
+              className="w-24 h-24 rounded-full flex items-center justify-center text-white text-2xl font-semibold"
+              style={{ backgroundColor: bgColor }}
+            >
+              {displayedInitials}
             </div>
+          </div>
+          
+          {/* User Details - Right Side */}
+          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-1">
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">First Name</label>
+              <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.firstName}</p>
+            </div>
+            
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Last Name</label>
+              <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.lastName}</p>
+            </div>
+            
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Email</label>
+              <p className="text-xs font-semibold text-blue-600 mt-0.5">{userData.email}</p>
+            </div>
+            
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Display Name</label>
+              <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.displayName}</p>
+            </div>
+            
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Alias</label>
+              <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.alias}</p>
+            </div>
+            
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Phone Number</label>
+              <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.phone || "N/A"}</p>
+            </div>
+            
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Title</label>
+              <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.title}</p>
+            </div>
+            
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Department</label>
+              <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.department}</p>
+            </div>
+            
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Start Date</label>
+              <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.startDate || "N/A"}</p>
+            </div>
+            
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">User Type</label>
+              <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.userType}</p>
+            </div>
+            
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Manager Email</label>
+              <p className="text-xs font-semibold text-blue-600 mt-0.5">{userData.managerEmail}</p>
+            </div>
+            
+            {userData.tags && userData.tags.length > 0 && (
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Tags</label>
+                <div className="flex flex-wrap gap-1 mt-0.5">
+                  {userData.tags.map((tag, index) => (
+                    <span
+                      key={index}
+                      className="inline-block bg-blue-100 border border-blue-300 text-blue-800 text-xs px-2 py-0.5 rounded-full"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -438,7 +454,7 @@ export default function UserDetailPage() {
     }, []);
 
     return (
-      <div className="p-6 bg-gray-50 ">
+      <div className="bg-white rounded-lg shadow-md p-3">
         {isMounted && (
           <div className="ag-theme-alpine" style={{ height: 400, width: "100%" }}>
             <AgGridReact
@@ -575,7 +591,7 @@ export default function UserDetailPage() {
           <div className="lg:col-span-1">
             <div className="triggers-panel" style={{ width: "100%", height: "100%" }}>
               <div className="triggers-header">
-                <h3>JIT Privilege Access</h3>
+                <h3>JIT Access</h3>
                 <button
                   className="px-3 py-1.5 rounded-md bg-blue-600 text-white text-xs font-medium hover:bg-blue-700"
                   onClick={() => { /* TODO: open create transient access modal */ }}
@@ -846,7 +862,7 @@ export default function UserDetailPage() {
     );
   };
 
-  const AccessTab = () => {
+  const CombinedView = () => {
     const [accessTabIndex, setAccessTabIndex] = useState(0);
 
     const accessSegments = [
@@ -855,47 +871,34 @@ export default function UserDetailPage() {
         component: AllAccessTab,
       },
     {
-      label: "JIT Privilege Access",
+      label: "JIT Access",
       component: UnderReviewTab,
     },
     ];
 
     return (
-      <div>
-        <SegmentedControl
-          segments={accessSegments}
-          activeIndex={accessTabIndex}
-          onChange={setAccessTabIndex}
-        />
+      <div className="space-y-6">
+        {/* Profile Card */}
+        <ProfileTab />
+        
+        {/* Access Tabs */}
+        <div className="flex justify-end">
+          <SegmentedControl
+            segments={accessSegments}
+            activeIndex={accessTabIndex}
+            onChange={setAccessTabIndex}
+          />
+        </div>
       </div>
     );
   };
-
-  const tabsData = [
-    {
-      label: "Profile",
-      icon: ChevronDown,
-      iconOff: ChevronRight,
-      component: ProfileTab,
-    },
-    {
-      label: "Access",
-      icon: ChevronDown,
-      iconOff: ChevronRight,
-      component: AccessTab,
-    },
-  ];
 
   return (
     <>
       <div className="mb-4">
         <BackButton />
       </div>
-      <HorizontalTabs
-        tabs={tabsData}
-        activeIndex={tabIndex}
-        onChange={setTabIndex}
-      />
+      <CombinedView />
     </>
   );
 }
