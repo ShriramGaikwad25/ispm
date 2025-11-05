@@ -102,8 +102,16 @@ const CatalogPageContent = () => {
   // Define tabs data
   const tabsDataEnt = [{ label: "All" }, { label: "Under Review" }];
 
-  // Use rowData directly since quickFilter and column filter are applied via gridApi
-  const filteredRowData = rowData;
+  // Transform rowData to add description rows (separate row for each description)
+  const filteredRowData = useMemo(() => {
+    if (!rowData || rowData.length === 0) return [];
+    const rows: any[] = [];
+    for (const item of rowData) {
+      rows.push(item);
+      rows.push({ ...item, __isDescRow: true });
+    }
+    return rows;
+  }, [rowData]);
 
   const applicationOptions = useMemo(() => {
     return [
@@ -647,31 +655,47 @@ const CatalogPageContent = () => {
         width: 750,
         autoHeight: true,
         wrapText: true,
+        colSpan: (params) => {
+          if (!params.data?.__isDescRow) return 1;
+          try {
+            const center = (params.api as any)?.getDisplayedCenterColumns?.() || [];
+            const left = (params.api as any)?.getDisplayedLeftColumns?.() || [];
+            const right = (params.api as any)?.getDisplayedRightColumns?.() || [];
+            const total = center.length + left.length + right.length;
+            if (total > 0) return total;
+          } catch {}
+          const all = (params as any)?.columnApi?.getAllDisplayedColumns?.() || [];
+          return all.length || 1;
+        },
         cellRenderer: (params: ICellRendererParams) => {
+          if (params.data?.__isDescRow) {
+            const desc = params.data?.["description"] ||
+              params.data?.["Ent Description"] ||
+              params.data?.description ||
+              "No description available";
+            const isEmpty = !desc || desc === "N/A" || desc.trim().length === 0;
+            return (
+              <div className={`text-sm w-full break-words whitespace-pre-wrap ${isEmpty ? "text-gray-400 italic" : "text-gray-600"}`}>
+                {isEmpty ? "No description available" : desc}
+              </div>
+            );
+          }
+
           const riskVal = (params.data?.risk || "").toString().toLowerCase();
           const isHighRisk = riskVal === "high" || riskVal === "critical";
 
           return (
-            <div className="flex flex-col">
-              {/* Row 1: entitlement name */}
-              <div className="font-semibold flex items-center gap-2">
-                {isHighRisk ? (
-                  <span
-                    className="bg-red-100 text-red-600 px-3 py-1 rounded-full text-sm font-medium cursor-pointer hover:bg-red-200"
-                    onClick={() => handleHighRiskClick(params.data)}
-                  >
-                    {params.value}
-                  </span>
-                ) : (
-                  <span>{params.value}</span>
-                )}
-              </div>
-
-              {/* Row 2: full-width description */}
-              <div className="text-gray-600 text-sm w-full z-index-1 mt-1">
-                {params.data["description"] ||
-                  `Test description for ${params.value}`}
-              </div>
+            <div className="flex items-center h-full">
+              {isHighRisk ? (
+                <span
+                  className="bg-red-100 text-red-600 px-3 py-1 rounded-full text-sm font-medium cursor-pointer hover:bg-red-200"
+                  onClick={() => handleHighRiskClick(params.data)}
+                >
+                  {params.value}
+                </span>
+              ) : (
+                <span className="font-semibold">{params.value}</span>
+              )}
             </div>
           );
         },
@@ -835,30 +859,47 @@ const CatalogPageContent = () => {
         width: 700,
         autoHeight: true,
         wrapText: true,
+        colSpan: (params) => {
+          if (!params.data?.__isDescRow) return 1;
+          try {
+            const center = (params.api as any)?.getDisplayedCenterColumns?.() || [];
+            const left = (params.api as any)?.getDisplayedLeftColumns?.() || [];
+            const right = (params.api as any)?.getDisplayedRightColumns?.() || [];
+            const total = center.length + left.length + right.length;
+            if (total > 0) return total;
+          } catch {}
+          const all = (params as any)?.columnApi?.getAllDisplayedColumns?.() || [];
+          return all.length || 1;
+        },
         cellRenderer: (params: ICellRendererParams) => {
+          if (params.data?.__isDescRow) {
+            const desc = params.data?.["description"] ||
+              params.data?.["Ent Description"] ||
+              params.data?.description ||
+              "No description available";
+            const isEmpty = !desc || desc === "N/A" || desc.trim().length === 0;
+            return (
+              <div className={`text-sm w-full break-words whitespace-pre-wrap ${isEmpty ? "text-gray-400 italic" : "text-gray-600"}`}>
+                {isEmpty ? "No description available" : desc}
+              </div>
+            );
+          }
+
           const riskVal = (params.data?.risk || "").toString().toLowerCase();
           const isHighRisk = riskVal === "high" || riskVal === "critical";
 
           return (
-            <div className="flex flex-col">
-              {/* Row 1: entitlement name */}
-              <div className="font-semibold flex items-center gap-2">
-                {isHighRisk ? (
-                  <span
-                    className="bg-red-100 text-red-600 px-3 py-1 rounded-full text-sm font-medium cursor-pointer hover:bg-red-200"
-                    onClick={() => handleHighRiskClick(params.data)}
-                  >
-                    {params.value}
-                  </span>
-                ) : (
-                  <span>{params.value}</span>
-                )}
-              </div>
-
-              <div className="text-gray-600 text-sm w-full mt-1">
-                {params.data["description"] ||
-                  `Test description for ${params.value}`}
-              </div>
+            <div className="flex items-center h-full">
+              {isHighRisk ? (
+                <span
+                  className="bg-red-100 text-red-600 px-3 py-1 rounded-full text-sm font-medium cursor-pointer hover:bg-red-200"
+                  onClick={() => handleHighRiskClick(params.data)}
+                >
+                  {params.value}
+                </span>
+              ) : (
+                <span className="font-semibold">{params.value}</span>
+              )}
             </div>
           );
         },
@@ -1133,12 +1174,12 @@ const CatalogPageContent = () => {
           suppressRowTransform={true}
           getRowId={(params: any) => {
             const d = params.data || {};
-            return (
+            const baseId =
               d.entitlementId ||
               d.entitlementid ||
               d.catalogId ||
-              `${d.applicationName || ""}|${d.entitlementName || d.name || ""}`
-            );
+              `${d.applicationName || ""}|${d.entitlementName || d.name || ""}`;
+            return d.__isDescRow ? `${baseId}-desc` : baseId;
           }}
           onGridReady={(params: any) => {
             setGridApi(params.api);
