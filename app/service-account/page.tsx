@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ChevronRight,
   Edit,
+  ArrowRight,
 } from "lucide-react";
 import { formatDateMMDDYY } from "@/utils/utils";
 import "@/lib/ag-grid-setup";
@@ -86,115 +87,11 @@ export default function ServiceAccountPage() {
         field: "accountName",
         headerName: "Account",
         flex: 2,
-        cellRendererParams: {
-          suppressExpand: false,
-          innerRenderer: (params: ICellRendererParams) => {
-            const { accountType } = params.data || {};
-            const accountTypeLabel = accountType;
-            return (
-              <div className="flex items-center space-x-2">
-                <div className="flex flex-col gap-0 cursor-pointer hover:underline">
-                  <span className="text-md font-large text-gray-800">
-                    {params.value}{" "}
-                    {accountType && (
-                      <span
-                        className="text-[#175AE4] font-normal"
-                        title={`Account Type: ${accountType}`}
-                      >
-                        {accountTypeLabel}
-                      </span>
-                    )}
-                  </span>
-                </div>
-              </div>
-            );
-          },
-        },
-      },
-      {
-        field: "Risk",
-        headerName: "Risk",
-        width: 100,
-        hide: true,
-        cellRenderer: (params: ICellRendererParams) => {
-          const risk = params.data?.Risk || params.data?.risk || "Unknown";
-          const riskInitial =
-            risk === "High" ? "H" : risk === "Medium" ? "M" : "L";
-          const riskColor =
-            risk === "High" ? "red" : risk === "Medium" ? "orange" : "green";
-
-          // Special styling for High risk - show in red bubble
-          if (risk === "High") {
-            return (
-              <div className="flex items-center">
-                <span
-                  className="px-3 py-1 text-gray-800 font-medium rounded-full"
-                  style={{
-                    backgroundColor: "#ffebee",
-                    color: "#d32f2f",
-                    border: "1px solid #ffcdd2",
-                  }}
-                >
-                  {risk}
-                </span>
-              </div>
-            );
-          }
-
-          // Special styling for Low risk - show in green bubble
-          if (risk === "Low") {
-            return (
-              <div className="flex items-center">
-                <span
-                  className="px-3 py-1 text-gray-800 font-medium rounded-full"
-                  style={{
-                    backgroundColor: "#e8f5e8",
-                    color: "#2e7d32",
-                    border: "1px solid #c8e6c9",
-                  }}
-                >
-                  {risk}
-                </span>
-              </div>
-            );
-          }
-
-          // Default styling for Medium risk
-          return (
-            <div className="flex items-center">
-              <span
-                className="px-2 py-1 text-xs rounded font-medium"
-                style={{ backgroundColor: riskColor, color: "white" }}
-              >
-                {riskInitial}
-              </span>
-            </div>
-          );
-        },
-      },
-      {
-        field: "userDisplayName",
-        headerName: "Identity",
-        flex: 2,
-        cellRenderer: (params: ICellRendererParams) => {
-          const { userType } = params.data || {};
-          const userTypeLabel = userType ? `(${userType})` : "";
-          return (
-            <div className="flex flex-col gap-0 cursor-pointer hover:underline">
-              <span className="text-md text-gray-800">
-                {params.value}{" "}
-                {userType && (
-                  <span
-                    className="text-[#175AE4] "
-                    title={`User Type: ${userType}`}
-                  >
-                    {userTypeLabel}
-                  </span>
-                )}
-              </span>
-            </div>
-          );
-        },
+        cellRenderer: (params: ICellRendererParams) => (
+          <div className="flex flex-col gap-0">
+            <span className="text-md text-gray-800">{params.value || "-"}</span>
+          </div>
+        ),
       },
       {
         field: "entitlementName",
@@ -203,7 +100,17 @@ export default function ServiceAccountPage() {
         flex: 2,
         cellRenderer: (params: ICellRendererParams) => (
           <div className="flex flex-col gap-0">
-            <span className="text-md text-gray-800">{params.value}</span>
+            <span className="text-md text-gray-800">{params.value || "-"}</span>
+          </div>
+        ),
+      },
+      {
+        field: "userManager",
+        headerName: "Custodian",
+        flex: 2,
+        cellRenderer: (params: ICellRendererParams) => (
+          <div className="flex flex-col gap-0">
+            <span className="text-md text-gray-800">{params.value || params.data?.custodian || "-"}</span>
           </div>
         ),
       },
@@ -211,62 +118,31 @@ export default function ServiceAccountPage() {
         field: "lastlogindate",
         headerName: "Last Login",
         enableRowGroup: true,
+        flex: 1.5,
         valueFormatter: (params: ICellRendererParams) =>
-          formatDateMMDDYY(params.value),
+          params.value ? formatDateMMDDYY(params.value) : "-",
       },
       {
-        field: "lastAccessReview",
-        headerName: "Last Review",
-        valueFormatter: (params: ICellRendererParams) =>
-          formatDateMMDDYY(params.value),
-      },
-      {
-        field: "accountType",
-        headerName: "Account Type",
+        field: "businessService",
+        headerName: "Business Service",
         flex: 2,
-        hide: true,
-      },
-      { field: "userStatus", headerName: "User Status", flex: 2, hide: true },
-      { field: "userId", headerName: "User ID", flex: 2, hide: true },
-      {
-        field: "userManager",
-        headerName: "User Manager",
-        flex: 2,
-        hide: true,
-      },
-      { field: "userDepartment", headerName: "User Dept", flex: 2, hide: true },
-      { field: "jobTitle", headerName: "Job Title", flex: 2, hide: true },
-      {
-        field: "accessGrantDate",
-        headerName: "Access Grant Date",
-        flex: 2,
-        hide: true,
-        valueFormatter: (params: ICellRendererParams) =>
-          formatDateMMDDYY(params.value),
-      },
-      { field: "userType", headerName: "User Type", flex: 2, hide: true },
-      {
-        field: "entitlementType",
-        headerName: "Entitlement Type",
-        flex: 2,
-        hide: true,
-      },
-      {
-        field: "syncDate",
-        headerName: "Sync Date",
-        flex: 1,
-        valueFormatter: (params: ICellRendererParams) =>
-          formatDateMMDDYY(params.value),
+        cellRenderer: (params: ICellRendererParams) => (
+          <div className="flex flex-col gap-0">
+            <span className="text-md text-gray-800">
+              {params.value || params.data?.applicationName || params.data?.businessUnit || "-"}
+            </span>
+          </div>
+        ),
       },
       {
         field: "__action__",
         headerName: "Action",
-        width: 100,
+        width: 150,
         sortable: false,
         filter: false,
         suppressHeaderMenuButton: true,
         cellRenderer: (params: ICellRendererParams) => (
-          <div className="flex items-center h-full" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center gap-2 h-full" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
               className="p-1.5 rounded hover:bg-gray-100 text-gray-600 hover:text-gray-900"
@@ -437,6 +313,267 @@ export default function ServiceAccountPage() {
             >
               <Edit className="w-4 h-4" />
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                const row = params?.data || {};
+                const InfoSidebar = () => {
+                  const [sectionsOpen, setSectionsOpen] = useState({
+                    general: true,
+                  });
+                  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+                  useEffect(() => {
+                    if (scrollContainerRef.current) {
+                      const style = document.createElement('style');
+                      style.id = 'hide-scrollbar-style';
+                      if (!document.getElementById('hide-scrollbar-style')) {
+                        style.textContent = `
+                          .sidebar-scroll-container::-webkit-scrollbar {
+                            display: none;
+                          }
+                        `;
+                        document.head.appendChild(style);
+                      }
+                    }
+                  }, []);
+
+                  return (
+                    <div className="flex flex-col h-full">
+                      <div 
+                        ref={scrollContainerRef}
+                        className="flex-1 overflow-y-auto sidebar-scroll-container"
+                        style={{
+                          scrollbarWidth: 'none',
+                          msOverflowStyle: 'none',
+                        }}
+                      >
+                        {/* Header Section */}
+                        <div className="p-4 border-b bg-gray-50">
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <h2 className="text-lg font-semibold">Service Account Details</h2>
+                              <div className="mt-2">
+                                <span className="text-xs uppercase text-gray-500">
+                                  Account:
+                                </span>
+                                <div className="text-md font-medium break-words break-all whitespace-normal max-w-full">
+                                  {row.accountName || "-"}
+                                </div>
+                              </div>
+                              <div className="mt-2">
+                                <span className="text-xs uppercase text-gray-500">
+                                  Entitlement:
+                                </span>
+                                <div className="text-md font-medium break-words break-all whitespace-normal max-w-full">
+                                  {row.entitlementName || "-"}
+                                </div>
+                              </div>
+                              <div className="mt-2">
+                                <span className="text-xs uppercase text-gray-500">
+                                  Description:
+                                </span>
+                                <p className="text-sm text-gray-700 break-words break-all whitespace-pre-wrap max-w-full">
+                                  {row.entitlementDescription || row.entitlement_description || row.description || "-"}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        {/* General Accordion Section */}
+                        <div className="p-4 space-y-4">
+                          <div className="bg-white border border-gray-200 rounded-md shadow-sm">
+                            <button
+                              className="flex items-center justify-between w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
+                              onClick={() =>
+                                setSectionsOpen((s: any) => ({ ...s, general: !s.general }))
+                              }
+                            >
+                              <span>General</span>
+                              {sectionsOpen.general ? (
+                                <ChevronDown size={20} />
+                              ) : (
+                                <ChevronRight size={20} />
+                              )}
+                            </button>
+                            {sectionsOpen.general && (
+                              <div className="p-4 space-y-4">
+                                <div className="flex space-x-4">
+                                  <div className="flex-1">
+                                    <label className="text-xs uppercase text-gray-500 font-medium">Custodian</label>
+                                    <div className="text-sm text-gray-900 mt-1 break-words">
+                                      {row.userManager || row.custodian || "N/A"}
+                                    </div>
+                                  </div>
+                                  <div className="flex-1">
+                                    <label className="text-xs uppercase text-gray-500 font-medium">Last Login</label>
+                                    <div className="text-sm text-gray-900 mt-1">
+                                      {row.lastlogindate ? formatDateMMDDYY(row.lastlogindate) : "N/A"}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex space-x-4">
+                                  <div className="flex-1">
+                                    <label className="text-xs uppercase text-gray-500 font-medium">Business Service</label>
+                                    <div className="text-sm text-gray-900 mt-1 break-words">
+                                      {row.businessService || row.applicationName || row.businessUnit || "N/A"}
+                                    </div>
+                                  </div>
+                                  <div className="flex-1">
+                                    <label className="text-xs uppercase text-gray-500 font-medium">Environment</label>
+                                    <div className="text-sm text-gray-900 mt-1 break-words">
+                                      {row.environment || "N/A"}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex space-x-4">
+                                  <div className="flex-1">
+                                    <label className="text-xs uppercase text-gray-500 font-medium">Backup Owner</label>
+                                    <div className="text-sm text-gray-900 mt-1 break-words">
+                                      {row.backupOwner || "N/A"}
+                                    </div>
+                                  </div>
+                                  <div className="flex-1">
+                                    <label className="text-xs uppercase text-gray-500 font-medium">SME User</label>
+                                    <div className="text-sm text-gray-900 mt-1 break-words">
+                                      {row.smeUser || row.sme_user || "N/A"}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex space-x-4">
+                                  <div className="flex-1">
+                                    <label className="text-xs uppercase text-gray-500 font-medium">PAM Policy</label>
+                                    <div className="text-sm text-gray-900 mt-1 break-words">
+                                      {row.pamPolicy || "N/A"}
+                                    </div>
+                                  </div>
+                                  <div className="flex-1">
+                                    <label className="text-xs uppercase text-gray-500 font-medium">Rotation Policy</label>
+                                    <div className="text-sm text-gray-900 mt-1 break-words">
+                                      {row.rotationPolicy || row.rotation_policy || "N/A"}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex space-x-4">
+                                  <div className="flex-1">
+                                    <label className="text-xs uppercase text-gray-500 font-medium">Continuous Compliance</label>
+                                    <div className="text-sm text-gray-900 mt-1">
+                                      {row.continuousCompliance === true || row.continuousCompliance === "true" || row.continuousCompliance === "Y" || row.continuous_compliance === true ? "Yes" : "No"}
+                                    </div>
+                                  </div>
+                                  <div className="flex-1">
+                                    <label className="text-xs uppercase text-gray-500 font-medium">Review Cycle</label>
+                                    <div className="text-sm text-gray-900 mt-1 break-words">
+                                      {row.reviewCycle || row.review_cycle || "N/A"}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                };
+                
+                openSidebar(<InfoSidebar />, { widthPx: 500 });
+              }}
+              className="p-1.5 rounded hover:bg-gray-100 text-gray-600 hover:text-gray-900"
+              title="Info"
+              aria-label="View account details"
+            >
+              <ArrowRight
+                color="#55544dff"
+                size={20}
+                className="transform scale-[0.9]"
+              />
+            </button>
+          </div>
+        ),
+      },
+      {
+        field: "backupOwner",
+        headerName: "BackupOwner",
+        flex: 2,
+        hide: true,
+        cellRenderer: (params: ICellRendererParams) => (
+          <div className="flex flex-col gap-0">
+            <span className="text-md text-gray-800">{params.value || "-"}</span>
+          </div>
+        ),
+      },
+      {
+        field: "environment",
+        headerName: "Environment",
+        flex: 2,
+        hide: true,
+        cellRenderer: (params: ICellRendererParams) => (
+          <div className="flex flex-col gap-0">
+            <span className="text-md text-gray-800">{params.value || "-"}</span>
+          </div>
+        ),
+      },
+      {
+        field: "pamPolicy",
+        headerName: "PamPolicy",
+        flex: 2,
+        hide: true,
+        cellRenderer: (params: ICellRendererParams) => (
+          <div className="flex flex-col gap-0">
+            <span className="text-md text-gray-800">{params.value || "-"}</span>
+          </div>
+        ),
+      },
+      {
+        field: "rotationPolicy",
+        headerName: "Rotation Policy",
+        flex: 2,
+        hide: true,
+        cellRenderer: (params: ICellRendererParams) => (
+          <div className="flex flex-col gap-0">
+            <span className="text-md text-gray-800">{params.value || params.data?.rotation_policy || "-"}</span>
+          </div>
+        ),
+      },
+      {
+        field: "smeUser",
+        headerName: "SME User",
+        flex: 2,
+        hide: true,
+        cellRenderer: (params: ICellRendererParams) => (
+          <div className="flex flex-col gap-0">
+            <span className="text-md text-gray-800">{params.value || params.data?.sme_user || "-"}</span>
+          </div>
+        ),
+      },
+      {
+        field: "continuousCompliance",
+        headerName: "Continuous Compliance",
+        flex: 1.5,
+        hide: true,
+        cellRenderer: (params: ICellRendererParams) => {
+          const isChecked = params.value === true || params.value === "true" || params.value === "Y" || params.data?.continuousCompliance === true || params.data?.continuous_compliance === true;
+          return (
+            <div className="flex items-center justify-center h-full">
+              <input
+                type="checkbox"
+                checked={isChecked}
+                readOnly
+                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+              />
+            </div>
+          );
+        },
+      },
+      {
+        field: "reviewCycle",
+        headerName: "Review Cycle",
+        flex: 2,
+        hide: true,
+        cellRenderer: (params: ICellRendererParams) => (
+          <div className="flex flex-col gap-0">
+            <span className="text-md text-gray-800">{params.value || params.data?.review_cycle || "-"}</span>
           </div>
         ),
       },
@@ -465,11 +602,80 @@ export default function ServiceAccountPage() {
         console.log(data);
         if (data.executionStatus === "success") {
           setAccountsRowData(data.items || []);
+        } else {
+          // Add dummy data if API doesn't return success
+          setAccountsRowData([
+            {
+              accountName: "svc-app-account-01",
+              entitlementName: "Administrator Access",
+              entitlementDescription: "Full administrative access to the production database system. This entitlement grants the ability to create, modify, and delete database objects, manage user permissions, and configure system settings.",
+              description: "Service account for production database management with elevated privileges. Used for automated maintenance tasks and system administration.",
+              userManager: "John Doe",
+              lastlogindate: "2024-01-15",
+              businessService: "Production Database",
+              backupOwner: "Jane Smith",
+              environment: "Production",
+              pamPolicy: "Standard PAM Policy",
+              rotationPolicy: "30 Days Rotation",
+              smeUser: "admin@company.com",
+              continuousCompliance: true,
+              reviewCycle: "Quarterly",
+            },
+            {
+              accountName: "svc-api-gateway-02",
+              entitlementName: "Read-Only Access",
+              entitlementDescription: "Read-only access to API gateway services and configuration. This entitlement allows viewing of API endpoints, monitoring metrics, and accessing logs without the ability to modify settings.",
+              description: "Service account for API gateway monitoring and read-only operations. Used for automated monitoring, reporting, and analytics purposes.",
+              userManager: "Mike Johnson",
+              lastlogindate: "2024-01-20",
+              businessService: "API Gateway Service",
+              backupOwner: "Sarah Williams",
+              environment: "Development",
+              pamPolicy: "Basic PAM Policy",
+              rotationPolicy: "60 Days Rotation",
+              smeUser: "devops@company.com",
+              continuousCompliance: false,
+              reviewCycle: "Semi-Annual",
+            },
+          ]);
         }
       } catch (error) {
         console.error("Error fetching service accounts data:", error);
-        // Set empty array on error
-        setAccountsRowData([]);
+        // Add dummy data on error
+        setAccountsRowData([
+          {
+            accountName: "svc-app-account-01",
+            entitlementName: "Administrator Access",
+            entitlementDescription: "Full administrative access to the production database system. This entitlement grants the ability to create, modify, and delete database objects, manage user permissions, and configure system settings.",
+            description: "Service account for production database management with elevated privileges. Used for automated maintenance tasks and system administration.",
+            userManager: "John Doe",
+            lastlogindate: "2024-01-15",
+            businessService: "Production Database",
+            backupOwner: "Jane Smith",
+            environment: "Production",
+            pamPolicy: "Standard PAM Policy",
+            rotationPolicy: "30 Days Rotation",
+            smeUser: "admin@company.com",
+            continuousCompliance: true,
+            reviewCycle: "Quarterly",
+          },
+          {
+            accountName: "svc-api-gateway-02",
+            entitlementName: "Read-Only Access",
+            entitlementDescription: "Read-only access to API gateway services and configuration. This entitlement allows viewing of API endpoints, monitoring metrics, and accessing logs without the ability to modify settings.",
+            description: "Service account for API gateway monitoring and read-only operations. Used for automated monitoring, reporting, and analytics purposes.",
+            userManager: "Mike Johnson",
+            lastlogindate: "2024-01-20",
+            businessService: "API Gateway Service",
+            backupOwner: "Sarah Williams",
+            environment: "Development",
+            pamPolicy: "Basic PAM Policy",
+            rotationPolicy: "60 Days Rotation",
+            smeUser: "devops@company.com",
+            continuousCompliance: false,
+            reviewCycle: "Semi-Annual",
+          },
+        ]);
       }
     };
     fetchData();
@@ -480,7 +686,7 @@ export default function ServiceAccountPage() {
       <div className="w-full py-8 px-4">
         <div
           className="ag-theme-alpine"
-          style={{ height: 500, width: "100%" }}
+          style={{ width: "100%" }}
         >
           <div className="relative mb-2">
             <div className="flex items-center justify-between border-b border-gray-300 pb-2">
@@ -631,6 +837,7 @@ export default function ServiceAccountPage() {
               rowData={paginatedData}
               columnDefs={columnDefs}
               defaultColDef={defaultColDef}
+              domLayout="autoHeight"
               onGridReady={(params) => {
                 gridApiRef.current = params.api;
               }}
@@ -656,3 +863,4 @@ export default function ServiceAccountPage() {
     </div>
   );
 }
+

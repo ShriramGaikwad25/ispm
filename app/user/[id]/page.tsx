@@ -323,10 +323,10 @@ export default function UserDetailPage() {
             setRowData(flatEntRows);
 
             const desiredCols: ColDef[] = [
-              { headerName: "Entitlement Name", field: "entitlementName", flex: 1.5 },
-              { headerName: "entitlementType", field: "entitlementType", flex: 1 },
+              { headerName: "Entitlement ", field: "entitlementName", flex: 1.5 },
+              { headerName: "Type", field: "entitlementType", flex: 1 },
               { headerName: "Application", field: "application", flex: 1.2 },
-              { headerName: "Account name", field: "accountName", flex: 1.2 },
+              { headerName: "Account", field: "accountName", flex: 1.2 },
               {
                 headerName: "Last Login",
                 field: "lastLogin",
