@@ -2027,6 +2027,216 @@ export default function ApplicationDetailPage() {
     );
   }, [tabsDataEnt, entTabIndex, setEntTabIndex]);
 
+  // Accounts Tab Component - Proper React component that reacts to state changes
+  const AccountsTabComponent = useMemo(() => {
+    // Create a proper React component
+    const Component = () => {
+      // Recalculate pagination values inside the component so they update when accountsRowData changes
+      const totalItems = accountsRowData.length;
+      const totalPages = Math.ceil(totalItems / pageSize);
+      const startIndex = (currentPage - 1) * pageSize;
+      const endIndex = startIndex + pageSize;
+      const paginatedData = accountsRowData.slice(startIndex, endIndex);
+
+      // Grid will update automatically via rowData prop and key
+
+    return (
+      <div
+        className="ag-theme-alpine"
+        style={{ height: 500, width: "100%" }}
+      >
+        <div className="relative mb-2">
+          <div className="flex items-center justify-between border-b border-gray-300 pb-2">
+            <h1 className="text-xl font-bold text-blue-950">
+              Accounts
+            </h1>
+            <button
+              onClick={() => openSidebar(null)}
+              className="flex items-center space-x-2 px-3 py-2 bg-[#27B973] text-white rounded-md hover:bg-[#22a667] transition-all duration-200 text-sm font-medium"
+              title="AI Assist Analysis"
+            >
+              <svg
+                className="w-4 h-4"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+              >
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+              </svg>
+              <span>AI Assist</span>
+            </button>
+          </div>
+          <Accordion
+            iconClass="top-1 right-0 rounded-full text-white bg-purple-800"
+            open={true}
+          >
+            <div className="p-2">
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="text-base font-medium text-gray-800">
+                  Filters
+                </h3>
+              </div>
+              <div className="space-y-3">
+                {/* First row - Account Summary (4 items) */}
+                <div className="flex">
+                  {dataAccount.accountSummary.map((item, index) => (
+                    <div
+                      key={`accountSummary-${index}`}
+                      className={`flex items-center justify-between py-2 px-3 rounded cursor-pointer transition-colors bg-white border border-gray-200 w-1/4 ${
+                        selected.accountSummary === index
+                          ? "bg-blue-100 border-blue-300"
+                          : "bg-gray-100"
+                      } ${item.color || ""}`}
+                      onClick={() => handleSelect("accountSummary", index)}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-3 h-3 rounded-full border-2"
+                          style={{
+                            borderColor: "#6EC6FF",
+                            backgroundColor:
+                              selected.accountSummary === index
+                                ? "#6EC6FF"
+                                : "transparent",
+                          }}
+                        ></div>
+                        <span
+                          className={`text-sm ${
+                            selected.accountSummary === index
+                              ? "text-blue-900"
+                              : "text-gray-700"
+                          }`}
+                        >
+                          {item.label}
+                        </span>
+                      </div>
+                      <span
+                        className={`text-sm font-medium ${
+                          selected.accountSummary === index
+                            ? "text-blue-700 border-blue-300"
+                            : "text-gray-900 border-gray-300"
+                        } bg-white border px-2 py-1 rounded text-xs min-w-[20px] text-center`}
+                      >
+                        {item.value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Second row - Account Activity (3 items) */}
+                <div className="flex">
+                  {dataAccount.accountActivity.map((item, index) => (
+                    <div
+                      key={`accountActivity-${index}`}
+                      className={`flex items-center justify-between py-2 px-3 rounded cursor-pointer transition-colors bg-white border border-gray-200 w-1/4 ${
+                        selected.accountActivity === index
+                          ? "bg-blue-100 border-blue-300"
+                          : "bg-gray-100"
+                      } ${item.color || ""}`}
+                      onClick={() => handleSelect("accountActivity", index)}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-3 h-3 rounded-full border-2"
+                          style={{
+                            borderColor: "#6EC6FF",
+                            backgroundColor:
+                              selected.accountActivity === index
+                                ? "#6EC6FF"
+                                : "transparent",
+                          }}
+                        ></div>
+                        <span
+                          className={`text-sm ${
+                            selected.accountActivity === index
+                              ? "text-blue-900"
+                              : "text-gray-700"
+                          }`}
+                        >
+                          {item.label}
+                        </span>
+                      </div>
+                      <span
+                        className={`text-sm font-medium ${
+                          selected.accountActivity === index
+                            ? "text-blue-700 border-blue-300"
+                            : "text-gray-900 border-gray-300"
+                        } bg-white border px-2 py-1 rounded text-xs min-w-[20px] text-center`}
+                      >
+                        {item.value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </Accordion>
+        </div>
+        <div className="mb-2 relative z-10 pt-4">
+          <div className="flex justify-end mb-2">
+            <Exports gridApi={gridApiRef.current} />
+          </div>
+          <div className="flex justify-center">
+            <CustomPagination
+              totalItems={totalItems}
+              currentPage={currentPage}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              onPageChange={handlePageChange}
+              onPageSizeChange={(newPageSize) => {
+                setPageSize(newPageSize);
+                setCurrentPage(1); // Reset to first page when changing page size
+                closeSidebar();
+              }}
+              pageSizeOptions={[10, 20, 50, 100]}
+            />
+          </div>
+        </div>
+        {mounted && (
+          <AgGridReact
+            key={`accounts-grid-${accountsRowData.length}-${currentPage}-${pageSize}`}
+            rowData={paginatedData}
+            columnDefs={columnDefs}
+            defaultColDef={defaultColDef}
+            masterDetail={true}
+            onGridReady={(params: any) => {
+              gridApiRef.current = params.api;
+            }}
+            // detailCellRendererParams={detailCellRendererParams}
+          />
+        )}
+        <div className="flex justify-center">
+          <CustomPagination
+            totalItems={totalItems}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            onPageChange={handlePageChange}
+            onPageSizeChange={(newPageSize) => {
+              setPageSize(newPageSize);
+              setCurrentPage(1); // Reset to first page when changing page size
+              closeSidebar();
+            }}
+            pageSizeOptions={[10, 20, 50, 100]}
+          />
+        </div>
+      </div>
+    );
+    };
+    return Component;
+  }, [
+    accountsRowData,
+    currentPage,
+    pageSize,
+    columnDefs,
+    mounted,
+    selected,
+    handlePageChange,
+    handleSelect,
+    gridApiRef,
+    openSidebar,
+    closeSidebar,
+  ]);
+
   const tabsData = useMemo(() => [
     {
       label: "About",
@@ -2931,185 +3141,7 @@ export default function ApplicationDetailPage() {
       label: "Accounts",
       icon: ChevronDown,
       iconOff: ChevronRight,
-      component: () => {
-        return (
-          <div
-            className="ag-theme-alpine"
-            style={{ height: 500, width: "100%" }}
-          >
-            <div className="relative mb-2">
-              <div className="flex items-center justify-between border-b border-gray-300 pb-2">
-                <h1 className="text-xl font-bold text-blue-950">
-                  Accounts
-                </h1>
-                <button
-                  onClick={() => openSidebar(null)}
-                  className="flex items-center space-x-2 px-3 py-2 bg-[#27B973] text-white rounded-md hover:bg-[#22a667] transition-all duration-200 text-sm font-medium"
-                  title="AI Assist Analysis"
-                >
-                  <svg
-                    className="w-4 h-4"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                  >
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
-                  </svg>
-                  <span>AI Assist</span>
-                </button>
-              </div>
-              <Accordion
-                iconClass="top-1 right-0 rounded-full text-white bg-purple-800"
-                open={true}
-              >
-                <div className="p-2">
-                  <div className="flex justify-between items-center mb-3">
-                    <h3 className="text-base font-medium text-gray-800">
-                      Filters
-                    </h3>
-                  </div>
-                  <div className="space-y-3">
-                    {/* First row - Account Summary (4 items) */}
-                    <div className="flex">
-                      {dataAccount.accountSummary.map((item, index) => (
-                        <div
-                          key={`accountSummary-${index}`}
-                          className={`flex items-center justify-between py-2 px-3 rounded cursor-pointer transition-colors bg-white border border-gray-200 w-1/4 ${
-                            selected.accountSummary === index
-                              ? "bg-blue-100 border-blue-300"
-                              : "bg-gray-100"
-                          } ${item.color || ""}`}
-                          onClick={() => handleSelect("accountSummary", index)}
-                        >
-                          <div className="flex items-center gap-2">
-                            <div
-                              className="w-3 h-3 rounded-full border-2"
-                              style={{
-                                borderColor: "#6EC6FF",
-                                backgroundColor:
-                                  selected.accountSummary === index
-                                    ? "#6EC6FF"
-                                    : "transparent",
-                              }}
-                            ></div>
-                            <span
-                              className={`text-sm ${
-                                selected.accountSummary === index
-                                  ? "text-blue-900"
-                                  : "text-gray-700"
-                              }`}
-                            >
-                              {item.label}
-                            </span>
-                          </div>
-                          <span
-                            className={`text-sm font-medium ${
-                              selected.accountSummary === index
-                                ? "text-blue-700 border-blue-300"
-                                : "text-gray-900 border-gray-300"
-                            } bg-white border px-2 py-1 rounded text-xs min-w-[20px] text-center`}
-                          >
-                            {item.value}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Second row - Account Activity (3 items) */}
-                    <div className="flex">
-                      {dataAccount.accountActivity.map((item, index) => (
-                        <div
-                          key={`accountActivity-${index}`}
-                          className={`flex items-center justify-between py-2 px-3 rounded cursor-pointer transition-colors bg-white border border-gray-200 w-1/4 ${
-                            selected.accountActivity === index
-                              ? "bg-blue-100 border-blue-300"
-                              : "bg-gray-100"
-                          } ${item.color || ""}`}
-                          onClick={() => handleSelect("accountActivity", index)}
-                        >
-                          <div className="flex items-center gap-2">
-                            <div
-                              className="w-3 h-3 rounded-full border-2"
-                              style={{
-                                borderColor: "#6EC6FF",
-                                backgroundColor:
-                                  selected.accountActivity === index
-                                    ? "#6EC6FF"
-                                    : "transparent",
-                              }}
-                            ></div>
-                            <span
-                              className={`text-sm ${
-                                selected.accountActivity === index
-                                  ? "text-blue-900"
-                                  : "text-gray-700"
-                              }`}
-                            >
-                              {item.label}
-                            </span>
-                          </div>
-                          <span
-                            className={`text-sm font-medium ${
-                              selected.accountActivity === index
-                                ? "text-blue-700 border-blue-300"
-                                : "text-gray-900 border-gray-300"
-                            } bg-white border px-2 py-1 rounded text-xs min-w-[20px] text-center`}
-                          >
-                            {item.value}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </Accordion>
-            </div>
-            <div className="mb-2 relative z-10 pt-4">
-              <div className="flex justify-end mb-2">
-                <Exports gridApi={gridApiRef.current} />
-              </div>
-              <div className="flex justify-center">
-                <CustomPagination
-                  totalItems={totalItems}
-                  currentPage={currentPage}
-                  totalPages={totalPages}
-                  pageSize={pageSize}
-                  onPageChange={handlePageChange}
-                  onPageSizeChange={(newPageSize) => {
-                    setPageSize(newPageSize);
-                    setCurrentPage(1); // Reset to first page when changing page size
-                    closeSidebar();
-                  }}
-                  pageSizeOptions={[10, 20, 50, 100]}
-                />
-              </div>
-            </div>
-            {mounted && (
-              <AgGridReact
-                rowData={paginatedData}
-                columnDefs={columnDefs}
-                defaultColDef={defaultColDef}
-                masterDetail={true}
-                // detailCellRendererParams={detailCellRendererParams}
-              />
-            )}
-            <div className="flex justify-center">
-              <CustomPagination
-                totalItems={totalItems}
-                currentPage={currentPage}
-                totalPages={totalPages}
-                pageSize={pageSize}
-                onPageChange={handlePageChange}
-                onPageSizeChange={(newPageSize) => {
-                  setPageSize(newPageSize);
-                  setCurrentPage(1); // Reset to first page when changing page size
-                  closeSidebar();
-                }}
-                pageSizeOptions={[10, 20, 50, 100]}
-              />
-            </div>
-          </div>
-        );
-      },
+      component: AccountsTabComponent,
     },
     {
       label: "Entitlements",
@@ -3797,7 +3829,10 @@ export default function ApplicationDetailPage() {
         );
       },
     },
-  ], [EntitlementsTabComponent]);
+  ], [
+    EntitlementsTabComponent,
+    AccountsTabComponent,
+  ]);
 
   return (
     <div

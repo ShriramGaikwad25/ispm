@@ -25,7 +25,10 @@ const HorizontalTabs: React.FC<TabsProps> = ({
   const [internalIndex, setInternalIndex] = useState(defaultIndex);
 
   const activeIndex = isControlled ? controlledIndex : internalIndex;
-  const ActiveComponent = tabs[activeIndex].component;
+  const ActiveComponent = tabs[activeIndex]?.component;
+  
+  // Force re-render when tabs change by using a key based on tabs reference
+  const tabsKey = tabs.length > 0 ? `${activeIndex}-${tabs.map(t => t.label).join('-')}` : activeIndex;
 
   const handleTabClick = (index: number) => {
     if (isControlled) {
@@ -67,7 +70,7 @@ const HorizontalTabs: React.FC<TabsProps> = ({
 
       {/* Active Tab Content */}
       <div className="mt-4 flex-1 flex flex-col overflow-visible">
-        <ActiveComponent />
+        {ActiveComponent && <ActiveComponent key={tabsKey} />}
       </div>
     </div>
   );
