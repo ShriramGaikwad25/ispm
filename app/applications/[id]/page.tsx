@@ -25,7 +25,7 @@ import {
   Info,
   HelpCircle,
 } from "lucide-react";
-import { useMemo, useRef, useState, useEffect } from "react";
+import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { createPortal } from "react-dom";
 import { formatDateMMDDYY } from "@/utils/utils";
@@ -1679,7 +1679,7 @@ export default function ApplicationDetailPage() {
     []
   );
 
-  const tabsDataEnt = [
+  const tabsDataEnt = useMemo(() => [
     {
       label: "All",
       icon: ChevronDown,
@@ -1972,9 +1972,62 @@ export default function ApplicationDetailPage() {
         </div>
       ),
     },
-  ];
+  ], [
+    mounted,
+    entPaginatedData,
+    entTotalItems,
+    entCurrentPage,
+    entTotalPages,
+    entPageSize,
+    entTabIndex,
+    gridApiRef,
+    colDefs,
+    defaultColDef,
+    detailCellRendererParams,
+    underReviewColDefs,
+    setEntCurrentPage,
+    setEntPageSize,
+    setEntTabIndex,
+  ]);
 
-  const tabsData = [
+  // Memoize the Entitlements tab component to prevent flickering
+  const EntitlementsTabComponent = useCallback(() => {
+    return (
+      <div
+        className="ag-theme-alpine"
+        style={{ height: 500, width: "100%" }}
+      >
+        <div className="relative mb-2 flex items-center justify-between">
+          <h1 className="text-xl font-bold pb-2 text-blue-950">
+            Entitlements
+          </h1>
+          <div className="flex gap-2">
+            <div className="border border-gray-300 w-65 h-8 rounded-md flex ml-0.5">
+              {tabsDataEnt.map((tab, index) => (
+                <button
+                  key={index}
+                  onClick={() => setEntTabIndex(index)}
+                  className={`flex items-center justify-center px-2 gap-2 py-2 cursor-pointer h-10 -mt-1 w-40 right-0 ${
+                    entTabIndex === index
+                      ? "bg-[#2563eb] text-white text-sm rounded-sm"
+                      : "text-gray-500 hover:text-blue-500"
+                  }`}
+                >
+                  <small className="flex gap-2">{tab.label}</small>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        {/* Render the active tab content */}
+        {tabsDataEnt[entTabIndex]?.component && (
+          <div>{tabsDataEnt[entTabIndex].component()}</div>
+        )}
+      </div>
+    );
+  }, [tabsDataEnt, entTabIndex, setEntTabIndex]);
+
+  const tabsData = useMemo(() => [
     {
       label: "About",
       icon: ChevronDown,
@@ -3062,41 +3115,7 @@ export default function ApplicationDetailPage() {
       label: "Entitlements",
       icon: ChevronDown,
       iconOff: ChevronRight,
-      component: () => {
-        return (
-          <div
-            className="ag-theme-alpine"
-            style={{ height: 500, width: "100%" }}
-          >
-            <div className="relative mb-2 flex items-center justify-between">
-              <h1 className="text-xl font-bold pb-2 text-blue-950">
-                Entitlements
-              </h1>
-              <div className="flex gap-2">
-                <div className="border border-gray-300 w-65 h-8 rounded-md flex ml-0.5">
-                  {tabsDataEnt.map((tab, index) => (
-                    <button
-                      key={index}
-                      onClick={() => setEntTabIndex(index)}
-                      className={`flex items-center justify-center px-2 gap-2 py-2 cursor-pointer h-10 -mt-1 w-40 right-0 ${
-                        entTabIndex === index
-                          ? "bg-[#2563eb] text-white text-sm rounded-sm"
-                          : "text-gray-500 hover:text-blue-500"
-                      }`}
-                    >
-                      <small className="flex gap-2">{tab.label}</small>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-            {/* Render the active tab content */}
-            {tabsDataEnt[entTabIndex]?.component && (
-              <div>{tabsDataEnt[entTabIndex].component()}</div>
-            )}
-          </div>
-        );
-      },
+      component: EntitlementsTabComponent,
     },
     {
       label: "Sampling",
@@ -3778,7 +3797,7 @@ export default function ApplicationDetailPage() {
         );
       },
     },
-  ];
+  ], [EntitlementsTabComponent]);
 
   return (
     <div

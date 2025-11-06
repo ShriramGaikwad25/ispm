@@ -46,7 +46,16 @@ const RightSidebar = ({ isOpen, widthPx = DEFAULT_WIDTH, onClose, children, topO
           ✕
         </button>
       </div>
-      <div className="p-4 overflow-auto" style={{ height: `calc(100% - 80px)` }}>{children}</div>
+      <div 
+        className="p-4 overflow-auto hide-scrollbar" 
+        style={{ 
+          height: `calc(100% - 80px)`,
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+        }}
+      >
+        {children}
+      </div>
     </div>
   );
 };

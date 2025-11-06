@@ -168,3 +168,13 @@ div[role="row"] {
   scrollbar-width: thin;
   scrollbar-color: #9ca3af #f3f4f6;
 }
+
+/* Hide scrollbar */
+.hide-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}

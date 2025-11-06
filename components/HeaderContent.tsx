@@ -719,13 +719,13 @@ const HeaderContent = () => {
   }, [pathname, applicationDetails, shouldShowHeader, shouldShowAppOwnerHeader, shouldShowCampaignHeader]);
 
   return (
-    <div className="flex h-[60px] w-full items-center justify-between text-sm px-4" style={{ backgroundColor: '#27B973' }}>
+    <div className="flex h-[60px] w-full items-center justify-between text-sm pl-0 pr-4" style={{ backgroundColor: '#27B973' }}>
       {/* Left Section */}
-      <div className="flex items-center h-full">
+      <div className="flex items-center h-full -ml-3">
         {/* Hamburger Menu Button */}
         <button
           onClick={toggleSidebar}
-          className="flex items-center justify-center w-10 h-10 mr-4 text-white hover:bg-white/10 rounded-md transition-colors"
+          className="flex items-center justify-center px-3 py-3 mr-4 text-white hover:bg-white/10 rounded-md transition-colors"
           title={isVisible ? "Hide sidebar" : "Show sidebar"}
         >
           <svg
@@ -734,7 +734,7 @@ const HeaderContent = () => {
             viewBox="0 0 24 24"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
-            className="transition-transform duration-200"
+            className="transition-transform duration-200 h-5 w-5 flex-shrink-0"
           >
             <path
               d="M3 12H21M3 6H21M3 18H21"

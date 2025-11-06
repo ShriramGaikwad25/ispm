@@ -11,8 +11,7 @@ import { formatDateMMDDYY } from "../access-review/page";
 import {
   CircleCheck,
   CircleX,
-  InfoIcon,
-  X,
+  ArrowRightCircle,
   ChevronDown,
   ChevronRight,
   AlertTriangle,
@@ -80,18 +79,9 @@ const CatalogPageContent = () => {
   const [entTabIndex, setEntTabIndex] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [lastAction, setLastAction] = useState<string | null>(null);
-  const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
-  const [nodeData, setNodeData] = useState<any>(null);
   const [highRiskData, setHighRiskData] = useState<any>(null);
   const [searchText, setSearchText] = useState("");
   const [selectedAppFilter, setSelectedAppFilter] = useState<string>("All");
-  const [sectionsOpen, setSectionsOpen] = useState({
-    general: false,
-    business: false,
-    technical: false,
-    security: false,
-    lifecycle: false,
-  });
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
   const [comment, setComment] = useState("");
   const [commentText, setCommentText] = useState("");
@@ -190,15 +180,6 @@ const CatalogPageContent = () => {
     setCommentText(`${commentCategory} - ${subcategory}`);
   };
 
-  const toggleSidePanel = (data: any) => {
-    if (isSidePanelOpen && nodeData === data) {
-      setIsSidePanelOpen(false);
-      setNodeData(null);
-    } else {
-      setIsSidePanelOpen(true);
-      setNodeData(data);
-    }
-  };
 
   // Fetch data from API
   useEffect(() => {
@@ -626,8 +607,7 @@ const CatalogPageContent = () => {
     );
 
     // Close other sidebars if open
-    setIsSidePanelOpen(false);
-    setNodeData(null);
+    closeSidebar();
   };
 
 
@@ -636,16 +616,6 @@ const CatalogPageContent = () => {
     setHighRiskData(null);
   };
 
-  // Close sidebar on Escape, align with hooks order rules (must be before conditional returns)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setIsSidePanelOpen(false);
-    };
-    if (isSidePanelOpen) {
-      document.addEventListener("keydown", handleKeyDown);
-    }
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isSidePanelOpen]);
 
   const colDefs = useMemo<ColDef[]>(
     () => [
@@ -954,7 +924,7 @@ const CatalogPageContent = () => {
                 title="Revoke"
                 aria-label="Revoke selected rows"
                 className={`p-1 rounded ${
-                  nodeData?.status === "Rejected" ? "bg-red-100" : ""
+                  params.data?.status === "Rejected" ? "bg-red-100" : ""
                 }`}
               >
                 <CircleX
@@ -962,7 +932,7 @@ const CatalogPageContent = () => {
                   color="#FF2D55"
                   strokeWidth="1"
                   size="32"
-                  fill={nodeData?.status === "Rejected" ? "#FF2D55" : "none"}
+                  fill={params.data?.status === "Rejected" ? "#FF2D55" : "none"}
                 />
               </button>
               <button
@@ -984,19 +954,421 @@ const CatalogPageContent = () => {
                 </svg>
               </button>
               <button
-                onClick={() => toggleSidePanel(params.data)}
+                onClick={() => {
+                  const row = params?.data || {};
+                  const InfoSidebar = () => {
+                    const [sectionsOpen, setSectionsOpen] = useState({
+                      general: false,
+                      business: false,
+                      technical: false,
+                      security: false,
+                      lifecycle: false,
+                    });
+
+                    return (
+                      <div className="flex flex-col h-full">
+                        <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                          {/* Header Section */}
+                          <div className="p-4 border-b bg-gray-50">
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <h2 className="text-lg font-semibold">Entitlement Details</h2>
+                                <div className="mt-2">
+                                  <span className="text-xs uppercase text-gray-500">
+                                    Entitlement Name:
+                                  </span>
+                                  <div className="text-md font-medium break-words break-all whitespace-normal max-w-full">
+                                    {row?.["Ent Name"] ||
+                                      row?.entitlementName ||
+                                      row?.applicationName ||
+                                      "-"}
+                                  </div>
+                                </div>
+                                <div className="mt-2">
+                                  <span className="text-xs uppercase text-gray-500">
+                                    Description:
+                                  </span>
+                                  <p className="text-sm text-gray-700 break-words break-all whitespace-pre-wrap max-w-full">
+                                    {row?.["Ent Description"] ||
+                                      row?.description ||
+                                      row?.details ||
+                                      "-"}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="mt-3 flex space-x-2">
+                              <button
+                                onClick={handleApprove}
+                                title="Approve"
+                                aria-label="Approve entitlement"
+                                className={`p-1 rounded transition-colors duration-200 ${
+                                  lastAction === "Approve"
+                                    ? "bg-green-500"
+                                    : "hover:bg-green-100"
+                                }`}
+                              >
+                                <CircleCheck
+                                  className="cursor-pointer"
+                                  color="#1c821cff"
+                                  strokeWidth="1"
+                                  size="32"
+                                  fill={lastAction === "Approve" ? "#1c821cff" : "none"}
+                                />
+                              </button>
+                              <button
+                                onClick={handleRevoke}
+                                title="Revoke"
+                                aria-label="Revoke entitlement"
+                                className={`p-1 rounded ${
+                                  row?.status === "Rejected" ? "bg-red-100" : ""
+                                }`}
+                              >
+                                <CircleX
+                                  className="cursor-pointer hover:opacity-80 transform rotate-90"
+                                  color="#FF2D55"
+                                  strokeWidth="1"
+                                  size="32"
+                                  fill={row?.status === "Rejected" ? "#FF2D55" : "none"}
+                                />
+                              </button>
+                              <button
+                                onClick={handleComment}
+                                title="Comment"
+                                aria-label="Add comment"
+                                className="p-1 rounded"
+                              >
+                                <svg
+                                  width="30"
+                                  height="30"
+                                  viewBox="0 0 32 32"
+                                  className="cursor-pointer hover:opacity-80"
+                                >
+                                  <path
+                                    d="M0.700195 0V19.5546H3.5802V25.7765C3.57994 25.9525 3.62203 26.1247 3.70113 26.2711C3.78022 26.4176 3.89277 26.5318 4.02449 26.5992C4.15621 26.6666 4.30118 26.6842 4.44101 26.6498C4.58085 26.6153 4.70926 26.5304 4.80996 26.4058C6.65316 24.1232 10.3583 19.5546 10.3583 19.5546H25.1802V0H0.700195ZM2.1402 1.77769H23.7402V17.7769H9.76212L5.0202 23.6308V17.7769H2.1402V1.77769ZM5.0202 5.33307V7.11076H16.5402V5.33307H5.0202ZM26.6202 5.33307V7.11076H28.0602V23.11H25.1802V28.9639L20.4383 23.11H9.34019L7.9002 24.8877H19.8421C19.8421 24.8877 23.5472 29.4563 25.3904 31.7389C25.4911 31.8635 25.6195 31.9484 25.7594 31.9828C25.8992 32.0173 26.0442 31.9997 26.1759 31.9323C26.3076 31.8648 26.4202 31.7507 26.4993 31.6042C26.5784 31.4578 26.6204 31.2856 26.6202 31.1096V24.8877H29.5002V5.33307H26.6202ZM5.0202 8.88845V10.6661H10.7802V8.88845H5.0202ZM5.0202 12.4438V14.2215H19.4202V12.4438H5.0202Z"
+                                    fill="#2684FF"
+                                  />
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                          <div className="p-4 space-y-4">
+                            {/* General Accordion */}
+                            <div className="bg-white border border-gray-200 rounded-md shadow-sm">
+                              <button
+                                className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
+                                onClick={() =>
+                                  setSectionsOpen((s: any) => ({ ...s, general: !s.general }))
+                                }
+                              >
+                                {sectionsOpen.general ? (
+                                  <ChevronDown size={20} className="mr-2" />
+                                ) : (
+                                  <ChevronRight size={20} className="mr-2" />
+                                )}{" "}
+                                General
+                              </button>
+                              {sectionsOpen.general && (
+                                <div className="p-4 space-y-2">
+                                  <div className="flex space-x-4 text-sm text-gray-700">
+                                    <div className="flex-1">
+                                      <strong>Ent Type:</strong>{" "}
+                                      {row?.["Ent Type"] || row?.type || "N/A"}
+                                    </div>
+                                    <div className="flex-1">
+                                      <strong>#Assignments:</strong>{" "}
+                                      {row?.["Total Assignments"] ?? "N/A"}
+                                    </div>
+                                  </div>
+                                  <div className="flex space-x-4 text-sm text-gray-700">
+                                    <div className="flex-1">
+                                      <strong>App Name:</strong>{" "}
+                                      {row?.["App Name"] ||
+                                        row?.applicationName ||
+                                        "N/A"}
+                                    </div>
+                                    <div className="flex-1">
+                                      <strong>Tag(s):</strong>{" "}
+                                      {row?.["Dynamic Tag"] || "N/A"}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                            {/* Business Accordion */}
+                            <div className="bg-white border border-gray-200 rounded-md shadow-sm">
+                              <button
+                                className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
+                                onClick={() =>
+                                  setSectionsOpen((s: any) => ({ ...s, business: !s.business }))
+                                }
+                              >
+                                {sectionsOpen.business ? (
+                                  <ChevronDown size={20} className="mr-2" />
+                                ) : (
+                                  <ChevronRight size={20} className="mr-2" />
+                                )}{" "}
+                                Business
+                              </button>
+                              {sectionsOpen.business && (
+                                <div className="p-4 space-y-2 text-sm text-gray-700">
+                                  <div>
+                                    <strong>Objective:</strong>{" "}
+                                    {row?.["Business Objective"] || "N/A"}
+                                  </div>
+                                  <div className="flex space-x-4">
+                                    <div className="flex-1">
+                                      <strong>Business Unit:</strong>{" "}
+                                      {row?.["Business Unit"] || "N/A"}
+                                    </div>
+                                    <div className="flex-1">
+                                      <strong>Business Owner:</strong>{" "}
+                                      {row?.["Ent Owner"] || "N/A"}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <strong>Regulatory Scope:</strong>{" "}
+                                    {row?.["Compliance Type"] || "N/A"}
+                                  </div>
+                                  <div className="flex space-x-4">
+                                    <div className="flex-1">
+                                      <strong>Data Classification:</strong>{" "}
+                                      {row?.["Data Classification"] || "N/A"}
+                                    </div>
+                                    <div className="flex-1">
+                                      <strong>Cost Center:</strong>{" "}
+                                      {row?.["Cost Center"] || "N/A"}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                            {/* Technical Accordion */}
+                            <div className="bg-white border border-gray-200 rounded-md shadow-sm">
+                              <button
+                                className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
+                                onClick={() =>
+                                  setSectionsOpen((s: any) => ({
+                                    ...s,
+                                    technical: !s.technical,
+                                  }))
+                                }
+                              >
+                                {sectionsOpen.technical ? (
+                                  <ChevronDown size={20} className="mr-2" />
+                                ) : (
+                                  <ChevronRight size={20} className="mr-2" />
+                                )}{" "}
+                                Technical
+                              </button>
+                              {sectionsOpen.technical && (
+                                <div className="p-4 space-y-2 text-sm text-gray-700">
+                                  <div className="flex space-x-4">
+                                    <div className="flex-1">
+                                      <strong>Created On:</strong>{" "}
+                                      {row?.["Created On"] || "N/A"}
+                                    </div>
+                                    <div className="flex-1">
+                                      <strong>Last Sync:</strong>{" "}
+                                      {row?.["Last Sync"] || "N/A"}
+                                    </div>
+                                  </div>
+                                  <div className="flex space-x-4">
+                                    <div className="flex-1">
+                                      <strong>App Name:</strong>{" "}
+                                      {row?.["App Name"] ||
+                                        row?.applicationName ||
+                                        "N/A"}
+                                    </div>
+                                    <div className="flex-1">
+                                      <strong>App Instance:</strong>{" "}
+                                      {row?.["App Instance"] || "N/A"}
+                                    </div>
+                                  </div>
+                                  <div className="flex space-x-4">
+                                    <div className="flex-1">
+                                      <strong>App Owner:</strong>{" "}
+                                      {row?.["App Owner"] || "N/A"}
+                                    </div>
+                                    <div className="flex-1">
+                                      <strong>Ent Owner:</strong>{" "}
+                                      {row?.["Ent Owner"] || "N/A"}
+                                    </div>
+                                  </div>
+                                  <div className="flex space-x-4">
+                                    <div className="flex-1">
+                                      <strong>Hierarchy:</strong>{" "}
+                                      {row?.["Hierarchy"] || "N/A"}
+                                    </div>
+                                    <div className="flex-1">
+                                      <strong>MFA Status:</strong>{" "}
+                                      {row?.["MFA Status"] || "N/A"}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <strong>Assigned to/Member of:</strong>{" "}
+                                    {row?.["assignment"] || "N/A"}
+                                  </div>
+                                  <div>
+                                    <strong>License Type:</strong>{" "}
+                                    {row?.["License Type"] || "N/A"}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                            {/* Security Accordion */}
+                            <div className="bg-white border border-gray-200 rounded-md shadow-sm">
+                              <button
+                                className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
+                                onClick={() =>
+                                  setSectionsOpen((s: any) => ({ ...s, security: !s.security }))
+                                }
+                              >
+                                {sectionsOpen.security ? (
+                                  <ChevronDown size={20} className="mr-2" />
+                                ) : (
+                                  <ChevronRight size={20} className="mr-2" />
+                                )}{" "}
+                                Security
+                              </button>
+                              {sectionsOpen.security && (
+                                <div className="p-4 space-y-2 text-sm text-gray-700">
+                                  <div className="flex space-x-4">
+                                    <div className="flex-1">
+                                      <strong>Risk:</strong>{" "}
+                                      {row?.["Risk"] || row?.risk || "N/A"}
+                                    </div>
+                                    <div className="flex-1">
+                                      <strong>Certifiable:</strong>{" "}
+                                      {row?.["Certifiable"] || "N/A"}
+                                    </div>
+                                  </div>
+                                  <div className="flex space-x-4">
+                                    <div className="flex-1">
+                                      <strong>Revoke on Disable:</strong>{" "}
+                                      {row?.["Revoke on Disable"] || "N/A"}
+                                    </div>
+                                    <div className="flex-1">
+                                      <strong>Shared Pwd:</strong>{" "}
+                                      {row?.["Shared Pwd"] || "N/A"}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <strong>SoD/Toxic Combination:</strong>{" "}
+                                    {row?.["SOD Check"] || "N/A"}
+                                  </div>
+                                  <div>
+                                    <strong>Access Scope:</strong>{" "}
+                                    {row?.["Access Scope"] || "N/A"}
+                                  </div>
+                                  <div className="flex space-x-4">
+                                    <div className="flex-1">
+                                      <strong>Review Schedule:</strong>{" "}
+                                      {row?.["Review Schedule"] || "N/A"}
+                                    </div>
+                                    <div className="flex-1">
+                                      <strong>Last Reviewed On:</strong>{" "}
+                                      {row?.["Last Reviewed on"] || "N/A"}
+                                    </div>
+                                  </div>
+                                  <div className="flex space-x-4">
+                                    <div className="flex-1">
+                                      <strong>Privileged:</strong>{" "}
+                                      {row?.["Privileged"] || "N/A"}
+                                    </div>
+                                    <div className="flex-1">
+                                      <strong>Non Persistent Access:</strong>{" "}
+                                      {row?.["Non Persistent Access"] || "N/A"}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <strong>Audit Comments:</strong>{" "}
+                                    {row?.["Audit Comments"] || "N/A"}
+                                  </div>
+                                  <div>
+                                    <strong>Account Type Restriction:</strong>{" "}
+                                    {row?.["Account Type Restriction"] || "N/A"}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                            {/* Lifecycle Accordion */}
+                            <div className="bg-white border border-gray-200 rounded-md shadow-sm">
+                              <button
+                                className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
+                                onClick={() =>
+                                  setSectionsOpen((s: any) => ({
+                                    ...s,
+                                    lifecycle: !s.lifecycle,
+                                  }))
+                                }
+                              >
+                                {sectionsOpen.lifecycle ? (
+                                  <ChevronDown size={20} className="mr-2" />
+                                ) : (
+                                  <ChevronRight size={20} className="mr-2" />
+                                )}{" "}
+                                Lifecycle
+                              </button>
+                              {sectionsOpen.lifecycle && (
+                                <div className="p-4 space-y-2 text-sm text-gray-700">
+                                  <div className="flex space-x-4">
+                                    <div className="flex-1">
+                                      <strong>Requestable:</strong>{" "}
+                                      {row?.["Requestable"] || "N/A"}
+                                    </div>
+                                    <div className="flex-1">
+                                      <strong>Pre-Requisite:</strong>{" "}
+                                      {row?.["Pre- Requisite"] || "N/A"}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <strong>Pre-Req Details:</strong>{" "}
+                                    {row?.["Pre-Requisite Details"] || "N/A"}
+                                  </div>
+                                  <div className="flex space-x-4">
+                                    <div className="flex-1">
+                                      <strong>Auto Assign Access Policy:</strong>{" "}
+                                      {row?.["Auto Assign Access Policy"] || "N/A"}
+                                    </div>
+                                    <div className="flex-1">
+                                      <strong>Provisioner Group:</strong>{" "}
+                                      {row?.["Provisioner Group"] || "N/A"}
+                                    </div>
+                                  </div>
+                                  <div className="flex space-x-4">
+                                    <div className="flex-1">
+                                      <strong>Provisioning Steps:</strong>{" "}
+                                      {row?.["Provisioning Steps"] || "N/A"}
+                                    </div>
+                                    <div className="flex-1">
+                                      <strong>Provisioning Mechanism:</strong>{" "}
+                                      {row?.["Provisioning Mechanism"] || "N/A"}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <strong>Action on Native Change:</strong>{" "}
+                                    {row?.["Action on Native Change"] || "N/A"}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  };
+                  
+                  openSidebar(<InfoSidebar />, { widthPx: 500 });
+                }}
                 title="Info"
-                className={`cursor-pointer rounded-sm hover:opacity-80 ${
-                  isSidePanelOpen && nodeData === params.data
-                    ? "bg-[#6D6E73]/20"
-                    : ""
-                }`}
+                className="cursor-pointer rounded-sm hover:opacity-80"
                 aria-label="View details"
               >
-                <InfoIcon
-                  color="#55544dff"
-                  size="36"
-                  className="transform scale-[0.8]"
+                <ArrowRightCircle
+                  color="#2563eb"
+                  size="42"
+                  className="transform scale-[0.6]"
                 />
               </button>
             </div>
@@ -1008,7 +1380,7 @@ const CatalogPageContent = () => {
         resizable: false,
       },
     ],
-    [error, lastAction, nodeData, isSidePanelOpen]
+    [error, lastAction]
   );
 
   const defaultColDef = useMemo<ColDef>(
@@ -1073,9 +1445,7 @@ const CatalogPageContent = () => {
 
   return (
     <div
-      className={`ag-theme-alpine transition-all duration-300 ease-in-out ${
-        isSidePanelOpen ? "mr-[500px]" : "mr-0"
-      }`}
+      className="ag-theme-alpine"
       style={{ width: "100%" }}
     >
       <style jsx global>{`
@@ -1215,410 +1585,6 @@ const CatalogPageContent = () => {
           gridApi={gridApi as any}
         />
       </div>
-
-      {/* Info Sidebar for Under Review tab (mirrors Applications Entitlements sidebar) */}
-      {isSidePanelOpen && nodeData && entTabIndex === 1 && (
-        <div
-          className="fixed top-0 right-0 h-180 bg-white shadow-xl z-50 overflow-y-auto overflow-x-hidden border-l border-gray-200 mt-16"
-          style={{ width: 500 }}
-        >
-          <div className="p-4 border-b bg-gray-50">
-            <div className="flex justify-between items-start">
-              <div className="flex-1">
-                <h2 className="text-lg font-semibold">Entitlement Details</h2>
-                <div className="mt-2">
-                  <span className="text-xs uppercase text-gray-500">
-                    Entitlement Name:
-                  </span>
-                  <div className="text-md font-medium break-words break-all whitespace-normal max-w-full">
-                    {nodeData?.["Ent Name"] ||
-                      nodeData?.entitlementName ||
-                      nodeData?.applicationName ||
-                      "-"}
-                  </div>
-                </div>
-                <div className="mt-2">
-                  <span className="text-xs uppercase text-gray-500">
-                    Description:
-                  </span>
-                  <p className="text-sm text-gray-700 break-words break-all whitespace-pre-wrap max-w-full">
-                    {nodeData?.["Ent Description"] ||
-                      nodeData?.description ||
-                      nodeData?.details ||
-                      "-"}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsSidePanelOpen(false)}
-                className="text-gray-600 hover:text-gray-800"
-                aria-label="Close panel"
-              >
-                <X size={24} />
-              </button>
-            </div>
-            <div className="mt-3 flex space-x-2">
-              <button
-                onClick={handleApprove}
-                title="Approve"
-                aria-label="Approve entitlement"
-                className={`p-1 rounded transition-colors duration-200 ${
-                  lastAction === "Approve"
-                    ? "bg-green-500"
-                    : "hover:bg-green-100"
-                }`}
-              >
-                <CircleCheck
-                  className="cursor-pointer"
-                  color="#1c821cff"
-                  strokeWidth="1"
-                  size="32"
-                  fill={lastAction === "Approve" ? "#1c821cff" : "none"}
-                />
-              </button>
-              <button
-                onClick={handleRevoke}
-                title="Revoke"
-                aria-label="Revoke entitlement"
-                className={`p-1 rounded ${
-                  nodeData?.status === "Rejected" ? "bg-red-100" : ""
-                }`}
-              >
-                <CircleX
-                  className="cursor-pointer hover:opacity-80 transform rotate-90"
-                  color="#FF2D55"
-                  strokeWidth="1"
-                  size="32"
-                  fill={nodeData?.status === "Rejected" ? "#FF2D55" : "none"}
-                />
-              </button>
-              <button
-                onClick={handleComment}
-                title="Comment"
-                aria-label="Add comment"
-                className="p-1 rounded"
-              >
-                <svg
-                  width="30"
-                  height="30"
-                  viewBox="0 0 32 32"
-                  className="cursor-pointer hover:opacity-80"
-                >
-                  <path
-                    d="M0.700195 0V19.5546H3.5802V25.7765C3.57994 25.9525 3.62203 26.1247 3.70113 26.2711C3.78022 26.4176 3.89277 26.5318 4.02449 26.5992C4.15621 26.6666 4.30118 26.6842 4.44101 26.6498C4.58085 26.6153 4.70926 26.5304 4.80996 26.4058C6.65316 24.1232 10.3583 19.5546 10.3583 19.5546H25.1802V0H0.700195ZM2.1402 1.77769H23.7402V17.7769H9.76212L5.0202 23.6308V17.7769H2.1402V1.77769ZM5.0202 5.33307V7.11076H16.5402V5.33307H5.0202ZM26.6202 5.33307V7.11076H28.0602V23.11H25.1802V28.9639L20.4383 23.11H9.34019L7.9002 24.8877H19.8421C19.8421 24.8877 23.5472 29.4563 25.3904 31.7389C25.4911 31.8635 25.6195 31.9484 25.7594 31.9828C25.8992 32.0173 26.0442 31.9997 26.1759 31.9323C26.3076 31.8648 26.4202 31.7507 26.4993 31.6042C26.5784 31.4578 26.6204 31.2856 26.6202 31.1096V24.8877H29.5002V5.33307H26.6202ZM5.0202 8.88845V10.6661H10.7802V8.88845H5.0202ZM5.0202 12.4438V14.2215H19.4202V12.4438H5.0202Z"
-                    fill="#2684FF"
-                  />
-                </svg>
-              </button>
-            </div>
-          </div>
-          <div className="p-4 space-y-4">
-            {/* Accordions copied */}
-            <div className="bg-white border border-gray-200 rounded-md shadow-sm">
-              <button
-                className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
-                onClick={() =>
-                  setSectionsOpen((s: any) => ({ ...s, general: !s.general }))
-                }
-              >
-                {sectionsOpen.general ? (
-                  <ChevronDown size={20} className="mr-2" />
-                ) : (
-                  <ChevronRight size={20} className="mr-2" />
-                )}{" "}
-                General
-              </button>
-              {sectionsOpen.general && (
-                <div className="p-4 space-y-2">
-                  <div className="flex space-x-4 text-sm text-gray-700">
-                    <div className="flex-1">
-                      <strong>Ent Type:</strong>{" "}
-                      {nodeData?.["Ent Type"] || nodeData?.type || "N/A"}
-                    </div>
-                    <div className="flex-1">
-                      <strong>#Assignments:</strong>{" "}
-                      {nodeData?.["Total Assignments"] ?? "N/A"}
-                    </div>
-                  </div>
-                  <div className="flex space-x-4 text-sm text-gray-700">
-                    <div className="flex-1">
-                      <strong>App Name:</strong>{" "}
-                      {nodeData?.["App Name"] ||
-                        nodeData?.applicationName ||
-                        "N/A"}
-                    </div>
-                    <div className="flex-1">
-                      <strong>Tag(s):</strong>{" "}
-                      {nodeData?.["Dynamic Tag"] || "N/A"}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="bg-white border border-gray-200 rounded-md shadow-sm">
-              <button
-                className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
-                onClick={() =>
-                  setSectionsOpen((s: any) => ({ ...s, business: !s.business }))
-                }
-              >
-                {sectionsOpen.business ? (
-                  <ChevronDown size={20} className="mr-2" />
-                ) : (
-                  <ChevronRight size={20} className="mr-2" />
-                )}{" "}
-                Business
-              </button>
-              {sectionsOpen.business && (
-                <div className="p-4 space-y-2 text-sm text-gray-700">
-                  <div>
-                    <strong>Objective:</strong>{" "}
-                    {nodeData?.["Business Objective"] || "N/A"}
-                  </div>
-                  <div className="flex space-x-4">
-                    <div className="flex-1">
-                      <strong>Business Unit:</strong>{" "}
-                      {nodeData?.["Business Unit"] || "N/A"}
-                    </div>
-                    <div className="flex-1">
-                      <strong>Business Owner:</strong>{" "}
-                      {nodeData?.["Ent Owner"] || "N/A"}
-                    </div>
-                  </div>
-                  <div>
-                    <strong>Regulatory Scope:</strong>{" "}
-                    {nodeData?.["Compliance Type"] || "N/A"}
-                  </div>
-                  <div className="flex space-x-4">
-                    <div className="flex-1">
-                      <strong>Data Classification:</strong>{" "}
-                      {nodeData?.["Data Classification"] || "N/A"}
-                    </div>
-                    <div className="flex-1">
-                      <strong>Cost Center:</strong>{" "}
-                      {nodeData?.["Cost Center"] || "N/A"}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="bg-white border border-gray-200 rounded-md shadow-sm">
-              <button
-                className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
-                onClick={() =>
-                  setSectionsOpen((s: any) => ({
-                    ...s,
-                    technical: !s.technical,
-                  }))
-                }
-              >
-                {sectionsOpen.technical ? (
-                  <ChevronDown size={20} className="mr-2" />
-                ) : (
-                  <ChevronRight size={20} className="mr-2" />
-                )}{" "}
-                Technical
-              </button>
-              {sectionsOpen.technical && (
-                <div className="p-4 space-y-2 text-sm text-gray-700">
-                  <div className="flex space-x-4">
-                    <div className="flex-1">
-                      <strong>Created On:</strong>{" "}
-                      {nodeData?.["Created On"] || "N/A"}
-                    </div>
-                    <div className="flex-1">
-                      <strong>Last Sync:</strong>{" "}
-                      {nodeData?.["Last Sync"] || "N/A"}
-                    </div>
-                  </div>
-                  <div className="flex space-x-4">
-                    <div className="flex-1">
-                      <strong>App Name:</strong>{" "}
-                      {nodeData?.["App Name"] ||
-                        nodeData?.applicationName ||
-                        "N/A"}
-                    </div>
-                    <div className="flex-1">
-                      <strong>App Instance:</strong>{" "}
-                      {nodeData?.["App Instance"] || "N/A"}
-                    </div>
-                  </div>
-                  <div className="flex space-x-4">
-                    <div className="flex-1">
-                      <strong>App Owner:</strong>{" "}
-                      {nodeData?.["App Owner"] || "N/A"}
-                    </div>
-                    <div className="flex-1">
-                      <strong>Ent Owner:</strong>{" "}
-                      {nodeData?.["Ent Owner"] || "N/A"}
-                    </div>
-                  </div>
-                  <div className="flex space-x-4">
-                    <div className="flex-1">
-                      <strong>Hierarchy:</strong>{" "}
-                      {nodeData?.["Hierarchy"] || "N/A"}
-                    </div>
-                    <div className="flex-1">
-                      <strong>MFA Status:</strong>{" "}
-                      {nodeData?.["MFA Status"] || "N/A"}
-                    </div>
-                  </div>
-                  <div>
-                    <strong>Assigned to/Member of:</strong>{" "}
-                    {nodeData?.["assignment"] || "N/A"}
-                  </div>
-                  <div>
-                    <strong>License Type:</strong>{" "}
-                    {nodeData?.["License Type"] || "N/A"}
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="bg-white border border-gray-200 rounded-md shadow-sm">
-              <button
-                className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
-                onClick={() =>
-                  setSectionsOpen((s: any) => ({ ...s, security: !s.security }))
-                }
-              >
-                {sectionsOpen.security ? (
-                  <ChevronDown size={20} className="mr-2" />
-                ) : (
-                  <ChevronRight size={20} className="mr-2" />
-                )}{" "}
-                Security
-              </button>
-              {sectionsOpen.security && (
-                <div className="p-4 space-y-2 text-sm text-gray-700">
-                  <div className="flex space-x-4">
-                    <div className="flex-1">
-                      <strong>Risk:</strong>{" "}
-                      {nodeData?.["Risk"] || nodeData?.risk || "N/A"}
-                    </div>
-                    <div className="flex-1">
-                      <strong>Certifiable:</strong>{" "}
-                      {nodeData?.["Certifiable"] || "N/A"}
-                    </div>
-                  </div>
-                  <div className="flex space-x-4">
-                    <div className="flex-1">
-                      <strong>Revoke on Disable:</strong>{" "}
-                      {nodeData?.["Revoke on Disable"] || "N/A"}
-                    </div>
-                    <div className="flex-1">
-                      <strong>Shared Pwd:</strong>{" "}
-                      {nodeData?.["Shared Pwd"] || "N/A"}
-                    </div>
-                  </div>
-                  <div>
-                    <strong>SoD/Toxic Combination:</strong>{" "}
-                    {nodeData?.["SOD Check"] || "N/A"}
-                  </div>
-                  <div>
-                    <strong>Access Scope:</strong>{" "}
-                    {nodeData?.["Access Scope"] || "N/A"}
-                  </div>
-                  <div className="flex space-x-4">
-                    <div className="flex-1">
-                      <strong>Review Schedule:</strong>{" "}
-                      {nodeData?.["Review Schedule"] || "N/A"}
-                    </div>
-                    <div className="flex-1">
-                      <strong>Last Reviewed On:</strong>{" "}
-                      {nodeData?.["Last Reviewed on"] || "N/A"}
-                    </div>
-                  </div>
-                  <div className="flex space-x-4">
-                    <div className="flex-1">
-                      <strong>Privileged:</strong>{" "}
-                      {nodeData?.["Privileged"] || "N/A"}
-                    </div>
-                    <div className="flex-1">
-                      <strong>Non Persistent Access:</strong>{" "}
-                      {nodeData?.["Non Persistent Access"] || "N/A"}
-                    </div>
-                  </div>
-                  <div>
-                    <strong>Audit Comments:</strong>{" "}
-                    {nodeData?.["Audit Comments"] || "N/A"}
-                  </div>
-                  <div>
-                    <strong>Account Type Restriction:</strong>{" "}
-                    {nodeData?.["Account Type Restriction"] || "N/A"}
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="bg-white border border-gray-200 rounded-md shadow-sm">
-              <button
-                className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
-                onClick={() =>
-                  setSectionsOpen((s: any) => ({
-                    ...s,
-                    lifecycle: !s.lifecycle,
-                  }))
-                }
-              >
-                {sectionsOpen.lifecycle ? (
-                  <ChevronDown size={20} className="mr-2" />
-                ) : (
-                  <ChevronRight size={20} className="mr-2" />
-                )}{" "}
-                Lifecycle
-              </button>
-              {sectionsOpen.lifecycle && (
-                <div className="p-4 space-y-2 text-sm text-gray-700">
-                  <div className="flex space-x-4">
-                    <div className="flex-1">
-                      <strong>Requestable:</strong>{" "}
-                      {nodeData?.["Requestable"] || "N/A"}
-                    </div>
-                    <div className="flex-1">
-                      <strong>Pre-Requisite:</strong>{" "}
-                      {nodeData?.["Pre- Requisite"] || "N/A"}
-                    </div>
-                  </div>
-                  <div>
-                    <strong>Pre-Req Details:</strong>{" "}
-                    {nodeData?.["Pre-Requisite Details"] || "N/A"}
-                  </div>
-                  <div className="flex space-x-4">
-                    <div className="flex-1">
-                      <strong>Auto Assign Access Policy:</strong>{" "}
-                      {nodeData?.["Auto Assign Access Policy"] || "N/A"}
-                    </div>
-                    <div className="flex-1">
-                      <strong>Provisioner Group:</strong>{" "}
-                      {nodeData?.["Provisioner Group"] || "N/A"}
-                    </div>
-                  </div>
-                  <div className="flex space-x-4">
-                    <div className="flex-1">
-                      <strong>Provisioning Steps:</strong>{" "}
-                      {nodeData?.["Provisioning Steps"] || "N/A"}
-                    </div>
-                    <div className="flex-1">
-                      <strong>Provisioning Mechanism:</strong>{" "}
-                      {nodeData?.["Provisioning Mechanism"] || "N/A"}
-                    </div>
-                  </div>
-                  <div>
-                    <strong>Action on Native Change:</strong>{" "}
-                    {nodeData?.["Action on Native Change"] || "N/A"}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-          <button
-            onClick={() => setIsSidePanelOpen(false)}
-            className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 text-gray-800 w-full"
-            aria-label="Close panel"
-          >
-            Close
-          </button>
-        </div>
-      )}
 
       {/* Global Right Sidebar used via openSidebar */}
 
