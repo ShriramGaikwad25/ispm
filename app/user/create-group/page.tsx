@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Check, Upload } from "lucide-react";
 import { executeQuery } from "@/lib/api";
@@ -19,6 +19,8 @@ interface FormData {
     groupName: string;
     description: string;
     owner: string;
+    tags: string;
+    ownerIsReviewer: boolean;
   };
   step2: {
     selectionMethod: "specific" | "selectEach" | "upload";
@@ -43,6 +45,8 @@ export default function CreateUserGroupPage() {
       groupName: "",
       description: "",
       owner: "",
+      tags: "",
+      ownerIsReviewer: false,
     },
     step2: {
       selectionMethod: "specific",
@@ -145,38 +149,56 @@ export default function CreateUserGroupPage() {
   }, [formData.step1]);
 
   // React Hook Form for Step 2
-  const {
-    control: step2Control,
-    setValue: setStep2Value,
-    watch: watchStep2,
-    formState: { isValid: isStep2Valid },
-  } = useForm<FieldValues>({
+  const step2Form = useForm<FieldValues>({
     mode: "onChange",
     defaultValues: {
       specificUserExpression: formData.step2.specificUserExpression || [],
     },
   });
 
-  // Initialize form when selection method changes
+  const {
+    control: step2Control,
+    setValue: setStep2Value,
+    watch: watchStep2,
+    formState: { isValid: isStep2Valid },
+  } = step2Form;
+
+  // Initialize form when selection method changes to "specific" - only once
   useEffect(() => {
-    if (formData.step2.selectionMethod === "specific") {
-      setStep2Value("specificUserExpression", formData.step2.specificUserExpression || []);
+    if (formData.step2.selectionMethod === "specific" && formData.step2.specificUserExpression.length === 0) {
+      setStep2Value("specificUserExpression", [], { shouldValidate: false });
     }
   }, [formData.step2.selectionMethod, setStep2Value]);
 
-  // Watch step2 form values
+  // Watch step2 form values - sync from form to formData
   useEffect(() => {
+    if (formData.step2.selectionMethod !== "specific") {
+      return;
+    }
+    
     const subscription = watchStep2((values) => {
-      setFormData((prev) => ({
-        ...prev,
-        step2: {
-          ...prev.step2,
-          specificUserExpression: values.specificUserExpression || [],
-        },
-      }));
+      const newExpression = values.specificUserExpression || [];
+      setFormData((prev) => {
+        // Only update if the expression actually changed and selection method is still "specific"
+        if (prev.step2.selectionMethod !== "specific") {
+          return prev;
+        }
+        const currentExpression = prev.step2.specificUserExpression || [];
+        if (JSON.stringify(newExpression) !== JSON.stringify(currentExpression)) {
+          return {
+            ...prev,
+            step2: {
+              ...prev.step2,
+              specificUserExpression: newExpression,
+            },
+          };
+        }
+        return prev;
+      });
     });
     return () => subscription.unsubscribe();
-  }, [watchStep2, setFormData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.step2.selectionMethod]);
 
   // Validate Step 2
   useEffect(() => {
@@ -411,6 +433,44 @@ export default function CreateUserGroupPage() {
                 Owner <span className="text-red-500">*</span>
               </label>
             </div>
+            <div className="relative">
+              <input
+                type="text"
+                value={formData.step1.tags}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    step1: { ...prev.step1, tags: e.target.value },
+                  }))
+                }
+                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                placeholder=" "
+              />
+              <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                formData.step1.tags
+                  ? 'top-0.5 text-xs text-blue-600' 
+                  : 'top-3.5 text-sm text-gray-500'
+              }`}>
+                Tags
+              </label>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="ownerIsReviewer"
+                checked={formData.step1.ownerIsReviewer}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    step1: { ...prev.step1, ownerIsReviewer: e.target.checked },
+                  }))
+                }
+                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <label htmlFor="ownerIsReviewer" className="text-base font-medium text-gray-700 cursor-pointer">
+                Owner is Reviewer
+              </label>
+            </div>
           </div>
         )}
 
@@ -581,6 +641,18 @@ export default function CreateUserGroupPage() {
                 <span className="font-medium text-gray-700">Owner:</span>
                 <span className="ml-2 text-gray-900">
                   {formData.step1.owner}
+                </span>
+              </div>
+              <div>
+                <span className="font-medium text-gray-700">Tags:</span>
+                <span className="ml-2 text-gray-900">
+                  {formData.step1.tags || "N/A"}
+                </span>
+              </div>
+              <div>
+                <span className="font-medium text-gray-700">Owner is Reviewer:</span>
+                <span className="ml-2 text-gray-900">
+                  {formData.step1.ownerIsReviewer ? "Yes" : "No"}
                 </span>
               </div>
               <div>
