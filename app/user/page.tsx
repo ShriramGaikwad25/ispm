@@ -7,6 +7,7 @@ import React, { useMemo, useRef, useState, useEffect } from "react";
 import { executeQuery } from "@/lib/api";
 import "@/lib/ag-grid-setup";
 import CustomPagination from "@/components/agTable/CustomPagination";
+import { Plus } from "lucide-react";
 
 
 interface UserData {
@@ -291,6 +292,17 @@ const columnDefs = useMemo<ColDef[]>(
 
   return (
     <div className="ag-theme-alpine" style={{ width: "100%" }}>
+      {/* Header with Create User Group Button */}
+      <div className="mb-4 flex justify-end">
+        <button
+          onClick={() => router.push("/user/create-group")}
+          className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          Create User Group
+        </button>
+      </div>
+
       {/* Top pagination */}
       <div className="mb-2">
         <CustomPagination
@@ -300,8 +312,10 @@ const columnDefs = useMemo<ColDef[]>(
           pageSize={pageSize}
           onPageChange={handlePageChange}
           onPageSizeChange={(newPageSize) => {
-            setPageSize(newPageSize);
-            setPageNumber(1); // Reset to first page when changing page size
+            if (typeof newPageSize === "number") {
+              setPageSize(newPageSize);
+              setPageNumber(1); // Reset to first page when changing page size
+            }
           }}
           pageSizeOptions={pageSizeSelector}
         />
@@ -325,8 +339,10 @@ const columnDefs = useMemo<ColDef[]>(
           pageSize={pageSize}
           onPageChange={handlePageChange}
           onPageSizeChange={(newPageSize) => {
-            setPageSize(newPageSize);
-            setPageNumber(1); // Reset to first page when changing page size
+            if (typeof newPageSize === "number") {
+              setPageSize(newPageSize);
+              setPageNumber(1); // Reset to first page when changing page size
+            }
           }}
           pageSizeOptions={pageSizeSelector}
         />
