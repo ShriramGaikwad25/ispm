@@ -15,7 +15,6 @@ import ProxyActionModal from "../ProxyActionModal";
 import DelegateActionModal from "../DelegateActionModal";
 import { updateAction } from "@/lib/api";
 import { useLoading } from "@/contexts/LoadingContext";
-import ActionCompletedToast from "../ActionCompletedToast";
 import { useActionPanel } from "@/contexts/ActionPanelContext";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import RemediateSidebar from "../RemediateSidebar";
@@ -74,8 +73,6 @@ const ActionButtons = <T extends { status?: string }>({
   const [error, setError] = useState<string | null>(null);
   const [lastAction, setLastAction] = useState<string | null>(null);
   const [isActionLoading, setIsActionLoading] = useState(false);
-  const [showCompletionToast, setShowCompletionToast] = useState(false);
-  const [completionMessage, setCompletionMessage] = useState('Action completed');
   const [pendingById, setPendingById] = useState<Record<string, 'Approve' | 'Reject' | 'Pending'>>({});
   
   const { showApiLoader, hideApiLoader } = useLoading();
@@ -105,8 +102,10 @@ const ActionButtons = <T extends { status?: string }>({
   const isApproveAction = context === "entitlement" && actionLower === "approve";
   const isRejectAction = context === "entitlement" && actionLower === "reject";
 
-  const approveFilled = isApprovePending || (!hasAnyPending && (isApproved || isApproveAction));
-  const rejectFilled = isRejectPending || (!hasAnyPending && (isRejected || isRejectAction));
+  // If last action was "Pending" (undo), buttons should be hollow
+  const isUndoState = lastAction === "Pending";
+  const approveFilled = !isUndoState && (isApprovePending || (!hasAnyPending && (isApproved || isApproveAction)));
+  const rejectFilled = !isUndoState && (isRejectPending || (!hasAnyPending && (isRejected || isRejectAction)));
 
   // API call to update actions
   const updateActions = async (actionType: string, justification: string) => {
@@ -198,9 +197,6 @@ const ActionButtons = <T extends { status?: string }>({
         setIsActionLoading(false);
       }, 100);
       
-      // Show success and completion messages immediately
-      setCompletionMessage('Action success');
-      setShowCompletionToast(true);
       // Counter is managed by queueAction. Do not refresh here; Submit handles it.
     } catch (err: any) {
       setError(`Failed to update actions: ${err.message}`);
@@ -368,7 +364,7 @@ const ActionButtons = <T extends { status?: string }>({
       {error && <div className="text-red-500 text-sm">{error}</div>}
       <button
         onClick={handleApprove}
-        title={isApproveAction ? "Undo" : "Approve"}
+        title={approveFilled ? "Undo" : "Approve"}
         aria-label="Approve selected rows"
         disabled={isActionLoading}
         className={`p-1 rounded flex items-center justify-center ${isActionLoading ? "opacity-60 cursor-not-allowed" : ""}`}
@@ -400,12 +396,12 @@ const ActionButtons = <T extends { status?: string }>({
 
       <button
         onClick={handleRevoke}
-        title={isRejectAction ? "Undo" : "Revoke"}
+        title={rejectFilled ? "Undo" : "Revoke"}
         aria-label="Revoke selected rows"
         disabled={isActionLoading}
         className={`p-1 rounded flex items-center justify-center ${isActionLoading ? "opacity-60 cursor-not-allowed" : ""}`}
       >
-        <div className="inline-flex items-center justify-center w-8 h-8">
+        <div className="relative inline-flex items-center justify-center w-8 h-8">
           <CircleX
             className={isActionLoading ? "cursor-not-allowed" : "cursor-pointer"}
             color="#FF2D55"
@@ -413,6 +409,20 @@ const ActionButtons = <T extends { status?: string }>({
             size="32"
             fill={rejectFilled ? "#FF2D55" : "none"}
           />
+          {rejectFilled && (
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              className="absolute pointer-events-none"
+              style={{ left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}
+            >
+              <path
+                d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                fill="#ffffff"
+              />
+            </svg>
+          )}
         </div>
       </button>
 
@@ -706,15 +716,6 @@ const ActionButtons = <T extends { status?: string }>({
           </div>,
           document.body
         )}
-
-
-      {/* Action Completed Toast */}
-      <ActionCompletedToast
-        isVisible={showCompletionToast}
-        message={"Action completed"}
-        onClose={() => setShowCompletionToast(false)}
-        duration={1500}
-      />
     </div>
   );
 };
