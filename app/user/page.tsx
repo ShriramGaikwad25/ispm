@@ -343,8 +343,154 @@ const columnDefs = useMemo<ColDef[]>(
 }
 
 // User Groups Tab Component
+interface UserGroupData {
+  userGroup: string;
+  description: string;
+  owner: string;
+  noOfUsers: number;
+  tags: string;
+}
+
 function UserGroupsTab() {
   const router = useRouter();
+  const gridApiRef = useRef<GridApi | null>(null);
+  const [rowData, setRowData] = useState<UserGroupData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Pagination state
+  const pageSizeSelector = [10, 20, 50, 100];
+  const [pageSize, setPageSize] = useState(pageSizeSelector[0]);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
+  // Fetch user groups data from API
+  useEffect(() => {
+    const fetchUserGroups = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // TODO: Replace with actual API query when available
+        // const query = "SELECT * FROM user_groups";
+        // const response = await executeQuery(query, []);
+        
+        // Set empty data until API is connected
+        setRowData([]);
+        setTotalItems(0);
+        setTotalPages(0);
+      } catch (err) {
+        console.error("Error fetching user groups:", err);
+        setError(err instanceof Error ? err.message : "Failed to fetch user groups");
+        setRowData([]);
+        setTotalItems(0);
+        setTotalPages(0);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserGroups();
+  }, []);
+
+  // Calculate paginated data
+  const paginatedData = useMemo(() => {
+    const startIndex = (pageNumber - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return rowData.slice(startIndex, endIndex);
+  }, [rowData, pageNumber, pageSize]);
+
+  // Update total pages when page size changes
+  useEffect(() => {
+    setTotalPages(Math.ceil(totalItems / pageSize));
+    setPageNumber(1); // Reset to first page when page size changes
+  }, [pageSize, totalItems]);
+
+  // Pagination handlers
+  const handlePageChange = (newPage: number) => {
+    if (newPage !== pageNumber) {
+      setPageNumber(newPage);
+    }
+  };
+
+  const columnDefs = useMemo<ColDef[]>(
+    () => [
+      {
+        headerName: "User Group",
+        field: "userGroup",
+        flex: 1.5,
+        cellRenderer: (params: any) => {
+          return (
+            <span style={{ color: "#1677ff", cursor: "pointer" }}>
+              {params.value}
+            </span>
+          );
+        },
+      },
+      {
+        headerName: "Description",
+        field: "description",
+        flex: 2,
+      },
+      {
+        headerName: "Tags",
+        field: "tags",
+        flex: 1,
+      },
+      {
+        headerName: "Owner",
+        field: "owner",
+        flex: 1.5,
+      },
+      {
+        headerName: "No of users",
+        field: "noOfUsers",
+        flex: 1,
+        cellRenderer: (params: any) => {
+          return (
+            <span>
+              {params.value || 0}
+            </span>
+          );
+        },
+      },
+    ],
+    []
+  );
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center" style={{ height: 600 }}>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading user groups...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex justify-center items-center" style={{ height: 600 }}>
+        <div className="text-center">
+          <div className="text-red-500 mb-4">
+            <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
+          <p className="text-red-600 mb-2">Error loading user groups</p>
+          <p className="text-gray-600 text-sm">{error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full">
@@ -359,10 +505,49 @@ function UserGroupsTab() {
         </button>
       </div>
 
-      {/* Placeholder content for User Groups */}
-      <div className="flex justify-center items-center" style={{ minHeight: '400px' }}>
-        <div className="text-center">
-          <p className="text-gray-600 text-lg">User Groups content will be displayed here</p>
+      <div className="ag-theme-alpine" style={{ width: "100%" }}>
+        {/* Top pagination */}
+        <div className="mb-2">
+          <CustomPagination
+            totalItems={totalItems}
+            currentPage={pageNumber}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            onPageChange={handlePageChange}
+            onPageSizeChange={(newPageSize) => {
+              if (typeof newPageSize === "number") {
+                setPageSize(newPageSize);
+                setPageNumber(1); // Reset to first page when changing page size
+              }
+            }}
+            pageSizeOptions={pageSizeSelector}
+          />
+        </div>
+        
+        <div style={{ minHeight: '400px' }}>
+          <AgGridReact
+            columnDefs={columnDefs}
+            rowData={paginatedData}
+            domLayout="autoHeight"
+          />
+        </div>
+        
+        {/* Bottom pagination */}
+        <div className="mt-4 mb-4">
+          <CustomPagination
+            totalItems={totalItems}
+            currentPage={pageNumber}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            onPageChange={handlePageChange}
+            onPageSizeChange={(newPageSize) => {
+              if (typeof newPageSize === "number") {
+                setPageSize(newPageSize);
+                setPageNumber(1); // Reset to first page when changing page size
+              }
+            }}
+            pageSizeOptions={pageSizeSelector}
+          />
         </div>
       </div>
     </div>
