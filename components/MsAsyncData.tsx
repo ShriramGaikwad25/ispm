@@ -67,7 +67,12 @@ const getLogoSrc = (appName: string) => {
 // Load Applications from ISPM API to match Applications component data and logos
 export const loadIspmApps = async (inputValue: string): Promise<App[]> => {
   try {
-    const reviewerId = "430ea9e6-3cff-449c-a24e-59c057f81e3d";
+    const { getReviewerId } = await import("@/lib/auth");
+    const reviewerId = getReviewerId() || "";
+    if (!reviewerId) {
+      console.error("Reviewer ID not found");
+      return [];
+    }
     const response = await fetch(
       `https://preview.keyforge.ai/entities/api/v1/ACMEPOC/getApplications/${reviewerId}`
     );

@@ -15,9 +15,9 @@ interface FormData {
   step2: {
     applicationName: string;
     description: string;
-    applicationType: string;
-    owner: string;
-    backupOwner: string;
+    trustedSource: boolean;
+    technicalOwner: string;
+    businessOwner: string;
   };
   step3: {
     // Dynamic fields based on application type
@@ -96,9 +96,9 @@ export default function AIAssistAppPage() {
     step2: {
       applicationName: "",
       description: "",
-      applicationType: "",
-      owner: "",
-      backupOwner: ""
+      trustedSource: false,
+      technicalOwner: "",
+      businessOwner: ""
     },
     step3: {
       // Dynamic fields will be populated based on application type
@@ -149,8 +149,8 @@ export default function AIAssistAppPage() {
       return false;
     }
     
-    // Step 2: applicationName, description, applicationType are required
-    if (!formData.step2.applicationName || !formData.step2.description || !formData.step2.applicationType) {
+    // Step 2: applicationName, description are required
+    if (!formData.step2.applicationName || !formData.step2.description) {
       return false;
     }
     
@@ -209,7 +209,7 @@ export default function AIAssistAppPage() {
       // Build payload from form data
       const payload = {
         applicationName: formData.step2.applicationName || "",
-        applicationType: formData.step2.applicationType || "",
+        trustedSource: formData.step2.trustedSource || false,
         applicationDescription: formData.step2.description || "",
         action: "pending",
         comments: "",
@@ -693,7 +693,7 @@ export default function AIAssistAppPage() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="flex-1 relative">
+              <div className="flex-[3] relative">
                 <input
                   type="text"
                   value={formData.step2.applicationName}
@@ -709,23 +709,16 @@ export default function AIAssistAppPage() {
                   Application Name *
                 </label>
               </div>
-              <div className="flex-1 relative">
-                <select
-                  value={formData.step2.applicationType}
-                  onChange={(e) => handleInputChange("step2", "applicationType", e.target.value)}
-                  className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
-                  required
-                >
-                  <option value=""></option>
-                  <option value="Source">Source</option>
-                  <option value="Target">Target</option>
-                </select>
-                <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                  formData.step2.applicationType
-                    ? 'top-0.5 text-xs text-blue-600' 
-                    : 'top-3.5 text-sm text-gray-500'
-                }`}>
-                  Application Type *
+              <div className="flex-none flex items-center pt-1">
+                <input
+                  type="checkbox"
+                  id="trustedSource"
+                  checked={formData.step2.trustedSource}
+                  onChange={(e) => handleInputChange("step2", "trustedSource", e.target.checked)}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                />
+                <label htmlFor="trustedSource" className="ml-2 text-sm text-gray-700 cursor-pointer">
+                  Trusted Source
                 </label>
               </div>
             </div>
@@ -749,33 +742,33 @@ export default function AIAssistAppPage() {
               <div className="flex-1 relative">
                 <input
                   type="text"
-                  value={formData.step2.owner}
-                  onChange={(e) => handleInputChange("step2", "owner", e.target.value)}
+                  value={formData.step2.technicalOwner}
+                  onChange={(e) => handleInputChange("step2", "technicalOwner", e.target.value)}
                   className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
                   placeholder=" "
                 />
                 <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                  formData.step2.owner
+                  formData.step2.technicalOwner
                     ? 'top-0.5 text-xs text-blue-600' 
                     : 'top-3.5 text-sm text-gray-500'
                 }`}>
-                  Owner *
+                  Technical Owner *
                 </label>
               </div>
               <div className="flex-1 relative">
                 <input
                   type="text"
-                  value={formData.step2.backupOwner}
-                  onChange={(e) => handleInputChange("step2", "backupOwner", e.target.value)}
+                  value={formData.step2.businessOwner}
+                  onChange={(e) => handleInputChange("step2", "businessOwner", e.target.value)}
                   className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
                   placeholder=" "
                 />
                 <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                  formData.step2.backupOwner
+                  formData.step2.businessOwner
                     ? 'top-0.5 text-xs text-blue-600' 
                     : 'top-3.5 text-sm text-gray-500'
                 }`}>
-                  Backup Owner *
+                  Business Owner *
                 </label>
               </div>
             </div>

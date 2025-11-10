@@ -13,6 +13,8 @@ import { AuthWrapper } from "@/components/AuthWrapper";
 import { RightSidebarProvider } from "@/contexts/RightSidebarContext";
 import { LeftSidebarProvider } from "@/contexts/LeftSidebarContext";
 import { CartProvider } from "@/contexts/CartContext";
+import { SelectedUsersProvider } from "@/contexts/SelectedUsersContext";
+import { ItemDetailsProvider } from "@/contexts/ItemDetailsContext";
 import RightSideBarHost from "@/components/RightSideBarHost";
 import LayoutContentShift from "@/components/LayoutContentShift";
 
@@ -36,18 +38,22 @@ export default function RootLayout({
             <LoadingProvider>
               <ActionPanelProvider>
                 <CartProvider>
-                  <RightSidebarProvider>
-                    <LeftSidebarProvider>
-                      <AuthWrapper>
-                        <LayoutContentShift>
-                          {children}
-                        </LayoutContentShift>
-                      </AuthWrapper>
-                      <RightSideBarHost />
-                      <PageTransitionLoader />
-                      <ActionPanel />
-                    </LeftSidebarProvider>
-                  </RightSidebarProvider>
+                  <SelectedUsersProvider>
+                    <ItemDetailsProvider>
+                      <RightSidebarProvider>
+                      <LeftSidebarProvider>
+                        <AuthWrapper>
+                          <LayoutContentShift>
+                            {children}
+                          </LayoutContentShift>
+                        </AuthWrapper>
+                        <RightSideBarHost />
+                        <PageTransitionLoader />
+                        <ActionPanel />
+                      </LeftSidebarProvider>
+                    </RightSidebarProvider>
+                    </ItemDetailsProvider>
+                  </SelectedUsersProvider>
                 </CartProvider>
               </ActionPanelProvider>
             </LoadingProvider>

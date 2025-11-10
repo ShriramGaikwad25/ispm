@@ -3,6 +3,8 @@ const AUTH_BASE_URL = 'https://preview.keyforge.ai/RequestJWTToken/TokenProvider
 
 export interface TokenResponse {
   tokenResponse: {
+    userUniqueID: string;
+    userAdminRoles: string;
     accessToken: string;
     statusMessage: string;
     status: string;
@@ -37,6 +39,8 @@ export const COOKIE_NAMES = {
   ACCESS_TOKEN: 'accessToken',  // Master token - long-lived, used to generate new JWT tokens
   UID_TENANT: 'uidTenant',      // User information (userid, tenantId)
   JWT_TOKEN: 'jwtToken',        // Short-lived JWT token - used for API calls in Authorization header
+  REVIEWER_ID: 'reviewerId',    // User unique ID used as reviewerId throughout the application
+  USER_ADMIN_ROLES: 'userAdminRoles',  // User admin roles from the token response
 } as const;
 
 export function setCookie(name: string, value: string, days: number = 7): void {
@@ -586,4 +590,14 @@ export function getCurrentUser(): { email?: string; tenantId?: string } | null {
   } catch {
     return null;
   }
+}
+
+// Get reviewerId (userUniqueID) from cookies
+export function getReviewerId(): string | null {
+  return getCookie(COOKIE_NAMES.REVIEWER_ID);
+}
+
+// Get userAdminRoles from cookies
+export function getUserAdminRoles(): string | null {
+  return getCookie(COOKIE_NAMES.USER_ADMIN_ROLES);
 }

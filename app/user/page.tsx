@@ -8,6 +8,7 @@ import { executeQuery } from "@/lib/api";
 import "@/lib/ag-grid-setup";
 import CustomPagination from "@/components/agTable/CustomPagination";
 import { Plus } from "lucide-react";
+import HorizontalTabs from "@/components/HorizontalTabs";
 
 
 interface UserData {
@@ -22,7 +23,8 @@ interface UserData {
   managerStatus?: string;
 }
 
-export default function User() {
+// Users Tab Component
+function UsersTab() {
   const router = useRouter();
   const gridApiRef = useRef<GridApi | null>(null);
   const [rowData, setRowData] = useState<UserData[]>([]);
@@ -292,17 +294,6 @@ const columnDefs = useMemo<ColDef[]>(
 
   return (
     <div className="ag-theme-alpine" style={{ width: "100%" }}>
-      {/* Header with Create User Group Button */}
-      <div className="mb-4 flex justify-end">
-        <button
-          onClick={() => router.push("/user/create-group")}
-          className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Create User Group
-        </button>
-      </div>
-
       {/* Top pagination */}
       <div className="mb-2">
         <CustomPagination
@@ -349,4 +340,47 @@ const columnDefs = useMemo<ColDef[]>(
       </div>
     </div>
   );
+}
+
+// User Groups Tab Component
+function UserGroupsTab() {
+  const router = useRouter();
+
+  return (
+    <div className="w-full">
+      {/* Header with Create User Group Button */}
+      <div className="mb-4 flex justify-end">
+        <button
+          onClick={() => router.push("/user/create-group")}
+          className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          Create User Group
+        </button>
+      </div>
+
+      {/* Placeholder content for User Groups */}
+      <div className="flex justify-center items-center" style={{ minHeight: '400px' }}>
+        <div className="text-center">
+          <p className="text-gray-600 text-lg">User Groups content will be displayed here</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Main User Component with Tabs
+export default function User() {
+  const tabs = [
+    {
+      label: "Users",
+      component: UsersTab,
+    },
+    {
+      label: "User Groups",
+      component: UserGroupsTab,
+    },
+  ];
+
+  return <HorizontalTabs tabs={tabs} defaultIndex={0} />;
 }

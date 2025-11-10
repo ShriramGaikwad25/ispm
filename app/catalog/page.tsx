@@ -17,6 +17,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { getCatalogEntitlements } from "@/lib/api";
+import { getReviewerId } from "@/lib/auth";
 import { PaginatedResponse } from "@/types/api";
 import PolicyRiskDetails from "@/components/PolicyRiskDetails";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
@@ -74,7 +75,7 @@ const CatalogPageContent = () => {
   const appInstanceId =
     searchParams.get("appinstanceid") || "b73ac8d7-f4cd-486f-93c7-3589ab5c5296";
   const reviewerId =
-    searchParams.get("reviewerId") || "ec527a50-0944-4b31-b239-05518c87a743";
+    searchParams.get("reviewerId") || getReviewerId() || "";
 
   const [entTabIndex, setEntTabIndex] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
@@ -806,7 +807,7 @@ const CatalogPageContent = () => {
               api={params.api}
               selectedRows={[params.data]}
               nodeData={params.data}
-              reviewerId="REVIEWER_ID"
+              reviewerId={reviewerId}
               certId="CERT_ID"
               context="entitlement"
             />
@@ -818,7 +819,7 @@ const CatalogPageContent = () => {
         resizable: false,
       },
     ],
-    []
+    [reviewerId]
   );
 
   const underReviewColDefs = useMemo<ColDef[]>(
@@ -1380,7 +1381,7 @@ const CatalogPageContent = () => {
         resizable: false,
       },
     ],
-    [error, lastAction]
+    [error, lastAction, reviewerId]
   );
 
   const defaultColDef = useMemo<ColDef>(

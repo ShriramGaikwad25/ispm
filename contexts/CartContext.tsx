@@ -5,6 +5,7 @@ import { createContext, useContext, useState, ReactNode, useCallback } from 'rea
 export interface CartItem {
   id: string;
   name: string;
+  risk?: "High" | "Medium" | "Low";
 }
 
 interface CartContextType {

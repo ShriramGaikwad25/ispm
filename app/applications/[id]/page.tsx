@@ -35,6 +35,7 @@ import CustomPagination from "@/components/agTable/CustomPagination";
 import EditReassignButtons from "@/components/agTable/EditReassignButtons";
 import ActionButtons from "@/components/agTable/ActionButtons";
 import { getAllRegisteredApps, searchUsers } from "@/lib/api";
+import { getReviewerId } from "@/lib/auth";
 import Link from "next/link";
 import Tabs from "@/components/tabs";
 import PolicyRiskDetails from "@/components/PolicyRiskDetails";
@@ -82,6 +83,7 @@ const dataAccount: Record<string, DataItem[]> = {
 
 export default function ApplicationDetailPage() {
   const { openSidebar, closeSidebar } = useRightSidebar();
+  const reviewerId = getReviewerId() || "";
   
   // Wrapper function to handle page changes and close sidebar
   const handlePageChange = (newPage: number) => {
@@ -569,7 +571,7 @@ export default function ApplicationDetailPage() {
 
     try {
       const response = await fetch(
-        `https://preview.keyforge.ai/certification/api/v1/ACMEPOC/updateAction/REVIEWER_ID/CERT_ID`,
+        `https://preview.keyforge.ai/certification/api/v1/ACMEPOC/updateAction/${reviewerId}/CERT_ID`,
         {
           method: "POST",
           headers: {
@@ -1424,7 +1426,7 @@ export default function ApplicationDetailPage() {
               api={params.api}
               selectedRows={[params.data]}
               nodeData={params.data}
-              reviewerId="REVIEWER_ID"
+              reviewerId={reviewerId}
               certId="CERT_ID"
               context="entitlement"
             />
@@ -1436,7 +1438,7 @@ export default function ApplicationDetailPage() {
         resizable: false,
       },
     ],
-    []
+    [reviewerId]
   );
 
   const underReviewColDefs = useMemo<ColDef[]>(
@@ -3175,7 +3177,7 @@ export default function ApplicationDetailPage() {
         const [selectedUser, setSelectedUser] = useState<any>(null);
 
         // Use the same reviewerID as other parts of the application
-        const reviewerID = "430ea9e6-3cff-449c-a24e-59c057f81e3d";
+        const reviewerID = getReviewerId() || "";
 
         // Fetch applications from API and Keyforge endpoint in parallel
         useEffect(() => {

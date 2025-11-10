@@ -38,6 +38,7 @@ import { ModuleRegistry } from "ag-grid-community";
 import HorizontalProgressBar from "@/components/HorizontalProgressBar";
 import { useLoading } from "@/contexts/LoadingContext";
 import ActionCompletedToast from "@/components/ActionCompletedToast";
+import { getReviewerId } from "@/lib/auth";
 import "./AccessReview.css"
 
 // Register AG Grid Enterprise modules
@@ -77,9 +78,8 @@ const DetailCellRenderer = (props: IDetailCellRendererParams) => {
 export const formatDateMMDDYY = (dateString?: string) =>
   formatDateShared(dateString);
 
-const reviewerId = "d4cc2173-7471-4e26-8c72-a27be88ff6cb";
-
 const OpenTab: React.FC = () => {
+  const reviewerId = getReviewerId() || "";
   const [gridApi, setGridApi] = useState<GridApi | null>(null);
   const [rowData, setRowData] = useState<UserRowData[]>([]);
   const [filteredRowData, setFilteredRowData] = useState<UserRowData[]>([]);

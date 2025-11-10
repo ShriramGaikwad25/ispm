@@ -43,6 +43,7 @@ import {
   getAPPOCertificationDetailsWithFilter,
   getCertAnalytics,
 } from "@/lib/api";
+import { getReviewerId } from "@/lib/auth";
 import { useActionPanel } from "@/contexts/ActionPanelContext";
 import { PaginatedResponse } from "@/types/api";
 import { BackButton } from "@/components/BackButton";
@@ -320,7 +321,7 @@ function AppOwnerContent() {
 
   // Get reviewerId and certificationId from URL parameters, with fallback to hardcoded values
   const reviewerId =
-    searchParams.get("reviewerId") || "430ea9e6-3cff-449c-a24e-59c057f81e3d";
+    searchParams.get("reviewerId") || getReviewerId() || "";
   const certificationId =
     searchParams.get("certificationId") ||
     "4f5c20b8-1031-4114-a688-3b5be9cc2224";

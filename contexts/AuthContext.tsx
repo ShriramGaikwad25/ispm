@@ -86,8 +86,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Step 2: Set access token (master token) and UID tenant cookies
       // The access token is a long-lived token used to generate new JWT tokens when they expire
       const accessToken = tokenResponse.tokenResponse.accessToken;
+      const userUniqueID = tokenResponse.tokenResponse.userUniqueID;
+      const userAdminRoles = tokenResponse.tokenResponse.userAdminRoles;
       setCookie(COOKIE_NAMES.ACCESS_TOKEN, accessToken);
       setCookie(COOKIE_NAMES.UID_TENANT, JSON.stringify({ userid, tenantId: 'ACMECOM' }));
+      // Store userUniqueID as reviewerId for use throughout the application
+      if (userUniqueID) {
+        setCookie(COOKIE_NAMES.REVIEWER_ID, userUniqueID);
+        console.log('AuthContext: Reviewer ID (userUniqueID) cookie set:', userUniqueID);
+      }
+      // Store userAdminRoles for use throughout the application
+      if (userAdminRoles) {
+        setCookie(COOKIE_NAMES.USER_ADMIN_ROLES, userAdminRoles);
+        console.log('AuthContext: User Admin Roles cookie set:', userAdminRoles);
+      }
       console.log('AuthContext: Access token (master token) cookie set');
       
       // Step 3: Generate short-lived JWT token using the new API endpoint
