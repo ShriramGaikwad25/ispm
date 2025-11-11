@@ -8,6 +8,15 @@ export interface ItemDetail {
   isIndefinite: boolean;
   comment: string;
   globalAccessType: 'indefinite' | 'duration';
+  useGlobalSettings?: boolean; // Flag to indicate if item uses global settings
+}
+
+interface GlobalSettings {
+  startDate: string;
+  endDate: string;
+  isIndefinite: boolean;
+  comment: string;
+  accessType: 'indefinite' | 'duration';
 }
 
 interface ItemDetailsContextType {
@@ -16,49 +25,102 @@ interface ItemDetailsContextType {
   setGlobalAccessType: (type: 'indefinite' | 'duration') => void;
   getItemDetail: (itemId: string) => ItemDetail | undefined;
   globalAccessType: 'indefinite' | 'duration';
+  globalSettings: GlobalSettings;
+  setGlobalSettings: (settings: Partial<GlobalSettings>) => void;
+  applyGlobalToAll: () => void;
 }
 
 const ItemDetailsContext = createContext<ItemDetailsContextType | undefined>(undefined);
 
+const getDefaultDates = () => {
+  const today = new Date().toISOString().split("T")[0];
+  const oneYearLater = new Date();
+  oneYearLater.setFullYear(oneYearLater.getFullYear() + 1);
+  const defaultEndDate = oneYearLater.toISOString().split("T")[0];
+  return { today, defaultEndDate };
+};
+
 export function ItemDetailsProvider({ children }: { children: ReactNode }) {
   const [itemDetails, setItemDetails] = useState<Record<string, ItemDetail>>({});
   const [globalAccessType, setGlobalAccessTypeState] = useState<'indefinite' | 'duration'>('duration');
+  
+  const { today, defaultEndDate } = getDefaultDates();
+  
+  const [globalSettings, setGlobalSettingsState] = useState<GlobalSettings>(() => {
+    const { today, defaultEndDate } = getDefaultDates();
+    return {
+      startDate: today,
+      endDate: defaultEndDate,
+      isIndefinite: false,
+      comment: "",
+      accessType: 'duration',
+    };
+  });
 
   const setItemDetail = useCallback((itemId: string, detail: Partial<ItemDetail>) => {
     setItemDetails((prev) => {
       const existing = prev[itemId];
-      const today = new Date().toISOString().split("T")[0];
-      const oneYearLater = new Date();
-      oneYearLater.setFullYear(oneYearLater.getFullYear() + 1);
-      const defaultEndDate = oneYearLater.toISOString().split("T")[0];
+      const useGlobal = detail.useGlobalSettings !== undefined ? detail.useGlobalSettings : (existing?.useGlobalSettings ?? true);
+      
+      // If using global settings, merge with global values
+      const baseDetail = useGlobal ? {
+        startDate: globalSettings.startDate,
+        endDate: globalSettings.endDate,
+        isIndefinite: globalSettings.isIndefinite,
+        comment: globalSettings.comment,
+        globalAccessType: globalSettings.accessType,
+      } : {
+        startDate: existing?.startDate || detail.startDate || getDefaultDates().today,
+        endDate: existing?.endDate || detail.endDate || getDefaultDates().defaultEndDate,
+        isIndefinite: detail.isIndefinite !== undefined ? detail.isIndefinite : (existing?.isIndefinite ?? false),
+        comment: detail.comment !== undefined ? detail.comment : (existing?.comment || ""),
+        globalAccessType: existing?.globalAccessType || globalAccessType,
+      };
       
       return {
         ...prev,
         [itemId]: {
-          startDate: existing?.startDate || detail.startDate || today,
-          endDate: existing?.endDate || detail.endDate || defaultEndDate,
-          isIndefinite: detail.isIndefinite !== undefined ? detail.isIndefinite : (existing?.isIndefinite ?? (globalAccessType === "indefinite")),
-          comment: detail.comment !== undefined ? detail.comment : (existing?.comment || ""),
-          globalAccessType: detail.globalAccessType || globalAccessType,
+          ...baseDetail,
+          ...detail,
+          useGlobalSettings: useGlobal,
         } as ItemDetail,
       };
     });
-  }, [globalAccessType]);
+  }, [globalAccessType, globalSettings]);
 
   const setGlobalAccessType = useCallback((type: 'indefinite' | 'duration') => {
     setGlobalAccessTypeState(type);
+    setGlobalSettingsState((prev) => ({
+      ...prev,
+      accessType: type,
+      isIndefinite: type === 'indefinite',
+    }));
+  }, []);
+
+  const setGlobalSettings = useCallback((settings: Partial<GlobalSettings>) => {
+    setGlobalSettingsState((prev) => ({
+      ...prev,
+      ...settings,
+    }));
+  }, []);
+
+  const applyGlobalToAll = useCallback(() => {
     setItemDetails((prev) => {
       const updated: Record<string, ItemDetail> = {};
       Object.keys(prev).forEach((itemId) => {
         updated[itemId] = {
           ...prev[itemId],
-          isIndefinite: type === 'indefinite',
-          globalAccessType: type,
+          startDate: globalSettings.startDate,
+          endDate: globalSettings.endDate,
+          isIndefinite: globalSettings.isIndefinite,
+          comment: globalSettings.comment,
+          globalAccessType: globalSettings.accessType,
+          useGlobalSettings: true,
         };
       });
       return updated;
     });
-  }, []);
+  }, [globalSettings]);
 
   const getItemDetail = useCallback((itemId: string) => {
     return itemDetails[itemId];
@@ -70,6 +132,9 @@ export function ItemDetailsProvider({ children }: { children: ReactNode }) {
     setGlobalAccessType,
     getItemDetail,
     globalAccessType,
+    globalSettings,
+    setGlobalSettings,
+    applyGlobalToAll,
   };
 
   return <ItemDetailsContext.Provider value={value}>{children}</ItemDetailsContext.Provider>;

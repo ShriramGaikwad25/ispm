@@ -206,7 +206,7 @@ const AccessRequest: React.FC = () => {
 
           {/* Show Role Catalog */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-            <SelectAccessTab />
+            <SelectAccessTab onApply={() => setCurrentStep(3)} />
           </div>
         </>
       )}
