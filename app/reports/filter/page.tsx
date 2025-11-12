@@ -430,43 +430,45 @@ export default function ReportFilterPage() {
   // Column definitions for ag-grid
   const columnDefs = useMemo<ColDef[]>(() => [
     {
-      headerName: "username",
+      headerName: "User Name",
       field: "username",
       valueGetter: (params: any) => {
         if (!params.data) return '-';
         return getFieldValue(params.data, ['username', 'userName', 'user_name', 'USERNAME']);
       },
-      width: 130,
+      width: 120,
     },
     {
-      headerName: "firstname",
+      headerName: "First Name",
       field: "firstname",
       valueGetter: (params: any) => {
         if (!params.data) return '-';
         return getFieldValue(params.data, ['firstname', 'firstName', 'first_name', 'FIRSTNAME']);
       },
       width: 130,
+      hide:true
     },
     {
-      headerName: "lastname",
+      headerName: "Last Name",
       field: "lastname",
       valueGetter: (params: any) => {
         if (!params.data) return '-';
         return getFieldValue(params.data, ['lastname', 'lastName', 'last_name', 'LASTNAME']);
       },
       width: 130,
+      hide:true
     },
     {
-      headerName: "department",
+      headerName: "Department",
       field: "department",
       valueGetter: (params: any) => {
         if (!params.data) return '-';
         return getFieldValue(params.data, ['department', 'DEPARTMENT']);
       },
-      width: 130,
+      width: 120,
     },
     {
-      headerName: "application",
+      headerName: "Application",
       field: "application",
       valueGetter: (params: any) => {
         if (!params.data) return '-';
@@ -476,22 +478,22 @@ export default function ReportFilterPage() {
       cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word' },
     },
     {
-      headerName: "accountname",
+      headerName: "Account",
       field: "accountname",
       valueGetter: (params: any) => {
         if (!params.data) return '-';
         return getAccountNameValue(params.data);
       },
-      width: 140,
+      width: 120,
     },
     {
-      headerName: "accountType",
+      headerName: "Account Type",
       field: "accountType",
       valueGetter: (params: any) => {
         if (!params.data) return '-';
         return getFieldValue(params.data, ['accountType', 'accounttype', 'account_type', 'ACCOUNTTYPE', 'accountStatus', 'accountstatus']);
       },
-      width: 140,
+      width: 120,
     },
     {
       headerName: "Entitlement",
@@ -503,7 +505,7 @@ export default function ReportFilterPage() {
       width: 140,
     },
     {
-      headerName: "Ent Type",
+      headerName: "Entitlement Type",
       field: "entType",
       valueGetter: (params: any) => {
         if (!params.data) return '-';
@@ -512,7 +514,7 @@ export default function ReportFilterPage() {
       width: 120,
     },
     {
-      headerName: "Ent Desc",
+      headerName: "Description",
       field: "entDesc",
       valueGetter: (params: any) => {
         if (!params.data) return '-';

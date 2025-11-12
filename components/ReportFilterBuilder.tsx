@@ -56,10 +56,20 @@ const ReportFilterBuilder: React.FC<ReportFilterBuilderProps> = ({
   }, [watchedConditions]);
 
   useEffect(() => {
-    if (!Array.isArray(conditions)) {
+    if (!Array.isArray(watchedConditions)) {
       setValue(fieldName, [], { shouldDirty: true });
+    } else if (watchedConditions.length === 0) {
+      // Add first condition by default
+      const firstCondition: Condition = {
+        id: uuidv4(),
+        attribute: null,
+        operator: null,
+        value: "",
+        logicalOp: "AND",
+      };
+      setValue(fieldName, [firstCondition], { shouldDirty: false });
     }
-  }, [conditions, setValue, fieldName]);
+  }, [watchedConditions, setValue, fieldName]);
 
   const addCondition = () => {
     const newCondition: Condition = {
@@ -84,50 +94,32 @@ const ReportFilterBuilder: React.FC<ReportFilterBuilderProps> = ({
     );
   };
 
-  const formattedExpression = conditions.map((cond, index) => ({
-    ...(index > 0 && cond.logicalOp ? { logicalOp: cond.logicalOp } : {}),
-    attribute: cond.attribute?.value || "",
-    operator: cond.operator?.value || "",
-    value: cond.value || "",
-  }));
-
   return (
     <>
       {title && <h3 className="font-bold mb-2">{title}</h3>}
       <div className="p-3 border rounded-md w-full border-gray-300 relative">
-        <div className="grid grid-cols-2 gap-4 items-start">
-          {/* Left Half - Fields */}
-          <div className="space-y-2">
-            {conditions.length === 0 ? (
-              <div className="text-center py-4 text-gray-500">
-                <p>No filters added. Click "Add Condition" to create a filter.</p>
-              </div>
-            ) : (
-              conditions.map((condition, index) => (
-                <div
-                  key={condition.id}
-                  className="flex space-x-2 items-center"
-                >
+        <div className="space-y-2">
+          {conditions.map((condition, index) => (
+              <div
+                key={condition.id}
+                className="flex space-x-2 items-center"
+              >
                   {index > 0 && (
-                    <Controller
-                      name={`${fieldName}.${index}.logicalOp`}
-                      control={control}
-                      render={({ field }) => (
-                        <Select
-                          {...field}
-                          options={logicalOperators}
-                          isSearchable={false}
-                          placeholder="AND/OR"
-                          className="w-32"
-                          styles={{
-                            control: (base) => ({
-                              ...base,
-                              minHeight: "32px",
-                            }),
-                          }}
-                        />
-                      )}
-                    />
+                    <>
+                      <Controller
+                        name={`${fieldName}.${index}.logicalOp`}
+                        control={control}
+                        defaultValue="AND"
+                        render={({ field }) => (
+                          <>
+                            <input type="hidden" {...field} value="AND" />
+                            <div className="px-3 py-1.5 text-gray-700 font-medium flex-shrink-0">
+                              AND
+                            </div>
+                          </>
+                        )}
+                      />
+                    </>
                   )}
 
                   <Controller
@@ -159,7 +151,7 @@ const ReportFilterBuilder: React.FC<ReportFilterBuilderProps> = ({
                         options={operators}
                         isSearchable={false}
                         placeholder="Condition"
-                        className="w-32"
+                        className="flex-1"
                         styles={{
                           control: (base) => ({
                             ...base,
@@ -178,7 +170,7 @@ const ReportFilterBuilder: React.FC<ReportFilterBuilderProps> = ({
                         {...field}
                         type="text"
                         placeholder="Enter value"
-                        className="w-32 border border-gray-300 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="flex-1 border border-gray-300 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     )}
                   />
@@ -191,30 +183,17 @@ const ReportFilterBuilder: React.FC<ReportFilterBuilderProps> = ({
                   >
                     <CircleX size={20} />
                   </button>
-                </div>
-              ))
-            )}
+              </div>
+            ))}
 
-            <div className="flex items-center gap-3 mt-2">
-              <button
-                type="button"
-                onClick={addCondition}
-                className="bg-blue-500 text-white px-3 py-1.5 rounded-md flex items-center gap-2 cursor-pointer hover:bg-blue-600 transition-colors font-medium text-sm"
-              >
-                <Plus size={14} /> Add Condition
-              </button>
-            </div>
-          </div>
-
-          {/* Right Half - JSON */}
-          <div className="border-l border-gray-300 pl-4 flex flex-col h-full">
-            <div className="bg-gray-50 border border-gray-300 rounded p-3 overflow-y-scroll h-48">
-              <pre className="text-xs text-gray-700 whitespace-pre-wrap m-0">
-                {conditions.length > 0 
-                  ? JSON.stringify(formattedExpression, null, 2)
-                  : "No conditions added yet"}
-              </pre>
-            </div>
+          <div className="flex items-center gap-3 mt-2">
+            <button
+              type="button"
+              onClick={addCondition}
+              className="bg-blue-500 text-white px-3 py-1.5 rounded-md flex items-center gap-2 cursor-pointer hover:bg-blue-600 transition-colors font-medium text-sm"
+            >
+              <Plus size={14} /> Add Condition
+            </button>
           </div>
         </div>
       </div>
