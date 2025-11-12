@@ -1,17 +1,25 @@
-import { useState } from "react";
-import WizardSteps from "@/components/WizardSteps";
+import { useState, useEffect } from "react";
+import React from "react";
 import SubmitDialog from "@/components/SubmitDialog";
 import { useFormData } from "@/hooks/useFormData";
-import { Step } from "@/types/stepTypes";
-import { BookType, MoveLeft, MoveRight, X } from "lucide-react";
+import { Step, FormData } from "@/types/stepTypes";
+import { BookType, ChevronLeft, ChevronRight, Check, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 interface WizardFormProps {
   steps: Step[];
+  initialFormData?: FormData | null;
 }
 
-const WizardForm: React.FC<WizardFormProps> = ({ steps }) => {
+const WizardForm: React.FC<WizardFormProps> = ({ steps, initialFormData }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useFormData();
+  
+  // Pre-populate form data if editing
+  useEffect(() => {
+    if (initialFormData) {
+      setFormData(initialFormData);
+    }
+  }, [initialFormData, setFormData]);
   const [validationStatus, setValidationStatus] = useState<boolean[]>(
     Array(steps.length).fill(false)
   );
@@ -19,7 +27,7 @@ const WizardForm: React.FC<WizardFormProps> = ({ steps }) => {
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-    const router = useRouter(); // Initialize router for navigation
+  const router = useRouter();
 
 
   const handleSubmit = async () => {
@@ -92,35 +100,126 @@ const WizardForm: React.FC<WizardFormProps> = ({ steps }) => {
   };
 
   return (
-    <>
+    <div className="min-h-screen bg-gray-50">
+      <div className="w-full py-8 px-4">
+        {/* Close Button */}
+        <div className="mb-6 flex justify-end">
           <button
-        className="absolute top-14 right-10 p-2 rounded-full bg-gray-200 hover:bg-gray-300 text-red-400 transition-colors duration-200"
-        onClick={handleClose}
-        title="Close Form"
-        aria-label="Close form"
-      >
-        <X size={24} />
-      </button>
-      <WizardSteps
-        currentStep={currentStep}
-        steps={steps}
-        validationStatus={validationStatus}
-        onStepChange={(step) => {
-          if (
-            step <= currentStep ||
-            validationStatus.slice(0, step).every(Boolean)
-          ) {
-            setCurrentStep(step);
-          }
-        }}
-      />
-      <div className="mb-6">
-        {steps[currentStep].component({
-          formData,
-          setFormData,
-          onValidationChange: handleValidationChange,
-        })}
+            className="p-2 rounded-full bg-gray-200 hover:bg-gray-300 text-red-400 transition-colors duration-200"
+            onClick={handleClose}
+            title="Close Form"
+            aria-label="Close form"
+          >
+            <X size={24} />
+          </button>
+        </div>
+
+        {/* Progress Steps */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+          <div className="flex items-center justify-between">
+            {steps.map((step, index) => {
+              const stepNumber = index + 1;
+              const isCompleted = currentStep > index;
+              const isActive = currentStep === index;
+              const isClickable = index <= currentStep || validationStatus.slice(0, index).every(Boolean);
+
+              return (
+                <React.Fragment key={index}>
+                  <div
+                    className={`flex items-center ${
+                      isClickable ? "cursor-pointer" : "cursor-not-allowed"
+                    }`}
+                    onClick={() => {
+                      if (isClickable && (index <= currentStep || validationStatus.slice(0, index).every(Boolean))) {
+                        setCurrentStep(index);
+                      }
+                    }}
+                  >
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                        isActive || isCompleted
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-200 text-gray-600"
+                      }`}
+                    >
+                      {isCompleted ? <Check className="w-4 h-4" /> : stepNumber}
+                    </div>
+                    <div className="ml-3">
+                      <p className="text-sm font-medium text-gray-900">{step.name}</p>
+                    </div>
+                  </div>
+                  {index < steps.length - 1 && (
+                    <div className="flex-1 h-0.5 bg-gray-200 mx-4" />
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Navigation Buttons */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+          <div className="flex justify-between">
+            <button
+              onClick={prevStep}
+              disabled={currentStep === 0}
+              className={`flex items-center px-4 py-2 rounded-md text-sm font-medium ${
+                currentStep === 0
+                  ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                  : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+              }`}
+            >
+              <ChevronLeft className="w-4 h-4 mr-2" />
+              Previous
+            </button>
+
+            <div className="flex gap-3">
+              {currentStep < steps.length - 1 ? (
+                <button
+                  onClick={nextStep}
+                  disabled={!validationStatus[currentStep]}
+                  className={`flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium ${
+                    !validationStatus[currentStep] ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4 ml-2" />
+                </button>
+              ) : (
+                <button
+                  className={`px-4 py-2 rounded cursor-pointer flex gap-2 items-center bg-[#8b03c6] text-white hover:bg-[#8b03c6]/80 text-sm font-medium ${
+                    currentStep === steps.length - 1 && validationStatus[currentStep]
+                      ? ""
+                      : "opacity-50 cursor-not-allowed"
+                  }`}
+                  disabled={
+                    currentStep === steps.length - 1
+                      ? !validationStatus[currentStep]
+                      : true
+                  }
+                  onClick={() => {
+                    setIsDialogOpen(true);
+                    setSaveAsTemplate(true);
+                    handleSubmit();
+                  }}
+                >
+                  <BookType size={18} /> Save As Template
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Form Content */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+          {steps[currentStep].component({
+            formData,
+            setFormData,
+            onValidationChange: handleValidationChange,
+          })}
+        </div>
       </div>
+
       <SubmitDialog
         isOpen={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}
@@ -130,62 +229,11 @@ const WizardForm: React.FC<WizardFormProps> = ({ steps }) => {
         setCertificationTemplate={(value) =>
           setFormData((prev) => ({
             ...prev,
-            step1: { ...prev.step1, certificationTemplate: value }, // Update formData
+            step1: { ...prev.step1, certificationTemplate: value },
           }))
         }
       />
-      <div className="flex gap-5 my-8 px-2 justify-center">
-        {/* Previous Button */}
-        
-        <button
-          className={`rounded px-4 py-2 flex gap-2 bg-blue-500 hover:bg-blue-500/80 text-white ${
-            currentStep === 0 ? "opacity-50 cursor-not-allowed" : ""
-          }`}
-          onClick={prevStep}
-          disabled={currentStep === 0}
-          hidden={currentStep===0}
-        >
-          <MoveLeft /> Previous
-        </button>
-
-        {currentStep < steps.length - 1 ? (
-          <button
-            className={`rounded px-4 py-2 flex gap-2 bg-blue-500 hover:bg-blue-500/80 text-white 
-        ${validationStatus[currentStep] ? "" : "opacity-50 cursor-not-allowed"}
-      `}
-            onClick={nextStep}
-            disabled={!validationStatus[currentStep]}
-          >
-            Next <MoveRight />
-          </button>
-        ) : (
-          <div className="flex gap-5">
-            <button
-              className={`px-4 py-2 rounded cursor-pointer flex gap-2 items-center bg-[#8b03c6] text-white hover:bg-[#8b03c6]/80 ${
-                currentStep === steps.length - 1 &&
-                validationStatus[currentStep]
-                  ? ""
-                  : "opacity-50 cursor-not-allowed"
-              }`}
-              disabled={
-                currentStep === steps.length - 1
-                  ? !validationStatus[currentStep]
-                  : true
-              }
-              onClick={() => {
-                setIsDialogOpen(true);
-                setSaveAsTemplate(true);
-                handleSubmit();
-              }}
-            >
-              <BookType size={18} /> Save As Template
-            </button>
-          </div>
-        )}
-
-        {}
-      </div>
-    </>
+    </div>
   );
 };
 

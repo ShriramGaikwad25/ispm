@@ -31,7 +31,6 @@ export interface Step1FormData {
   ownerGroup?: any[];
   certificationTemplate: string; // Copy from Template
   description: string;
-  duration: string;
   ownerType: string;
 }
 
@@ -54,7 +53,6 @@ export interface Step2FormData {
   excludeUsersIsChecked: boolean;
   excludeUsers: string | null;
   selectData: string;
-  campaignType: string;
 }
 /***End of Step2 */
 
@@ -126,6 +124,10 @@ export interface Step4FormData {
   userAttribute?: string;
   applicationScope: boolean;
   preDelegate: boolean;
+  campaignPreview: boolean;
+  campaignPreviewDuration?: string;
+  campaignPreviewEmailNotificationsEnabled?: boolean;
+  campaignPreviewEmailNotifications?: boolean;
 
   reviewRecurrence?: string;
   duration?: string;

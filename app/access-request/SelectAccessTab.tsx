@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Search, ShoppingCart, Info, Calendar, Users, Check, User } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import HorizontalTabs from "@/components/HorizontalTabs";
@@ -26,7 +26,80 @@ interface SelectAccessTabProps {
 
 const SelectAccessTab: React.FC<SelectAccessTabProps> = ({ onApply }) => {
   const { addToCart, removeFromCart, isInCart, cartCount } = useCart();
-  const [activeTab, setActiveTab] = useState(0);
+  
+  // Mirror Access state - moved to parent to persist across tab switches
+  const [mirrorAccessState, setMirrorAccessState] = useState<{
+    selectedUser: User | null;
+    userAccess: Role[];
+    selectedAccessIds: Set<string>;
+  }>(() => {
+    // Load from localStorage on mount
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('mirrorAccessState');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          return {
+            selectedUser: parsed.selectedUser,
+            userAccess: parsed.userAccess || [],
+            selectedAccessIds: new Set(parsed.selectedAccessIds || []),
+          };
+        }
+      } catch (e) {
+        // Ignore parse errors
+      }
+    }
+    return {
+      selectedUser: null,
+      userAccess: [],
+      selectedAccessIds: new Set(),
+    };
+  });
+  
+  // Initialize activeTab - default to Mirror Access (2) if user is selected, otherwise 0
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('selectAccessActiveTab');
+        if (saved !== null) {
+          return parseInt(saved, 10);
+        }
+        // Check if Mirror Access has a selected user
+        const mirrorState = localStorage.getItem('mirrorAccessState');
+        if (mirrorState) {
+          const parsed = JSON.parse(mirrorState);
+          if (parsed.selectedUser) {
+            return 2; // Mirror Access tab
+          }
+        }
+      } catch (e) {
+        // Ignore parse errors
+      }
+    }
+    return 0; // Default to All tab
+  });
+  
+  // Save activeTab to localStorage when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('selectAccessActiveTab', activeTab.toString());
+    }
+  }, [activeTab]);
+  
+  // Save mirrorAccessState to localStorage when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('mirrorAccessState', JSON.stringify({
+          selectedUser: mirrorAccessState.selectedUser,
+          userAccess: mirrorAccessState.userAccess,
+          selectedAccessIds: Array.from(mirrorAccessState.selectedAccessIds),
+        }));
+      } catch (e) {
+        // Ignore save errors
+      }
+    }
+  }, [mirrorAccessState]);
   
   // Sample roles data with risk and description
   const roles: Role[] = [
@@ -305,13 +378,29 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({ onApply }) => {
 
   // Mirror Access Tab Component
   const MirrorAccessTab: React.FC = () => {
+    const { addToCart, removeFromCart, isInCart, cartCount } = useCart();
     const [searchValue, setSearchValue] = useState("");
     const [searchResults, setSearchResults] = useState<User[]>([]);
-    const [selectedUser, setSelectedUser] = useState<User | null>(null);
-    const [userAccess, setUserAccess] = useState<Role[]>([]);
-    const [selectedAccessIds, setSelectedAccessIds] = useState<Set<string>>(new Set());
     const [isSearching, setIsSearching] = useState(false);
     const [isRetrieving, setIsRetrieving] = useState(false);
+    
+    // Use state from parent component
+    const { selectedUser, userAccess, selectedAccessIds } = mirrorAccessState;
+    
+    const setSelectedUser = (user: User | null) => {
+      setMirrorAccessState(prev => ({ ...prev, selectedUser: user }));
+    };
+    
+    const setUserAccess = (access: Role[]) => {
+      setMirrorAccessState(prev => ({ ...prev, userAccess: access }));
+    };
+    
+    const setSelectedAccessIds = (ids: Set<string> | ((prev: Set<string>) => Set<string>)) => {
+      setMirrorAccessState(prev => ({
+        ...prev,
+        selectedAccessIds: typeof ids === 'function' ? ids(prev.selectedAccessIds) : ids
+      }));
+    };
 
     // Mock user search function
     const mockUserSearch = (value: string): User[] => {
@@ -384,30 +473,34 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({ onApply }) => {
     };
 
     const handleAccessToggle = (accessId: string) => {
-      const newSelected = new Set(selectedAccessIds);
-      if (newSelected.has(accessId)) {
-        newSelected.delete(accessId);
-      } else {
-        newSelected.add(accessId);
-      }
-      setSelectedAccessIds(newSelected);
+      setSelectedAccessIds((prev) => {
+        const newSelected = new Set(prev);
+        if (newSelected.has(accessId)) {
+          newSelected.delete(accessId);
+        } else {
+          newSelected.add(accessId);
+        }
+        return newSelected;
+      });
     };
 
     const handleSelectAllAccess = () => {
-      if (selectedAccessIds.size === userAccess.length) {
-        setSelectedAccessIds(new Set());
-      } else {
-        setSelectedAccessIds(new Set(userAccess.map((a) => a.id)));
-      }
+      setSelectedAccessIds((prev) => {
+        if (prev.size === userAccess.length) {
+          return new Set();
+        } else {
+          return new Set(userAccess.map((a) => a.id));
+        }
+      });
     };
 
     const handleApply = () => {
       // Add selected access to cart
-      userAccess.forEach((access) => {
-        if (selectedAccessIds.has(access.id)) {
-          if (!isInCart(access.id)) {
-            addToCart({ id: access.id, name: access.name, risk: access.risk });
-          }
+      const selectedIds = Array.from(selectedAccessIds);
+      selectedIds.forEach((accessId) => {
+        const access = userAccess.find((a) => a.id === accessId);
+        if (access && !isInCart(access.id)) {
+          addToCart({ id: access.id, name: access.name, risk: access.risk });
         }
       });
       
@@ -425,6 +518,21 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({ onApply }) => {
 
     return (
       <div className="w-full">
+        {/* Cart Display */}
+        <div className="mb-6 flex justify-end">
+          <button 
+            className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-md font-medium transition-colors relative"
+            title="View cart"
+          >
+            <ShoppingCart className="w-5 h-5" />
+            {cartCount > 0 && (
+              <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                {cartCount}
+              </span>
+            )}
+          </button>
+        </div>
+
         {/* User Search Section */}
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -563,6 +671,7 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({ onApply }) => {
             <div className="space-y-3">
               {userAccess.map((access) => {
                 const isSelected = selectedAccessIds.has(access.id);
+                const inCart = isInCart(access.id);
                 return (
                   <div
                     key={access.id}
@@ -572,7 +681,10 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({ onApply }) => {
                   >
                     <div className="flex items-center gap-4 flex-1">
                       <div
-                        onClick={() => handleAccessToggle(access.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAccessToggle(access.id);
+                        }}
                         className={`w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer ${
                           isSelected
                             ? "bg-blue-600 border-blue-600"
@@ -597,6 +709,25 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({ onApply }) => {
                         </div>
                         <p className="text-sm text-gray-600">{access.description}</p>
                       </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => {
+                          if (inCart) {
+                            removeFromCart(access.id);
+                          } else {
+                            addToCart({ id: access.id, name: access.name, risk: access.risk });
+                          }
+                        }}
+                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
+                          inCart
+                            ? "bg-red-600 hover:bg-red-700 text-white"
+                            : "bg-blue-600 hover:bg-blue-700 text-white"
+                        }`}
+                      >
+                        <ShoppingCart className="w-4 h-4" />
+                        {inCart ? "Remove" : "Add To Cart"}
+                      </button>
                     </div>
                   </div>
                 );

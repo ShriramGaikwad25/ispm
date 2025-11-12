@@ -9,6 +9,7 @@ import {
   ChevronUp,
   DownloadIcon,
   EyeIcon,
+  Upload,
 } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -25,7 +26,8 @@ import {
 } from "ag-grid-enterprise";
 import { MasterDetailModule } from "ag-grid-enterprise";
 import { ModuleRegistry } from "ag-grid-community";
-import "./Champaign.css"
+import "./Champaign.css";
+import TemplateTab from "./TemplateTab";
 
 // Register AG Grid Enterprise modules
 ModuleRegistry.registerModules([MasterDetailModule]);
@@ -38,6 +40,8 @@ type CampaignRow = {
   progress: number;
   expiryDate: string | null;
   owner: string | null;
+  startDate?: string | null;
+  status?: string;
 };
 
 // Progress Bar Cell Renderer
@@ -103,6 +107,8 @@ export default function Campaigns() {
           owner: Array.isArray(c?.campaignOwner?.ownerName)
             ? c.campaignOwner.ownerName.join(", ")
             : c?.campaignOwner?.ownerName ?? null,
+          startDate: c.startDate ?? c.campaignStartDate ?? null,
+          status: c.status ?? "", // Default to "Running" if not provided
         }));
         setRows(mapped);
       } catch (err: any) {
@@ -139,11 +145,47 @@ export default function Campaigns() {
       },
       { headerName: "Expiry Date", field: "expiryDate", width:200,flex: 1, valueFormatter: (p:any)=> require("@/utils/utils").formatDateMMDDYY(p.value) },
       { headerName: "Owner", field: "owner", flex: 1 },
+      { 
+        headerName: "Start Date", 
+        field: "startDate", 
+        width: 150,
+        flex: 1,
+        valueFormatter: (p: any) => p.value ? require("@/utils/utils").formatDateMMDDYY(p.value) : ""
+      },
+      { 
+        headerName: "Status", 
+        field: "status", 
+        width: 120,
+        cellRenderer: (params: ICellRendererParams) => {
+          const status = params.value || "";
+          const statusColors: Record<string, string> = {
+            "Staging": "bg-yellow-100 text-yellow-800",
+            "Running": "bg-blue-100 text-blue-800",
+            "Completed": "bg-green-100 text-green-800",
+            "Paused": "bg-gray-100 text-gray-800",
+          };
+          const colorClass = statusColors[status] || "bg-gray-100 text-gray-800";
+          return (
+            <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${colorClass}`}>
+              {status}
+            </span>
+          );
+        }
+      },
       {
         field: "actions",
         headerName: "Actions",
-        width:200,
+        width: 250,
         cellRenderer: (params: ICellRendererParams) => {
+          const status = params.data?.status || "Running";
+          const isStaging = status === "Staging";
+          
+          const handlePushToProduction = () => {
+            // TODO: Implement push to production logic
+            console.log("Push to Production clicked for campaign:", params.data?.id);
+            alert(`Pushing campaign "${params.data?.campaignName}" to production...`);
+          };
+          
           return (
             <div className="flex space-x-4 h-full items-center">
               <button
@@ -182,6 +224,24 @@ export default function Campaigns() {
                   color="#10a13cff"
                 />
               </button>
+              {isStaging && (
+                <button
+                  title="Push to Production"
+                  aria-label="Push to Production"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handlePushToProduction();
+                  }}
+                  className="p-1 rounded transition-colors duration-200 hover:bg-green-100"
+                >
+                  <Upload
+                    className="cursor-pointer"
+                    strokeWidth="1"
+                    size="24"
+                    color="#10a13cff"
+                  />
+                </button>
+              )}
             </div>
           );
         },
@@ -200,7 +260,7 @@ export default function Campaigns() {
       const payload = {
         campaignId,
         campaignName: e.data.campaignName,
-        status: "Running", // default/demo status; replace when real status available
+        status: "", // default/demo status; replace when real status available
         snapshotAt: new Date().toISOString(),
         dueDate: e.data.expiryDate,
         progress: e.data.progress, // Include campaign progress percentage
@@ -272,7 +332,7 @@ export default function Campaigns() {
       label: "Template",
       icon: ChevronDown,
       iconOff: ChevronUp,
-      component: () => <p>Coming Soon...</p>,
+      component: () => <TemplateTab />,
     },
   ];
 

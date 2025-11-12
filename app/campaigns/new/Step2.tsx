@@ -362,41 +362,6 @@ const Step2: React.FC<StepProps> = ({
             )}
           </div>
         </div>
-
-        <div className={`grid grid-cols-[280px_1.5fr] gap-2`}>
-          <label className={`pl-2 ${asterisk}`}>Campaign Type</label>
-          <div>
-            {["User Manager", "Application Owner", "Entitlement Owner"].map(
-              (option, index, array) => (
-                <button
-                  key={option}
-                  type="button"
-                  className={`px-4 py-2 min-w-16 rounded-md border border-gray-300 ${
-                    watch("campaignType") === option
-                      ? "bg-[#15274E] text-white "
-                      : ""
-                  }${index === 0 && "rounded-r-none"} ${
-                    array.length > 2 &&
-                    index === 1 &&
-                    "rounded-none border-r-0  border-l-0 "
-                  } ${
-                    index === array.length - 1 && "rounded-l-none !px-[16px]"
-                  } `}
-                  onClick={() =>
-                    setValue("campaignType", option, { shouldValidate: true })
-                  }
-                >
-                  {option}
-                </button>
-              )
-            )}
-
-            {errors.campaignType?.message &&
-              typeof errors.campaignType.message === "string" && (
-                <p className="text-red-500">{errors.campaignType.message}</p>
-              )}
-          </div>
-        </div>
       </div>
       </div>
     </div>

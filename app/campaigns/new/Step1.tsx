@@ -1,215 +1,46 @@
-
-//   certificationTemplate: yup
-//     .string()
-//     .required("Certification Template Name is required"),
-//   description: yup.string().required("Description is required"),
-//   template: yup.string(),
-//   duration: yup
-//     .string()
-//     .required("Duration is required")
-//     }),
-//   ownerType: yup.string().required("Owner Type is required"),
-
-//   ownerUser: yup.array().when("ownerType", {
-//     is: "User",
-//     then: (schema) => schema.min(1, "Select at least one owner").required(),
-//     otherwise: (schema) => schema.notRequired(),
-//   }),
-
-//   ownerGroup: yup.array().when("ownerType", {
-//     is: "Group",
-//     then: (schema) => schema.min(1, "Select at least one group").required(),
-//     otherwise: (schema) => schema.notRequired(),
-//   }),
-
-//   formData,
-//   setFormData,
-//   onValidationChange,
-//     register,
-//     setValue,
-//     control,
-//     watch,
-//     formState: { errors, isValid },
-//     resolver: yupResolver(
-//       validationSchema
-//     mode: "onChange",
-//     defaultValues: {
-//       ...formData.step1,
-//       ownerType: "User",
-//     },
-
-//     onValidationChange(isValid);
-//   }, [isValid, onValidationChange]);
-
-//     );
-//   }, [watch, setFormData, formData]);
-
-//   // **CLEAR THE OTHER FIELD WHEN OWNER TYPE CHANGES**
-//     if (ownerType === "User") {
-//     } else if (ownerType === "Group") {
-//     }
-//   }, [ownerType, setValue]);
-
-
-
-//         Name your new campaign and set its ownership and rules.
-//       </small>
-
-//             <input
-//               type="text"
-//               className="form-input"
-//               {...register("certificationTemplate")}
-//             />
-//             {errors.certificationTemplate?.message &&
-//               typeof errors.certificationTemplate.message === "string" && (
-//                   {errors.certificationTemplate.message}
-//                 </p>
-//               )}
-//           </div>
-//         </div>
-
-//             <textarea
-//               className="form-input"
-//               rows={3}
-//               {...register("description")}
-//             ></textarea>
-//             {errors.description?.message &&
-//               typeof errors.description.message === "string" && (
-//               )}
-//           </div>
-//         </div>
-
-//             <MultiSelect
-//               isMulti={false}
-//               options={template}
-//               {...register("template")}
-//             />
-//             {errors.template?.message &&
-//               typeof errors.template.message === "string" && (
-//               )}
-
-//               Apply
-//             </button>
-//           </div>
-//         </div>
-
-//             <input
-//               type="text"
-//               className="form-input"
-//               {...register("duration")}
-//             />
-//             {errors.duration?.message &&
-//               typeof errors.duration.message === "string" && (
-//               )}
-//           </div>
-//         </div>
-
-//             {["User", "Group"].map((option, index, array) => (
-//               <button
-//                 key={option}
-//                 type="button"
-//                 className={`px-4 relative py-2 mb-3 min-w-16 rounded-md border border-gray-300 ${
-//                   watch("ownerType") === option && downArrow
-//                 }  ${
-//                   watch("ownerType") === option ? "bg-[#15274E] text-white" : ""
-//                 } ${index === 0 && "rounded-r-none"} ${
-//                   array.length > 2 &&
-//                   index === 1 &&
-//                   "rounded-none border-r-0  border-l-0 "
-//                 } ${index === array.length - 1 && "rounded-l-none"}`}
-//                 onClick={() =>
-//                 }
-//               >
-//                 {option}
-//               </button>
-//             ))}
-
-//             {watch("ownerType") === "User" && (
-//               <>
-//                 <MultiSelect
-//                   className="max-w-[420px]"
-//                   isAsync
-//                   loadOptions={loadUsers}
-//                   components={{ Option: customOption }}
-//                   {...register("ownerUser")}
-//                 />
-//                 {errors.ownerUser?.message &&
-//                   typeof errors.ownerUser.message === "string" && (
-//                   )}
-//               </>
-//             )}
-
-//             {watch("ownerType") === "Group" && (
-//               <>
-//                 <MultiSelect
-//                   className="max-w-[420px]"
-//                   isAsync
-//                   loadOptions={loadUsers}
-//                   components={{ Option: customOption }}
-//                   {...register("ownerGroup")}
-//                 />
-//                 {errors.ownerGroup?.message &&
-//                   typeof errors.ownerGroup.message === "string" && (
-//                   )}
-//               </>
-//             )}
-//           </div>
-//         </div>
-//       </div>
-//     </div>
-//     </div>
-//   );
-// };
-
-
-
 import { useEffect, useState } from "react";
-import { Control, FieldValues, Resolver, useForm } from "react-hook-form";
+import { Control, FieldValues, Resolver, useForm, UseFormSetValue, UseFormWatch } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import MultiSelect from "@/components/MultiSelect";
-import { loadUsers, customOption } from "@/components/MsAsyncData";
-import { asterisk, downArrow } from "@/utils/utils";
-import { Step1FormData, StepProps } from "@/types/stepTypes";
+import { loadUsers, customOption, loadIspmApps } from "@/components/MsAsyncData";
+import FileDropzone from "@/components/FileDropzone";
+import ToggleSwitch from "@/components/ToggleSwitch";
+import { asterisk, downArrow, userGroups, excludeUsers, defaultExpression } from "@/utils/utils";
+import ExpressionBuilder from "@/components/ExpressionBuilder";
+import { StepProps } from "@/types/stepTypes";
+import { validationSchema } from "./step1CombinedValidation";
 
-const validationSchema = yup.object().shape({
-  certificationTemplate: yup
-    .string()
-    .required("Certification Template Name is required"),
-  description: yup.string().required("Description is required"),
-  template: yup.string().notRequired(), // Optional field
-  duration: yup
-    .string()
-    .required("Duration is required")
-    .test("is-number", "Duration must be a valid number", (value) => {
-      return /^\d+$/.test(value.trim());
-    })
-    .test("is-greater-than-1", "Duration must be greater than 1", (value) => {
-      return Number(value) > 1;
-    }),
-  ownerType: yup.string().required("Owner Type is required"),
-  ownerUser: yup.array().when("ownerType", {
-    is: "User",
-    then: (schema) => schema.min(1, "Select at least one owner").required(),
-    otherwise: (schema) => schema.notRequired(),
-  }),
-  ownerGroup: yup.array().when("ownerType", {
-    is: "Group",
-    then: (schema) => schema.min(1, "Select at least one group").required(),
-    otherwise: (schema) => schema.notRequired(),
-  }),
-});
+// Combined form data type
+type CombinedStep1FormData = {
+  // Step1 fields
+  template?: string;
+  ownerUser?: any[];
+  ownerGroup?: any[];
+  certificationTemplate: string;
+  description: string;
+  ownerType: string;
+  // Step2 fields
+  userType: string;
+  specificUserExpression: { attribute: any; operator: any; value: string }[];
+  specificApps: string[] | null;
+  expressionApps: { attribute: any; operator: any; value: string }[];
+  expressionEntitlement: { attribute: any; operator: any; value: string }[];
+  groupListIsChecked: boolean;
+  userGroupList: string | null;
+  importNewUserGroup: File | null;
+  excludeUsersIsChecked: boolean;
+  excludeUsers: string | null;
+  selectData: string;
+};
 
 // Function to fetch templates from API
 const loadTemplates = async (inputValue: string) => {
   try {
-    // Replace with your actual API endpoint
     const response = await fetch("https://preview.keyforge.ai/campaign/api/v1/ACMEPOC/getAllCampaigns", {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
-        // Add authentication headers if required
-        // "Authorization": `Bearer ${yourToken}`,
       },
     });
 
@@ -218,8 +49,6 @@ const loadTemplates = async (inputValue: string) => {
     }
 
     const data = await response.json();
-    // Assuming API returns an array of templates in format [{ id: string, name: string }, ...]
-    // Transform to react-select format: [{ label: string, value: string }, ...]
     return data.map((template: { id: string; name: string }) => ({
       label: template.name,
       value: template.id,
@@ -235,18 +64,28 @@ const Step1: React.FC<StepProps> = ({
   setFormData,
   onValidationChange,
 }) => {
+  // Combine step1 and step2 data for the form
+  const combinedData: CombinedStep1FormData = {
+    ...formData.step1,
+    ...formData.step2,
+    userType: formData.step2?.userType ?? "",
+    expressionEntitlement: formData.step2?.expressionEntitlement ?? [defaultExpression],
+    groupListIsChecked: formData.step2?.groupListIsChecked ?? false,
+  };
+
   const {
     register,
     setValue,
     control,
     watch,
+    resetField,
     formState: { errors, isValid },
-  } = useForm<Step1FormData>({
-    resolver: yupResolver(validationSchema) as unknown as Resolver<Step1FormData>,
+  } = useForm<CombinedStep1FormData>({
+    resolver: yupResolver(validationSchema) as unknown as Resolver<CombinedStep1FormData>,
     mode: "onChange",
     defaultValues: {
-      ...formData.step1,
-      ownerType: "User",
+      ...combinedData,
+      ownerType: combinedData.ownerType || "User",
     },
   });
 
@@ -258,9 +97,31 @@ const Step1: React.FC<StepProps> = ({
   }, [isValid, onValidationChange]);
 
   useEffect(() => {
-    const subscription = watch((values) =>
-      setFormData({ ...formData, step1: values as Step1FormData })
-    );
+    const subscription = watch((values) => {
+      // Split the combined data back into step1 and step2
+      const step1Data = {
+        template: values.template,
+        ownerUser: values.ownerUser,
+        ownerGroup: values.ownerGroup,
+        certificationTemplate: values.certificationTemplate,
+        description: values.description,
+        ownerType: values.ownerType,
+      };
+      const step2Data = {
+        userType: values.userType,
+        specificUserExpression: values.specificUserExpression,
+        specificApps: values.specificApps,
+        expressionApps: values.expressionApps,
+        expressionEntitlement: values.expressionEntitlement,
+        groupListIsChecked: values.groupListIsChecked,
+        userGroupList: values.userGroupList,
+        importNewUserGroup: values.importNewUserGroup,
+        excludeUsersIsChecked: values.excludeUsersIsChecked,
+        excludeUsers: values.excludeUsers,
+        selectData: values.selectData,
+      };
+      setFormData({ ...formData, step1: step1Data, step2: step2Data });
+    });
     return () => subscription.unsubscribe();
   }, [watch, setFormData, formData]);
 
@@ -273,6 +134,59 @@ const Step1: React.FC<StepProps> = ({
     }
   }, [ownerType, setValue]);
 
+  // Step2 field resets
+  const userType = watch("userType");
+  const groupListIsChecked = watch("groupListIsChecked");
+  const excludeUsersIsChecked = watch("excludeUsersIsChecked");
+
+  useEffect(() => {
+    if (userType === "All users") {
+      setValue("userGroupList", "", { shouldValidate: false });
+      setValue("specificUserExpression", [], { shouldValidate: false });
+      setValue("groupListIsChecked", false, { shouldValidate: false });
+    } else if (userType === "Custom User Group") {
+      setValue("specificUserExpression", [], { shouldValidate: false });
+      if (groupListIsChecked) {
+        setValue("userGroupList", "", { shouldValidate: false });
+      }
+    } else if (userType === "Specific users") {
+      setValue("userGroupList", "", { shouldValidate: false });
+      setValue("groupListIsChecked", false, { shouldValidate: false });
+    }
+    if (!groupListIsChecked) {
+      resetField("importNewUserGroup");
+    }
+    if (!excludeUsersIsChecked) {
+      resetField("excludeUsers");
+    }
+  }, [
+    userType,
+    groupListIsChecked,
+    excludeUsersIsChecked,
+    resetField,
+    setValue,
+  ]);
+
+  const selectData = watch("selectData");
+  useEffect(() => {
+    if (
+      selectData === "All Applications" ||
+      selectData === "Select Entitlement"
+    ) {
+      setValue("specificApps", [], { shouldValidate: false });
+      setValue("expressionApps", [], { shouldValidate: false });
+    }
+    if (selectData === "All Applications") {
+      setValue("expressionEntitlement", [], { shouldValidate: false });
+    }
+    if (selectData === "Specific Applications") {
+      setValue("expressionEntitlement", [], { shouldValidate: false });
+    }
+    if (selectData === "Select Entitlement") {
+      setValue("specificApps", [], { shouldValidate: false });
+    }
+  }, [selectData, setValue]);
+
   const handleApplyTemplate = async () => {
     const selectedTemplate = watch("template");
     if (!selectedTemplate) {
@@ -283,12 +197,10 @@ const Step1: React.FC<StepProps> = ({
     try {
       setIsLoadingTemplates(true);
       setTemplateError(null);
-      // Fetch template details by ID
       const response = await fetch(`YOUR_TEMPLATE_API_ENDPOINT/${selectedTemplate}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-          // Add authentication headers if required
         },
       });
 
@@ -297,11 +209,8 @@ const Step1: React.FC<StepProps> = ({
       }
 
       const templateData = await response.json();
-      // Update form fields with template data (adjust based on API response structure)
       setValue("certificationTemplate", templateData.name || "", { shouldValidate: true });
       setValue("description", templateData.description || "", { shouldValidate: true });
-      setValue("duration", templateData.duration?.toString() || "", { shouldValidate: true });
-      // Add other fields as needed
     } catch (error) {
       console.error("Error applying template:", error);
       setTemplateError("Failed to apply template. Please try again.");
@@ -311,19 +220,19 @@ const Step1: React.FC<StepProps> = ({
   };
 
   return (
-    <div className="container mx-auto px-4 py-10 flex justify-center">
-      <div className="bg-white shadow-lg rounded-xl p-8 w-full max-w-3xl">
-        <h2 className="text-xl font-bold text-blue-950 text-center">
-          Create an access review campaign
-        </h2>
-        <small className="block mb-6 text-blue-950 text-center">
-          Name your new campaign and set its ownership and rules.
-        </small>
+    <div className="w-full flex flex-col items-center">
+      <h2 className="text-xl font-bold text-blue-950 text-center mb-2">
+        Create an access review campaign
+      </h2>
+      <small className="block mb-6 text-blue-950 text-center">
+        Name your new campaign and set its ownership and rules.
+      </small>
 
-        <div className="text-sm space-y-6">
+        <div className="text-sm space-y-6 w-full max-w-4xl">
+          {/* Step1 Fields */}
           <div className={`grid grid-cols-[280px_1.5fr] gap-2`}>
-            <label className={`pl-2 ${asterisk}`}>Certification Template</label>
-            <div>
+            <label className={`pl-2 ${asterisk}`}>Template Name</label>
+            <div className="max-w-md">
               <input
                 type="text"
                 className="form-input"
@@ -338,7 +247,7 @@ const Step1: React.FC<StepProps> = ({
 
           <div className={`grid grid-cols-[280px_1.5fr] gap-2`}>
             <label className={`pl-2 ${asterisk}`}>Description</label>
-            <div>
+            <div className="max-w-md">
               <textarea
                 className="form-input"
                 rows={3}
@@ -353,45 +262,32 @@ const Step1: React.FC<StepProps> = ({
 
           <div className={`grid grid-cols-[280px_1.5fr] gap-2`}>
             <label className={`pl-2`}>Copy from Template</label>
-            <div className="grid grid-cols-[1fr_.5fr] gap-2">
-              <MultiSelect
-                isMulti={false}
-                isAsync
-                control={control as unknown as Control<FieldValues>}
-                loadOptions={loadTemplates}
-                placeholder="Select a template"
-                components={{ Option: customOption }}
-                {...register("template")}
-              />
-              {errors.template?.message &&
-                typeof errors.template.message === "string" && (
-                  <p className="text-red-500">{errors.template.message}</p>
-                )}
-              {templateError && <p className="text-red-500">{templateError}</p>}
-              <button
-                className={`rounded bg-blue-500 hover:bg-blue-500/80 text-white ${
-                  isLoadingTemplates ? "opacity-50 cursor-not-allowed" : ""
-                }`}
-                onClick={handleApplyTemplate}
-                disabled={isLoadingTemplates}
-              >
-                {isLoadingTemplates ? "Applying..." : "Apply"}
-              </button>
-            </div>
-          </div>
-
-          <div className={`grid grid-cols-[280px_1.5fr] gap-2`}>
-            <label className={`pl-2 ${asterisk}`}>Duration (days)</label>
-            <div>
-              <input
-                type="text"
-                className="form-input"
-                {...register("duration")}
-              />
-              {errors.duration?.message &&
-                typeof errors.duration.message === "string" && (
-                  <p className="text-red-500">{errors.duration.message}</p>
-                )}
+            <div className="max-w-md">
+              <div className="grid grid-cols-[1fr_.5fr] gap-2">
+                <MultiSelect
+                  isMulti={false}
+                  isAsync
+                  control={control as unknown as Control<FieldValues>}
+                  loadOptions={loadTemplates}
+                  placeholder="Select a template"
+                  components={{ Option: customOption }}
+                  {...register("template")}
+                />
+                {errors.template?.message &&
+                  typeof errors.template.message === "string" && (
+                    <p className="text-red-500">{errors.template.message}</p>
+                  )}
+                {templateError && <p className="text-red-500">{templateError}</p>}
+                <button
+                  className={`rounded bg-blue-500 hover:bg-blue-500/80 text-white ${
+                    isLoadingTemplates ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
+                  onClick={handleApplyTemplate}
+                  disabled={isLoadingTemplates}
+                >
+                  {isLoadingTemplates ? "Applying..." : "Apply"}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -454,12 +350,255 @@ const Step1: React.FC<StepProps> = ({
               )}
             </div>
           </div>
+
+          {/* Step2 Fields - Campaign Scope Card */}
+          <div className="border border-gray-200 rounded-lg p-6 bg-gray-50">
+            <h3 className="text-lg font-semibold text-gray-900 mb-6">Campaign Scope</h3>
+            <div className="space-y-6">
+              <div className={`grid grid-cols-[280px_1.5fr] gap-2`}>
+                <label className={`pl-2 ${asterisk}`}>Select Users</label>
+            <div>
+              {["All users", "Specific users", "Custom User Group"].map(
+                (option, index, array) => (
+                  <button
+                    key={option}
+                    type="button"
+                    className={`px-4 relative py-2 mb-3 min-w-16 rounded-md border border-gray-300 ${
+                      watch("userType") === option && index > 0 && downArrow
+                    } ${
+                      watch("userType") === option
+                        ? "bg-[#15274E] text-white"
+                        : ""
+                    } ${index === 0 && "rounded-r-none"} ${
+                      array.length > 2 &&
+                      index === 1 &&
+                      "rounded-none border-r-0  border-l-0 "
+                    } ${index === array.length - 1 && "rounded-l-none"}`}
+                    onClick={() =>
+                      setValue("userType", option, { shouldValidate: true })
+                    }
+                  >
+                    {option}
+                  </button>
+                )
+              )}
+
+              {watch("userType") === "Specific users" && (
+                <ExpressionBuilder
+                  title="Build Expression"
+                  control={control as unknown as Control<FieldValues>}
+                  setValue={setValue as unknown as UseFormSetValue<FieldValues>}
+                  watch={watch as unknown as UseFormWatch<FieldValues>}
+                  fieldName="specificUserExpression"
+                />
+              )}
+
+              {watch("userType") === "Custom User Group" && (
+                <>
+                  <div className="flex items-center gap-1 mb-2">
+                    <span
+                      className={`flex items-center ${
+                        !watch("groupListIsChecked")
+                          ? `${asterisk} !pr-0 text-black`
+                          : "text-black/50"
+                      }`}
+                    >
+                      Select from List
+                    </span>
+                    <ToggleSwitch
+                      checked={watch("groupListIsChecked")}
+                      onChange={(checked) => {
+                        setValue("groupListIsChecked", checked, {
+                          shouldValidate: true,
+                        });
+                      }}
+                      className="scale-80"
+                    />
+                    <span
+                      className={`flex items-center ${
+                        watch("groupListIsChecked")
+                          ? `${asterisk} !pr-0 text-black`
+                          : "text-black/50"
+                      }`}
+                    >
+                      Import New User Group
+                    </span>
+                  </div>
+
+                  {watch("groupListIsChecked") && (
+                    <div className="w-[450px]">
+                      <FileDropzone
+                        name="importNewUserGroup"
+                        control={control as unknown as Control<FieldValues>}
+                      />
+                    </div>
+                  )}
+                  {!watch("groupListIsChecked") && (
+                    <>
+                      <MultiSelect
+                        className="max-w-[420px]"
+                        isMulti={true}
+                        control={control as unknown as Control<FieldValues>}
+                        options={userGroups}
+                        {...register("userGroupList")}
+                      />
+
+                      {errors.userGroupList?.message &&
+                        typeof errors.userGroupList.message === "string" && (
+                          <p className="text-red-500">
+                            {errors.userGroupList.message}
+                          </p>
+                        )}
+                    </>
+                  )}
+                </>
+              )}
+              <div className="">
+                <div className="flex items-center gap-1 py-2">
+                  <input type="checkbox" {...register("excludeUsersIsChecked")} />{" "}
+                  <span
+                    className={` ${watch("excludeUsersIsChecked") && asterisk}`}
+                  >
+                    exclude users from the certification campaign
+                  </span>
+                </div>
+
+                <MultiSelect
+                  isDisabled={!watch("excludeUsersIsChecked")}
+                  className="max-w-[420px]"
+                  isMulti={true}
+                  control={control as unknown as Control<FieldValues>}
+                  options={excludeUsers}
+                  {...register("excludeUsers")}
+                />
+
+                {errors.excludeUsers?.message &&
+                  typeof errors.excludeUsers.message === "string" && (
+                    <p className="text-red-500">{errors.excludeUsers.message}</p>
+                  )}
+              </div>
+            </div>
+          </div>
+
+          <div className={`grid grid-cols-[280px_1.5fr] gap-2`}>
+            <label className={`pl-2 ${asterisk}`}>Select Data</label>
+            <div>
+              {[
+                "All Applications",
+                "Specific Applications",
+                "Select Entitlement",
+              ].map((option, index, array) => (
+                <button
+                  key={option}
+                  type="button"
+                  className={`px-4 relative py-2 mb-3 min-w-16 rounded-md border border-gray-300  ${
+                    watch("selectData") === option && index > 0 && downArrow
+                  } ${
+                    watch("selectData") === option
+                      ? "bg-[#15274E] text-white"
+                      : ""
+                  } ${index === 0 && "rounded-r-none"} ${
+                    array.length > 2 &&
+                    index === 1 &&
+                    "rounded-none border-r-0  border-l-0 "
+                  } ${index === array.length - 1 && "rounded-l-none"}`}
+                  onClick={() =>
+                    setValue("selectData", option, { shouldValidate: true })
+                  }
+                >
+                  {option}
+                </button>
+              ))}
+
+              {watch("selectData") === "Specific Applications" && (
+                <div className="space-y-4 bg-[#F4F5FA]/60 border-1 border-gray-300 p-4 rounded-md">
+                  <div>
+                    <MultiSelect
+                      className="max-w-md"
+                      placeholder="Select Specific App(s)"
+                      control={control as unknown as Control<FieldValues>}
+                      isAsync
+                      loadOptions={loadIspmApps}
+                      components={{ Option: customOption }}
+                      {...register("specificApps")}
+                    />
+                    {errors.specificApps?.message &&
+                      typeof errors.specificApps.message === "string" && (
+                        <p className="text-red-500">
+                          {errors.specificApps.message}
+                        </p>
+                      )}
+                  </div>
+                  <div className="w-full bg-white">
+                    <ExpressionBuilder
+                      control={control as unknown as Control<FieldValues>}
+                      setValue={
+                        setValue as unknown as UseFormSetValue<FieldValues>
+                      }
+                      watch={watch as unknown as UseFormWatch<FieldValues>}
+                      fieldName="expressionApps"
+                      attributesOptions={[
+                        { label: "Risk", value: "risk" },
+                        { label: "Pre-Requisite", value: "pre_requisite" },
+                        { label: "Shared Pwd", value: "shared_pwd" },
+                        { label: "Regulatory Scope", value: "regulatory_scope" },
+                        { label: "Access Scope", value: "access_scope" },
+                        { label: "Review Schedule", value: "review_schedule" },
+                        { label: "Business Unit", value: "business_unit" },
+                        { label: "Data Classification", value: "data_classification" },
+                        { label: "Privileged", value: "privileged" },
+                        { label: "Non Persistent Access", value: "non_persistent_access" },
+                        { label: "License Type", value: "license_type" },
+                        { label: "Tags", value: "tags" },
+                      ]}
+                    />
+                    {errors.expressionApps?.message &&
+                      typeof errors.expressionApps.message === "string" && (
+                        <p className="text-red-500">
+                          {errors.expressionApps.message}
+                        </p>
+                      )}
+                  </div>
+                </div>
+              )}
+              {watch("selectData") === "Select Entitlement" && (
+                <>
+                  <ExpressionBuilder
+                    title="Build Expression for Entitlement"
+                    control={control as unknown as Control<FieldValues>}
+                    setValue={setValue as unknown as UseFormSetValue<FieldValues>}
+                    watch={watch as unknown as UseFormWatch<FieldValues>}
+                    fieldName="expressionEntitlement"
+                    attributesOptions={[
+                      { label: "Risk", value: "risk" },
+                      { label: "Pre-Requisite", value: "pre_requisite" },
+                      { label: "Shared Pwd", value: "shared_pwd" },
+                      { label: "Regulatory Scope", value: "regulatory_scope" },
+                      { label: "Access Scope", value: "access_scope" },
+                      { label: "Review Schedule", value: "review_schedule" },
+                      { label: "Business Unit", value: "business_unit" },
+                      { label: "Data Classification", value: "data_classification" },
+                      { label: "Privileged", value: "privileged" },
+                      { label: "Non Persistent Access", value: "non_persistent_access" },
+                      { label: "License Type", value: "license_type" },
+                      { label: "Tags", value: "tags" },
+                    ]}
+                  />
+                  {errors.expressionEntitlement?.message &&
+                    typeof errors.expressionEntitlement.message === "string" && (
+                      <p className="text-red-500">
+                        {errors.expressionEntitlement.message}
+                      </p>
+                    )}
+                </>
+              )}
+            </div>
+          </div>
+            </div>
+          </div>
         </div>
-      </div>
     </div>
   );
 };
 
 export default Step1;
-
-

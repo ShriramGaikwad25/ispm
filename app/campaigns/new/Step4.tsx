@@ -86,6 +86,22 @@ const validationSchema = yup.object().shape({
   // }),
   applicationScope: yup.boolean(),
   preDelegate: yup.boolean(),
+  campaignPreview: yup.boolean(),
+  campaignPreviewDuration: yup.string().when("campaignPreview", {
+    is: true,
+    then: (schema) => 
+      schema
+        .required("Duration is required")
+        .test("is-number", "Duration must be a valid number", (value) => {
+          return /^\d+$/.test(value?.trim() || "");
+        })
+        .test("is-greater-than-0", "Duration must be greater than 0", (value) => {
+          return Number(value) > 0;
+        }),
+    otherwise: (schema) => schema.notRequired(),
+  }),
+  campaignPreviewEmailNotificationsEnabled: yup.boolean(),
+  campaignPreviewEmailNotifications: yup.boolean(),
 
   duration: yup.string().required("Duration is required"),
   reviewRecurrence: yup.string().required("Review recurrence is required"),
@@ -156,6 +172,20 @@ const Step4: React.FC<StepProps> = ({
       setValue("userAttribute", undefined);
     }
   }, [watch("authenticationSignOff"), setValue]);
+
+  useEffect(() => {
+    if (!watch("campaignPreview")) {
+      setValue("campaignPreviewDuration", undefined);
+      setValue("campaignPreviewEmailNotificationsEnabled", false);
+      setValue("campaignPreviewEmailNotifications", false);
+    }
+  }, [watch("campaignPreview"), setValue]);
+
+  useEffect(() => {
+    if (!watch("campaignPreviewEmailNotificationsEnabled")) {
+      setValue("campaignPreviewEmailNotifications", false);
+    }
+  }, [watch("campaignPreviewEmailNotificationsEnabled"), setValue]);
 
   useEffect(() => {
     const subscription = watch((values) =>
@@ -413,7 +443,7 @@ const Step4: React.FC<StepProps> = ({
         </dd>
       </dl>
       <h2 className="font-medium">Advanced Setting</h2>
-      <dl className="px-4 py-8 space-y-4 mb-8 grid grid-cols-2 text-sm">
+      <dl className="px-4 border-b border-gray-300 py-8 space-y-4 mb-8 grid grid-cols-2 text-sm">
         <dt> Allow Escalation</dt>
         <dd className="flex gap-2 items-center">
           <input
@@ -518,8 +548,78 @@ const Step4: React.FC<StepProps> = ({
           />
           Yes{" "}
         </dd>
+        <dt>Enable Campaign Preview </dt>
+        <dd>
+          <div className="flex gap-2 items-center">
+            No
+            <ToggleSwitch
+              checked={watch("campaignPreview")}
+              onChange={(checked) => setValue("campaignPreview", checked)}
+            />
+            Yes{" "}
+          </div>
+
+          {watch("campaignPreview") && (
+            <div className="space-y-4 mt-6">
+              <div>
+                <span className={`flex items-center ${asterisk}`}>Duration (in Days)</span>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Enter duration in days"
+                  {...register("campaignPreviewDuration")}
+                  onKeyPress={(e) => {
+                    if (!/^\d$/.test(e.key) && e.key !== "Backspace" && e.key !== "Delete" && e.key !== "Tab") {
+                      e.preventDefault();
+                    }
+                  }}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, "");
+                    setValue("campaignPreviewDuration", value, { shouldValidate: true });
+                  }}
+                />
+                {errors.campaignPreviewDuration?.message &&
+                  typeof errors.campaignPreviewDuration.message === "string" && (
+                    <p className="text-red-500">{errors.campaignPreviewDuration.message}</p>
+                  )}
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="scale-130"
+                    {...register("campaignPreviewEmailNotificationsEnabled")}
+                  />
+                  <span>Enable Email notifications for</span>
+                  {watch("campaignPreviewEmailNotificationsEnabled") && (
+                    <>
+                      <span
+                        className={`flex items-center ml-2 ${
+                          !watch("campaignPreviewEmailNotifications") ? ` text-black` : "text-black/50"
+                        }`}
+                      >
+                        Owner
+                      </span>
+                      <ToggleSwitch
+                        checked={watch("campaignPreviewEmailNotifications")}
+                        onChange={(checked) => setValue("campaignPreviewEmailNotifications", checked)}
+                      />
+                      <span
+                        className={`flex items-center ${
+                          watch("campaignPreviewEmailNotifications") ? ` text-black` : "text-black/50"
+                        }`}
+                      >
+                        IAM Admin
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </dd>
       </dl>
-      <h2 className="font-medium">Campaign Scheduling</h2>
+      <h2 className="font-medium">Template Scheduling</h2>
       <dl className="px-4 py-8 space-y-4 mb-8 grid grid-cols-2 text-sm">
         <div className="w-108">
           <label className={`h-10 ${asterisk}`}>Duration</label>
