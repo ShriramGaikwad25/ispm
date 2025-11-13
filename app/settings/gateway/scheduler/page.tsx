@@ -1,4 +1,4 @@
-import SchedulerManager from '../../../components/scheduler/SchedulerManager';
+import SchedulerManager from '../../../../components/scheduler/SchedulerManager';
 
 export default function SchedulerPage() {
   return (
@@ -7,5 +7,4 @@ export default function SchedulerPage() {
     </div>
   );
 }
-
 

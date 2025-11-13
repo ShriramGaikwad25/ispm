@@ -51,6 +51,8 @@ interface ExpressionBuilderProps {
   watch: UseFormWatch<FieldValues>;
   fieldName: string;
   attributesOptions?: { label: string; value: string }[];
+  hideJsonPreview?: boolean;
+  fullWidth?: boolean;
 }
 
 const ExpressionBuilder: React.FC<ExpressionBuilderProps> = ({
@@ -59,6 +61,8 @@ const ExpressionBuilder: React.FC<ExpressionBuilderProps> = ({
   setValue,
   fieldName,
   attributesOptions,
+  hideJsonPreview = false,
+  fullWidth = false,
 }) => {
   const watchedConditions = useWatch({ control, name: fieldName });
   const conditions: Condition[] = useMemo(() => {
@@ -114,7 +118,7 @@ const ExpressionBuilder: React.FC<ExpressionBuilderProps> = ({
   return (
     <>
       {title && <h3 className="font-bold">{title}</h3>}
-      <div className="p-4 border rounded-md w-full max-w-2xl border-gray-300 relative">
+      <div className={`p-4 border rounded-md w-full border-gray-300 relative ${fullWidth ? '' : 'max-w-2xl'}`}>
         {conditions.map((condition, index) => (
           <div
             key={condition.id}
@@ -209,20 +213,22 @@ const ExpressionBuilder: React.FC<ExpressionBuilderProps> = ({
           </button>
         </div>
 
-        <div className="mt-4 border border-gray-300 rounded bg-gray-100">
-          <Accordion
-            iconClass="absolute -top-2 right-5 bg-white rounded-full text-gray-400"
-            iconSize={16}
-            title="Expand/Collapse"
-            open={isAccordionOpen}
-          >
-            <div className="py-3 overflow-auto max-h-40">
-              <pre className="text-sm  px-3">
-                {JSON.stringify(formattedExpression, null, 2)}
-              </pre>
-            </div>
-          </Accordion>
-        </div>
+        {!hideJsonPreview && (
+          <div className="mt-4 border border-gray-300 rounded bg-gray-100">
+            <Accordion
+              iconClass="absolute -top-2 right-5 bg-white rounded-full text-gray-400"
+              iconSize={16}
+              title="Expand/Collapse"
+              open={isAccordionOpen}
+            >
+              <div className="py-3 overflow-auto max-h-40">
+                <pre className="text-sm  px-3">
+                  {JSON.stringify(formattedExpression, null, 2)}
+                </pre>
+              </div>
+            </Accordion>
+          </div>
+        )}
       </div>
 
       {/* Right Sidebar for Test Output */}

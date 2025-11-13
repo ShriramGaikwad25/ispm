@@ -1,4 +1,4 @@
-import { Settings, ListTodo, ListTree, LayoutDashboard, LayoutPanelLeft, User2Icon, UserCircle2Icon, ScreenShareIcon, Clock, Package, Plus, Server, Key, FileText, ClipboardList } from 'lucide-react';
+import { Settings, ListTodo, ListTree, LayoutDashboard, LayoutPanelLeft, User2Icon, UserCircle2Icon, ScreenShareIcon, Package, Plus, Server, Key, FileText, ClipboardList, Search } from 'lucide-react';
 
 export interface NavItem {
   name: string;
@@ -10,6 +10,7 @@ export interface NavItem {
 export const navLinks: NavItem[] = [
   { name: 'Access Review', href: '/access-review', icon: ListTodo },
   { name: 'Access Request', href: '/access-request', icon: ClipboardList },
+  { name: 'Track Request', href: '/track-request', icon: Search },
   // { name: 'Application owner', href: '/app-owner', icon: LayoutDashboard },
   { name: 'Manage Campaigns', href: '/campaigns', icon: ListTree },
   { name: 'Applications', href: '/applications', icon: LayoutPanelLeft },
@@ -23,7 +24,6 @@ export const navLinks: NavItem[] = [
     href: '/settings', 
     icon: Settings,
     subItems: [
-      { name: 'Scheduler', href: '/settings/scheduler', icon: Clock },
       { name: 'App Inventory', href: '/settings/app-inventory', icon: Package },
       { name: 'Onboard App', href: '/settings/onboard-app', icon: Plus },
       { name: 'Gateway', href: '/settings/gateway', icon: Server }

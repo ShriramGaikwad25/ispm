@@ -1,11 +1,12 @@
 "use client";
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { Settings, FileText, Users, Shield, Mail, ShieldCheck } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Settings, FileText, Users, Shield, Mail, ShieldCheck, Clock, Lock, Search } from 'lucide-react';
 
 export default function GatewaySettings() {
   const router = useRouter();
   const [selected, setSelected] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const cards = [
     {
@@ -50,14 +51,54 @@ export default function GatewaySettings() {
       href: '/settings/gateway/sam',
       icon: <ShieldCheck className="w-5 h-5 text-gray-600" />,
     },
+    {
+      id: 'scheduler',
+      title: 'Scheduler',
+      subtitle: 'Manage and configure scheduled jobs and tasks.',
+      href: '/settings/gateway/scheduler',
+      icon: <Clock className="w-5 h-5 text-gray-600" />,
+    },
+    {
+      id: 'manage-access-policy',
+      title: 'Manage Access Policy',
+      subtitle: 'Configure and manage access policies and permissions.',
+      href: '/settings/gateway/manage-access-policy',
+      icon: <Lock className="w-5 h-5 text-gray-600" />,
+    },
   ];
+
+  const filteredCards = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return cards;
+    return cards.filter(card => 
+      card.title.toLowerCase().includes(query) ||
+      card.subtitle.toLowerCase().includes(query)
+    );
+  }, [searchQuery]);
 
   return (
     <div className="h-full p-6">
       <div className="max-w-6xl mx-auto">
         <h1 className="text-2xl font-bold text-gray-900 mb-6">Gateway</h1>
+        
+        {/* Search Bar */}
+        <div className="mb-6">
+          <div className="relative max-w-md">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="w-5 h-5 text-gray-400" />
+            </div>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search gateway settings..."
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {cards.map((card) => (
+          {filteredCards.map((card) => (
             <button
               key={card.id}
               type="button"
