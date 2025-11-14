@@ -66,7 +66,7 @@ export default function ReportFilterPage() {
 
         // Map UI operators to API operator tokens
         const operatorTokenMap: Record<string, string> = {
-          equals: "eq",
+          equals: "=",
           not_equals: "ne",
           contains: "co",
           excludes: "nc",   // not-contains shorthand

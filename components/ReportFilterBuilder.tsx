@@ -13,7 +13,7 @@ import Select from "react-select";
 import { v4 as uuidv4 } from "uuid";
 
 const operators = [
-  { label: "Equals", value: "equals" },
+  { label: "Equals", value: "=" },
   { label: "Not Equals", value: "not_equals" },
   { label: "Contains", value: "contains" },
   { label: "Excludes", value: "excludes" },
