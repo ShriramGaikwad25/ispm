@@ -10,6 +10,9 @@ const UserSearchTab: React.FC = () => {
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [localSelectedIds, setLocalSelectedIds] = useState<Set<string>>(new Set());
   const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
 
   // Sync local selected IDs with context
   useEffect(() => {
@@ -26,62 +29,156 @@ const UserSearchTab: React.FC = () => {
     { label: "Job Title", value: "job_title" },
   ];
 
-  // Mock search function - replace with actual API call
-  const mockSearch = (criteria: string, value: string): User[] => {
-    // Mock data for demonstration
-    const mockUsers: User[] = [
-      {
-        id: "1",
-        name: "John Smith",
-        email: "john.smith@example.com",
-        username: "jsmith",
-        department: "IT",
-        jobTitle: "Software Engineer",
-        employeeId: "EMP001",
-      },
-      {
-        id: "2",
-        name: "Jane Doe",
-        email: "jane.doe@example.com",
-        username: "jdoe",
-        department: "HR",
-        jobTitle: "HR Manager",
-        employeeId: "EMP002",
-      },
-      {
-        id: "3",
-        name: "Bob Johnson",
-        email: "bob.johnson@example.com",
-        username: "bjohnson",
-        department: "Finance",
-        jobTitle: "Financial Analyst",
-        employeeId: "EMP003",
-      },
-    ];
+  // API call to search users
+  const handleSearch = async () => {
+    if (!searchValue.trim()) {
+      return;
+    }
 
-    // Filter based on search criteria
-    return mockUsers.filter((user) => {
-      let searchField = "";
-      if (criteria === "employee_id") {
-        searchField = user.employeeId?.toLowerCase() || "";
-      } else if (criteria === "job_title") {
-        searchField = user.jobTitle?.toLowerCase() || "";
-      } else {
-        searchField = user[criteria as keyof User]?.toString().toLowerCase() || "";
+    setIsSearching(true);
+    setSearchError(null);
+    setHasSearched(true);
+
+    try {
+      // Build query to get all users from operations department with specified fields
+      const query = `SELECT firstname, lastname, email, username, employeeid, department, title FROM usr WHERE lower(department) = ?`;
+
+      const response = await fetch(
+        "https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            query: query,
+            parameters: ["operations"],
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.statusText}`);
       }
-      return searchField.includes(value.toLowerCase());
-    });
-  };
 
-  const handleSearch = () => {
-    if (searchValue.trim()) {
-      setIsSearching(true);
-      // Simulate API call delay
-      setTimeout(() => {
-        const results = mockSearch(searchCriteria, searchValue);
-        setSearchResults(results);
-        setIsSearching(false);
-      }, 500);
+      const data = await response.json();
+      
+      console.log("API Response:", data);
+      
+      // Handle the response format - data is in resultSet
+      let usersData: any[] = [];
+      if (data?.resultSet && Array.isArray(data.resultSet)) {
+        // Normalize the email field from different formats
+        usersData = data.resultSet.map((user: any) => {
+          let emailValue = "";
+          
+          // Handle email field - can be object, array, or missing
+          if (user.email) {
+            if (typeof user.email === "string") {
+              emailValue = user.email;
+            } else if (user.email.work) {
+              // Format: { "work": "email@example.com" }
+              emailValue = user.email.work;
+            } else if (Array.isArray(user.email) && user.email.length > 0) {
+              // Format: [{ "type": "work", "value": "email@example.com", "primary": true }]
+              // Find primary email or first email
+              const primaryEmail = user.email.find((e: any) => e.primary) || user.email[0];
+              emailValue = primaryEmail?.value || "";
+            }
+          }
+          
+          // Construct name from firstname and lastname
+          let nameValue = "";
+          if (user.firstname || user.lastname) {
+            const firstName = user.firstname || "";
+            const lastName = user.lastname || "";
+            nameValue = `${firstName} ${lastName}`.trim();
+          } else {
+            nameValue = user.username || "";
+          }
+          
+          return {
+            name: nameValue,
+            email: emailValue,
+            username: user.username || "",
+            employeeid: (user.employeeid || "").toString(),
+            department: user.department || "",
+            jobtitle: user.title || "",
+          };
+        });
+      }
+
+      // Convert to User format expected by the component
+      const normalizedUsers: User[] = usersData.map((user, index) => ({
+        id: `user-${index}-${user.username || user.email || index}`,
+        name: user.name || user.username || "",
+        email: user.email,
+        username: user.username,
+        department: user.department || "",
+        jobTitle: user.jobtitle || "",
+        employeeId: user.employeeid || undefined,
+      }));
+
+      console.log("Normalized users:", normalizedUsers);
+      console.log("Search criteria:", searchCriteria, "Search value:", searchValue);
+      
+      setAllUsers(normalizedUsers);
+
+      // Filter client-side based on search criteria and value
+      const filteredUsers = normalizedUsers.filter((user) => {
+        const searchLower = searchValue.toLowerCase().trim();
+        if (!searchLower) return false;
+        
+        // Get all searchable fields as a combined string for fallback
+        const allFields = [
+          user.name || "",
+          user.email || "",
+          user.username || "",
+          user.employeeId || "",
+          user.department || "",
+          user.jobTitle || "",
+        ].join(" ").toLowerCase();
+        
+        // Map search criteria to specific user fields
+        let searchFields: string[] = [];
+        
+        switch (searchCriteria) {
+          case "name":
+            searchFields = [user.name?.toLowerCase() || ""];
+            break;
+          case "email":
+            searchFields = [user.email?.toLowerCase() || ""];
+            break;
+          case "username":
+            searchFields = [user.username?.toLowerCase() || ""];
+            break;
+          case "employee_id":
+            searchFields = [user.employeeId?.toLowerCase() || ""];
+            break;
+          case "department":
+            searchFields = [user.department?.toLowerCase() || ""];
+            break;
+          case "job_title":
+            searchFields = [user.jobTitle?.toLowerCase() || ""];
+            break;
+          default:
+            // Fallback: search in all fields
+            searchFields = [allFields];
+        }
+        
+        // Check if search value is found in any of the relevant fields
+        return searchFields.some(field => field && field.includes(searchLower));
+      });
+
+      console.log("Filtered users:", filteredUsers);
+      setSearchResults(filteredUsers);
+    } catch (error) {
+      console.error("Error fetching users from API:", error);
+      setSearchError(error instanceof Error ? error.message : "Failed to fetch users");
+      setSearchResults([]);
+      setAllUsers([]);
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -153,26 +250,47 @@ const UserSearchTab: React.FC = () => {
         {/* Search Button */}
         <button
           onClick={handleSearch}
-          disabled={!searchValue.trim()}
+          disabled={!searchValue.trim() || isSearching}
           className={`inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-            searchValue.trim()
+            searchValue.trim() && !isSearching
               ? "bg-blue-600 hover:bg-blue-700 text-white"
               : "bg-gray-300 text-gray-500 cursor-not-allowed"
           }`}
         >
-          <Search className="w-4 h-4" />
-          Search
+          {isSearching ? (
+            <>
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              Searching...
+            </>
+          ) : (
+            <>
+              <Search className="w-4 h-4" />
+              Search
+            </>
+          )}
         </button>
       </div>
 
       {/* Search Results */}
       {isSearching && (
         <div className="mt-6 p-4 text-center text-gray-500">
-          Searching...
+          <div className="flex items-center justify-center gap-2">
+            <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+            Searching...
+          </div>
         </div>
       )}
 
-      {!isSearching && searchResults.length > 0 && (
+      {/* Error Message */}
+      {!isSearching && searchError && (
+        <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-md">
+          <p className="text-sm text-red-600">
+            Error: {searchError}
+          </p>
+        </div>
+      )}
+
+      {!isSearching && !searchError && searchResults.length > 0 && (
         <div className="mt-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-gray-700">
@@ -234,9 +352,9 @@ const UserSearchTab: React.FC = () => {
         </div>
       )}
 
-      {!isSearching && searchResults.length === 0 && searchValue.trim() !== "" && (
+      {!isSearching && !searchError && hasSearched && searchResults.length === 0 && (
         <div className="mt-6 p-4 text-center text-gray-500 border border-gray-200 rounded-md">
-          No results found for "{searchValue}"
+          No results found for "{searchValue}" in {searchOptions.find((opt) => opt.value === searchCriteria)?.label || searchCriteria}
         </div>
       )}
     </div>

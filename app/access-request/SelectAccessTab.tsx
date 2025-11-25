@@ -383,6 +383,8 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({ onApply }) => {
     const [searchResults, setSearchResults] = useState<User[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [isRetrieving, setIsRetrieving] = useState(false);
+    const [searchError, setSearchError] = useState<string | null>(null);
+    const [hasSearched, setHasSearched] = useState(false);
     
     // Use state from parent component
     const { selectedUser, userAccess, selectedAccessIds } = mirrorAccessState;
@@ -402,56 +404,103 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({ onApply }) => {
       }));
     };
 
-    // Mock user search function
-    const mockUserSearch = (value: string): User[] => {
-      const mockUsers: User[] = [
-        {
-          id: "1",
-          name: "John Smith",
-          email: "john.smith@example.com",
-          username: "jsmith",
-          department: "IT",
-          jobTitle: "Software Engineer",
-        },
-        {
-          id: "2",
-          name: "Jane Doe",
-          email: "jane.doe@example.com",
-          username: "jdoe",
-          department: "HR",
-          jobTitle: "HR Manager",
-        },
-        {
-          id: "3",
-          name: "Bob Johnson",
-          email: "bob.johnson@example.com",
-          username: "bjohnson",
-          department: "Finance",
-          jobTitle: "Financial Analyst",
-        },
-      ];
-
-      return mockUsers.filter((user) =>
-        user.name.toLowerCase().includes(value.toLowerCase()) ||
-        user.email.toLowerCase().includes(value.toLowerCase()) ||
-        user.username.toLowerCase().includes(value.toLowerCase())
-      );
-    };
-
     // Mock function to retrieve user access
     const mockRetrieveAccess = (userId: string): Role[] => {
       // Return some roles as user's access (for demo purposes)
       return roles.slice(0, 3);
     };
 
-    const handleSearch = () => {
-      if (searchValue.trim()) {
-        setIsSearching(true);
-        setTimeout(() => {
-          const results = mockUserSearch(searchValue);
-          setSearchResults(results);
-          setIsSearching(false);
-        }, 500);
+    // API call to search users
+    const handleSearch = async () => {
+      if (!searchValue.trim()) {
+        return;
+      }
+
+      setIsSearching(true);
+      setSearchError(null);
+      setSearchResults([]);
+      setHasSearched(true);
+
+      try {
+        // Build query to get all users from operations department - only select username and email
+        const query = `SELECT username, email FROM usr WHERE lower(department) = ?`;
+
+        const response = await fetch(
+          "https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              query: query,
+              parameters: ["operations"],
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`API request failed: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        
+        // Handle the response format - data is in resultSet
+        let usersData: any[] = [];
+        if (data?.resultSet && Array.isArray(data.resultSet)) {
+          // Normalize the email field from different formats
+          usersData = data.resultSet.map((user: any) => {
+            let emailValue = "";
+            
+            // Handle email field - can be object, array, or missing
+            if (user.email) {
+              if (typeof user.email === "string") {
+                emailValue = user.email;
+              } else if (user.email.work) {
+                // Format: { "work": "email@example.com" }
+                emailValue = user.email.work;
+              } else if (Array.isArray(user.email) && user.email.length > 0) {
+                // Format: [{ "type": "work", "value": "email@example.com", "primary": true }]
+                // Find primary email or first email
+                const primaryEmail = user.email.find((e: any) => e.primary) || user.email[0];
+                emailValue = primaryEmail?.value || "";
+              }
+            }
+            
+            return {
+              username: user.username || "",
+              email: emailValue,
+            };
+          });
+        }
+
+        // Convert to User format expected by the component
+        const normalizedUsers: User[] = usersData.map((user, index) => ({
+          id: `user-${index}-${user.username}`,
+          name: user.username, // Using username as name since we don't have full name
+          email: user.email,
+          username: user.username,
+          department: "",
+          jobTitle: "",
+        }));
+
+        // Filter client-side based on search value
+        const filteredUsers = normalizedUsers.filter((user) => {
+          const searchLower = searchValue.toLowerCase();
+          return (
+            user.username.toLowerCase().includes(searchLower) ||
+            user.email.toLowerCase().includes(searchLower) ||
+            user.name.toLowerCase().includes(searchLower)
+          );
+        });
+
+        setSearchResults(filteredUsers);
+      } catch (error) {
+        console.error("Error fetching users from API:", error);
+        setSearchError(error instanceof Error ? error.message : "Failed to fetch users");
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
       }
     };
 
@@ -538,7 +587,7 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({ onApply }) => {
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Search User
           </label>
-          <div className="flex gap-4">
+          <div className="flex gap-4 items-end">
             <div className="relative flex-1 max-w-md">
               <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
@@ -546,21 +595,30 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({ onApply }) => {
                 value={searchValue}
                 onChange={(e) => setSearchValue(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="Search by name, email, or username..."
+                placeholder="Search by username or email..."
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <button
               onClick={handleSearch}
-              disabled={!searchValue.trim()}
+              disabled={!searchValue.trim() || isSearching}
               className={`inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                searchValue.trim()
+                searchValue.trim() && !isSearching
                   ? "bg-blue-600 hover:bg-blue-700 text-white"
                   : "bg-gray-300 text-gray-500 cursor-not-allowed"
               }`}
             >
-              <Search className="w-4 h-4" />
-              Search
+              {isSearching ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Searching...
+                </>
+              ) : (
+                <>
+                  <Search className="w-4 h-4" />
+                  Search
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -568,11 +626,30 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({ onApply }) => {
         {/* Search Results */}
         {isSearching && (
           <div className="mb-6 p-4 text-center text-gray-500">
-            Searching users...
+            <div className="flex items-center justify-center gap-2">
+              <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+              Searching users...
+            </div>
           </div>
         )}
 
-        {!isSearching && searchResults.length > 0 && !selectedUser && (
+        {/* Error Message */}
+        {!isSearching && searchError && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
+            <p className="text-sm text-red-600">
+              Error: {searchError}
+            </p>
+          </div>
+        )}
+
+        {/* No Results Message */}
+        {!isSearching && !searchError && hasSearched && searchResults.length === 0 && (
+          <div className="mb-6 p-4 text-center text-gray-500">
+            No users found matching "{searchValue}"
+          </div>
+        )}
+
+        {!isSearching && !searchError && searchResults.length > 0 && !selectedUser && (
           <div className="mb-6">
             <h3 className="text-sm font-semibold text-gray-700 mb-4">
               Search Results ({searchResults.length})

@@ -1,10 +1,11 @@
 "use client";
 import SegmentedControl from "@/components/SegmentedControl";
-import { History, CircleX, CirclePlus } from "lucide-react";
-import { useState, useEffect } from "react";
+import { History, CircleX, CirclePlus, FileText } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { executeQuery } from "@/lib/api";
 import type { ColDef } from "ag-grid-enterprise";
 import dynamic from "next/dynamic";
+import { useReactToPrint } from "react-to-print";
 import "@/components/scheduler/SchedulerManager.css";
 
 // Dynamically import AgGridReact with SSR disabled
@@ -272,6 +273,7 @@ export default function UserDetailPage() {
   const AllAccessTab = () => {
     const [rowData, setRowData] = useState<any[]>([]);
     const [dynamicCols, setDynamicCols] = useState<ColDef[]>([]);
+    const gridRef = useRef<any>(null);
 
     useEffect(() => {
       const getUserIdFromStorage = (): string => {
@@ -453,19 +455,90 @@ export default function UserDetailPage() {
       fetchAllAccess();
     }, []);
 
-    return (
-      <div className="bg-white rounded-lg shadow-md p-3">
-        {isMounted && (
-          <div className="ag-theme-alpine" style={{ height: 400, width: "100%" }}>
-            <AgGridReact
-              rowData={rowData}
-              columnDefs={dynamicCols}
-              defaultColDef={{ sortable: true, filter: true, resizable: true }}
-            />
+      // Print-friendly table version
+      const PrintTable = () => {
+        if (!rowData || rowData.length === 0) return null;
+      
+        const getCellValue = (row: any, col: ColDef) => {
+          if (col.field) return row[col.field] || '';
+          if ((col as any).valueGetter) {
+            try {
+              return (col as any).valueGetter({ data: row }) || '';
+            } catch {
+              return '';
+            }
+          }
+          if ((col as any).colId) {
+            const colId = (col as any).colId;
+            if (colId === 'entitlementName') {
+              return row.entitlementName || row.entitlementname || row.entitlement_name || '';
+            }
+            if (colId === 'entitlementType') {
+              return row.entitlementType || row.entitlementtype || row.entitlement_type || '';
+            }
+            if (colId === 'application') {
+              return row.application || row.applicationname || row.application_name || '';
+            }
+            if (colId === 'accountName') {
+              return row.accountName || row.accountname || row.account_name || '';
+            }
+            if (colId === 'lastLogin') {
+              const date = row.lastLogin || row.lastlogin || row.last_login || '';
+              return date ? require("@/utils/utils").formatDateMMDDYYSlashes(date) : '';
+            }
+            return row[colId] || '';
+          }
+          return '';
+        };
+
+        return (
+          <div className="print-table-only" style={{ display: 'none' }}>
+            <table className="w-full border-collapse border border-gray-300 text-sm">
+              <thead>
+                <tr className="bg-gray-100">
+                  {dynamicCols.map((col, idx) => (
+                    <th key={idx} className="border border-gray-300 px-3 py-2 text-left font-semibold">
+                      {col.headerName || ''}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rowData.map((row, rowIdx) => (
+                  <tr key={rowIdx} className="hover:bg-gray-50">
+                    {dynamicCols.map((col, colIdx) => (
+                      <td key={colIdx} className="border border-gray-300 px-3 py-2">
+                        {getCellValue(row, col)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        )}
-      </div>
-    );
+        );
+      };
+
+      return (
+        <div className="bg-white rounded-lg shadow-md p-3 print-ag-grid-container">
+          {/* AG Grid - hidden in print */}
+          <div className="screen-only">
+            {isMounted && (
+              <div className="ag-theme-alpine print-ag-grid" style={{ height: 400, width: "100%" }}>
+                <AgGridReact
+                  ref={gridRef}
+                  rowData={rowData}
+                  columnDefs={dynamicCols}
+                  defaultColDef={{ sortable: true, filter: true, resizable: true }}
+                  suppressRowVirtualisation={false}
+                />
+              </div>
+            )}
+          </div>
+          {/* Print-friendly table - visible only in print */}
+          <PrintTable />
+        </div>
+      );
   };
 
   const UnderReviewTab = () => {
@@ -862,7 +935,7 @@ export default function UserDetailPage() {
     );
   };
 
-  const CombinedView = () => {
+  const CombinedView = ({ printRef }: { printRef: React.RefObject<HTMLDivElement> }) => {
     const [accessTabIndex, setAccessTabIndex] = useState(0);
 
     const accessSegments = [
@@ -877,12 +950,12 @@ export default function UserDetailPage() {
     ];
 
     return (
-      <div className="space-y-6">
+      <div className="space-y-6" ref={printRef}>
         {/* Profile Card */}
         <ProfileTab />
         
         {/* Access Tabs */}
-        <div className="flex justify-end">
+        <div>
           <SegmentedControl
             segments={accessSegments}
             activeIndex={accessTabIndex}
@@ -893,12 +966,131 @@ export default function UserDetailPage() {
     );
   };
 
+  const printRef = useRef<HTMLDivElement>(null);
+
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: `User_Profile_${userData.displayName || userData.email}_${new Date().toISOString().split('T')[0]}`,
+    onBeforeGetContent: () => {
+      // Expand AG Grid containers to show all rows
+      const gridContainers = printRef.current?.querySelectorAll('.ag-theme-alpine');
+      gridContainers?.forEach((container: any) => {
+        if (container.style) {
+          container.style.height = 'auto';
+          container.style.maxHeight = 'none';
+        }
+        const viewport = container.querySelector('.ag-body-viewport');
+        if (viewport && viewport.style) {
+          viewport.style.height = 'auto';
+          viewport.style.maxHeight = 'none';
+          viewport.style.overflow = 'visible';
+        }
+      });
+      return Promise.resolve();
+    },
+    pageStyle: `
+      @page {
+        size: A4;
+        margin: 15mm;
+      }
+      @media print {
+        * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+        }
+        body {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .no-print {
+          display: none !important;
+        }
+        .screen-only {
+          display: none !important;
+        }
+        .print-table-only {
+          display: block !important;
+        }
+        .print-ag-grid-container {
+          page-break-inside: avoid;
+        }
+        .print-ag-grid,
+        .ag-theme-alpine {
+          overflow: visible !important;
+          height: auto !important;
+          max-height: none !important;
+          min-height: auto !important;
+        }
+        .ag-root-wrapper {
+          overflow: visible !important;
+          height: auto !important;
+          display: block !important;
+        }
+        .ag-body-viewport {
+          overflow: visible !important;
+          height: auto !important;
+          max-height: none !important;
+          position: relative !important;
+        }
+        .ag-center-cols-container {
+          height: auto !important;
+          min-height: auto !important;
+          position: relative !important;
+        }
+        .ag-center-cols-viewport {
+          overflow: visible !important;
+          height: auto !important;
+          position: relative !important;
+        }
+        .ag-body-horizontal-scroll,
+        .ag-body-vertical-scroll,
+        .ag-horizontal-scroll {
+          display: none !important;
+        }
+        .ag-header {
+          position: relative !important;
+        }
+        .ag-row {
+          break-inside: avoid;
+        }
+        div > div.flex.items-center.justify-end.mb-4 {
+          display: none !important;
+        }
+        .space-y-6 > * {
+          page-break-inside: avoid;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        table th,
+        table td {
+          border: 1px solid #d1d5db;
+          padding: 8px 12px;
+          text-align: left;
+        }
+        table th {
+          background-color: #f3f4f6;
+          font-weight: 600;
+        }
+      }
+    `,
+  });
+
   return (
     <>
-      <div className="mb-4">
+      <div className="mb-4 flex items-center justify-between">
         <BackButton />
+        <button
+          onClick={handlePrint}
+          className="flex items-center justify-center text-red-600 hover:text-red-700 transition-colors no-print"
+          title="Export to PDF"
+        >
+          <FileText size={20} />
+        </button>
       </div>
-      <CombinedView />
+      <CombinedView printRef={printRef} />
     </>
   );
 }

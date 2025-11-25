@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 
 type Attribute = {
@@ -36,17 +36,181 @@ const ProxyActionModal: React.FC<ProxyActionModalProps> = ({
   );
   const [searchValue, setSearchValue] = useState("");
   const [selectedItem, setSelectedItem] = useState<User | Group | null>(null);
+  const [apiUsers, setApiUsers] = useState<User[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [isWaitingForApi, setIsWaitingForApi] = useState(false);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const hasFetchedUsersRef = useRef<boolean>(false);
+  const isApiCallInProgressRef = useRef<boolean>(false);
 
-  const sourceData = ownerType === "User" ? users : groups;
+  // Fetch all users from API once when user starts typing (with debounce)
+  useEffect(() => {
+    // Clear any existing timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+
+    // Only fetch if User type is selected, search has value, and we haven't successfully fetched yet
+    if (ownerType === "User" && searchValue.trim() !== "" && !hasFetchedUsersRef.current && !isApiCallInProgressRef.current) {
+      setIsWaitingForApi(true);
+      
+      // Set flag to indicate API call is in progress (prevents multiple simultaneous calls)
+      isApiCallInProgressRef.current = true;
+      
+      // Debounce the API call - wait 500ms after user stops typing
+      debounceTimerRef.current = setTimeout(async () => {
+        setIsLoadingUsers(true);
+        setIsWaitingForApi(false);
+        setApiError(null);
+        try {
+          // Fetch all users (no filter in query, we'll filter client-side)
+          const query = `SELECT username, email FROM usr`;
+
+          console.log("Calling API to fetch users (only once)...");
+          const response = await fetch(
+            "https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                query: query,
+                parameters: [],
+              }),
+            }
+          );
+
+          if (!response.ok) {
+            throw new Error(`API request failed: ${response.statusText}`);
+          }
+
+          const data = await response.json();
+          
+          // Log the response for debugging
+          console.log("API Response:", data);
+          
+          // Handle the response format - data is in resultSet
+          let usersData: User[] = [];
+          if (data?.resultSet && Array.isArray(data.resultSet)) {
+            // Normalize the email field from different formats
+            usersData = data.resultSet.map((user: any) => {
+              let emailValue = "";
+              
+              // Handle email field - can be object, array, or missing
+              if (user.email) {
+                if (typeof user.email === "string") {
+                  emailValue = user.email;
+                } else if (user.email.work) {
+                  // Format: { "work": "email@example.com" }
+                  emailValue = user.email.work;
+                } else if (Array.isArray(user.email) && user.email.length > 0) {
+                  // Format: [{ "type": "work", "value": "email@example.com", "primary": true }]
+                  // Find primary email or first email
+                  const primaryEmail = user.email.find((e: any) => e.primary) || user.email[0];
+                  emailValue = primaryEmail?.value || "";
+                }
+              }
+              
+              return {
+                username: user.username || "",
+                email: emailValue,
+              };
+            });
+          } else if (Array.isArray(data)) {
+            usersData = data;
+          } else if (data?.results && Array.isArray(data.results)) {
+            usersData = data.results;
+          } else if (data?.data && Array.isArray(data.data)) {
+            usersData = data.data;
+          } else if (data?.items && Array.isArray(data.items)) {
+            usersData = data.items;
+          } else if (data?.rows && Array.isArray(data.rows)) {
+            usersData = data.rows;
+          } else if (data?.records && Array.isArray(data.records)) {
+            usersData = data.records;
+          }
+
+          console.log("Parsed users data:", usersData, "Total users:", usersData.length);
+          setApiUsers(usersData);
+          // Mark as fetched only on success
+          hasFetchedUsersRef.current = true;
+        } catch (error) {
+          console.error("Error fetching users from API:", error);
+          setApiError(error instanceof Error ? error.message : "Failed to fetch users");
+          setApiUsers([]);
+          // Don't set hasFetchedUsersRef on error so user can retry
+        } finally {
+          setIsLoadingUsers(false);
+          isApiCallInProgressRef.current = false;
+        }
+      }, 500); // 500ms debounce
+    } else if (searchValue.trim() === "" && ownerType === "User") {
+      // Reset when search is cleared - allow fetching again
+      hasFetchedUsersRef.current = false;
+      isApiCallInProgressRef.current = false;
+      setApiUsers([]);
+      setIsWaitingForApi(false);
+    }
+
+    // Cleanup timer on unmount or dependency change
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+    };
+  }, [searchValue, ownerType]); // Depend on both, but flag prevents multiple calls
+
+  const sourceData = ownerType === "User" 
+    ? apiUsers 
+    : groups;
   const currentAttributes =
     ownerType === "User" ? userAttributes : groupAttributes;
 
+  // Filter API results client-side based on search value and selected attribute
   const filteredData =
     searchValue.trim() === ""
       ? []
       : sourceData.filter((item) => {
-          const value = item[selectedAttribute];
-          return value?.toLowerCase().includes(searchValue.toLowerCase());
+          if (!item || typeof item !== 'object') return false;
+          
+          // Try multiple possible keys for the attribute
+          const possibleKeys = [
+            selectedAttribute,
+            selectedAttribute.toLowerCase(),
+            selectedAttribute.toUpperCase(),
+          ];
+          
+          // Also try common variations based on selected attribute
+          if (selectedAttribute.toLowerCase() === "username") {
+            possibleKeys.push("username", "user_name", "userName", "USERNAME", "user");
+          } else if (selectedAttribute.toLowerCase() === "email") {
+            possibleKeys.push("email", "EMAIL", "e_mail", "eMail");
+          }
+          
+          // Find the value using any of the possible keys
+          let value = "";
+          for (const key of possibleKeys) {
+            if (item[key] !== undefined && item[key] !== null) {
+              value = String(item[key]);
+              break;
+            }
+          }
+          
+          // If we found a value in the selected attribute, filter by it
+          if (value) {
+            return value.toLowerCase().includes(searchValue.toLowerCase());
+          }
+          
+          // Fallback: search in all string values if attribute not found
+          const allValues = Object.values(item)
+            .filter(v => v !== null && v !== undefined)
+            .map(v => String(v))
+            .join(" ");
+          return allValues.toLowerCase().includes(searchValue.toLowerCase());
         });
 
   const handleClose = () => {
@@ -72,11 +236,35 @@ const ProxyActionModal: React.FC<ProxyActionModalProps> = ({
     setSelectedAttribute(userAttributes[0]?.value || "");
     setSearchValue("");
     setSelectedItem(null);
+    setApiUsers([]);
+    setApiError(null);
+    setIsLoadingUsers(false);
+    setIsWaitingForApi(false);
+    hasFetchedUsersRef.current = false;
+    isApiCallInProgressRef.current = false;
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
   };
 
   useEffect(() => {
     if (!isModalOpen) resetState();
   }, [isModalOpen]);
+
+  // Reset API users when switching between User and Group
+  useEffect(() => {
+    setApiUsers([]);
+    setApiError(null);
+    setIsLoadingUsers(false);
+    setIsWaitingForApi(false);
+    hasFetchedUsersRef.current = false;
+    isApiCallInProgressRef.current = false;
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+  }, [ownerType]);
   return (
     <>
       {isModalOpen &&
@@ -196,7 +384,43 @@ const ProxyActionModal: React.FC<ProxyActionModalProps> = ({
               {/* Filtered List */}
               {searchValue.trim() !== "" && (
                 <div className="max-h-36 overflow-auto border rounded p-2 mb-3 text-sm bg-gray-50">
-                  {filteredData.length === 0 ? (
+                  {(isLoadingUsers || isWaitingForApi) && ownerType === "User" ? (
+                    <div className="flex items-center justify-center py-4">
+                      <div className="flex items-center gap-2 text-gray-500">
+                        <svg
+                          className="animate-spin h-4 w-4"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          ></path>
+                        </svg>
+                        <span>Loading users...</span>
+                      </div>
+                    </div>
+                  ) : apiError && ownerType === "User" ? (
+                    <p className="text-red-500 italic text-xs py-2">
+                      Error: {apiError}
+                    </p>
+                  ) : filteredData.length === 0 && apiUsers.length > 0 ? (
+                    <p className="text-gray-500 italic">
+                      No results found matching "{searchValue}" in {selectedAttribute}.
+                      <br />
+                      <span className="text-xs">(Found {apiUsers.length} total users)</span>
+                    </p>
+                  ) : filteredData.length === 0 ? (
                     <p className="text-gray-500 italic">No results found.</p>
                   ) : (
                     <ul className="space-y-1">
@@ -210,7 +434,14 @@ const ProxyActionModal: React.FC<ProxyActionModalProps> = ({
                           }`}
                           onClick={() => setSelectedItem(item)}
                         >
-                          {Object.values(item).join(" | ")}
+                          {/* Display username and email if available */}
+                          {item.username && item.email 
+                            ? `${item.username} | ${item.email}`
+                            : item.email 
+                            ? item.email
+                            : item.username
+                            ? item.username
+                            : Object.values(item).join(" | ")}
                         </li>
                       ))}
                     </ul>
