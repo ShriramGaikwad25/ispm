@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getJwtTokenFromRequest, withAuthHeader } from '@/lib/serverAuth';
 
 export async function GET(request: NextRequest) {
   try {
+    const jwtToken = getJwtTokenFromRequest(request);
     console.log('API Route: Fetching supported objects from external API...');
     const response = await fetch(
       'https://preview.keyforge.ai/registerscimapp/registerfortenant/ACMECOM/getAllSupportedObjects',
       {
         method: 'GET',
-        headers: {
+        headers: withAuthHeader({
           'Content-Type': 'application/json',
           'X-Requested-With': 'XMLHttpRequest',
           'User-Agent': 'ISPM-App/1.0'
-        }
+        }, jwtToken),
       }
     );
 

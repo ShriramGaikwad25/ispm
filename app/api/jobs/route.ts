@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getJwtTokenFromRequest, withAuthHeader } from '@/lib/serverAuth';
 
 export async function GET(request: NextRequest) {
   try {
+    const jwtToken = getJwtTokenFromRequest(request);
     const response = await fetch('https://preview.keyforge.ai/kfscheduler/api/v1/ACMECOM/jobs', {
       method: 'GET',
-      headers: {
+      headers: withAuthHeader({
         'Content-Type': 'application/json',
         // Add any required headers for the external API
         'User-Agent': 'ISPM-Scheduler/1.0',
-      },
+      }, jwtToken),
     });
 
     if (!response.ok) {

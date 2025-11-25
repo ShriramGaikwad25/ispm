@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getJwtTokenFromRequest, withAuthHeader } from '@/lib/serverAuth';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: { groupName: string; jobName: string } }
 ) {
   try {
+    const jwtToken = getJwtTokenFromRequest(request);
     const { groupName, jobName } = params;
     
     // Decode URL-encoded parameters
@@ -15,10 +17,10 @@ export async function POST(
       `https://preview.keyforge.ai/kfscheduler/api/v1/ACMECOM/jobs/${decodedGroupName}/${decodedJobName}/trigger`,
       {
         method: 'POST',
-        headers: {
+        headers: withAuthHeader({
           'Content-Type': 'application/json',
           'User-Agent': 'ISPM-Scheduler/1.0',
-        }
+        }, jwtToken)
       }
     );
 

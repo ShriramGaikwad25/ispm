@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getJwtTokenFromRequest, withAuthHeader } from '@/lib/serverAuth';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { groupName: string; jobName: string } }
 ) {
   try {
+    const jwtToken = getJwtTokenFromRequest(request);
     const { groupName, jobName } = params;
     
     // Decode URL-encoded parameters
@@ -15,10 +17,10 @@ export async function GET(
       `https://preview.keyforge.ai/kfscheduler/api/v1/ACMECOM/jobs/${decodedGroupName}/${decodedJobName}`,
       {
         method: 'GET',
-        headers: {
+        headers: withAuthHeader({
           'Content-Type': 'application/json',
           'User-Agent': 'ISPM-Scheduler/1.0',
-        },
+        }, jwtToken),
       }
     );
 
@@ -61,6 +63,7 @@ export async function PUT(
   { params }: { params: { groupName: string; jobName: string } }
 ) {
   try {
+    const jwtToken = getJwtTokenFromRequest(request);
     const { groupName, jobName } = params;
     
     // Decode URL-encoded parameters
@@ -74,10 +77,10 @@ export async function PUT(
       `https://preview.keyforge.ai/kfscheduler/api/v1/ACMECOM/jobs/${decodedGroupName}/${decodedJobName}`,
       {
         method: 'PUT',
-        headers: {
+        headers: withAuthHeader({
           'Content-Type': 'application/json',
           'User-Agent': 'ISPM-Scheduler/1.0',
-        },
+        }, jwtToken),
         body: JSON.stringify(body)
       }
     );

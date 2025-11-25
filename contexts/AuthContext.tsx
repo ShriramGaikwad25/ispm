@@ -15,6 +15,7 @@ import {
   COOKIE_NAMES,
   forceLogout
 } from '@/lib/auth';
+import { ensureAuthFetchPatched } from '@/lib/authFetch';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -31,6 +32,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<{ email: string; tenantId?: string } | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Patch global fetch once on the client so every request carries the JWT token
+  ensureAuthFetchPatched();
 
   // Check for existing session on mount
   useEffect(() => {

@@ -1,11 +1,15 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getJwtTokenFromRequest, withAuthHeader } from '@/lib/serverAuth';
 
-export async function GET(request: Request, { params }: { params: { groupName: string; jobName: string } }) {
+export async function GET(request: NextRequest, { params }: { params: { groupName: string; jobName: string } }) {
   const { groupName, jobName } = params;
+  const jwtToken = getJwtTokenFromRequest(request);
 
   try {
     const externalApiUrl = `https://preview.keyforge.ai/kfscheduler/api/v1/ACMECOM/jobs/history/${encodeURIComponent(groupName)}/${encodeURIComponent(jobName)}`;
-    const response = await fetch(externalApiUrl);
+    const response = await fetch(externalApiUrl, {
+      headers: withAuthHeader(undefined, jwtToken),
+    });
 
     if (!response.ok) {
       const errorText = await response.text();
