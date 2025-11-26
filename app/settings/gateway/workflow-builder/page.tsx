@@ -498,8 +498,8 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
               </p>
             </div>
 
-            {/* Tabs - Show for AI AGENT, APPROVAL, LOGIC, and CUSTOM types */}
-            {(selectedStep.type === "AI AGENT" || selectedStep.type === "APPROVAL" || selectedStep.type === "LOGIC" || selectedStep.type === "CUSTOM") && (
+            {/* Tabs - Show for AI AGENT, APPROVAL, LOGIC, CUSTOM, and FULFILLMENT types */}
+            {(selectedStep.type === "AI AGENT" || selectedStep.type === "APPROVAL" || selectedStep.type === "LOGIC" || selectedStep.type === "CUSTOM" || selectedStep.type === "FULFILLMENT") && (
               <div className="flex gap-2 mb-4 border-b border-gray-200">
                 {(
                   selectedStep.type === "AI AGENT"
@@ -1054,8 +1054,73 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                 </div>
               )}
 
+              {/* FULFILLMENT type steps */}
+              {selectedStep.type === "FULFILLMENT" && activeTab === "General" && (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Step label</label>
+                    <input
+                      type="text"
+                      value={stepConfig?.label || ""}
+                      onChange={(e) => updateStepConfig("label", e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Code</label>
+                    <input
+                      type="text"
+                      value={stepConfig?.code || ""}
+                      onChange={(e) => updateStepConfig("code", e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium text-gray-700">Blocking step</label>
+                    <ToggleSwitch
+                      checked={stepConfig?.blocking !== false}
+                      onChange={(checked) => updateStepConfig("blocking", checked)}
+                    />
+                  </div>
+                </>
+              )}
+
+              {selectedStep.type === "FULFILLMENT" && activeTab === "Conditions" && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Condition (CEL / expression)
+                    </label>
+                    <textarea
+                      value={stepConfig?.condition && stepConfig.condition !== "true" ? stepConfig.condition : ""}
+                      onChange={(e) => updateStepConfig("condition", e.target.value)}
+                      rows={6}
+                      placeholder='e.g. risk >= "HIGH" || entitlement.tags.contains("SOX")'
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Skip logic (no-code hint)
+                    </label>
+                    <select
+                      value={stepConfig?.skipLogic || "never"}
+                      onChange={(e) => updateStepConfig("skipLogic", e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="never">Never skip</option>
+                      <option value="risk-low">Skip when risk = LOW</option>
+                      <option value="display-only">Skip display-only entitlements</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
               {/* Other step types show all fields without tabs */}
-              {selectedStep.type !== "AI AGENT" && selectedStep.type !== "APPROVAL" && selectedStep.type !== "LOGIC" && selectedStep.type !== "CUSTOM" && (
+              {selectedStep.type !== "AI AGENT" && selectedStep.type !== "APPROVAL" && selectedStep.type !== "LOGIC" && selectedStep.type !== "CUSTOM" && selectedStep.type !== "FULFILLMENT" && (
                 <>
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">Step label</label>
