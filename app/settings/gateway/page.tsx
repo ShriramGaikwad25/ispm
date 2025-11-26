@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from 'next/navigation';
 import { useState, useMemo } from 'react';
-import { Settings, FileText, Users, Shield, Mail, ShieldCheck, Clock, Lock, Search } from 'lucide-react';
+import { Settings, FileText, Users, Shield, Mail, ShieldCheck, Clock, Lock, Search, Workflow } from 'lucide-react';
 
 export default function GatewaySettings() {
   const router = useRouter();
@@ -64,6 +64,13 @@ export default function GatewaySettings() {
       subtitle: 'Configure and manage access policies and permissions.',
       href: '/settings/gateway/manage-access-policy',
       icon: <Lock className="w-5 h-5 text-gray-600" />,
+    },
+    {
+      id: 'workflow-builder',
+      title: 'Workflow Builder',
+      subtitle: 'Design and configure approval workflows with AI-assisted policies.',
+      href: '/settings/gateway/workflow-builder',
+      icon: <Workflow className="w-5 h-5 text-gray-600" />,
     },
   ];
 
