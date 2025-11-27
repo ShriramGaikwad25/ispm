@@ -298,6 +298,8 @@ function AppOwnerContent() {
   const [quickFilterText, setQuickFilterText] = useState("");
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
   const [currentFilter, setCurrentFilter] = useState<string>("");
+  // Server-side status filter used when grouping by Entitlements
+  const [statusFilterQuery, setStatusFilterQuery] = useState<string | undefined>(undefined);
 
   // State for header info and user progress
   const [headerInfo, setHeaderInfo] = useState({
@@ -377,7 +379,7 @@ function AppOwnerContent() {
       const isGroupedEnts = groupByOption === "Entitlements";
       const isGroupedAccounts = groupByOption === "Accounts";
 
-      // If a filter is applied, use the filtered API
+      // If a chart-based filter is applied, use the filtered certification API
       if (currentFilter) {
         response = await getAPPOCertificationDetailsWithFilter(
           reviewerId,
@@ -391,7 +393,8 @@ function AppOwnerContent() {
           reviewerId,
           certificationId,
           pageSize,
-          pageNumber
+          pageNumber,
+          statusFilterQuery
         );
       } else if (isGroupedAccounts) {
         // For Accounts grouping, call entities API getAppAccounts
@@ -629,6 +632,7 @@ function AppOwnerContent() {
     certificationId,
     groupByOption,
     currentFilter,
+    statusFilterQuery,
   ]);
 
   useEffect(() => {
@@ -1154,6 +1158,21 @@ function AppOwnerContent() {
 
   const handleAppliedFilter = (filters: string[]) => {
     setSelectedFilters(filters);
+
+    // Map status filter (Pending / Certify / Reject) to server-side query for grouped-by-entitlements API
+    const selected = filters[0];
+    let nextStatusFilterQuery: string | undefined;
+    if (selected === "Pending") {
+      nextStatusFilterQuery = "action eq Pending";
+    } else if (selected === "Certify") {
+      nextStatusFilterQuery = "action eq Approve";
+    } else if (selected === "Reject") {
+      nextStatusFilterQuery = "action eq Reject";
+    } else {
+      nextStatusFilterQuery = undefined;
+    }
+    setStatusFilterQuery(nextStatusFilterQuery);
+    setPageNumber(1);
   };
 
   useEffect(() => {

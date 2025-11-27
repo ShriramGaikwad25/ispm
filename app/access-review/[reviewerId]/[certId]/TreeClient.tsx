@@ -196,6 +196,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
 
   // Entitlements pagination
   const [entitlementsPageNumber, setEntitlementsPageNumber] = useState(1);
+  // Server-side status filter for entitlements (maps to query string, e.g. "action eq Reject")
+  const [statusFilterQuery, setStatusFilterQuery] = useState<string | undefined>(undefined);
   const [entitlementsTotalItems, setEntitlementsTotalItems] = useState(0);
   const [entitlementsTotalPages, setEntitlementsTotalPages] = useState(1);
   const suppressAutoSelectRef = useRef(false);
@@ -600,8 +602,14 @@ const TreeClient: React.FC<TreeClientProps> = ({
     }
   };
 
-  const loadUserEntitlements = async (user: UserRowData, page: number = 1) => {
+  const loadUserEntitlements = async (
+    user: UserRowData,
+    page: number = 1,
+    overrideStatusFilterQuery?: string
+  ) => {
     if (!user.taskId) return;
+
+    const effectiveStatusFilter = overrideStatusFilterQuery ?? statusFilterQuery;
 
     setLoadingEntitlements(true);
     try {
@@ -621,7 +629,10 @@ const TreeClient: React.FC<TreeClientProps> = ({
           reviewerId,
           certId,
           user.taskId,
-          lineItemId
+          lineItemId,
+          undefined,
+          undefined,
+          effectiveStatusFilter
         );
         return entitlements.map((item: any, index: number) => {
           const entitlementLineItemId =
@@ -896,13 +907,40 @@ const TreeClient: React.FC<TreeClientProps> = ({
   }, []);
 
   // Handle filter changes from Filters component
-  const handleAppliedFilter = useCallback((filters: string[]) => {
-    if (filters.length > 0) {
-      setSelectedFilters(filters);
-    } else {
-      setSelectedFilters([]);
-    }
-  }, []);
+  const handleAppliedFilter = useCallback(
+    (filters: string[]) => {
+      // `Filters` for status only allows a single selection at a time
+      const selected = filters[0];
+
+      // Map UI status to API filter query (or clear if none)
+      let nextStatusFilterQuery: string | undefined;
+      if (selected === "Pending") {
+        nextStatusFilterQuery = "action eq Pending";
+      } else if (selected === "Certify") {
+        nextStatusFilterQuery = "action eq Approve";
+      } else if (selected === "Reject") {
+        nextStatusFilterQuery = "action eq Reject";
+      } else {
+        nextStatusFilterQuery = undefined;
+      }
+
+      setStatusFilterQuery(nextStatusFilterQuery);
+
+      // Keep local filters array for existing client-side logic (chips, etc.)
+      if (filters.length > 0) {
+        setSelectedFilters(filters);
+      } else {
+        setSelectedFilters([]);
+      }
+
+      // If a user is already selected, immediately reload entitlements
+      if (selectedUser) {
+        setEntitlementsPageNumber(1);
+        loadUserEntitlements(selectedUser, 1, nextStatusFilterQuery);
+      }
+    },
+    [loadUserEntitlements, selectedUser]
+  );
 
   // Handle account-level filter (Elevated, Orphan, Dormant, etc.)
   const handleAccountFilterChange = useCallback((filter: string) => {

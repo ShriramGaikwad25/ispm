@@ -328,18 +328,24 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
       </div>
 
       {/* Center Panel - Workflow Canvas */}
-      <div className="flex-1 bg-gray-50 border border-gray-200 rounded-lg p-4 overflow-x-auto">
-        <div className="mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Approval Workflow Template</h3>
-          <p className="text-sm text-gray-600">Design KeyForge approval stages, steps, and AI agents for a given use case.</p>
+      <div className="flex-1 bg-gradient-to-b from-white via-gray-50 to-gray-100 border border-gray-200 rounded-xl p-5 overflow-x-auto shadow-sm">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">Approval Workflow Template</h3>
+            <p className="text-sm text-gray-600">
+              Design KeyForge approval stages, steps, and AI agents for a given use case.
+            </p>
+          </div>
         </div>
 
-        <div className="flex gap-4 min-w-max">
+        <div className="flex gap-5 min-w-max pb-2">
           {stages.map((stage: any) => (
             <div
               key={stage.id}
-              className={`min-w-[280px] bg-white border-2 rounded-lg p-4 ${
-                selectedStageId === stage.id ? "border-blue-500" : "border-gray-200"
+              className={`min-w-[300px] bg-white rounded-xl p-4 border transition-all duration-200 shadow-sm ${
+                selectedStageId === stage.id
+                  ? "border-blue-500 ring-1 ring-blue-100 shadow-md"
+                  : "border-gray-200 hover:border-blue-300 hover:shadow-md hover:-translate-y-0.5"
               }`}
             >
               <div className="flex items-center justify-between mb-3">
@@ -1074,6 +1080,16 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                       value={stepConfig?.code || ""}
                       onChange={(e) => updateStepConfig("code", e.target.value)}
                       className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Description (internal)</label>
+                    <textarea
+                      value={stepConfig?.description || ""}
+                      onChange={(e) => updateStepConfig("description", e.target.value)}
+                      rows={3}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                     />
                   </div>
 

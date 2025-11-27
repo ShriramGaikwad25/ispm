@@ -126,11 +126,21 @@ export async function getLineItemDetails(
   taskId: string,
   lineItemId: string,
   pageSize?: number,
-  pageNumber?: number
+  pageNumber?: number,
+  /**
+   * Optional filter expression, e.g. "action eq Reject" | "action eq Approve" | "action eq Pending"
+   */
+  filter?: string
 ): Promise<LineItemDetail[]> {
-  const endpoint = `${BASE_URL}/getLineItemDetails/${reviewerId}/${certId}/${taskId}/${lineItemId}`;
+  const baseEndpoint = `${BASE_URL}/getLineItemDetails/${reviewerId}/${certId}/${taskId}/${lineItemId}`;
+  const url = new URL(baseEndpoint);
+
+  if (filter) {
+    url.searchParams.append("filter", filter);
+  }
+
   const response: { items?: LineItemDetail[] } = await fetchApi(
-    endpoint,
+    url.toString(),
     pageSize,
     pageNumber
   );
@@ -180,10 +190,40 @@ export async function getGroupedAppOwnerDetails<T>(
   reviewerId: string,
   certId: string,
   pageSize?: number,
-  pageNumber?: number
+  pageNumber?: number,
+  /**
+   * Optional filter expression, e.g. "action eq Pending" | "action eq Approve" | "action eq Reject"
+   */
+  filter?: string
 ): Promise<PaginatedResponse<T>> {
-  const endpoint = `${BASE_URL}/getAPPOGroupByEntsCertDetails/${reviewerId}/${certId}`;
-  return fetchApi(endpoint, pageSize, pageNumber);
+  const baseEndpoint = `${BASE_URL}/getAPPOGroupByEntsCertDetails/${reviewerId}/${certId}`;
+  const url = new URL(baseEndpoint);
+
+  if (filter) {
+    url.searchParams.append("filter", filter);
+  }
+  if (pageSize !== undefined) {
+    url.searchParams.append("pageSize", pageSize.toString());
+  }
+  if (pageNumber !== undefined) {
+    url.searchParams.append("pageNumber", pageNumber.toString());
+  }
+
+  const headers = {
+    "Content-Type": "application/json",
+    "X-Requested-With": "XMLHttpRequest",
+  };
+
+  const res = await fetch(url.toString(), { headers });
+
+  if (!res.ok) {
+    const errorBody = await res.text();
+    throw new Error(
+      `Fetch failed: ${res.status} ${res.statusText}\n${errorBody}`
+    );
+  }
+
+  return res.json();
 }
   
 export async function getAppAccounts(
