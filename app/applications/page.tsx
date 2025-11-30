@@ -65,7 +65,7 @@ export default function Application() {
       {
         headerName: "Application",
         field: "applicationinstancename",
-        width:220,
+        width:260,
         cellRenderer: (params: any) => {
           const name = params.data.applicationinstancename;
           const LOGO_BY_NAME: Record<string, string> = {
@@ -152,12 +152,12 @@ export default function Application() {
           );
         },
       },
-      { headerName: "Department", field: "businessUnit",width:140 },
-      { headerName: "Owner", field: "ownername",width:140 },
+      { headerName: "Department", field: "businessUnit",width:200 },
+      { headerName: "Owner", field: "ownername",width:200 },
       {
         headerName: "#Accounts",
         field: "numofaccounts",
-        width:140,
+        width:145,
         valueFormatter: (params: any) =>
           params.value?.toLocaleString("en-US") || "0",
       },
@@ -180,7 +180,7 @@ export default function Application() {
         width:140,
         valueFormatter: (params) => formatDateMMDDYY(params.value),
       },
-      { headerName: "Sync Type", field: "syncType",width:140 },
+      { headerName: "Sync Type", field: "syncType",width:180 },
       { headerName: "App Risk", field: "risk", hide: true,width:200, },
       { headerName: "App Type", field: "applicationtype", hide: true,width:200, },
       { headerName: "App Description", field: "applicationcategory", hide: true,width:200, },

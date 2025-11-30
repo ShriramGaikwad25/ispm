@@ -76,7 +76,18 @@ export function Navigation() {
                   <button
                     onClick={(e) => {
                       e.preventDefault();
-                      toggleExpanded(item.name);
+                      // If sidebar is collapsed, expand it first
+                      if (!isSidebarExpanded) {
+                        setIsSidebarExpanded(true);
+                        // Also expand the sub-items for this item
+                        setExpandedItems(prev => {
+                          const newSet = new Set(prev);
+                          newSet.add(item.name);
+                          return newSet;
+                        });
+                      } else {
+                        toggleExpanded(item.name);
+                      }
                     }}
                     className={`flex items-center gap-3 px-3 py-3 rounded-md transition-colors flex-1 w-full ${
                       isActive 

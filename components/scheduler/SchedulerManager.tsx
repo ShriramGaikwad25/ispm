@@ -16,6 +16,7 @@ import {
   Edit,
 } from "lucide-react";
 import { config } from "../../lib/config";
+import { BackButton } from "../BackButton";
 import "./SchedulerManager.css";
 
 interface JobSchedule {
@@ -1175,6 +1176,11 @@ export default function SchedulerManager() {
 
   return (
     <div className="scheduler-manager">
+      {/* Back Button */}
+      <div style={{ marginBottom: "16px" }}>
+        <BackButton text="Back" />
+      </div>
+      
       {/* Header */}
       <div className="scheduler-header">
         {selectedSchedule ? (
