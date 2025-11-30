@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { AlertTriangle, CheckCircle } from "lucide-react";
 import ActionButtons from "@/components/agTable/ActionButtons";
 
@@ -33,8 +33,36 @@ const TaskSummaryPanel: React.FC<TaskSummaryPanelProps> = ({
   selectedRow,
   onActionSuccess,
 }) => {
+  const [activeTab, setActiveTab] = useState<"overview" | "history">("overview");
+
   return (
     <div className="p-3 space-y-3">
+      {/* Tabs */}
+      <div className="flex border-b border-gray-200">
+        <button
+          onClick={() => setActiveTab("overview")}
+          className={`px-4 py-2 text-sm font-medium transition-colors ${
+            activeTab === "overview"
+              ? "text-blue-600 border-b-2 border-blue-600"
+              : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          Overview
+        </button>
+        <button
+          onClick={() => setActiveTab("history")}
+          className={`px-4 py-2 text-sm font-medium transition-colors ${
+            activeTab === "history"
+              ? "text-blue-600 border-b-2 border-blue-600"
+              : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          History
+        </button>
+      </div>
+
+      {activeTab === "overview" && (
+        <>
       <div className="bg-gray-50 rounded-lg p-3">
         <div className="flex items-center space-x-2 p-2">
           <div className="flex-1">
@@ -122,6 +150,45 @@ const TaskSummaryPanel: React.FC<TaskSummaryPanelProps> = ({
           Submit
         </button>
       </div>
+        </>
+      )}
+
+      {activeTab === "history" && (
+        <div className="space-y-4">
+          {/* Approval History Section */}
+          <div className="border border-gray-200 rounded-lg p-3">
+            <h3 className="text-sm font-semibold text-gray-900 mb-3">Approval History</h3>
+            <div className="space-y-2">
+              <div className="text-xs text-gray-600">
+                <p className="font-medium text-gray-700">No approval history available</p>
+                <p className="text-gray-500 mt-1">Approval history will appear here once actions are taken.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Access History Section */}
+          <div className="border border-gray-200 rounded-lg p-3">
+            <h3 className="text-sm font-semibold text-gray-900 mb-3">Access History</h3>
+            <div className="space-y-2">
+              <div className="text-xs text-gray-600">
+                <p className="font-medium text-gray-700">No access history available</p>
+                <p className="text-gray-500 mt-1">Access history will appear here once changes are made.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Usage History Section */}
+          <div className="border border-gray-200 rounded-lg p-3">
+            <h3 className="text-sm font-semibold text-gray-900 mb-3">Usage History</h3>
+            <div className="space-y-2">
+              <div className="text-xs text-gray-600">
+                <p className="font-medium text-gray-700">No usage history available</p>
+                <p className="text-gray-500 mt-1">Usage history will appear here once activity is recorded.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -2,25 +2,23 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState, useEffect } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronDown, ChevronRight, ChevronLeft } from 'lucide-react';
 import {navLinks as navigation, NavItem} from './Navi';
 import { useLeftSidebar } from '@/contexts/LeftSidebarContext';
 
 export function Navigation() {
   const pathname = usePathname();
-  const [isHovered, setIsHovered] = useState(false);
+  const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const { isVisible } = useLeftSidebar();
 
-  // Reset hover state when pathname changes (navigation occurs)
-  useEffect(() => {
-    setIsHovered(false);
-  }, [pathname]);
-
   const handleLinkClick = () => {
-    // Reset hover state immediately when a link is clicked
-    setIsHovered(false);
+    // No-op - removed hover reset logic
+  };
+
+  const toggleExpand = () => {
+    setIsSidebarExpanded(prev => !prev);
   };
 
   const toggleExpanded = (itemName: string) => {
@@ -54,38 +52,15 @@ export function Navigation() {
 
   return (
     <div 
-      className={`bg-white border-r border-gray-200 flex flex-col items-center transition-all duration-300 ease-in-out ${
-        isHovered ? 'w-[240px]' : 'w-16'
-      }`}
+      className="bg-white border-r border-gray-200 flex flex-col relative"
       style={{
-        minHeight: '100vh',
-        padding: '16px 0 24px 0',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: '8px'
+        height: '100vh',
+        width: isSidebarExpanded ? '240px' : '64px',
+        transition: 'width 300ms ease-in-out'
       }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
     >
-      {/* Logo Section */}
-      {/* <div className="flex items-center px-5 py-4 border-b border-gray-200 bg-[#27B973]">
-        <div className="flex items-center gap-2">
-          <svg 
-            xmlns="http://www.w3.org/2000/svg" 
-            width="28" 
-            height="23" 
-            viewBox="0 0 28 23" 
-            fill="none"
-          >
-            <path d="M14.5404 22.6392C20.7986 21.0898 24.5947 14.8443 23.0193 8.68939C21.4438 2.5345 15.0934 -1.199 8.8352 0.350432C2.577 1.89986 -1.21912 8.14548 0.356317 14.3004C1.93175 20.4552 8.28216 24.1887 14.5404 22.6392Z" fill="#F5CB39"/>
-            <path d="M23.322 0.00923857V23H28V0.00923857H23.322Z" fill="#FCA311"/>
-          </svg>
-          {isHovered && <span className="text-black font-bold text-xl">KeyForge</span>}
-        </div>
-      </div> */}
-
       {/* Navigation Links */}
-      <nav className="flex flex-col px-4 py-6 space-y-1">
+      <nav className="flex flex-col px-4 py-6 space-y-1 flex-1 w-full items-center" style={{ gap: '8px' }}>
         {navigation.map((item) => {
           const Icon = item.icon;
           const isActive = isItemActive(item);
@@ -107,7 +82,7 @@ export function Navigation() {
                       isActive 
                         ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600' 
                         : 'hover:bg-gray-50'
-                    } ${!isHovered ? 'justify-center' : ''}`}
+                    } ${!isSidebarExpanded ? 'justify-center' : ''}`}
                     style={{
                       color: isActive ? '#2563eb' : 'var(--text-icons-base-second, #68727D)',
                       fontFamily: 'Inter',
@@ -116,7 +91,7 @@ export function Navigation() {
                       fontWeight: '600',
                       lineHeight: '22px'
                     }}
-                    title={!isHovered ? item.name : undefined}
+                    title={!isSidebarExpanded ? item.name : undefined}
                   >
                     <Icon 
                       className="h-5 w-5 flex-shrink-0" 
@@ -124,8 +99,8 @@ export function Navigation() {
                         color: isActive ? '#2563eb' : 'var(--text-icons-base-second, #68727D)'
                       }}
                     />
-                    {isHovered && <span>{item.name}</span>}
-                    {isHovered && (
+                    {isSidebarExpanded && <span>{item.name}</span>}
+                    {isSidebarExpanded && (
                       <div className="ml-auto">
                         {isExpanded ? (
                           <ChevronDown className="h-4 w-4" />
@@ -144,7 +119,7 @@ export function Navigation() {
                       isActive 
                         ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600' 
                         : 'hover:bg-gray-50'
-                    } ${!isHovered ? 'justify-center' : ''}`}
+                    } ${!isSidebarExpanded ? 'justify-center' : ''}`}
                     style={{
                       color: isActive ? '#2563eb' : 'var(--text-icons-base-second, #68727D)',
                       fontFamily: 'Inter',
@@ -153,7 +128,7 @@ export function Navigation() {
                       fontWeight: '600',
                       lineHeight: '22px'
                     }}
-                    title={!isHovered ? item.name : undefined}
+                    title={!isSidebarExpanded ? item.name : undefined}
                   >
                     <Icon 
                       className="h-5 w-5 flex-shrink-0" 
@@ -161,13 +136,13 @@ export function Navigation() {
                         color: isActive ? '#2563eb' : 'var(--text-icons-base-second, #68727D)'
                       }}
                     />
-                    {isHovered && <span>{item.name}</span>}
+                    {isSidebarExpanded && <span>{item.name}</span>}
                   </Link>
                 )}
               </div>
 
               {/* Sub Items */}
-              {hasSubItems && isExpanded && isHovered && (
+              {hasSubItems && expandedItems.has(item.name) && isSidebarExpanded && (
                 <div className="ml-6 mt-1 space-y-1">
                   {item.subItems!.map((subItem) => {
                     const SubIcon = subItem.icon;
@@ -207,6 +182,24 @@ export function Navigation() {
             </div>
           );
         })}
+        
+        {/* Expand/Collapse Arrow Button - Just below last item */}
+        <div className="flex justify-center items-center w-full mt-2">
+          <button
+            onClick={toggleExpand}
+            className="flex items-center justify-center w-10 h-10 rounded-md hover:bg-blue-600 transition-colors bg-blue-500 shadow-sm"
+            title={isSidebarExpanded ? "Collapse sidebar" : "Expand sidebar"}
+            style={{
+              color: '#ffffff'
+            }}
+          >
+            {isSidebarExpanded ? (
+              <ChevronLeft className="h-5 w-5" />
+            ) : (
+              <ChevronRight className="h-5 w-5" />
+            )}
+          </button>
+        </div>
       </nav>
     </div>
   );

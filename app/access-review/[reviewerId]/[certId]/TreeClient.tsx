@@ -22,14 +22,12 @@ import SelectAll from "@/components/agTable/SelectAll";
 import CustomPagination from "@/components/agTable/CustomPagination";
 import ColumnSettings from "@/components/agTable/ColumnSettings";
 import Filters from "@/components/agTable/Filters";
-import Exports from "@/components/agTable/Exports";
 import ActionButtons from "@/components/agTable/ActionButtons";
 import { useCertificationDetails, fetchAccessDetails } from "@/hooks/useApi";
 import { getLineItemDetails } from "@/lib/api";
 import { EntitlementInfo } from "@/types/lineItem";
 import { UserRowData } from "@/types/certification";
 import {
-  CheckCircleIcon,
   Flag,
   User,
   ChevronRight,
@@ -39,7 +37,6 @@ import {
   CheckCircle,
   MoreVertical,
 } from "lucide-react";
-import Import from "@/components/agTable/Import";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import "./TreeClient.css";
@@ -899,11 +896,18 @@ const TreeClient: React.FC<TreeClientProps> = ({
 
   // Handle filter selection
   const handleFilterToggle = useCallback((filterName: string) => {
-    setSelectedFilters((prev) =>
-      prev.includes(filterName)
-        ? prev.filter((f) => f !== filterName)
-        : [...prev, filterName]
-    );
+    if (filterName === "All") {
+      // If "All" is clicked, clear all filters
+      setSelectedFilters([]);
+    } else {
+      setSelectedFilters((prev) => {
+        const newFilters = prev.includes(filterName)
+          ? prev.filter((f) => f !== filterName)
+          : [...prev, filterName];
+        // If no filters selected after toggle, it means we're back to "All"
+        return newFilters;
+      });
+    }
   }, []);
 
   // Handle filter changes from Filters component
@@ -1070,6 +1074,10 @@ const TreeClient: React.FC<TreeClientProps> = ({
 
   const filterOptions = [
     {
+      name: "All",
+      color: "bg-gray-100 border-gray-300 text-gray-800",
+    },
+    {
       name: "Dormant Access",
       color: "bg-yellow-100 border-yellow-300 text-yellow-800",
     },
@@ -1117,9 +1125,17 @@ const TreeClient: React.FC<TreeClientProps> = ({
               </div>
             );
           }
+          const risk = String(itemRisk || "").toLowerCase().trim();
+          const isHighRisk = risk === "high" || risk === "critical";
+          const textColor = isHighRisk ? "#dc2626" : undefined;
           return (
             <div className="flex h-full py-1">
-              <span className="text-xs mt-3 font-bold">{entitlementName}</span>
+              <span 
+                className="text-xs mt-3 font-bold"
+                style={textColor ? { color: textColor } : {}}
+              >
+                {entitlementName}
+              </span>
             </div>
           );
         },
@@ -1130,14 +1146,22 @@ const TreeClient: React.FC<TreeClientProps> = ({
         headerName: "Account",
         width: 180,
         cellRenderer: (params: ICellRendererParams) => {
-          const { user, accountType, SoDConflicts } = params.data || {};
+          const { user, accountType, SoDConflicts, itemRisk } = params.data || {};
           const typeLabel = accountType || "Regular";
           const hasViolation = SoDConflicts && SoDConflicts.length > 0;
+          const risk = String(itemRisk || "").toLowerCase().trim();
+          const isHighRisk = risk === "high" || risk === "critical";
+          const textColor = isHighRisk ? "#dc2626" : undefined;
           const lines = user?.split?.("\n") ?? ["", ""];
           return (
             <div className="flex items-center gap-4 font-normal text-sm mt-2">
               <div className="flex items-center gap-2">
-                <span className="font-normal text-sm">{lines[0]}</span>
+                <span 
+                  className="font-normal text-sm"
+                  style={textColor ? { color: textColor } : {}}
+                >
+                  {lines[0]}
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 {}
@@ -1149,7 +1173,12 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     <Flag height={10} color="red" className="text-sm" />
                   </div>
                 )}
-                <span className="font-normal text-sm">{lines[1]}</span>
+                <span 
+                  className="font-normal text-sm"
+                  style={textColor ? { color: textColor } : {}}
+                >
+                  {lines[1]}
+                </span>
               </div>
             </div>
           );
@@ -1271,8 +1300,30 @@ const TreeClient: React.FC<TreeClientProps> = ({
       },
       {
         headerName: "Actions",
-        width: 260,
+        width: 300,
         cellRenderer: (params: ICellRendererParams) => {
+          // Extract email from user field, selectedUser, or row data
+          const userField = params.data?.user || "";
+          const emailMatch = userField.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+          // Try multiple sources for email, use selectedUser as fallback since all rows are for the same user
+          let userEmail = emailMatch 
+            ? emailMatch[1] 
+            : (params.data?.email || selectedUser?.email || selectedUser?.username || "");
+          
+          // If still no email, use default for testing
+          if (!userEmail && selectedUser?.fullName) {
+            // Try to construct email from fullName (fallback)
+            const nameParts = selectedUser.fullName.split(' ');
+            if (nameParts.length > 0) {
+              userEmail = nameParts[0] + '@umassp.edu';
+            }
+          }
+          
+          // Final fallback
+          if (!userEmail) {
+            userEmail = "SAddala@umassp.edu";
+          }
+
           return (
             <ActionButtons
               api={params.api}
@@ -1280,6 +1331,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
               context="entitlement"
               reviewerId={reviewerId}
               certId={certId}
+              userEmail={userEmail}
               onActionSuccess={() => {
                 // Fully refresh users and entitlements
                 refreshUsersAndEntitlements();
@@ -1493,9 +1545,29 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     )}
                   </div>
                   <div className="flex flex-col min-w-0">
-                    <h4 className="text-lg font-bold text-gray-900 truncate">
-                      {selectedUser.fullName || "Unknown User"}
-                    </h4>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <h4 className="text-lg font-bold text-gray-900 truncate">
+                        {selectedUser.fullName || "Unknown User"}
+                      </h4>
+                      <div className="flex items-center space-x-2 ml-4">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                        <span className="text-xs font-medium text-gray-500">
+                          Job Title:
+                        </span>
+                        <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800">
+                          {selectedUser.jobtitle || "Unknown"}
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                        <span className="text-xs font-medium text-gray-500">
+                          Department:
+                        </span>
+                        <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-purple-100 text-purple-800">
+                          {selectedUser.department || "Unknown"}
+                        </span>
+                      </div>
+                    </div>
                     {/* User Progress Display */}
                     <div className="flex items-center gap-2 mt-1">
                       {(() => {
@@ -1527,89 +1599,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       {selectedUser.status || "ACTIVE"}
                     </span>
                   </div>
-                  <button
-                    className="flex items-center px-3 py-2 text-white rounded-md hover:bg-blue-700 transition-colors duration-200 text-xs font-medium"
-                    title="Open in Microsoft Teams"
-                  >
-                    <svg
-                      width="32px"
-                      height="32px"
-                      viewBox="0 0 16 16"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                    >
-                      <path
-                        fill="#5059C9"
-                        d="M10.765 6.875h3.616c.342 0 .619.276.619.617v3.288a2.272 2.272 0 01-2.274 2.27h-.01a2.272 2.272 0 01-2.274-2.27V7.199c0-.179.145-.323.323-.323zM13.21 6.225c.808 0 1.464-.655 1.464-1.462 0-.808-.656-1.463-1.465-1.463s-1.465.655-1.465 1.463c0 .807.656 1.462 1.465 1.462z"
-                      />
-                      <path
-                        fill="#7B83EB"
-                        d="M8.651 6.225a2.114 2.114 0 002.117-2.112A2.114 2.114 0 008.65 2a2.114 2.114 0 00-2.116 2.112c0 1.167.947 2.113 2.116 2.113zM11.473 6.875h-5.97a.611.611 0 00-.596.625v3.75A3.669 3.669 0 008.488 15a3.669 3.669 0 003.582-3.75V7.5a.611.611 0 00-.597-.625z"
-                      />
-                      <path
-                        fill="#000000"
-                        d="M8.814 6.875v5.255a.598.598 0 01-.596.595H5.193a3.951 3.951 0 01-.287-1.476V7.5a.61.61 0 01.597-.624h3.31z"
-                        opacity=".1"
-                      />
-                      <path
-                        fill="#000000"
-                        d="M8.488 6.875v5.58a.6.6 0 01-.596.595H5.347a3.22 3.22 0 01-.267-.65 3.951 3.951 0 01-.172-1.15V7.498a.61.61 0 01.596-.624h2.985z"
-                        opacity=".2"
-                      />
-                      <path
-                        fill="#000000"
-                        d="M8.488 6.875v4.93a.6.6 0 01-.596.595H5.08a3.951 3.951 0 01-.172-1.15V7.498a.61.61 0 01.596-.624h2.985z"
-                        opacity=".2"
-                      />
-                      <path
-                        fill="#000000"
-                        d="M8.163 6.875v4.93a.6.6 0 01-.596.595H5.079a3.951 3.951 0 01-.172-1.15V7.498a.61.61 0 01.596-.624h2.66z"
-                        opacity=".2"
-                      />
-                      <path
-                        fill="#000000"
-                        d="M8.814 5.195v1.024c-.055.003-.107.006-.163.006-.055 0-.107-.003-.163-.006A2.115 2.115 0 016.593 4.6h1.625a.598.598 0 01.596.594z"
-                        opacity=".1"
-                      />
-                      <path
-                        fill="#000000"
-                        d="M8.488 5.52v.699a2.115 2.115 0 01-1.79-1.293h1.195a.598.598 0 01.595.594z"
-                        opacity=".2"
-                      />
-                      <path
-                        fill="#000000"
-                        d="M8.488 5.52v.699a2.115 2.115 0 01-1.79-1.293h1.195a.598.598 0 01.595.594z"
-                        opacity=".2"
-                      />
-                      <path
-                        fill="#000000"
-                        d="M8.163 5.52v.647a2.115 2.115 0 01-1.465-1.242h.87a.598.598 0 01.595.595z"
-                        opacity=".2"
-                      />
-                      <path
-                        fill="url(#microsoft-teams-color-16__paint0_linear_2372_494)"
-                        d="M1.597 4.925h5.969c.33 0 .597.267.597.596v5.958a.596.596 0 01-.597.596h-5.97A.596.596 0 011 11.479V5.521c0-.33.267-.596.597-.596z"
-                      />
-                      <path
-                        fill="#ffffff"
-                        d="M6.152 7.193H4.959v3.243h-.76V7.193H3.01v-.63h3.141v.63z"
-                      />
-                      <defs>
-                        <linearGradient
-                          id="microsoft-teams-color-16__paint0_linear_2372_494"
-                          x1="2.244"
-                          x2="6.906"
-                          y1="4.46"
-                          y2="12.548"
-                          gradientUnits="userSpaceOnUse"
-                        >
-                          <stop stopColor="#5A62C3" />
-                          <stop offset=".5" stopColor="#4D55BD" />
-                          <stop offset="1" stopColor="#3940AB" />
-                        </linearGradient>
-                      </defs>
-                    </svg>
-                  </button>
                   <button
                     className="flex items-center space-x-2 px-3 py-2 bg-[#27B973] text-white rounded-md hover:bg-purple-700 transition-all duration-200 text-xs font-medium"
                     title="AI Assist Analysis"
@@ -1674,30 +1663,9 @@ const TreeClient: React.FC<TreeClientProps> = ({
                 </div>
               </div>
 
-              {/* Lower section: Job Title, Department, Risk and Filters */}
+              {/* Lower section: Filters and Controls */}
               <div className="mt-3 pt-3 border-t border-gray-200">
-                <div className="flex items-center gap-3 flex-wrap mb-2">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                    <span className="text-xs font-medium text-gray-500">
-                      Job Title:
-                    </span>
-                    <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800">
-                      {selectedUser.jobtitle || "Unknown"}
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-2 ml-4">
-                    <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                    <span className="text-xs font-medium text-gray-500">
-                      Department:
-                    </span>
-                    <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-purple-100 text-purple-800">
-                      {selectedUser.department || "Unknown"}
-                    </span>
-                  </div>
-                  {}
-                </div>
-                <div className="flex items-center gap-2 mt-4 flex-wrap">
+                <div className="flex items-center gap-2 mb-3 flex-wrap">
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
                     <span className="text-xs font-bold text-gray-500">
@@ -1705,7 +1673,10 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     </span>
                   </div>
                   {filterOptions.map((filter) => {
-                    const isSelected = selectedFilters.includes(filter.name);
+                    // "All" is selected when no other filters are selected
+                    const isSelected = filter.name === "All" 
+                      ? selectedFilters.length === 0
+                      : selectedFilters.includes(filter.name);
                     return (
                       <div
                         key={filter.name}
@@ -1724,73 +1695,58 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     );
                   })}
                 </div>
-              </div>
-            </div>
-
-            {/* Entitlements Table Controls */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <div className="flex items-center gap-4">
-                <SelectAll
-                  gridApi={entitlementsGridApiRef.current}
-                  detailGridApis={new Map()}
-                  clearDetailGridApis={() => {}}
-                  context="entitlement"
-                  reviewerId={reviewerId}
-                  certId={certId}
-                />
-                <input
-                  type="text"
-                  placeholder="Search entitlements..."
-                  className="border rounded px-3 py-1"
-                  onChange={(e) => {
-                    if (entitlementsGridApiRef.current) {
-                      entitlementsGridApiRef.current.setGridOption(
-                        "quickFilterText",
-                        e.target.value
-                      );
-                    }
-                  }}
-                />
-                <Filters 
-                  appliedFilter={handleAppliedFilter}
-                  onFilterChange={handleAccountFilterChange}
-                  context="status"
-                  initialSelected="Pending"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <Import gridApi={entitlementsGridApiRef.current} />
-                <Exports gridApi={entitlementsGridApiRef.current} />
-                <button
-                  title="Sign Off"
-                  aria-label="Sign off selected rows"
-                  className="p-1 rounded transition-colors duration-200"
-                >
-                  <CheckCircleIcon
-                    className="cursor-pointer"
-                    strokeWidth="1"
-                    size="24"
-                    color="#e73c3cff"
-                  />
-                </button>
-                <ColumnSettings
-                  columnDefs={entitlementsColumnDefs}
-                  gridApi={entitlementsGridApiRef.current}
-                  visibleColumns={() => {
-                    const visibleCols: string[] = [];
-                    entitlementsColumnDefs.forEach((colDef) => {
-                      if (colDef.field) {
-                        visibleCols.push(colDef.field);
-                      }
-                    });
-                    return visibleCols;
-                  }}
-                />
+                {/* Entitlements Table Controls */}
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center gap-4 flex-wrap">
+                    <SelectAll
+                      gridApi={entitlementsGridApiRef.current}
+                      detailGridApis={new Map()}
+                      clearDetailGridApis={() => {}}
+                      context="entitlement"
+                      reviewerId={reviewerId}
+                      certId={certId}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Search entitlements..."
+                      className="border rounded px-3 py-1"
+                      onChange={(e) => {
+                        if (entitlementsGridApiRef.current) {
+                          entitlementsGridApiRef.current.setGridOption(
+                            "quickFilterText",
+                            e.target.value
+                          );
+                        }
+                      }}
+                    />
+                    <Filters 
+                      appliedFilter={handleAppliedFilter}
+                      onFilterChange={handleAccountFilterChange}
+                      context="status"
+                      initialSelected="Pending"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <ColumnSettings
+                      columnDefs={entitlementsColumnDefs}
+                      gridApi={entitlementsGridApiRef.current}
+                      visibleColumns={() => {
+                        const visibleCols: string[] = [];
+                        entitlementsColumnDefs.forEach((colDef) => {
+                          if (colDef.field) {
+                            visibleCols.push(colDef.field);
+                          }
+                        });
+                        return visibleCols;
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
             {/* Entitlements Grid */}
-            <div className="flex-1 p-4">
+            <div className="flex-1 p-4 pb-0">
               {loadingEntitlements ? (
                 <div className="flex items-center justify-center h-64">
                   <div className="text-gray-500">
@@ -1800,7 +1756,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
               ) : filteredEntitlements.length > 0 ? (
                 <>
                   {/* Pagination at top of table */}
-                  <div className="flex justify-center mb-2">
+                  <div className="flex justify-center [&>div]:rounded-b-none [&>div]:border-b-0">
                     <CustomPagination
                       totalItems={filteredEntitlements.length}
                       currentPage={entitlementsPageNumber}
@@ -1856,19 +1812,21 @@ const TreeClient: React.FC<TreeClientProps> = ({
 
             {/* Pagination at bottom of table */}
             {filteredEntitlements.length > 0 && (
-              <div className="flex justify-center">
-                <CustomPagination
-                  totalItems={filteredEntitlements.length}
-                  currentPage={entitlementsPageNumber}
-                  totalPages={Math.ceil(filteredEntitlements.length / pageSize)}
-                  pageSize={pageSize}
-                  onPageChange={handleEntitlementsPageChange}
-                  onPageSizeChange={(newPageSize) => {
-                    setPageSize(newPageSize);
-                    setEntitlementsPageNumber(1); // Reset to first page when changing page size
-                  }}
-                  pageSizeOptions={pageSizeSelector}
-                />
+              <div className="px-4 pb-6">
+                <div className="flex justify-center [&>div]:rounded-t-none [&>div]:border-t-0">
+                  <CustomPagination
+                    totalItems={filteredEntitlements.length}
+                    currentPage={entitlementsPageNumber}
+                    totalPages={Math.ceil(filteredEntitlements.length / pageSize)}
+                    pageSize={pageSize}
+                    onPageChange={handleEntitlementsPageChange}
+                    onPageSizeChange={(newPageSize) => {
+                      setPageSize(newPageSize);
+                      setEntitlementsPageNumber(1); // Reset to first page when changing page size
+                    }}
+                    pageSizeOptions={pageSizeSelector}
+                  />
+                </div>
               </div>
             )}
           </>

@@ -6,7 +6,6 @@ import {
   CircleOff,
   CircleX,
   Edit2Icon,
-  HistoryIcon,
   MoreVertical,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
@@ -39,6 +38,7 @@ interface ActionButtonsProps<T> {
   certId: string;
   viewChangeEnable?: boolean;
   onActionSuccess?: () => void; // Callback to notify parent of success
+  userEmail?: string; // User email for Teams link
 }
 
 const ActionButtons = <T extends { status?: string }>({
@@ -49,6 +49,7 @@ const ActionButtons = <T extends { status?: string }>({
   certId,
   viewChangeEnable,
   onActionSuccess,
+  userEmail,
 }: ActionButtonsProps<T>): JSX.Element => {
   const { queueAction } = useActionPanel();
   const { openSidebar, closeSidebar } = useRightSidebar();
@@ -62,7 +63,6 @@ const ActionButtons = <T extends { status?: string }>({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDelegateModalOpen, setIsDelegateModalOpen] = useState(false);
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
-  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [commentCategory, setCommentCategory] = useState("");
   const [commentSubcategory, setCommentSubcategory] = useState("");
@@ -253,11 +253,6 @@ const ActionButtons = <T extends { status?: string }>({
     setIsCommentModalOpen(true);
   };
 
-  const handleHistory = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsHistoryModalOpen(true);
-  };
-
   const handleSaveComment = () => {
     if (!commentText.trim()) return;
 
@@ -444,14 +439,60 @@ const ActionButtons = <T extends { status?: string }>({
           />
         </svg>
       </button>
+
       <button
-        onClick={handleHistory}
-        title="History"
-        aria-label="History"
-        className="p-1 rounded"
+        onClick={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          const email = userEmail || "SAddala@umassp.edu";
+          const teamsUrl = `https://teams.microsoft.com/l/chat/0/0?users=${email}&topicName=review&message=youthere`;
+          console.log("Opening Teams URL:", teamsUrl);
+          window.open(teamsUrl, '_blank', 'noopener,noreferrer');
+        }}
+        title="Open in Microsoft Teams"
+        aria-label="Open in Microsoft Teams"
+        className="p-1 rounded transition-colors duration-200 hover:bg-gray-100 flex-shrink-0 cursor-pointer"
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       >
-        <HistoryIcon strokeWidth="1" size="32" color="#ae14f6ff" />
-      </button>
+          <svg
+            width="28px"
+            height="28px"
+            viewBox="0 0 16 16"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+          >
+            <path
+              fill="#5059C9"
+              d="M10.765 6.875h3.616c.342 0 .619.276.619.617v3.288a2.272 2.272 0 01-2.274 2.27h-.01a2.272 2.272 0 01-2.274-2.27V7.199c0-.179.145-.323.323-.323zM13.21 6.225c.808 0 1.464-.655 1.464-1.462 0-.808-.656-1.463-1.465-1.463s-1.465.655-1.465 1.463c0 .807.656 1.462 1.465 1.462z"
+            />
+            <path
+              fill="#7B83EB"
+              d="M8.651 6.225a2.114 2.114 0 002.117-2.112A2.114 2.114 0 008.65 2a2.114 2.114 0 00-2.116 2.112c0 1.167.947 2.113 2.116 2.113zM11.473 6.875h-5.97a.611.611 0 00-.596.625v3.75A3.669 3.669 0 008.488 15a3.669 3.669 0 003.582-3.75V7.5a.611.611 0 00-.597-.625z"
+            />
+            <path
+              fill="url(#microsoft-teams-color-16__paint0_linear_2372_494)"
+              d="M1.597 4.925h5.969c.33 0 .597.267.597.596v5.958a.596.596 0 01-.597.596h-5.97A.596.596 0 011 11.479V5.521c0-.33.267-.596.597-.596z"
+            />
+            <path
+              fill="#ffffff"
+              d="M6.152 7.193H4.959v3.243h-.76V7.193H3.01v-.63h3.141v.63z"
+            />
+            <defs>
+              <linearGradient
+                id="microsoft-teams-color-16__paint0_linear_2372_494"
+                x1="2.244"
+                x2="6.906"
+                y1="4.46"
+                y2="12.548"
+                gradientUnits="userSpaceOnUse"
+              >
+                <stop stopColor="#5A62C3" />
+                <stop offset=".5" stopColor="#4D55BD" />
+                <stop offset="1" stopColor="#3940AB" />
+              </linearGradient>
+            </defs>
+          </svg>
+        </button>
 
       {}
 
@@ -688,34 +729,6 @@ const ActionButtons = <T extends { status?: string }>({
           document.body
         )}
 
-      {/* History Modal */}
-      {isHistoryModalOpen &&
-        createPortal(
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-3">
-            <div className="bg-white p-4 rounded-lg shadow-lg max-w-sm w-full mx-4">
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">History</h3>
-              </div>
-              <div className="mb-2">
-                <textarea
-                  value={"Previous History.."}
-                  readOnly
-                  disabled
-                  className="w-full h-24 px-3 py-2 border border-gray-200 rounded-md resize-none bg-gray-100 text-gray-500"
-                />
-              </div>
-              <div className="mt-3 flex justify-end">
-                <button
-                  onClick={() => setIsHistoryModalOpen(false)}
-                  className="px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>,
-          document.body
-        )}
     </div>
   );
 };

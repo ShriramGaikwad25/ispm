@@ -7,7 +7,6 @@ import { formatDateMMDDYY as formatDateShared } from "@/utils/utils";
 import { defaultColDef } from "@/components/dashboard/columnDefs";
 import CustomPagination from "@/components/agTable/CustomPagination";
 import ColumnSettings from "@/components/agTable/ColumnSettings";
-import IndividualRowSelection from "@/components/agTable/IndividualRowSelection";
 import {
   GridApi,
   GetRowIdParams,
@@ -64,9 +63,9 @@ const HorizontalProgressRenderer = (props: any) => {
 const DetailCellRenderer = (props: IDetailCellRendererParams) => {
   const description = props.data?.description || "No description available";
   return (
-    <div className="flex p-2 bg-gray-40 border-b border-gray-200 ml-16">
-      <div className="flex flex-row items-center gap-2">
-        <span className="text-gray-800 text-sm break-words break-all whitespace-pre-wrap">
+    <div className="flex p-3 bg-gray-50 border-t border-gray-200 w-full">
+      <div className="flex flex-col w-full">
+        <span className="text-gray-800 text-sm break-words whitespace-pre-wrap">
           {description}
         </span>
       </div>
@@ -112,7 +111,6 @@ const OpenTab: React.FC = () => {
     top: number;
     left: number;
   }>({ top: 0, left: 0 });
-  const [selectedRows, setSelectedRows] = useState<any[]>([]);
 
   const activeColumnDefs = useMemo<ColDef[]>(() =>[
     {
@@ -121,14 +119,7 @@ const OpenTab: React.FC = () => {
       width: 400,
       wrapText: true,
       autoHeight: true,
-      cellRenderer: (params: any) => (
-        <div className="flex flex-col gap-2">
-          <span className="text-gray-800 font-medium">{params.value}</span>
-          <span className="text-gray-500 text-sm leading-tight">
-            {params.data?.description || "No description available"}
-          </span>
-        </div>
-      ),
+      cellStyle: { fontWeight: 'bold' },
       onCellClicked: handleRowClick,
     },
     { 
@@ -157,7 +148,6 @@ const OpenTab: React.FC = () => {
       width: 250,
       hide: true,
     },
-    { headerName: "Description", field: "certificationDescription", width: 250, hide: true },
     { headerName: "Tags", field: "tags", width: 250, hide: true },
     {
       headerName: "Created On",
@@ -209,6 +199,19 @@ const OpenTab: React.FC = () => {
             disabled={isActionLoading}
           >
             <DownloadIcon
+              className="cursor-pointer"
+              strokeWidth="1"
+              size="24"
+            />
+          </button>
+          <button
+            title="Upload"
+            aria-label="Upload file"
+            className="p-1 rounded transition-colors duration-200"
+            onClick={handleUpload}
+            disabled={isActionLoading}
+          >
+            <Upload
               className="cursor-pointer"
               strokeWidth="1"
               size="24"
@@ -498,13 +501,6 @@ const OpenTab: React.FC = () => {
     }
   }
 
-  const handleSelectionChanged = () => {
-    if (gridApi) {
-      const selectedNodes = gridApi.getSelectedNodes();
-      const selectedData = selectedNodes.map(node => node.data);
-      setSelectedRows(selectedData);
-    }
-  };
 
   return (
     <>
@@ -539,23 +535,6 @@ const OpenTab: React.FC = () => {
           >
             <Filter className="w-4 h-4 text-gray-600" />
           </button>
-          {selectedRows.length > 0 && (
-            <div className="flex items-center gap-2 ml-2 pl-2 border-l border-gray-300">
-              <span className="text-sm text-gray-600">{selectedRows.length} selected</span>
-              <button 
-                title="Sign Off Selected"
-                className="p-2 hover:bg-gray-300 rounded-md transition-colors"
-              >
-                <CheckCircleIcon className="w-4 h-4 text-red-600" />
-              </button>
-              <button 
-                title="Download Selected"
-                className="p-2 hover:bg-gray-300 rounded-md transition-colors"
-              >
-                <DownloadIcon className="w-4 h-4 text-gray-600" />
-              </button>
-            </div>
-          )}
           {isFilterMenuOpen &&
             createPortal(
               <div
@@ -642,13 +621,6 @@ const OpenTab: React.FC = () => {
         </div>
       </div>
       
-      <div className="flex items-center justify-end mb-2 relative z-10">
-        <IndividualRowSelection
-          gridApi={gridApi}
-          detailGridApis={detailGridApis}
-        />
-      </div>
-      
       {/* Top pagination */}
       <div className="mb-2">
         <CustomPagination
@@ -674,13 +646,9 @@ const OpenTab: React.FC = () => {
           domLayout="autoHeight"
           detailRowAutoHeight={true}
           masterDetail={true}
-          // detailCellRenderer={DetailCellRenderer}
+          detailCellRenderer={DetailCellRenderer}
           detailRowHeight={80}
           groupDefaultExpanded={-1} // Expand all groups by default
-          rowSelection={{
-            mode: "multiRow",
-            masterSelects: "detail",
-          }}
           onGridReady={(params) => {
             console.log("Grid initialized:", {
               api: !!params.api,
@@ -708,7 +676,6 @@ const OpenTab: React.FC = () => {
           overlayLoadingTemplate={`<span class="ag-overlay-loading-center">⏳ Loading certification data...</span>`}
           overlayNoRowsTemplate={`<span class="ag-overlay-loading-center">No data to display.</span>`}
           className="ag-main"
-          onSelectionChanged={handleSelectionChanged}
         />
         <div className="flex justify-center">
           <CustomPagination

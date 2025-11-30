@@ -30,8 +30,21 @@ body {
   /* Or if using a custom font family defined in tailwind.config.js */
 /* Assuming 'font-sans' is configured in tailwind.config.js */
 }
+html {
+  @apply overflow-auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+html::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
 body {
   @apply overflow-auto min-h-screen;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+body::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
 }
 .level_1 + .no_level {
   @apply border-white border-t;
@@ -108,6 +121,19 @@ body {
 .ag-header,
 div[role="row"] {
   @apply !bg-[#fff] !border-0;
+}
+
+/* AG Grid Header Cell Background - Apply to all AG Grid tables */
+.ag-header-cell {
+  background-color: #d3d3d3 !important;
+}
+
+.ag-theme-quartz .ag-header-cell {
+  background-color: #d3d3d3 !important;
+}
+
+.ag-theme-alpine .ag-header-cell {
+  background-color: #d3d3d3 !important;
 }
 
 .account-table-detail,

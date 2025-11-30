@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import HorizontalTabs from "@/components/HorizontalTabs";
 import OpenTab from "./OpenTab";
 import CompleteTab from "./CompleteTab";
-import { ChevronRight, ChevronDown } from "lucide-react";
+import { ChevronUp, ChevronDown } from "lucide-react";
 import { formatDateMMDDYY as formatDateShared } from "@/utils/utils";
 
 // Re-export the date formatter for other components that depend on it
@@ -18,13 +18,13 @@ const AccessReview: React.FC = () => {
       label: "Open",
       component: OpenTab,
       icon: ChevronDown,
-      iconOff: ChevronRight,
+      iconOff: ChevronUp,
     },
     {
       label: "Complete", 
       component: CompleteTab,
       icon: ChevronDown,
-      iconOff: ChevronRight,
+      iconOff: ChevronUp,
     },
   ];
 
