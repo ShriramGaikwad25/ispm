@@ -70,6 +70,8 @@ type CampaignData = {
 };
 
 type ReviewerRow = {
+  reviewerId: string;
+  certId: string;
   reviewerName: string;
   title: string;
   department: string;
@@ -114,18 +116,23 @@ export default function ManageCampaigns() {
         
         if (selectedCampaign && selectedCampaign.campaignReviewers) {
           // Transform campaignReviewers data to match the table structure
-          const transformedRows: ReviewerRow[] = selectedCampaign.campaignReviewers.map((reviewer: CampaignReviewer) => ({
-            reviewerName: reviewer.reviewerName,
-            title: reviewer.reviewerUserName, // Using username as title for now
-            department: "IT Governance", // Default department since not in API
-            progress: `${reviewer.percentageOfCompletedAction}%`,
-            riskScore: reviewer.numOfPendingActions > 0 ? "High" : "Low", // Risk based on pending actions
-            lastUpdate: reviewer.lastUpdateOn ? new Date(reviewer.lastUpdateOn).toLocaleDateString() : "N/A",
-            totalNumOfAccess: reviewer.totalNumOfAccess,
-            totalNumOfUsers: reviewer.totalNumOfUsers,
-            numOfPendingActions: reviewer.numOfPendingActions,
-            percentageOfCompletedAction: reviewer.percentageOfCompletedAction,
-          }));
+          const transformedRows: ReviewerRow[] = selectedCampaign.campaignReviewers.map((reviewer: CampaignReviewer) => {
+            const primaryCertification = reviewer.certifications?.[0];
+            return {
+              reviewerId: reviewer.reviewerId,
+              certId: primaryCertification?.certificationId || "",
+              reviewerName: reviewer.reviewerName,
+              title: reviewer.reviewerUserName, // Using username as title for now
+              department: "IT Governance", // Default department since not in API
+              progress: `${reviewer.percentageOfCompletedAction}%`,
+              riskScore: reviewer.numOfPendingActions > 0 ? "High" : "Low", // Risk based on pending actions
+              lastUpdate: reviewer.lastUpdateOn ? new Date(reviewer.lastUpdateOn).toLocaleDateString() : "N/A",
+              totalNumOfAccess: reviewer.totalNumOfAccess,
+              totalNumOfUsers: reviewer.totalNumOfUsers,
+              numOfPendingActions: reviewer.numOfPendingActions,
+              percentageOfCompletedAction: reviewer.percentageOfCompletedAction,
+            };
+          });
           setReviewerRows(transformedRows);
         } else {
           setReviewerRows([]);
@@ -178,7 +185,13 @@ export default function ManageCampaigns() {
         headerName: "Actions",
         width: 200,
         cellRenderer: (params: ICellRendererParams) => {
-          return <ChampaignActionButton />;
+          const row = params.data as ReviewerRow;
+          return (
+            <ChampaignActionButton
+              reviewerId={row.reviewerId}
+              certId={row.certId}
+            />
+          );
         },
       },
     ],

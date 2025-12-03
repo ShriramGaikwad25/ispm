@@ -15,7 +15,7 @@ const AgGridReact = dynamic(
 );
 import {
   ChevronDown,
-  ChevronRight,
+  ChevronUp,
   CircleCheck,
   CircleX,
   ArrowRightCircle,
@@ -1685,7 +1685,7 @@ export default function ApplicationDetailPage() {
     {
       label: "All",
       icon: ChevronDown,
-      iconOff: ChevronRight,
+      iconOff: ChevronUp,
       component: () => {
         return (
           <div
@@ -1833,7 +1833,7 @@ export default function ApplicationDetailPage() {
     {
       label: "Under Review",
       icon: ChevronDown,
-      iconOff: ChevronRight,
+      iconOff: ChevronUp,
       component: () => (
         <div className="ag-theme-alpine" style={{ width: "100%" }}>
           <div className="relative mb-4"></div>
@@ -2243,7 +2243,7 @@ export default function ApplicationDetailPage() {
     {
       label: "About",
       icon: ChevronDown,
-      iconOff: ChevronRight,
+      iconOff: ChevronUp,
       component: () => (
         <div className="p-6 bg-white">
           <Accordion title="Application Information" iconClass="text-blue-600">
@@ -2314,7 +2314,7 @@ export default function ApplicationDetailPage() {
               {isAttributeMappingExpanded ? (
                 <ChevronDown className="w-5 h-5 text-gray-500" />
               ) : (
-                <ChevronRight className="w-5 h-5 text-gray-500" />
+                <ChevronUp className="w-5 h-5 text-gray-500" />
               )}
             </div>
 
@@ -2669,7 +2669,7 @@ export default function ApplicationDetailPage() {
               {isHookExpanded ? (
                 <ChevronDown className="w-5 h-5 text-gray-500" />
               ) : (
-                <ChevronRight className="w-5 h-5 text-gray-500" />
+                <ChevronUp className="w-5 h-5 text-gray-500" />
               )}
             </div>
 
@@ -2735,7 +2735,7 @@ export default function ApplicationDetailPage() {
                     {isServiceExpanded ? (
                       <ChevronDown className="w-5 h-5 text-gray-500" />
                     ) : (
-                      <ChevronRight className="w-5 h-5 text-gray-500" />
+                      <ChevronUp className="w-5 h-5 text-gray-500" />
                     )}
                   </div>
 
@@ -2883,7 +2883,7 @@ export default function ApplicationDetailPage() {
                     {isSDKExpanded ? (
                       <ChevronDown className="w-5 h-5 text-gray-500" />
                     ) : (
-                      <ChevronRight className="w-5 h-5 text-gray-500" />
+                      <ChevronUp className="w-5 h-5 text-gray-500" />
                     )}
                   </div>
 
@@ -3031,7 +3031,7 @@ export default function ApplicationDetailPage() {
                     {isThresholdExpanded ? (
                       <ChevronDown className="w-5 h-5 text-gray-500" />
                     ) : (
-                      <ChevronRight className="w-5 h-5 text-gray-500" />
+                      <ChevronUp className="w-5 h-5 text-gray-500" />
                     )}
                   </div>
 
@@ -3142,19 +3142,19 @@ export default function ApplicationDetailPage() {
     {
       label: "Accounts",
       icon: ChevronDown,
-      iconOff: ChevronRight,
+      iconOff: ChevronUp,
       component: AccountsTabComponent,
     },
     {
       label: "Entitlements",
       icon: ChevronDown,
-      iconOff: ChevronRight,
+      iconOff: ChevronUp,
       component: EntitlementsTabComponent,
     },
     {
       label: "Sampling",
       icon: ChevronDown,
-      iconOff: ChevronRight,
+      iconOff: ChevronUp,
       component: () => {
         const [selectedApplication, setSelectedApplication] =
           useState<string>("");
@@ -3901,7 +3901,7 @@ export default function ApplicationDetailPage() {
                 {expandedFrames.general ? (
                   <ChevronDown size={20} className="mr-2" />
                 ) : (
-                  <ChevronRight size={20} className="mr-2" />
+                  <ChevronUp size={20} className="mr-2" />
                 )}
                 General
               </button>
@@ -3930,7 +3930,7 @@ export default function ApplicationDetailPage() {
                 {expandedFrames.business ? (
                   <ChevronDown size={20} className="mr-2" />
                 ) : (
-                  <ChevronRight size={20} className="mr-2" />
+                  <ChevronUp size={20} className="mr-2" />
                 )}
                 Business
               </button>
@@ -3967,7 +3967,7 @@ export default function ApplicationDetailPage() {
                 {expandedFrames.technical ? (
                   <ChevronDown size={20} className="mr-2" />
                 ) : (
-                  <ChevronRight size={20} className="mr-2" />
+                  <ChevronUp size={20} className="mr-2" />
                 )}
                 Technical
               </button>
@@ -4016,7 +4016,7 @@ export default function ApplicationDetailPage() {
                 {expandedFrames.security ? (
                   <ChevronDown size={20} className="mr-2" />
                 ) : (
-                  <ChevronRight size={20} className="mr-2" />
+                  <ChevronUp size={20} className="mr-2" />
                 )}
                 Security
               </button>
@@ -4073,7 +4073,7 @@ export default function ApplicationDetailPage() {
                 {expandedFrames.lifecycle ? (
                   <ChevronDown size={20} className="mr-2" />
                 ) : (
-                  <ChevronRight size={20} className="mr-2" />
+                  <ChevronUp size={20} className="mr-2" />
                 )}
                 Lifecycle
               </button>

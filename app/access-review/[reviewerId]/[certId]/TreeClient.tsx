@@ -179,6 +179,9 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);
   const hoverTimerRef = useRef<number | null>(null);
 
+  // When opened from Manage Campaign "View", we pass readonly=true in the URL
+  const isReadOnly = searchParams.get("readonly") === "true";
+
   const pageSizeSelector = [10, 20, 50, 100];
   const [pageSize, setPageSize] = useState(pageSizeSelector[0]);
   const [pageNumber, setPageNumber] = useState(() => {
@@ -1094,7 +1097,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
 
   // Entitlements column definitions
   const entitlementsColumnDefs = useMemo<ColDef[]>(
-    () => [
+    () => {
+      const cols: ColDef[] = [
       {
         field: "entitlementName",
         headerName: "Entitlement",
@@ -1298,10 +1302,13 @@ const TreeClient: React.FC<TreeClientProps> = ({
           openSidebar(panel, { widthPx: 500 });
         },
       },
-      {
-        headerName: "Actions",
-        width: 300,
-        cellRenderer: (params: ICellRendererParams) => {
+    ];
+
+      if (!isReadOnly) {
+        cols.push({
+          headerName: "Actions",
+          width: 300,
+          cellRenderer: (params: ICellRendererParams) => {
           // Extract email from user field, selectedUser, or row data
           const userField = params.data?.user || "";
           const emailMatch = userField.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
@@ -1342,9 +1349,12 @@ const TreeClient: React.FC<TreeClientProps> = ({
         sortable: false,
         filter: false,
         resizable: false,
-      },
-    ],
-    [certId, reviewerId]
+      });
+      }
+
+      return cols;
+    },
+    [certId, reviewerId, isReadOnly]
   );
 
   const defaultColDef = useMemo<ColDef>(
@@ -1698,14 +1708,16 @@ const TreeClient: React.FC<TreeClientProps> = ({
                 {/* Entitlements Table Controls */}
                 <div className="flex items-center justify-between flex-wrap gap-3">
                   <div className="flex items-center gap-4 flex-wrap">
-                    <SelectAll
-                      gridApi={entitlementsGridApiRef.current}
-                      detailGridApis={new Map()}
-                      clearDetailGridApis={() => {}}
-                      context="entitlement"
-                      reviewerId={reviewerId}
-                      certId={certId}
-                    />
+                    {!isReadOnly && (
+                      <SelectAll
+                        gridApi={entitlementsGridApiRef.current}
+                        detailGridApis={new Map()}
+                        clearDetailGridApis={() => {}}
+                        context="entitlement"
+                        reviewerId={reviewerId}
+                        certId={certId}
+                      />
+                    )}
                     <input
                       type="text"
                       placeholder="Search entitlements..."

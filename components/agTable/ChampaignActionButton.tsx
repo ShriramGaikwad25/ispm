@@ -7,8 +7,17 @@ import { createPortal } from "react-dom";
 import ProxyActionModal from "../ProxyActionModal";
 import { useLoading } from "@/contexts/LoadingContext";
 import ActionCompletedToast from "../ActionCompletedToast";
+import { useRouter } from "next/navigation";
 
-const ChampaignActionButton = () => {
+interface ChampaignActionButtonProps {
+  reviewerId?: string;
+  certId?: string;
+}
+
+const ChampaignActionButton: React.FC<ChampaignActionButtonProps> = ({
+  reviewerId,
+  certId,
+}) => {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -22,6 +31,7 @@ const ChampaignActionButton = () => {
   }>({ top: 0, left: 0 });
 
   const { showApiLoader, hideApiLoader } = useLoading();
+  const router = useRouter();
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -73,7 +83,16 @@ const ChampaignActionButton = () => {
     }
   };
 
-  const handleView = () => handleAction('View');
+  const handleView = () => {
+    if (reviewerId && certId) {
+      // Navigate to TreeClient page in read-only mode for this reviewer/certification
+      router.push(`/access-review/${reviewerId}/${certId}?readonly=true`);
+      return;
+    }
+
+    // Fallback to generic handler if identifiers are missing
+    handleAction("View");
+  };
   const handleSendReminder = () => handleAction('Send Reminder');
   const handleEscalate = () => handleAction('Escalate');
   const handleReassign = () => handleAction('Reassign');
