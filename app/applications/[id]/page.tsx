@@ -571,7 +571,7 @@ export default function ApplicationDetailPage() {
 
     try {
       const response = await fetch(
-        `https://preview.keyforge.ai/certification/api/v1/ACMEPOC/updateAction/${reviewerId}/CERT_ID`,
+        `https://preview.keyforge.ai/certification/api/v1/ACMECOM/updateAction/${reviewerId}/CERT_ID`,
         {
           method: "POST",
           headers: {
@@ -654,7 +654,7 @@ export default function ApplicationDetailPage() {
     const fetchData = async () => {
       try {
         const response = await fetch(
-          `https://preview.keyforge.ai/entities/api/v1/ACMEPOC/getAppAccounts/430ea9e6-3cff-449c-a24e-59c057f81e3d/${id}`
+          `https://preview.keyforge.ai/entities/api/v1/ACMECOM/getAppAccounts/430ea9e6-3cff-449c-a24e-59c057f81e3d/${id}`
         );
         const data = await response.json();
         console.log(data);
@@ -711,7 +711,7 @@ export default function ApplicationDetailPage() {
     const fetchEntitlementsData = async () => {
       try {
         const response = await fetch(
-          `https://preview.keyforge.ai/entities/api/v1/ACMEPOC/getAppEntitlements/ec527a50-0944-4b31-b239-05518c87a743/${id}`
+          `https://preview.keyforge.ai/entities/api/v1/ACMECOM/getAppEntitlements/ec527a50-0944-4b31-b239-05518c87a743/${id}`
         );
         const data = await response.json();
         console.log("Entitlements data:", data);
@@ -3159,7 +3159,6 @@ export default function ApplicationDetailPage() {
         const [selectedApplication, setSelectedApplication] =
           useState<string>("");
         const [userName, setUserName] = useState<string>("");
-        const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
         const [applications, setApplications] = useState<
           Array<{
             applicationId: string;
@@ -3239,6 +3238,39 @@ export default function ApplicationDetailPage() {
 
               if (merged.length > 0) {
                 setApplications(merged);
+
+                // Default to the current application (the one whose detail page we're on)
+                if (!selectedApplication) {
+                  let defaultApp =
+                    merged.find((app) => app.applicationId === id) || null;
+
+                  // Fallback: try matching by application name from localStorage
+                  if (!defaultApp) {
+                    try {
+                      const stored = localStorage.getItem("applicationDetails");
+                      if (stored) {
+                        const parsed = JSON.parse(stored);
+                        const storedName = parsed?.applicationName;
+                        if (storedName) {
+                          defaultApp = merged.find(
+                            (app) => app.applicationName === storedName
+                          ) as (typeof merged)[number] | null;
+                        }
+                      }
+                    } catch {
+                      // ignore localStorage/JSON errors
+                    }
+                  }
+
+                  // Fallback: if there's only one app, use it
+                  if (!defaultApp && merged.length === 1) {
+                    defaultApp = merged[0];
+                  }
+
+                  if (defaultApp) {
+                    setSelectedApplication(defaultApp.applicationName);
+                  }
+                }
               } else {
                 setError("Failed to fetch applications");
               }
@@ -3251,21 +3283,7 @@ export default function ApplicationDetailPage() {
           };
 
           fetchApplications();
-        }, []);
-
-        const handleApplicationSelect = (app: {
-          applicationId: string;
-          applicationName: string;
-        }) => {
-          setSelectedApplication(app.applicationName);
-          setIsDropdownOpen(false);
-          // Clear user name and response data when application changes
-          setUserName("");
-          setSearchResults([]);
-          setResponseBody(null);
-          setSearchError(null);
-          setSelectedUser(null);
-        };
+        }, [reviewerID, selectedApplication]);
 
         const handleGetResult = async () => {
           if (selectedApplication && userName) {
@@ -3320,91 +3338,11 @@ export default function ApplicationDetailPage() {
               style={{
                 display: "flex",
                 gap: "15px",
-                margin: "20px",
+                margin: "40px auto",
                 alignItems: "center",
                 justifyContent: "center",
               }}
             >
-              {/* Application Name Dropdown */}
-              <div className="relative">
-                <button
-                  onClick={() =>
-                    !loading && !error && setIsDropdownOpen(!isDropdownOpen)
-                  }
-                  disabled={loading || error}
-                  style={{
-                    padding: "8px 12px",
-                    width: "250px",
-                    border: "1px solid #ccc",
-                    borderRadius: "4px",
-                    fontSize: "14px",
-                    backgroundColor: loading || error ? "#f5f5f5" : "white",
-                    cursor: loading || error ? "not-allowed" : "pointer",
-                    textAlign: "left",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <span
-                    style={{ color: selectedApplication ? "#000" : "#999" }}
-                  >
-                    {loading
-                      ? "Loading applications..."
-                      : error
-                      ? "Error loading applications"
-                      : selectedApplication || "Select Application Name"}
-                  </span>
-                  <span style={{ fontSize: "12px" }}>▼</span>
-                </button>
-
-                {isDropdownOpen &&
-                  !loading &&
-                  !error &&
-                  applications.length > 0 && (
-                    <div
-                      style={{
-                        position: "absolute",
-                        top: "100%",
-                        left: 0,
-                        right: 0,
-                        backgroundColor: "white",
-                        border: "1px solid #ccc",
-                        borderTop: "none",
-                        borderRadius: "0 0 4px 4px",
-                        maxHeight: "200px",
-                        overflowY: "auto",
-                        zIndex: 1000,
-                        boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                      }}
-                    >
-                      {applications.map((app, index) => (
-                        <div
-                          key={app.applicationId}
-                          onClick={() => handleApplicationSelect(app)}
-                          style={{
-                            padding: "8px 12px",
-                            cursor: "pointer",
-                            fontSize: "14px",
-                            borderBottom:
-                              index < applications.length - 1
-                                ? "1px solid #f0f0f0"
-                                : "none",
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = "#f5f5f5";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = "white";
-                          }}
-                        >
-                          {app.applicationName}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-              </div>
-
               {/* User Name Input */}
               <input
                 type="text"
@@ -3418,39 +3356,33 @@ export default function ApplicationDetailPage() {
                   setSearchError(null);
                   setSelectedUser(null);
                 }}
-                disabled={!selectedApplication}
                 style={{
                   padding: "8px 12px",
-                  width: "200px",
+                  width: "260px",
                   border: "1px solid #ccc",
                   borderRadius: "4px",
                   fontSize: "14px",
-                  backgroundColor: selectedApplication ? "white" : "#f5f5f5",
-                  color: selectedApplication ? "#000" : "#999",
-                  cursor: selectedApplication ? "text" : "not-allowed",
+                  backgroundColor: "white",
+                  color: "#000",
                 }}
               />
 
               {/* Get Result Button */}
               <button
                 onClick={handleGetResult}
-                disabled={!selectedApplication || !userName || searchLoading}
+                disabled={!userName || searchLoading}
                 style={{
-                  padding: "8px 16px",
+                  padding: "8px 20px",
                   backgroundColor:
-                    selectedApplication && userName && !searchLoading
-                      ? "#007bff"
-                      : "#ccc",
+                    userName && !searchLoading ? "#007bff" : "#ccc",
                   color: "white",
                   border: "none",
                   borderRadius: "4px",
                   cursor:
-                    selectedApplication && userName && !searchLoading
-                      ? "pointer"
-                      : "not-allowed",
+                    userName && !searchLoading ? "pointer" : "not-allowed",
                   fontSize: "14px",
                   fontWeight: "500",
-                  minWidth: "100px",
+                  minWidth: "110px",
                 }}
               >
                 {searchLoading ? "Searching..." : "Get Result"}

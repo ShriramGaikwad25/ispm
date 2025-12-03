@@ -88,7 +88,7 @@ export default function Campaigns() {
         setIsLoading(true);
         setError(null);
         const res = await fetch(
-          "https://preview.keyforge.ai/certification/api/v1/CERTTEST/getCampaignAnalytics",
+          "https://preview.keyforge.ai/certification/api/v1/ACMECOM/getCampaignAnalytics",
           { cache: "no-store", signal: controller.signal }
         );
         if (!res.ok) {

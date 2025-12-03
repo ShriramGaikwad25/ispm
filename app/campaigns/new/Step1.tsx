@@ -37,7 +37,7 @@ type CombinedStep1FormData = {
 // Function to fetch templates from API
 const loadTemplates = async (inputValue: string) => {
   try {
-    const response = await fetch("https://preview.keyforge.ai/campaign/api/v1/ACMEPOC/getAllCampaigns", {
+    const response = await fetch("https://preview.keyforge.ai/campaign/api/v1/ACMECOM/getAllCampaigns", {
       method: "GET",
       headers: {
         "Content-Type": "application/json",

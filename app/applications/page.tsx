@@ -31,7 +31,7 @@ export default function Application() {
     setMounted(true);
     const fetchData = async () => {
       try {
-        const response = await fetch(`https://preview.keyforge.ai/entities/api/v1/ACMEPOC/getApplications/430ea9e6-3cff-449c-a24e-59c057f81e3d?page=${currentPage}&page_size=${pageSize}`);
+        const response = await fetch(`https://preview.keyforge.ai/entities/api/v1/ACMECOM/getApplications/430ea9e6-3cff-449c-a24e-59c057f81e3d?page=${currentPage}&page_size=${pageSize}`);
         // Fire parallel background requests alongside getApplications
         void fetch("https://preview.keyforge.ai/registerscimapp/registerfortenant/ACMECOM/getAllApplications").catch(() => null);
         void fetch("https://preview.keyforge.ai/schemamapper/getmappedschema/ACMECOM/16APLDOY").catch(() => null);

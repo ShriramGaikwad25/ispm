@@ -133,6 +133,32 @@ export function forceLogout(reason?: string): void {
   }
 }
 
+// Check if response contains token expired error and logout if found
+export function checkTokenExpiredError(data: any): boolean {
+  if (!data || typeof data !== 'object') {
+    return false;
+  }
+
+  // Check for the exact pattern: {"status":"error","errorMessage":"Token Expired"}
+  const status = data.status || data.Status || data.STATUS;
+  const errorMessage = data.errorMessage || data.error_message || data.errorMessage || data.ErrorMessage;
+
+  if (status === 'error' && errorMessage) {
+    const errorMsgStr = String(errorMessage).trim();
+    if (errorMsgStr === 'Token Expired' || errorMsgStr.toLowerCase() === 'token expired') {
+      console.error('🚨 TOKEN EXPIRED ERROR DETECTED - FORCING LOGOUT 🚨');
+      clearAllAuthCookies();
+      forceLogout('Token Expired');
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
+      return true;
+    }
+  }
+
+  return false;
+}
+
 // API functions
 export async function requestToken(userid: string, password: string): Promise<TokenResponse> {
   try {
@@ -384,6 +410,11 @@ export async function apiRequestWithAuth<T>(
         
         // Check if retry response has error status
         if (retryData && typeof retryData === 'object') {
+          // Check for token expired error first
+          if (checkTokenExpiredError(retryData)) {
+            throw new Error('Token Expired');
+          }
+          
           const retryStatus = retryData.status || retryData.Status || retryData.STATUS;
           if (retryStatus !== undefined && retryStatus !== null) {
             const retryStatusStr = String(retryStatus).toLowerCase().trim();
@@ -439,26 +470,14 @@ export async function apiRequestWithAuth<T>(
     const responseText = await response.clone().text();
     console.log('Raw API Response text (first 500 chars):', responseText.substring(0, 500));
     
-    // Check raw text for error indicators
-    const textLower = responseText.toLowerCase();
-    if (textLower.includes('"status":"error"') || 
-        textLower.includes('"status":"failed"') || 
-        textLower.includes('"status": "error"') ||
-        textLower.includes('"status": "failed"') ||
-        textLower.includes('"status":\'error\'') ||
-        textLower.includes('"status":\'failed\'')) {
-      console.error('🚨 ERROR STATUS DETECTED IN RAW TEXT - FORCING LOGOUT 🚨');
-      clearAllAuthCookies();
-      forceLogout('Error status detected in raw response text');
-      if (typeof window !== 'undefined') {
-        window.location.href = '/login';
-      }
-      throw new Error('Error status detected in response');
-    }
-    
     // Parse response as JSON - handle any type issues
     try {
       const data = JSON.parse(responseText);
+      
+      // Check for token expired error first (before other checks)
+      if (checkTokenExpiredError(data)) {
+        throw new Error('Token Expired');
+      }
       
       // Log the response for debugging
       console.log('API Response received:', data);
@@ -547,6 +566,10 @@ export async function apiRequestWithAuth<T>(
         // Check if the text contains status error
         try {
           const parsed = JSON.parse(text);
+          // Check for token expired error
+          if (checkTokenExpiredError(parsed)) {
+            throw new Error('Token Expired');
+          }
           if (parsed && typeof parsed === 'object') {
             const status = parsed.status;
             if (status !== undefined && status !== null) {

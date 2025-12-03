@@ -74,7 +74,7 @@ export const loadIspmApps = async (inputValue: string): Promise<App[]> => {
       return [];
     }
     const response = await fetch(
-      `https://preview.keyforge.ai/entities/api/v1/ACMEPOC/getApplications/${reviewerId}`
+      `https://preview.keyforge.ai/entities/api/v1/ACMECOM/getApplications/${reviewerId}`
     );
     if (!response.ok) throw new Error("Failed to fetch applications");
     const data = await response.json();

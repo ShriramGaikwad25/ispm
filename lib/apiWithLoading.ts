@@ -1,9 +1,10 @@
 import { LineItemDetail } from "@/types/lineItem";
 import { PaginatedResponse, CertAnalyticsResponse } from "@/types/api";
 import { getCertifications } from "@/lib/api";
+import { checkTokenExpiredError } from "./auth";
 
-const BASE_URL = "https://preview.keyforge.ai/certification/api/v1/ACMEPOC";
-const BASE_URL2 = "https://preview.keyforge.ai/entities/api/v1/ACMEPOC";
+const BASE_URL = "https://preview.keyforge.ai/certification/api/v1/ACMECOM";
+const BASE_URL2 = "https://preview.keyforge.ai/entities/api/v1/ACMECOM";
 
 export async function fetchApiWithLoading<T>(
   endpoint: string,
@@ -35,12 +36,25 @@ export async function fetchApiWithLoading<T>(
 
     if (!res.ok) {
       const errorBody = await res.text();
+      // Check if error body contains token expired error
+      try {
+        const errorData = JSON.parse(errorBody);
+        if (checkTokenExpiredError(errorData)) {
+          throw new Error('Token Expired');
+        }
+      } catch (e) {
+        // If parsing fails, continue with original error
+      }
       throw new Error(
         `Fetch failed: ${res.status} ${res.statusText}\n${errorBody}`
       );
     }
 
     const result = await res.json();
+    // Check for token expired error in successful responses
+    if (checkTokenExpiredError(result)) {
+      throw new Error('Token Expired');
+    }
     return result;
   } catch (error) {
     throw new Error(`API request failed: ${error.message}`);

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, Check, Upload } from "lucide-react";
 import { executeQuery } from "@/lib/api";
 import { useForm, Control, FieldValues, UseFormSetValue, UseFormWatch } from "react-hook-form";
@@ -19,6 +19,7 @@ interface FormData {
     groupName: string;
     description: string;
     owner: string;
+    category: string;
     tags: string;
     ownerIsReviewer: boolean;
   };
@@ -32,6 +33,7 @@ interface FormData {
 
 export default function CreateUserGroupPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [currentStep, setCurrentStep] = useState(1);
   const [validationStatus, setValidationStatus] = useState<boolean[]>([
     false,
@@ -45,6 +47,7 @@ export default function CreateUserGroupPage() {
       groupName: "",
       description: "",
       owner: "",
+      category: "",
       tags: "",
       ownerIsReviewer: false,
     },
@@ -61,6 +64,8 @@ export default function CreateUserGroupPage() {
     { id: 2, title: "Select Users" },
     { id: 3, title: "Review & Submit" },
   ];
+
+  const isEditMode = searchParams?.get("mode") === "edit";
 
   // Fetch users data
   useEffect(() => {
@@ -134,6 +139,38 @@ export default function CreateUserGroupPage() {
 
     fetchUsers();
   }, []);
+
+  // Prefill form in edit mode from selected user group (if available)
+  useEffect(() => {
+    if (!isEditMode) return;
+
+    try {
+      const stored = localStorage.getItem("selectedUserGroup");
+      if (!stored) return;
+
+      const group = JSON.parse(stored) as {
+        userGroup?: string;
+        description?: string;
+        owner?: string;
+        tags?: string;
+      };
+
+      setFormData((prev) => ({
+        ...prev,
+        step1: {
+          ...prev.step1,
+          groupName: group.userGroup || prev.step1.groupName,
+          description: group.description || prev.step1.description,
+          owner: group.owner || prev.step1.owner,
+          // Map tags into category for now; you can separate later when backend supports it
+          category: group.tags || prev.step1.category,
+          tags: group.tags || prev.step1.tags,
+        },
+      }));
+    } catch {
+      // Ignore JSON / localStorage errors
+    }
+  }, [isEditMode]);
 
   // Validate Step 1
   useEffect(() => {
@@ -247,7 +284,7 @@ export default function CreateUserGroupPage() {
   const handleSubmit = async () => {
     try {
       // Here you would send the form data to your API
-      console.log("Submitting user group:", formData);
+      console.log("Submitting user group:", JSON.stringify(formData));
       
       // Simulate API call
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -359,7 +396,7 @@ export default function CreateUserGroupPage() {
                   className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium"
                 >
                   <Check className="w-4 h-4 mr-2" />
-                  Submit
+                  {isEditMode ? "Modify" : "Submit"}
                 </button>
               )}
             </div>
@@ -410,6 +447,27 @@ export default function CreateUserGroupPage() {
                   : 'text-sm text-gray-500'
               }`}>
                 Description <span className="text-red-500">*</span>
+              </label>
+            </div>
+            <div className="relative">
+              <input
+                type="text"
+                value={formData.step1.category}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    step1: { ...prev.step1, category: e.target.value },
+                  }))
+                }
+                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                placeholder=" "
+              />
+              <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                formData.step1.category
+                  ? 'top-0.5 text-xs text-blue-600' 
+                  : 'top-3.5 text-sm text-gray-500'
+              }`}>
+                Category
               </label>
             </div>
             <div className="relative">
@@ -641,6 +699,12 @@ export default function CreateUserGroupPage() {
                 <span className="font-medium text-gray-700">Owner:</span>
                 <span className="ml-2 text-gray-900">
                   {formData.step1.owner}
+                </span>
+              </div>
+              <div>
+                <span className="font-medium text-gray-700">Category:</span>
+                <span className="ml-2 text-gray-900">
+                  {formData.step1.category || "N/A"}
                 </span>
               </div>
               <div>

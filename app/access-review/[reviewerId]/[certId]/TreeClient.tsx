@@ -1884,8 +1884,55 @@ const TreeClient: React.FC<TreeClientProps> = ({
           { value: "name", label: "Group Name" },
           { value: "role", label: "Role" },
         ]}
-        onSelectOwner={() => {
-          setIsReassignModalOpen(false);
+        onSelectOwner={async (owner) => {
+          try {
+            // Determine owner type and ID
+            const ownerType = owner.username ? "User" : "Group";
+            const ownerId = owner.id || (ownerType === "User" ? (owner.username || owner.email || "") : (owner.name || ""));
+
+            // Get taskId from selectedUser if available, otherwise use empty string
+            const taskId = selectedUser?.taskId || "";
+
+            // Construct the payload
+            const payload = {
+              reviewerName: selectedUser?.fullName || selectedUser?.username || reviewerId || "",
+              reviewerId: reviewerId,
+              certificationId: certId,
+              taskId: taskId,
+              lineItemId: "", // Not available at certification level
+              assignmentEntity: "User",
+              newOwnerDetails: {
+                id: ownerId,
+                type: ownerType,
+              },
+              justification: "Reassignment requested", // Default justification
+            };
+
+            // Make the API call
+            const response = await fetch(
+              `https://preview.keyforge.ai/certification/api/v1/ACMECOM/reassign/${reviewerId}/${certId}`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload),
+              }
+            );
+
+            if (!response.ok) {
+              throw new Error(`Reassign failed: ${response.statusText}`);
+            }
+
+            // Success
+            setIsReassignModalOpen(false);
+            
+            // Optionally refresh the data
+            refetchUsers();
+          } catch (error) {
+            console.error("Error reassigning certification:", error);
+            alert(`Failed to reassign: ${error instanceof Error ? error.message : "Unknown error"}`);
+          }
         }}
       />
     </div>

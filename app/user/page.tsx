@@ -7,7 +7,7 @@ import React, { useMemo, useRef, useState, useEffect } from "react";
 import { executeQuery } from "@/lib/api";
 import "@/lib/ag-grid-setup";
 import CustomPagination from "@/components/agTable/CustomPagination";
-import { Plus } from "lucide-react";
+import { Plus, Search, Pencil } from "lucide-react";
 import HorizontalTabs from "@/components/HorizontalTabs";
 
 
@@ -30,6 +30,7 @@ function UsersTab() {
   const [rowData, setRowData] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState<string>("");
   
   // Pagination state
   const pageSizeSelector = [10, 20, 50, 100];
@@ -145,18 +146,38 @@ function UsersTab() {
     fetchUsers();
   }, []);
 
+  // Filter data based on search term
+  const filteredData = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return rowData;
+    }
+    const searchLower = searchTerm.toLowerCase();
+    return rowData.filter((user) => {
+      return (
+        user.name?.toLowerCase().includes(searchLower) ||
+        user.email?.toLowerCase().includes(searchLower) ||
+        user.title?.toLowerCase().includes(searchLower) ||
+        user.department?.toLowerCase().includes(searchLower) ||
+        user.managerName?.toLowerCase().includes(searchLower) ||
+        user.tags?.toLowerCase().includes(searchLower)
+      );
+    });
+  }, [rowData, searchTerm]);
+
   // Calculate paginated data
   const paginatedData = useMemo(() => {
     const startIndex = (pageNumber - 1) * pageSize;
     const endIndex = startIndex + pageSize;
-    return rowData.slice(startIndex, endIndex);
-  }, [rowData, pageNumber, pageSize]);
+    return filteredData.slice(startIndex, endIndex);
+  }, [filteredData, pageNumber, pageSize]);
 
-  // Update total pages when page size changes
+  // Update total pages when page size changes or search term changes
   useEffect(() => {
-    setTotalPages(Math.ceil(totalItems / pageSize));
-    setPageNumber(1); // Reset to first page when page size changes
-  }, [pageSize, totalItems]);
+    const newTotalItems = filteredData.length;
+    setTotalItems(newTotalItems);
+    setTotalPages(Math.ceil(newTotalItems / pageSize));
+    setPageNumber(1); // Reset to first page when page size or search changes
+  }, [pageSize, filteredData.length]);
 
   // Pagination handlers
   const handlePageChange = (newPage: number) => {
@@ -294,10 +315,31 @@ const columnDefs = useMemo<ColDef[]>(
 
   return (
     <div className="ag-theme-alpine" style={{ width: "100%" }}>
+      {/* Search Bar */}
+      <div className="mb-4">
+        <div className="relative max-w-md">
+          <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+            <Search className="text-gray-400 w-5 h-5" />
+          </div>
+          <input
+            type="text"
+            placeholder="Search users by name, email, title, department..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+          />
+        </div>
+        {searchTerm && (
+          <p className="text-sm text-gray-600 mt-1">
+            Showing {filteredData.length} result(s) for "{searchTerm}"
+          </p>
+        )}
+      </div>
+
       {/* Top pagination */}
       <div className="mb-2">
         <CustomPagination
-          totalItems={totalItems}
+          totalItems={filteredData.length}
           currentPage={pageNumber}
           totalPages={totalPages}
           pageSize={pageSize}
@@ -324,7 +366,7 @@ const columnDefs = useMemo<ColDef[]>(
       {/* Bottom pagination */}
       <div className="mt-4 mb-4">
         <CustomPagination
-          totalItems={totalItems}
+          totalItems={filteredData.length}
           currentPage={pageNumber}
           totalPages={totalPages}
           pageSize={pageSize}
@@ -357,6 +399,7 @@ function UserGroupsTab() {
   const [rowData, setRowData] = useState<UserGroupData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchTermGroups, setSearchTermGroups] = useState<string>("");
   
   // Pagination state
   const pageSizeSelector = [10, 20, 50, 100];
@@ -364,6 +407,17 @@ function UserGroupsTab() {
   const [pageNumber, setPageNumber] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+
+  // Dummy default data for User Groups (until API is connected)
+  const defaultGroupData: UserGroupData[] = [
+    {
+      userGroup: "Operations - Managers",
+      description: "Managers within the Operations department responsible for approvals and escalations.",
+      owner: "ops.manager@acme.com",
+      noOfUsers: 12,
+      tags: "Operations",
+    },
+  ];
 
   // Fetch user groups data from API
   useEffect(() => {
@@ -376,16 +430,17 @@ function UserGroupsTab() {
         // const query = "SELECT * FROM user_groups";
         // const response = await executeQuery(query, []);
         
-        // Set empty data until API is connected
-        setRowData([]);
-        setTotalItems(0);
-        setTotalPages(0);
+        // Set dummy data until API is connected
+        setRowData(defaultGroupData);
+        setTotalItems(defaultGroupData.length);
+        setTotalPages(Math.ceil(defaultGroupData.length / pageSize));
       } catch (err) {
         console.error("Error fetching user groups:", err);
         setError(err instanceof Error ? err.message : "Failed to fetch user groups");
-        setRowData([]);
-        setTotalItems(0);
-        setTotalPages(0);
+        // On error, also fall back to dummy data
+        setRowData(defaultGroupData);
+        setTotalItems(defaultGroupData.length);
+        setTotalPages(Math.ceil(defaultGroupData.length / pageSize));
       } finally {
         setLoading(false);
       }
@@ -394,18 +449,46 @@ function UserGroupsTab() {
     fetchUserGroups();
   }, []);
 
-  // Calculate paginated data
-  const paginatedData = useMemo(() => {
+  // Filter data based on search term
+  const filteredGroupData = useMemo(() => {
+    if (!searchTermGroups.trim()) {
+      return rowData;
+    }
+    const searchLower = searchTermGroups.toLowerCase();
+    return rowData.filter((group) => {
+      return (
+        group.userGroup?.toLowerCase().includes(searchLower) ||
+        group.description?.toLowerCase().includes(searchLower) ||
+        group.tags?.toLowerCase().includes(searchLower) ||
+        group.owner?.toLowerCase().includes(searchLower)
+      );
+    });
+  }, [rowData, searchTermGroups]);
+
+  // Paginate base group rows (not the description rows)
+  const paginatedBaseGroups = useMemo(() => {
     const startIndex = (pageNumber - 1) * pageSize;
     const endIndex = startIndex + pageSize;
-    return rowData.slice(startIndex, endIndex);
-  }, [rowData, pageNumber, pageSize]);
+    return filteredGroupData.slice(startIndex, endIndex);
+  }, [filteredGroupData, pageNumber, pageSize]);
 
-  // Update total pages when page size changes
+  // For display: each group row followed by a separate description row
+  const paginatedData = useMemo(() => {
+    const rows: any[] = [];
+    for (const group of paginatedBaseGroups) {
+      rows.push(group);
+      rows.push({ ...group, __isDescRow: true });
+    }
+    return rows;
+  }, [paginatedBaseGroups]);
+
+  // Update total pages when page size or search changes
   useEffect(() => {
-    setTotalPages(Math.ceil(totalItems / pageSize));
-    setPageNumber(1); // Reset to first page when page size changes
-  }, [pageSize, totalItems]);
+    const newTotalItems = filteredGroupData.length;
+    setTotalItems(newTotalItems);
+    setTotalPages(Math.ceil(newTotalItems / pageSize));
+    setPageNumber(1); // Reset to first page when page size or search changes
+  }, [pageSize, filteredGroupData.length]);
 
   // Pagination handlers
   const handlePageChange = (newPage: number) => {
@@ -419,19 +502,47 @@ function UserGroupsTab() {
       {
         headerName: "User Group",
         field: "userGroup",
-        flex: 1.5,
+        flex: 2,
+        autoHeight: true,
+        wrapText: true,
+        colSpan: (params: any) => {
+          // Make the description row span all columns
+          if (params.data?.__isDescRow) {
+            // Number of visible columns in this grid (User Group + Category + Tags + Owner + No of users + Actions)
+            return 6;
+          }
+          return 1;
+        },
         cellRenderer: (params: any) => {
+          const description = params.data?.description;
+
+          // Description-only row
+          if (params.data?.__isDescRow) {
+            const isEmpty =
+              !description || (typeof description === "string" && description.trim().length === 0);
+            return (
+              <div
+                className={`text-sm w-full break-words whitespace-pre-wrap ${
+                  isEmpty ? "text-gray-400 italic" : "text-gray-600"
+                }`}
+              >
+                {isEmpty ? "No description available" : description}
+              </div>
+            );
+          }
+
+          // Main group row
           return (
-            <span style={{ color: "#1677ff", cursor: "pointer" }}>
+            <span style={{ color: "#1677ff", cursor: "pointer", fontWeight: 500 }}>
               {params.value}
             </span>
           );
         },
       },
       {
-        headerName: "Description",
-        field: "description",
-        flex: 2,
+        headerName: "Category",
+        field: "tags",
+        flex: 1,
       },
       {
         headerName: "Tags",
@@ -452,6 +563,46 @@ function UserGroupsTab() {
             <span>
               {params.value || 0}
             </span>
+          );
+        },
+      },
+      {
+        headerName: "Actions",
+        field: "actions",
+        flex: 1,
+        cellRenderer: (params: any) => {
+          // Hide actions on description-only rows
+          if (params.data?.__isDescRow) {
+            return null;
+          }
+
+          const handleModifyClick = () => {
+            const groupName = params.data?.userGroup;
+            try {
+              // Persist selected group so the form can be prefilled
+              if (params.data) {
+                localStorage.setItem("selectedUserGroup", JSON.stringify(params.data));
+              }
+            } catch {
+              // Ignore localStorage errors; navigation will still work
+            }
+
+            // Navigate to create-group page in edit mode
+            if (groupName) {
+              router.push(`/user/create-group?mode=edit&group=${encodeURIComponent(groupName)}`);
+            } else {
+              router.push("/user/create-group?mode=edit");
+            }
+          };
+
+          return (
+            <button
+              type="button"
+              onClick={handleModifyClick}
+              className="inline-flex items-center justify-center px-2 py-1 text-sm rounded-md border border-gray-300 text-blue-600 hover:bg-blue-50"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
           );
         },
       },
@@ -495,21 +646,44 @@ function UserGroupsTab() {
   return (
     <div className="w-full">
       {/* Header with Create User Group Button */}
-      <div className="mb-4 flex justify-end">
-        <button
-          onClick={() => router.push("/user/create-group")}
-          className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Create User Group
-        </button>
+      <div className="mb-4 flex justify-between items-center gap-4">
+        {/* Search Bar */}
+        <div className="flex-1 max-w-md">
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+              <Search className="text-gray-400 w-5 h-5" />
+            </div>
+            <input
+              type="text"
+              placeholder="Search user groups by name, description, tags, owner..."
+              value={searchTermGroups}
+              onChange={(e) => setSearchTermGroups(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+            />
+          </div>
+          {searchTermGroups && (
+            <p className="text-sm text-gray-600 mt-1">
+              Showing {filteredGroupData.length} result(s) for "{searchTermGroups}"
+            </p>
+          )}
+        </div>
+
+        <div className="flex-shrink-0">
+          <button
+            onClick={() => router.push("/user/create-group")}
+            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Create User Group
+          </button>
+        </div>
       </div>
 
       <div className="ag-theme-alpine" style={{ width: "100%" }}>
         {/* Top pagination */}
         <div className="mb-2">
           <CustomPagination
-            totalItems={totalItems}
+            totalItems={filteredGroupData.length}
             currentPage={pageNumber}
             totalPages={totalPages}
             pageSize={pageSize}
@@ -529,13 +703,14 @@ function UserGroupsTab() {
             columnDefs={columnDefs}
             rowData={paginatedData}
             domLayout="autoHeight"
+            rowHeight={60}
           />
         </div>
         
         {/* Bottom pagination */}
         <div className="mt-4 mb-4">
           <CustomPagination
-            totalItems={totalItems}
+            totalItems={filteredGroupData.length}
             currentPage={pageNumber}
             totalPages={totalPages}
             pageSize={pageSize}

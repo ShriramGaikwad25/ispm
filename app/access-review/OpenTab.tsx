@@ -38,6 +38,7 @@ import HorizontalProgressBar from "@/components/HorizontalProgressBar";
 import { useLoading } from "@/contexts/LoadingContext";
 import ActionCompletedToast from "@/components/ActionCompletedToast";
 import { getReviewerId } from "@/lib/auth";
+import ProxyActionModal from "@/components/ProxyActionModal";
 import "./AccessReview.css"
 
 // Register AG Grid Enterprise modules
@@ -97,6 +98,8 @@ const OpenTab: React.FC = () => {
   const filterButtonRef = useRef<HTMLButtonElement>(null);
   const [showCompletionToast, setShowCompletionToast] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
+  const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);
+  const [selectedCertificationRow, setSelectedCertificationRow] = useState<CertificationRow | null>(null);
   
   const { showApiLoader, hideApiLoader } = useLoading();
   const filterMenuRef = useRef<HTMLDivElement>(null);
@@ -167,7 +170,7 @@ const OpenTab: React.FC = () => {
             title="Reassign"
             aria-label="Reassign selected rows"
             className="p-1 rounded transition-colors duration-200"
-            onClick={handleReassign}
+            onClick={() => handleReassign(params.data)}
             disabled={isActionLoading}
           >
             <UserRoundCheckIcon
@@ -327,7 +330,10 @@ const OpenTab: React.FC = () => {
     }
   };
 
-  const handleReassign = () => handleAction('Reassign');
+  const handleReassign = (rowData: CertificationRow) => {
+    setSelectedCertificationRow(rowData);
+    setIsReassignModalOpen(true);
+  };
   const handleSignOff = () => handleAction('Sign Off');
   const handleDownloadExcel = () => handleAction('Download Excel');
   const handleReleaseClaim = () => handleAction('Release/Claim');
@@ -699,6 +705,96 @@ const OpenTab: React.FC = () => {
         message={"Action completed"}
         onClose={() => setShowCompletionToast(false)}
         duration={1500}
+      />
+
+      {/* Reassign Modal */}
+      <ProxyActionModal
+        isModalOpen={isReassignModalOpen}
+        closeModal={() => {
+          setIsReassignModalOpen(false);
+          setSelectedCertificationRow(null);
+        }}
+        heading="Reassign"
+        users={[
+          { username: "john", email: "john@example.com", role: "admin" },
+          { username: "jane", email: "jane@example.com", role: "user" },
+        ]}
+        groups={[
+          { name: "admins", email: "admins@corp.com", role: "admin" },
+          { name: "devs", email: "devs@corp.com", role: "developer" },
+        ]}
+        userAttributes={[
+          { value: "username", label: "Username" },
+          { value: "email", label: "Email" },
+        ]}
+        groupAttributes={[
+          { value: "name", label: "Group Name" },
+          { value: "role", label: "Role" },
+        ]}
+        onSelectOwner={async (owner) => {
+          if (!selectedCertificationRow) {
+            console.error("No certification row selected");
+            return;
+          }
+
+          try {
+            setIsActionLoading(true);
+            showApiLoader?.(true, "Reassigning certification...");
+
+            // Determine owner type and ID
+            // Check if owner has username (User) or name (Group)
+            const ownerType = owner.username ? "User" : "Group";
+            // For users, prefer username as ID, fallback to email
+            // For groups, use name as ID
+            const ownerId = owner.id || (ownerType === "User" ? (owner.username || owner.email || "") : (owner.name || ""));
+
+            // Construct the payload
+            const rowData = selectedCertificationRow as any; // Type assertion to access reviewerName
+            const payload = {
+              reviewerName: rowData.reviewerName || "",
+              reviewerId: selectedCertificationRow.reviewerId,
+              certificationId: selectedCertificationRow.certificationId,
+              taskId: selectedCertificationRow.taskId || selectedCertificationRow.campaignId || "",
+              lineItemId: "", // Not available at certification level
+              assignmentEntity: "Cert",
+              newOwnerDetails: {
+                id: ownerId,
+                type: ownerType,
+              },
+              justification: "Reassignment requested", // Default justification
+            };
+
+            // Make the API call
+            const response = await fetch(
+              `https://preview.keyforge.ai/certification/api/v1/ACMECOM/reassign/${selectedCertificationRow.reviewerId}/${selectedCertificationRow.certificationId}`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload),
+              }
+            );
+
+            if (!response.ok) {
+              throw new Error(`Reassign failed: ${response.statusText}`);
+            }
+
+            // Success
+            setIsReassignModalOpen(false);
+            setSelectedCertificationRow(null);
+            setShowCompletionToast(true);
+            
+            // Optionally refresh the data
+            // You might want to refetch certifications here
+          } catch (error) {
+            console.error("Error reassigning certification:", error);
+            alert(`Failed to reassign: ${error instanceof Error ? error.message : "Unknown error"}`);
+          } finally {
+            setIsActionLoading(false);
+            hideApiLoader?.();
+          }
+        }}
       />
     </>
   );
