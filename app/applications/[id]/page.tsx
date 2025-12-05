@@ -16,6 +16,7 @@ const AgGridReact = dynamic(
 import {
   ChevronDown,
   ChevronUp,
+  ChevronRight,
   CircleCheck,
   CircleX,
   ArrowRightCircle,
@@ -41,6 +42,7 @@ import Tabs from "@/components/tabs";
 import PolicyRiskDetails from "@/components/PolicyRiskDetails";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import { BackButton } from "@/components/BackButton";
+import UserDisplayName from "@/components/UserDisplayName";
 
 interface DataItem {
   label: string;
@@ -109,6 +111,8 @@ export default function ApplicationDetailPage() {
     security: false,
     lifecycle: false,
   });
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editableNodeData, setEditableNodeData] = useState<any>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -518,6 +522,10 @@ export default function ApplicationDetailPage() {
         setEntitlementDetails(data);
         setNodeData(data);
       }
+    } else {
+      // Closing sidebar - reset edit mode
+      setIsEditMode(false);
+      setEditableNodeData(null);
     }
 
     setIsSidePanelOpen((prev) => !prev);
@@ -621,23 +629,111 @@ export default function ApplicationDetailPage() {
     label1: string,
     value1: any,
     label2: string,
-    value2: any
-  ) => (
-    <div className="flex space-x-4 text-sm text-gray-700">
-      <div className="flex-1">
-        <strong>{label1}:</strong> {value1?.toString() || "N/A"}
-      </div>
-      <div className="flex-1">
-        <strong>{label2}:</strong> {value2?.toString() || "N/A"}
-      </div>
-    </div>
-  );
+    value2: any,
+    fieldKey1?: string,
+    fieldKey2?: string,
+    isDate1?: boolean,
+    isDate2?: boolean
+  ) => {
+    const currentData = isEditMode ? editableNodeData : nodeData;
+    let val1 = fieldKey1 ? currentData?.[fieldKey1] : value1;
+    let val2 = fieldKey2 ? currentData?.[fieldKey2] : value2;
 
-  const renderSingleField = (label: string, value: any) => (
-    <div className="text-sm text-gray-700">
-      <strong>{label}:</strong> {value?.toString() || "N/A"}
-    </div>
-  );
+    // In edit mode, use raw values; in view mode, format dates if needed
+    if (!isEditMode) {
+      if (isDate1 && val1) {
+        val1 = formatDate(val1);
+      }
+      if (isDate2 && val2) {
+        val2 = formatDate(val2);
+      }
+    }
+
+    if (isEditMode) {
+      const inputType1 = isDate1 ? "date" : "text";
+      const inputType2 = isDate2 ? "date" : "text";
+      
+      return (
+        <div className="flex space-x-4 text-sm">
+          <div className="flex-1">
+            <label className="block text-xs text-gray-500 mb-1 font-medium">{label1}:</label>
+            <input
+              type={inputType1}
+              value={val1?.toString() || ""}
+              onChange={(e) => {
+                if (fieldKey1) {
+                  setEditableNodeData((prev: any) => ({
+                    ...prev,
+                    [fieldKey1]: e.target.value,
+                  }));
+                }
+              }}
+              className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="block text-xs text-gray-500 mb-1 font-medium">{label2}:</label>
+            <input
+              type={inputType2}
+              value={val2?.toString() || ""}
+              onChange={(e) => {
+                if (fieldKey2) {
+                  setEditableNodeData((prev: any) => ({
+                    ...prev,
+                    [fieldKey2]: e.target.value,
+                  }));
+                }
+              }}
+              className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex space-x-4 text-sm text-gray-700">
+        <div className="flex-1">
+          <strong>{label1}:</strong> {val1?.toString() || "N/A"}
+        </div>
+        <div className="flex-1">
+          <strong>{label2}:</strong> {val2?.toString() || "N/A"}
+        </div>
+      </div>
+    );
+  };
+
+  const renderSingleField = (label: string, value: any, fieldKey?: string) => {
+    const currentData = isEditMode ? editableNodeData : nodeData;
+    const val = fieldKey ? currentData?.[fieldKey] : value;
+
+    if (isEditMode) {
+      return (
+        <div className="text-sm">
+          <label className="block text-xs text-gray-500 mb-1 font-medium">{label}:</label>
+          <input
+            type="text"
+            value={val?.toString() || ""}
+            onChange={(e) => {
+              if (fieldKey) {
+                setEditableNodeData((prev: any) => ({
+                  ...prev,
+                  [fieldKey]: e.target.value,
+                }));
+              }
+            }}
+            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+      );
+    }
+
+    return (
+      <div className="text-sm text-gray-700">
+        <strong>{label}:</strong> {val?.toString() || "N/A"}
+      </div>
+    );
+  };
 
   //   {
   //     account: "Aaliyah Munoz",
@@ -1185,7 +1281,7 @@ export default function ApplicationDetailPage() {
         field: "entitlementName",
         headerName: "Entitlement",
         flex: 3,
-        width: 350,
+        minWidth: 200,
         wrapText: true,
         autoHeight: true,
         colSpan: (params) => {
@@ -1289,7 +1385,13 @@ export default function ApplicationDetailPage() {
         },
       },
       // { field:"Ent Description", headerName:"Entitlement Description", flex:2},
-      { field: "type", headerName: "Type", width: 200 },
+      { field: "type", headerName: "Type", flex: 1, minWidth: 150 },
+      {
+        field: "Ent Owner",
+        headerName: "Owner",
+        flex: 1,
+        minWidth: 150,
+      },
       {
         field: "Risk",
         headerName: "Risk",
@@ -1316,14 +1418,16 @@ export default function ApplicationDetailPage() {
       {
         field: "Last Sync",
         headerName: "Last Sync",
-        width: 200,
+        flex: 1,
+        minWidth: 150,
         valueFormatter: (params: ICellRendererParams) =>
           formatDateMMDDYY(params.value),
       },
       {
         field: "Last Reviewed on",
         headerName: "Last Reviewed",
-        width: 200,
+        flex: 1,
+        minWidth: 150,
         valueFormatter: (params: ICellRendererParams) =>
           formatDateMMDDYY(params.value),
       },
@@ -1405,40 +1509,45 @@ export default function ApplicationDetailPage() {
         hide: true,
       },
       {
-        field: "Ent Owner",
-        headerName: "Entitlement Owner",
-        flex: 1.5,
-        hide: true,
-      },
-      {
         field: "Created On",
         headerClass: "Created On",
         width: 100,
         hide: true,
       },
       {
-        field: "actionColumn",
-        headerName: "Action",
-        width: 200,
+        field: "arrowColumn",
+        headerName: "",
+        width: 60,
+        maxWidth: 60,
         cellRenderer: (params: ICellRendererParams) => {
+          if (params.data?.__isDescRow) return null;
           return (
-            <EditReassignButtons
-              api={params.api}
-              selectedRows={[params.data]}
-              nodeData={params.data}
-              reviewerId={reviewerId}
-              certId="CERT_ID"
-              context="entitlement"
-            />
+            <div className="flex items-center justify-center h-full">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleSidePanel(params.data);
+                }}
+                className="cursor-pointer hover:opacity-80 transition-opacity p-1"
+                title="View details"
+                aria-label="View entitlement details"
+              >
+                <ChevronRight
+                  className="w-5 h-5 text-gray-600"
+                />
+              </button>
+            </div>
           );
         },
         suppressMenu: true,
         sortable: false,
         filter: false,
         resizable: false,
+        pinned: "right",
+        lockPinned: true,
       },
     ],
-    [reviewerId]
+    [reviewerId, toggleSidePanel]
   );
 
   const underReviewColDefs = useMemo<ColDef[]>(
@@ -1677,6 +1786,8 @@ export default function ApplicationDetailPage() {
       sortable: true,
       filter: true,
       resizable: true,
+      flex: 1,
+      minWidth: 100,
     }),
     []
   );
@@ -1690,7 +1801,7 @@ export default function ApplicationDetailPage() {
         return (
           <div
             className="ag-theme-alpine"
-            style={{ height: 860, width: "100%" }}
+            style={{ height: 860, width: "100%", minWidth: 0 }}
           >
             {/* <div className="relative mb-2">
               <Accordion
@@ -1798,7 +1909,10 @@ export default function ApplicationDetailPage() {
                 masterDetail={true}
                 getRowHeight={(params) => (params?.data?.__isDescRow ? 36 : 40)}
                 detailCellRendererParams={detailCellRendererParams}
-                domLayout="autoHeight"
+                domLayout="normal"
+                onGridReady={(params) => {
+                  gridApiRef.current = params.api;
+                }}
                 getRowId={(params) => {
                   const data = params.data || {};
                   const baseId =
@@ -3595,8 +3709,12 @@ export default function ApplicationDetailPage() {
                                   color: "#333",
                                 }}
                               >
-                                {selectedUser.displayName ||
-                                  selectedUser.userName}
+                                <UserDisplayName
+                                  displayName={selectedUser.displayName || selectedUser.userName}
+                                  userType={selectedUser.userType}
+                                  employeetype={selectedUser.employeetype}
+                                  tags={selectedUser.tags}
+                                />
                               </div>
                               {selectedUser.title && (
                                 <div
@@ -3791,22 +3909,47 @@ export default function ApplicationDetailPage() {
           style={{ width: 500 }}
         >
           <div className="p-4 border-b bg-gray-50">
-            <div className="flex justify-between items-start">
-              <div className="flex-1">
-                <h2 className="text-lg font-semibold">Entitlement Details</h2>
-                {entitlementDetailsError ? (
-                  <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
-                    <p className="text-sm text-red-600">
-                      {entitlementDetailsError}
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="mt-2">
-                      <span className="text-xs uppercase text-gray-500">
-                        Entitlement Name:
-                      </span>
-                      <div className="text-md font-medium break-words break-all whitespace-normal max-w-full">
+            <div className="flex justify-between items-center mb-4">
+              <button
+                onClick={() => setIsSidePanelOpen(false)}
+                className="text-gray-600 hover:text-gray-800 ml-auto"
+                aria-label="Close panel"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            {entitlementDetailsError ? (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-sm text-red-600">
+                  {entitlementDetailsError}
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="mt-2 flex items-center gap-2">
+                  <div className="flex-1">
+                    {isEditMode ? (
+                      <input
+                        type="text"
+                        value={
+                          (editableNodeData?.["Ent Name"] ||
+                            editableNodeData?.entitlementName ||
+                            editableNodeData?.userDisplayName ||
+                            editableNodeData?.accountName ||
+                            editableNodeData?.applicationName ||
+                            "") as string
+                        }
+                        onChange={(e) => {
+                          setEditableNodeData((prev: any) => ({
+                            ...prev,
+                            "Ent Name": e.target.value,
+                            entitlementName: e.target.value,
+                          }));
+                        }}
+                        className="w-full px-2 py-1.5 border border-gray-300 rounded text-md font-semibold focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    ) : (
+                      <div className="text-md font-semibold text-gray-900 break-words break-all whitespace-normal max-w-full">
                         {nodeData?.["Ent Name"] ||
                           (nodeData as any)?.entitlementName ||
                           (nodeData as any)?.userDisplayName ||
@@ -3814,29 +3957,74 @@ export default function ApplicationDetailPage() {
                           (nodeData as any)?.applicationName ||
                           "-"}
                       </div>
-                    </div>
-                    <div className="mt-2">
-                      <span className="text-xs uppercase text-gray-500">
-                        Description:
-                      </span>
-                      <p className="text-sm text-gray-700 break-words break-all whitespace-pre-wrap max-w-full">
-                        {nodeData?.["Ent Description"] ||
-                          (nodeData as any)?.description ||
-                          (nodeData as any)?.details ||
-                          "-"}
-                      </p>
-                    </div>
-                  </>
-                )}
-              </div>
-              <button
-                onClick={() => setIsSidePanelOpen(false)}
-                className="text-gray-600 hover:text-gray-800"
-                aria-label="Close panel"
-              >
-                <X size={24} />
-              </button>
-            </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!isEditMode) {
+                        // Enter edit mode: expand all cards and initialize editable data
+                        setEditableNodeData({ ...nodeData });
+                        setExpandedFrames({
+                          general: true,
+                          business: true,
+                          technical: true,
+                          security: true,
+                          lifecycle: true,
+                        });
+                        setIsEditMode(true);
+                      } else {
+                        // Exit edit mode (save changes)
+                        // TODO: Add save functionality here
+                        setIsEditMode(false);
+                        setEditableNodeData(null);
+                      }
+                    }}
+                    className={`p-1.5 rounded transition-colors flex-shrink-0 ${
+                      isEditMode 
+                        ? "bg-blue-500 hover:bg-blue-600" 
+                        : "hover:bg-gray-200"
+                    }`}
+                    title={isEditMode ? "Save changes" : "Edit entitlement"}
+                    aria-label={isEditMode ? "Save changes" : "Edit entitlement"}
+                  >
+                    <Edit className={`w-4 h-4 ${isEditMode ? "text-white" : "text-gray-600 hover:text-blue-600"}`} />
+                  </button>
+                </div>
+                <div className="mt-3">
+                  <span className="text-xs uppercase text-gray-500">
+                    Description:
+                  </span>
+                  {isEditMode ? (
+                    <textarea
+                      value={
+                        (editableNodeData?.["Ent Description"] ||
+                          editableNodeData?.description ||
+                          editableNodeData?.details ||
+                          "") as string
+                      }
+                      onChange={(e) => {
+                        setEditableNodeData((prev: any) => ({
+                          ...prev,
+                          "Ent Description": e.target.value,
+                          description: e.target.value,
+                          details: e.target.value,
+                        }));
+                      }}
+                      rows={3}
+                      className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm mt-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y"
+                    />
+                  ) : (
+                    <p className="text-sm text-gray-700 break-words break-all whitespace-pre-wrap max-w-full mt-1">
+                      {nodeData?.["Ent Description"] ||
+                        (nodeData as any)?.description ||
+                        (nodeData as any)?.details ||
+                        "-"}
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
             <div className="mt-3 flex space-x-2">
               <button
                 onClick={handleApprove}
@@ -3911,13 +4099,17 @@ export default function ApplicationDetailPage() {
                     "Ent Type",
                     nodeData?.["Ent Type"],
                     "#Assignments",
-                    nodeData?.["Total Assignments"]
+                    nodeData?.["Total Assignments"],
+                    "Ent Type",
+                    "Total Assignments"
                   )}
                   {renderSideBySideField(
                     "App Name",
                     nodeData?.["App Name"],
                     "Tag(s)",
-                    nodeData?.["Dynamic Tag"]
+                    nodeData?.["Dynamic Tag"],
+                    "App Name",
+                    "Dynamic Tag"
                   )}
                 </div>
               )}
@@ -3938,23 +4130,29 @@ export default function ApplicationDetailPage() {
                 <div className="p-4 space-y-2">
                   {renderSingleField(
                     "Objective",
-                    nodeData?.["Business Objective"]
+                    nodeData?.["Business Objective"],
+                    "Business Objective"
                   )}
                   {renderSideBySideField(
                     "Business Unit",
                     nodeData?.["Business Unit"],
                     "Business Owner",
-                    nodeData?.["Ent Owner"]
+                    nodeData?.["Ent Owner"],
+                    "Business Unit",
+                    "Ent Owner"
                   )}
                   {renderSingleField(
                     "Regulatory Scope",
-                    nodeData?.["Compliance Type"]
+                    nodeData?.["Compliance Type"],
+                    "Compliance Type"
                   )}
                   {renderSideBySideField(
                     "Data Classification",
                     nodeData?.["Data Classification"],
                     "Cost Center",
-                    nodeData?.["Cost Center"]
+                    nodeData?.["Cost Center"],
+                    "Data Classification",
+                    "Cost Center"
                   )}
                 </div>
               )}
@@ -3975,35 +4173,47 @@ export default function ApplicationDetailPage() {
                 <div className="p-4 space-y-2">
                   {renderSideBySideField(
                     "Created On",
-                    formatDate(nodeData?.["Created On"]),
+                    nodeData?.["Created On"],
                     "Last Sync",
-                    formatDate(nodeData?.["Last Sync"])
+                    nodeData?.["Last Sync"],
+                    "Created On",
+                    "Last Sync",
+                    true,
+                    true
                   )}
                   {renderSideBySideField(
                     "App Name",
                     nodeData?.["App Name"],
                     "App Instance",
-                    nodeData?.["App Instance"]
+                    nodeData?.["App Instance"],
+                    "App Name",
+                    "App Instance"
                   )}
                   {renderSideBySideField(
                     "App Owner",
                     nodeData?.["App Owner"],
                     "Ent Owner",
-                    nodeData?.["Ent Owner"]
+                    nodeData?.["Ent Owner"],
+                    "App Owner",
+                    "Ent Owner"
                   )}
                   {renderSideBySideField(
                     "Hierarchy",
                     nodeData?.["Hierarchy"],
                     "MFA Status",
-                    nodeData?.["MFA Status"]
+                    nodeData?.["MFA Status"],
+                    "Hierarchy",
+                    "MFA Status"
                   )}
                   {renderSingleField(
                     "Assigned to/Member of",
-                    nodeData?.["assignment"]
+                    nodeData?.["assignment"],
+                    "assignment"
                   )}
                   {renderSingleField(
                     "License Type",
-                    nodeData?.["License Type"]
+                    nodeData?.["License Type"],
+                    "License Type"
                   )}
                 </div>
               )}
@@ -4026,41 +4236,55 @@ export default function ApplicationDetailPage() {
                     "Risk",
                     nodeData?.["Risk"],
                     "Certifiable",
-                    nodeData?.["Certifiable"]
+                    nodeData?.["Certifiable"],
+                    "Risk",
+                    "Certifiable"
                   )}
                   {renderSideBySideField(
                     "Revoke on Disable",
                     nodeData?.["Revoke on Disable"],
                     "Shared Pwd",
-                    nodeData?.["Shared Pwd"]
+                    nodeData?.["Shared Pwd"],
+                    "Revoke on Disable",
+                    "Shared Pwd"
                   )}
                   {renderSingleField(
                     "SoD/Toxic Combination",
-                    nodeData?.["SOD Check"]
+                    nodeData?.["SOD Check"],
+                    "SOD Check"
                   )}
                   {renderSingleField(
                     "Access Scope",
-                    nodeData?.["Access Scope"]
+                    nodeData?.["Access Scope"],
+                    "Access Scope"
                   )}
                   {renderSideBySideField(
                     "Review Schedule",
                     nodeData?.["Review Schedule"],
                     "Last Reviewed On",
-                    formatDate(nodeData?.["Last Reviewed on"])
+                    nodeData?.["Last Reviewed on"],
+                    "Review Schedule",
+                    "Last Reviewed on",
+                    false,
+                    true
                   )}
                   {renderSideBySideField(
                     "Privileged",
                     nodeData?.["Privileged"],
                     "Non Persistent Access",
-                    nodeData?.["Non Persistent Access"]
+                    nodeData?.["Non Persistent Access"],
+                    "Privileged",
+                    "Non Persistent Access"
                   )}
                   {renderSingleField(
                     "Audit Comments",
-                    nodeData?.["Audit Comments"]
+                    nodeData?.["Audit Comments"],
+                    "Audit Comments"
                   )}
                   {renderSingleField(
                     "Account Type Restriction",
-                    nodeData?.["Account Type Restriction"]
+                    nodeData?.["Account Type Restriction"],
+                    "Account Type Restriction"
                   )}
                 </div>
               )}
@@ -4083,31 +4307,39 @@ export default function ApplicationDetailPage() {
                     "Requestable",
                     nodeData?.["Requestable"],
                     "Pre-Requisite",
-                    nodeData?.["Pre- Requisite"]
+                    nodeData?.["Pre- Requisite"],
+                    "Requestable",
+                    "Pre- Requisite"
                   )}
                   {renderSingleField(
                     "Pre-Req Details",
-                    nodeData?.["Pre-Requisite Details"]
+                    nodeData?.["Pre-Requisite Details"],
+                    "Pre-Requisite Details"
                   )}
                   {renderSingleField(
                     "Auto Assign Access Policy",
-                    nodeData?.["Auto Assign Access Policy"]
+                    nodeData?.["Auto Assign Access Policy"],
+                    "Auto Assign Access Policy"
                   )}
                   {renderSingleField(
                     "Provisioner Group",
-                    nodeData?.["Provisioner Group"]
+                    nodeData?.["Provisioner Group"],
+                    "Provisioner Group"
                   )}
                   {renderSingleField(
                     "Provisioning Steps",
-                    nodeData?.["Provisioning Steps"]
+                    nodeData?.["Provisioning Steps"],
+                    "Provisioning Steps"
                   )}
                   {renderSingleField(
                     "Provisioning Mechanism",
-                    nodeData?.["Provisioning Mechanism"]
+                    nodeData?.["Provisioning Mechanism"],
+                    "Provisioning Mechanism"
                   )}
                   {renderSingleField(
                     "Action on Native Change",
-                    nodeData?.["Action on Native Change"]
+                    nodeData?.["Action on Native Change"],
+                    "Action on Native Change"
                   )}
                 </div>
               )}

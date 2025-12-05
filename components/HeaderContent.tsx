@@ -16,6 +16,7 @@ import UserProgress from "./UserProgress";
 import { useAuth } from "@/contexts/AuthContext";
 import { getCookie, COOKIE_NAMES, getCurrentUser } from "@/lib/auth";
 import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
+import UserDisplayName from "@/components/UserDisplayName";
 
 // Register Chart.js components and plugin
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend, ChartDataLabels);
@@ -144,7 +145,13 @@ const PopupButton = ({
         <div className="grid grid-cols-1 gap-3">
           <div>
             <label className="text-xs font-medium text-gray-500">Name</label>
-            <p className="text-sm text-gray-900">{userData.displayName}</p>
+            <p className="text-sm text-gray-900">
+              <UserDisplayName
+                displayName={userData.displayName}
+                userType={userData.userType}
+                tags={userData.tags}
+              />
+            </p>
           </div>
           <div>
             <label className="text-xs font-medium text-gray-500">Email</label>

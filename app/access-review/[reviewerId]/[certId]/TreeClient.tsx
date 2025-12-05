@@ -46,6 +46,7 @@ import TaskSummaryPanel from "@/components/TaskSummaryPanel";
 import DelegateActionModal from "@/components/DelegateActionModal";
 import ProxyActionModal from "@/components/ProxyActionModal";
 import { formatDateMMDDYY as formatDate } from "@/utils/utils";
+import UserDisplayName from "@/components/UserDisplayName";
 
 interface UserPopupProps {
   username: string;
@@ -1557,7 +1558,12 @@ const TreeClient: React.FC<TreeClientProps> = ({
                   <div className="flex flex-col min-w-0">
                     <div className="flex items-center gap-3 flex-wrap">
                       <h4 className="text-lg font-bold text-gray-900 truncate">
-                        {selectedUser.fullName || "Unknown User"}
+                        <UserDisplayName
+                          displayName={selectedUser.fullName || "Unknown User"}
+                          userType={selectedUser.userType}
+                          employeetype={selectedUser.employeetype}
+                          tags={selectedUser.tags}
+                        />
                       </h4>
                       <div className="flex items-center space-x-2 ml-4">
                         <div className="w-2 h-2 bg-blue-500 rounded-full"></div>

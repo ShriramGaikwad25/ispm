@@ -17,6 +17,7 @@ import {
 } from "chart.js";
 import ChartDataLabels from "chartjs-plugin-datalabels";
 import { BackButton } from "@/components/BackButton";
+import UserDisplayName from "@/components/UserDisplayName";
 
 // Register Chart.js components and plugin
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend, ChartDataLabels);
@@ -103,7 +104,12 @@ export default function ProfilePage() {
           </div>
           <div>
             <label className="text-sm font-medium text-gray-500">Display Name</label>
-            <p className="text-base text-gray-900">{displayName}</p>
+            <p className="text-base text-gray-900">
+              <UserDisplayName
+                displayName={displayName}
+                userType={user?.userType}
+              />
+            </p>
           </div>
           <div>
             <label className="text-sm font-medium text-gray-500">Alias</label>

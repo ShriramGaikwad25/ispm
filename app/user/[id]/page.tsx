@@ -1,7 +1,7 @@
 "use client";
 import SegmentedControl from "@/components/SegmentedControl";
-import { History, CircleX, CirclePlus, FileText } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { History, CircleX, CirclePlus, FileText, Search, Plus, Ban, Calendar, Edit } from "lucide-react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { executeQuery } from "@/lib/api";
 import type { ColDef } from "ag-grid-enterprise";
 import dynamic from "next/dynamic";
@@ -30,6 +30,8 @@ import {
 } from "chart.js";
 import ChartDataLabels from "chartjs-plugin-datalabels";
 import { BackButton } from "@/components/BackButton";
+import { useRightSidebar } from "@/contexts/RightSidebarContext";
+import UserDisplayName from "@/components/UserDisplayName";
 
 // Register Chart.js components and plugin
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend, ChartDataLabels);
@@ -156,9 +158,295 @@ const accountData = [
   },
 ];
 
+// Add Proxy User Sidebar Component
+const AddProxyUserSidebar = ({ onClose }: { onClose: () => void }) => {
+  const [searchValue, setSearchValue] = useState("");
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [apiUsers, setApiUsers] = useState<any[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [justification, setJustification] = useState("");
+  const [capabilities, setCapabilities] = useState({
+    requestAccess: false,
+    reviewAndApprove: false,
+    performAccessReviews: false,
+  });
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Fetch users from API with debounce
+  useEffect(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    if (searchValue.trim() !== "") {
+      setIsLoadingUsers(true);
+      debounceTimerRef.current = setTimeout(async () => {
+        try {
+          const query = `SELECT username, email FROM usr WHERE username ILIKE ? OR email::text ILIKE ?`;
+          const response = await executeQuery(query, [`%${searchValue}%`, `%${searchValue}%`]);
+          
+          let usersData: any[] = [];
+          if (response?.resultSet && Array.isArray(response.resultSet)) {
+            usersData = response.resultSet.map((user: any) => {
+              let emailValue = "";
+              if (user.email) {
+                if (typeof user.email === "string") {
+                  emailValue = user.email;
+                } else if (user.email.work) {
+                  emailValue = user.email.work;
+                } else if (Array.isArray(user.email) && user.email.length > 0) {
+                  const primaryEmail = user.email.find((e: any) => e.primary) || user.email[0];
+                  emailValue = primaryEmail?.value || "";
+                }
+              }
+              return {
+                username: user.username || "",
+                email: emailValue,
+              };
+            });
+          }
+          setApiUsers(usersData);
+        } catch (error) {
+          console.error("Error fetching users:", error);
+          setApiUsers([]);
+        } finally {
+          setIsLoadingUsers(false);
+        }
+      }, 500);
+    } else {
+      setApiUsers([]);
+      setIsLoadingUsers(false);
+    }
+
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [searchValue]);
+
+  const filteredUsers = useMemo(() => {
+    if (!searchValue.trim()) return [];
+    return apiUsers.filter((user) => {
+      const searchLower = searchValue.toLowerCase();
+      return (
+        user.username?.toLowerCase().includes(searchLower) ||
+        user.email?.toLowerCase().includes(searchLower)
+      );
+    });
+  }, [apiUsers, searchValue]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUser) {
+      alert("Please select a user");
+      return;
+    }
+    if (!startDate || !endDate) {
+      alert("Please select start and end dates");
+      return;
+    }
+    if (!justification.trim()) {
+      alert("Please provide a justification");
+      return;
+    }
+    if (!capabilities.requestAccess && !capabilities.reviewAndApprove && !capabilities.performAccessReviews) {
+      alert("Please select at least one capability");
+      return;
+    }
+
+    const proxyUserData = {
+      identity: selectedUser.email || selectedUser.username,
+      startDate,
+      endDate,
+      justification,
+      capabilities: [
+        capabilities.requestAccess && "Request Access",
+        capabilities.reviewAndApprove && "Review and approve Requests",
+        capabilities.performAccessReviews && "Perform Access Reviews",
+      ].filter(Boolean).join(", "),
+    };
+
+    console.log("Submitting proxy user:", proxyUserData);
+    // TODO: Call API to add proxy user
+    alert("Proxy user added successfully!");
+    onClose();
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {/* User Search Section */}
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          Search and Select User
+        </label>
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+            <Search className="text-gray-400 w-5 h-5" />
+          </div>
+          <input
+            type="text"
+            placeholder="Search by username or email..."
+            value={searchValue}
+            onChange={(e) => setSearchValue(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+          />
+        </div>
+        
+        {/* User Results */}
+        {isLoadingUsers && (
+          <div className="mt-2 text-sm text-gray-500">Searching...</div>
+        )}
+        {!isLoadingUsers && searchValue.trim() && filteredUsers.length > 0 && (
+          <div className="mt-2 border border-gray-200 rounded-lg max-h-60 overflow-y-auto">
+            {filteredUsers.map((user, index) => (
+              <div
+                key={index}
+                onClick={() => {
+                  setSelectedUser(user);
+                  setSearchValue(user.email || user.username);
+                  setApiUsers([]);
+                }}
+                className={`p-3 cursor-pointer hover:bg-gray-50 border-b border-gray-100 last:border-b-0 ${
+                  selectedUser?.email === user.email ? "bg-blue-50 border-blue-200" : ""
+                }`}
+              >
+                <div className="font-medium text-gray-900">{user.username || "N/A"}</div>
+                <div className="text-sm text-gray-600">{user.email || "N/A"}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        {selectedUser && (
+          <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded">
+            <span className="text-sm font-medium text-blue-700">
+              Selected: {selectedUser.email || selectedUser.username}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedUser(null);
+                setSearchValue("");
+              }}
+              className="ml-2 text-blue-600 hover:text-blue-800 text-sm"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Date Section */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Start Date <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+            required
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            End Date <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+            required
+          />
+        </div>
+      </div>
+
+      {/* Justification Section */}
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          Justification <span className="text-red-500">*</span>
+        </label>
+        <textarea
+          value={justification}
+          onChange={(e) => setJustification(e.target.value)}
+          rows={4}
+          placeholder="Enter justification for proxy access..."
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+          required
+        />
+      </div>
+
+      {/* Capabilities Section */}
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-3">
+          Capabilities <span className="text-red-500">*</span>
+        </label>
+        <div className="space-y-3">
+          <label className="flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={capabilities.requestAccess}
+              onChange={(e) =>
+                setCapabilities({ ...capabilities, requestAccess: e.target.checked })
+              }
+              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+            />
+            <span className="ml-2 text-sm text-gray-700">Request Access</span>
+          </label>
+          <label className="flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={capabilities.reviewAndApprove}
+              onChange={(e) =>
+                setCapabilities({ ...capabilities, reviewAndApprove: e.target.checked })
+              }
+              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+            />
+            <span className="ml-2 text-sm text-gray-700">Review and approve Requests</span>
+          </label>
+          <label className="flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={capabilities.performAccessReviews}
+              onChange={(e) =>
+                setCapabilities({ ...capabilities, performAccessReviews: e.target.checked })
+              }
+              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+            />
+            <span className="ml-2 text-sm text-gray-700">Perform Access Reviews</span>
+          </label>
+        </div>
+      </div>
+
+      {/* Submit Buttons */}
+      <div className="flex justify-end gap-3 pt-4 border-t">
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          Add Proxy User
+        </button>
+      </div>
+    </form>
+  );
+};
+
 export default function UserDetailPage() {
   const [isMounted, setIsMounted] = useState(false);
   const [userData, setUserData] = useState<ProfileUser>(() => buildUserFromStorage());
+  const { openSidebar, closeSidebar } = useRightSidebar();
 
   // Ensure chart and grid render only on client
   useEffect(() => {
@@ -211,7 +499,13 @@ export default function UserDetailPage() {
             
             <div>
               <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Display Name</label>
-              <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.displayName}</p>
+              <div className="text-xs font-semibold text-gray-900 mt-0.5">
+                <UserDisplayName
+                  displayName={userData.displayName}
+                  userType={userData.userType}
+                  tags={userData.tags}
+                />
+              </div>
             </div>
             
             <div>
@@ -273,6 +567,7 @@ export default function UserDetailPage() {
   const AllAccessTab = () => {
     const [rowData, setRowData] = useState<any[]>([]);
     const [dynamicCols, setDynamicCols] = useState<ColDef[]>([]);
+    const [searchTerm, setSearchTerm] = useState<string>("");
     const gridRef = useRef<any>(null);
 
     useEffect(() => {
@@ -455,9 +750,57 @@ export default function UserDetailPage() {
       fetchAllAccess();
     }, []);
 
+    // Filter data based on search term
+    const filteredData = useMemo(() => {
+      if (!searchTerm.trim()) {
+        return rowData;
+      }
+      const searchLower = searchTerm.toLowerCase();
+      return rowData.filter((row) => {
+        // Helper to get cell value for search
+        const getValue = (col: ColDef, data: any): string => {
+          if (col.field) return String(data[col.field] || '').toLowerCase();
+          if ((col as any).valueGetter) {
+            try {
+              return String((col as any).valueGetter({ data }) || '').toLowerCase();
+            } catch {
+              return '';
+            }
+          }
+          if ((col as any).colId) {
+            const colId = (col as any).colId;
+            if (colId === 'entitlementName') {
+              return String(data.entitlementName || data.entitlementname || data.entitlement_name || '').toLowerCase();
+            }
+            if (colId === 'entitlementType') {
+              return String(data.entitlementType || data.entitlementtype || data.entitlement_type || '').toLowerCase();
+            }
+            if (colId === 'application') {
+              return String(data.application || data.applicationname || data.application_name || '').toLowerCase();
+            }
+            if (colId === 'accountName') {
+              return String(data.accountName || data.accountname || data.account_name || '').toLowerCase();
+            }
+            if (colId === 'lastLogin') {
+              const date = data.lastLogin || data.lastlogin || data.last_login || '';
+              return date ? require("@/utils/utils").formatDateMMDDYYSlashes(date).toLowerCase() : '';
+            }
+            return String(data[colId] || '').toLowerCase();
+          }
+          return '';
+        };
+
+        // Search across all columns
+        return dynamicCols.some((col) => {
+          const value = getValue(col, row);
+          return value.includes(searchLower);
+        });
+      });
+    }, [rowData, searchTerm, dynamicCols]);
+
       // Print-friendly table version
       const PrintTable = () => {
-        if (!rowData || rowData.length === 0) return null;
+        if (!filteredData || filteredData.length === 0) return null;
       
         const getCellValue = (row: any, col: ColDef) => {
           if (col.field) return row[col.field] || '';
@@ -504,7 +847,7 @@ export default function UserDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {rowData.map((row, rowIdx) => (
+                {filteredData.map((row, rowIdx) => (
                   <tr key={rowIdx} className="hover:bg-gray-50">
                     {dynamicCols.map((col, colIdx) => (
                       <td key={colIdx} className="border border-gray-300 px-3 py-2">
@@ -521,13 +864,34 @@ export default function UserDetailPage() {
 
       return (
         <div className="bg-white rounded-lg shadow-md p-3 print-ag-grid-container">
+          {/* Search Box */}
+          <div className="mb-4">
+            <div className="relative max-w-md">
+              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                <Search className="text-gray-400 w-5 h-5" />
+              </div>
+              <input
+                type="text"
+                placeholder="Search by entitlement, application, account..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              />
+            </div>
+            {searchTerm && (
+              <p className="text-sm text-gray-600 mt-1">
+                Showing {filteredData.length} result(s) for "{searchTerm}"
+              </p>
+            )}
+          </div>
+
           {/* AG Grid - hidden in print */}
           <div className="screen-only">
             {isMounted && (
               <div className="ag-theme-alpine print-ag-grid" style={{ height: 400, width: "100%" }}>
                 <AgGridReact
                   ref={gridRef}
-                  rowData={rowData}
+                  rowData={filteredData}
                   columnDefs={dynamicCols}
                   defaultColDef={{ sortable: true, filter: true, resizable: true }}
                   suppressRowVirtualisation={false}
@@ -935,6 +1299,240 @@ export default function UserDetailPage() {
     );
   };
 
+  const ProxyUsersTab = () => {
+    const [proxyUsers, setProxyUsers] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState<string>("");
+
+    useEffect(() => {
+      // TODO: Replace with actual API call to fetch proxy users
+      // For now, using sample data
+      const fetchProxyUsers = async () => {
+        try {
+          setLoading(true);
+          // Sample data - replace with actual API call
+          const sampleData = [
+            {
+              identity: "john.doe@example.com",
+              startDate: "2024-01-15",
+              endDate: "2024-12-31",
+              status: "Active",
+              capabilities: "Full Access, Read, Write",
+              comments: "Primary proxy user for operations",
+            },
+            {
+              identity: "jane.smith@example.com",
+              startDate: "2024-02-20",
+              endDate: "2024-11-30",
+              status: "Active",
+              capabilities: "Read Only",
+              comments: "Backup proxy user",
+            },
+            {
+              identity: "bob.jones@example.com",
+              startDate: "2024-03-10",
+              endDate: "2024-10-15",
+              status: "Disabled",
+              capabilities: "Read, Write",
+              comments: "Temporarily disabled",
+            },
+          ];
+          setProxyUsers(sampleData);
+        } catch (error) {
+          console.error("Error fetching proxy users:", error);
+          setProxyUsers([]);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      fetchProxyUsers();
+    }, []);
+
+    // Filter data based on search term
+    const filteredData = useMemo(() => {
+      if (!searchTerm.trim()) {
+        return proxyUsers;
+      }
+      const searchLower = searchTerm.toLowerCase();
+      return proxyUsers.filter((user) => {
+        return (
+          user.identity?.toLowerCase().includes(searchLower) ||
+          user.status?.toLowerCase().includes(searchLower) ||
+          user.capabilities?.toLowerCase().includes(searchLower) ||
+          user.comments?.toLowerCase().includes(searchLower)
+        );
+      });
+    }, [proxyUsers, searchTerm]);
+
+    const handleDisable = (rowData: any) => {
+      console.log("Disable proxy user:", rowData);
+      // TODO: Implement disable functionality
+    };
+
+    const handleExtendEndDate = (rowData: any) => {
+      console.log("Extend end date for:", rowData);
+      // TODO: Implement extend end date functionality
+    };
+
+    const handleEditStartDate = (rowData: any) => {
+      console.log("Edit start date for:", rowData);
+      // TODO: Implement edit start date functionality
+    };
+
+    const columnDefs: ColDef[] = [
+      { 
+        headerName: "Identity", 
+        field: "identity", 
+        flex: 2,
+        cellRenderer: (params: any) => (
+          <span className="text-blue-600 font-medium">{params.value || "-"}</span>
+        ),
+      },
+      {
+        headerName: "Start Date",
+        field: "startDate",
+        flex: 1.5,
+        valueFormatter: (p: any) => p.value ? require("@/utils/utils").formatDateMMDDYYSlashes(p.value) : "-",
+      },
+      {
+        headerName: "End Date",
+        field: "endDate",
+        flex: 1.5,
+        valueFormatter: (p: any) => p.value ? require("@/utils/utils").formatDateMMDDYYSlashes(p.value) : "-",
+      },
+      { 
+        headerName: "Status", 
+        field: "status", 
+        flex: 1,
+        cellRenderer: (params: any) => {
+          const status = params.value || "Unknown";
+          const statusColor = status === "Active" 
+            ? "bg-green-100 text-green-700" 
+            : status === "Disabled"
+            ? "bg-red-100 text-red-700"
+            : "bg-gray-100 text-gray-700";
+          return (
+            <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${statusColor}`}>
+              {status}
+            </span>
+          );
+        },
+      },
+      { 
+        headerName: "Capabilities", 
+        field: "capabilities", 
+        flex: 2,
+        cellRenderer: (params: any) => (
+          <span className="text-gray-700">{params.value || "-"}</span>
+        ),
+      },
+      { 
+        headerName: "Comments", 
+        field: "comments", 
+        flex: 2,
+        cellRenderer: (params: any) => (
+          <span className="text-gray-600 text-sm">{params.value || "-"}</span>
+        ),
+      },
+      {
+        headerName: "Actions",
+        field: "actions",
+        flex: 2,
+        cellRenderer: (params: any) => {
+          const rowData = params.data;
+          return (
+            <div className="flex items-center gap-2 h-full">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDisable(rowData);
+                }}
+                className="inline-flex items-center gap-1 px-2 py-1 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 rounded border border-red-200 transition-colors"
+                title="Disable"
+              >
+                <Ban className="w-3 h-3" />
+                Disable
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleExtendEndDate(rowData);
+                }}
+                className="inline-flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded border border-blue-200 transition-colors"
+                title="Extend End Date"
+              >
+                <Calendar className="w-3 h-3" />
+                Extend
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleEditStartDate(rowData);
+                }}
+                className="inline-flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:text-gray-700 hover:bg-gray-50 rounded border border-gray-200 transition-colors"
+                title="Edit Start Date"
+              >
+                <Edit className="w-3 h-3" />
+                Edit
+              </button>
+            </div>
+          );
+        },
+      },
+    ];
+
+    if (loading) {
+      return (
+        <div className="flex justify-center items-center" style={{ height: 400 }}>
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading proxy users...</p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="bg-white rounded-lg shadow-md p-3">
+        {/* Search Box */}
+        <div className="mb-4">
+          <div className="relative max-w-md">
+            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+              <Search className="text-gray-400 w-5 h-5" />
+            </div>
+            <input
+              type="text"
+              placeholder="Search proxy users..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+            />
+          </div>
+          {searchTerm && (
+            <p className="text-sm text-gray-600 mt-1">
+              Showing {filteredData.length} result(s) for "{searchTerm}"
+            </p>
+          )}
+        </div>
+
+        {/* AG Grid */}
+        <div className="screen-only">
+          {isMounted && (
+            <div className="ag-theme-alpine" style={{ height: 400, width: "100%" }}>
+              <AgGridReact
+                rowData={filteredData}
+                columnDefs={columnDefs}
+                defaultColDef={{ sortable: true, filter: true, resizable: true }}
+                suppressRowVirtualisation={false}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const CombinedView = ({ printRef }: { printRef: React.RefObject<HTMLDivElement> }) => {
     const [accessTabIndex, setAccessTabIndex] = useState(0);
 
@@ -943,10 +1541,14 @@ export default function UserDetailPage() {
         label: "All",
         component: AllAccessTab,
       },
-    {
-      label: "JIT Access",
-      component: UnderReviewTab,
-    },
+      {
+        label: "JIT Access",
+        component: UnderReviewTab,
+      },
+      {
+        label: "Proxy Users",
+        component: ProxyUsersTab,
+      },
     ];
 
     return (
@@ -962,6 +1564,7 @@ export default function UserDetailPage() {
             onChange={setAccessTabIndex}
           />
         </div>
+
       </div>
     );
   };
@@ -1082,13 +1685,28 @@ export default function UserDetailPage() {
     <>
       <div className="mb-4 flex items-center justify-between">
         <BackButton />
-        <button
-          onClick={handlePrint}
-          className="flex items-center justify-center text-red-600 hover:text-red-700 transition-colors no-print"
-          title="Export to PDF"
-        >
-          <FileText size={20} />
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              openSidebar(
+                <AddProxyUserSidebar onClose={closeSidebar} />,
+                { widthPx: 480, title: "Add Proxy User" }
+              );
+            }}
+            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 text-sm rounded-md font-medium transition-colors no-print"
+            title="Add Proxy User"
+          >
+            <Plus className="w-4 h-4" />
+            Add Proxy User
+          </button>
+          <button
+            onClick={handlePrint}
+            className="flex items-center justify-center text-red-600 hover:text-red-700 transition-colors no-print"
+            title="Export to PDF"
+          >
+            <FileText size={20} />
+          </button>
+        </div>
       </div>
       <CombinedView printRef={printRef} />
     </>

@@ -138,7 +138,6 @@ const Timeline = () => {
             "SOD Violations",
             "Privileged Accounts",
             "Orphan Accounts",
-            "User Access Report",
           ].map((r) => (
             <span
               key={r}

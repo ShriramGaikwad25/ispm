@@ -350,7 +350,7 @@ const ActionButtons = <T extends { status?: string }>({
         isActionLoading={isActionLoading}
       />
     );
-    openSidebar(remediateContent, { widthPx: 500 });
+    openSidebar(remediateContent, { widthPx: 500, title: "Remediate action" });
     setIsMenuOpen(false);
   };
 

@@ -2,7 +2,7 @@
 
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { ChevronDown, ChevronRight, MoreVertical } from "lucide-react";
+import { ChevronDown, ChevronRight, MoreVertical, Info, ThumbsUp } from "lucide-react";
 import dynamic from "next/dynamic";
 const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
 // Type import only - component is dynamically loaded
@@ -17,6 +17,7 @@ import ChampaignActionButton from "@/components/agTable/ChampaignActionButton";
 import AuditorsCorner from "../AuditorsCorner";
 import Revocations from "./Revocations";
 import { BackButton } from "@/components/BackButton";
+import { useRightSidebar } from "@/contexts/RightSidebarContext";
 
 type CampaignReviewer = {
   reviewerId: string;
@@ -84,6 +85,116 @@ type ReviewerRow = {
   percentageOfCompletedAction: number;
 };
 
+// Insights Panel Component
+const InsightsPanel = ({ reviewerData }: { reviewerData: ReviewerRow }) => {
+  return (
+    <div className="p-6">
+      <div className="space-y-6">
+        {/* Reviewer Information */}
+        <div className="bg-gray-50 rounded-lg p-4">
+          <h3 className="text-lg font-semibold text-gray-700 mb-3">Reviewer Information</h3>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-600">Name:</span>
+              <span className="font-medium text-gray-800">{reviewerData.reviewerName}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Title:</span>
+              <span className="font-medium text-gray-800">{reviewerData.title}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Department:</span>
+              <span className="font-medium text-gray-800">{reviewerData.department}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Last Update:</span>
+              <span className="font-medium text-gray-800">{reviewerData.lastUpdate}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Progress Metrics */}
+        <div className="bg-blue-50 rounded-lg p-4">
+          <h3 className="text-lg font-semibold text-gray-700 mb-3">Progress Metrics</h3>
+          <div className="space-y-3">
+            <div>
+              <div className="flex justify-between mb-1">
+                <span className="text-sm text-gray-600">Completion Progress</span>
+                <span className="text-sm font-medium text-gray-800">{reviewerData.progress}</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className="bg-blue-600 h-2 rounded-full"
+                  style={{ width: reviewerData.progress }}
+                ></div>
+              </div>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-600">Total Access:</span>
+              <span className="font-medium text-gray-800">{reviewerData.totalNumOfAccess}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-600">Total Users:</span>
+              <span className="font-medium text-gray-800">{reviewerData.totalNumOfUsers}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-600">Pending Actions:</span>
+              <span className="font-medium text-red-600">{reviewerData.numOfPendingActions}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Risk Assessment */}
+        <div className="bg-yellow-50 rounded-lg p-4">
+          <h3 className="text-lg font-semibold text-gray-700 mb-3">Risk Assessment</h3>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-gray-600">Risk Level:</span>
+              <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                reviewerData.riskScore === "High" 
+                  ? "bg-red-100 text-red-700" 
+                  : "bg-green-100 text-green-700"
+              }`}>
+                {reviewerData.riskScore}
+              </span>
+            </div>
+            {reviewerData.numOfPendingActions > 0 && (
+              <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded">
+                <p className="text-sm text-red-700">
+                  <strong>Alert:</strong> This reviewer has {reviewerData.numOfPendingActions} pending action(s) that require attention.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Performance Summary */}
+        <div className="bg-green-50 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <h3 className="text-lg font-semibold text-gray-700">Performance Summary</h3>
+            <ThumbsUp className="text-green-600" size={20} />
+          </div>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-600">Completion Rate:</span>
+              <span className="font-medium text-gray-800">{reviewerData.percentageOfCompletedAction}%</span>
+            </div>
+            <div className="mt-3">
+              <p className="text-xs text-gray-500">
+                {reviewerData.percentageOfCompletedAction >= 80 
+                  ? "Excellent progress! Reviewer is on track." 
+                  : reviewerData.percentageOfCompletedAction >= 50
+                  ? "Good progress. Some items still pending."
+                  : "Needs attention. Low completion rate."}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function ManageCampaigns() {
   const gridRef = useRef<AgGridReactType>(null);
   const router = useRouter();
@@ -94,6 +205,7 @@ export default function ManageCampaigns() {
   const [reviewerRows, setReviewerRows] = useState<ReviewerRow[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const { openSidebar } = useRightSidebar();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -178,7 +290,27 @@ export default function ManageCampaigns() {
         },
       },
 
-      { headerName: "Risk Score", field: "riskScore", flex: 1 },
+      {
+        headerName: "Insights",
+        field: "insights",
+        flex: 1,
+        cellStyle: { display: 'flex', justifyContent: 'center', alignItems: 'center' },
+        cellRenderer: (params: ICellRendererParams) => {
+          const row = params.data as ReviewerRow;
+          return (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                openSidebar(<InsightsPanel reviewerData={row} />, { widthPx: 500, title: "Insights" });
+              }}
+              className="flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
+              title="View Insights"
+            >
+              <ThumbsUp size={20} fill="#10b981" color="#10b981" />
+            </button>
+          );
+        },
+      },
       { headerName: "Last Update", field: "lastUpdate", flex: 1 },
       {
         field: "actions",
@@ -195,7 +327,7 @@ export default function ManageCampaigns() {
         },
       },
     ],
-    []
+    [openSidebar]
   );
 
   const rowSelection = useMemo<"single" | "multiple">(() => "multiple", []);
@@ -332,7 +464,7 @@ export default function ManageCampaigns() {
                             </tr>
                             <tr className="border-b border-gray-200 last:border-b-0">
                               <td className="px-6 py-4">
-                                {totalPendingActions} Pending Actions
+                                {totalPendingActions} New/Delta access count
                               </td>
                               <td className="px-6 py-4 border-l-2 border-gray-300">
                                 <span className={`px-2 py-0.5 rounded-full text-xs ${
@@ -429,10 +561,74 @@ export default function ManageCampaigns() {
     },
   ];
 
+  const handleTeamsClick = () => {
+    // Get campaign owner email or use a default
+    const selectedCampaign = campaignData?.campaigns.find(c => c.campaignID === campaignId);
+    const ownerEmail = selectedCampaign?.campaignOwner?.ownerName?.[0] || "";
+    const campaignName = selectedCampaign?.name || "Campaign";
+    
+    if (ownerEmail) {
+      const teamsUrl = `https://teams.microsoft.com/l/chat/0/0?users=${ownerEmail}&topicName=${encodeURIComponent(campaignName)}&message=Hello`;
+      window.open(teamsUrl, '_blank', 'noopener,noreferrer');
+    } else {
+      // Fallback: open Teams without specific user
+      const teamsUrl = `https://teams.microsoft.com/`;
+      window.open(teamsUrl, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  // Generate unique gradient ID for Teams icon
+  const teamsGradientId = `teams-gradient-top-${campaignId || Math.random()}`;
+
   return (
     <>
-      <div className="mb-4">
+      <div className="mb-4 flex justify-between items-center">
         <BackButton />
+        <button
+          title="Microsoft Teams"
+          aria-label="Open in Microsoft Teams"
+          onClick={handleTeamsClick}
+          className="p-2 rounded transition-colors duration-200 hover:bg-gray-100 flex-shrink-0 cursor-pointer"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <svg
+            width="28px"
+            height="28px"
+            viewBox="0 0 16 16"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+          >
+            <path
+              fill="#5059C9"
+              d="M10.765 6.875h3.616c.342 0 .619.276.619.617v3.288a2.272 2.272 0 01-2.274 2.27h-.01a2.272 2.272 0 01-2.274-2.27V7.199c0-.179.145-.323.323-.323zM13.21 6.225c.808 0 1.464-.655 1.464-1.462 0-.808-.656-1.463-1.465-1.463s-1.465.655-1.465 1.463c0 .807.656 1.462 1.465 1.462z"
+            />
+            <path
+              fill="#7B83EB"
+              d="M8.651 6.225a2.114 2.114 0 002.117-2.112A2.114 2.114 0 008.65 2a2.114 2.114 0 00-2.116 2.112c0 1.167.947 2.113 2.116 2.113zM11.473 6.875h-5.97a.611.611 0 00-.596.625v3.75A3.669 3.669 0 008.488 15a3.669 3.669 0 003.582-3.75V7.5a.611.611 0 00-.597-.625z"
+            />
+            <path
+              fill={`url(#${teamsGradientId})`}
+              d="M1.597 4.925h5.969c.33 0 .597.267.597.596v5.958a.596.596 0 01-.597.596h-5.97A.596.596 0 011 11.479V5.521c0-.33.267-.596.597-.596z"
+            />
+            <path
+              fill="#ffffff"
+              d="M6.152 7.193H4.959v3.243h-.76V7.193H3.01v-.63h3.141v.63z"
+            />
+            <defs>
+              <linearGradient
+                id={teamsGradientId}
+                x1="2.244"
+                x2="6.906"
+                y1="4.46"
+                y2="12.548"
+                gradientUnits="userSpaceOnUse"
+              >
+                <stop stopColor="#5A62C3" />
+                <stop offset="1" stopColor="#7B83EB" />
+              </linearGradient>
+            </defs>
+          </svg>
+        </button>
       </div>
       <HorizontalTabs
         tabs={tabsData}

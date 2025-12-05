@@ -55,12 +55,12 @@ export function Navigation() {
       className="bg-white border-r border-gray-200 flex flex-col relative"
       style={{
         height: '100vh',
-        width: isSidebarExpanded ? '240px' : '64px',
+        width: isSidebarExpanded ? '280px' : '64px',
         transition: 'width 300ms ease-in-out'
       }}
     >
       {/* Navigation Links */}
-      <nav className="flex flex-col px-4 py-6 space-y-1 flex-1 w-full items-center" style={{ gap: '8px' }}>
+      <nav className="flex flex-col px-3 py-6 space-y-1 flex-1 w-full items-start" style={{ gap: '8px' }}>
         {navigation.map((item) => {
           const Icon = item.icon;
           const isActive = isItemActive(item);
@@ -89,28 +89,28 @@ export function Navigation() {
                         toggleExpanded(item.name);
                       }
                     }}
-                    className={`flex items-center gap-3 px-3 py-3 rounded-md transition-colors flex-1 w-full ${
+                    className={`flex items-center gap-2 px-2 py-2.5 rounded-md transition-colors flex-1 w-full ${
                       isActive 
                         ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600' 
                         : 'hover:bg-gray-50'
-                    } ${!isSidebarExpanded ? 'justify-center' : ''}`}
+                    } ${!isSidebarExpanded ? 'justify-center' : 'justify-start'}`}
                     style={{
                       color: isActive ? '#2563eb' : 'var(--text-icons-base-second, #68727D)',
                       fontFamily: 'Inter',
-                      fontSize: '15px',
+                      fontSize: '13px',
                       fontStyle: 'normal',
                       fontWeight: '600',
-                      lineHeight: '22px'
+                      lineHeight: '18px'
                     }}
                     title={!isSidebarExpanded ? item.name : undefined}
                   >
                     <Icon 
-                      className="h-5 w-5 flex-shrink-0" 
+                      className="h-4 w-4 flex-shrink-0" 
                       style={{
                         color: isActive ? '#2563eb' : 'var(--text-icons-base-second, #68727D)'
                       }}
                     />
-                    {isSidebarExpanded && <span>{item.name}</span>}
+                    {isSidebarExpanded && <span className="whitespace-normal">{item.name}</span>}
                     {isSidebarExpanded && (
                       <div className="ml-auto">
                         {isExpanded ? (
@@ -126,35 +126,35 @@ export function Navigation() {
                   <Link
                     href={item.href}
                     onClick={handleLinkClick}
-                    className={`flex items-center gap-3 px-3 py-3 rounded-md transition-colors flex-1 ${
+                    className={`flex items-center gap-2 px-2 py-2.5 rounded-md transition-colors flex-1 ${
                       isActive 
                         ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600' 
                         : 'hover:bg-gray-50'
-                    } ${!isSidebarExpanded ? 'justify-center' : ''}`}
+                    } ${!isSidebarExpanded ? 'justify-center' : 'justify-start'}`}
                     style={{
                       color: isActive ? '#2563eb' : 'var(--text-icons-base-second, #68727D)',
                       fontFamily: 'Inter',
-                      fontSize: '15px',
+                      fontSize: '13px',
                       fontStyle: 'normal',
                       fontWeight: '600',
-                      lineHeight: '22px'
+                      lineHeight: '18px'
                     }}
                     title={!isSidebarExpanded ? item.name : undefined}
                   >
                     <Icon 
-                      className="h-5 w-5 flex-shrink-0" 
+                      className="h-4 w-4 flex-shrink-0" 
                       style={{
                         color: isActive ? '#2563eb' : 'var(--text-icons-base-second, #68727D)'
                       }}
                     />
-                    {isSidebarExpanded && <span>{item.name}</span>}
+                    {isSidebarExpanded && <span className="whitespace-normal">{item.name}</span>}
                   </Link>
                 )}
               </div>
 
               {/* Sub Items */}
               {hasSubItems && expandedItems.has(item.name) && isSidebarExpanded && (
-                <div className="ml-6 mt-1 space-y-1">
+                <div className="ml-4 mt-1 space-y-1">
                   {item.subItems!.map((subItem) => {
                     const SubIcon = subItem.icon;
                     const isSubActive = isSubItemActive(subItem);
@@ -164,7 +164,7 @@ export function Navigation() {
                         key={subItem.name}
                         href={subItem.href}
                         onClick={handleLinkClick}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm ${
+                        className={`flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors ${
                           isSubActive 
                             ? 'bg-blue-50 text-blue-600 border-l-2 border-blue-600' 
                             : 'hover:bg-gray-50'
@@ -172,19 +172,19 @@ export function Navigation() {
                         style={{
                           color: isSubActive ? '#2563eb' : 'var(--text-icons-base-second, #68727D)',
                           fontFamily: 'Inter',
-                          fontSize: '14px',
+                          fontSize: '12px',
                           fontStyle: 'normal',
                           fontWeight: '500',
-                          lineHeight: '20px'
+                          lineHeight: '16px'
                         }}
                       >
                         <SubIcon 
-                          className="h-4 w-4 flex-shrink-0" 
+                          className="h-3.5 w-3.5 flex-shrink-0" 
                           style={{
                             color: isSubActive ? '#2563eb' : 'var(--text-icons-base-second, #68727D)'
                           }}
                         />
-                        <span>{subItem.name}</span>
+                        <span className="whitespace-normal">{subItem.name}</span>
                       </Link>
                     );
                   })}
@@ -195,7 +195,7 @@ export function Navigation() {
         })}
         
         {/* Expand/Collapse Arrow Button - Just below last item */}
-        <div className="flex justify-center items-center w-full mt-2">
+        <div className="flex justify-start items-center w-full mt-2 pl-2">
           <button
             onClick={toggleExpand}
             className="flex items-center justify-center w-10 h-10 rounded-md hover:bg-blue-600 transition-colors bg-blue-500 shadow-sm"

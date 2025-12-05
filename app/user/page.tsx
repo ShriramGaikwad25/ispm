@@ -9,6 +9,7 @@ import "@/lib/ag-grid-setup";
 import CustomPagination from "@/components/agTable/CustomPagination";
 import { Plus, Search, Pencil } from "lucide-react";
 import HorizontalTabs from "@/components/HorizontalTabs";
+import UserDisplayName from "@/components/UserDisplayName";
 
 
 interface UserData {
@@ -218,9 +219,12 @@ const columnDefs = useMemo<ColDef[]>(
             >
               {initials}
             </div>
-            <span style={{ color: "#1677ff", cursor: "pointer" }}>
-              {params.value}
-            </span>
+            <UserDisplayName
+              displayName={params.value}
+              tags={params.data.tags}
+              className="text-blue-600"
+              style={{ color: "#1677ff", cursor: "pointer" }}
+            />
           </div>
         );
       },

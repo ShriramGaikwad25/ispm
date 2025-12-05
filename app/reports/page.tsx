@@ -43,12 +43,6 @@ export default function ReportsPage() {
       icon: "👻"
     },
     {
-      id: "user-access-report",
-      title: "User Access Report",
-      subtitle: "Comprehensive report of user access permissions and entitlements",
-      icon: "👤"
-    },
-    {
       id: "certification-report",
       title: "Certification Report",
       subtitle: "Download full report filtered by reviewer, decision, delta, etc.",
