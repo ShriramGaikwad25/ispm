@@ -19,6 +19,9 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // Add empty turbopack config to silence warnings
+  turbopack: {},
+  // Keep webpack config for ag-grid externals (needed for SSR)
   webpack: (config, { isServer }) => {
     if (isServer) {
       // Exclude ag-grid from server-side rendering
