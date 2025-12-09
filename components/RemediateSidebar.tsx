@@ -10,14 +10,20 @@ import UserDisplayName from "./UserDisplayName";
 interface RemediateSidebarProps {
   selectedRows: any[];
   onClose: () => void;
-  onUpdateActions: (actionType: string, justification: string) => Promise<void>;
+  onLockAccount?: (justification: string) => Promise<void>;
+  onRevokeAccess?: (justification: string) => Promise<void>;
+  onConditionalAccess?: (endDate: string, justification: string) => Promise<void>;
+  onModifyAccess?: (newAccess: string, justification: string) => Promise<void>;
   isActionLoading: boolean;
 }
 
 const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
   selectedRows,
   onClose,
-  onUpdateActions,
+  onLockAccount,
+  onRevokeAccess,
+  onConditionalAccess,
+  onModifyAccess,
   isActionLoading,
 }) => {
   const [lockAccountChecked, setLockAccountChecked] = useState(false);
@@ -31,6 +37,7 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
   const [dateValidationError, setDateValidationError] = useState("");
   const [showLockConfirmation, setShowLockConfirmation] = useState(false);
   const [showRevokeConfirmation, setShowRevokeConfirmation] = useState(false);
+  const [revokeJustification, setRevokeJustification] = useState("");
   const [modifyAccessSelectedOption, setModifyAccessSelectedOption] = useState<any>(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [comment, setComment] = useState("");
@@ -100,6 +107,35 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
 
   const isDateValid = !dateValidationError && conditionalEndDate;
 
+  // Format user name from "amber.henry" to "Amber Henry"
+  const formatUserName = (name: string): string => {
+    if (!name) return "";
+    
+    // If it contains a dot, treat as username format (e.g., "amber.henry")
+    if (name.includes(".")) {
+      return name
+        .split(".")
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+        .join(" ");
+    }
+    
+    // If it contains @, it's an email, return as is
+    if (name.includes("@")) {
+      return name;
+    }
+    
+    // If it contains spaces, capitalize each word
+    if (name.includes(" ")) {
+      return name
+        .split(" ")
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+        .join(" ");
+    }
+    
+    // Otherwise, just capitalize first letter
+    return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+  };
+
   return (
     <div className="space-y-6">
       {/* Content */}
@@ -143,23 +179,25 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
                 derivedEmail ||
                 "";
               const userType = row?.userType || row?.employeetype || row?.tags;
+              const displayUserName = userPrimary || userSecondary || "N/A";
+              const formattedUserName = formatUserName(displayUserName);
+              
               return (
                 <div key={row.lineItemId || row.id || index} className="flex items-center p-3 bg-gray-50 rounded-md">
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">
+                    <p className="font-medium">
                       <UserDisplayName
-                        displayName={userPrimary || userSecondary || "N/A"}
+                        displayName={formattedUserName}
                         userType={userType}
                         employeetype={row?.employeetype}
                         tags={row?.tags}
                       />
                     </p>
-                    <p className="text-gray-500 truncate">{(userPrimary || userSecondary || "N/A") + " - User"}</p>
                   </div>
-                  <span className="mx-4 text-gray-400">→</span>
+                  <span className="mx-4 text-gray-400 flex-shrink-0">→</span>
                   <div className="flex-1 min-w-0 text-right">
-                    <p className="font-medium truncate">{entName}</p>
-                    <p className="text-gray-500 truncate">{appName + " - IAM role"}</p>
+                    <p className="font-medium break-words">{entName}</p>
+                    <p className="text-gray-500 text-xs mt-1 break-words">{appName}</p>
                   </div>
                 </div>
               );
@@ -171,12 +209,29 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
 
         {/* Conditional Access */}
         <div
-          className={`items-center space-x-4 p-2 rounded-md ${
+          className={`items-center space-x-4 p-2 rounded-md cursor-pointer ${
             conditionalAccessChecked ? "bg-gray-200" : "bg-gray-50"
           }`}
+          onClick={(e) => {
+            // Don't toggle if clicking on input fields or buttons
+            if ((e.target as HTMLElement).tagName === 'INPUT' || 
+                (e.target as HTMLElement).tagName === 'TEXTAREA' ||
+                (e.target as HTMLElement).tagName === 'BUTTON' ||
+                (e.target as HTMLElement).closest('button') ||
+                (e.target as HTMLElement).closest('.react-select')) {
+              return;
+            }
+            const newValue = !conditionalAccessChecked;
+            setConditionalAccessChecked(newValue);
+            if (!newValue) {
+              setConditionalEndDate("");
+              setConditionalJustification("");
+              setDateValidationError("");
+            }
+          }}
         >
           <div className="flex justify-between items-center">
-            <label className="flex items-center gap-2 cursor-pointer">
+            <label className="flex items-center gap-2 cursor-pointer pointer-events-none">
               <input
                 type="checkbox"
                 checked={conditionalAccessChecked}
@@ -188,20 +243,21 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
                     setDateValidationError("");
                   }
                 }}
-                className="cursor-pointer"
+                className="cursor-pointer pointer-events-auto"
+                onClick={(e) => e.stopPropagation()}
               />
               <h2 className="font-semibold">Conditional Access</h2>
             </label>
             {conditionalAccessChecked && (
               <button
-                onClick={async () => {
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  if (!onConditionalAccess) return;
+                  
                   const justification =
                     conditionalJustification.trim() || "Conditional access";
-                  const fullComment = conditionalEndDate
-                    ? `Conditional access until ${conditionalEndDate} - ${justification}`
-                    : justification;
 
-                  await onUpdateActions("ConditionalAccess", fullComment);
+                  await onConditionalAccess(conditionalEndDate, justification);
 
                   // reset local state
                   setConditionalAccessChecked(false);
@@ -212,12 +268,14 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
                 disabled={
                   isActionLoading ||
                   !isDateValid ||
-                  !conditionalJustification.trim()
+                  !conditionalJustification.trim() ||
+                  !onConditionalAccess
                 }
-                className={`rounded-sm p-2 ${
+                className={`rounded-sm p-2 pointer-events-auto ${
                   isActionLoading ||
                   !isDateValid ||
-                  !conditionalJustification.trim()
+                  !conditionalJustification.trim() ||
+                  !onConditionalAccess
                     ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                     : "bg-[#15274E] text-white hover:bg-blue-900"
                 }`}
@@ -227,7 +285,7 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
             )}
           </div>
           {conditionalAccessChecked && (
-            <div className="mt-3 space-y-3">
+            <div className="mt-3 space-y-3 pointer-events-auto" onClick={(e) => e.stopPropagation()}>
               <div>
                 <span className="flex items-center mb-1">End date</span>
                 <input
@@ -262,26 +320,42 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
 
         {/* Modify Access */}
         <div
-          className={`items-center space-x-4 p-2 rounded-md ${
+          className={`items-center space-x-4 p-2 rounded-md cursor-pointer ${
             immediateRevokeChecked ? "bg-gray-200" : "bg-gray-50"
           }`}
+          onClick={(e) => {
+            if (immediateRevokeChecked) return;
+            // Don't toggle if clicking on input fields or buttons
+            if ((e.target as HTMLElement).tagName === 'INPUT' || 
+                (e.target as HTMLElement).tagName === 'TEXTAREA' ||
+                (e.target as HTMLElement).tagName === 'BUTTON' ||
+                (e.target as HTMLElement).closest('button') ||
+                (e.target as HTMLElement).closest('.react-select')) {
+              return;
+            }
+            setModifyAccessChecked(!modifyAccessChecked);
+          }}
         >
           <div className="flex justify-between items-center">
-            <label className="flex items-center gap-2 cursor-pointer">
+            <label className="flex items-center gap-2 cursor-pointer pointer-events-none">
               <input
                 type="checkbox"
                 checked={modifyAccessChecked}
                 disabled={immediateRevokeChecked}
                 onChange={(e) => setModifyAccessChecked(e.target.checked)}
-                className="cursor-pointer"
+                className="cursor-pointer pointer-events-auto"
+                onClick={(e) => e.stopPropagation()}
               />
               <h2 className="font-semibold">Modify Access</h2>
             </label>
             {modifyAccessChecked && (
               <button
-                onClick={() => setShowConfirmation(true)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowConfirmation(true);
+                }}
                 disabled={!modifyAccessSelectedOption || isActionLoading}
-                className={`cursor-pointer text-white rounded-sm p-2 ${
+                className={`cursor-pointer text-white rounded-sm p-2 pointer-events-auto ${
                   !modifyAccessSelectedOption || immediateRevokeChecked || isActionLoading
                     ? "bg-gray-400 cursor-not-allowed"
                     : "bg-[#15274E]"
@@ -292,7 +366,7 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
             )}
           </div>
           {modifyAccessChecked && (
-            <div className="mt-2">
+            <div className="mt-2 pointer-events-auto" onClick={(e) => e.stopPropagation()}>
               <span className="flex items-center m-2">
                 Select New Access
               </span>
@@ -309,7 +383,7 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
             </div>
           )}
           {modifyAccessChecked && (
-            <div className="mt-2">
+            <div className="mt-2 pointer-events-auto" onClick={(e) => e.stopPropagation()}>
               <span className="flex items-center m-2">Comments</span>
               <div className="flex">
                 <textarea
@@ -333,28 +407,49 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
           )}
           {showConfirmation &&
             createPortal(
-              <div className="fixed inset-0 flex items-center justify-center z-[100] bg-black/30">
-                <div className="bg-white p-6 rounded-lg shadow-2xl max-w-sm space-y-4 border-2 border-gray-300 ring-4 ring-blue-100" onClick={(e) => e.stopPropagation()}>
+              <div 
+                className="fixed inset-0 flex items-center justify-center z-[100] bg-black/30"
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <div 
+                  className="bg-white p-6 rounded-lg shadow-2xl max-w-sm space-y-4 border-2 border-gray-300 ring-4 ring-blue-100" 
+                  onClick={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
                   <p className="text-base font-medium text-gray-800">
                     Are you sure you want to modify access?
                   </p>
                   <div className="flex justify-end space-x-2">
                     <button
-                      onClick={() => setShowConfirmation(false)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowConfirmation(false);
+                      }}
                       className="px-4 py-2 text-sm font-medium bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
                     >
                       Cancel
                     </button>
                     <button
-                      onClick={async () => {
-                        await onUpdateActions(
-                          "Approve",
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (!onModifyAccess) return;
+                        
+                        const newAccess = modifyAccessSelectedOption?.value || modifyAccessSelectedOption?.label || "";
+                        await onModifyAccess(
+                          newAccess,
                           comment || "Modified access"
                         );
                         setShowConfirmation(false);
                         setModifyAccessSelectedOption(null);
+                        setComment("");
                       }}
-                      className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                      disabled={!onModifyAccess}
+                      className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                        !onModifyAccess
+                          ? "bg-gray-400 text-gray-100 cursor-not-allowed"
+                          : "bg-blue-600 text-white hover:bg-blue-700"
+                      }`}
                     >
                       Confirm
                     </button>
@@ -366,9 +461,24 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
         </div>
 
         {/* Lock Account */}
-        <div className="items-center space-x-4 p-2 bg-gray-50 rounded-md">
+        <div 
+          className="items-center space-x-4 p-2 bg-gray-50 rounded-md cursor-pointer"
+          onClick={(e) => {
+            // Don't toggle if clicking on input fields or buttons
+            if ((e.target as HTMLElement).tagName === 'INPUT' || 
+                (e.target as HTMLElement).tagName === 'BUTTON' ||
+                (e.target as HTMLElement).closest('button')) {
+              return;
+            }
+            const checked = !lockAccountChecked;
+            setLockAccountChecked(checked);
+            if (checked) {
+              setShowLockConfirmation(true);
+            }
+          }}
+        >
           <div className="flex justify-between items-center">
-            <label className="flex items-center gap-2 cursor-pointer">
+            <label className="flex items-center gap-2 cursor-pointer pointer-events-none">
               <input
                 type="checkbox"
                 checked={lockAccountChecked}
@@ -379,7 +489,8 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
                     setShowLockConfirmation(true);
                   }
                 }}
-                className="cursor-pointer"
+                className="cursor-pointer pointer-events-auto"
+                onClick={(e) => e.stopPropagation()}
               />
               <h2 className="font-semibold">Lock Account</h2>
             </label>
@@ -388,12 +499,28 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
 
         {/* Immediate Revoke */}
         <div
-          className={`items-center space-x-4 p-2 rounded-md ${
+          className={`items-center space-x-4 p-2 rounded-md cursor-pointer ${
             modifyAccessChecked ? "bg-gray-200" : "bg-gray-50"
           }`}
+          onClick={(e) => {
+            if (modifyAccessChecked) return;
+            // Don't toggle if clicking on input fields or buttons
+            if ((e.target as HTMLElement).tagName === 'INPUT' || 
+                (e.target as HTMLElement).tagName === 'BUTTON' ||
+                (e.target as HTMLElement).closest('button')) {
+              return;
+            }
+            const checked = !immediateRevokeChecked;
+            setImmediateRevokeChecked(checked);
+            if (checked) {
+              setShowRevokeConfirmation(true);
+            } else {
+              setRevokeJustification("");
+            }
+          }}
         >
           <div className="flex justify-between items-center">
-            <label className="flex items-center gap-2 cursor-pointer">
+            <label className="flex items-center gap-2 cursor-pointer pointer-events-none">
               <input
                 type="checkbox"
                 checked={immediateRevokeChecked}
@@ -403,9 +530,12 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
                   setImmediateRevokeChecked(checked);
                   if (checked) {
                     setShowRevokeConfirmation(true);
+                  } else {
+                    setRevokeJustification("");
                   }
                 }}
-                className="cursor-pointer"
+                className="cursor-pointer pointer-events-auto"
+                onClick={(e) => e.stopPropagation()}
               />
               <h2 className="font-semibold">Immediate Revoke</h2>
             </label>
@@ -416,14 +546,19 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
         {showLockConfirmation &&
           createPortal(
             <div className="fixed inset-0 flex items-center justify-center z-[100] bg-black/30">
-              <div className="bg-white p-6 rounded-lg shadow-2xl max-w-sm space-y-4 border-2 border-gray-300 ring-4 ring-blue-100" onClick={(e) => e.stopPropagation()}>
+              <div 
+                className="bg-white p-6 rounded-lg shadow-2xl max-w-sm space-y-4 border-2 border-gray-300 ring-4 ring-blue-100"
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
                 <p className="text-base font-medium text-gray-800">
                   Are you sure you want to lock the account with immediate
                   effect?
                 </p>
                 <div className="flex justify-end space-x-2">
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setShowLockConfirmation(false);
                       setLockAccountChecked(false);
                     }}
@@ -432,18 +567,19 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
                     Cancel
                   </button>
                   <button
-                    onClick={async () => {
-                      await onUpdateActions(
-                        "Lock",
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      if (!onLockAccount) return;
+                      
+                      await onLockAccount(
                         "Lock account with immediate effect from Remediate"
                       );
                       setShowLockConfirmation(false);
                       setLockAccountChecked(false);
-                      onClose();
                     }}
-                    disabled={isActionLoading}
+                    disabled={isActionLoading || !onLockAccount}
                     className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                      isActionLoading
+                      isActionLoading || !onLockAccount
                         ? "bg-gray-400 text-gray-100 cursor-not-allowed"
                         : "bg-blue-600 text-white hover:bg-blue-700"
                     }`}
@@ -460,35 +596,55 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
         {showRevokeConfirmation &&
           createPortal(
             <div className="fixed inset-0 flex items-center justify-center z-[100] bg-black/30">
-              <div className="bg-white p-6 rounded-lg shadow-2xl max-w-sm space-y-4 border-2 border-red-200 ring-4 ring-red-100" onClick={(e) => e.stopPropagation()}>
+              <div 
+                className="bg-white p-6 rounded-lg shadow-2xl max-w-sm space-y-4 border-2 border-gray-300 ring-4 ring-blue-100"
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
                 <p className="text-base font-medium text-gray-800">
                   Are you sure you want to revoke access immediately?
                 </p>
+                <div>
+                  <span className="flex items-center mb-1">Justification</span>
+                  <textarea
+                    rows={2}
+                    value={revokeJustification}
+                    onChange={(e) => setRevokeJustification(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onFocus={(e) => e.stopPropagation()}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm resize-none bg-white"
+                    placeholder="Enter justification for revoking access"
+                  />
+                </div>
                 <div className="flex justify-end space-x-2">
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setShowRevokeConfirmation(false);
                       setImmediateRevokeChecked(false);
+                      setRevokeJustification("");
                     }}
                     className="px-4 py-2 text-sm font-medium bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
                   >
                     Cancel
                   </button>
                   <button
-                    onClick={async () => {
-                      await onUpdateActions(
-                        "Reject",
-                        "Immediate revoke"
-                      );
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      if (!onRevokeAccess) return;
+                      
+                      const justification = revokeJustification.trim() || "Immediate revoke";
+                      await onRevokeAccess(justification);
                       setShowRevokeConfirmation(false);
                       setImmediateRevokeChecked(false);
-                      onClose();
+                      setRevokeJustification("");
                     }}
-                    disabled={isActionLoading}
+                    disabled={isActionLoading || !revokeJustification.trim() || !onRevokeAccess}
                     className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                      isActionLoading
+                      isActionLoading || !revokeJustification.trim() || !onRevokeAccess
                         ? "bg-gray-400 text-gray-100 cursor-not-allowed"
-                        : "bg-[#e22f2e] text-white hover:bg-red-600"
+                        : "bg-blue-600 text-white hover:bg-blue-700"
                     }`}
                   >
                     {isActionLoading ? "Processing..." : "Confirm"}

@@ -24,8 +24,8 @@ export default function LoginPage() {
         
         if (accessToken && jwtToken) {
           // For now, assume token is valid if both tokens exist
-          console.log('Both tokens found, redirecting to applications');
-          router.push('/applications');
+          console.log('Both tokens found, redirecting to dashboard');
+          router.push('/');
           return;
         } else {
           console.log('Missing tokens, showing login form');
@@ -49,9 +49,9 @@ export default function LoginPage() {
       const success = await login(userid, password);
       console.log('Login success:', success);
       if (success) {
-        console.log('Login successful, redirecting to applications');
+        console.log('Login successful, redirecting to dashboard');
         // Use window.location for a full page redirect to avoid router issues
-        window.location.href = '/applications';
+        window.location.href = '/';
       } else {
         console.log('Login failed');
         setError('Invalid user ID or password');

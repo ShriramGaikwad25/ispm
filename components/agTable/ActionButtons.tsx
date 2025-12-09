@@ -341,12 +341,41 @@ const ActionButtons = <T extends { status?: string }>({
     setIsMenuOpen(false);
   };
 
+  // Separate API functions for each remediate action
+  // These should be implemented with specific API endpoints for each action
+  const handleLockAccount = async (justification: string) => {
+    // TODO: Implement lock account API call
+    // Example: await fetch('/api/remediate/lock-account', { method: 'POST', body: JSON.stringify({ justification, selectedRows }) })
+    console.log('Lock Account:', justification, selectedRows);
+  };
+
+  const handleRevokeAccess = async (justification: string) => {
+    // TODO: Implement revoke access API call
+    // Example: await fetch('/api/remediate/revoke-access', { method: 'POST', body: JSON.stringify({ justification, selectedRows }) })
+    console.log('Revoke Access:', justification, selectedRows);
+  };
+
+  const handleConditionalAccess = async (endDate: string, justification: string) => {
+    // TODO: Implement conditional access API call
+    // Example: await fetch('/api/remediate/conditional-access', { method: 'POST', body: JSON.stringify({ endDate, justification, selectedRows }) })
+    console.log('Conditional Access:', endDate, justification, selectedRows);
+  };
+
+  const handleModifyAccess = async (newAccess: string, justification: string) => {
+    // TODO: Implement modify access API call
+    // Example: await fetch('/api/remediate/modify-access', { method: 'POST', body: JSON.stringify({ newAccess, justification, selectedRows }) })
+    console.log('Modify Access:', newAccess, justification, selectedRows);
+  };
+
   const openRemediateSidebar = () => {
     const remediateContent = (
       <RemediateSidebar
         selectedRows={selectedRows}
         onClose={closeSidebar}
-        onUpdateActions={updateActions}
+        onLockAccount={handleLockAccount}
+        onRevokeAccess={handleRevokeAccess}
+        onConditionalAccess={handleConditionalAccess}
+        onModifyAccess={handleModifyAccess}
         isActionLoading={isActionLoading}
       />
     );

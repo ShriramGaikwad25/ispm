@@ -36,6 +36,11 @@ export interface NavItem {
 
 export const navLinks: NavItem[] = [
   {
+    name: 'Dashboard',
+    href: '/',
+    icon: LayoutDashboard,
+  },
+  {
     name: 'My Details',
     href: '/profile',
     icon: User,

@@ -1911,13 +1911,16 @@ const TreeClient: React.FC<TreeClientProps> = ({
             // Get taskId from selectedUser if available, otherwise use empty string
             const taskId = selectedUser?.taskId || "";
 
+            // For User assignment entity, use userId as lineItemId
+            const lineItemId = selectedUser?.id || selectedUser?.userid || "";
+
             // Construct the payload
             const payload = {
               reviewerName: selectedUser?.fullName || selectedUser?.username || reviewerId || "",
               reviewerId: reviewerId,
               certificationId: certId,
               taskId: taskId,
-              lineItemId: "", // Not available at certification level
+              lineItemId: lineItemId,
               assignmentEntity: "User",
               newOwnerDetails: {
                 id: ownerId,
@@ -1958,3 +1961,4 @@ const TreeClient: React.FC<TreeClientProps> = ({
 };
 
 export default TreeClient;
+

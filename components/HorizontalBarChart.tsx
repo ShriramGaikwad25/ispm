@@ -4,14 +4,32 @@ import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip, Char
 // Register required Chart.js elements
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip);
 
-const HorizontalBarChart = () => {
+interface HorizontalBarChartProps {
+  analyticsData?: {
+    totalEntitlements?: number;
+    newAccess?: number;
+    directAssignment?: number;
+    groupAssignment?: number;
+    lowRisk?: number;
+    highRisk?: number;
+  };
+}
+
+const HorizontalBarChart = ({ analyticsData }: HorizontalBarChartProps) => {
+  // Calculate values from analytics data or use defaults
+  const totalEntitlements = analyticsData?.totalEntitlements || 0;
+  const newAccess = analyticsData?.newAccess || 0;
+  const directAssignment = analyticsData?.directAssignment || 0;
+  const groupAssignment = analyticsData?.groupAssignment || 0;
+  const lowRisk = analyticsData?.lowRisk || 0;
+  const highRisk = analyticsData?.highRisk || 0;
+
   const data = {
     labels: ["Total Entitlements", "New", "Direct Assignment", "Group Assignment", "Low Risk", "Risk"],
-    
     datasets: [
       {
-        data: [600, 400, 350, 250, 110, 40], // Values
-        backgroundColor: ["#1F485B", "#50BFA5", "#6EC6FF", "#5E99CC", "#E6A23C", "#E74C3C"], // Colors
+        data: [totalEntitlements, newAccess, directAssignment, groupAssignment, lowRisk, highRisk],
+        backgroundColor: ["#1F485B", "#50BFA5", "#6EC6FF", "#5E99CC", "#E6A23C", "#E74C3C"],
         borderRadius: 4,
         barThickness: 32, // Adjust bar height
       },
