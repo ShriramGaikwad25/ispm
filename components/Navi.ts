@@ -41,18 +41,6 @@ export const navLinks: NavItem[] = [
     icon: LayoutDashboard,
   },
   {
-    name: 'My Details',
-    href: '/profile',
-    icon: User,
-    subItems: [
-      { name: 'My Profile', href: '/profile', icon: UserCircle2Icon },
-      { name: 'Users/Team', href: '/user', icon: User2Icon },
-      { name: 'Apps', href: '/applications', icon: LayoutPanelLeft },
-      { name: 'Catalog', href: '/catalog', icon: ScreenShareIcon },
-      { name: 'Service Account(s)', href: '/service-account', icon: Key }
-    ]
-  },
-  {
     name: 'Access Review(s)',
     href: '/access-review',
     icon: ListTodo,
@@ -63,13 +51,25 @@ export const navLinks: NavItem[] = [
     ]
   },
   {
-    name: 'Request Lifecycle',
+    name: 'Request Management',
     href: '/access-request',
     icon: ClipboardList,
     subItems: [
       { name: 'Access Request', href: '/access-request', icon: ClipboardList },
       { name: 'Track Request', href: '/track-request', icon: Search },
       { name: 'Pending Approvals', href: '/access-request', icon: AlertCircle }
+    ]
+  },
+  {
+    name: 'My Details',
+    href: '/profile',
+    icon: User,
+    subItems: [
+      { name: 'My Profile', href: '/profile', icon: UserCircle2Icon },
+      { name: 'Users/Team', href: '/user', icon: User2Icon },
+      { name: 'Applications', href: '/applications', icon: LayoutPanelLeft },
+      { name: 'Catalog', href: '/catalog', icon: ScreenShareIcon },
+      { name: 'Service Account(s)', href: '/service-account', icon: Key }
     ]
   },
   {
