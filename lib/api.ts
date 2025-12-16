@@ -1,7 +1,7 @@
 import { LineItemDetail } from "@/types/lineItem";
 import { PaginatedResponse, CertAnalyticsResponse } from "@/types/api";
 import { string } from "yup";
-import { apiRequestWithAuth, checkTokenExpiredError } from "./auth";
+import { apiRequestWithAuth } from "./auth";
 
 const BASE_URL = "https://preview.keyforge.ai/certification/api/v1/ACMECOM";
 
@@ -34,26 +34,12 @@ export async function fetchApi<T>(
 
     if (!res.ok) {
       const errorBody = await res.text();
-      // Check if error body contains token expired error
-      try {
-        const errorData = JSON.parse(errorBody);
-        if (checkTokenExpiredError(errorData)) {
-          throw new Error('Token Expired');
-        }
-      } catch (e) {
-        // If parsing fails, continue with original error
-      }
       throw new Error(
         `Fetch failed: ${res.status} ${res.statusText}\n${errorBody}`
       );
     }
 
-    const responseData = await res.json();
-    // Check for token expired error in successful responses
-    if (checkTokenExpiredError(responseData)) {
-      throw new Error('Token Expired');
-    }
-    return responseData;
+    return res.json();
   } catch (error) {
     throw new Error(`API request failed: ${error.message}`);
   }
@@ -232,26 +218,12 @@ export async function getGroupedAppOwnerDetails<T>(
 
   if (!res.ok) {
     const errorBody = await res.text();
-    // Check if error body contains token expired error
-    try {
-      const errorData = JSON.parse(errorBody);
-      if (checkTokenExpiredError(errorData)) {
-        throw new Error('Token Expired');
-      }
-    } catch (e) {
-      // If parsing fails, continue with original error
-    }
     throw new Error(
       `Fetch failed: ${res.status} ${res.statusText}\n${errorBody}`
     );
   }
 
-  const responseData = await res.json();
-  // Check for token expired error in successful responses
-  if (checkTokenExpiredError(responseData)) {
-    throw new Error('Token Expired');
-  }
-  return responseData;
+  return res.json();
 }
   
 export async function getAppAccounts(
@@ -293,24 +265,10 @@ export async function searchUsers(
 
   if (!response.ok) {
     const errorBody = await response.text();
-    // Check if error body contains token expired error
-    try {
-      const errorData = JSON.parse(errorBody);
-      if (checkTokenExpiredError(errorData)) {
-        throw new Error('Token Expired');
-      }
-    } catch (e) {
-      // If parsing fails, continue with original error
-    }
     throw new Error(`Search API failed: ${response.status} ${response.statusText}\n${errorBody}`);
   }
 
-  const responseData = await response.json();
-  // Check for token expired error in successful responses
-  if (checkTokenExpiredError(responseData)) {
-    throw new Error('Token Expired');
-  }
-  return responseData;
+  return response.json();
 }
 
 export async function getAPPOCertificationDetailsWithFilter<T>(
@@ -340,26 +298,12 @@ export async function getAPPOCertificationDetailsWithFilter<T>(
 
   if (!res.ok) {
     const errorBody = await res.text();
-    // Check if error body contains token expired error
-    try {
-      const errorData = JSON.parse(errorBody);
-      if (checkTokenExpiredError(errorData)) {
-        throw new Error('Token Expired');
-      }
-    } catch (e) {
-      // If parsing fails, continue with original error
-    }
     throw new Error(
       `Fetch failed: ${res.status} ${res.statusText}\n${errorBody}`
     );
   }
 
-  const responseData = await res.json();
-  // Check for token expired error in successful responses
-  if (checkTokenExpiredError(responseData)) {
-    throw new Error('Token Expired');
-  }
-  return responseData;
+  return res.json();
 }
 
 export async function getEntitlementDetails(
@@ -377,26 +321,12 @@ export async function getEntitlementDetails(
 
   if (!res.ok) {
     const errorBody = await res.text();
-    // Check if error body contains token expired error
-    try {
-      const errorData = JSON.parse(errorBody);
-      if (checkTokenExpiredError(errorData)) {
-        throw new Error('Token Expired');
-      }
-    } catch (e) {
-      // If parsing fails, continue with original error
-    }
     throw new Error(
       `Fetch failed: ${res.status} ${res.statusText}\n${errorBody}`
     );
   }
 
-  const responseData = await res.json();
-  // Check for token expired error in successful responses
-  if (checkTokenExpiredError(responseData)) {
-    throw new Error('Token Expired');
-  }
-  return responseData;
+  return res.json();
 }
 
 export async function getCatalogEntitlements<T>(
@@ -418,26 +348,12 @@ export async function getCatalogEntitlements<T>(
 
   if (!res.ok) {
     const errorBody = await res.text();
-    // Check if error body contains token expired error
-    try {
-      const errorData = JSON.parse(errorBody);
-      if (checkTokenExpiredError(errorData)) {
-        throw new Error('Token Expired');
-      }
-    } catch (e) {
-      // If parsing fails, continue with original error
-    }
     throw new Error(
       `Fetch failed: ${res.status} ${res.statusText}\n${errorBody}`
     );
   }
 
-  const responseData = await res.json();
-  // Check for token expired error in successful responses
-  if (checkTokenExpiredError(responseData)) {
-    throw new Error('Token Expired');
-  }
-  return responseData;
+  return res.json();
 }
 
 export async function executeQuery<T>(
@@ -464,26 +380,12 @@ export async function executeQuery<T>(
 
   if (!res.ok) {
     const errorBody = await res.text();
-    // Check if error body contains token expired error
-    try {
-      const errorData = JSON.parse(errorBody);
-      if (checkTokenExpiredError(errorData)) {
-        throw new Error('Token Expired');
-      }
-    } catch (e) {
-      // If parsing fails, continue with original error
-    }
     throw new Error(
       `Execute Query failed: ${res.status} ${res.statusText}\n${errorBody}`
     );
   }
 
-  const responseData = await res.json();
-  // Check for token expired error in successful responses
-  if (checkTokenExpiredError(responseData)) {
-    throw new Error('Token Expired');
-  }
-  return responseData;
+  return res.json();
 }
 
 // Get all supported application types for registration
@@ -519,23 +421,10 @@ export async function getAllApplications(): Promise<any> {
 
     if (!response.ok) {
       const errorText = await response.text();
-      // Check if error body contains token expired error
-      try {
-        const errorData = JSON.parse(errorText);
-        if (checkTokenExpiredError(errorData)) {
-          throw new Error('Token Expired');
-        }
-      } catch (e) {
-        // If parsing fails, continue with original error
-      }
       throw new Error(`API request failed: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
     const data = await response.json();
-    // Check for token expired error in successful responses
-    if (checkTokenExpiredError(data)) {
-      throw new Error('Token Expired');
-    }
     console.log('getAllApplications response:', data);
     return data;
   } catch (error) {
@@ -565,4 +454,65 @@ export async function getAllSupportedApplicationTypesViaProxy(): Promise<any> {
     throw new Error(`Proxy fetch failed: ${res.status} ${res.statusText}\n${errorBody}`);
   }
   return res.json();
+}
+
+// Validate password for sign-off
+export async function validatePassword(userName: string, password: string): Promise<boolean> {
+  const endpoint = "https://preview.keyforge.ai/nativeusers/api/v1/ACMECOM/validatepassword";
+  
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+      },
+      body: JSON.stringify({
+        userName,
+        password,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      // Check if error body contains token expired error
+      try {
+        const errorData = JSON.parse(errorBody);
+        if (checkTokenExpiredError(errorData)) {
+          throw new Error('Token Expired');
+        }
+      } catch (e) {
+        // If parsing fails, continue with original error
+      }
+      throw new Error(`Password validation failed: ${response.status} ${response.statusText}\n${errorBody}`);
+    }
+
+    const responseData = await response.json();
+    // Check for token expired error in successful responses
+    if (checkTokenExpiredError(responseData)) {
+      throw new Error('Token Expired');
+    }
+    
+    // Response should be true or false
+    return responseData === true || responseData === "true";
+  } catch (error) {
+    console.error('Password validation error:', error);
+    throw error;
+  }
+}
+
+// Sign off certification
+export async function signOffCertification(
+  reviewerId: string,
+  certId: string,
+  comments: string
+): Promise<void> {
+  const endpoint = `${BASE_URL}/signoff/${reviewerId}/${certId}`;
+  
+  return apiRequestWithAuth<void>(endpoint, {
+    method: "POST",
+    body: JSON.stringify({
+      comments,
+    }),
+  });
 }

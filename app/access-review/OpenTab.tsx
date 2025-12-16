@@ -14,13 +14,14 @@ import {
   ColDef,
   IDetailCellRendererParams,
 } from "ag-grid-enterprise";
-import { useCertifications } from "@/hooks/useApi";
+import { useCertifications, fetchAccessDetails, useCertificationDetails } from "@/hooks/useApi";
 import {
   CertificationRow,
   RawCertification,
   UserRowData,
 } from "@/types/certification";
 import { PaginatedResponse } from "@/types/api";
+import { getCertificationDetails, getCertifications } from "@/lib/api";
 import {
   CheckCircleIcon,
   DownloadIcon,
@@ -37,8 +38,12 @@ import { ModuleRegistry } from "ag-grid-community";
 import HorizontalProgressBar from "@/components/HorizontalProgressBar";
 import { useLoading } from "@/contexts/LoadingContext";
 import ActionCompletedToast from "@/components/ActionCompletedToast";
-import { getReviewerId } from "@/lib/auth";
+import { getReviewerId, getCookie, COOKIE_NAMES } from "@/lib/auth";
+import { useAuth } from "@/contexts/AuthContext";
 import ProxyActionModal from "@/components/ProxyActionModal";
+import SignOffModal from "@/components/SignOffModal";
+import { validatePassword, signOffCertification, getAccessDetails, getLineItemDetails } from "@/lib/api";
+import * as XLSX from "xlsx";
 import "./AccessReview.css"
 
 // Register AG Grid Enterprise modules
@@ -80,6 +85,7 @@ export const formatDateMMDDYY = (dateString?: string) =>
 
 const OpenTab: React.FC = () => {
   const reviewerId = getReviewerId() || "";
+  const { user } = useAuth();
   const [gridApi, setGridApi] = useState<GridApi | null>(null);
   const [rowData, setRowData] = useState<UserRowData[]>([]);
   const [filteredRowData, setFilteredRowData] = useState<UserRowData[]>([]);
@@ -100,6 +106,9 @@ const OpenTab: React.FC = () => {
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);
   const [selectedCertificationRow, setSelectedCertificationRow] = useState<CertificationRow | null>(null);
+  const [isSignOffModalOpen, setIsSignOffModalOpen] = useState(false);
+  const [selectedSignOffRow, setSelectedSignOffRow] = useState<CertificationRow | null>(null);
+  const [signOffError, setSignOffError] = useState<string | null>(null);
   
   const { showApiLoader, hideApiLoader } = useLoading();
   const filterMenuRef = useRef<HTMLDivElement>(null);
@@ -184,7 +193,7 @@ const OpenTab: React.FC = () => {
             title="Sign Off"
             aria-label="Sign off selected rows"
             className="p-1 rounded transition-colors duration-200"
-            onClick={handleSignOff}
+            onClick={() => handleSignOff(params.data)}
             disabled={isActionLoading}
           >
             <CheckCircleIcon
@@ -198,7 +207,19 @@ const OpenTab: React.FC = () => {
             title="Download Excel"
             aria-label="Download Excel"
             className="p-1 rounded transition-colors duration-200"
-            onClick={handleDownloadExcel}
+            onClick={async (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log("Download Excel button clicked!");
+              console.log("isActionLoading:", isActionLoading);
+              console.log("Button should not be disabled");
+              try {
+                await handleDownloadExcel();
+              } catch (error) {
+                console.error("Error in handleDownloadExcel:", error);
+                alert(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
+              }
+            }}
             disabled={isActionLoading}
           >
             <DownloadIcon
@@ -334,8 +355,384 @@ const OpenTab: React.FC = () => {
     setSelectedCertificationRow(rowData);
     setIsReassignModalOpen(true);
   };
-  const handleSignOff = () => handleAction('Sign Off');
-  const handleDownloadExcel = () => handleAction('Download Excel');
+
+  const handleSignOff = (rowData: CertificationRow) => {
+    setSelectedSignOffRow(rowData);
+    setSignOffError(null);
+    setIsSignOffModalOpen(true);
+  };
+
+  const handleSignOffConfirm = async (password: string, comments: string) => {
+    if (!selectedSignOffRow) {
+      setSignOffError("No certification selected");
+      return;
+    }
+
+    try {
+      setIsActionLoading(true);
+      setSignOffError(null);
+      showApiLoader?.(true, "Validating password...");
+
+      // Get current user's username from logged-in user
+      // Try auth context first (user.email contains the userid/username)
+      let userName = user?.email;
+      
+      // Fallback to cookie if auth context doesn't have it
+      if (!userName) {
+        try {
+          const uidTenant = getCookie(COOKIE_NAMES.UID_TENANT);
+          if (uidTenant) {
+            const parsed = JSON.parse(uidTenant);
+            userName = parsed?.userid;
+          }
+        } catch (e) {
+          // Ignore parsing errors
+        }
+      }
+      
+      // Final fallback to reviewerId
+      if (!userName) {
+        userName = reviewerId;
+      }
+      
+      if (!userName) {
+        throw new Error("Unable to determine user name");
+      }
+
+      // Step 1: Validate password
+      const isPasswordValid = await validatePassword(userName, password);
+      
+      if (!isPasswordValid) {
+        setSignOffError("Invalid password. Please try again.");
+        setIsActionLoading(false);
+        hideApiLoader?.();
+        return;
+      }
+
+      // Step 2: Sign off certification
+      showApiLoader?.(true, "Signing off certification...");
+      await signOffCertification(
+        selectedSignOffRow.reviewerId,
+        selectedSignOffRow.certificationId,
+        comments
+      );
+
+      // Success
+      setIsSignOffModalOpen(false);
+      setSelectedSignOffRow(null);
+      setSignOffError(null);
+      setShowCompletionToast(true);
+      
+      // Optionally refresh the data
+      // You might want to refetch certifications here
+    } catch (error) {
+      console.error("Error signing off certification:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to sign off certification";
+      setSignOffError(errorMessage);
+    } finally {
+      setIsActionLoading(false);
+      hideApiLoader?.();
+    }
+  };
+
+  const handleDownloadExcel = async () => {
+    console.log("=== handleDownloadExcel START ===");
+    console.log("rowData length:", rowData.length);
+    console.log("filteredRowData length:", filteredRowData.length);
+    console.log("data:", data);
+    console.log("data?.certifications:", data?.certifications);
+    console.log("data?.certifications?.items:", data?.certifications?.items);
+    console.log("data?.certifications?.items?.length:", data?.certifications?.items?.length);
+    console.log("reviewerId:", reviewerId);
+    
+    // Get certifications from the API data directly, or use rowData/filteredRowData
+    let certsToProcess: CertificationRow[] = [];
+    
+    if (filteredRowData.length > 0) {
+      certsToProcess = filteredRowData as CertificationRow[];
+      console.log("Using filteredRowData, count:", certsToProcess.length);
+    } else if (rowData.length > 0) {
+      certsToProcess = rowData as CertificationRow[];
+      console.log("Using rowData, count:", certsToProcess.length);
+    } else if (data?.certifications?.items && data.certifications.items.length > 0) {
+      // Map the raw API data to CertificationRow format (same as useEffect at line 732)
+      console.log("Using data from API directly, items count:", data.certifications.items.length);
+      const certificationData = data.certifications;
+      certsToProcess = certificationData.items.map((item: RawCertification): CertificationRow => {
+        // Match the exact mapping from useEffect (line 732-764) - these are accessed directly
+        const certInfo = item.reviewerCertificationInfo as any;
+        const actionInfo = item.reviewerCertificateActionInfo as any;
+        
+        const totalActions = actionInfo?.totalActions ?? 0;
+        const totalActionsCompleted = actionInfo?.totalActionsCompleted ?? 0;
+        const progress = totalActions > 0 ? Math.round((totalActionsCompleted / totalActions) * 100) : 0;
+        
+        return {
+          id: `${item.reviewerId}-${item.certificationId}`,
+          taskId: item.campaignId ?? "",
+          reviewerId: item.reviewerId,
+          certificationId: item.certificationId,
+          campaignId: item.campaignId,
+          certificationName: certInfo?.certificationName ?? "",
+          certificationType: certInfo?.certificationType ?? "",
+          certificationCreatedOn: certInfo?.certificationCreatedOn ?? "",
+          certificationExpiration: certInfo?.certificationExpiration ?? "",
+          status: certInfo?.status ?? "",
+          certificationSignedOff: certInfo?.certificationSignedOff ?? false,
+          certificateRequester: certInfo?.certificateRequester ?? "",
+          certificateOwner: certInfo?.certificateRequester ?? "",
+          percentageCompleted: actionInfo?.percentageCompleted ?? 0,
+          progress: progress,
+          description: certInfo?.certificationDescription ?? "No description provided",
+          reviewerName: certInfo?.reviewerName ?? "",
+          dueIn: certInfo?.dueIn ?? "",
+          estimatedTimeToCompletion: certInfo?.estimatedTimeToCompletion ?? "",
+        } as CertificationRow;
+      });
+      console.log("Mapped certifications from API, count:", certsToProcess.length);
+    } else {
+      // If no data is available, try to fetch it directly
+      console.warn("No data available in state, fetching directly from API...");
+      try {
+        setIsActionLoading(true);
+        showApiLoader?.(true, "Loading certifications...");
+        const freshData = await getCertifications(reviewerId, pageSize, pageNumber);
+        console.log("Fetched fresh data:", freshData);
+        if (freshData?.certifications?.items && freshData.certifications.items.length > 0) {
+          console.log("Fetched fresh data, items count:", freshData.certifications.items.length);
+          const certificationData = freshData.certifications;
+          certsToProcess = certificationData.items.map((item: RawCertification): CertificationRow => {
+            // Match the exact mapping from useEffect (line 732-764)
+            const certInfo = item.reviewerCertificationInfo as any;
+            const actionInfo = item.reviewerCertificateActionInfo as any;
+            const totalActions = actionInfo?.totalActions ?? 0;
+            const totalActionsCompleted = actionInfo?.totalActionsCompleted ?? 0;
+            const progress = totalActions > 0 ? Math.round((totalActionsCompleted / totalActions) * 100) : 0;
+            
+            return {
+              id: `${item.reviewerId}-${item.certificationId}`,
+              taskId: item.campaignId ?? "",
+              reviewerId: item.reviewerId,
+              certificationId: item.certificationId,
+              campaignId: item.campaignId,
+              certificationName: certInfo?.certificationName ?? "",
+              certificationType: certInfo?.certificationType ?? "",
+              certificationCreatedOn: certInfo?.certificationCreatedOn ?? "",
+              certificationExpiration: certInfo?.certificationExpiration ?? "",
+              status: certInfo?.status ?? "",
+              certificationSignedOff: certInfo?.certificationSignedOff ?? false,
+              certificateRequester: certInfo?.certificateRequester ?? "",
+              certificateOwner: certInfo?.certificateRequester ?? "",
+              percentageCompleted: actionInfo?.percentageCompleted ?? 0,
+              progress: progress,
+              description: certInfo?.certificationDescription ?? "No description provided",
+              reviewerName: certInfo?.reviewerName ?? "",
+              dueIn: certInfo?.dueIn ?? "",
+              estimatedTimeToCompletion: certInfo?.estimatedTimeToCompletion ?? "",
+            } as CertificationRow;
+          });
+          console.log("Mapped fresh certifications, count:", certsToProcess.length);
+        } else {
+          console.error("Fresh data fetch returned no items");
+        }
+      } catch (fetchError) {
+        console.error("Error fetching fresh data:", fetchError);
+        alert(`Failed to load certifications: ${fetchError instanceof Error ? fetchError.message : "Unknown error"}`);
+        setIsActionLoading(false);
+        hideApiLoader?.();
+        return;
+      }
+    }
+    
+    console.log("certsToProcess length:", certsToProcess.length);
+    console.log("certsToProcess:", certsToProcess);
+    
+    if (certsToProcess.length === 0) {
+      console.error("No certifications to process! All data sources are empty.");
+      console.error("Debug info - reviewerId:", reviewerId, "pageSize:", pageSize, "pageNumber:", pageNumber);
+      alert("No certifications available to download. Please wait for data to load or refresh the page.");
+      return;
+    }
+
+    console.log("Starting API calls...");
+    try {
+      setIsActionLoading(true);
+      showApiLoader?.(true, "Fetching pending entitlements...");
+      console.log("Loading state set, about to start processing certifications...");
+
+      const pendingEntitlements: any[] = [];
+      let processedCerts = 0;
+      let totalAccounts = 0;
+      let totalEntitlements = 0;
+
+      // Process each certification - use the same API flow as TreeClient
+      for (const cert of certsToProcess) {
+        try {
+          const certRow = cert as CertificationRow;
+          console.log(`Processing certification: ${certRow.certificationName} (${certRow.certificationId})`);
+          
+          // Step 1: Get certification details (users/tasks) - same as TreeClient uses
+          console.log(`Calling getCertificationDetails for cert ${certRow.certificationId}`);
+          const certDetailsResponse = await getCertificationDetails(
+            certRow.reviewerId,
+            certRow.certificationId,
+            1000, // Large page size
+            1
+          );
+          
+          const users = certDetailsResponse.items || [];
+          console.log(`Found ${users.length} users/tasks for certification ${certRow.certificationName}`);
+
+          // Step 2: For each user/task, get access details (accounts) - same as TreeClient
+          for (const user of users as any[]) {
+            const taskId = user.taskId || user.campaignId || certRow.taskId || certRow.campaignId;
+            if (!taskId) {
+              console.log(`Skipping user - no taskId`);
+              continue;
+            }
+
+            console.log(`Calling fetchAccessDetails for taskId: ${taskId}`);
+            const accounts = await fetchAccessDetails(
+              certRow.reviewerId,
+              certRow.certificationId,
+              taskId,
+              undefined,
+              1000, // Large page size
+              1
+            );
+            
+            console.log(`Found ${accounts.length} accounts for taskId: ${taskId}`);
+            totalAccounts += accounts.length;
+
+            // Step 3: For each account, get pending entitlements - same as TreeClient
+            for (const account of accounts) {
+              const lineItemId = account.lineItemId;
+              
+              if (!lineItemId) {
+                console.log(`Skipping account - no lineItemId`);
+                continue;
+              }
+
+              try {
+                console.log(`[API CALL 3] Calling getLineItemDetails(${certRow.reviewerId}, ${certRow.certificationId}, ${taskId}, ${lineItemId}, filter: "action eq Pending")`);
+                // Get pending entitlements for this line item using the same API as TreeClient
+                const entitlements = await getLineItemDetails(
+                  certRow.reviewerId,
+                  certRow.certificationId,
+                  taskId,
+                  lineItemId,
+                  undefined,
+                  undefined,
+                  "action eq Pending" // Filter for pending entitlements
+                );
+                console.log(`[API CALL 3] getLineItemDetails completed, returned ${entitlements.length} entitlements`);
+
+                totalEntitlements += entitlements.length;
+
+                // Add each pending entitlement to the list
+                for (const entitlement of entitlements) {
+                  // Use the same pattern as TreeClient (matching TreeClient.tsx line 667-670)
+                  const entitlementInfo = (entitlement.entitlementInfo && Array.isArray(entitlement.entitlementInfo)) 
+                    ? entitlement.entitlementInfo[0] 
+                    : (entitlement.entitlementInfo || (entitlement as any).entityEntitlement || {});
+                  const aiAssist = entitlement.AIAssist?.[0];
+                  
+                  // Match TreeClient's entitlement name/description extraction
+                  const entitlementName = (entitlement as any).entitlementName 
+                    || entitlementInfo?.entitlementName 
+                    || (entitlement as any).name 
+                    || (entitlement as any).entitlement_name 
+                    || "Unknown";
+                  const entitlementDescription = (entitlement as any).entitlementDescription 
+                    || entitlementInfo?.entitlementDescription 
+                    || (entitlement as any).description 
+                    || (entitlement as any).entitlement_description 
+                    || "";
+                  
+                  pendingEntitlements.push({
+                    "Campaign Name": certRow.certificationName || "",
+                    "Campaign Type": certRow.certificationType || "",
+                    "User": account.user || "Unknown",
+                    "Application": account.applicationName || "Unknown",
+                    "Account": account.accountname || account.accountName || "Unknown",
+                    "Entitlement Name": entitlementName,
+                    "Entitlement Description": entitlementDescription,
+                    "Risk": entitlement.itemRisk || entitlement.entityRisk || account.risk || "Unknown",
+                    "Recommendation": entitlement.recommendation || aiAssist?.Recommendation || account.recommendation || "",
+                    "Last Login": account.lastLogin || "",
+                    "Action": "Pending",
+                    "Due Date": certRow.certificationExpiration || "",
+                  });
+                }
+              } catch (err) {
+                console.error(`Error fetching entitlements for lineItem ${lineItemId}:`, err);
+                // Continue with next account
+              }
+            }
+          }
+          processedCerts++;
+        } catch (err) {
+          const certRow = cert as CertificationRow;
+          console.error(`Error processing cert ${certRow.certificationId}:`, err);
+          // Continue with next certification
+        }
+      }
+
+      console.log(`Processed ${processedCerts} certifications, ${totalAccounts} accounts, ${totalEntitlements} entitlements`);
+      console.log(`Total pending entitlements collected: ${pendingEntitlements.length}`);
+
+      if (pendingEntitlements.length === 0) {
+        alert("No pending entitlements found. Please check the console for details.");
+        setIsActionLoading(false);
+        hideApiLoader?.();
+        return;
+      }
+
+      console.log("Creating Excel file...");
+      // Create Excel workbook
+      const worksheet = XLSX.utils.json_to_sheet(pendingEntitlements);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Pending Entitlements");
+
+      // Generate Excel file buffer
+      console.log("Generating Excel buffer...");
+      const excelBuffer = XLSX.write(workbook, { 
+        bookType: "xlsx", 
+        type: "array" 
+      });
+
+      console.log(`Excel buffer size: ${excelBuffer.length} bytes`);
+
+      // Create blob and download
+      const blob = new Blob([excelBuffer], { 
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" 
+      });
+      
+      console.log(`Blob created, size: ${blob.size} bytes`);
+      
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const fileName = `pending-entitlements-${new Date().toISOString().split('T')[0]}.xlsx`;
+      a.download = fileName;
+      document.body.appendChild(a);
+      console.log(`Triggering download: ${fileName}`);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      console.log("Download completed successfully");
+      setShowCompletionToast(true);
+    } catch (error) {
+      console.error("Error downloading Excel file:", error);
+      console.error("Error stack:", error instanceof Error ? error.stack : "No stack trace");
+      alert(`Failed to download Excel file: ${error instanceof Error ? error.message : "Unknown error"}\n\nCheck console for details.`);
+    } finally {
+      setIsActionLoading(false);
+      hideApiLoader?.();
+    }
+  };
+
   const handleReleaseClaim = () => handleAction('Release/Claim');
 
   const handleUpload = () => {
@@ -795,6 +1192,39 @@ const OpenTab: React.FC = () => {
             hideApiLoader?.();
           }
         }}
+      />
+
+      {/* Sign Off Modal */}
+      <SignOffModal
+        isOpen={isSignOffModalOpen}
+        onClose={() => {
+          setIsSignOffModalOpen(false);
+          setSelectedSignOffRow(null);
+          setSignOffError(null);
+        }}
+        onConfirm={handleSignOffConfirm}
+        userName={
+          (() => {
+            // Try auth context first (user.email contains the userid/username)
+            if (user?.email) return user.email;
+            
+            // Fallback to cookie if auth context doesn't have it
+            try {
+              const uidTenant = getCookie(COOKIE_NAMES.UID_TENANT);
+              if (uidTenant) {
+                const parsed = JSON.parse(uidTenant);
+                if (parsed?.userid) return parsed.userid;
+              }
+            } catch (e) {
+              // Ignore parsing errors
+            }
+            
+            // Final fallback to reviewerId
+            return reviewerId || "";
+          })()
+        }
+        isLoading={isActionLoading}
+        error={signOffError}
       />
     </>
   );

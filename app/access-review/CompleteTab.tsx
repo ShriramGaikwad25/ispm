@@ -315,8 +315,12 @@ const CompleteTab: React.FC = () => {
   useEffect(() => {
     let filtered = rowData;
     
-    // Filter by status - only show Completed items
-    filtered = filtered.filter((row) => row.status === "Completed" || row.certificationSignedOff === true);
+    // Filter by status - show Completed or SignedOff items
+    filtered = filtered.filter((row) => 
+      row.status === "Completed" || 
+      row.status === "SignedOff" || 
+      row.certificationSignedOff === true
+    );
     
     // Filter by search term
     if (searchTerm.trim()) {
