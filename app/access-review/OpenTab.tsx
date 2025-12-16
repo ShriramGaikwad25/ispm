@@ -43,7 +43,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import ProxyActionModal from "@/components/ProxyActionModal";
 import SignOffModal from "@/components/SignOffModal";
 import { validatePassword, signOffCertification, getAccessDetails, getLineItemDetails } from "@/lib/api";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import "./AccessReview.css"
 
 // Register AG Grid Enterprise modules
@@ -648,20 +648,20 @@ const OpenTab: React.FC = () => {
                     || (entitlement as any).description 
                     || (entitlement as any).entitlement_description 
                     || "";
+                  const entitlementType = (entitlement as any).entitlementType 
+                    || entitlementInfo?.entitlementType 
+                    || (entitlement as any).type 
+                    || "";
                   
                   pendingEntitlements.push({
-                    "Campaign Name": certRow.certificationName || "",
-                    "Campaign Type": certRow.certificationType || "",
-                    "User": account.user || "Unknown",
+                    "Entitlement": entitlementName,
+                    "Description": entitlementDescription,
+                    "Type": entitlementType,
+                    "Account": account.user || account.accountname || account.accountName || "Unknown",
                     "Application": account.applicationName || "Unknown",
-                    "Account": account.accountname || account.accountName || "Unknown",
-                    "Entitlement Name": entitlementName,
-                    "Entitlement Description": entitlementDescription,
-                    "Risk": entitlement.itemRisk || entitlement.entityRisk || account.risk || "Unknown",
-                    "Recommendation": entitlement.recommendation || aiAssist?.Recommendation || account.recommendation || "",
-                    "Last Login": account.lastLogin || "",
-                    "Action": "Pending",
-                    "Due Date": certRow.certificationExpiration || "",
+                    "Last Login": account.lastLogin || account.lastLoginDate || "",
+                    "Action": "", // Empty initially, user will fill in Approve/Revoke
+                    "Comment": "", // Empty initially, user will fill in comments
                   });
                 }
               } catch (err) {
@@ -688,20 +688,95 @@ const OpenTab: React.FC = () => {
         return;
       }
 
-      console.log("Creating Excel file...");
-      // Create Excel workbook
-      const worksheet = XLSX.utils.json_to_sheet(pendingEntitlements);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Pending Entitlements");
+      console.log("Creating Excel file with ExcelJS...");
+      // Create Excel workbook using ExcelJS for proper protection support
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Pending Entitlements");
+      
+      // Define column headers
+      const headers = ["Entitlement", "Description", "Type", "Account", "Application", "Last Login", "Action", "Comment"];
+      worksheet.addRow(headers);
+      
+      // Style the header row
+      const headerRow = worksheet.getRow(1);
+      headerRow.font = { bold: true };
+      headerRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE0E0E0' }
+      };
+      
+      // Add data rows
+      pendingEntitlements.forEach((item) => {
+        worksheet.addRow([
+          item.Entitlement,
+          item.Description,
+          item.Type,
+          item.Account,
+          item.Application,
+          item["Last Login"],
+          item.Action,
+          item.Comment
+        ]);
+      });
+      
+      // Set column widths
+      worksheet.columns = [
+        { width: 30 }, // Entitlement
+        { width: 40 }, // Description
+        { width: 15 }, // Type
+        { width: 25 }, // Account
+        { width: 20 }, // Application
+        { width: 15 }, // Last Login
+        { width: 15 }, // Action
+        { width: 30 }, // Comment
+      ];
+      
+      // Find Action and Comment column indices (1-based)
+      const actionColIndex = headers.indexOf("Action") + 1; // Column G (7)
+      const commentColIndex = headers.indexOf("Comment") + 1; // Column H (8)
+      
+      console.log(`Action column index: ${actionColIndex}, Comment column index: ${commentColIndex}`);
+      
+      // Unlock Action and Comment columns (make them editable)
+      // All other columns remain locked (non-editable)
+      worksheet.eachRow((row, rowNumber) => {
+        row.eachCell((cell, colNumber) => {
+          // Check if this is Action or Comment column
+          const isEditable = colNumber === actionColIndex || colNumber === commentColIndex;
+          
+          // Set protection: locked=false means editable, locked=true means non-editable
+          cell.protection = {
+            locked: !isEditable
+          };
+        });
+      });
+      
+      // Protect the worksheet - this enables the cell protection
+      // Users can only edit unlocked cells (Action and Comment columns)
+      worksheet.protect('', {
+        selectLockedCells: true,
+        selectUnlockedCells: true,
+        formatCells: false,
+        formatColumns: false,
+        formatRows: false,
+        insertColumns: false,
+        insertRows: false,
+        insertHyperlinks: false,
+        deleteColumns: false,
+        deleteRows: false,
+        sort: false,
+        autoFilter: false,
+        pivotTables: false,
+      });
+      
+      console.log("Worksheet protected, Action and Comment columns are editable");
 
       // Generate Excel file buffer
       console.log("Generating Excel buffer...");
-      const excelBuffer = XLSX.write(workbook, { 
-        bookType: "xlsx", 
-        type: "array" 
-      });
+      const excelBuffer = await workbook.xlsx.writeBuffer();
 
-      console.log(`Excel buffer size: ${excelBuffer.length} bytes`);
+      console.log(`Excel buffer size: ${excelBuffer.byteLength} bytes`);
 
       // Create blob and download
       const blob = new Blob([excelBuffer], { 
