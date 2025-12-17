@@ -611,6 +611,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
     if (!user.taskId) return;
 
     const effectiveStatusFilter = overrideStatusFilterQuery ?? statusFilterQuery;
+    const isAllSelected = effectiveStatusFilter === "ALL_ACTIONS";
 
     setLoadingEntitlements(true);
     try {
@@ -626,15 +627,56 @@ const TreeClient: React.FC<TreeClientProps> = ({
       const entitlementPromises = accounts.map(async (account: any) => {
         const lineItemId = account.lineItemId;
         if (!lineItemId) return [];
-        const entitlements = await getLineItemDetails(
-          reviewerId,
-          certId,
-          user.taskId,
-          lineItemId,
-          undefined,
-          undefined,
-          effectiveStatusFilter
-        );
+        
+        let entitlements: any[] = [];
+        
+        // If "All" is selected, make separate API calls for each action
+        if (isAllSelected) {
+          const [pendingEntitlements, approveEntitlements, rejectEntitlements] = await Promise.all([
+            getLineItemDetails(
+              reviewerId,
+              certId,
+              user.taskId,
+              lineItemId,
+              undefined,
+              undefined,
+              "action eq Pending"
+            ),
+            getLineItemDetails(
+              reviewerId,
+              certId,
+              user.taskId,
+              lineItemId,
+              undefined,
+              undefined,
+              "action eq Approve"
+            ),
+            getLineItemDetails(
+              reviewerId,
+              certId,
+              user.taskId,
+              lineItemId,
+              undefined,
+              undefined,
+              "action eq Reject"
+            )
+          ]);
+          
+          // Combine all results
+          entitlements = [...pendingEntitlements, ...approveEntitlements, ...rejectEntitlements];
+        } else {
+          // Single API call with the specific filter
+          entitlements = await getLineItemDetails(
+            reviewerId,
+            certId,
+            user.taskId,
+            lineItemId,
+            undefined,
+            undefined,
+            effectiveStatusFilter
+          );
+        }
+        
         return entitlements.map((item: any, index: number) => {
           const entitlementLineItemId =
             item?.ID ||
@@ -900,18 +942,12 @@ const TreeClient: React.FC<TreeClientProps> = ({
 
   // Handle filter selection
   const handleFilterToggle = useCallback((filterName: string) => {
-    if (filterName === "All") {
-      // If "All" is clicked, clear all filters
-      setSelectedFilters([]);
-    } else {
-      setSelectedFilters((prev) => {
-        const newFilters = prev.includes(filterName)
-          ? prev.filter((f) => f !== filterName)
-          : [...prev, filterName];
-        // If no filters selected after toggle, it means we're back to "All"
-        return newFilters;
-      });
-    }
+    setSelectedFilters((prev) => {
+      const newFilters = prev.includes(filterName)
+        ? prev.filter((f) => f !== filterName)
+        : [...prev, filterName];
+      return newFilters;
+    });
   }, []);
 
   // Handle filter changes from Filters component
@@ -920,9 +956,13 @@ const TreeClient: React.FC<TreeClientProps> = ({
       // `Filters` for status only allows a single selection at a time
       const selected = filters[0];
 
-      // Map UI status to API filter query (or clear if none)
+      // Map UI status to API filter query
+      // Use a special marker for "All" so we can detect it in loadUserEntitlements
       let nextStatusFilterQuery: string | undefined;
-      if (selected === "Pending") {
+      if (selected === "All" || !selected) {
+        // When "All" is selected, use a special marker that will trigger separate API calls
+        nextStatusFilterQuery = "ALL_ACTIONS";
+      } else if (selected === "Pending") {
         nextStatusFilterQuery = "action eq Pending";
       } else if (selected === "Certify") {
         nextStatusFilterQuery = "action eq Approve";
@@ -935,7 +975,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
       setStatusFilterQuery(nextStatusFilterQuery);
 
       // Keep local filters array for existing client-side logic (chips, etc.)
-      if (filters.length > 0) {
+      // Don't include "All" in selectedFilters since it's handled separately
+      if (filters.length > 0 && filters[0] !== "All") {
         setSelectedFilters(filters);
       } else {
         setSelectedFilters([]);
@@ -1077,10 +1118,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
   }, [entRowsWithDesc, entitlementsPageNumber, pageSize]);
 
   const filterOptions = [
-    {
-      name: "All",
-      color: "bg-gray-100 border-gray-300 text-gray-800",
-    },
     {
       name: "Dormant Access",
       color: "bg-yellow-100 border-yellow-300 text-yellow-800",
@@ -1689,10 +1726,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     </span>
                   </div>
                   {filterOptions.map((filter) => {
-                    // "All" is selected when no other filters are selected
-                    const isSelected = filter.name === "All" 
-                      ? selectedFilters.length === 0
-                      : selectedFilters.includes(filter.name);
+                    const isSelected = selectedFilters.includes(filter.name);
                     return (
                       <div
                         key={filter.name}

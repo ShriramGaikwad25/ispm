@@ -4,6 +4,7 @@ import Dropdown from "../Dropdown";
 import { CircleX, Filter, FilterX, Check } from "lucide-react";
 
 const statusOptions = [
+  "All",
   "Pending",
   "Certify",
   "Reject",
@@ -68,6 +69,35 @@ const Filters = ({
   }, []);
 
   const toggleFilter = (filterValue: string) => {
+    // If "All" is selected, set it as selected and pass ["All"] to callback
+    if (filterValue === "All") {
+      // If "All" is already selected (selectedFilter === ""), do nothing
+      if (selectedFilter === "") {
+        return;
+      }
+      // Switch to "All" from another filter
+      setSelectedFilter("");
+      if (appliedFilter) {
+        appliedFilter(["All"]);
+      }
+      if (onFilterChange) {
+        if (context === "status") {
+          // Clear grid filter for "All" - API will fetch all actions
+          if (gridApi && gridApi.current) {
+            const filterInstance = gridApi.current.getFilterInstance('status');
+            if (filterInstance) {
+              filterInstance.setModel(null);
+              gridApi.current.onFilterChanged();
+            }
+          }
+        } else {
+          // Clear API filter
+          onFilterChange("");
+        }
+      }
+      return;
+    }
+    
     setSelectedFilter(selectedFilter === filterValue ? "" : filterValue);
     // Call the callback immediately when filter changes
     if (appliedFilter) {
@@ -105,9 +135,13 @@ const Filters = ({
   const clearFilters = (e: React.MouseEvent) => {
     e.stopPropagation();
     setSelectedFilter("");
-    // Call the callback when clearing filters
+    // Call the callback when clearing filters - for status context, pass ["All"] to fetch all actions
     if (appliedFilter) {
-      appliedFilter([]);
+      if (context === "status") {
+        appliedFilter(["All"]);
+      } else {
+        appliedFilter([]);
+      }
     }
     if (onFilterChange) {
       if (context === "status") {
@@ -151,7 +185,12 @@ const Filters = ({
                   </span>
                 </div>
               )
-            : Filter
+            : () => (
+                <div className="flex h-8 items-center gap-2 px-2 w-full">
+                  <Filter />
+                  <small>All</small>
+                </div>
+              )
         }
         className={`h-8 w-full flex items-center justify-between ${isActive ? "bg-[#6D6E73]/20" : ""}`}
       >
@@ -159,7 +198,10 @@ const Filters = ({
           {context === "account" ? "Filters" : "Filter by Status"}
         </li>
         {options.map((option) => {
-          const isSelected = selectedFilter === option.value;
+          // For "All", show as selected when no filter is selected
+          const isSelected = option.value === "All" 
+            ? !selectedFilter 
+            : selectedFilter === option.value;
           const count = filterCounts[option.value] || (option as any).count;
           return (
             <li
