@@ -474,7 +474,15 @@ const ActionButtons = <T extends { status?: string }>({
           e.stopPropagation();
           e.preventDefault();
           const email = userEmail || "Harish.jangada@icallidus.com";
-          const teamsUrl = `https://teams.microsoft.com/l/chat/0/0?users=${email}&topicName=review&message=youthere`;
+          
+          // Extract application and entitlement names from selected rows
+          const firstRow = definedRows.length > 0 ? (definedRows[0] as any) : null;
+          const applicationName = firstRow?.applicationName || "Unknown Application";
+          const entitlementName = firstRow?.entitlementName || "Unknown Entitlement";
+          
+          // Create the message with application and entitlement details
+          const message = `Can you please clarify the following access - Application: ${applicationName}, Entitlement: ${entitlementName}`;
+          const teamsUrl = `https://teams.microsoft.com/l/chat/0/0?users=${email}&message=${encodeURIComponent(message)}`;
           console.log("Opening Teams URL:", teamsUrl);
           window.open(teamsUrl, '_blank', 'noopener,noreferrer');
         }}
