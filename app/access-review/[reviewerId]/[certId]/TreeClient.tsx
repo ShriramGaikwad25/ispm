@@ -1360,13 +1360,13 @@ const TreeClient: React.FC<TreeClientProps> = ({
             // Try to construct email from fullName (fallback)
             const nameParts = selectedUser.fullName.split(' ');
             if (nameParts.length > 0) {
-              userEmail = nameParts[0] + '@umassp.edu';
+              userEmail = nameParts[0] + '@icallidus.com';
             }
           }
           
           // Final fallback
           if (!userEmail) {
-            userEmail = "SAddala@umassp.edu";
+            userEmail = "Harish.jangada@icallidus.com";
           }
 
           return (
