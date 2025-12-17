@@ -473,7 +473,7 @@ const ActionButtons = <T extends { status?: string }>({
         onClick={(e) => {
           e.stopPropagation();
           e.preventDefault();
-          const email = userEmail || "SAddala@umassp.edu";
+          const email = userEmail || "Harish.jangada@icallidus.com";
           const teamsUrl = `https://teams.microsoft.com/l/chat/0/0?users=${email}&topicName=review&message=youthere`;
           console.log("Opening Teams URL:", teamsUrl);
           window.open(teamsUrl, '_blank', 'noopener,noreferrer');

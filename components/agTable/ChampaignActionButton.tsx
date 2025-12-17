@@ -208,7 +208,7 @@ const ChampaignActionButton: React.FC<ChampaignActionButtonProps> = ({
   
   const handleTeamsClick = () => {
     // Get reviewer email or use a default - you may need to adjust this based on your data structure
-    const reviewerEmail = reviewerId || "";
+    const reviewerEmail = reviewerId || "Harish.jangada@icallidus.com";
     if (reviewerEmail) {
       const teamsUrl = `https://teams.microsoft.com/l/chat/0/0?users=${reviewerEmail}&topicName=Review&message=Hello`;
       window.open(teamsUrl, '_blank', 'noopener,noreferrer');

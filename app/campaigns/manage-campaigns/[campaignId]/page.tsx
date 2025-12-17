@@ -564,7 +564,7 @@ export default function ManageCampaigns() {
   const handleTeamsClick = () => {
     // Get campaign owner email or use a default
     const selectedCampaign = campaignData?.campaigns.find(c => c.campaignID === campaignId);
-    const ownerEmail = selectedCampaign?.campaignOwner?.ownerName?.[0] || "";
+    const ownerEmail = selectedCampaign?.campaignOwner?.ownerName?.[0] || "Harish.jangada@icallidus.com";
     const campaignName = selectedCampaign?.name || "Campaign";
     
     if (ownerEmail) {

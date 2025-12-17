@@ -253,7 +253,7 @@ export default function Campaigns() {
 
         const handleTeamsClick = () => {
           // Get owner email or use a default - you may need to adjust this based on your data structure
-          const ownerEmail = params.data?.owner?.split(",")[0]?.trim() || "";
+          const ownerEmail = params.data?.owner?.split(",")[0]?.trim() || "Harish.jangada@icallidus.com";
           if (ownerEmail) {
             const teamsUrl = `https://teams.microsoft.com/l/chat/0/0?users=${ownerEmail}&topicName=${encodeURIComponent(params.data?.campaignName || "Campaign")}&message=Hello`;
             window.open(teamsUrl, '_blank', 'noopener,noreferrer');
