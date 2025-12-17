@@ -1377,6 +1377,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
               reviewerId={reviewerId}
               certId={certId}
               userEmail={userEmail}
+              selectedFilters={selectedFilters}
               onActionSuccess={() => {
                 // Fully refresh users and entitlements
                 refreshUsersAndEntitlements();
@@ -1392,7 +1393,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
 
       return cols;
     },
-    [certId, reviewerId, isReadOnly]
+    [certId, reviewerId, isReadOnly, selectedFilters, selectedUser, refreshUsersAndEntitlements, openSidebar]
   );
 
   const defaultColDef = useMemo<ColDef>(

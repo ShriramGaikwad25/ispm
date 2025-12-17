@@ -45,6 +45,7 @@ import SignOffModal from "@/components/SignOffModal";
 import { validatePassword, signOffCertification, getAccessDetails, getLineItemDetails } from "@/lib/api";
 import ExcelJS from "exceljs";
 import "./AccessReview.css"
+import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
 
 // Register AG Grid Enterprise modules
 ModuleRegistry.registerModules([MasterDetailModule]);
@@ -86,6 +87,7 @@ export const formatDateMMDDYY = (dateString?: string) =>
 const OpenTab: React.FC = () => {
   const reviewerId = getReviewerId() || "";
   const { user } = useAuth();
+  const { isVisible: isLeftSidebarVisible } = useLeftSidebar();
   const [gridApi, setGridApi] = useState<GridApi | null>(null);
   const [rowData, setRowData] = useState<UserRowData[]>([]);
   const [filteredRowData, setFilteredRowData] = useState<UserRowData[]>([]);
@@ -123,6 +125,7 @@ const OpenTab: React.FC = () => {
     top: number;
     left: number;
   }>({ top: 0, left: 0 });
+  const gridContainerRef = useRef<HTMLDivElement>(null);
 
   const activeColumnDefs = useMemo<ColDef[]>(() =>[
     {
@@ -445,367 +448,358 @@ const OpenTab: React.FC = () => {
     console.log("data?.certifications?.items?.length:", data?.certifications?.items?.length);
     console.log("reviewerId:", reviewerId);
     
-    // Get certifications from the API data directly, or use rowData/filteredRowData
-    let certsToProcess: CertificationRow[] = [];
-    
-    if (filteredRowData.length > 0) {
-      certsToProcess = filteredRowData as CertificationRow[];
-      console.log("Using filteredRowData, count:", certsToProcess.length);
-    } else if (rowData.length > 0) {
-      certsToProcess = rowData as CertificationRow[];
-      console.log("Using rowData, count:", certsToProcess.length);
-    } else if (data?.certifications?.items && data.certifications.items.length > 0) {
-      // Map the raw API data to CertificationRow format (same as useEffect at line 732)
-      console.log("Using data from API directly, items count:", data.certifications.items.length);
-      const certificationData = data.certifications;
-      certsToProcess = certificationData.items.map((item: RawCertification): CertificationRow => {
-        // Match the exact mapping from useEffect (line 732-764) - these are accessed directly
-        const certInfo = item.reviewerCertificationInfo as any;
-        const actionInfo = item.reviewerCertificateActionInfo as any;
-        
-        const totalActions = actionInfo?.totalActions ?? 0;
-        const totalActionsCompleted = actionInfo?.totalActionsCompleted ?? 0;
-        const progress = totalActions > 0 ? Math.round((totalActionsCompleted / totalActions) * 100) : 0;
-        
-        return {
-          id: `${item.reviewerId}-${item.certificationId}`,
-          taskId: item.campaignId ?? "",
-          reviewerId: item.reviewerId,
-          certificationId: item.certificationId,
-          campaignId: item.campaignId,
-          certificationName: certInfo?.certificationName ?? "",
-          certificationType: certInfo?.certificationType ?? "",
-          certificationCreatedOn: certInfo?.certificationCreatedOn ?? "",
-          certificationExpiration: certInfo?.certificationExpiration ?? "",
-          status: certInfo?.status ?? "",
-          certificationSignedOff: certInfo?.certificationSignedOff ?? false,
-          certificateRequester: certInfo?.certificateRequester ?? "",
-          certificateOwner: certInfo?.certificateRequester ?? "",
-          percentageCompleted: actionInfo?.percentageCompleted ?? 0,
-          progress: progress,
-          description: certInfo?.certificationDescription ?? "No description provided",
-          reviewerName: certInfo?.reviewerName ?? "",
-          dueIn: certInfo?.dueIn ?? "",
-          estimatedTimeToCompletion: certInfo?.estimatedTimeToCompletion ?? "",
-        } as CertificationRow;
-      });
-      console.log("Mapped certifications from API, count:", certsToProcess.length);
-    } else {
-      // If no data is available, try to fetch it directly
-      console.warn("No data available in state, fetching directly from API...");
-      try {
-        setIsActionLoading(true);
-        showApiLoader?.(true, "Loading certifications...");
-        const freshData = await getCertifications(reviewerId, pageSize, pageNumber);
-        console.log("Fetched fresh data:", freshData);
-        if (freshData?.certifications?.items && freshData.certifications.items.length > 0) {
-          console.log("Fetched fresh data, items count:", freshData.certifications.items.length);
-          const certificationData = freshData.certifications;
-          certsToProcess = certificationData.items.map((item: RawCertification): CertificationRow => {
-            // Match the exact mapping from useEffect (line 732-764)
-            const certInfo = item.reviewerCertificationInfo as any;
-            const actionInfo = item.reviewerCertificateActionInfo as any;
-            const totalActions = actionInfo?.totalActions ?? 0;
-            const totalActionsCompleted = actionInfo?.totalActionsCompleted ?? 0;
-            const progress = totalActions > 0 ? Math.round((totalActionsCompleted / totalActions) * 100) : 0;
-            
-            return {
-              id: `${item.reviewerId}-${item.certificationId}`,
-              taskId: item.campaignId ?? "",
-              reviewerId: item.reviewerId,
-              certificationId: item.certificationId,
-              campaignId: item.campaignId,
-              certificationName: certInfo?.certificationName ?? "",
-              certificationType: certInfo?.certificationType ?? "",
-              certificationCreatedOn: certInfo?.certificationCreatedOn ?? "",
-              certificationExpiration: certInfo?.certificationExpiration ?? "",
-              status: certInfo?.status ?? "",
-              certificationSignedOff: certInfo?.certificationSignedOff ?? false,
-              certificateRequester: certInfo?.certificateRequester ?? "",
-              certificateOwner: certInfo?.certificateRequester ?? "",
-              percentageCompleted: actionInfo?.percentageCompleted ?? 0,
-              progress: progress,
-              description: certInfo?.certificationDescription ?? "No description provided",
-              reviewerName: certInfo?.reviewerName ?? "",
-              dueIn: certInfo?.dueIn ?? "",
-              estimatedTimeToCompletion: certInfo?.estimatedTimeToCompletion ?? "",
-            } as CertificationRow;
-          });
-          console.log("Mapped fresh certifications, count:", certsToProcess.length);
-        } else {
-          console.error("Fresh data fetch returned no items");
+    // Process download in background without blocking UI
+    (async () => {
+      // Get certifications from the API data directly, or use rowData/filteredRowData
+      let certsToProcess: CertificationRow[] = [];
+      
+      if (filteredRowData.length > 0) {
+        certsToProcess = filteredRowData as CertificationRow[];
+        console.log("Using filteredRowData, count:", certsToProcess.length);
+      } else if (rowData.length > 0) {
+        certsToProcess = rowData as CertificationRow[];
+        console.log("Using rowData, count:", certsToProcess.length);
+      } else if (data?.certifications?.items && data.certifications.items.length > 0) {
+        // Map the raw API data to CertificationRow format (same as useEffect at line 732)
+        console.log("Using data from API directly, items count:", data.certifications.items.length);
+        const certificationData = data.certifications;
+        certsToProcess = certificationData.items.map((item: RawCertification): CertificationRow => {
+          // Match the exact mapping from useEffect (line 732-764) - these are accessed directly
+          const certInfo = item.reviewerCertificationInfo as any;
+          const actionInfo = item.reviewerCertificateActionInfo as any;
+          
+          const totalActions = actionInfo?.totalActions ?? 0;
+          const totalActionsCompleted = actionInfo?.totalActionsCompleted ?? 0;
+          const progress = totalActions > 0 ? Math.round((totalActionsCompleted / totalActions) * 100) : 0;
+          
+          return {
+            id: `${item.reviewerId}-${item.certificationId}`,
+            taskId: item.campaignId ?? "",
+            reviewerId: item.reviewerId,
+            certificationId: item.certificationId,
+            campaignId: item.campaignId,
+            certificationName: certInfo?.certificationName ?? "",
+            certificationType: certInfo?.certificationType ?? "",
+            certificationCreatedOn: certInfo?.certificationCreatedOn ?? "",
+            certificationExpiration: certInfo?.certificationExpiration ?? "",
+            status: certInfo?.status ?? "",
+            certificationSignedOff: certInfo?.certificationSignedOff ?? false,
+            certificateRequester: certInfo?.certificateRequester ?? "",
+            certificateOwner: certInfo?.certificateRequester ?? "",
+            percentageCompleted: actionInfo?.percentageCompleted ?? 0,
+            progress: progress,
+            description: certInfo?.certificationDescription ?? "No description provided",
+            reviewerName: certInfo?.reviewerName ?? "",
+            dueIn: certInfo?.dueIn ?? "",
+            estimatedTimeToCompletion: certInfo?.estimatedTimeToCompletion ?? "",
+          } as CertificationRow;
+        });
+        console.log("Mapped certifications from API, count:", certsToProcess.length);
+      } else {
+        // If no data is available, try to fetch it directly
+        console.warn("No data available in state, fetching directly from API...");
+        try {
+          const freshData = await getCertifications(reviewerId, pageSize, pageNumber);
+          console.log("Fetched fresh data:", freshData);
+          if (freshData?.certifications?.items && freshData.certifications.items.length > 0) {
+            console.log("Fetched fresh data, items count:", freshData.certifications.items.length);
+            const certificationData = freshData.certifications;
+            certsToProcess = certificationData.items.map((item: RawCertification): CertificationRow => {
+              // Match the exact mapping from useEffect (line 732-764)
+              const certInfo = item.reviewerCertificationInfo as any;
+              const actionInfo = item.reviewerCertificateActionInfo as any;
+              const totalActions = actionInfo?.totalActions ?? 0;
+              const totalActionsCompleted = actionInfo?.totalActionsCompleted ?? 0;
+              const progress = totalActions > 0 ? Math.round((totalActionsCompleted / totalActions) * 100) : 0;
+              
+              return {
+                id: `${item.reviewerId}-${item.certificationId}`,
+                taskId: item.campaignId ?? "",
+                reviewerId: item.reviewerId,
+                certificationId: item.certificationId,
+                campaignId: item.campaignId,
+                certificationName: certInfo?.certificationName ?? "",
+                certificationType: certInfo?.certificationType ?? "",
+                certificationCreatedOn: certInfo?.certificationCreatedOn ?? "",
+                certificationExpiration: certInfo?.certificationExpiration ?? "",
+                status: certInfo?.status ?? "",
+                certificationSignedOff: certInfo?.certificationSignedOff ?? false,
+                certificateRequester: certInfo?.certificateRequester ?? "",
+                certificateOwner: certInfo?.certificateRequester ?? "",
+                percentageCompleted: actionInfo?.percentageCompleted ?? 0,
+                progress: progress,
+                description: certInfo?.certificationDescription ?? "No description provided",
+                reviewerName: certInfo?.reviewerName ?? "",
+                dueIn: certInfo?.dueIn ?? "",
+                estimatedTimeToCompletion: certInfo?.estimatedTimeToCompletion ?? "",
+              } as CertificationRow;
+            });
+            console.log("Mapped fresh certifications, count:", certsToProcess.length);
+          } else {
+            console.error("Fresh data fetch returned no items");
+          }
+        } catch (fetchError) {
+          console.error("Error fetching fresh data:", fetchError);
+          alert(`Failed to load certifications: ${fetchError instanceof Error ? fetchError.message : "Unknown error"}`);
+          return;
         }
-      } catch (fetchError) {
-        console.error("Error fetching fresh data:", fetchError);
-        alert(`Failed to load certifications: ${fetchError instanceof Error ? fetchError.message : "Unknown error"}`);
-        setIsActionLoading(false);
-        hideApiLoader?.();
+      }
+      
+      console.log("certsToProcess length:", certsToProcess.length);
+      console.log("certsToProcess:", certsToProcess);
+      
+      if (certsToProcess.length === 0) {
+        console.error("No certifications to process! All data sources are empty.");
+        console.error("Debug info - reviewerId:", reviewerId, "pageSize:", pageSize, "pageNumber:", pageNumber);
+        alert("No certifications available to download. Please wait for data to load or refresh the page.");
         return;
       }
-    }
-    
-    console.log("certsToProcess length:", certsToProcess.length);
-    console.log("certsToProcess:", certsToProcess);
-    
-    if (certsToProcess.length === 0) {
-      console.error("No certifications to process! All data sources are empty.");
-      console.error("Debug info - reviewerId:", reviewerId, "pageSize:", pageSize, "pageNumber:", pageNumber);
-      alert("No certifications available to download. Please wait for data to load or refresh the page.");
-      return;
-    }
 
-    console.log("Starting API calls...");
-    try {
-      setIsActionLoading(true);
-      showApiLoader?.(true, "Fetching pending entitlements...");
-      console.log("Loading state set, about to start processing certifications...");
+      console.log("Starting API calls...");
+      try {
+        const pendingEntitlements: any[] = [];
+        let processedCerts = 0;
+        let totalAccounts = 0;
+        let totalEntitlements = 0;
 
-      const pendingEntitlements: any[] = [];
-      let processedCerts = 0;
-      let totalAccounts = 0;
-      let totalEntitlements = 0;
-
-      // Process each certification - use the same API flow as TreeClient
-      for (const cert of certsToProcess) {
-        try {
-          const certRow = cert as CertificationRow;
-          console.log(`Processing certification: ${certRow.certificationName} (${certRow.certificationId})`);
-          
-          // Step 1: Get certification details (users/tasks) - same as TreeClient uses
-          console.log(`Calling getCertificationDetails for cert ${certRow.certificationId}`);
-          const certDetailsResponse = await getCertificationDetails(
-            certRow.reviewerId,
-            certRow.certificationId,
-            1000, // Large page size
-            1
-          );
-          
-          const users = certDetailsResponse.items || [];
-          console.log(`Found ${users.length} users/tasks for certification ${certRow.certificationName}`);
-
-          // Step 2: For each user/task, get access details (accounts) - same as TreeClient
-          for (const user of users as any[]) {
-            const taskId = user.taskId || user.campaignId || certRow.taskId || certRow.campaignId;
-            if (!taskId) {
-              console.log(`Skipping user - no taskId`);
-              continue;
-            }
-
-            console.log(`Calling fetchAccessDetails for taskId: ${taskId}`);
-            const accounts = await fetchAccessDetails(
+        // Process each certification - use the same API flow as TreeClient
+        for (const cert of certsToProcess) {
+          try {
+            const certRow = cert as CertificationRow;
+            console.log(`Processing certification: ${certRow.certificationName} (${certRow.certificationId})`);
+            
+            // Step 1: Get certification details (users/tasks) - same as TreeClient uses
+            console.log(`Calling getCertificationDetails for cert ${certRow.certificationId}`);
+            const certDetailsResponse = await getCertificationDetails(
               certRow.reviewerId,
               certRow.certificationId,
-              taskId,
-              undefined,
               1000, // Large page size
               1
             );
             
-            console.log(`Found ${accounts.length} accounts for taskId: ${taskId}`);
-            totalAccounts += accounts.length;
+            const users = certDetailsResponse.items || [];
+            console.log(`Found ${users.length} users/tasks for certification ${certRow.certificationName}`);
 
-            // Step 3: For each account, get pending entitlements - same as TreeClient
-            for (const account of accounts) {
-              const lineItemId = account.lineItemId;
-              
-              if (!lineItemId) {
-                console.log(`Skipping account - no lineItemId`);
+            // Step 2: For each user/task, get access details (accounts) - same as TreeClient
+            for (const user of users as any[]) {
+              const taskId = user.taskId || user.campaignId || certRow.taskId || certRow.campaignId;
+              if (!taskId) {
+                console.log(`Skipping user - no taskId`);
                 continue;
               }
 
-              try {
-                console.log(`[API CALL 3] Calling getLineItemDetails(${certRow.reviewerId}, ${certRow.certificationId}, ${taskId}, ${lineItemId}, filter: "action eq Pending")`);
-                // Get pending entitlements for this line item using the same API as TreeClient
-                const entitlements = await getLineItemDetails(
-                  certRow.reviewerId,
-                  certRow.certificationId,
-                  taskId,
-                  lineItemId,
-                  undefined,
-                  undefined,
-                  "action eq Pending" // Filter for pending entitlements
-                );
-                console.log(`[API CALL 3] getLineItemDetails completed, returned ${entitlements.length} entitlements`);
+              console.log(`Calling fetchAccessDetails for taskId: ${taskId}`);
+              const accounts = await fetchAccessDetails(
+                certRow.reviewerId,
+                certRow.certificationId,
+                taskId,
+                undefined,
+                1000, // Large page size
+                1
+              );
+              
+              console.log(`Found ${accounts.length} accounts for taskId: ${taskId}`);
+              totalAccounts += accounts.length;
 
-                totalEntitlements += entitlements.length;
-
-                // Add each pending entitlement to the list
-                for (const entitlement of entitlements) {
-                  // Use the same pattern as TreeClient (matching TreeClient.tsx line 667-670)
-                  const entitlementInfo = (entitlement.entitlementInfo && Array.isArray(entitlement.entitlementInfo)) 
-                    ? entitlement.entitlementInfo[0] 
-                    : (entitlement.entitlementInfo || (entitlement as any).entityEntitlement || {});
-                  const aiAssist = entitlement.AIAssist?.[0];
-                  
-                  // Match TreeClient's entitlement name/description extraction
-                  const entitlementName = (entitlement as any).entitlementName 
-                    || entitlementInfo?.entitlementName 
-                    || (entitlement as any).name 
-                    || (entitlement as any).entitlement_name 
-                    || "Unknown";
-                  const entitlementDescription = (entitlement as any).entitlementDescription 
-                    || entitlementInfo?.entitlementDescription 
-                    || (entitlement as any).description 
-                    || (entitlement as any).entitlement_description 
-                    || "";
-                  const entitlementType = (entitlement as any).entitlementType 
-                    || entitlementInfo?.entitlementType 
-                    || (entitlement as any).type 
-                    || "";
-                  
-                  pendingEntitlements.push({
-                    "Entitlement": entitlementName,
-                    "Description": entitlementDescription,
-                    "Type": entitlementType,
-                    "Account": account.user || account.accountname || account.accountName || "Unknown",
-                    "Application": account.applicationName || "Unknown",
-                    "Last Login": account.lastLogin || account.lastLoginDate || "",
-                    "Action": "", // Empty initially, user will fill in Approve/Revoke
-                    "Comment": "", // Empty initially, user will fill in comments
-                  });
+              // Step 3: For each account, get pending entitlements - same as TreeClient
+              for (const account of accounts) {
+                const lineItemId = account.lineItemId;
+                
+                if (!lineItemId) {
+                  console.log(`Skipping account - no lineItemId`);
+                  continue;
                 }
-              } catch (err) {
-                console.error(`Error fetching entitlements for lineItem ${lineItemId}:`, err);
-                // Continue with next account
+
+                try {
+                  console.log(`[API CALL 3] Calling getLineItemDetails(${certRow.reviewerId}, ${certRow.certificationId}, ${taskId}, ${lineItemId}, filter: "action eq Pending")`);
+                  // Get pending entitlements for this line item using the same API as TreeClient
+                  const entitlements = await getLineItemDetails(
+                    certRow.reviewerId,
+                    certRow.certificationId,
+                    taskId,
+                    lineItemId,
+                    undefined,
+                    undefined,
+                    "action eq Pending" // Filter for pending entitlements
+                  );
+                  console.log(`[API CALL 3] getLineItemDetails completed, returned ${entitlements.length} entitlements`);
+
+                  totalEntitlements += entitlements.length;
+
+                  // Add each pending entitlement to the list
+                  for (const entitlement of entitlements) {
+                    // Use the same pattern as TreeClient (matching TreeClient.tsx line 667-670)
+                    const entitlementInfo = (entitlement.entitlementInfo && Array.isArray(entitlement.entitlementInfo)) 
+                      ? entitlement.entitlementInfo[0] 
+                      : (entitlement.entitlementInfo || (entitlement as any).entityEntitlement || {});
+                    const aiAssist = entitlement.AIAssist?.[0];
+                    
+                    // Match TreeClient's entitlement name/description extraction
+                    const entitlementName = (entitlement as any).entitlementName 
+                      || entitlementInfo?.entitlementName 
+                      || (entitlement as any).name 
+                      || (entitlement as any).entitlement_name 
+                      || "Unknown";
+                    const entitlementDescription = (entitlement as any).entitlementDescription 
+                      || entitlementInfo?.entitlementDescription 
+                      || (entitlement as any).description 
+                      || (entitlement as any).entitlement_description 
+                      || "";
+                    const entitlementType = (entitlement as any).entitlementType 
+                      || entitlementInfo?.entitlementType 
+                      || (entitlement as any).type 
+                      || "";
+                    
+                    pendingEntitlements.push({
+                      "Entitlement": entitlementName,
+                      "Description": entitlementDescription,
+                      "Type": entitlementType,
+                      "Account": account.user || account.accountname || account.accountName || "Unknown",
+                      "Application": account.applicationName || "Unknown",
+                      "Last Login": account.lastLogin || account.lastLoginDate || "",
+                      "Action": "", // Empty initially, user will fill in Approve/Revoke
+                      "Comment": "", // Empty initially, user will fill in comments
+                    });
+                  }
+                } catch (err) {
+                  console.error(`Error fetching entitlements for lineItem ${lineItemId}:`, err);
+                  // Continue with next account
+                }
               }
             }
+            processedCerts++;
+          } catch (err) {
+            const certRow = cert as CertificationRow;
+            console.error(`Error processing cert ${certRow.certificationId}:`, err);
+            // Continue with next certification
           }
-          processedCerts++;
-        } catch (err) {
-          const certRow = cert as CertificationRow;
-          console.error(`Error processing cert ${certRow.certificationId}:`, err);
-          // Continue with next certification
         }
-      }
 
-      console.log(`Processed ${processedCerts} certifications, ${totalAccounts} accounts, ${totalEntitlements} entitlements`);
-      console.log(`Total pending entitlements collected: ${pendingEntitlements.length}`);
+        console.log(`Processed ${processedCerts} certifications, ${totalAccounts} accounts, ${totalEntitlements} entitlements`);
+        console.log(`Total pending entitlements collected: ${pendingEntitlements.length}`);
 
-      if (pendingEntitlements.length === 0) {
-        alert("No pending entitlements found. Please check the console for details.");
-        setIsActionLoading(false);
-        hideApiLoader?.();
-        return;
-      }
+        if (pendingEntitlements.length === 0) {
+          alert("No pending entitlements found. Please check the console for details.");
+          return;
+        }
 
-      console.log("Creating Excel file with ExcelJS...");
-      // Create Excel workbook using ExcelJS for proper protection support
-      const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet("Pending Entitlements");
-      
-      // Define column headers
-      const headers = ["Entitlement", "Description", "Type", "Account", "Application", "Last Login", "Action", "Comment"];
-      worksheet.addRow(headers);
-      
-      // Style the header row
-      const headerRow = worksheet.getRow(1);
-      headerRow.font = { bold: true };
-      headerRow.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFE0E0E0' }
-      };
-      
-      // Add data rows
-      pendingEntitlements.forEach((item) => {
-        worksheet.addRow([
-          item.Entitlement,
-          item.Description,
-          item.Type,
-          item.Account,
-          item.Application,
-          item["Last Login"],
-          item.Action,
-          item.Comment
-        ]);
-      });
-      
-      // Set column widths
-      worksheet.columns = [
-        { width: 30 }, // Entitlement
-        { width: 40 }, // Description
-        { width: 15 }, // Type
-        { width: 25 }, // Account
-        { width: 20 }, // Application
-        { width: 15 }, // Last Login
-        { width: 15 }, // Action
-        { width: 30 }, // Comment
-      ];
-      
-      // Find Action and Comment column indices (1-based)
-      const actionColIndex = headers.indexOf("Action") + 1; // Column G (7)
-      const commentColIndex = headers.indexOf("Comment") + 1; // Column H (8)
-      
-      console.log(`Action column index: ${actionColIndex}, Comment column index: ${commentColIndex}`);
-      
-      // Unlock Action and Comment columns (make them editable)
-      // All other columns remain locked (non-editable)
-      worksheet.eachRow((row, rowNumber) => {
-        row.eachCell((cell, colNumber) => {
-          // Check if this is Action or Comment column
-          const isEditable = colNumber === actionColIndex || colNumber === commentColIndex;
-          
-          // Set protection: locked=false means editable, locked=true means non-editable
-          cell.protection = {
-            locked: !isEditable
-          };
+        console.log("Creating Excel file with ExcelJS...");
+        // Create Excel workbook using ExcelJS for proper protection support
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet("Pending Entitlements");
+        
+        // Define column headers
+        const headers = ["Entitlement", "Description", "Type", "Account", "Application", "Last Login", "Action", "Comment"];
+        worksheet.addRow(headers);
+        
+        // Style the header row
+        const headerRow = worksheet.getRow(1);
+        headerRow.font = { bold: true };
+        headerRow.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFE0E0E0' }
+        };
+        
+        // Add data rows
+        pendingEntitlements.forEach((item) => {
+          worksheet.addRow([
+            item.Entitlement,
+            item.Description,
+            item.Type,
+            item.Account,
+            item.Application,
+            item["Last Login"],
+            item.Action,
+            item.Comment
+          ]);
         });
-      });
-      
-      // Protect the worksheet - this enables the cell protection
-      // Users can only edit unlocked cells (Action and Comment columns)
-      worksheet.protect('', {
-        selectLockedCells: true,
-        selectUnlockedCells: true,
-        formatCells: false,
-        formatColumns: false,
-        formatRows: false,
-        insertColumns: false,
-        insertRows: false,
-        insertHyperlinks: false,
-        deleteColumns: false,
-        deleteRows: false,
-        sort: false,
-        autoFilter: false,
-        pivotTables: false,
-      });
-      
-      console.log("Worksheet protected, Action and Comment columns are editable");
+        
+        // Set column widths
+        worksheet.columns = [
+          { width: 30 }, // Entitlement
+          { width: 40 }, // Description
+          { width: 15 }, // Type
+          { width: 25 }, // Account
+          { width: 20 }, // Application
+          { width: 15 }, // Last Login
+          { width: 15 }, // Action
+          { width: 30 }, // Comment
+        ];
+        
+        // Find Action and Comment column indices (1-based)
+        const actionColIndex = headers.indexOf("Action") + 1; // Column G (7)
+        const commentColIndex = headers.indexOf("Comment") + 1; // Column H (8)
+        
+        console.log(`Action column index: ${actionColIndex}, Comment column index: ${commentColIndex}`);
+        
+        // Unlock Action and Comment columns (make them editable)
+        // All other columns remain locked (non-editable)
+        worksheet.eachRow((row, rowNumber) => {
+          row.eachCell((cell, colNumber) => {
+            // Check if this is Action or Comment column
+            const isEditable = colNumber === actionColIndex || colNumber === commentColIndex;
+            
+            // Set protection: locked=false means editable, locked=true means non-editable
+            cell.protection = {
+              locked: !isEditable
+            };
+          });
+        });
+        
+        // Protect the worksheet - this enables the cell protection
+        // Users can only edit unlocked cells (Action and Comment columns)
+        worksheet.protect('', {
+          selectLockedCells: true,
+          selectUnlockedCells: true,
+          formatCells: false,
+          formatColumns: false,
+          formatRows: false,
+          insertColumns: false,
+          insertRows: false,
+          insertHyperlinks: false,
+          deleteColumns: false,
+          deleteRows: false,
+          sort: false,
+          autoFilter: false,
+          pivotTables: false,
+        });
+        
+        console.log("Worksheet protected, Action and Comment columns are editable");
 
-      // Generate Excel file buffer
-      console.log("Generating Excel buffer...");
-      const excelBuffer = await workbook.xlsx.writeBuffer();
+        // Generate Excel file buffer
+        console.log("Generating Excel buffer...");
+        const excelBuffer = await workbook.xlsx.writeBuffer();
 
-      console.log(`Excel buffer size: ${excelBuffer.byteLength} bytes`);
+        console.log(`Excel buffer size: ${excelBuffer.byteLength} bytes`);
 
-      // Create blob and download
-      const blob = new Blob([excelBuffer], { 
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" 
-      });
-      
-      console.log(`Blob created, size: ${blob.size} bytes`);
-      
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      const fileName = `pending-entitlements-${new Date().toISOString().split('T')[0]}.xlsx`;
-      a.download = fileName;
-      document.body.appendChild(a);
-      console.log(`Triggering download: ${fileName}`);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+        // Create blob and download
+        const blob = new Blob([excelBuffer], { 
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" 
+        });
+        
+        console.log(`Blob created, size: ${blob.size} bytes`);
+        
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        const fileName = `pending-entitlements-${new Date().toISOString().split('T')[0]}.xlsx`;
+        a.download = fileName;
+        document.body.appendChild(a);
+        console.log(`Triggering download: ${fileName}`);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
 
-      console.log("Download completed successfully");
-      setShowCompletionToast(true);
-    } catch (error) {
-      console.error("Error downloading Excel file:", error);
-      console.error("Error stack:", error instanceof Error ? error.stack : "No stack trace");
-      alert(`Failed to download Excel file: ${error instanceof Error ? error.message : "Unknown error"}\n\nCheck console for details.`);
-    } finally {
-      setIsActionLoading(false);
-      hideApiLoader?.();
-    }
+        console.log("Download completed successfully");
+        // Show completion toast when download finishes
+        setShowCompletionToast(true);
+      } catch (error) {
+        console.error("Error downloading Excel file:", error);
+        console.error("Error stack:", error instanceof Error ? error.stack : "No stack trace");
+        alert(`Failed to download Excel file: ${error instanceof Error ? error.message : "Unknown error"}\n\nCheck console for details.`);
+      }
+    })();
   };
 
   const handleReleaseClaim = () => handleAction('Release/Claim');
@@ -825,34 +819,6 @@ const OpenTab: React.FC = () => {
       }
     };
     input.click();
-  };
-
-  const handleDownload = () => {
-    // Create a sample Excel file download
-    const data = filteredRowData.map(row => ({
-      'Campaign Name': row.certificationName,
-      'Type': row.certificationType,
-      'Owner': row.certificateOwner,
-      'Progress': `${row.progress}%`,
-      'Due On': row.certificationExpiration,
-      'Status': row.status
-    }));
-    
-    // Convert to CSV
-    const csvContent = [
-      Object.keys(data[0] || {}).join(','),
-      ...data.map(row => Object.values(row).join(','))
-    ].join('\n');
-    
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `access-review-open-${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
   };
 
   const certificationData = data?.certifications;
@@ -922,6 +888,59 @@ const OpenTab: React.FC = () => {
     
     setFilteredRowData(filtered);
   }, [rowData, searchTerm]);
+
+  // Resize grid when left sidebar visibility changes or container size changes
+  useEffect(() => {
+    if (!gridApi || !gridContainerRef.current) return;
+
+    let resizeTimeout: NodeJS.Timeout | null = null;
+
+    // Use ResizeObserver to detect container size changes (including sidebar expand/collapse)
+    const resizeObserver = new ResizeObserver(() => {
+      // Debounce resize calls to avoid excessive updates
+      if (resizeTimeout) {
+        clearTimeout(resizeTimeout);
+      }
+      resizeTimeout = setTimeout(() => {
+        try {
+          gridApi.sizeColumnsToFit();
+        } catch (error) {
+          console.error("Error resizing grid:", error);
+        }
+      }, 100);
+    });
+
+    resizeObserver.observe(gridContainerRef.current);
+
+    // Also trigger resize when sidebar visibility changes (for immediate feedback)
+    const timeouts: NodeJS.Timeout[] = [];
+    
+    // Immediate resize attempt
+    timeouts.push(setTimeout(() => {
+      try {
+        gridApi.sizeColumnsToFit();
+      } catch (error) {
+        console.error("Error resizing grid:", error);
+      }
+    }, 50));
+    
+    // Resize after transition completes (300ms + buffer)
+    timeouts.push(setTimeout(() => {
+      try {
+        gridApi.sizeColumnsToFit();
+      } catch (error) {
+        console.error("Error resizing grid:", error);
+      }
+    }, 400));
+    
+    return () => {
+      resizeObserver.disconnect();
+      if (resizeTimeout) {
+        clearTimeout(resizeTimeout);
+      }
+      timeouts.forEach(timeout => clearTimeout(timeout));
+    };
+  }, [isLeftSidebarVisible, gridApi]);
 
   const handlePageChange = (newPage: number) => {
     if (newPage !== pageNumber) {
@@ -1061,23 +1080,6 @@ const OpenTab: React.FC = () => {
         </div>
         
         <div className="flex items-center gap-3">
-          <button 
-            onClick={handleUpload}
-            className="p-2 hover:bg-gray-300 rounded-md transition-colors"
-            title="Upload File"
-          >
-            <Upload className="w-4 h-4 text-gray-600" />
-          </button>
-          <button 
-            onClick={handleDownload}
-            className="p-2 hover:bg-gray-300 rounded-md transition-colors"
-            title="Download CSV"
-          >
-            <DownloadIcon className="w-4 h-4 text-gray-600" />
-          </button>
-          <button className="p-2 hover:bg-gray-300 rounded-md transition-colors">
-            <CheckCircleIcon className="w-4 h-4 text-gray-600" />
-          </button>
           <ColumnSettings
             columnDefs={activeColumnDefs}
             gridApi={gridApi}
@@ -1115,7 +1117,7 @@ const OpenTab: React.FC = () => {
         />
       </div>
       
-      <div className="w-full">
+      <div className="w-full" ref={gridContainerRef}>
         <AgGridReact
           rowData={filteredRowData}
           getRowId={(params: GetRowIdParams) => params.data.id}

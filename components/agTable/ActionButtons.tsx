@@ -39,6 +39,7 @@ interface ActionButtonsProps<T> {
   viewChangeEnable?: boolean;
   onActionSuccess?: () => void; // Callback to notify parent of success
   userEmail?: string; // User email for Teams link
+  selectedFilters?: string[]; // Selected filters to control button visibility
 }
 
 const ActionButtons = <T extends { status?: string }>({
@@ -50,6 +51,7 @@ const ActionButtons = <T extends { status?: string }>({
   viewChangeEnable,
   onActionSuccess,
   userEmail,
+  selectedFilters = [],
 }: ActionButtonsProps<T>): JSX.Element => {
   const { queueAction } = useActionPanel();
   const { openSidebar, closeSidebar } = useRightSidebar();
@@ -76,6 +78,16 @@ const ActionButtons = <T extends { status?: string }>({
   const [pendingById, setPendingById] = useState<Record<string, 'Approve' | 'Reject' | 'Pending'>>({});
   
   const { showApiLoader, hideApiLoader } = useLoading();
+
+  // Check if certify filter is active (show only Approve button)
+  const isCertifyFilterActive = selectedFilters.some(
+    (filter) => filter.trim().toLowerCase() === "certify"
+  );
+
+  // Check if reject filter is active (show only Revoke button)
+  const isRejectFilterActive = selectedFilters.some(
+    (filter) => filter.trim().toLowerCase() === "reject"
+  );
 
   // Filter out undefined/null rows (e.g., group rows can pass undefined data)
   const definedRows = (selectedRows || []).filter((r): r is T => !!r);
@@ -386,69 +398,73 @@ const ActionButtons = <T extends { status?: string }>({
   return (
     <div className="flex space-x-3 h-full items-center">
       {error && <div className="text-red-500 text-sm">{error}</div>}
-      <button
-        onClick={handleApprove}
-        title={approveFilled ? "Undo" : "Approve"}
-        aria-label="Approve selected rows"
-        disabled={isActionLoading}
-        className={`p-1 rounded flex items-center justify-center ${isActionLoading ? "opacity-60 cursor-not-allowed" : ""}`}
-      >
-        <div className="relative inline-flex items-center justify-center w-8 h-8">
-          <CircleCheck
-            className={isActionLoading ? "cursor-not-allowed" : "cursor-pointer"}
-            color="#1c821cff"
-            strokeWidth="1"
-            size="32"
-            fill={approveFilled ? "#1c821cff" : "none"}
-          />
-          {approveFilled && (
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              className="absolute pointer-events-none"
-              style={{ left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}
-            >
-              <path
-                d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"
-                fill="#ffffff"
-              />
-            </svg>
-          )}
-        </div>
-      </button>
+      {!isRejectFilterActive && (
+        <button
+          onClick={handleApprove}
+          title={approveFilled ? "Undo" : "Approve"}
+          aria-label="Approve selected rows"
+          disabled={isActionLoading}
+          className={`p-1 rounded flex items-center justify-center ${isActionLoading ? "opacity-60 cursor-not-allowed" : ""}`}
+        >
+          <div className="relative inline-flex items-center justify-center w-8 h-8">
+            <CircleCheck
+              className={isActionLoading ? "cursor-not-allowed" : "cursor-pointer"}
+              color="#1c821cff"
+              strokeWidth="1"
+              size="32"
+              fill={approveFilled ? "#1c821cff" : "none"}
+            />
+            {approveFilled && (
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                className="absolute pointer-events-none"
+                style={{ left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}
+              >
+                <path
+                  d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"
+                  fill="#ffffff"
+                />
+              </svg>
+            )}
+          </div>
+        </button>
+      )}
 
-      <button
-        onClick={handleRevoke}
-        title={rejectFilled ? "Undo" : "Revoke"}
-        aria-label="Revoke selected rows"
-        disabled={isActionLoading}
-        className={`p-1 rounded flex items-center justify-center ${isActionLoading ? "opacity-60 cursor-not-allowed" : ""}`}
-      >
-        <div className="relative inline-flex items-center justify-center w-8 h-8">
-          <CircleX
-            className={isActionLoading ? "cursor-not-allowed" : "cursor-pointer"}
-            color="#FF2D55"
-            strokeWidth="1"
-            size="32"
-            fill={rejectFilled ? "#FF2D55" : "none"}
-          />
-          {rejectFilled && (
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              className="absolute pointer-events-none"
-              style={{ left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}
-            >
-              <path
-                d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
-                fill="#ffffff"
-              />
-            </svg>
-          )}
-        </div>
-      </button>
+      {!isCertifyFilterActive && (
+        <button
+          onClick={handleRevoke}
+          title={rejectFilled ? "Undo" : "Revoke"}
+          aria-label="Revoke selected rows"
+          disabled={isActionLoading}
+          className={`p-1 rounded flex items-center justify-center ${isActionLoading ? "opacity-60 cursor-not-allowed" : ""}`}
+        >
+          <div className="relative inline-flex items-center justify-center w-8 h-8">
+            <CircleX
+              className={isActionLoading ? "cursor-not-allowed" : "cursor-pointer"}
+              color="#FF2D55"
+              strokeWidth="1"
+              size="32"
+              fill={rejectFilled ? "#FF2D55" : "none"}
+            />
+            {rejectFilled && (
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                className="absolute pointer-events-none"
+                style={{ left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}
+              >
+                <path
+                  d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                  fill="#ffffff"
+                />
+              </svg>
+            )}
+          </div>
+        </button>
+      )}
 
       <button
         onClick={handleComment}
