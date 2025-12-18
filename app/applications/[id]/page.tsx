@@ -25,6 +25,7 @@ import {
   Trash2,
   Info,
   HelpCircle,
+  Search,
 } from "lucide-react";
 import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
@@ -123,6 +124,10 @@ export default function ApplicationDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [lastAction, setLastAction] = useState<string | null>(null);
   const [accountsRowData, setAccountsRowData] = useState<any[]>([]);
+  const [filteredAccountsRowData, setFilteredAccountsRowData] = useState<any[]>([]);
+  const [accountsSearchQuery, setAccountsSearchQuery] = useState("");
+  const accountsSearchInputRef = useRef<HTMLInputElement>(null);
+  const [isSearchInputFocused, setIsSearchInputFocused] = useState(false);
   const [entRowData, setEntRowData] = useState<any[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -756,6 +761,7 @@ export default function ApplicationDetailPage() {
         console.log(data);
         if (data.executionStatus === "success") {
           setAccountsRowData(data.items);
+          setFilteredAccountsRowData(data.items);
 
           // Only update application details if they don't already exist
           // This prevents overriding the data from the applications list
@@ -802,6 +808,58 @@ export default function ApplicationDetailPage() {
     };
     fetchData();
   }, [id]);
+
+  // Filter accounts based on search query
+  useEffect(() => {
+    if (!accountsSearchQuery.trim()) {
+      setFilteredAccountsRowData(accountsRowData);
+    } else {
+      const searchLower = accountsSearchQuery.toLowerCase();
+      const filtered = accountsRowData.filter((item: any) => {
+        // Search across multiple fields
+        const accountName = (item.accountName || "").toLowerCase();
+        const userDisplayName = (item.userDisplayName || "").toLowerCase();
+        const entitlementName = (item.entitlementName || "").toLowerCase();
+        const accountType = (item.accountType || "").toLowerCase();
+        const userId = (item.userId || "").toLowerCase();
+        const userStatus = (item.userStatus || "").toLowerCase();
+        const userManager = (item.userManager || "").toLowerCase();
+        const userDepartment = (item.userDepartment || "").toLowerCase();
+        const jobTitle = (item.jobTitle || "").toLowerCase();
+        
+        return (
+          accountName.includes(searchLower) ||
+          userDisplayName.includes(searchLower) ||
+          entitlementName.includes(searchLower) ||
+          accountType.includes(searchLower) ||
+          userId.includes(searchLower) ||
+          userStatus.includes(searchLower) ||
+          userManager.includes(searchLower) ||
+          userDepartment.includes(searchLower) ||
+          jobTitle.includes(searchLower)
+        );
+      });
+      setFilteredAccountsRowData(filtered);
+      // Reset to first page when search changes
+      setCurrentPage(1);
+    }
+  }, [accountsRowData, accountsSearchQuery]);
+
+  // Restore focus after component updates if input was focused
+  useEffect(() => {
+    if (isSearchInputFocused && accountsSearchInputRef.current) {
+      // Use requestAnimationFrame to ensure DOM has updated
+      requestAnimationFrame(() => {
+        accountsSearchInputRef.current?.focus();
+        // Restore cursor position if possible
+        const input = accountsSearchInputRef.current;
+        if (input && input.selectionStart !== null) {
+          const cursorPos = input.value.length;
+          input.setSelectionRange(cursorPos, cursorPos);
+        }
+      });
+    }
+  }, [filteredAccountsRowData, isSearchInputFocused]);
 
   useEffect(() => {
     const fetchEntitlementsData = async () => {
@@ -2147,12 +2205,12 @@ export default function ApplicationDetailPage() {
   const AccountsTabComponent = useMemo(() => {
     // Create a proper React component
     const Component = () => {
-      // Recalculate pagination values inside the component so they update when accountsRowData changes
-      const totalItems = accountsRowData.length;
+      // Recalculate pagination values inside the component so they update when filteredAccountsRowData changes
+      const totalItems = filteredAccountsRowData.length;
       const totalPages = Math.ceil(totalItems / pageSize);
       const startIndex = (currentPage - 1) * pageSize;
       const endIndex = startIndex + pageSize;
-      const paginatedData = accountsRowData.slice(startIndex, endIndex);
+      const paginatedData = filteredAccountsRowData.slice(startIndex, endIndex);
 
       // Grid will update automatically via rowData prop and key
 
@@ -2287,8 +2345,31 @@ export default function ApplicationDetailPage() {
             </div>
           </Accordion>
         </div>
+        
         <div className="mb-2 relative z-10 pt-4">
-          <div className="flex justify-end mb-2">
+          <div className="flex items-center justify-between mb-2">
+            {/* Search Bar */}
+            <div className="relative max-w-md w-full">
+              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                <Search className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                ref={accountsSearchInputRef}
+                key="accounts-search-input"
+                type="text"
+                placeholder="Search by Account, Identity, Entitlement..."
+                value={accountsSearchQuery}
+                onChange={(e) => setAccountsSearchQuery(e.target.value)}
+                onFocus={() => setIsSearchInputFocused(true)}
+                onBlur={() => setIsSearchInputFocused(false)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              />
+            </div>
+            {accountsSearchQuery && (
+              <p className="text-sm text-gray-600">
+                Showing {filteredAccountsRowData.length} of {accountsRowData.length} accounts
+              </p>
+            )}
             <Exports gridApi={gridApiRef.current} />
           </div>
           <div className="flex justify-center">
@@ -2309,7 +2390,7 @@ export default function ApplicationDetailPage() {
         </div>
         {mounted && (
           <AgGridReact
-            key={`accounts-grid-${accountsRowData.length}-${currentPage}-${pageSize}`}
+            key={`accounts-grid-${filteredAccountsRowData.length}-${currentPage}-${pageSize}`}
             rowData={paginatedData}
             columnDefs={columnDefs}
             defaultColDef={defaultColDef}
@@ -2340,6 +2421,7 @@ export default function ApplicationDetailPage() {
     };
     return Component;
   }, [
+    filteredAccountsRowData,
     accountsRowData,
     currentPage,
     pageSize,

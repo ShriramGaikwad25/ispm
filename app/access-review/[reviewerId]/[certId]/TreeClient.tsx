@@ -141,6 +141,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
   onProgressDataChange,
 }) => {
   const entitlementsGridApiRef = useRef<GridApi | null>(null);
+  const entitlementsGridContainerRef = useRef<HTMLDivElement | null>(null);
   const [users, setUsers] = useState<UserRowData[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserRowData | null>(null);
   const [entitlementsData, setEntitlementsData] = useState<any[]>([]);
@@ -761,8 +762,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
       // Test data removed - filters are working correctly
       
       setEntitlementsData(allRows);
-      setEntitlementsTotalItems(allRows.length);
-      setEntitlementsTotalPages(Math.ceil(allRows.length / pageSize));
+      // Note: entitlementsTotalItems and entitlementsTotalPages will be updated
+      // by the useEffect that watches filteredEntitlements to account for filtering
 
       // Calculate and update progress data
       const progress = calculateProgressData(allRows);
@@ -1109,6 +1110,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
     // Since entRowsWithDesc is structured as [record1, desc1, record2, desc2, ...]
     // We need to slice by pairs: each record has its description right after it
     
+    if (!entRowsWithDesc || entRowsWithDesc.length === 0) return [];
+    
     // Calculate the start and end indices for the entRowsWithDesc array
     // Each "page" contains pageSize records, which means pageSize * 2 rows total
     const startIndex = (entitlementsPageNumber - 1) * pageSize * 2;
@@ -1116,6 +1119,113 @@ const TreeClient: React.FC<TreeClientProps> = ({
     
     return entRowsWithDesc.slice(startIndex, endIndex);
   }, [entRowsWithDesc, entitlementsPageNumber, pageSize]);
+
+  // Update entitlements pagination totals based on filtered data
+  useEffect(() => {
+    // filteredEntitlements already contains only actual entitlement rows (no description rows)
+    const totalItems = filteredEntitlements.length;
+    const totalPages = Math.ceil(totalItems / pageSize);
+    
+    setEntitlementsTotalItems(totalItems);
+    setEntitlementsTotalPages(totalPages);
+    
+    // Reset to page 1 if current page is beyond available pages
+    setEntitlementsPageNumber((currentPage) => {
+      if (currentPage > totalPages && totalItems > 0) {
+        return 1;
+      }
+      return currentPage;
+    });
+  }, [filteredEntitlements, pageSize]);
+
+  // Robust resize function that checks container readiness
+  const resizeColumnsWithRetry = useCallback((maxRetries = 5, delay = 200) => {
+    if (!entitlementsGridApiRef.current || !entitlementsGridContainerRef.current) {
+      return;
+    }
+
+    const container = entitlementsGridContainerRef.current;
+    const api = entitlementsGridApiRef.current;
+    
+    const attemptResize = (retryCount = 0) => {
+      // Check if container has a valid width
+      const containerWidth = container.offsetWidth || container.clientWidth;
+      
+      if (containerWidth > 0 && api) {
+        try {
+          // Use requestAnimationFrame for better timing
+          requestAnimationFrame(() => {
+            try {
+              api.sizeColumnsToFit();
+            } catch (error) {
+              console.warn('Error resizing columns:', error);
+            }
+          });
+        } catch (error) {
+          console.warn('Error resizing columns:', error);
+        }
+      } else if (retryCount < maxRetries) {
+        // Retry if container doesn't have width yet
+        setTimeout(() => attemptResize(retryCount + 1), delay);
+      }
+    };
+
+    attemptResize();
+  }, []);
+
+  // Auto-resize columns after data changes or user selection
+  useEffect(() => {
+    if (entitlementsGridApiRef.current && entPaginatedData.length > 0 && selectedUser) {
+      // Use requestAnimationFrame for better timing
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          resizeColumnsWithRetry(5, 200);
+        }, 200);
+      });
+    }
+  }, [entPaginatedData, selectedUser, resizeColumnsWithRetry]);
+
+  // Handle column resizing when container size changes (e.g., sidebar expand/collapse, navigation)
+  useEffect(() => {
+    if (!entitlementsGridApiRef.current || !entitlementsGridContainerRef.current) return;
+
+    // Use ResizeObserver to detect container size changes
+    const resizeObserver = new ResizeObserver(() => {
+      // Debounce resize calls
+      setTimeout(() => {
+        resizeColumnsWithRetry(3, 50);
+      }, 100);
+    });
+
+    resizeObserver.observe(entitlementsGridContainerRef.current);
+
+    // Resize when sidebar visibility changes
+    const sidebarTimeout = setTimeout(() => {
+      resizeColumnsWithRetry();
+    }, 400); // Wait for sidebar animation to complete
+
+    // Resize on initial mount (handles navigation from AccessReview)
+    // Use multiple attempts with increasing delays
+    const initialTimeout1 = setTimeout(() => {
+      resizeColumnsWithRetry(3, 100);
+    }, 300);
+    
+    const initialTimeout2 = setTimeout(() => {
+      resizeColumnsWithRetry(3, 100);
+    }, 600);
+    
+    const initialTimeout3 = setTimeout(() => {
+      resizeColumnsWithRetry(3, 100);
+    }, 1000);
+
+    return () => {
+      resizeObserver.disconnect();
+      clearTimeout(sidebarTimeout);
+      clearTimeout(initialTimeout1);
+      clearTimeout(initialTimeout2);
+      clearTimeout(initialTimeout3);
+    };
+  }, [isSidebarHovered, selectedUser, resizeColumnsWithRetry]);
 
   const filterOptions = [
     {
@@ -1140,7 +1250,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
       {
         field: "entitlementName",
         headerName: "Entitlement",
-        width: 300,
+        minWidth: 300,
+        flex: 1,
         autoHeight: true,
         wrapText: true,
         colSpan: (params) => {
@@ -1182,7 +1293,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
           );
         },
       },
-      { field: "entitlementType", headerName: "Type", width: 150 },
+      { field: "entitlementType", headerName: "Type", width: 100 },
       {
         field: "user",
         headerName: "Account",
@@ -1253,7 +1364,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
       {
         field: "recommendation",
         headerName: "Insights",
-        width: 120,
+        width: 100,
         cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
         cellRenderer: (params: ICellRendererParams) => {
           const { recommendation, accessedWithinAMonth } = params.data || {};
@@ -1345,7 +1456,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
       if (!isReadOnly) {
         cols.push({
           headerName: "Actions",
-          width: 300,
+          width: 250,
           cellRenderer: (params: ICellRendererParams) => {
           // Extract email from user field, selectedUser, or row data
           const userField = params.data?.user || "";
@@ -1441,9 +1552,9 @@ const TreeClient: React.FC<TreeClientProps> = ({
           </button>
         </div>
 
-        {/* User Search (visible when expanded) */}
-        {isSidebarHovered && (
-          <div className="px-2 py-2 border-b border-gray-200">
+        {/* User Search (always reserve space, visible when expanded) */}
+        <div className="px-2 py-2 border-b border-gray-200">
+          {isSidebarHovered ? (
             <input
               type="text"
               value={userSearch}
@@ -1451,8 +1562,10 @@ const TreeClient: React.FC<TreeClientProps> = ({
               placeholder="Search users..."
               className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400"
             />
-          </div>
-        )}
+          ) : (
+            <div className="w-full px-2 py-1 text-xs" style={{ height: '28px' }}></div>
+          )}
+        </div>
 
         {/* Users List */}
         <div className="flex-1 flex flex-col justify-start pt-2 pb-2 px-1">
@@ -1799,7 +1912,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
             </div>
 
             {/* Entitlements Grid */}
-            <div className="flex-1 p-4 pb-0">
+            <div className="flex-1 p-4 pb-0" ref={entitlementsGridContainerRef}>
               {loadingEntitlements ? (
                 <div className="flex items-center justify-center h-64">
                   <div className="text-gray-500">
@@ -1811,9 +1924,9 @@ const TreeClient: React.FC<TreeClientProps> = ({
                   {/* Pagination at top of table */}
                   <div className="flex justify-center [&>div]:rounded-b-none [&>div]:border-b-0">
                     <CustomPagination
-                      totalItems={filteredEntitlements.length}
+                      totalItems={entitlementsTotalItems}
                       currentPage={entitlementsPageNumber}
-                      totalPages={Math.ceil(filteredEntitlements.length / pageSize)}
+                      totalPages={entitlementsTotalPages}
                       pageSize={pageSize}
                       onPageChange={handleEntitlementsPageChange}
                       onPageSizeChange={(newPageSize) => {
@@ -1837,7 +1950,19 @@ const TreeClient: React.FC<TreeClientProps> = ({
                   getRowClass={(params) => params?.data?.__isDescRow ? "ag-row-custom ag-row-desc" : "ag-row-custom"}
                   onGridReady={(params) => {
                     entitlementsGridApiRef.current = params.api;
-                    params.api.sizeColumnsToFit();
+                    // Use requestAnimationFrame for better timing
+                    requestAnimationFrame(() => {
+                      setTimeout(() => {
+                        if (entitlementsGridContainerRef.current) {
+                          const containerWidth = entitlementsGridContainerRef.current.offsetWidth || entitlementsGridContainerRef.current.clientWidth;
+                          if (containerWidth > 0) {
+                            try {
+                              params.api.sizeColumnsToFit();
+                            } catch {}
+                          }
+                        }
+                      }, 100);
+                    });
                     const handleResize = () => {
                       try {
                         params.api.sizeColumnsToFit();
@@ -1846,6 +1971,28 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     window.addEventListener("resize", handleResize);
                     params.api.addEventListener('gridPreDestroyed', () => {
                       window.removeEventListener("resize", handleResize);
+                    });
+                  }}
+                  onFirstDataRendered={(params) => {
+                    // Auto-size columns after data is rendered with retry logic
+                    requestAnimationFrame(() => {
+                      setTimeout(() => {
+                        if (entitlementsGridContainerRef.current) {
+                          const containerWidth = entitlementsGridContainerRef.current.offsetWidth || entitlementsGridContainerRef.current.clientWidth;
+                          if (containerWidth > 0) {
+                            try {
+                              params.api.sizeColumnsToFit();
+                            } catch {}
+                          } else {
+                            // Retry if container doesn't have width yet
+                            setTimeout(() => {
+                              try {
+                                params.api.sizeColumnsToFit();
+                              } catch {}
+                            }, 300);
+                          }
+                        }
+                      }, 200);
                     });
                   }}
                   pagination={false}
@@ -1868,9 +2015,9 @@ const TreeClient: React.FC<TreeClientProps> = ({
               <div className="px-4 pb-6">
                 <div className="flex justify-center [&>div]:rounded-t-none [&>div]:border-t-0">
                   <CustomPagination
-                    totalItems={filteredEntitlements.length}
+                    totalItems={entitlementsTotalItems}
                     currentPage={entitlementsPageNumber}
-                    totalPages={Math.ceil(filteredEntitlements.length / pageSize)}
+                    totalPages={entitlementsTotalPages}
                     pageSize={pageSize}
                     onPageChange={handleEntitlementsPageChange}
                     onPageSizeChange={(newPageSize) => {
