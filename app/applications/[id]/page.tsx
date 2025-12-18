@@ -2360,6 +2360,748 @@ export default function ApplicationDetailPage() {
       iconOff: ChevronUp,
       component: () => (
         <div className="p-6 bg-white">
+          <h2 className="text-2xl font-bold text-gray-800 mb-6 pb-3 border-b border-gray-300">
+            Application Metadata
+          </h2>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div className="flex flex-col">
+                <label className="text-sm font-medium text-gray-600 mb-1">Application ID</label>
+                <div className="text-sm text-gray-900">-</div>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium text-gray-600 mb-1">Application Name</label>
+                <div className="text-sm text-gray-900">-</div>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium text-gray-600 mb-1">Application Instance Name</label>
+                <div className="text-sm text-gray-900">-</div>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium text-gray-600 mb-1">Application Type</label>
+                <div className="text-sm text-gray-900">-</div>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium text-gray-600 mb-1">Status</label>
+                <div className="text-sm text-gray-900">-</div>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium text-gray-600 mb-1">Description</label>
+                <div className="text-sm text-gray-900">-</div>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium text-gray-600 mb-1">Version</label>
+                <div className="text-sm text-gray-900">-</div>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium text-gray-600 mb-1">Vendor</label>
+                <div className="text-sm text-gray-900">-</div>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium text-gray-600 mb-1">Category</label>
+                <div className="text-sm text-gray-900">-</div>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium text-gray-600 mb-1">Created Date</label>
+                <div className="text-sm text-gray-900">-</div>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium text-gray-600 mb-1">Last Modified Date</label>
+                <div className="text-sm text-gray-900">-</div>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium text-gray-600 mb-1">Created By</label>
+                <div className="text-sm text-gray-900">-</div>
+              </div>
+            </div>
+            <div className="space-y-4">
+              <div className="flex flex-col">
+                <label className="text-sm font-medium text-gray-600 mb-1">Modified By</label>
+                <div className="text-sm text-gray-900">-</div>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium text-gray-600 mb-1">SCIM URL</label>
+                <div className="text-sm text-gray-900">-</div>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium text-gray-600 mb-1">OAuth Client ID</label>
+                <div className="text-sm text-gray-900">-</div>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium text-gray-600 mb-1">OAuth Client Secret</label>
+                <div className="text-sm text-gray-900">-</div>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium text-gray-600 mb-1">OAuth Token URL</label>
+                <div className="text-sm text-gray-900">-</div>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium text-gray-600 mb-1">OAuth Authorization URL</label>
+                <div className="text-sm text-gray-900">-</div>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium text-gray-600 mb-1">OAuth Scope</label>
+                <div className="text-sm text-gray-900">-</div>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium text-gray-600 mb-1">API Endpoint</label>
+                <div className="text-sm text-gray-900">-</div>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium text-gray-600 mb-1">Authentication Type</label>
+                <div className="text-sm text-gray-900">-</div>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium text-gray-600 mb-1">Tenant ID</label>
+                <div className="text-sm text-gray-900">-</div>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium text-gray-600 mb-1">Environment</label>
+                <div className="text-sm text-gray-900">-</div>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium text-gray-600 mb-1">Tags</label>
+                <div className="text-sm text-gray-900">-</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      label: "Accounts",
+      icon: ChevronDown,
+      iconOff: ChevronUp,
+      component: AccountsTabComponent,
+    },
+    {
+      label: "Entitlements",
+      icon: ChevronDown,
+      iconOff: ChevronUp,
+      component: EntitlementsTabComponent,
+    },
+    {
+      label: "Sampling",
+      icon: ChevronDown,
+      iconOff: ChevronUp,
+      component: () => {
+        const [selectedApplication, setSelectedApplication] =
+          useState<string>("");
+        const [userName, setUserName] = useState<string>("");
+        const [applications, setApplications] = useState<
+          Array<{
+            applicationId: string;
+            applicationName: string;
+            scimurl: string;
+            filter: string;
+          }>
+        >([]);
+        const [loading, setLoading] = useState<boolean>(true);
+        const [error, setError] = useState<string | null>(null);
+        const [searchResults, setSearchResults] = useState<any[]>([]);
+        const [searchLoading, setSearchLoading] = useState<boolean>(false);
+        const [searchError, setSearchError] = useState<string | null>(null);
+        const [responseBody, setResponseBody] = useState<any>(null);
+        const [selectedUser, setSelectedUser] = useState<any>(null);
+
+        // Use the same reviewerID as other parts of the application
+        const reviewerID = getReviewerId() || "";
+
+        // Fetch applications from API and Keyforge endpoint in parallel
+        useEffect(() => {
+          const fetchApplications = async () => {
+            try {
+              setLoading(true);
+              setError(null);
+              const keyforgeUrl =
+                "https://preview.keyforge.ai/registerscimapp/registerfortenant/ACMECOM/getAllApplications";
+
+              const [ownResp, keyforgeResp] = await Promise.all([
+                getAllRegisteredApps(reviewerID),
+                fetch(keyforgeUrl)
+                  .then((r) => (r.ok ? r.json() : null))
+                  .catch(() => null),
+              ]);
+
+              const ownItems =
+                ownResp && ownResp.executionStatus === "success"
+                  ? (ownResp.items as Array<{
+                      applicationId: string;
+                      applicationName: string;
+                      scimurl: string;
+                      filter: string;
+                    }>)
+                  : [];
+
+              const keyforgeItems: Array<{
+                applicationId: string;
+                applicationName: string;
+                scimurl: string;
+                filter: string;
+              }> = keyforgeResp?.Applications
+                ? keyforgeResp.Applications.map((a: any) => ({
+                    applicationId: a.ApplicationID,
+                    applicationName: a.ApplicationName,
+                    scimurl: a.SCIMURL,
+                    filter: "",
+                  }))
+                : [];
+
+              // Merge by applicationId or name to avoid duplicates
+              const mergedMap = new Map<
+                string,
+                {
+                  applicationId: string;
+                  applicationName: string;
+                  scimurl: string;
+                  filter: string;
+                }
+              >();
+
+              for (const item of [...ownItems, ...keyforgeItems]) {
+                const key = item.applicationId || item.applicationName;
+                if (!mergedMap.has(key)) mergedMap.set(key, item);
+              }
+
+              const merged = Array.from(mergedMap.values());
+
+              if (merged.length > 0) {
+                setApplications(merged);
+
+                // Default to the current application (the one whose detail page we're on)
+                if (!selectedApplication) {
+                  let defaultApp =
+                    merged.find((app) => app.applicationId === id) || null;
+
+                  // Fallback: try matching by application name from localStorage
+                  if (!defaultApp) {
+                    try {
+                      const stored = localStorage.getItem("applicationDetails");
+                      if (stored) {
+                        const parsed = JSON.parse(stored);
+                        const storedName = parsed?.applicationName;
+                        if (storedName) {
+                          defaultApp = merged.find(
+                            (app) => app.applicationName === storedName
+                          ) as (typeof merged)[number] | null;
+                        }
+                      }
+                    } catch {
+                      // ignore localStorage/JSON errors
+                    }
+                  }
+
+                  // Fallback: if there's only one app, use it
+                  if (!defaultApp && merged.length === 1) {
+                    defaultApp = merged[0];
+                  }
+
+                  if (defaultApp) {
+                    setSelectedApplication(defaultApp.applicationName);
+                  }
+                }
+              } else {
+                setError("Failed to fetch applications");
+              }
+            } catch (err) {
+              console.error("Error fetching applications:", err);
+              setError("Error loading applications. Please try again.");
+            } finally {
+              setLoading(false);
+            }
+          };
+
+          fetchApplications();
+        }, [reviewerID, selectedApplication]);
+
+        const handleGetResult = async () => {
+          if (selectedApplication && userName) {
+            const selectedApp = applications.find(
+              (app) => app.applicationName === selectedApplication
+            );
+
+            if (!selectedApp) {
+              setSearchError("Selected application not found");
+              return;
+            }
+
+            try {
+              setSearchLoading(true);
+              setSearchError(null);
+              setSearchResults([]);
+              setResponseBody(null);
+              setSelectedUser(null);
+
+              // Create the payload as per your specification
+              const payload = {
+                filter: `userName co "${userName}"`,
+                applicationId: selectedApp.applicationId,
+                scimurl: selectedApp.scimurl,
+                applicationName: selectedApp.applicationName,
+              };
+
+              console.log("Searching with payload:", payload);
+
+              const response = await searchUsers(payload);
+
+              console.log("Search results:", response);
+              setSearchResults(response.items || response || []);
+              setResponseBody(response);
+              // Set first user as selected by default
+              if (response.Resources && response.Resources.length > 0) {
+                setSelectedUser(response.Resources[0]);
+              }
+            } catch (err) {
+              console.error("Error searching users:", err);
+              setSearchError("Error searching users. Please try again.");
+            } finally {
+              setSearchLoading(false);
+            }
+          }
+        };
+
+        return (
+          <div className="sampling-tab-content">
+            <div
+              className="search-container"
+              style={{
+                display: "flex",
+                gap: "15px",
+                margin: "40px auto",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              {/* User Name Input */}
+              <input
+                type="text"
+                placeholder="Enter User Name"
+                value={userName}
+                onChange={(e) => {
+                  setUserName(e.target.value);
+                  // Clear response data when user name changes
+                  setSearchResults([]);
+                  setResponseBody(null);
+                  setSearchError(null);
+                  setSelectedUser(null);
+                }}
+                style={{
+                  padding: "8px 12px",
+                  width: "260px",
+                  border: "1px solid #ccc",
+                  borderRadius: "4px",
+                  fontSize: "14px",
+                  backgroundColor: "white",
+                  color: "#000",
+                }}
+              />
+
+              {/* Get Result Button */}
+              <button
+                onClick={handleGetResult}
+                disabled={!userName || searchLoading}
+                style={{
+                  padding: "8px 20px",
+                  backgroundColor:
+                    userName && !searchLoading ? "#007bff" : "#ccc",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor:
+                    userName && !searchLoading ? "pointer" : "not-allowed",
+                  fontSize: "14px",
+                  fontWeight: "500",
+                  minWidth: "110px",
+                }}
+              >
+                {searchLoading ? "Searching..." : "Get Result"}
+              </button>
+            </div>
+
+            {/* Search Results */}
+            {(searchResults.length > 0 || searchError) && (
+              <div style={{ margin: "20px", width: "100%" }}>
+                <h3
+                  style={{
+                    fontSize: "16px",
+                    fontWeight: "600",
+                    marginBottom: "10px",
+                    color: "#333",
+                  }}
+                >
+                  Search Results
+                </h3>
+
+                {searchError && (
+                  <div
+                    style={{
+                      padding: "10px",
+                      backgroundColor: "#fee",
+                      border: "1px solid #fcc",
+                      borderRadius: "4px",
+                      color: "#c33",
+                      marginBottom: "10px",
+                    }}
+                  >
+                    {searchError}
+                  </div>
+                )}
+
+                {searchResults.length > 0 && (
+                  <div
+                    style={{
+                      border: "1px solid #ddd",
+                      borderRadius: "4px",
+                      maxHeight: "400px",
+                      overflowY: "auto",
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: "10px",
+                        backgroundColor: "#f8f9fa",
+                        borderBottom: "1px solid #ddd",
+                        fontWeight: "600",
+                        fontSize: "14px",
+                      }}
+                    >
+                      Found {searchResults.length} result(s)
+                    </div>
+                    {searchResults.map((result, index) => (
+                      <div
+                        key={index}
+                        style={{
+                          padding: "10px",
+                          borderBottom:
+                            index < searchResults.length - 1
+                              ? "1px solid #eee"
+                              : "none",
+                          fontSize: "14px",
+                        }}
+                      >
+                        <pre
+                          style={{
+                            margin: 0,
+                            whiteSpace: "pre-wrap",
+                            fontFamily: "monospace",
+                            fontSize: "12px",
+                            backgroundColor: "#f8f9fa",
+                            padding: "8px",
+                            borderRadius: "4px",
+                          }}
+                        >
+                          {JSON.stringify(result, null, 2)}
+                        </pre>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Response Body Display with Sidebar */}
+            {responseBody && responseBody.Resources && (
+              <div style={{ margin: "20px", width: "100%", padding: "0 20px" }}>
+                <div style={{ display: "flex", gap: "20px", height: "500px" }}>
+                  {/* Part 1: Left Sidebar - User List */}
+                  <div
+                    style={{
+                      width: "200px",
+                      border: "1px solid #ddd",
+                      borderRadius: "4px",
+                      backgroundColor: "#f8f9fa",
+                      overflowY: "auto",
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: "10px",
+                        backgroundColor: "#e9ecef",
+                        borderBottom: "1px solid #ddd",
+                        fontWeight: "600",
+                        fontSize: "14px",
+                      }}
+                    >
+                      Users ({responseBody.Resources.length})
+                    </div>
+                    {responseBody.Resources.map((user: any, index: number) => (
+                      <div
+                        key={user.id}
+                        onClick={() => setSelectedUser(user)}
+                        style={{
+                          padding: "12px",
+                          cursor: "pointer",
+                          borderBottom:
+                            index < responseBody.Resources.length - 1
+                              ? "1px solid #eee"
+                              : "none",
+                          backgroundColor:
+                            selectedUser?.id === user.id
+                              ? "#007bff"
+                              : "transparent",
+                          color:
+                            selectedUser?.id === user.id ? "white" : "#333",
+                          fontSize: "14px",
+                          transition: "background-color 0.2s",
+                        }}
+                        onMouseEnter={(e) => {
+                          if (selectedUser?.id !== user.id) {
+                            e.currentTarget.style.backgroundColor = "#f5f5f5";
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (selectedUser?.id !== user.id) {
+                            e.currentTarget.style.backgroundColor =
+                              "transparent";
+                          }
+                        }}
+                      >
+                        <div style={{ fontWeight: "500" }}>{user.userName}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Part 2: Middle Panel - User Profile Card */}
+                  <div
+                    style={{
+                      width: "500px",
+                      border: "1px solid #ddd",
+                      borderRadius: "4px",
+                      backgroundColor: "#f8f9fa",
+                      overflowY: "auto",
+                    }}
+                  >
+                    {selectedUser ? (
+                      <div>
+                        {/* User Profile Card */}
+                        <div
+                          style={{
+                            padding: "20px",
+                            backgroundColor: "white",
+                            height: "100%",
+                          }}
+                        >
+                          {/* Header with Avatar and Name */}
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              marginBottom: "20px",
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: "50px",
+                                height: "50px",
+                                borderRadius: "50%",
+                                backgroundColor: "#007bff",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                color: "white",
+                                fontWeight: "bold",
+                                fontSize: "18px",
+                                marginRight: "15px",
+                              }}
+                            >
+                              {selectedUser.displayName
+                                ? selectedUser.displayName
+                                    .split(" ")
+                                    .map((n: string) => n[0])
+                                    .join("")
+                                    .toUpperCase()
+                                : selectedUser.userName
+                                ? selectedUser.userName
+                                    .substring(0, 2)
+                                    .toUpperCase()
+                                : "U"}
+                            </div>
+                            <div>
+                              <div
+                                style={{
+                                  fontSize: "20px",
+                                  fontWeight: "bold",
+                                  color: "#333",
+                                }}
+                              >
+                                <UserDisplayName
+                                  displayName={selectedUser.displayName || selectedUser.userName}
+                                  userType={selectedUser.userType}
+                                  employeetype={selectedUser.employeetype}
+                                  tags={selectedUser.tags}
+                                />
+                              </div>
+                              {selectedUser.title && (
+                                <div
+                                  style={{
+                                    fontSize: "14px",
+                                    color: "#666",
+                                    marginTop: "2px",
+                                  }}
+                                >
+                                  {selectedUser.title}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* User Attributes Table */}
+                          <div
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "1fr 2fr",
+                              gap: "12px",
+                              fontSize: "14px",
+                            }}
+                          >
+                            <div style={{ fontWeight: "600", color: "#333" }}>
+                              Username (for login):
+                            </div>
+                            <div style={{ color: "#666" }}>
+                              {selectedUser.userName || "N/A"}
+                            </div>
+
+                            <div style={{ fontWeight: "600", color: "#333" }}>
+                              Work Email:
+                            </div>
+                            <div style={{ color: "#666" }}>
+                              {selectedUser.emails &&
+                              selectedUser.emails.length > 0
+                                ? selectedUser.emails[0].value
+                                : "N/A"}
+                            </div>
+
+                            <div style={{ fontWeight: "600", color: "#333" }}>
+                              First Name:
+                            </div>
+                            <div style={{ color: "#666" }}>
+                              {selectedUser.name?.givenName || "N/A"}
+                            </div>
+
+                            <div style={{ fontWeight: "600", color: "#333" }}>
+                              Last Name:
+                            </div>
+                            <div style={{ color: "#666" }}>
+                              {selectedUser.name?.familyName || "N/A"}
+                            </div>
+
+                            <div style={{ fontWeight: "600", color: "#333" }}>
+                              Account Status:
+                            </div>
+                            <div
+                              style={{ color: "#28a745", fontWeight: "500" }}
+                            >
+                              Active
+                            </div>
+
+                            <div style={{ fontWeight: "600", color: "#333" }}>
+                              Permissions:
+                            </div>
+                            <div style={{ color: "#6c757d" }}>
+                              {selectedUser.groups &&
+                              selectedUser.groups.length > 0
+                                ? selectedUser.groups.map(
+                                    (group: any, index: number) => (
+                                      <div
+                                        key={index}
+                                        style={{ marginBottom: "4px" }}
+                                      >
+                                        {group.display || group.value}
+                                      </div>
+                                    )
+                                  )
+                                : "No group permissions assigned"}
+                            </div>
+
+                            {selectedUser.preferredLanguage && (
+                              <>
+                                <div
+                                  style={{ fontWeight: "600", color: "#333" }}
+                                >
+                                  Preferred Language:
+                                </div>
+                                <div style={{ color: "#666" }}>
+                                  {selectedUser.preferredLanguage}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          height: "100%",
+                          color: "#666",
+                          fontSize: "14px",
+                        }}
+                      >
+                        Select a user from the list to view details
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Part 3: Right Panel - JSON Data */}
+                  <div
+                    style={{
+                      flex: 1,
+                      border: "1px solid #ddd",
+                      borderRadius: "4px",
+                      backgroundColor: "#000000",
+                      overflowY: "auto",
+                    }}
+                  >
+                    {selectedUser ? (
+                      <div style={{ padding: "15px" }}>
+                        <pre
+                          style={{
+                            margin: 0,
+                            whiteSpace: "pre-wrap",
+                            fontFamily: "monospace",
+                            fontSize: "12px",
+                            backgroundColor: "#1a1a1a",
+                            padding: "10px",
+                            borderRadius: "4px",
+                            border: "1px solid #333",
+                            color: "#ffffff",
+                            height: "calc(100% - 30px)",
+                            overflowY: "auto",
+                          }}
+                        >
+                          {JSON.stringify(selectedUser, null, 2)}
+                        </pre>
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          height: "100%",
+                          color: "#ffffff",
+                          fontSize: "14px",
+                        }}
+                      >
+                        Select a user from the list to view JSON data
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      label: "Configuration",
+      icon: ChevronDown,
+      iconOff: ChevronUp,
+      component: () => (
+        <div className="p-6 bg-white">
           <Accordion title="Application Information" iconClass="text-blue-600">
             <div className="p-4 bg-gray-50 rounded-lg">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -3252,634 +3994,6 @@ export default function ApplicationDetailPage() {
           </div>
         </div>
       ),
-    },
-    {
-      label: "Accounts",
-      icon: ChevronDown,
-      iconOff: ChevronUp,
-      component: AccountsTabComponent,
-    },
-    {
-      label: "Entitlements",
-      icon: ChevronDown,
-      iconOff: ChevronUp,
-      component: EntitlementsTabComponent,
-    },
-    {
-      label: "Sampling",
-      icon: ChevronDown,
-      iconOff: ChevronUp,
-      component: () => {
-        const [selectedApplication, setSelectedApplication] =
-          useState<string>("");
-        const [userName, setUserName] = useState<string>("");
-        const [applications, setApplications] = useState<
-          Array<{
-            applicationId: string;
-            applicationName: string;
-            scimurl: string;
-            filter: string;
-          }>
-        >([]);
-        const [loading, setLoading] = useState<boolean>(true);
-        const [error, setError] = useState<string | null>(null);
-        const [searchResults, setSearchResults] = useState<any[]>([]);
-        const [searchLoading, setSearchLoading] = useState<boolean>(false);
-        const [searchError, setSearchError] = useState<string | null>(null);
-        const [responseBody, setResponseBody] = useState<any>(null);
-        const [selectedUser, setSelectedUser] = useState<any>(null);
-
-        // Use the same reviewerID as other parts of the application
-        const reviewerID = getReviewerId() || "";
-
-        // Fetch applications from API and Keyforge endpoint in parallel
-        useEffect(() => {
-          const fetchApplications = async () => {
-            try {
-              setLoading(true);
-              setError(null);
-              const keyforgeUrl =
-                "https://preview.keyforge.ai/registerscimapp/registerfortenant/ACMECOM/getAllApplications";
-
-              const [ownResp, keyforgeResp] = await Promise.all([
-                getAllRegisteredApps(reviewerID),
-                fetch(keyforgeUrl)
-                  .then((r) => (r.ok ? r.json() : null))
-                  .catch(() => null),
-              ]);
-
-              const ownItems =
-                ownResp && ownResp.executionStatus === "success"
-                  ? (ownResp.items as Array<{
-                      applicationId: string;
-                      applicationName: string;
-                      scimurl: string;
-                      filter: string;
-                    }>)
-                  : [];
-
-              const keyforgeItems: Array<{
-                applicationId: string;
-                applicationName: string;
-                scimurl: string;
-                filter: string;
-              }> = keyforgeResp?.Applications
-                ? keyforgeResp.Applications.map((a: any) => ({
-                    applicationId: a.ApplicationID,
-                    applicationName: a.ApplicationName,
-                    scimurl: a.SCIMURL,
-                    filter: "",
-                  }))
-                : [];
-
-              // Merge by applicationId or name to avoid duplicates
-              const mergedMap = new Map<
-                string,
-                {
-                  applicationId: string;
-                  applicationName: string;
-                  scimurl: string;
-                  filter: string;
-                }
-              >();
-
-              for (const item of [...ownItems, ...keyforgeItems]) {
-                const key = item.applicationId || item.applicationName;
-                if (!mergedMap.has(key)) mergedMap.set(key, item);
-              }
-
-              const merged = Array.from(mergedMap.values());
-
-              if (merged.length > 0) {
-                setApplications(merged);
-
-                // Default to the current application (the one whose detail page we're on)
-                if (!selectedApplication) {
-                  let defaultApp =
-                    merged.find((app) => app.applicationId === id) || null;
-
-                  // Fallback: try matching by application name from localStorage
-                  if (!defaultApp) {
-                    try {
-                      const stored = localStorage.getItem("applicationDetails");
-                      if (stored) {
-                        const parsed = JSON.parse(stored);
-                        const storedName = parsed?.applicationName;
-                        if (storedName) {
-                          defaultApp = merged.find(
-                            (app) => app.applicationName === storedName
-                          ) as (typeof merged)[number] | null;
-                        }
-                      }
-                    } catch {
-                      // ignore localStorage/JSON errors
-                    }
-                  }
-
-                  // Fallback: if there's only one app, use it
-                  if (!defaultApp && merged.length === 1) {
-                    defaultApp = merged[0];
-                  }
-
-                  if (defaultApp) {
-                    setSelectedApplication(defaultApp.applicationName);
-                  }
-                }
-              } else {
-                setError("Failed to fetch applications");
-              }
-            } catch (err) {
-              console.error("Error fetching applications:", err);
-              setError("Error loading applications. Please try again.");
-            } finally {
-              setLoading(false);
-            }
-          };
-
-          fetchApplications();
-        }, [reviewerID, selectedApplication]);
-
-        const handleGetResult = async () => {
-          if (selectedApplication && userName) {
-            const selectedApp = applications.find(
-              (app) => app.applicationName === selectedApplication
-            );
-
-            if (!selectedApp) {
-              setSearchError("Selected application not found");
-              return;
-            }
-
-            try {
-              setSearchLoading(true);
-              setSearchError(null);
-              setSearchResults([]);
-              setResponseBody(null);
-              setSelectedUser(null);
-
-              // Create the payload as per your specification
-              const payload = {
-                filter: `userName co "${userName}"`,
-                applicationId: selectedApp.applicationId,
-                scimurl: selectedApp.scimurl,
-                applicationName: selectedApp.applicationName,
-              };
-
-              console.log("Searching with payload:", payload);
-
-              const response = await searchUsers(payload);
-
-              console.log("Search results:", response);
-              setSearchResults(response.items || response || []);
-              setResponseBody(response);
-              // Set first user as selected by default
-              if (response.Resources && response.Resources.length > 0) {
-                setSelectedUser(response.Resources[0]);
-              }
-            } catch (err) {
-              console.error("Error searching users:", err);
-              setSearchError("Error searching users. Please try again.");
-            } finally {
-              setSearchLoading(false);
-            }
-          }
-        };
-
-        return (
-          <div className="sampling-tab-content">
-            <div
-              className="search-container"
-              style={{
-                display: "flex",
-                gap: "15px",
-                margin: "40px auto",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              {/* User Name Input */}
-              <input
-                type="text"
-                placeholder="Enter User Name"
-                value={userName}
-                onChange={(e) => {
-                  setUserName(e.target.value);
-                  // Clear response data when user name changes
-                  setSearchResults([]);
-                  setResponseBody(null);
-                  setSearchError(null);
-                  setSelectedUser(null);
-                }}
-                style={{
-                  padding: "8px 12px",
-                  width: "260px",
-                  border: "1px solid #ccc",
-                  borderRadius: "4px",
-                  fontSize: "14px",
-                  backgroundColor: "white",
-                  color: "#000",
-                }}
-              />
-
-              {/* Get Result Button */}
-              <button
-                onClick={handleGetResult}
-                disabled={!userName || searchLoading}
-                style={{
-                  padding: "8px 20px",
-                  backgroundColor:
-                    userName && !searchLoading ? "#007bff" : "#ccc",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor:
-                    userName && !searchLoading ? "pointer" : "not-allowed",
-                  fontSize: "14px",
-                  fontWeight: "500",
-                  minWidth: "110px",
-                }}
-              >
-                {searchLoading ? "Searching..." : "Get Result"}
-              </button>
-            </div>
-
-            {/* Search Results */}
-            {(searchResults.length > 0 || searchError) && (
-              <div style={{ margin: "20px", width: "100%" }}>
-                <h3
-                  style={{
-                    fontSize: "16px",
-                    fontWeight: "600",
-                    marginBottom: "10px",
-                    color: "#333",
-                  }}
-                >
-                  Search Results
-                </h3>
-
-                {searchError && (
-                  <div
-                    style={{
-                      padding: "10px",
-                      backgroundColor: "#fee",
-                      border: "1px solid #fcc",
-                      borderRadius: "4px",
-                      color: "#c33",
-                      marginBottom: "10px",
-                    }}
-                  >
-                    {searchError}
-                  </div>
-                )}
-
-                {searchResults.length > 0 && (
-                  <div
-                    style={{
-                      border: "1px solid #ddd",
-                      borderRadius: "4px",
-                      maxHeight: "400px",
-                      overflowY: "auto",
-                    }}
-                  >
-                    <div
-                      style={{
-                        padding: "10px",
-                        backgroundColor: "#f8f9fa",
-                        borderBottom: "1px solid #ddd",
-                        fontWeight: "600",
-                        fontSize: "14px",
-                      }}
-                    >
-                      Found {searchResults.length} result(s)
-                    </div>
-                    {searchResults.map((result, index) => (
-                      <div
-                        key={index}
-                        style={{
-                          padding: "10px",
-                          borderBottom:
-                            index < searchResults.length - 1
-                              ? "1px solid #eee"
-                              : "none",
-                          fontSize: "14px",
-                        }}
-                      >
-                        <pre
-                          style={{
-                            margin: 0,
-                            whiteSpace: "pre-wrap",
-                            fontFamily: "monospace",
-                            fontSize: "12px",
-                            backgroundColor: "#f8f9fa",
-                            padding: "8px",
-                            borderRadius: "4px",
-                          }}
-                        >
-                          {JSON.stringify(result, null, 2)}
-                        </pre>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Response Body Display with Sidebar */}
-            {responseBody && responseBody.Resources && (
-              <div style={{ margin: "20px", width: "100%", padding: "0 20px" }}>
-                <div style={{ display: "flex", gap: "20px", height: "500px" }}>
-                  {/* Part 1: Left Sidebar - User List */}
-                  <div
-                    style={{
-                      width: "200px",
-                      border: "1px solid #ddd",
-                      borderRadius: "4px",
-                      backgroundColor: "#f8f9fa",
-                      overflowY: "auto",
-                    }}
-                  >
-                    <div
-                      style={{
-                        padding: "10px",
-                        backgroundColor: "#e9ecef",
-                        borderBottom: "1px solid #ddd",
-                        fontWeight: "600",
-                        fontSize: "14px",
-                      }}
-                    >
-                      Users ({responseBody.Resources.length})
-                    </div>
-                    {responseBody.Resources.map((user: any, index: number) => (
-                      <div
-                        key={user.id}
-                        onClick={() => setSelectedUser(user)}
-                        style={{
-                          padding: "12px",
-                          cursor: "pointer",
-                          borderBottom:
-                            index < responseBody.Resources.length - 1
-                              ? "1px solid #eee"
-                              : "none",
-                          backgroundColor:
-                            selectedUser?.id === user.id
-                              ? "#007bff"
-                              : "transparent",
-                          color:
-                            selectedUser?.id === user.id ? "white" : "#333",
-                          fontSize: "14px",
-                          transition: "background-color 0.2s",
-                        }}
-                        onMouseEnter={(e) => {
-                          if (selectedUser?.id !== user.id) {
-                            e.currentTarget.style.backgroundColor = "#f5f5f5";
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (selectedUser?.id !== user.id) {
-                            e.currentTarget.style.backgroundColor =
-                              "transparent";
-                          }
-                        }}
-                      >
-                        <div style={{ fontWeight: "500" }}>{user.userName}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Part 2: Middle Panel - User Profile Card */}
-                  <div
-                    style={{
-                      width: "500px",
-                      border: "1px solid #ddd",
-                      borderRadius: "4px",
-                      backgroundColor: "#f8f9fa",
-                      overflowY: "auto",
-                    }}
-                  >
-                    {selectedUser ? (
-                      <div>
-                        {/* User Profile Card */}
-                        <div
-                          style={{
-                            padding: "20px",
-                            backgroundColor: "white",
-                            height: "100%",
-                          }}
-                        >
-                          {/* Header with Avatar and Name */}
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              marginBottom: "20px",
-                            }}
-                          >
-                            <div
-                              style={{
-                                width: "50px",
-                                height: "50px",
-                                borderRadius: "50%",
-                                backgroundColor: "#007bff",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                color: "white",
-                                fontWeight: "bold",
-                                fontSize: "18px",
-                                marginRight: "15px",
-                              }}
-                            >
-                              {selectedUser.displayName
-                                ? selectedUser.displayName
-                                    .split(" ")
-                                    .map((n: string) => n[0])
-                                    .join("")
-                                    .toUpperCase()
-                                : selectedUser.userName
-                                ? selectedUser.userName
-                                    .substring(0, 2)
-                                    .toUpperCase()
-                                : "U"}
-                            </div>
-                            <div>
-                              <div
-                                style={{
-                                  fontSize: "20px",
-                                  fontWeight: "bold",
-                                  color: "#333",
-                                }}
-                              >
-                                <UserDisplayName
-                                  displayName={selectedUser.displayName || selectedUser.userName}
-                                  userType={selectedUser.userType}
-                                  employeetype={selectedUser.employeetype}
-                                  tags={selectedUser.tags}
-                                />
-                              </div>
-                              {selectedUser.title && (
-                                <div
-                                  style={{
-                                    fontSize: "14px",
-                                    color: "#666",
-                                    marginTop: "2px",
-                                  }}
-                                >
-                                  {selectedUser.title}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* User Attributes Table */}
-                          <div
-                            style={{
-                              display: "grid",
-                              gridTemplateColumns: "1fr 2fr",
-                              gap: "12px",
-                              fontSize: "14px",
-                            }}
-                          >
-                            <div style={{ fontWeight: "600", color: "#333" }}>
-                              Username (for login):
-                            </div>
-                            <div style={{ color: "#666" }}>
-                              {selectedUser.userName || "N/A"}
-                            </div>
-
-                            <div style={{ fontWeight: "600", color: "#333" }}>
-                              Work Email:
-                            </div>
-                            <div style={{ color: "#666" }}>
-                              {selectedUser.emails &&
-                              selectedUser.emails.length > 0
-                                ? selectedUser.emails[0].value
-                                : "N/A"}
-                            </div>
-
-                            <div style={{ fontWeight: "600", color: "#333" }}>
-                              First Name:
-                            </div>
-                            <div style={{ color: "#666" }}>
-                              {selectedUser.name?.givenName || "N/A"}
-                            </div>
-
-                            <div style={{ fontWeight: "600", color: "#333" }}>
-                              Last Name:
-                            </div>
-                            <div style={{ color: "#666" }}>
-                              {selectedUser.name?.familyName || "N/A"}
-                            </div>
-
-                            <div style={{ fontWeight: "600", color: "#333" }}>
-                              Account Status:
-                            </div>
-                            <div
-                              style={{ color: "#28a745", fontWeight: "500" }}
-                            >
-                              Active
-                            </div>
-
-                            <div style={{ fontWeight: "600", color: "#333" }}>
-                              Permissions:
-                            </div>
-                            <div style={{ color: "#6c757d" }}>
-                              {selectedUser.groups &&
-                              selectedUser.groups.length > 0
-                                ? selectedUser.groups.map(
-                                    (group: any, index: number) => (
-                                      <div
-                                        key={index}
-                                        style={{ marginBottom: "4px" }}
-                                      >
-                                        {group.display || group.value}
-                                      </div>
-                                    )
-                                  )
-                                : "No group permissions assigned"}
-                            </div>
-
-                            {selectedUser.preferredLanguage && (
-                              <>
-                                <div
-                                  style={{ fontWeight: "600", color: "#333" }}
-                                >
-                                  Preferred Language:
-                                </div>
-                                <div style={{ color: "#666" }}>
-                                  {selectedUser.preferredLanguage}
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          height: "100%",
-                          color: "#666",
-                          fontSize: "14px",
-                        }}
-                      >
-                        Select a user from the list to view details
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Part 3: Right Panel - JSON Data */}
-                  <div
-                    style={{
-                      flex: 1,
-                      border: "1px solid #ddd",
-                      borderRadius: "4px",
-                      backgroundColor: "#000000",
-                      overflowY: "auto",
-                    }}
-                  >
-                    {selectedUser ? (
-                      <div style={{ padding: "15px" }}>
-                        <pre
-                          style={{
-                            margin: 0,
-                            whiteSpace: "pre-wrap",
-                            fontFamily: "monospace",
-                            fontSize: "12px",
-                            backgroundColor: "#1a1a1a",
-                            padding: "10px",
-                            borderRadius: "4px",
-                            border: "1px solid #333",
-                            color: "#ffffff",
-                            height: "calc(100% - 30px)",
-                            overflowY: "auto",
-                          }}
-                        >
-                          {JSON.stringify(selectedUser, null, 2)}
-                        </pre>
-                      </div>
-                    ) : (
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          height: "100%",
-                          color: "#ffffff",
-                          fontSize: "14px",
-                        }}
-                      >
-                        Select a user from the list to view JSON data
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        );
-      },
     },
   ], [
     EntitlementsTabComponent,

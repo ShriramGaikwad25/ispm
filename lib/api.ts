@@ -1,7 +1,7 @@
 import { LineItemDetail } from "@/types/lineItem";
 import { PaginatedResponse, CertAnalyticsResponse } from "@/types/api";
 import { string } from "yup";
-import { apiRequestWithAuth } from "./auth";
+import { apiRequestWithAuth, checkTokenExpiredError } from "./auth";
 
 const BASE_URL = "https://preview.keyforge.ai/certification/api/v1/ACMECOM";
 
@@ -34,12 +34,26 @@ export async function fetchApi<T>(
 
     if (!res.ok) {
       const errorBody = await res.text();
+      // Check if error body contains token expired error
+      try {
+        const errorData = JSON.parse(errorBody);
+        if (checkTokenExpiredError(errorData)) {
+          throw new Error('Token Expired');
+        }
+      } catch (e) {
+        // If parsing fails, continue with original error
+      }
       throw new Error(
         `Fetch failed: ${res.status} ${res.statusText}\n${errorBody}`
       );
     }
 
-    return res.json();
+    const result = await res.json();
+    // Check for token expired error in successful responses
+    if (checkTokenExpiredError(result)) {
+      throw new Error('Token Expired');
+    }
+    return result;
   } catch (error) {
     throw new Error(`API request failed: ${error.message}`);
   }
@@ -218,14 +232,28 @@ export async function getGroupedAppOwnerDetails<T>(
 
   if (!res.ok) {
     const errorBody = await res.text();
+    // Check if error body contains token expired error
+    try {
+      const errorData = JSON.parse(errorBody);
+      if (checkTokenExpiredError(errorData)) {
+        throw new Error('Token Expired');
+      }
+    } catch (e) {
+      // If parsing fails, continue with original error
+    }
     throw new Error(
       `Fetch failed: ${res.status} ${res.statusText}\n${errorBody}`
     );
   }
 
-  return res.json();
+  const result = await res.json();
+  // Check for token expired error in successful responses
+  if (checkTokenExpiredError(result)) {
+    throw new Error('Token Expired');
+  }
+  return result;
 }
-  
+
 export async function getAppAccounts(
 reviewerId: string,
 applicationinstanceid:string
@@ -265,10 +293,24 @@ export async function searchUsers(
 
   if (!response.ok) {
     const errorBody = await response.text();
+    // Check if error body contains token expired error
+    try {
+      const errorData = JSON.parse(errorBody);
+      if (checkTokenExpiredError(errorData)) {
+        throw new Error('Token Expired');
+      }
+    } catch (e) {
+      // If parsing fails, continue with original error
+    }
     throw new Error(`Search API failed: ${response.status} ${response.statusText}\n${errorBody}`);
   }
 
-  return response.json();
+  const result = await response.json();
+  // Check for token expired error in successful responses
+  if (checkTokenExpiredError(result)) {
+    throw new Error('Token Expired');
+  }
+  return result;
 }
 
 export async function getAPPOCertificationDetailsWithFilter<T>(
@@ -298,12 +340,26 @@ export async function getAPPOCertificationDetailsWithFilter<T>(
 
   if (!res.ok) {
     const errorBody = await res.text();
+    // Check if error body contains token expired error
+    try {
+      const errorData = JSON.parse(errorBody);
+      if (checkTokenExpiredError(errorData)) {
+        throw new Error('Token Expired');
+      }
+    } catch (e) {
+      // If parsing fails, continue with original error
+    }
     throw new Error(
       `Fetch failed: ${res.status} ${res.statusText}\n${errorBody}`
     );
   }
 
-  return res.json();
+  const result = await res.json();
+  // Check for token expired error in successful responses
+  if (checkTokenExpiredError(result)) {
+    throw new Error('Token Expired');
+  }
+  return result;
 }
 
 export async function getEntitlementDetails(
@@ -321,12 +377,26 @@ export async function getEntitlementDetails(
 
   if (!res.ok) {
     const errorBody = await res.text();
+    // Check if error body contains token expired error
+    try {
+      const errorData = JSON.parse(errorBody);
+      if (checkTokenExpiredError(errorData)) {
+        throw new Error('Token Expired');
+      }
+    } catch (e) {
+      // If parsing fails, continue with original error
+    }
     throw new Error(
       `Fetch failed: ${res.status} ${res.statusText}\n${errorBody}`
     );
   }
 
-  return res.json();
+  const result = await res.json();
+  // Check for token expired error in successful responses
+  if (checkTokenExpiredError(result)) {
+    throw new Error('Token Expired');
+  }
+  return result;
 }
 
 export async function getCatalogEntitlements<T>(
@@ -348,12 +418,26 @@ export async function getCatalogEntitlements<T>(
 
   if (!res.ok) {
     const errorBody = await res.text();
+    // Check if error body contains token expired error
+    try {
+      const errorData = JSON.parse(errorBody);
+      if (checkTokenExpiredError(errorData)) {
+        throw new Error('Token Expired');
+      }
+    } catch (e) {
+      // If parsing fails, continue with original error
+    }
     throw new Error(
       `Fetch failed: ${res.status} ${res.statusText}\n${errorBody}`
     );
   }
 
-  return res.json();
+  const result = await res.json();
+  // Check for token expired error in successful responses
+  if (checkTokenExpiredError(result)) {
+    throw new Error('Token Expired');
+  }
+  return result;
 }
 
 export async function executeQuery<T>(
@@ -380,12 +464,26 @@ export async function executeQuery<T>(
 
   if (!res.ok) {
     const errorBody = await res.text();
+    // Check if error body contains token expired error
+    try {
+      const errorData = JSON.parse(errorBody);
+      if (checkTokenExpiredError(errorData)) {
+        throw new Error('Token Expired');
+      }
+    } catch (e) {
+      // If parsing fails, continue with original error
+    }
     throw new Error(
       `Execute Query failed: ${res.status} ${res.statusText}\n${errorBody}`
     );
   }
 
-  return res.json();
+  const result = await res.json();
+  // Check for token expired error in successful responses
+  if (checkTokenExpiredError(result)) {
+    throw new Error('Token Expired');
+  }
+  return result;
 }
 
 // Get all supported application types for registration
