@@ -1,44 +1,145 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { BackButton } from "@/components/BackButton";
 import { Mail, Plus, Archive } from "lucide-react";
+import AgGridReact from "@/components/ClientOnlyAgGrid";
+import "@/lib/ag-grid-setup";
+import { ColDef, GridApi, GetRowIdParams, RowClickedEvent } from "ag-grid-enterprise";
+import { defaultColDef } from "@/components/dashboard/columnDefs";
+import { useLoading } from "@/contexts/LoadingContext";
 
 interface EmailTemplate {
-  id: string;
+  id: number;
+  templateCode: string;
   templateName: string;
-  category: string;
   description: string;
-  language: string;
-  encoding: string;
-  fromEmail: string;
   subject: string;
-  condition: string;
-  status: boolean;
   body: string;
+  templateType: string;
+  active: boolean;
+  parameters: string[];
+  mandatoryEmailParameters: string[];
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+  updatedBy: string;
+}
+
+interface ApiResponse {
+  success: boolean;
+  message: string;
+  data: EmailTemplate[];
+  timestamp: string;
 }
 
 export default function GatewayEmailTemplatesSettings() {
   const router = useRouter();
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
+  const [gridApi, setGridApi] = useState<GridApi | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { showApiLoader, hideApiLoader } = useLoading();
 
-  // Load saved templates from localStorage on component mount
+  // Fetch templates from API
   useEffect(() => {
-    const savedTemplates = localStorage.getItem("gateway_email_templates");
-    if (savedTemplates) {
+    const fetchTemplates = async () => {
       try {
-        const parsed = JSON.parse(savedTemplates);
-        setTemplates(parsed);
-      } catch (error) {
-        console.error("Error loading saved Email Templates:", error);
+        setLoading(true);
+        setError(null);
+        showApiLoader?.(true, "Loading email templates...");
+
+        const response = await fetch(
+          "https://preview.keyforge.ai/kfmailserver/templates/api/v1/ACMECOM/getall"
+        );
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch templates: ${response.statusText}`);
+        }
+
+        const result: ApiResponse = await response.json();
+
+        if (result.success && result.data) {
+          setTemplates(result.data);
+        } else {
+          throw new Error(result.message || "Failed to load templates");
+        }
+      } catch (err) {
+        console.error("Error fetching email templates:", err);
+        setError(err instanceof Error ? err.message : "Failed to load templates");
+      } finally {
+        setLoading(false);
+        hideApiLoader?.();
       }
-    }
-  }, []);
+    };
+
+    fetchTemplates();
+  }, [showApiLoader, hideApiLoader]);
 
   const handleAddTemplate = () => {
     router.push("/settings/gateway/email-templates/new");
   };
+
+  const handleRowClick = (event: RowClickedEvent<EmailTemplate>) => {
+    if (event.data) {
+      router.push(`/settings/gateway/email-templates/${event.data.id}`);
+    }
+  };
+
+  // Column definitions for AG Grid
+  const columnDefs = useMemo<ColDef[]>(() => [
+    {
+      headerName: "Template Code",
+      field: "templateCode",
+      width: 200,
+      sortable: true,
+      filter: true,
+    },
+    {
+      headerName: "Template Name",
+      field: "templateName",
+      width: 300,
+      sortable: true,
+      filter: true,
+      wrapText: true,
+      autoHeight: true,
+    },
+    {
+      headerName: "Description",
+      field: "description",
+      width: 300,
+      sortable: true,
+      filter: true,
+      wrapText: true,
+      autoHeight: true,
+    },
+    {
+      headerName: "Template Type",
+      field: "templateType",
+      width: 150,
+      sortable: true,
+      filter: true,
+    },
+    {
+      headerName: "Status",
+      field: "active",
+      width: 120,
+      sortable: true,
+      filter: true,
+      cellRenderer: (params: any) => {
+        return params.value ? (
+          <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded">
+            Active
+          </span>
+        ) : (
+          <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded">
+            Inactive
+          </span>
+        );
+      },
+    },
+  ], []);
 
   return (
     <div className="h-full flex flex-col">
@@ -63,61 +164,57 @@ export default function GatewayEmailTemplatesSettings() {
 
       {/* Main Content Area */}
       <div className="flex-1 bg-gray-50 p-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-full flex items-center justify-center">
-          {templates.length === 0 ? (
-            <div className="flex flex-col items-center justify-center text-center py-12">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-full flex flex-col">
+          {error && (
+            <div className="p-4 bg-red-50 border-l-4 border-red-500 text-red-700">
+              <p className="font-medium">Error loading templates</p>
+              <p className="text-sm">{error}</p>
+            </div>
+          )}
+          
+          {loading ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#27B973] mx-auto mb-4"></div>
+                <p className="text-gray-600">Loading templates...</p>
+              </div>
+            </div>
+          ) : templates.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-center py-12">
               <Archive className="w-16 h-16 text-gray-300 mb-4" />
-              <p className="text-gray-400 text-base">No Data</p>
+              <p className="text-gray-400 text-base">No templates found</p>
             </div>
           ) : (
-            <div className="w-full p-6">
-              <div className="space-y-4">
-                {templates.map((template) => (
-                  <div
-                    key={template.id}
-                    className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <h3 className="text-lg font-semibold text-gray-900">
-                            {template.templateName}
-                          </h3>
-                          {template.status && (
-                            <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded">
-                              Enabled
-                            </span>
-                          )}
-                          {template.category && (
-                            <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded">
-                              {template.category}
-                            </span>
-                          )}
-                        </div>
-                        {template.description && (
-                          <p className="text-sm text-gray-600 mb-2">
-                            {template.description}
-                          </p>
-                        )}
-                        <div className="grid grid-cols-2 gap-2 text-sm text-gray-600">
-                          <p>
-                            <span className="font-medium">Subject:</span> {template.subject}
-                          </p>
-                          {template.fromEmail && (
-                            <p>
-                              <span className="font-medium">From:</span> {template.fromEmail}
-                            </p>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-600 line-clamp-2 mt-2">
-                          <span className="font-medium">Body:</span> 
-                          <span dangerouslySetInnerHTML={{ __html: template.body.substring(0, 100) }} />
-                          {template.body.length > 100 ? '...' : ''}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+            <div className="w-full h-full p-6">
+              <div className="h-full w-full">
+                <AgGridReact
+                  rowData={templates}
+                  getRowId={(params: GetRowIdParams) => params.data.id.toString()}
+                  columnDefs={columnDefs}
+                  defaultColDef={defaultColDef}
+                  domLayout="autoHeight"
+                  onRowClicked={handleRowClick}
+                  rowSelection="single"
+                  onGridReady={(params) => {
+                    setGridApi(params.api);
+                    params.api.sizeColumnsToFit();
+                    const handleResize = () => {
+                      try {
+                        params.api.sizeColumnsToFit();
+                      } catch {}
+                    };
+                    window.addEventListener("resize", handleResize);
+                    params.api.addEventListener('gridPreDestroyed', () => {
+                      window.removeEventListener("resize", handleResize);
+                    });
+                  }}
+                  pagination={true}
+                  paginationPageSize={20}
+                  paginationPageSizeSelector={[10, 20, 50, 100]}
+                  overlayLoadingTemplate={`<span class="ag-overlay-loading-center">⏳ Loading templates...</span>`}
+                  overlayNoRowsTemplate={`<span class="ag-overlay-loading-center">No templates found.</span>`}
+                  className="ag-main"
+                />
               </div>
             </div>
           )}
