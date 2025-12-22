@@ -102,7 +102,6 @@ export default function ApplicationDetailPage() {
     {}
   );
   const [mounted, setMounted] = useState(false);
-  const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
   const [nodeData, setNodeData] = useState<any>(null);
   const [selectedEntitlement, setSelectedEntitlement] = useState<any>(null);
   const [expandedFrames, setExpandedFrames] = useState({
@@ -502,38 +501,580 @@ export default function ApplicationDetailPage() {
   };
 
   const toggleSidePanel = (data: any) => {
-    setNodeData(data);
+    // Use the catalogDetails from the existing data instead of making API call
+    const catalogDetails = data?.catalogDetails;
 
-    // If opening the sidebar, use existing catalogDetails data
-    if (!isSidePanelOpen) {
-      // Use the catalogDetails from the existing data instead of making API call
-      const catalogDetails = data?.catalogDetails;
+    console.log("Row data structure:", data);
+    console.log("Available keys in row data:", Object.keys(data || {}));
 
-      console.log("Row data structure:", data);
-      console.log("Available keys in row data:", Object.keys(data || {}));
-
-      if (catalogDetails) {
-        console.log("Using catalogDetails:", catalogDetails);
-        setEntitlementDetails(catalogDetails);
-        // Update nodeData with mapped catalog data
-        const mappedData = mapApiDataToNodeData(catalogDetails, data);
-        console.log("Mapped Data from catalogDetails:", mappedData);
-        setNodeData(mappedData);
-      } else {
-        console.warn("No catalogDetails found in row data");
-        console.log("Available data fields:", Object.keys(data || {}));
-        // If no catalogDetails, try to use the data directly
-        console.log("Using row data directly for entitlement details");
-        setEntitlementDetails(data);
-        setNodeData(data);
-      }
+    let finalData = data;
+    if (catalogDetails) {
+      console.log("Using catalogDetails:", catalogDetails);
+      setEntitlementDetails(catalogDetails);
+      // Update nodeData with mapped catalog data
+      finalData = mapApiDataToNodeData(catalogDetails, data);
+      console.log("Mapped Data from catalogDetails:", finalData);
     } else {
-      // Closing sidebar - reset edit mode
-      setIsEditMode(false);
-      setEditableNodeData(null);
+      console.warn("No catalogDetails found in row data");
+      console.log("Available data fields:", Object.keys(data || {}));
+      // If no catalogDetails, try to use the data directly
+      console.log("Using row data directly for entitlement details");
+      setEntitlementDetails(data);
     }
 
-    setIsSidePanelOpen((prev) => !prev);
+    setNodeData(finalData);
+
+    // Create the entitlement details sidebar component
+    const EntitlementDetailsSidebarContent = () => {
+      const [localEditMode, setLocalEditMode] = useState(false);
+      const [localEditableData, setLocalEditableData] = useState<any>(null);
+      const [localExpandedFrames, setLocalExpandedFrames] = useState({
+        general: false,
+        business: false,
+        technical: false,
+        security: false,
+        lifecycle: false,
+      });
+
+      useEffect(() => {
+        setLocalEditableData({ ...finalData });
+      }, []);
+
+      const toggleLocalFrame = (frame: keyof typeof localExpandedFrames) => {
+        setLocalExpandedFrames((prev) => ({ ...prev, [frame]: !prev[frame] }));
+      };
+
+      const renderSideBySideFieldLocal = (
+        label1: string,
+        value1: any,
+        label2: string,
+        value2: any,
+        fieldKey1?: string,
+        fieldKey2?: string,
+        isDate1?: boolean,
+        isDate2?: boolean
+      ) => {
+        const currentData = localEditMode ? localEditableData : finalData;
+        let val1 = fieldKey1 ? currentData?.[fieldKey1] : value1;
+        let val2 = fieldKey2 ? currentData?.[fieldKey2] : value2;
+
+        // In edit mode, use raw values; in view mode, format dates if needed
+        if (!localEditMode) {
+          if (isDate1 && val1) {
+            val1 = formatDate(val1);
+          }
+          if (isDate2 && val2) {
+            val2 = formatDate(val2);
+          }
+        }
+
+        if (localEditMode) {
+          const inputType1 = isDate1 ? "date" : "text";
+          const inputType2 = isDate2 ? "date" : "text";
+          
+          return (
+            <div className="flex space-x-4 text-sm">
+              <div className="flex-1">
+                <label className="block text-xs text-gray-500 mb-1 font-medium">{label1}:</label>
+                <input
+                  type={inputType1}
+                  value={val1?.toString() || ""}
+                  onChange={(e) => {
+                    if (fieldKey1) {
+                      setLocalEditableData((prev: any) => ({
+                        ...prev,
+                        [fieldKey1]: e.target.value,
+                      }));
+                    }
+                  }}
+                  className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs text-gray-500 mb-1 font-medium">{label2}:</label>
+                <input
+                  type={inputType2}
+                  value={val2?.toString() || ""}
+                  onChange={(e) => {
+                    if (fieldKey2) {
+                      setLocalEditableData((prev: any) => ({
+                        ...prev,
+                        [fieldKey2]: e.target.value,
+                      }));
+                    }
+                  }}
+                  className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div className="flex space-x-4 text-sm text-gray-700">
+            <div className="flex-1">
+              <strong>{label1}:</strong> {val1?.toString() || "N/A"}
+            </div>
+            <div className="flex-1">
+              <strong>{label2}:</strong> {val2?.toString() || "N/A"}
+            </div>
+          </div>
+        );
+      };
+
+      const renderSingleFieldLocal = (label: string, value: any, fieldKey?: string) => {
+        const currentData = localEditMode ? localEditableData : finalData;
+        const val = fieldKey ? currentData?.[fieldKey] : value;
+
+        if (localEditMode) {
+          return (
+            <div className="text-sm">
+              <label className="block text-xs text-gray-500 mb-1 font-medium">{label}:</label>
+              <input
+                type="text"
+                value={val?.toString() || ""}
+                onChange={(e) => {
+                  if (fieldKey) {
+                    setLocalEditableData((prev: any) => ({
+                      ...prev,
+                      [fieldKey]: e.target.value,
+                    }));
+                  }
+                }}
+                className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+          );
+        }
+
+        return (
+          <div className="text-sm text-gray-700">
+            <strong>{label}:</strong> {val?.toString() || "N/A"}
+          </div>
+        );
+      };
+
+      return (
+        <div className="flex flex-col h-full">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {entitlementDetailsError ? (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-sm text-red-600">{entitlementDetailsError}</p>
+              </div>
+            ) : (
+              <>
+                <div className="mt-2 flex items-center gap-2">
+                  <div className="flex-1">
+                    {localEditMode ? (
+                      <input
+                        type="text"
+                        value={
+                          (localEditableData?.["Ent Name"] ||
+                            localEditableData?.entitlementName ||
+                            "") as string
+                        }
+                        onChange={(e) => {
+                          setLocalEditableData((prev: any) => ({
+                            ...prev,
+                            "Ent Name": e.target.value,
+                            entitlementName: e.target.value,
+                          }));
+                        }}
+                        className="w-full px-2 py-1.5 border border-gray-300 rounded text-md font-semibold focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    ) : (
+                      <div className="text-md font-semibold text-gray-900 break-words break-all whitespace-normal max-w-full">
+                        {finalData?.["Ent Name"] ||
+                          (finalData as any)?.entitlementName ||
+                          "-"}
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!localEditMode) {
+                        setLocalEditableData({ ...finalData });
+                        setLocalExpandedFrames({
+                          general: true,
+                          business: true,
+                          technical: true,
+                          security: true,
+                          lifecycle: true,
+                        });
+                        setLocalEditMode(true);
+                      } else {
+                        setLocalEditMode(false);
+                        setLocalEditableData(null);
+                      }
+                    }}
+                    className={`p-1.5 rounded transition-colors flex-shrink-0 ${
+                      localEditMode 
+                        ? "bg-blue-500 hover:bg-blue-600" 
+                        : "hover:bg-gray-200"
+                    }`}
+                    title={localEditMode ? "Save changes" : "Edit entitlement"}
+                  >
+                    <Edit className={`w-4 h-4 ${localEditMode ? "text-white" : "text-gray-600 hover:text-blue-600"}`} />
+                  </button>
+                </div>
+                <div className="mt-3">
+                  <span className="text-xs uppercase text-gray-500">Description:</span>
+                  {localEditMode ? (
+                    <textarea
+                      value={
+                        (localEditableData?.["Ent Description"] ||
+                          localEditableData?.description ||
+                          "") as string
+                      }
+                      onChange={(e) => {
+                        setLocalEditableData((prev: any) => ({
+                          ...prev,
+                          "Ent Description": e.target.value,
+                          description: e.target.value,
+                        }));
+                      }}
+                      rows={3}
+                      className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm mt-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y"
+                    />
+                  ) : (
+                    <p className="text-sm text-gray-700 break-words break-all whitespace-pre-wrap max-w-full mt-1">
+                      {finalData?.["Ent Description"] ||
+                        (finalData as any)?.description ||
+                        "-"}
+                    </p>
+                  )}
+                </div>
+                <div className="mt-3 flex space-x-2">
+                  <button
+                    onClick={handleApprove}
+                    title="Approve"
+                    className={`p-1 rounded transition-colors duration-200 ${
+                      lastAction === "Approve"
+                        ? "bg-green-500"
+                        : "hover:bg-green-100"
+                    }`}
+                  >
+                    <CircleCheck
+                      className="cursor-pointer"
+                      color="#1c821cff"
+                      strokeWidth="1"
+                      size="32"
+                      fill={lastAction === "Approve" ? "#1c821cff" : "none"}
+                    />
+                  </button>
+                  <button
+                    onClick={handleRevoke}
+                    title="Revoke"
+                    className={`p-1 rounded ${
+                      finalData?.status === "Rejected" ? "bg-red-100" : ""
+                    }`}
+                  >
+                    <CircleX
+                      className="cursor-pointer hover:opacity-80 transform rotate-90"
+                      color="#FF2D55"
+                      strokeWidth="1"
+                      size="32"
+                      fill={finalData?.status === "Rejected" ? "#FF2D55" : "none"}
+                    />
+                  </button>
+                  <button
+                    onClick={handleComment}
+                    title="Comment"
+                    className="p-1 rounded"
+                  >
+                    <svg
+                      width="30"
+                      height="30"
+                      viewBox="0 0 32 32"
+                      className="cursor-pointer hover:opacity-80"
+                    >
+                      <path
+                        d="M0.700195 0V19.5546H3.5802V25.7765C3.57994 25.9525 3.62203 26.1247 3.70113 26.2711C3.78022 26.4176 3.89277 26.5318 4.02449 26.5992C4.15621 26.6666 4.30118 26.6842 4.44101 26.6498C4.58085 26.6153 4.70926 26.5304 4.80996 26.4058C6.65316 24.1232 10.3583 19.5546 10.3583 19.5546H25.1802V0H0.700195ZM2.1402 1.77769H23.7402V17.7769H9.76212L5.0202 23.6308V17.7769H2.1402V1.77769ZM5.0202 5.33307V7.11076H16.5402V5.33307H5.0202ZM26.6202 5.33307V7.11076H28.0602V23.11H25.1802V28.9639L20.4383 23.11H9.34019L7.9002 24.8877H19.8421C19.8421 24.8877 23.5472 29.4563 25.3904 31.7389C25.4911 31.8635 25.6195 31.9484 25.7594 31.9828C25.8992 32.0173 26.0442 31.9997 26.1759 31.9323C26.3076 31.8648 26.4202 31.7507 26.4993 31.6042C26.5784 31.4578 26.6204 31.2856 26.6202 31.1096V24.8877H29.5002V5.33307H26.6202ZM5.0202 8.88845V10.6661H10.7802V8.88845H5.0202ZM5.0202 12.4438V14.2215H19.4202V12.4438H5.0202Z"
+                        fill="#2684FF"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              </>
+            )}
+            <div className="space-y-4">
+              {/* General Frame */}
+              <div className="bg-white border border-gray-200 rounded-md shadow-sm">
+                <button
+                  className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
+                  onClick={() => toggleLocalFrame("general")}
+                >
+                  {localExpandedFrames.general ? (
+                    <ChevronDown size={20} className="mr-2" />
+                  ) : (
+                    <ChevronUp size={20} className="mr-2" />
+                  )}
+                  General
+                </button>
+                {localExpandedFrames.general && (
+                  <div className="p-4 space-y-2">
+                    {renderSideBySideFieldLocal(
+                      "Ent Type",
+                      finalData?.["Ent Type"],
+                      "#Assignments",
+                      finalData?.["Total Assignments"],
+                      "Ent Type",
+                      "Total Assignments"
+                    )}
+                    {renderSideBySideFieldLocal(
+                      "App Name",
+                      finalData?.["App Name"],
+                      "Tag(s)",
+                      finalData?.["Dynamic Tag"],
+                      "App Name",
+                      "Dynamic Tag"
+                    )}
+                  </div>
+                )}
+              </div>
+              {/* Business Frame */}
+              <div className="bg-white border border-gray-200 rounded-md shadow-sm">
+                <button
+                  className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
+                  onClick={() => toggleLocalFrame("business")}
+                >
+                  {localExpandedFrames.business ? (
+                    <ChevronDown size={20} className="mr-2" />
+                  ) : (
+                    <ChevronUp size={20} className="mr-2" />
+                  )}
+                  Business
+                </button>
+                {localExpandedFrames.business && (
+                  <div className="p-4 space-y-2">
+                    {renderSingleFieldLocal(
+                      "Objective",
+                      finalData?.["Business Objective"],
+                      "Business Objective"
+                    )}
+                    {renderSideBySideFieldLocal(
+                      "Business Unit",
+                      finalData?.["Business Unit"],
+                      "Business Owner",
+                      finalData?.["Ent Owner"],
+                      "Business Unit",
+                      "Ent Owner"
+                    )}
+                    {renderSingleFieldLocal(
+                      "Regulatory Scope",
+                      finalData?.["Compliance Type"],
+                      "Compliance Type"
+                    )}
+                    {renderSideBySideFieldLocal(
+                      "Data Classification",
+                      finalData?.["Data Classification"],
+                      "Cost Center",
+                      finalData?.["Cost Center"],
+                      "Data Classification",
+                      "Cost Center"
+                    )}
+                  </div>
+                )}
+              </div>
+              {/* Technical Frame */}
+              <div className="bg-white border border-gray-200 rounded-md shadow-sm">
+                <button
+                  className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
+                  onClick={() => toggleLocalFrame("technical")}
+                >
+                  {localExpandedFrames.technical ? (
+                    <ChevronDown size={20} className="mr-2" />
+                  ) : (
+                    <ChevronUp size={20} className="mr-2" />
+                  )}
+                  Technical
+                </button>
+                {localExpandedFrames.technical && (
+                  <div className="p-4 space-y-2">
+                    {renderSideBySideFieldLocal(
+                      "Created On",
+                      finalData?.["Created On"],
+                      "Last Sync",
+                      finalData?.["Last Sync"],
+                      "Created On",
+                      "Last Sync",
+                      true,
+                      true
+                    )}
+                    {renderSideBySideFieldLocal(
+                      "App Name",
+                      finalData?.["App Name"],
+                      "App Instance",
+                      finalData?.["App Instance"],
+                      "App Name",
+                      "App Instance"
+                    )}
+                    {renderSideBySideFieldLocal(
+                      "App Owner",
+                      finalData?.["App Owner"],
+                      "Ent Owner",
+                      finalData?.["Ent Owner"],
+                      "App Owner",
+                      "Ent Owner"
+                    )}
+                    {renderSideBySideFieldLocal(
+                      "Hierarchy",
+                      finalData?.["Hierarchy"],
+                      "MFA Status",
+                      finalData?.["MFA Status"],
+                      "Hierarchy",
+                      "MFA Status"
+                    )}
+                    {renderSingleFieldLocal(
+                      "Assigned to/Member of",
+                      finalData?.["assignment"],
+                      "assignment"
+                    )}
+                    {renderSingleFieldLocal(
+                      "License Type",
+                      finalData?.["License Type"],
+                      "License Type"
+                    )}
+                  </div>
+                )}
+              </div>
+              {/* Security Frame */}
+              <div className="bg-white border border-gray-200 rounded-md shadow-sm">
+                <button
+                  className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
+                  onClick={() => toggleLocalFrame("security")}
+                >
+                  {localExpandedFrames.security ? (
+                    <ChevronDown size={20} className="mr-2" />
+                  ) : (
+                    <ChevronUp size={20} className="mr-2" />
+                  )}
+                  Security
+                </button>
+                {localExpandedFrames.security && (
+                  <div className="p-4 space-y-2">
+                    {renderSideBySideFieldLocal(
+                      "Risk",
+                      finalData?.["Risk"],
+                      "Certifiable",
+                      finalData?.["Certifiable"],
+                      "Risk",
+                      "Certifiable"
+                    )}
+                    {renderSideBySideFieldLocal(
+                      "Revoke on Disable",
+                      finalData?.["Revoke on Disable"],
+                      "Shared Pwd",
+                      finalData?.["Shared Pwd"],
+                      "Revoke on Disable",
+                      "Shared Pwd"
+                    )}
+                    {renderSingleFieldLocal(
+                      "SoD/Toxic Combination",
+                      finalData?.["SOD Check"],
+                      "SOD Check"
+                    )}
+                    {renderSingleFieldLocal(
+                      "Access Scope",
+                      finalData?.["Access Scope"],
+                      "Access Scope"
+                    )}
+                    {renderSideBySideFieldLocal(
+                      "Review Schedule",
+                      finalData?.["Review Schedule"],
+                      "Last Reviewed On",
+                      finalData?.["Last Reviewed on"],
+                      "Review Schedule",
+                      "Last Reviewed on",
+                      false,
+                      true
+                    )}
+                    {renderSideBySideFieldLocal(
+                      "Privileged",
+                      finalData?.["Privileged"],
+                      "Non Persistent Access",
+                      finalData?.["Non Persistent Access"],
+                      "Privileged",
+                      "Non Persistent Access"
+                    )}
+                    {renderSingleFieldLocal(
+                      "Audit Comments",
+                      finalData?.["Audit Comments"],
+                      "Audit Comments"
+                    )}
+                    {renderSingleFieldLocal(
+                      "Account Type Restriction",
+                      finalData?.["Account Type Restriction"],
+                      "Account Type Restriction"
+                    )}
+                  </div>
+                )}
+              </div>
+              {/* Lifecycle Frame */}
+              <div className="bg-white border border-gray-200 rounded-md shadow-sm">
+                <button
+                  className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
+                  onClick={() => toggleLocalFrame("lifecycle")}
+                >
+                  {localExpandedFrames.lifecycle ? (
+                    <ChevronDown size={20} className="mr-2" />
+                  ) : (
+                    <ChevronUp size={20} className="mr-2" />
+                  )}
+                  Lifecycle
+                </button>
+                {localExpandedFrames.lifecycle && (
+                  <div className="p-4 space-y-2">
+                    {renderSideBySideFieldLocal(
+                      "Requestable",
+                      finalData?.["Requestable"],
+                      "Pre-Requisite",
+                      finalData?.["Pre- Requisite"],
+                      "Requestable",
+                      "Pre- Requisite"
+                    )}
+                    {renderSingleFieldLocal(
+                      "Pre-Req Details",
+                      finalData?.["Pre-Requisite Details"],
+                      "Pre-Requisite Details"
+                    )}
+                    {renderSingleFieldLocal(
+                      "Auto Assign Access Policy",
+                      finalData?.["Auto Assign Access Policy"],
+                      "Auto Assign Access Policy"
+                    )}
+                    {renderSingleFieldLocal(
+                      "Provisioner Group",
+                      finalData?.["Provisioner Group"],
+                      "Provisioner Group"
+                    )}
+                    {renderSingleFieldLocal(
+                      "Provisioning Steps",
+                      finalData?.["Provisioning Steps"],
+                      "Provisioning Steps"
+                    )}
+                    {renderSingleFieldLocal(
+                      "Provisioning Mechanism",
+                      finalData?.["Provisioning Mechanism"],
+                      "Provisioning Mechanism"
+                    )}
+                    {renderSingleFieldLocal(
+                      "Action on Native Change",
+                      finalData?.["Action on Native Change"],
+                      "Action on Native Change"
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    // Use the global sidebar instead of local state
+    openSidebar(<EntitlementDetailsSidebarContent />, { widthPx: 500, title: "Entitlement Details" });
   };
 
   const toggleFrame = (frame: keyof typeof expandedFrames) => {
@@ -614,13 +1155,11 @@ export default function ApplicationDetailPage() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setIsSidePanelOpen(false);
+      if (e.key === "Escape") closeSidebar();
     };
-    if (isSidePanelOpen) {
-      document.addEventListener("keydown", handleKeyDown);
-    }
+    document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isSidePanelOpen]);
+  }, [closeSidebar]);
 
   useEffect(() => {
     setLastAction(null);
@@ -1800,11 +2339,7 @@ export default function ApplicationDetailPage() {
               <button
                 onClick={() => toggleSidePanel(params.data)}
                 title="Info"
-                className={`cursor-pointer rounded-sm hover:opacity-80 ${
-                  isSidePanelOpen && nodeData === params.data
-                    ? "bg-[#6D6E73]/20"
-                    : ""
-                }`}
+                className="cursor-pointer rounded-sm hover:opacity-80"
                 aria-label="View details"
               >
                 <ArrowRightCircle
@@ -4083,11 +4618,7 @@ export default function ApplicationDetailPage() {
   ]);
 
   return (
-    <div
-      className={`transition-all duration-300 ease-in-out ${
-        isSidePanelOpen ? "mr-[500px]" : "mr-0"
-      }`}
-    >
+    <div>
       <div className="mb-4">
         <BackButton />
       </div>
@@ -4099,457 +4630,6 @@ export default function ApplicationDetailPage() {
         activeIndex={tabIndex}
         onChange={setTabIndex}
       />
-      {isSidePanelOpen && (
-        <div
-          className="fixed top-0 right-0 h-180 bg-white shadow-xl z-50 overflow-y-auto overflow-x-hidden border-l border-gray-200 mt-16"
-          style={{ width: 500 }}
-        >
-          <div className="p-4 border-b bg-gray-50">
-            <div className="flex justify-between items-center mb-4">
-              <button
-                onClick={() => setIsSidePanelOpen(false)}
-                className="text-gray-600 hover:text-gray-800 ml-auto"
-                aria-label="Close panel"
-              >
-                <X size={24} />
-              </button>
-            </div>
-            {entitlementDetailsError ? (
-              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
-                <p className="text-sm text-red-600">
-                  {entitlementDetailsError}
-                </p>
-              </div>
-            ) : (
-              <>
-                <div className="mt-2 flex items-center gap-2">
-                  <div className="flex-1">
-                    {isEditMode ? (
-                      <input
-                        type="text"
-                        value={
-                          (editableNodeData?.["Ent Name"] ||
-                            editableNodeData?.entitlementName ||
-                            editableNodeData?.userDisplayName ||
-                            editableNodeData?.accountName ||
-                            editableNodeData?.applicationName ||
-                            "") as string
-                        }
-                        onChange={(e) => {
-                          setEditableNodeData((prev: any) => ({
-                            ...prev,
-                            "Ent Name": e.target.value,
-                            entitlementName: e.target.value,
-                          }));
-                        }}
-                        className="w-full px-2 py-1.5 border border-gray-300 rounded text-md font-semibold focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    ) : (
-                      <div className="text-md font-semibold text-gray-900 break-words break-all whitespace-normal max-w-full">
-                        {nodeData?.["Ent Name"] ||
-                          (nodeData as any)?.entitlementName ||
-                          (nodeData as any)?.userDisplayName ||
-                          (nodeData as any)?.accountName ||
-                          (nodeData as any)?.applicationName ||
-                          "-"}
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!isEditMode) {
-                        // Enter edit mode: expand all cards and initialize editable data
-                        setEditableNodeData({ ...nodeData });
-                        setExpandedFrames({
-                          general: true,
-                          business: true,
-                          technical: true,
-                          security: true,
-                          lifecycle: true,
-                        });
-                        setIsEditMode(true);
-                      } else {
-                        // Exit edit mode (save changes)
-                        // TODO: Add save functionality here
-                        setIsEditMode(false);
-                        setEditableNodeData(null);
-                      }
-                    }}
-                    className={`p-1.5 rounded transition-colors flex-shrink-0 ${
-                      isEditMode 
-                        ? "bg-blue-500 hover:bg-blue-600" 
-                        : "hover:bg-gray-200"
-                    }`}
-                    title={isEditMode ? "Save changes" : "Edit entitlement"}
-                    aria-label={isEditMode ? "Save changes" : "Edit entitlement"}
-                  >
-                    <Edit className={`w-4 h-4 ${isEditMode ? "text-white" : "text-gray-600 hover:text-blue-600"}`} />
-                  </button>
-                </div>
-                <div className="mt-3">
-                  <span className="text-xs uppercase text-gray-500">
-                    Description:
-                  </span>
-                  {isEditMode ? (
-                    <textarea
-                      value={
-                        (editableNodeData?.["Ent Description"] ||
-                          editableNodeData?.description ||
-                          editableNodeData?.details ||
-                          "") as string
-                      }
-                      onChange={(e) => {
-                        setEditableNodeData((prev: any) => ({
-                          ...prev,
-                          "Ent Description": e.target.value,
-                          description: e.target.value,
-                          details: e.target.value,
-                        }));
-                      }}
-                      rows={3}
-                      className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm mt-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y"
-                    />
-                  ) : (
-                    <p className="text-sm text-gray-700 break-words break-all whitespace-pre-wrap max-w-full mt-1">
-                      {nodeData?.["Ent Description"] ||
-                        (nodeData as any)?.description ||
-                        (nodeData as any)?.details ||
-                        "-"}
-                    </p>
-                  )}
-                </div>
-              </>
-            )}
-            <div className="mt-3 flex space-x-2">
-              <button
-                onClick={handleApprove}
-                title="Approve"
-                aria-label="Approve entitlement"
-                className={`p-1 rounded transition-colors duration-200 ${
-                  lastAction === "Approve"
-                    ? "bg-green-500"
-                    : "hover:bg-green-100"
-                }`}
-              >
-                <CircleCheck
-                  className="cursor-pointer"
-                  color="#1c821cff"
-                  strokeWidth="1"
-                  size="32"
-                  fill={lastAction === "Approve" ? "#1c821cff" : "none"}
-                />
-              </button>
-              <button
-                onClick={handleRevoke}
-                title="Revoke"
-                aria-label="Revoke entitlement"
-                className={`p-1 rounded ${
-                  nodeData?.status === "Rejected" ? "bg-red-100" : ""
-                }`}
-              >
-                <CircleX
-                  className="cursor-pointer hover:opacity-80 transform rotate-90"
-                  color="#FF2D55"
-                  strokeWidth="1"
-                  size="32"
-                  fill={nodeData?.status === "Rejected" ? "#FF2D55" : "none"}
-                />
-              </button>
-              <button
-                onClick={handleComment}
-                title="Comment"
-                aria-label="Add comment"
-                className="p-1 rounded"
-              >
-                <svg
-                  width="30"
-                  height="30"
-                  viewBox="0 0 32 32"
-                  className="cursor-pointer hover:opacity-80"
-                >
-                  <path
-                    d="M0.700195 0V19.5546H3.5802V25.7765C3.57994 25.9525 3.62203 26.1247 3.70113 26.2711C3.78022 26.4176 3.89277 26.5318 4.02449 26.5992C4.15621 26.6666 4.30118 26.6842 4.44101 26.6498C4.58085 26.6153 4.70926 26.5304 4.80996 26.4058C6.65316 24.1232 10.3583 19.5546 10.3583 19.5546H25.1802V0H0.700195ZM2.1402 1.77769H23.7402V17.7769H9.76212L5.0202 23.6308V17.7769H2.1402V1.77769ZM5.0202 5.33307V7.11076H16.5402V5.33307H5.0202ZM26.6202 5.33307V7.11076H28.0602V23.11H25.1802V28.9639L20.4383 23.11H9.34019L7.9002 24.8877H19.8421C19.8421 24.8877 23.5472 29.4563 25.3904 31.7389C25.4911 31.8635 25.6195 31.9484 25.7594 31.9828C25.8992 32.0173 26.0442 31.9997 26.1759 31.9323C26.3076 31.8648 26.4202 31.7507 26.4993 31.6042C26.5784 31.4578 26.6204 31.2856 26.6202 31.1096V24.8877H29.5002V5.33307H26.6202ZM5.0202 8.88845V10.6661H10.7802V8.88845H5.0202ZM5.0202 12.4438V14.2215H19.4202V12.4438H5.0202Z"
-                    fill="#2684FF"
-                  />
-                </svg>
-              </button>
-            </div>
-          </div>
-          <div className="p-4 space-y-4">
-            <div className="bg-white border border-gray-200 rounded-md shadow-sm">
-              <button
-                className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
-                onClick={() => toggleFrame("general")}
-              >
-                {expandedFrames.general ? (
-                  <ChevronDown size={20} className="mr-2" />
-                ) : (
-                  <ChevronUp size={20} className="mr-2" />
-                )}
-                General
-              </button>
-              {expandedFrames.general && (
-                <div className="p-4 space-y-2">
-                  {renderSideBySideField(
-                    "Ent Type",
-                    nodeData?.["Ent Type"],
-                    "#Assignments",
-                    nodeData?.["Total Assignments"],
-                    "Ent Type",
-                    "Total Assignments"
-                  )}
-                  {renderSideBySideField(
-                    "App Name",
-                    nodeData?.["App Name"],
-                    "Tag(s)",
-                    nodeData?.["Dynamic Tag"],
-                    "App Name",
-                    "Dynamic Tag"
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="bg-white border border-gray-200 rounded-md shadow-sm">
-              <button
-                className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
-                onClick={() => toggleFrame("business")}
-              >
-                {expandedFrames.business ? (
-                  <ChevronDown size={20} className="mr-2" />
-                ) : (
-                  <ChevronUp size={20} className="mr-2" />
-                )}
-                Business
-              </button>
-              {expandedFrames.business && (
-                <div className="p-4 space-y-2">
-                  {renderSingleField(
-                    "Objective",
-                    nodeData?.["Business Objective"],
-                    "Business Objective"
-                  )}
-                  {renderSideBySideField(
-                    "Business Unit",
-                    nodeData?.["Business Unit"],
-                    "Business Owner",
-                    nodeData?.["Ent Owner"],
-                    "Business Unit",
-                    "Ent Owner"
-                  )}
-                  {renderSingleField(
-                    "Regulatory Scope",
-                    nodeData?.["Compliance Type"],
-                    "Compliance Type"
-                  )}
-                  {renderSideBySideField(
-                    "Data Classification",
-                    nodeData?.["Data Classification"],
-                    "Cost Center",
-                    nodeData?.["Cost Center"],
-                    "Data Classification",
-                    "Cost Center"
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="bg-white border border-gray-200 rounded-md shadow-sm">
-              <button
-                className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
-                onClick={() => toggleFrame("technical")}
-              >
-                {expandedFrames.technical ? (
-                  <ChevronDown size={20} className="mr-2" />
-                ) : (
-                  <ChevronUp size={20} className="mr-2" />
-                )}
-                Technical
-              </button>
-              {expandedFrames.technical && (
-                <div className="p-4 space-y-2">
-                  {renderSideBySideField(
-                    "Created On",
-                    nodeData?.["Created On"],
-                    "Last Sync",
-                    nodeData?.["Last Sync"],
-                    "Created On",
-                    "Last Sync",
-                    true,
-                    true
-                  )}
-                  {renderSideBySideField(
-                    "App Name",
-                    nodeData?.["App Name"],
-                    "App Instance",
-                    nodeData?.["App Instance"],
-                    "App Name",
-                    "App Instance"
-                  )}
-                  {renderSideBySideField(
-                    "App Owner",
-                    nodeData?.["App Owner"],
-                    "Ent Owner",
-                    nodeData?.["Ent Owner"],
-                    "App Owner",
-                    "Ent Owner"
-                  )}
-                  {renderSideBySideField(
-                    "Hierarchy",
-                    nodeData?.["Hierarchy"],
-                    "MFA Status",
-                    nodeData?.["MFA Status"],
-                    "Hierarchy",
-                    "MFA Status"
-                  )}
-                  {renderSingleField(
-                    "Assigned to/Member of",
-                    nodeData?.["assignment"],
-                    "assignment"
-                  )}
-                  {renderSingleField(
-                    "License Type",
-                    nodeData?.["License Type"],
-                    "License Type"
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="bg-white border border-gray-200 rounded-md shadow-sm">
-              <button
-                className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
-                onClick={() => toggleFrame("security")}
-              >
-                {expandedFrames.security ? (
-                  <ChevronDown size={20} className="mr-2" />
-                ) : (
-                  <ChevronUp size={20} className="mr-2" />
-                )}
-                Security
-              </button>
-              {expandedFrames.security && (
-                <div className="p-4 space-y-2">
-                  {renderSideBySideField(
-                    "Risk",
-                    nodeData?.["Risk"],
-                    "Certifiable",
-                    nodeData?.["Certifiable"],
-                    "Risk",
-                    "Certifiable"
-                  )}
-                  {renderSideBySideField(
-                    "Revoke on Disable",
-                    nodeData?.["Revoke on Disable"],
-                    "Shared Pwd",
-                    nodeData?.["Shared Pwd"],
-                    "Revoke on Disable",
-                    "Shared Pwd"
-                  )}
-                  {renderSingleField(
-                    "SoD/Toxic Combination",
-                    nodeData?.["SOD Check"],
-                    "SOD Check"
-                  )}
-                  {renderSingleField(
-                    "Access Scope",
-                    nodeData?.["Access Scope"],
-                    "Access Scope"
-                  )}
-                  {renderSideBySideField(
-                    "Review Schedule",
-                    nodeData?.["Review Schedule"],
-                    "Last Reviewed On",
-                    nodeData?.["Last Reviewed on"],
-                    "Review Schedule",
-                    "Last Reviewed on",
-                    false,
-                    true
-                  )}
-                  {renderSideBySideField(
-                    "Privileged",
-                    nodeData?.["Privileged"],
-                    "Non Persistent Access",
-                    nodeData?.["Non Persistent Access"],
-                    "Privileged",
-                    "Non Persistent Access"
-                  )}
-                  {renderSingleField(
-                    "Audit Comments",
-                    nodeData?.["Audit Comments"],
-                    "Audit Comments"
-                  )}
-                  {renderSingleField(
-                    "Account Type Restriction",
-                    nodeData?.["Account Type Restriction"],
-                    "Account Type Restriction"
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="bg-white border border-gray-200 rounded-md shadow-sm">
-              <button
-                className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
-                onClick={() => toggleFrame("lifecycle")}
-              >
-                {expandedFrames.lifecycle ? (
-                  <ChevronDown size={20} className="mr-2" />
-                ) : (
-                  <ChevronUp size={20} className="mr-2" />
-                )}
-                Lifecycle
-              </button>
-              {expandedFrames.lifecycle && (
-                <div className="p-4 space-y-2">
-                  {renderSideBySideField(
-                    "Requestable",
-                    nodeData?.["Requestable"],
-                    "Pre-Requisite",
-                    nodeData?.["Pre- Requisite"],
-                    "Requestable",
-                    "Pre- Requisite"
-                  )}
-                  {renderSingleField(
-                    "Pre-Req Details",
-                    nodeData?.["Pre-Requisite Details"],
-                    "Pre-Requisite Details"
-                  )}
-                  {renderSingleField(
-                    "Auto Assign Access Policy",
-                    nodeData?.["Auto Assign Access Policy"],
-                    "Auto Assign Access Policy"
-                  )}
-                  {renderSingleField(
-                    "Provisioner Group",
-                    nodeData?.["Provisioner Group"],
-                    "Provisioner Group"
-                  )}
-                  {renderSingleField(
-                    "Provisioning Steps",
-                    nodeData?.["Provisioning Steps"],
-                    "Provisioning Steps"
-                  )}
-                  {renderSingleField(
-                    "Provisioning Mechanism",
-                    nodeData?.["Provisioning Mechanism"],
-                    "Provisioning Mechanism"
-                  )}
-                  {renderSingleField(
-                    "Action on Native Change",
-                    nodeData?.["Action on Native Change"],
-                    "Action on Native Change"
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-          <button
-            onClick={() => setIsSidePanelOpen(false)}
-            className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 text-gray-800 w-full"
-            aria-label="Close panel"
-          >
-            Close
-          </button>
-        </div>
-      )}
 
       {/* Global Right Sidebar used via openSidebar */}
 
