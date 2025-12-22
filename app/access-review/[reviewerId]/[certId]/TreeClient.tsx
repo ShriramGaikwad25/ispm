@@ -1301,6 +1301,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const resizeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isDataLoadingRef = useRef(false);
   const resizeBlockedRef = useRef(false);
+  const hasInitialResizedRef = useRef(false);
+  const isInitialLoadRef = useRef(true);
   
   // Create a signature from the data to track when data actually changes
   const getDataSignature = useCallback((data: any[]) => {
@@ -1401,8 +1403,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
       {
         field: "entitlementName",
         headerName: "Entitlement",
-        minWidth: 300,
         flex: 1,
+        minWidth: 300,
         autoHeight: true,
         wrapText: true,
         colSpan: (params) => {
@@ -1444,11 +1446,11 @@ const TreeClient: React.FC<TreeClientProps> = ({
           );
         },
       },
-      { field: "entitlementType", headerName: "Type", width: 100 },
+      { field: "entitlementType", headerName: "Type", width: 120 },
       {
         field: "user",
         headerName: "Account",
-        width: 180,
+        width: 150,
         cellRenderer: (params: ICellRendererParams) => {
           const { user, accountType, SoDConflicts, itemRisk } = params.data || {};
           const typeLabel = accountType || "Regular";
@@ -1515,7 +1517,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
       {
         field: "recommendation",
         headerName: "Insights",
-        width: 100,
+        width: 140,
         cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
         cellRenderer: (params: ICellRendererParams) => {
           const { recommendation, accessedWithinAMonth } = params.data || {};
@@ -1660,9 +1662,9 @@ const TreeClient: React.FC<TreeClientProps> = ({
 
   const defaultColDef = useMemo<ColDef>(
     () => ({
-      flex: 1,
-      minWidth: 120,
       resizable: true,
+      sortable: true,
+      filter: true,
     }),
     []
   );
@@ -1841,7 +1843,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
       </div>
 
       {/* Entitlements Table */}
-      <div className={`flex-1 flex flex-col ${isSidebarHovered ? "ml-72" : "ml-14"}`}>
+      <div className={`flex-1 flex flex-col min-w-0 overflow-hidden ${isSidebarHovered ? "ml-72" : "ml-14"}`}>
         {selectedUser ? (
           <>
             {/* Selected User Header */}
@@ -2063,7 +2065,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
             </div>
 
             {/* Entitlements Grid */}
-            <div className="flex-1 p-4 pb-0" ref={entitlementsGridContainerRef}>
+            <div className="flex-1 p-4 pb-0 min-w-0" ref={entitlementsGridContainerRef}>
               {loadingEntitlements ? (
                 <div className="flex items-center justify-center h-64">
                   <div className="text-gray-500">
@@ -2087,12 +2089,15 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       pageSizeOptions={pageSizeSelector}
                     />
                   </div>
+                <div className="w-full overflow-x-auto" style={{ width: '100%', maxWidth: '100%' }}>
                 <AgGridReact
                   rowData={entPaginatedData}
                   columnDefs={entitlementsColumnDefs}
                   defaultColDef={defaultColDef}
                   domLayout="autoHeight"
                   rowSelection={{ mode: "multiRow" }}
+                  suppressSizeToFit={false}
+                  style={{ width: '100%', minWidth: 0 }}
                   isRowSelectable={(node) => !node?.data?.__isDescRow}
                   getRowId={(params: GetRowIdParams) => {
                     const baseId = params.data.lineItemId || params.data.accountLineItemId || params.data.taskId || `${params.data.applicationName}-${params.data.entitlementName}`;
@@ -2149,6 +2154,10 @@ const TreeClient: React.FC<TreeClientProps> = ({
                             try {
                               params.api.sizeColumnsToFit();
                               lastResizedDataSignatureRef.current = currentSignature;
+                              // Mark initial load as complete after first resize
+                              if (isInitialLoadRef.current) {
+                                isInitialLoadRef.current = false;
+                              }
                               // Unblock after resize completes
                               setTimeout(() => {
                                 resizeBlockedRef.current = false;
@@ -2182,6 +2191,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                   overlayNoRowsTemplate={`<span class="ag-overlay-loading-center">No entitlements found for this user.</span>`}
                   className="ag-main"
                 />
+                </div>
                 </>
               ) : (
                 <div className="flex items-center justify-center h-64">
