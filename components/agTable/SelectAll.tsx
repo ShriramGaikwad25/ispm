@@ -2,8 +2,10 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { GridApi, RowNode } from "ag-grid-community";
+import { createPortal } from "react-dom";
 import ActionButtons from "./ActionButtons";
 import ExpandCollapse from "./ExpandCollapse";
+import { useActionPanel } from "@/contexts/ActionPanelContext";
 
 interface SelectAllProps {
   gridApi: GridApi | null;
@@ -24,6 +26,7 @@ const SelectAll: React.FC<SelectAllProps> = ({
   reviewerId,
   certId,
 }) => {
+  const { isVisible: isActionPanelVisible } = useActionPanel();
   const [isAllSelected, setIsAllSelected] = useState(false);
   const [isIndeterminate, setIsIndeterminate] = useState(false);
   const [selectedCount, setSelectedCount] = useState(0);
@@ -104,37 +107,65 @@ const SelectAll: React.FC<SelectAllProps> = ({
   }, [gridApi, updateSelectedCount]);
 
   return (
-    <div className="flex items-center text-sm">
-      <div className="divide-x-1 divide-gray-300 h-9 flex items-center">
-        {showExpandCollapse && <ExpandCollapse gridApi={gridApi} />}
+    <>
+      <div className="flex items-center text-sm">
+        <div className="divide-x-1 divide-gray-300 h-9 flex items-center">
+          {showExpandCollapse && <ExpandCollapse gridApi={gridApi} />}
 
-        <label className="font-medium cursor-pointer pr-4 items-center h-9 flex">
-          <input
-            type="checkbox"
-            checked={isAllSelected}
-            ref={(el) => {
-              if (el) el.indeterminate = isIndeterminate;
-            }}
-            onChange={toggleSelectAll}
-            className="mr-2 w-4 h-4 cursor-pointer"
+          <label className="font-medium cursor-pointer pr-4 items-center h-9 flex">
+            <input
+              type="checkbox"
+              checked={isAllSelected}
+              ref={(el) => {
+                if (el) el.indeterminate = isIndeterminate;
+              }}
+              onChange={toggleSelectAll}
+              className="mr-2 w-4 h-4 cursor-pointer"
+            />
+            Select All
+          </label>
+
+          {}
+        </div>
+
+        {/* Show ActionButtons inline when not all selected */}
+        {selectedCount > 0 && !isAllSelected && gridApi && (
+          <ActionButtons
+            api={gridApi}
+            selectedRows={gridApi.getSelectedRows()}
+            viewChangeEnable
+            context={context as any}
+            reviewerId={reviewerId as any}
+            certId={certId as any}
           />
-          Select All
-        </label>
-
-        {}
+        )}
       </div>
 
-      {selectedCount > 0 && gridApi && (
-        <ActionButtons
-          api={gridApi}
-          selectedRows={gridApi.getSelectedRows()}
-          viewChangeEnable
-          context={context as any}
-          reviewerId={reviewerId as any}
-          certId={certId as any}
-        />
-      )}
-    </div>
+      {/* Floating ActionButtons when all items are selected */}
+      {isAllSelected && gridApi &&
+        createPortal(
+          <div
+            className={`fixed left-1/2 transform -translate-x-1/2 z-50 rounded-lg shadow-2xl px-4 py-3 flex items-center gap-2 transition-all duration-300 ${
+              isActionPanelVisible ? "bottom-24" : "bottom-6"
+            }`}
+            style={{
+              backgroundColor: "#d3d3d3",
+              border: "1px solid #b0b0b0",
+              boxShadow: "0 10px 25px rgba(0, 0, 0, 0.15)",
+            }}
+          >
+            <ActionButtons
+              api={gridApi}
+              selectedRows={gridApi.getSelectedRows()}
+              viewChangeEnable
+              context={context as any}
+              reviewerId={reviewerId as any}
+              certId={certId as any}
+            />
+          </div>,
+          document.body
+        )}
+    </>
   );
 };
 

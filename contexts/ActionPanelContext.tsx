@@ -1,6 +1,7 @@
 'use client';
 
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { updateAction } from '@/lib/api';
 
 type PendingActionPayload = {
@@ -21,6 +22,7 @@ interface ActionPanelContextValue {
 const ActionPanelContext = createContext<ActionPanelContextValue | undefined>(undefined);
 
 export const ActionPanelProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const pathname = usePathname();
   const [actionCount, setActionCount] = useState(0);
   const [pendingActions, setPendingActions] = useState<PendingActionPayload[]>([]);
 
@@ -33,6 +35,11 @@ export const ActionPanelProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setActionCount(0);
     setPendingActions([]);
   }, []);
+
+  // Reset pending actions when navigating to a different page
+  useEffect(() => {
+    reset();
+  }, [pathname, reset]);
 
   const submitAll = useCallback(async () => {
     // Send all queued actions sequentially; could be optimized by grouping

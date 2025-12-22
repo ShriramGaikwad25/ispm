@@ -23,6 +23,7 @@ import {
   FirstDataRenderedEvent,
 } from "ag-grid-enterprise";
 import ActionButtons from "@/components/agTable/ActionButtons";
+import { createPortal } from "react-dom";
 import {
   AlertTriangle,
   CheckCircle,
@@ -270,7 +271,7 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
 };
 
 function AppOwnerContent() {
-  const { queueAction } = useActionPanel();
+  const { queueAction, isVisible: isActionPanelVisible } = useActionPanel();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [selected, setSelected] = useState<{ [key: string]: number | null }>(
@@ -295,11 +296,18 @@ function AppOwnerContent() {
   const [selectedRow, setSelectedRow] = useState<RowData | null>(null);
   const [groupByOption, setGroupByOption] = useState<string>("None");
   const [selectedRows, setSelectedRows] = useState<RowData[]>([]);
+  const [isAllSelected, setIsAllSelected] = useState(false);
   const [quickFilterText, setQuickFilterText] = useState("");
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
   const [currentFilter, setCurrentFilter] = useState<string>("");
   // Server-side status filter used when grouping by Entitlements
   const [statusFilterQuery, setStatusFilterQuery] = useState<string | undefined>(undefined);
+  // Client-side AG Grid row grouping by entitlement name (checkbox control)
+  const [isGroupedByEntitlementCheckbox, setIsGroupedByEntitlementCheckbox] = useState<boolean>(false);
+  // Ref to store latest rowData for cell renderer access
+  const rowDataRef = useRef<RowData[]>([]);
+  // Ref to store entitlement description map for fast lookup
+  const entitlementDescriptionMapRef = useRef<Map<string, string>>(new Map());
 
   // State for header info and user progress
   const [headerInfo, setHeaderInfo] = useState({
@@ -899,43 +907,6 @@ function AppOwnerContent() {
     []
   );
 
-  const autoGroupColumnDef = useMemo<ColDef>(
-    () => ({
-      minWidth: 200,
-      cellRendererParams: {
-        suppressExpand: true,
-      },
-      cellRenderer: (params: ICellRendererParams) => {
-        if (params.node.group && groupByOption === "Entitlements") {
-          // For entitlement grouping, show both name and description
-          const groupKey = params.value;
-          // Try to get description from the first available leaf child
-          const node: any = params.node;
-          const firstLeafData =
-            node?.childrenAfterFilter?.find((c: any) => !c.group)?.data ||
-            node?.childrenAfterGroup?.find((c: any) => !c.group)?.data ||
-            node?.childrenAfterSort?.find((c: any) => !c.group)?.data ||
-            node?.allLeafChildren?.[0]?.data ||
-            params.data;
-          const description = firstLeafData?.entitlementDescription || "";
-
-          // Inline: Name — Description (description optional)
-          return (
-            <div className="flex items-center gap-2">
-              <span className="ag-group-value">{groupKey}</span>
-              {description && (
-                <span className="entitlement-description">— {description}</span>
-              )}
-            </div>
-          );
-        }
-        // Default group renderer for other cases
-        return <span className="ag-group-value">{params.value}</span>;
-      },
-    }),
-    [groupByOption]
-  );
-
   const detailCellRenderer = useCallback(DetailCellRenderer, []);
 
   const [columnDefs, setColumnDefs] = useState<ColDef[]>([
@@ -948,15 +919,13 @@ function AppOwnerContent() {
     {
       field: "entitlementName",
       headerName: "Entitlement",
-      autoHeight: true,
       wrapText: true,
       enableRowGroup: true,
-      cellStyle: { whiteSpace: "normal", lineHeight: "1.4" },
       cellRenderer: (params: ICellRendererParams) => {
         // Check if this is a group row
         if (params.node.group) {
           return (
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col">
               <span className="ag-group-value">{params.value}</span>
               {params.data?.entitlementDescription && (
                 <span className="entitlement-description">
@@ -1098,24 +1067,58 @@ function AppOwnerContent() {
     console.log(
       `Attempting to apply row grouping for: ${selectedField}, retries left: ${retries}`
     );
-    if (gridApiRef.current && (gridApiRef.current as any).columnApi) {
-      const columnApi = (gridApiRef.current as any).columnApi;
-      // console.log("Row grouping applied successfully for:", selectedField);
-      columnApi.setRowGroupColumns([]);
-      if (selectedField) {
-        columnApi.setRowGroupColumns([selectedField]);
+    if (gridApiRef.current) {
+      try {
+        const api = gridApiRef.current as any;
+        
+        // Check available methods
+        console.log("Grid API methods:", {
+          hasSetRowGroupColumns: typeof api.setRowGroupColumns === 'function',
+          hasColumnApi: !!api.columnApi,
+          hasColumnApiSetRowGroupColumns: api.columnApi && typeof api.columnApi.setRowGroupColumns === 'function',
+        });
+        
+        // Try new API first (AG Grid v31+)
+        if (typeof api.setRowGroupColumns === 'function') {
+          console.log("Using gridApi.setRowGroupColumns");
+          api.setRowGroupColumns(selectedField ? [selectedField] : []);
+          console.log("Row grouping applied successfully for:", selectedField);
+          return;
+        } 
+        // Fallback to columnApi (older versions)
+        if (api.columnApi && typeof api.columnApi.setRowGroupColumns === 'function') {
+          console.log("Using columnApi.setRowGroupColumns");
+          api.columnApi.setRowGroupColumns(selectedField ? [selectedField] : []);
+          console.log("Row grouping applied successfully for:", selectedField);
+          return;
+        }
+        
+        console.error("No valid grouping method found on grid API");
+        if (retries > 0) {
+          setTimeout(
+            () => applyRowGrouping(selectedField, retries - 1, delay * 2),
+            delay
+          );
+        }
+      } catch (error) {
+        console.error("Error applying row grouping:", error);
+        if (retries > 0) {
+          setTimeout(
+            () => applyRowGrouping(selectedField, retries - 1, delay * 2),
+            delay
+          );
+        }
       }
     } else if (retries > 0) {
-      // console.warn(`Grid API not ready, retrying (${retries} attempts left)`);
+      console.warn(`Grid API not ready, retrying (${retries} attempts left)`);
       setTimeout(
         () => applyRowGrouping(selectedField, retries - 1, delay * 2),
         delay
       );
     } else {
-      // console.error(
-      //   "Failed to apply row grouping: Grid API or Column API not available after retries"
-      // );
-      // alert("Unable to group rows at this time. Please try again later.");
+      console.error(
+        "Failed to apply row grouping: Grid API not available after retries"
+      );
     }
   };
 
@@ -1212,29 +1215,343 @@ function AppOwnerContent() {
     });
   }, [rowData, selectedFilters]);
 
+  // Update ref when filteredRowData changes
+  useEffect(() => {
+    rowDataRef.current = filteredRowData;
+  }, [filteredRowData]);
+
+  // Create a map of entitlementName -> description for fast lookup
+  const entitlementDescriptionMap = useMemo(() => {
+    const map = new Map<string, string>();
+    filteredRowData.forEach((row) => {
+      if (row.entitlementName) {
+        const key = String(row.entitlementName).trim().toLowerCase();
+        const desc = 
+          row.entitlementDescription ||
+          (row as any).description ||
+          (row as any).entitlement_description ||
+          "";
+        // Store the description if we don't have one for this key, or if this one is longer (more complete)
+        if (!map.has(key) || (desc && desc.length > (map.get(key) || "").length)) {
+          map.set(key, desc);
+        }
+      }
+    });
+    // Update ref for cell renderer access
+    entitlementDescriptionMapRef.current = map;
+    
+    // Debug logging
+    console.log(`[entitlementDescriptionMap] Built map with ${map.size} entries`, {
+      sampleEntries: Array.from(map.entries()).slice(0, 3),
+      filteredRowDataLength: filteredRowData.length,
+    });
+    
+    // Refresh group cells when map updates (if grouping is active)
+    if (isGridReady && gridApiRef.current && (groupByOption === "Entitlements" || isGroupedByEntitlementCheckbox)) {
+      setTimeout(() => {
+        if (gridApiRef.current) {
+          const groupNodes: any[] = [];
+          gridApiRef.current.forEachNode((node: any) => {
+            if (node.group) {
+              groupNodes.push(node);
+            }
+          });
+          if (groupNodes.length > 0) {
+            gridApiRef.current.refreshCells({
+              rowNodes: groupNodes,
+              force: true,
+            });
+          }
+        }
+      }, 50);
+    }
+    
+    return map;
+  }, [filteredRowData, isGridReady, groupByOption, isGroupedByEntitlementCheckbox]);
+
+  // Helper function to get description from rowData by entitlementName
+  const getDescriptionForEntitlement = useCallback((entitlementName: string): string => {
+    if (!entitlementName) return "";
+    
+    // Normalize the search key (trim and handle case)
+    const normalizedKey = String(entitlementName).trim().toLowerCase();
+    
+    // First, try the map (fastest and most reliable)
+    if (entitlementDescriptionMap.has(normalizedKey)) {
+      return entitlementDescriptionMap.get(normalizedKey) || "";
+    }
+    
+    // Fallback: Search in rowDataRef
+    let row = rowDataRef.current.find((r) => {
+      const rName = String(r.entitlementName || "").trim().toLowerCase();
+      return rName === normalizedKey;
+    });
+    
+    // If not found, try partial match
+    if (!row) {
+      row = rowDataRef.current.find((r) => {
+        const rName = String(r.entitlementName || "").trim().toLowerCase();
+        return rName.includes(normalizedKey) || normalizedKey.includes(rName);
+      });
+    }
+    
+    // Get description from various possible fields
+    if (row) {
+      const desc = 
+        row.entitlementDescription ||
+        (row as any).description ||
+        (row as any).entitlement_description ||
+        "";
+      return desc;
+    }
+    
+    return "";
+  }, [entitlementDescriptionMap]);
+
+  // React component for group cell renderer that always shows description
+  // Using useCallback to create a stable function reference for AG Grid
+  const GroupCellRenderer = useCallback((props: ICellRendererParams) => {
+    const groupKey = props.value;
+    const node: any = props.node;
+    const isEntitlementGrouping = groupByOption === "Entitlements" || isGroupedByEntitlementCheckbox;
+    
+    // Always compute description fresh from refs - no memoization to ensure we get latest data
+    let description = "";
+    
+    if (groupKey && isEntitlementGrouping && props.node.group) {
+      const normalizedKey = String(groupKey).trim().toLowerCase();
+      
+      // Method 1: From first child node - check this FIRST as it's most reliable when grouping
+      if (node?.allLeafChildren?.length > 0) {
+        const firstChild = node.allLeafChildren.find((c: any) => !c.group) || node.allLeafChildren[0];
+        if (firstChild?.data) {
+          description = 
+            firstChild.data.entitlementDescription ||
+            firstChild.data.description ||
+            firstChild.data.entitlement_description ||
+            "";
+        }
+      }
+      
+      // Method 2: From entitlementDescriptionMapRef (always fresh)
+      if (!description) {
+        description = entitlementDescriptionMapRef.current.get(normalizedKey) || "";
+      }
+      
+      // Method 3: From getDescriptionForEntitlement (uses map + fallbacks)
+      if (!description) {
+        description = getDescriptionForEntitlement(groupKey);
+      }
+      
+      // Method 4: From aggregated group data (from getGroupRowAgg)
+      if (!description) {
+        description = props.data?.entitlementDescription || props.data?.aggData?.entitlementDescription || "";
+      }
+      
+      // Method 5: From any child node in any child array
+      if (!description && node) {
+        const childArrays = [
+          node?.childrenAfterFilter,
+          node?.childrenAfterGroup,
+          node?.childrenAfterSort,
+        ];
+        
+        for (const children of childArrays) {
+          if (Array.isArray(children) && children.length > 0) {
+            for (const child of children) {
+              if (child?.data && !child.group) {
+                const childDesc = 
+                  child.data.entitlementDescription ||
+                  child.data.description ||
+                  child.data.entitlement_description ||
+                  "";
+                if (childDesc) {
+                  description = childDesc;
+                  break;
+                }
+              }
+            }
+            if (description) break;
+          }
+        }
+      }
+      
+      // Debug logging - always log to see what's happening
+      console.log(`[GroupCellRenderer] Rendering for: "${groupKey}"`, {
+        hasDescription: !!description,
+        descriptionLength: description.length,
+        descriptionPreview: description.substring(0, 50),
+        normalizedKey,
+        mapSize: entitlementDescriptionMapRef.current.size,
+        mapHasKey: entitlementDescriptionMapRef.current.has(normalizedKey),
+        rowDataRefLength: rowDataRef.current.length,
+        nodeChildren: node?.allLeafChildren?.length || 0,
+        firstChildDataKeys: node?.allLeafChildren?.[0]?.data ? Object.keys(node.allLeafChildren[0].data) : [],
+        firstChildData: node?.allLeafChildren?.[0]?.data,
+      });
+    }
+
+    if (!props.node.group || !isEntitlementGrouping) {
+      return <span className="ag-group-value">{props.value}</span>;
+    }
+
+    // Always show description if available - entitlement name at start and vertically centered
+    return (
+      <div 
+        className="flex items-center gap-2 py-1 w-full" 
+        style={{ 
+          minHeight: '32px', 
+          width: '100%', 
+          padding: '4px 0',
+          alignItems: 'center',
+        }}
+      >
+        <span className="ag-group-value font-medium flex-shrink-0" style={{ fontWeight: 600, alignSelf: 'center' }}>{groupKey}</span>
+        {description ? (
+          <span 
+            className="text-gray-700 text-sm break-words whitespace-pre-wrap leading-relaxed flex-1 min-w-0" 
+            style={{ 
+              display: 'inline',
+              color: '#1f2937',
+              fontSize: '14px',
+              lineHeight: '1.5',
+              wordBreak: 'break-word',
+              fontWeight: 400,
+              marginLeft: '8px',
+              alignSelf: 'center'
+            }}
+          >
+            — {description}
+          </span>
+        ) : null}
+      </div>
+    );
+  }, [groupByOption, isGroupedByEntitlementCheckbox, getDescriptionForEntitlement]);
+
+  const autoGroupColumnDef = useMemo<ColDef>(
+    () => {
+      console.log('[autoGroupColumnDef] Creating column def with GroupCellRenderer', {
+        groupByOption,
+        isGroupedByEntitlementCheckbox,
+        mapSize: entitlementDescriptionMapRef.current.size,
+      });
+      return {
+        minWidth: 200,
+        autoHeight: true, // Allow row to expand to show description
+        wrapText: true,
+        cellRendererParams: {
+          suppressExpand: true,
+        },
+        cellRenderer: GroupCellRenderer,
+      };
+    },
+    [GroupCellRenderer, groupByOption, isGroupedByEntitlementCheckbox]
+  );
+
   const onFirstDataRendered = useCallback((params: FirstDataRenderedEvent) => {
     params.api.forEachNode(function (node) {
       if (node.id === "0") {
         node.setExpanded(true);
       }
     });
-  }, []);
+    
+    // Refresh all group cells to show descriptions when grouping by entitlement
+    if (groupByOption === "Entitlements" || isGroupedByEntitlementCheckbox) {
+      const refreshGroupCells = (delay: number) => {
+        setTimeout(() => {
+          const groupNodes: any[] = [];
+          params.api.forEachNode((node: any) => {
+            if (node.group) {
+              groupNodes.push(node);
+            }
+          });
+          if (groupNodes.length > 0) {
+            params.api.refreshCells({
+              rowNodes: groupNodes,
+              force: true,
+            });
+          }
+        }, delay);
+      };
+      
+      // Refresh at multiple intervals
+      refreshGroupCells(100);
+      refreshGroupCells(300);
+      refreshGroupCells(500);
+    }
+  }, [groupByOption, isGroupedByEntitlementCheckbox]);
 
+  useEffect(() => {
+    if (isGridReady && gridApiRef.current) {
+      console.log("Grid API initialized, applying grouping", {
+        groupByColumn,
+        isGroupedByEntitlementCheckbox,
+      });
+      // If checkbox is checked, use checkbox grouping; otherwise use dropdown grouping
+      const fieldToGroup = isGroupedByEntitlementCheckbox ? "entitlementName" : groupByColumn;
+      applyRowGrouping(fieldToGroup);
+      
+      // If grouping by entitlement (checkbox), refresh group rows after a delay to show descriptions
+      if (isGroupedByEntitlementCheckbox && fieldToGroup === "entitlementName") {
+        setTimeout(() => {
+          if (gridApiRef.current) {
+            // Refresh all group rows to ensure descriptions are displayed
+            const groupNodes: any[] = [];
+            gridApiRef.current.forEachNode((node: any) => {
+              if (node.group) {
+                groupNodes.push(node);
+              }
+            });
+            if (groupNodes.length > 0) {
+              gridApiRef.current.refreshCells({
+                rowNodes: groupNodes,
+                force: true,
+              });
+            }
+          }
+        }, 200);
+      }
+    }
+  }, [isGridReady, groupByColumn, rowData, isGroupedByEntitlementCheckbox]);
+
+  // Refresh group cells when filteredRowData changes and grouping is active
   useEffect(() => {
     if (
       isGridReady &&
       gridApiRef.current &&
-      (gridApiRef.current as any).columnApi
+      filteredRowData.length > 0 &&
+      (groupByOption === "Entitlements" || isGroupedByEntitlementCheckbox)
     ) {
-      console.log("Grid API and Column API initialized successfully", {
-        groupByColumn,
-        columns: (gridApiRef.current as any).columnApi
-          ?.getAllColumns()
-          ?.map((col: any) => col.getColId()),
-      });
-      applyRowGrouping(groupByColumn);
+      // Refresh multiple times with increasing delays to catch all cases
+      const refreshGroupCells = (delay: number) => {
+        setTimeout(() => {
+          if (gridApiRef.current) {
+            const groupNodes: any[] = [];
+            gridApiRef.current.forEachNode((node: any) => {
+              if (node.group) {
+                groupNodes.push(node);
+              }
+            });
+            if (groupNodes.length > 0) {
+              // Force refresh to trigger cell renderer re-evaluation
+              gridApiRef.current.refreshCells({
+                rowNodes: groupNodes,
+                force: true,
+                columns: ['ag-Grid-AutoColumn'], // Refresh the auto group column specifically
+              });
+            }
+          }
+        }, delay);
+      };
+      
+      // Refresh at multiple intervals to ensure all descriptions are found
+      refreshGroupCells(100);
+      refreshGroupCells(200);
+      refreshGroupCells(300);
+      refreshGroupCells(500);
+      refreshGroupCells(1000);
     }
-  }, [isGridReady, groupByColumn, rowData]);
+  }, [isGridReady, filteredRowData, groupByOption, isGroupedByEntitlementCheckbox]);
 
   return (
     <div className="w-full h-screen">
@@ -1268,7 +1585,8 @@ function AppOwnerContent() {
               <option value="Entitlements">Group by Entitlements</option>
               {}
             </select>
-            {selectedRows.length > 0 && gridApiRef.current && (
+            {/* Show ActionButtons inline when not all selected */}
+            {selectedRows.length > 0 && !isAllSelected && gridApiRef.current && (
               <ActionButtons
                 api={gridApiRef.current as any}
                 selectedRows={selectedRows}
@@ -1292,6 +1610,49 @@ function AppOwnerContent() {
                 appliedFilter={handleAppliedFilter}
                 initialSelected="Pending"
               />
+              <label className="flex items-center gap-2 cursor-pointer ml-2">
+                <input
+                  type="checkbox"
+                  checked={isGroupedByEntitlementCheckbox}
+                  onChange={(e) => {
+                    const isChecked = e.target.checked;
+                    console.log("Checkbox clicked, isChecked:", isChecked);
+                    console.log("Grid API available:", !!gridApiRef.current);
+                    console.log("Is grid ready:", isGridReady);
+                    setIsGroupedByEntitlementCheckbox(isChecked);
+                    // Toggle AG Grid's row grouping on entitlementName column
+                    const selectedField = isChecked ? "entitlementName" : null;
+                    console.log("Applying row grouping for field:", selectedField);
+                    applyRowGrouping(selectedField);
+                    
+                    // Refresh group rows after grouping is applied to show descriptions
+                    if (isChecked && gridApiRef.current) {
+                      // Multiple refreshes with delays to ensure descriptions appear
+                      [100, 300, 500, 1000].forEach((delay) => {
+                        setTimeout(() => {
+                          if (gridApiRef.current) {
+                            const groupNodes: any[] = [];
+                            gridApiRef.current.forEachNode((node: any) => {
+                              if (node.group) {
+                                groupNodes.push(node);
+                              }
+                            });
+                            if (groupNodes.length > 0) {
+                              gridApiRef.current.refreshCells({
+                                rowNodes: groupNodes,
+                                force: true,
+                              });
+                              console.log(`[Checkbox] Refreshed ${groupNodes.length} group cells at ${delay}ms`);
+                            }
+                          }
+                        }, delay);
+                      });
+                    }
+                  }}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                />
+                <span className="text-sm text-gray-700 whitespace-nowrap">Group by Entitlement</span>
+              </label>
             </div>
           </div>
           <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
@@ -1468,9 +1829,41 @@ function AppOwnerContent() {
                   mode: "multiRow",
                   masterSelects: "detail",
                 }}
-                masterDetail={groupByOption !== "Entitlements"}
+                masterDetail={groupByOption !== "Entitlements" && !isGroupedByEntitlementCheckbox}
                 detailCellRenderer={detailCellRenderer}
                 detailRowAutoHeight={true}
+                getGroupRowAgg={(params: any) => {
+                  // Aggregate entitlementDescription for group rows
+                  if (params.nodes && params.nodes.length > 0) {
+                    // Try to find description from any child node
+                    for (const node of params.nodes) {
+                      if (node.data && !node.group) {
+                        const desc = 
+                          node.data.entitlementDescription ||
+                          node.data.description ||
+                          node.data.entitlement_description ||
+                          "";
+                        if (desc) {
+                          return { entitlementDescription: desc };
+                        }
+                      }
+                    }
+                    // If no description found in non-group nodes, try group nodes
+                    for (const node of params.nodes) {
+                      if (node.data) {
+                        const desc = 
+                          node.data.entitlementDescription ||
+                          node.data.description ||
+                          node.data.entitlement_description ||
+                          "";
+                        if (desc) {
+                          return { entitlementDescription: desc };
+                        }
+                      }
+                    }
+                  }
+                  return { entitlementDescription: "" };
+                }}
                 onGridReady={(params: any) => {
                   console.log(
                     "onGridReady triggered at",
@@ -1491,11 +1884,63 @@ function AppOwnerContent() {
                   });
                 }}
                 onFirstDataRendered={onFirstDataRendered as any}
+                onModelUpdated={(params: any) => {
+                  // Refresh group cells when model updates (e.g., when grouping is applied)
+                  if ((groupByOption === "Entitlements" || isGroupedByEntitlementCheckbox) && params.api) {
+                    const refreshGroupCells = (delay: number) => {
+                      setTimeout(() => {
+                        const groupNodes: any[] = [];
+                        params.api.forEachNode((node: any) => {
+                          if (node.group) {
+                            groupNodes.push(node);
+                          }
+                        });
+                        if (groupNodes.length > 0) {
+                          params.api.refreshCells({
+                            rowNodes: groupNodes,
+                            force: true,
+                          });
+                        }
+                      }, delay);
+                    };
+                    
+                    // Refresh at multiple intervals
+                    refreshGroupCells(100);
+                    refreshGroupCells(300);
+                    refreshGroupCells(500);
+                  }
+                }}
+                onRowGroupOpened={(params: any) => {
+                  // Refresh group row cells when expanded to show description
+                  if (params.node.group && gridApiRef.current) {
+                    setTimeout(() => {
+                      gridApiRef.current.refreshCells({
+                        rowNodes: [params.node],
+                        force: true,
+                      });
+                    }, 0);
+                  }
+                }}
                 onSelectionChanged={() => {
                   if (gridApiRef.current) {
                     const rows =
                       gridApiRef.current.getSelectedRows() as RowData[];
                     setSelectedRows(rows || []);
+                    
+                    // Check if all visible rows are selected
+                    let totalVisible = 0;
+                    let totalSelected = 0;
+                    gridApiRef.current.forEachNodeAfterFilter((node) => {
+                      // Only count non-group rows
+                      if (!node.group) {
+                        totalVisible++;
+                        if (node.isSelected()) {
+                          totalSelected++;
+                        }
+                      }
+                    });
+                    
+                    setIsAllSelected(totalSelected === totalVisible && totalVisible > 0);
                   }
                 }}
                 pagination={true}
@@ -1524,6 +1969,30 @@ function AppOwnerContent() {
         </div>
         {/* Right sidebar content is rendered globally via RightSideBarHost */}
       </div>
+
+      {/* Floating ActionButtons when all rows are selected */}
+      {isAllSelected && selectedRows.length > 0 && gridApiRef.current &&
+        createPortal(
+          <div
+            className={`fixed left-1/2 transform -translate-x-1/2 z-50 rounded-lg shadow-2xl px-4 py-3 flex items-center gap-2 transition-all duration-300 ${
+              isActionPanelVisible ? "bottom-24" : "bottom-6"
+            }`}
+            style={{
+              backgroundColor: "#d3d3d3",
+              border: "1px solid #b0b0b0",
+              boxShadow: "0 10px 25px rgba(0, 0, 0, 0.15)",
+            }}
+          >
+            <ActionButtons
+              api={gridApiRef.current as any}
+              selectedRows={selectedRows}
+              context="entitlement"
+              reviewerId={reviewerId}
+              certId={certificationId}
+            />
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

@@ -42,6 +42,7 @@ export default function CreateUserGroupPage() {
   ]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [groupId, setGroupId] = useState<string | null>(null); // Store group ID for modify operations
   const [formData, setFormData] = useState<FormData>({
     step1: {
       groupName: "",
@@ -149,17 +150,25 @@ export default function CreateUserGroupPage() {
       if (!stored) return;
 
       const group = JSON.parse(stored) as {
+        id?: string;
         userGroup?: string;
+        displayName?: string;
         description?: string;
         owner?: string;
         tags?: string;
+        _raw?: any; // Raw API data
       };
+
+      // Store the group ID for modify operation
+      if (group.id) {
+        setGroupId(group.id);
+      }
 
       setFormData((prev) => ({
         ...prev,
         step1: {
           ...prev.step1,
-          groupName: group.userGroup || prev.step1.groupName,
+          groupName: group.userGroup || group.displayName || prev.step1.groupName,
           description: group.description || prev.step1.description,
           owner: group.owner || prev.step1.owner,
           // Map tags into category for now; you can separate later when backend supports it
@@ -283,17 +292,40 @@ export default function CreateUserGroupPage() {
 
   const handleSubmit = async () => {
     try {
-      // Here you would send the form data to your API
-      console.log("Submitting user group:", JSON.stringify(formData));
+      // Build the payload according to the API specification
+      const groupPayload: any = {
+        displayName: formData.step1.groupName.trim(), // Always include displayName (updated value from form)
+        description: formData.step1.description.trim(),
+        groupType: "application", // Default value as per example
+        businessUnit: "IAM", // Default value as per example
+        department: "IGA", // Default value as per example
+        sourceId: "MANUAL", // Default value as per example
+        status: "Active", // Default value as per example
+      };
+
+      // For modify operation, include the mandatory id field
+      if (isEditMode && groupId) {
+        groupPayload.id = groupId;
+        // For modify, displayName should be the updated value from the form
+        // (already set above)
+      } else {
+        // For create operation, include groupName
+        groupPayload.groupName = formData.step1.groupName.trim();
+      }
+
+      const query = "SELECT kf_apply_object_change(?,?,?::jsonb)";
+      // Cast to any[] to allow mixed types (string and object)
+      const parameters: any[] = ["groups", "PUT", groupPayload];
       
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const response = await executeQuery(query, parameters as any);
       
-      alert("User Group created successfully!");
+      console.log(`User group ${isEditMode ? 'modified' : 'created'} successfully:`, response);
+      
+      alert(`User Group ${isEditMode ? 'modified' : 'created'} successfully!`);
       router.push("/user");
     } catch (error) {
-      console.error("Error creating user group:", error);
-      alert("An error occurred while creating the user group. Please try again.");
+      console.error(`Error ${isEditMode ? 'modifying' : 'creating'} user group:`, error);
+      alert(`An error occurred while ${isEditMode ? 'modifying' : 'creating'} the user group: ${error instanceof Error ? error.message : "Please try again."}`);
     }
   };
 

@@ -390,11 +390,14 @@ const columnDefs = useMemo<ColDef[]>(
 
 // User Groups Tab Component
 interface UserGroupData {
+  id?: string; // Group ID for modify operations
   userGroup: string;
+  displayName?: string; // Display name for modify operations
   description: string;
   owner: string;
   noOfUsers: number;
   tags: string;
+  _raw?: any; // Store raw API data for modify operations
 }
 
 function UserGroupsTab() {
@@ -430,18 +433,56 @@ function UserGroupsTab() {
         setLoading(true);
         setError(null);
         
-        // TODO: Replace with actual API query when available
-        // const query = "SELECT * FROM user_groups";
-        // const response = await executeQuery(query, []);
+        const query = "select * from kf_groups";
+        const parameters: string[] = [];
         
-        // Set dummy data until API is connected
-        setRowData(defaultGroupData);
-        setTotalItems(defaultGroupData.length);
-        setTotalPages(Math.ceil(defaultGroupData.length / pageSize));
+        const response = await executeQuery(query, parameters);
+        
+        // Transform API response to match our UserGroupData interface
+        let transformedData: UserGroupData[] = [];
+        
+        if (response && typeof response === 'object' && 'resultSet' in response && Array.isArray((response as any).resultSet)) {
+          const sourceArray: any[] = (response as any).resultSet;
+          transformedData = sourceArray.map((group: any) => ({
+            id: group.id || group.ID || group.groupId || group.group_id || undefined,
+            userGroup: group.groupName || group.groupname || group.userGroup || group.name || "Unknown",
+            displayName: group.displayName || group.display_name || group.groupName || group.groupname || group.userGroup || group.name || "Unknown",
+            description: group.description || "",
+            owner: group.owner || "",
+            noOfUsers: group.noOfUsers || group.noofusers || group.userCount || group.usercount || 0,
+            tags: group.tags || group.category || "",
+            // Store the full raw group data for modify operations
+            _raw: group,
+          }));
+        } else if (response && Array.isArray(response)) {
+          // Handle case where response is directly an array
+          transformedData = response.map((group: any) => ({
+            id: group.id || group.ID || group.groupId || group.group_id || undefined,
+            userGroup: group.groupName || group.groupname || group.userGroup || group.name || "Unknown",
+            displayName: group.displayName || group.display_name || group.groupName || group.groupname || group.userGroup || group.name || "Unknown",
+            description: group.description || "",
+            owner: group.owner || "",
+            noOfUsers: group.noOfUsers || group.noofusers || group.userCount || group.usercount || 0,
+            tags: group.tags || group.category || "",
+            // Store the full raw group data for modify operations
+            _raw: group,
+          }));
+        }
+        
+        if (transformedData.length > 0) {
+          setRowData(transformedData);
+          setTotalItems(transformedData.length);
+          setTotalPages(Math.ceil(transformedData.length / pageSize));
+        } else {
+          // Fallback to default data if API response is empty
+          setRowData(defaultGroupData);
+          setTotalItems(defaultGroupData.length);
+          setTotalPages(Math.ceil(defaultGroupData.length / pageSize));
+        }
       } catch (err) {
         console.error("Error fetching user groups:", err);
         setError(err instanceof Error ? err.message : "Failed to fetch user groups");
-        // On error, also fall back to dummy data
+        // On error, fall back to dummy data
         setRowData(defaultGroupData);
         setTotalItems(defaultGroupData.length);
         setTotalPages(Math.ceil(defaultGroupData.length / pageSize));
@@ -584,8 +625,21 @@ function UserGroupsTab() {
             const groupName = params.data?.userGroup;
             try {
               // Persist selected group so the form can be prefilled
+              // Store the full raw data including all fields from the API
               if (params.data) {
-                localStorage.setItem("selectedUserGroup", JSON.stringify(params.data));
+                // Prefer raw API data if available, otherwise use transformed data
+                const rawData = params.data._raw || params.data;
+                const groupToStore = {
+                  ...rawData,
+                  // Ensure we have essential fields
+                  id: params.data.id || rawData.id || rawData.ID || rawData.groupId || rawData.group_id,
+                  userGroup: params.data.userGroup || rawData.groupName || rawData.groupname || rawData.userGroup || rawData.name,
+                  displayName: params.data.displayName || rawData.displayName || rawData.display_name || params.data.userGroup || rawData.groupName || rawData.groupname || groupName,
+                  description: params.data.description || rawData.description || "",
+                  owner: params.data.owner || rawData.owner || "",
+                  tags: params.data.tags || rawData.tags || rawData.category || "",
+                };
+                localStorage.setItem("selectedUserGroup", JSON.stringify(groupToStore));
               }
             } catch {
               // Ignore localStorage errors; navigation will still work

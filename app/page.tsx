@@ -109,10 +109,16 @@ export default function Dashboard() {
         // Process certifications data
         if (certificationsData && certificationsData.certifications) {
           const certs = certificationsData.certifications;
-          // Count active reviews (certifications with status "Open" or "In Progress")
+          // Count active reviews (certifications with status "Active" or "Open" or "In Progress")
+          // Status is nested inside reviewerCertificationInfo
           const activeReviewsCount = certs.items?.filter((item: any) => {
-            const status = item.status?.toLowerCase() || "";
-            return status === "open" || status === "in progress" || status === "pending";
+            // Handle both array and object formats for reviewerCertificationInfo
+            const certInfo = Array.isArray(item.reviewerCertificationInfo) 
+              ? item.reviewerCertificationInfo[0] 
+              : item.reviewerCertificationInfo;
+            const status = certInfo?.status?.toLowerCase() || "";
+            // Check for Active status (as used in OpenTab) and other active states
+            return status === "active" || status === "open" || status === "in progress" || status === "pending";
           }).length || 0;
 
           setStats((prev) => ({

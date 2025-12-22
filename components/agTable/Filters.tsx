@@ -167,22 +167,39 @@ const Filters = ({
     : statusOptions.map(opt => ({ label: opt, value: opt } as any));
 
   return (
-    <div className={`relative ${isActive ? "w-48" : "w-44"}`}>
+    <div className={`relative ${isActive ? "w-fit" : "w-44"}`}>
       {}
 
       <Dropdown
         Icon={
           selectedFilter
             ? () => (
-                <div className="flex h-8 items-center gap-2 px-2 w-full">
-                  <FilterX />
-                  <small>{options.find(opt => opt.value === selectedFilter)?.label || selectedFilter}</small>
-                  <span
+                <div className="inline-flex h-8 items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-md border border-gray-200">
+                  <div className="flex items-center gap-1.5">
+                    <FilterX size={14} className="text-gray-600" />
+                    <small className="text-sm font-medium text-gray-800">
+                      {options.find(opt => opt.value === selectedFilter)?.label || selectedFilter}
+                    </small>
+                  </div>
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      clearFilters(e);
+                    }}
                     title="Clear Filters"
-                    className="rounded-full bg-red-600"
+                    className="ml-auto flex items-center justify-center w-5 h-5 rounded-full bg-red-500 hover:bg-red-600 transition-colors cursor-pointer"
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        clearFilters(e as any);
+                      }
+                    }}
                   >
-                    <CircleX color="#fff" size={18} onClick={clearFilters} />
-                  </span>
+                    <CircleX color="#fff" size={14} />
+                  </div>
                 </div>
               )
             : () => (
@@ -192,7 +209,7 @@ const Filters = ({
                 </div>
               )
         }
-        className={`h-8 w-full flex items-center justify-between ${isActive ? "bg-[#6D6E73]/20" : ""}`}
+        className={`h-8 inline-flex items-center justify-center ${isActive ? "bg-[#6D6E73]/20" : ""}`}
       >
         <li className="px-4 pb-2 border-b border-b-gray-300 font-semibold mb-2">
           {context === "account" ? "Filters" : "Filter by Status"}

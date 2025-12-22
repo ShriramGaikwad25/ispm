@@ -145,6 +145,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const [users, setUsers] = useState<UserRowData[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserRowData | null>(null);
   const [entitlementsData, setEntitlementsData] = useState<any[]>([]);
+  const [unfilteredEntitlementsData, setUnfilteredEntitlementsData] = useState<any[]>([]);
   const [loadingEntitlements, setLoadingEntitlements] = useState(false);
   const [progressData, setProgressData] = useState({
     totalItems: 0,
@@ -614,6 +615,10 @@ const TreeClient: React.FC<TreeClientProps> = ({
     const effectiveStatusFilter = overrideStatusFilterQuery ?? statusFilterQuery;
     const isAllSelected = effectiveStatusFilter === "ALL_ACTIONS";
 
+    // Block resizing and reset signature when loading new entitlements
+    resizeBlockedRef.current = true;
+    isDataLoadingRef.current = true;
+    lastResizedDataSignatureRef.current = ""; // Reset signature for new data
     setLoadingEntitlements(true);
     try {
       const accounts = await fetchAccessDetails(
@@ -624,6 +629,46 @@ const TreeClient: React.FC<TreeClientProps> = ({
         pageSize,
         page
       );
+
+      // Always fetch ALL entitlements for percentage calculation (unfiltered)
+      const unfilteredEntitlementPromises = accounts.map(async (account: any) => {
+        const lineItemId = account.lineItemId;
+        if (!lineItemId) return [];
+        
+        // Always fetch all entitlements for percentage calculation
+        const [pendingEntitlements, approveEntitlements, rejectEntitlements] = await Promise.all([
+          getLineItemDetails(
+            reviewerId,
+            certId,
+            user.taskId,
+            lineItemId,
+            undefined,
+            undefined,
+            "action eq Pending"
+          ),
+          getLineItemDetails(
+            reviewerId,
+            certId,
+            user.taskId,
+            lineItemId,
+            undefined,
+            undefined,
+            "action eq Approve"
+          ),
+          getLineItemDetails(
+            reviewerId,
+            certId,
+            user.taskId,
+            lineItemId,
+            undefined,
+            undefined,
+            "action eq Reject"
+          )
+        ]);
+        
+        // Combine all results for unfiltered data
+        return [...pendingEntitlements, ...approveEntitlements, ...rejectEntitlements];
+      });
 
       const entitlementPromises = accounts.map(async (account: any) => {
         const lineItemId = account.lineItemId;
@@ -759,14 +804,81 @@ const TreeClient: React.FC<TreeClientProps> = ({
 
       const allRows = (await Promise.all(entitlementPromises)).flat();
       
+      // Process unfiltered entitlements for percentage calculation
+      const processEntitlement = (item: any, account: any) => {
+        const entitlementLineItemId =
+          item?.ID ||
+          item?.Id ||
+          item?.id ||
+          item?.lineItemId ||
+          item?.LineItemId ||
+          item?.lineitemid ||
+          item?.entitlementId ||
+          item?.EntitlementId ||
+          item?.entitlementid ||
+          item?.entityEntitlement?.lineItemId ||
+          item?.entityEntitlements?.lineItemId ||
+          item?.entityEntitlements?.[0]?.lineItemId ||
+          null;
+
+        const entitlementInfo = item.entitlementInfo || item.entityEntitlement || {};
+        const entitlementName = item.entitlementName || entitlementInfo.entitlementName || item.name || item.entitlement_name || "";
+        const entitlementDescription = item.entitlementDescription || entitlementInfo.entitlementDescription || item.description || item.entitlement_description || "";
+        const entitlementType = item.entitlementType || entitlementInfo.entitlementType || item.type || "";
+        const nestedEntityEntitlement = item.entityEntitlement || {};
+        const normalizedAction = nestedEntityEntitlement.action || item.action || account.action || "";
+        const normalizedStatus = (() => {
+          const a = String(normalizedAction).trim().toLowerCase();
+          if (a === 'approve') return 'approved';
+          if (a === 'pending') return 'pending';
+          if (a === 'reject') return 'revoked';
+          if (a === 'delegate') return 'delegated';
+          if (a === 'remediate') return 'remediated';
+          return '';
+        })();
+        const normalizedItemRisk = nestedEntityEntitlement.itemRisk || item.itemRisk || item.entityEntitlements?.itemRisk || account.itemRisk || "";
+
+        return {
+          ...account,
+          entitlementName,
+          entitlementDescription,
+          entitlementType,
+          recommendation: item.aiassist?.Recommendation ?? "",
+          accessedWithinAMonth: item.aiassist?.accessedWithinAMonth ?? "",
+          itemRisk: normalizedItemRisk,
+          percAccessInSameDept: item.aiassist?.percAccessInSameDept ?? "",
+          percAccessWithSameJobtitle: item.aiassist?.percAccessWithSameJobtitle ?? "",
+          percAccessWithSameManager: item.aiassist?.percAccessWithSameManager ?? "",
+          actionInLastReview: item.aiassist?.Recommendation ?? "",
+          isNew: user.addedEntitlements?.includes(item.entitlementInfo?.entitlementName) ?? false,
+          appTag: item.appTag || account.appTag || "",
+          appRisk: item.appRisk || account.appRisk || "",
+          appType: item.appType || account.appType || "",
+          complianceViolation: item.complianceViolation || "",
+          deltaChange: item.deltaChange || "",
+          action: normalizedAction,
+          status: normalizedStatus,
+          lineItemId: entitlementLineItemId,
+          accountLineItemId: account.lineItemId,
+        };
+      };
+
+      // Process unfiltered entitlements - wait for all promises and map to accounts
+      const unfilteredEntitlementsResults = await Promise.all(unfilteredEntitlementPromises);
+      const unfilteredAllRows = accounts.flatMap((account: any, accountIndex: number) => {
+        const unfilteredEntitlements = unfilteredEntitlementsResults[accountIndex] || [];
+        return unfilteredEntitlements.map((item: any) => processEntitlement(item, account));
+      });
+      
       // Test data removed - filters are working correctly
       
       setEntitlementsData(allRows);
+      setUnfilteredEntitlementsData(unfilteredAllRows);
       // Note: entitlementsTotalItems and entitlementsTotalPages will be updated
       // by the useEffect that watches filteredEntitlements to account for filtering
 
-      // Calculate and update progress data
-      const progress = calculateProgressData(allRows);
+      // Calculate and update progress data using UNFILTERED data
+      const progress = calculateProgressData(unfilteredAllRows);
       setProgressData(progress);
 
       // Update selected user's progress counts so the UI percentage reflects latest actions
@@ -800,6 +912,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
     } catch (error) {
       console.error("Error loading entitlements:", error);
       setEntitlementsData([]);
+      setUnfilteredEntitlementsData([]);
     } finally {
       setLoadingEntitlements(false);
     }
@@ -808,6 +921,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const handleUserSelect = (user: UserRowData) => {
     selectUser(user, true);
     setEntitlementsPageNumber(1);
+    // Reset resize flag when user changes - loadUserEntitlements will also reset it
+    hasInitialResizedRef.current = false;
 
     loadUserEntitlements(user, 1);
     if (typeof onRowExpand === "function") {
@@ -826,9 +941,9 @@ const TreeClient: React.FC<TreeClientProps> = ({
 
   // Calculate progress for a user based on their entitlements
   const getUserProgress = (user: UserRowData) => {
-    // If we have entitlements data for this user, calculate from actual data
-    if (selectedUser?.id === user.id && entitlementsData.length > 0) {
-      const progressData = calculateProgressData(entitlementsData);
+    // If we have entitlements data for this user, calculate from UNFILTERED data (ALL entitlements)
+    if (selectedUser?.id === user.id && unfilteredEntitlementsData.length > 0) {
+      const progressData = calculateProgressData(unfilteredEntitlementsData);
       const completed = progressData.approvedCount + progressData.rejectedCount + progressData.revokedCount + progressData.delegatedCount + progressData.remediatedCount;
       const percentage = progressData.totalItems > 0 ? Math.round((completed / progressData.totalItems) * 100) : 0;
 
@@ -1105,19 +1220,27 @@ const TreeClient: React.FC<TreeClientProps> = ({
     return rows;
   }, [filteredEntitlements]);
 
+  // Ref to track current paginated data for resize logic
+  const currentPaginatedDataRef = useRef<any[]>([]);
+
   // Paginated data for entitlements (custom pagination to handle record-description pairs)
   const entPaginatedData = useMemo(() => {
     // Since entRowsWithDesc is structured as [record1, desc1, record2, desc2, ...]
     // We need to slice by pairs: each record has its description right after it
     
-    if (!entRowsWithDesc || entRowsWithDesc.length === 0) return [];
+    if (!entRowsWithDesc || entRowsWithDesc.length === 0) {
+      currentPaginatedDataRef.current = [];
+      return [];
+    }
     
     // Calculate the start and end indices for the entRowsWithDesc array
     // Each "page" contains pageSize records, which means pageSize * 2 rows total
     const startIndex = (entitlementsPageNumber - 1) * pageSize * 2;
     const endIndex = startIndex + (pageSize * 2);
     
-    return entRowsWithDesc.slice(startIndex, endIndex);
+    const paginated = entRowsWithDesc.slice(startIndex, endIndex);
+    currentPaginatedDataRef.current = paginated;
+    return paginated;
   }, [entRowsWithDesc, entitlementsPageNumber, pageSize]);
 
   // Update entitlements pagination totals based on filtered data
@@ -1173,59 +1296,87 @@ const TreeClient: React.FC<TreeClientProps> = ({
     attemptResize();
   }, []);
 
-  // Auto-resize columns after data changes or user selection
-  useEffect(() => {
-    if (entitlementsGridApiRef.current && entPaginatedData.length > 0 && selectedUser) {
-      // Use requestAnimationFrame for better timing
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          resizeColumnsWithRetry(5, 200);
-        }, 200);
-      });
+  // Track resize state more robustly - track by data signature to prevent resizes on same data
+  const lastResizedDataSignatureRef = useRef<string>("");
+  const resizeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isDataLoadingRef = useRef(false);
+  const resizeBlockedRef = useRef(false);
+  
+  // Create a signature from the data to track when data actually changes
+  const getDataSignature = useCallback((data: any[]) => {
+    if (!data || data.length === 0) return "empty";
+    // Create signature from first few rows and total length
+    const sample = data.slice(0, 3).map((d: any) => d.lineItemId || d.entitlementName || "").join("|");
+    return `${data.length}-${sample}`;
+  }, []);
+  
+  // Debounced resize function to prevent multiple rapid calls
+  const debouncedResize = useCallback((dataSignature: string) => {
+    if (resizeBlockedRef.current) return;
+    
+    if (resizeTimeoutRef.current) {
+      clearTimeout(resizeTimeoutRef.current);
     }
-  }, [entPaginatedData, selectedUser, resizeColumnsWithRetry]);
+    resizeTimeoutRef.current = setTimeout(() => {
+      if (entitlementsGridApiRef.current && entitlementsGridContainerRef.current && !resizeBlockedRef.current) {
+        // Only resize if data signature changed
+        if (lastResizedDataSignatureRef.current !== dataSignature) {
+          resizeColumnsWithRetry(3, 50);
+          lastResizedDataSignatureRef.current = dataSignature;
+        }
+      }
+      resizeTimeoutRef.current = null;
+    }, 200);
+  }, [resizeColumnsWithRetry]);
 
   // Handle column resizing when container size changes (e.g., sidebar expand/collapse, navigation)
   useEffect(() => {
     if (!entitlementsGridApiRef.current || !entitlementsGridContainerRef.current) return;
 
-    // Use ResizeObserver to detect container size changes
+    // Use ResizeObserver to detect container size changes (only when not loading)
     const resizeObserver = new ResizeObserver(() => {
-      // Debounce resize calls
-      setTimeout(() => {
-        resizeColumnsWithRetry(3, 50);
-      }, 100);
+      // Skip resize during data loading
+      if (isDataLoadingRef.current || resizeBlockedRef.current) return;
+      
+      const currentSignature = getDataSignature(entPaginatedData);
+      debouncedResize(currentSignature);
     });
 
     resizeObserver.observe(entitlementsGridContainerRef.current);
 
-    // Resize when sidebar visibility changes
+    // Resize when sidebar visibility changes (only when not loading)
     const sidebarTimeout = setTimeout(() => {
-      resizeColumnsWithRetry();
+      if (!isDataLoadingRef.current && !resizeBlockedRef.current) {
+        const currentSignature = getDataSignature(entPaginatedData);
+        if (lastResizedDataSignatureRef.current !== currentSignature) {
+          resizeColumnsWithRetry(3, 50);
+          lastResizedDataSignatureRef.current = currentSignature;
+        }
+      }
     }, 400); // Wait for sidebar animation to complete
-
-    // Resize on initial mount (handles navigation from AccessReview)
-    // Use multiple attempts with increasing delays
-    const initialTimeout1 = setTimeout(() => {
-      resizeColumnsWithRetry(3, 100);
-    }, 300);
-    
-    const initialTimeout2 = setTimeout(() => {
-      resizeColumnsWithRetry(3, 100);
-    }, 600);
-    
-    const initialTimeout3 = setTimeout(() => {
-      resizeColumnsWithRetry(3, 100);
-    }, 1000);
 
     return () => {
       resizeObserver.disconnect();
       clearTimeout(sidebarTimeout);
-      clearTimeout(initialTimeout1);
-      clearTimeout(initialTimeout2);
-      clearTimeout(initialTimeout3);
+      if (resizeTimeoutRef.current) {
+        clearTimeout(resizeTimeoutRef.current);
+      }
     };
-  }, [isSidebarHovered, selectedUser, resizeColumnsWithRetry]);
+  }, [isSidebarHovered, resizeColumnsWithRetry, debouncedResize, entPaginatedData, getDataSignature]);
+  
+  // Block resizing during data loading
+  useEffect(() => {
+    if (loadingEntitlements) {
+      isDataLoadingRef.current = true;
+      resizeBlockedRef.current = true;
+    } else {
+      // Unblock after a short delay to allow rendering to complete
+      setTimeout(() => {
+        isDataLoadingRef.current = false;
+        resizeBlockedRef.current = false;
+      }, 500);
+    }
+  }, [loadingEntitlements]);
 
   const filterOptions = [
     {
@@ -1950,49 +2101,80 @@ const TreeClient: React.FC<TreeClientProps> = ({
                   getRowClass={(params) => params?.data?.__isDescRow ? "ag-row-custom ag-row-desc" : "ag-row-custom"}
                   onGridReady={(params) => {
                     entitlementsGridApiRef.current = params.api;
-                    // Use requestAnimationFrame for better timing
-                    requestAnimationFrame(() => {
-                      setTimeout(() => {
-                        if (entitlementsGridContainerRef.current) {
-                          const containerWidth = entitlementsGridContainerRef.current.offsetWidth || entitlementsGridContainerRef.current.clientWidth;
-                          if (containerWidth > 0) {
-                            try {
-                              params.api.sizeColumnsToFit();
-                            } catch {}
-                          }
-                        }
-                      }, 100);
-                    });
+                    // Don't resize here - let onFirstDataRendered handle it after data is loaded
+                    // This prevents double resizing
                     const handleResize = () => {
-                      try {
-                        params.api.sizeColumnsToFit();
-                      } catch {}
+                      // Only resize on window resize, not on initial load
+                      if (!isInitialLoadRef.current && entitlementsGridApiRef.current) {
+                        try {
+                          entitlementsGridApiRef.current.sizeColumnsToFit();
+                        } catch {}
+                      }
                     };
                     window.addEventListener("resize", handleResize);
                     params.api.addEventListener('gridPreDestroyed', () => {
                       window.removeEventListener("resize", handleResize);
                     });
                   }}
+                  onModelUpdated={(params) => {
+                    // AG Grid's onModelUpdated fires when data model changes
+                    // We can use this to detect when rendering is complete
+                    // But don't resize here - let onFirstDataRendered handle it
+                  }}
                   onFirstDataRendered={(params) => {
-                    // Auto-size columns after data is rendered with retry logic
+                    // Auto-size columns after data is rendered - only once per unique data set
+                    // Use ref to get current data reliably
+                    const currentData = currentPaginatedDataRef.current;
+                    const currentSignature = getDataSignature(currentData);
+                    
+                    // Skip if we've already resized for this exact data set
+                    if (lastResizedDataSignatureRef.current === currentSignature) {
+                      return;
+                    }
+                    if (resizeBlockedRef.current) {
+                      return;
+                    }
+                    if (isDataLoadingRef.current) {
+                      return;
+                    }
+                    
+                    // Block further resizes temporarily
+                    resizeBlockedRef.current = true;
+                    
                     requestAnimationFrame(() => {
                       setTimeout(() => {
-                        if (entitlementsGridContainerRef.current) {
+                        if (entitlementsGridContainerRef.current && params.api) {
                           const containerWidth = entitlementsGridContainerRef.current.offsetWidth || entitlementsGridContainerRef.current.clientWidth;
                           if (containerWidth > 0) {
                             try {
                               params.api.sizeColumnsToFit();
-                            } catch {}
+                              lastResizedDataSignatureRef.current = currentSignature;
+                              // Unblock after resize completes
+                              setTimeout(() => {
+                                resizeBlockedRef.current = false;
+                              }, 150);
+                            } catch {
+                              resizeBlockedRef.current = false;
+                            }
                           } else {
                             // Retry if container doesn't have width yet
                             setTimeout(() => {
                               try {
-                                params.api.sizeColumnsToFit();
-                              } catch {}
+                                const retrySignature = getDataSignature(currentPaginatedDataRef.current);
+                                if (params.api && lastResizedDataSignatureRef.current !== retrySignature) {
+                                  params.api.sizeColumnsToFit();
+                                  lastResizedDataSignatureRef.current = retrySignature;
+                                }
+                                resizeBlockedRef.current = false;
+                              } catch {
+                                resizeBlockedRef.current = false;
+                              }
                             }, 300);
                           }
+                        } else {
+                          resizeBlockedRef.current = false;
                         }
-                      }, 200);
+                      }, 300);
                     });
                   }}
                   pagination={false}

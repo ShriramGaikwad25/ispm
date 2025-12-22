@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 
 type Attribute = {
@@ -35,8 +35,120 @@ const DelegateActionModal: React.FC<DelegateActionModalProps> = ({
     userAttributes[0].value
   );
   const [searchValue, setSearchValue] = useState("");
+  const [apiGroups, setApiGroups] = useState<Group[]>([]);
+  const [isLoadingGroups, setIsLoadingGroups] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [isWaitingForApi, setIsWaitingForApi] = useState(false);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const hasFetchedGroupsRef = useRef<boolean>(false);
+  const isApiCallInProgressRef = useRef<boolean>(false);
 
-  const sourceData = delegateType === "User" ? users : groups;
+  // Fetch groups from API when Group type is selected and user searches
+  useEffect(() => {
+    // Clear any existing timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+
+    // Only fetch if Group type is selected, search has value, and we haven't successfully fetched yet
+    if (delegateType === "Group" && searchValue.trim() !== "" && !hasFetchedGroupsRef.current && !isApiCallInProgressRef.current) {
+      setIsWaitingForApi(true);
+      
+      // Set flag to indicate API call is in progress (prevents multiple simultaneous calls)
+      isApiCallInProgressRef.current = true;
+      
+      // Debounce the API call - wait 500ms after user stops typing
+      debounceTimerRef.current = setTimeout(async () => {
+        setIsLoadingGroups(true);
+        setIsWaitingForApi(false);
+        setApiError(null);
+        try {
+          const query = `select * from kf_groups where group_id = ?::uuid`;
+
+          console.log("Calling API to fetch groups for delegate...");
+          const response = await fetch(
+            "https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                query: query,
+                parameters: ["126c4e68-6f51-4c10-847e-07505169e234"],
+              }),
+            }
+          );
+
+          if (!response.ok) {
+            throw new Error(`API request failed: ${response.statusText}`);
+          }
+
+          const data = await response.json();
+          
+          // Log the response for debugging
+          console.log("API Response for groups:", data);
+          
+          // Handle the response format - data is in resultSet
+          let groupsData: Group[] = [];
+          if (data?.resultSet && Array.isArray(data.resultSet)) {
+            groupsData = data.resultSet.map((group: any) => {
+              // Map the group data to the expected format
+              return {
+                ...group,
+                id: group.group_id || group.id || "",
+                name: group.group_name || group.name || "",
+              };
+            });
+          } else if (Array.isArray(data)) {
+            groupsData = data;
+          } else if (data?.results && Array.isArray(data.results)) {
+            groupsData = data.results;
+          } else if (data?.data && Array.isArray(data.data)) {
+            groupsData = data.data;
+          } else if (data?.items && Array.isArray(data.items)) {
+            groupsData = data.items;
+          } else if (data?.rows && Array.isArray(data.rows)) {
+            groupsData = data.rows;
+          } else if (data?.records && Array.isArray(data.records)) {
+            groupsData = data.records;
+          }
+
+          console.log("Parsed groups data:", groupsData, "Total groups:", groupsData.length);
+          setApiGroups(groupsData);
+          // Mark as fetched only on success
+          hasFetchedGroupsRef.current = true;
+        } catch (error) {
+          console.error("Error fetching groups from API:", error);
+          setApiError(error instanceof Error ? error.message : "Failed to fetch groups");
+          setApiGroups([]);
+          // Don't set hasFetchedGroupsRef on error so user can retry
+        } finally {
+          setIsLoadingGroups(false);
+          isApiCallInProgressRef.current = false;
+        }
+      }, 500); // 500ms debounce
+    } else if (searchValue.trim() === "" && delegateType === "Group") {
+      // Reset when search is cleared - allow fetching again
+      hasFetchedGroupsRef.current = false;
+      isApiCallInProgressRef.current = false;
+      setApiGroups([]);
+      setIsWaitingForApi(false);
+    }
+
+    // Cleanup timer on unmount or dependency change
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+    };
+  }, [searchValue, delegateType]); // Depend on both, but flag prevents multiple calls
+
+  const sourceData = delegateType === "User" 
+    ? users 
+    : (apiGroups.length > 0 ? apiGroups : groups);
   const currentAttributes =
     delegateType === "User" ? userAttributes : groupAttributes;
 
@@ -57,6 +169,16 @@ const DelegateActionModal: React.FC<DelegateActionModalProps> = ({
     setDelegateType("User");
     setSelectedAttribute(userAttributes[0]?.value || "");
     setSearchValue("");
+    setApiGroups([]);
+    setApiError(null);
+    setIsLoadingGroups(false);
+    setIsWaitingForApi(false);
+    hasFetchedGroupsRef.current = false;
+    isApiCallInProgressRef.current = false;
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
   };
 
     const handleCancel = () => {
@@ -71,6 +193,20 @@ const DelegateActionModal: React.FC<DelegateActionModalProps> = ({
       closeModal();
     }
   };
+
+  // Reset API groups when switching between User and Group
+  useEffect(() => {
+    setApiGroups([]);
+    setApiError(null);
+    setIsLoadingGroups(false);
+    setIsWaitingForApi(false);
+    hasFetchedGroupsRef.current = false;
+    isApiCallInProgressRef.current = false;
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+  }, [delegateType]);
 
   useEffect(() => {
     if (!isModalOpen) resetState();
@@ -194,7 +330,45 @@ const DelegateActionModal: React.FC<DelegateActionModalProps> = ({
               {/* Filtered List */}
               {searchValue.trim() !== "" && (
                 <div className="max-h-36 overflow-auto border rounded p-2 mb-3 text-sm bg-gray-50">
-                  {filteredData.length === 0 ? (
+                  {(isLoadingGroups || isWaitingForApi) && delegateType === "Group" ? (
+                    <div className="flex items-center justify-center py-4">
+                      <div className="flex items-center gap-2 text-gray-500">
+                        <svg
+                          className="animate-spin h-4 w-4"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          ></path>
+                        </svg>
+                        <span>Loading groups...</span>
+                      </div>
+                    </div>
+                  ) : apiError && delegateType === "Group" ? (
+                    <p className="text-red-500 italic text-xs py-2">
+                      Error: {apiError}
+                    </p>
+                  ) : filteredData.length === 0 && delegateType === "Group" && apiGroups.length > 0 ? (
+                    <p className="text-gray-500 italic">
+                      No results found matching "{searchValue}" in {selectedAttribute}.
+                      <br />
+                      <span className="text-xs">
+                        (Found {apiGroups.length} total groups)
+                      </span>
+                    </p>
+                  ) : filteredData.length === 0 ? (
                     <p className="text-gray-500 italic">No results found.</p>
                   ) : (
                     <ul className="space-y-1">
