@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
 const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
 type AgGridReactType = any;
@@ -27,46 +27,87 @@ const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow }) => {
   const gridRef = React.useRef<AgGridReactType>(null);
   const [rows, setRows] = useState<TemplateRow[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Extract fetch logic into a reusable function
+  const fetchTemplates = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await fetch(
+        "https://preview.keyforge.ai/campaign/api/v1/ACMECOM/getAllCampaigns",
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch campaigns: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log("Campaigns API response:", data);
+
+      // Handle different response structures
+      // The API might return an array directly or an object with a data/items property
+      let campaignsArray: any[] = [];
+      if (Array.isArray(data)) {
+        campaignsArray = data;
+      } else if (data && typeof data === "object") {
+        // Try common response structures
+        campaignsArray = data.items || data.data || data.campaigns || data.results || [];
+        // If still empty, check if response itself is a single campaign object
+        if (campaignsArray.length === 0 && (data.id || data.name || data.campaignID)) {
+          campaignsArray = [data];
+        }
+      }
+
+      // Map API response to TemplateRow format
+      const mappedTemplates: TemplateRow[] = campaignsArray.map((campaign: any) => ({
+        id: campaign.id || campaign.campaignID || campaign.campaignId || String(campaign.id || ""),
+        name: campaign.name || campaign.campaignName || campaign.templateName || "Unnamed Campaign",
+        owner: campaign.owner || 
+               campaign.ownerName || 
+               (Array.isArray(campaign.campaignOwner?.ownerName) 
+                 ? campaign.campaignOwner.ownerName.join(", ") 
+                 : campaign.campaignOwner?.ownerName) ||
+               campaign.createdBy ||
+               "Unknown",
+        createdOn: campaign.createdOn || 
+                  campaign.createdDate || 
+                  campaign.created || 
+                  campaign.startDate ||
+                  campaign.campaignStartDate ||
+                  new Date().toISOString(),
+        lastRun: campaign.lastRun || 
+                campaign.lastRunDate || 
+                campaign.lastExecuted ||
+                null,
+        nextRun: campaign.nextRun || 
+                campaign.nextRunDate || 
+                campaign.scheduledRun ||
+                null,
+        templateData: campaign, // Store full template data for editing
+      }));
+
+      setRows(mappedTemplates);
+      setError(null);
+    } catch (error: any) {
+      console.error("Error fetching templates:", error);
+      setError(error?.message || "Failed to fetch campaigns. Please try again later.");
+      // Set empty array on error instead of showing mock data
+      setRows([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    // Fetch templates from API or localStorage
-    // For now, using mock data - replace with actual API call
-    const fetchTemplates = async () => {
-      try {
-        setIsLoading(true);
-        // TODO: Replace with actual API endpoint
-        // const response = await fetch("YOUR_TEMPLATES_API_ENDPOINT");
-        // const data = await response.json();
-        
-        // Mock data for now
-        const mockTemplates: TemplateRow[] = [
-          {
-            id: "1",
-            name: "Quarterly Access Review",
-            owner: "John Doe",
-            createdOn: "2024-01-15",
-            lastRun: "2024-03-15",
-            nextRun: "2024-06-15",
-          },
-          {
-            id: "2",
-            name: "Monthly Privileged Access Review",
-            owner: "Jane Smith",
-            createdOn: "2024-02-01",
-            lastRun: "2024-03-01",
-            nextRun: "2024-04-01",
-          },
-        ];
-        setRows(mockTemplates);
-      } catch (error) {
-        console.error("Error fetching templates:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchTemplates();
-  }, []);
+  }, [fetchTemplates]);
 
   const columnDefs = React.useMemo<ColDef[]>(
     () => [
@@ -152,6 +193,20 @@ const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow }) => {
 
   if (isLoading) {
     return <div className="flex justify-center items-center h-96">Loading templates...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col justify-center items-center h-96">
+        <div className="text-red-600 mb-2">{error}</div>
+        <button
+          onClick={fetchTemplates}
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+        >
+          Retry
+        </button>
+      </div>
+    );
   }
 
   return (

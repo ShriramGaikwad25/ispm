@@ -71,7 +71,8 @@ export const fetchAccessDetails = async (
   pageSize?: number,
   pageNumber?: number,
   setTotalPages?: (totalPages: number) => void,
-  setTotalItems?: (totalItems: number) => void
+  setTotalItems?: (totalItems: number) => void,
+  filter?: string
 ) => {
   // Call the API to get access details
   const res: {
@@ -84,7 +85,8 @@ export const fetchAccessDetails = async (
     taskId,
     all,
     pageSize,
-    pageNumber
+    pageNumber,
+    filter
   );
 
   // Update total pages and items if callback functions are provided

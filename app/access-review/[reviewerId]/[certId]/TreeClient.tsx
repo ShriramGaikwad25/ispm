@@ -24,7 +24,8 @@ import ColumnSettings from "@/components/agTable/ColumnSettings";
 import Filters from "@/components/agTable/Filters";
 import ActionButtons from "@/components/agTable/ActionButtons";
 import { useCertificationDetails, fetchAccessDetails } from "@/hooks/useApi";
-import { getLineItemDetails } from "@/lib/api";
+import { getLineItemDetails, getCertAnalytics } from "@/lib/api";
+import { CertAnalytics } from "@/types/api";
 import { EntitlementInfo } from "@/types/lineItem";
 import { UserRowData } from "@/types/certification";
 import {
@@ -36,6 +37,7 @@ import {
   AlertTriangle,
   CheckCircle,
   MoreVertical,
+  X,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -176,6 +178,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const [selectedRowForPanel, setSelectedRowForPanel] = useState<any | null>(null);
   const [avatarErrorIndexByKey, setAvatarErrorIndexByKey] = useState<Record<string, number>>({});
   const [avatarMap, setAvatarMap] = useState<Record<string, string>>({});
+  const [certAnalytics, setCertAnalytics] = useState<CertAnalytics | null>(null);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
   const [availableRandomSvgs, setAvailableRandomSvgs] = useState<string[]>([]);
   const [maleNames, setMaleNames] = useState<Set<string>>(new Set());
   const [femaleNames, setFemaleNames] = useState<Set<string>>(new Set());
@@ -456,6 +460,53 @@ const TreeClient: React.FC<TreeClientProps> = ({
       .catch(() => {});
     return () => { controller1.abort(); controller2.abort(); };
   }, []);
+
+  // Fetch cert analytics when reviewerId or certId changes
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      if (!reviewerId || !certId) {
+        setCertAnalytics(null);
+        return;
+      }
+      
+      setLoadingAnalytics(true);
+      // Clear previous analytics before fetching new ones
+      setCertAnalytics(null);
+      
+      try {
+        const response = await getCertAnalytics(reviewerId);
+        if (response?.analytics && response.analytics[certId]) {
+          setCertAnalytics(response.analytics[certId]);
+        } else {
+          // Clear analytics if certId not found in response
+          setCertAnalytics(null);
+        }
+      } catch (error) {
+        console.error("Error fetching cert analytics:", error);
+        setCertAnalytics(null);
+      } finally {
+        setLoadingAnalytics(false);
+      }
+    };
+
+    fetchAnalytics();
+  }, [reviewerId, certId]);
+
+  // Calculate total certID related count from the specific certId's analytics
+  const certIdCount = useMemo(() => {
+    if (!certAnalytics) return 0;
+    return (
+      (certAnalytics.inactiveaccount_count || 0) +
+      (certAnalytics.dormant_count || 0) +
+      (certAnalytics.highriskentitlement_count || 0) +
+      (certAnalytics.violations_count || 0) +
+      (certAnalytics.orphan_count || 0) +
+      (certAnalytics.newaccount_count || 0) +
+      (certAnalytics.newaccess_count || 0) +
+      (certAnalytics.inactiveuser_count || 0) +
+      (certAnalytics.highriskaccount_count || 0)
+    );
+  }, [certAnalytics]);
 
   const selectUser = useCallback((user: UserRowData | null, updateUrl = true) => {
     if (!user) return;
@@ -1065,15 +1116,140 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const canScrollUp = pageNumber > 1;
   const canScrollDown = pageNumber < totalPages;
 
+  // Helper function to process accounts and entitlements
+  const processFilteredEntitlements = useCallback(async (accounts: any[], user: UserRowData) => {
+    const entitlementPromises = accounts.map(async (account: any) => {
+      const lineItemId = account.lineItemId;
+      if (!lineItemId) return [];
+      
+      // Fetch entitlements for this account
+      const entitlements = await getLineItemDetails(
+        reviewerId,
+        certId,
+        user.taskId,
+        lineItemId
+      );
+      
+      return entitlements.map((item: any) => {
+        const entitlementLineItemId =
+          item?.ID ||
+          item?.Id ||
+          item?.id ||
+          item?.lineItemId ||
+          item?.LineItemId ||
+          item?.lineitemid ||
+          item?.entitlementId ||
+          item?.EntitlementId ||
+          item?.entitlementid ||
+          item?.entityEntitlement?.lineItemId ||
+          item?.entityEntitlements?.lineItemId ||
+          item?.entityEntitlements?.[0]?.lineItemId ||
+          null;
+
+        const entitlementInfo = item.entitlementInfo || item.entityEntitlement || {};
+        const entitlementName = item.entitlementName || entitlementInfo.entitlementName || item.name || item.entitlement_name || "";
+        const entitlementDescription = item.entitlementDescription || entitlementInfo.entitlementDescription || item.description || item.entitlement_description || "";
+        const entitlementType = item.entitlementType || entitlementInfo.entitlementType || item.type || "";
+        const nestedEntityEntitlement = item.entityEntitlement || {};
+        const normalizedAction = nestedEntityEntitlement.action || item.action || account.action || "";
+        const normalizedStatus = (() => {
+          const a = String(normalizedAction).trim().toLowerCase();
+          if (a === 'approve') return 'approved';
+          if (a === 'pending') return 'pending';
+          if (a === 'reject') return 'revoked';
+          if (a === 'delegate') return 'delegated';
+          if (a === 'remediate') return 'remediated';
+          return '';
+        })();
+        const normalizedItemRisk = nestedEntityEntitlement.itemRisk || item.itemRisk || item.entityEntitlements?.itemRisk || account.itemRisk || "";
+
+        return {
+          ...account,
+          entitlementName,
+          entitlementDescription,
+          entitlementType,
+          recommendation: item.aiassist?.Recommendation ?? "",
+          accessedWithinAMonth: item.aiassist?.accessedWithinAMonth ?? "",
+          itemRisk: normalizedItemRisk,
+          percAccessInSameDept: item.aiassist?.percAccessInSameDept ?? "",
+          percAccessWithSameJobtitle: item.aiassist?.percAccessWithSameJobtitle ?? "",
+          percAccessWithSameManager: item.aiassist?.percAccessWithSameManager ?? "",
+          actionInLastReview: item.aiassist?.Recommendation ?? "",
+          isNew: user.addedEntitlements?.includes(item.entitlementInfo?.entitlementName) ?? false,
+          appTag: item.appTag || account.appTag || "",
+          appRisk: item.appRisk || account.appRisk || "",
+          appType: item.appType || account.appType || "",
+          complianceViolation: item.complianceViolation || "",
+          deltaChange: item.deltaChange || "",
+          action: normalizedAction,
+          status: normalizedStatus,
+          lineItemId: entitlementLineItemId,
+          accountLineItemId: lineItemId,
+        };
+      });
+    });
+
+    const allRows = (await Promise.all(entitlementPromises)).flat();
+    setEntitlementsData(allRows);
+    setUnfilteredEntitlementsData(allRows);
+    
+    // Update progress data
+    const progress = calculateProgressData(allRows);
+    setProgressData(progress);
+  }, [reviewerId, certId]);
+
   // Handle filter selection
-  const handleFilterToggle = useCallback((filterName: string) => {
+  const handleFilterToggle = useCallback(async (filterName: string) => {
+    const isCurrentlySelected = selectedFilters.includes(filterName);
+    
+    // Map filter names to API filter strings
+    const filterMap: Record<string, string> = {
+      "Dormant Access": "isdormant eq Y",
+      "High Risk": "itemrisk eq High",
+      "Violation": "isviolations eq Y"
+    };
+    
+    const apiFilter = filterMap[filterName];
+    
+    // If clicking a filter that requires API call and it's being selected
+    if (apiFilter && !isCurrentlySelected && selectedUser) {
+      setLoadingEntitlements(true);
+      try {
+        // Call API with the appropriate filter
+        const accounts = await fetchAccessDetails(
+          reviewerId,
+          certId,
+          selectedUser.taskId,
+          undefined,
+          pageSize,
+          entitlementsPageNumber,
+          undefined,
+          undefined,
+          apiFilter
+        );
+
+        // Process the accounts and get entitlements for each
+        await processFilteredEntitlements(accounts, selectedUser);
+      } catch (error) {
+        console.error(`Error loading ${filterName}:`, error);
+      } finally {
+        setLoadingEntitlements(false);
+      }
+    } else if (apiFilter && isCurrentlySelected) {
+      // If deselecting, reload entitlements without filter
+      if (selectedUser) {
+        await loadUserEntitlements(selectedUser, entitlementsPageNumber);
+      }
+    }
+    
+    // Update filter selection state
     setSelectedFilters((prev) => {
       const newFilters = prev.includes(filterName)
         ? prev.filter((f) => f !== filterName)
         : [...prev, filterName];
       return newFilters;
     });
-  }, []);
+  }, [selectedFilters, selectedUser, reviewerId, certId, pageSize, entitlementsPageNumber, loadUserEntitlements, processFilteredEntitlements]);
 
   // Handle filter changes from Filters component
   const handleAppliedFilter = useCallback(
@@ -2112,12 +2288,24 @@ const TreeClient: React.FC<TreeClientProps> = ({
                   </div>
                   {filterOptions.map((filter) => {
                     const isSelected = selectedFilters.includes(filter.name);
+                    // Get corresponding count from certAnalytics
+                    let count = 0;
+                    if (certAnalytics) {
+                      if (filter.name === "Dormant Access") {
+                        count = certAnalytics.dormant_count || 0;
+                      } else if (filter.name === "Violation") {
+                        count = certAnalytics.violations_count || 0;
+                      } else if (filter.name === "High Risk") {
+                        count = certAnalytics.highriskentitlement_count || 0;
+                      } else if (filter.name === "Delta Access") {
+                        count = certAnalytics.newaccess_count || 0;
+                      }
+                    }
                     return (
                       <div
                         key={filter.name}
-                        onClick={() => handleFilterToggle(filter.name)}
                         className={`
-                          px-2 py-1 rounded-md border cursor-pointer transition-all duration-200 text-xs ml-2
+                          px-2 py-1 rounded-md border cursor-pointer transition-all duration-200 text-xs ml-2 flex items-center gap-1.5
                           ${
                             isSelected
                               ? `${filter.color} shadow-sm`
@@ -2125,7 +2313,25 @@ const TreeClient: React.FC<TreeClientProps> = ({
                           }
                         `}
                       >
-                        <span className="font-medium">{filter.name}</span>
+                        <span 
+                          className="font-medium flex-1"
+                          onClick={() => handleFilterToggle(filter.name)}
+                        >
+                          {filter.name}
+                          {count > 0 && <span className="ml-1 font-bold">({count})</span>}
+                        </span>
+                        {isSelected && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleFilterToggle(filter.name);
+                            }}
+                            className="ml-1 hover:bg-black/10 rounded-full p-0.5 transition-colors flex-shrink-0"
+                            title="Remove filter"
+                          >
+                            <X size={12} className="text-current" />
+                          </button>
+                        )}
                       </div>
                     );
                   })}

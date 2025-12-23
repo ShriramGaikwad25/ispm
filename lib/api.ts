@@ -124,13 +124,22 @@ export async function getAccessDetails<T>(
   taskId?: string,
   all?: string,
   pageSize?: number,
-  pageNumber?: number
+  pageNumber?: number,
+  filter?: string
 ): Promise<PaginatedResponse<T>> {
   if (!taskId && !all) {
     throw new Error("Either taskId or all must be provided");
   }
   const finalPart = all ? "All" : taskId!;
-  const endpoint = `${BASE_URL}/getAccessDetails/${reviewerId}/${certId}/${finalPart}`;
+  let endpoint = `${BASE_URL}/getAccessDetails/${reviewerId}/${certId}/${finalPart}`;
+  
+  // Add filter as query parameter if provided
+  if (filter) {
+    const url = new URL(endpoint);
+    url.searchParams.append("filter", filter);
+    endpoint = url.toString();
+  }
+  
   return fetchApi(endpoint, pageSize, pageNumber);
 }
 
