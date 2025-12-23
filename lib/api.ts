@@ -37,7 +37,7 @@ export async function fetchApi<T>(
       // Check if error body contains token expired error
       try {
         const errorData = JSON.parse(errorBody);
-        if (checkTokenExpiredError(errorData)) {
+        if (await checkTokenExpiredError(errorData)) {
           throw new Error('Token Expired');
         }
       } catch (e) {
@@ -50,7 +50,7 @@ export async function fetchApi<T>(
 
     const result = await res.json();
     // Check for token expired error in successful responses
-    if (checkTokenExpiredError(result)) {
+    if (await checkTokenExpiredError(result)) {
       throw new Error('Token Expired');
     }
     return result;
@@ -460,38 +460,16 @@ export async function executeQuery<T>(
     parameters
   };
 
-  const headers = {
-    "Content-Type": "application/json",
-    "X-Requested-With": "XMLHttpRequest",
-  };
-
-  const res = await fetch(endpoint, {
+  // apiRequestWithAuth already handles token expiration and refresh internally
+  const result = await apiRequestWithAuth<T>(endpoint, {
     method: "POST",
-    headers,
+    headers: {
+      "Content-Type": "application/json",
+      "X-Requested-With": "XMLHttpRequest",
+    },
     body: JSON.stringify(payload),
   });
 
-  if (!res.ok) {
-    const errorBody = await res.text();
-    // Check if error body contains token expired error
-    try {
-      const errorData = JSON.parse(errorBody);
-      if (checkTokenExpiredError(errorData)) {
-        throw new Error('Token Expired');
-      }
-    } catch (e) {
-      // If parsing fails, continue with original error
-    }
-    throw new Error(
-      `Execute Query failed: ${res.status} ${res.statusText}\n${errorBody}`
-    );
-  }
-
-  const result = await res.json();
-  // Check for token expired error in successful responses
-  if (checkTokenExpiredError(result)) {
-    throw new Error('Token Expired');
-  }
   return result;
 }
 
@@ -585,7 +563,7 @@ export async function validatePassword(userName: string, password: string): Prom
       // Check if error body contains token expired error
       try {
         const errorData = JSON.parse(errorBody);
-        if (checkTokenExpiredError(errorData)) {
+        if (await checkTokenExpiredError(errorData)) {
           throw new Error('Token Expired');
         }
       } catch (e) {

@@ -39,7 +39,7 @@ export async function fetchApiWithLoading<T>(
       // Check if error body contains token expired error
       try {
         const errorData = JSON.parse(errorBody);
-        if (checkTokenExpiredError(errorData)) {
+        if (await checkTokenExpiredError(errorData)) {
           throw new Error('Token Expired');
         }
       } catch (e) {
@@ -52,7 +52,7 @@ export async function fetchApiWithLoading<T>(
 
     const result = await res.json();
     // Check for token expired error in successful responses
-    if (checkTokenExpiredError(result)) {
+    if (await checkTokenExpiredError(result)) {
       throw new Error('Token Expired');
     }
     return result;

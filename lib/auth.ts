@@ -133,8 +133,8 @@ export function forceLogout(reason?: string): void {
   }
 }
 
-// Check if response contains token expired error and logout if found
-export function checkTokenExpiredError(data: any): boolean {
+// Check if response contains token expired error and attempt refresh before logout
+export async function checkTokenExpiredError(data: any): Promise<boolean> {
   if (!data || typeof data !== 'object') {
     return false;
   }
@@ -146,13 +146,24 @@ export function checkTokenExpiredError(data: any): boolean {
   if (status === 'error' && errorMessage) {
     const errorMsgStr = String(errorMessage).trim();
     if (errorMsgStr === 'Token Expired' || errorMsgStr.toLowerCase() === 'token expired') {
-      console.error('🚨 TOKEN EXPIRED ERROR DETECTED - FORCING LOGOUT 🚨');
-      clearAllAuthCookies();
-      forceLogout('Token Expired');
-      if (typeof window !== 'undefined') {
-        window.location.href = '/login';
+      console.error('🚨 TOKEN EXPIRED ERROR DETECTED - ATTEMPTING TO REFRESH 🚨');
+      
+      // Try to refresh JWT token using access token before logging out
+      const refreshSuccess = await refreshJWTToken();
+      
+      if (refreshSuccess) {
+        console.log('✅ JWT token refreshed successfully');
+        return false; // Token was refreshed, not expired anymore
+      } else {
+        // Refresh failed - access token is also expired/invalid, logout
+        console.error('🚨 TOKEN REFRESH FAILED - FORCING LOGOUT 🚨');
+        clearAllAuthCookies();
+        forceLogout('Token Expired - Refresh failed');
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login';
+        }
+        return true;
       }
-      return true;
     }
   }
 
@@ -288,7 +299,7 @@ export async function generateJWTToken(accessToken: string): Promise<JWTTokenRes
     if (!response.ok) {
       const errorText = await response.text();
       console.error('JWT token generation failed:', response.status, errorText);
-      forceLogout(`JWT token generation failed with status ${response.status}`);
+      // Don't force logout here - let the caller (refreshJWTToken) handle it
       throw new Error(`JWT token generation failed: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
@@ -296,17 +307,14 @@ export async function generateJWTToken(accessToken: string): Promise<JWTTokenRes
     
     // Check if the response indicates a failed status
     if (data.status === 'failed' || data.status === 'error' || data.valid === false) {
-      forceLogout('JWT token generation returned failed status');
+      // Don't force logout here - let the caller (refreshJWTToken) handle it
       throw new Error('JWT token generation returned failed status');
     }
     
     return data;
   } catch (error) {
     console.error('Generate JWT token error:', error);
-    // Don't force logout again if it was already called
-    if (!(error instanceof Error && error.message.includes('JWT token generation'))) {
-      forceLogout('JWT token generation error occurred');
-    }
+    // Don't force logout here - let the caller (refreshJWTToken) handle it
     throw error;
   }
 }
@@ -316,7 +324,8 @@ export async function refreshJWTToken(): Promise<boolean> {
   try {
     const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
     if (!accessToken) {
-      forceLogout('Access token not found during refresh');
+      console.error('Access token not found during refresh');
+      // Don't logout here - let the caller handle it
       return false;
     }
 
@@ -328,16 +337,18 @@ export async function refreshJWTToken(): Promise<boolean> {
     
     if (!jwtToken) {
       console.error('JWT token not found in response');
-      forceLogout('JWT token not found in refresh response');
+      // Don't logout here - let the caller handle it
       return false;
     }
 
     // Save the new JWT token to cookie
     setCookie(COOKIE_NAMES.JWT_TOKEN, jwtToken);
+    console.log('JWT token refreshed successfully');
     return true;
   } catch (error) {
     console.error('JWT token refresh failed:', error);
-    // generateJWTToken already handles logout on failure
+    // Refresh failed - access token is likely expired/invalid
+    // Don't logout here - let the caller handle it
     return false;
   }
 }
@@ -411,7 +422,7 @@ export async function apiRequestWithAuth<T>(
         // Check if retry response has error status
         if (retryData && typeof retryData === 'object') {
           // Check for token expired error first
-          if (checkTokenExpiredError(retryData)) {
+          if (await checkTokenExpiredError(retryData)) {
             throw new Error('Token Expired');
           }
           
@@ -436,7 +447,9 @@ export async function apiRequestWithAuth<T>(
         
         return retryData;
       } else {
-        // Refresh failed - logout already handled in refreshJWTToken
+        // Refresh failed - access token is expired/invalid, logout
+        console.error('Token refresh failed in apiRequestWithAuth - logging out');
+        forceLogout('Token refresh failed - access token expired');
         throw new Error('Authentication failed - please login again');
       }
     }
@@ -475,7 +488,7 @@ export async function apiRequestWithAuth<T>(
       const data = JSON.parse(responseText);
       
       // Check for token expired error first (before other checks)
-      if (checkTokenExpiredError(data)) {
+      if (await checkTokenExpiredError(data)) {
         throw new Error('Token Expired');
       }
       
@@ -567,7 +580,7 @@ export async function apiRequestWithAuth<T>(
         try {
           const parsed = JSON.parse(text);
           // Check for token expired error
-          if (checkTokenExpiredError(parsed)) {
+          if (await checkTokenExpiredError(parsed)) {
             throw new Error('Token Expired');
           }
           if (parsed && typeof parsed === 'object') {

@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { optionsForRemidiate } from "@/utils/utils";
 import Select from "react-select";
 import { Edit2Icon } from "lucide-react";
 import UserDisplayName from "./UserDisplayName";
+import { executeQuery } from "@/lib/api";
 
 interface RemediateSidebarProps {
   selectedRows: any[];
@@ -41,6 +42,9 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
   const [modifyAccessSelectedOption, setModifyAccessSelectedOption] = useState<any>(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [comment, setComment] = useState("");
+  const [modifyAccessOptions, setModifyAccessOptions] = useState<any[]>([]);
+  const [isLoadingOptions, setIsLoadingOptions] = useState(false);
+  const [optionsError, setOptionsError] = useState<string | null>(null);
 
   const definedRows = selectedRows.filter((row) => row && Object.keys(row).length > 0);
 
@@ -75,6 +79,99 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
   };
 
   const campaignExpiryDate = getCampaignExpiryDate();
+
+  // Fetch entitlements when Modify Access is checked
+  useEffect(() => {
+    const fetchEntitlements = async () => {
+      if (!modifyAccessChecked) {
+        // Reset options when unchecked
+        setModifyAccessOptions([]);
+        setModifyAccessSelectedOption(null);
+        setOptionsError(null);
+        return;
+      }
+
+      // Extract application name from the first selected row
+      if (definedRows.length === 0) {
+        setOptionsError("No rows selected");
+        setIsLoadingOptions(false);
+        return;
+      }
+
+      const firstRow = definedRows[0];
+      const applicationName =
+        firstRow?.applicationName ||
+        firstRow?.application ||
+        firstRow?.appName ||
+        firstRow?.application_name ||
+        firstRow?.applicationDisplayName ||
+        firstRow?.application_display_name ||
+        firstRow?.app ||
+        firstRow?.app_display_name ||
+        null;
+
+      if (!applicationName) {
+        setOptionsError("Application name not found in selected row");
+        setIsLoadingOptions(false);
+        return;
+      }
+
+      setIsLoadingOptions(true);
+      setOptionsError(null);
+
+      try {
+        // Use the application name from the selected row
+        const query = `select name from catalog where type = 'Entitlement' AND applicationname = '${applicationName}'`;
+        const parameters: string[] = [];
+        
+        const response = await executeQuery<any>(query, parameters);
+        
+        // Handle different response formats
+        let entitlements: any[] = [];
+        
+        if (Array.isArray(response)) {
+          entitlements = response;
+        } else if (response && typeof response === 'object') {
+          // Check for common response wrapper properties
+          if ('resultSet' in response && Array.isArray(response.resultSet)) {
+            entitlements = response.resultSet;
+          } else if ('data' in response && Array.isArray(response.data)) {
+            entitlements = response.data;
+          } else if ('results' in response && Array.isArray(response.results)) {
+            entitlements = response.results;
+          } else {
+            // Try to find first array property
+            const arrayKey = Object.keys(response).find(key => Array.isArray(response[key]));
+            if (arrayKey) {
+              entitlements = response[arrayKey];
+            }
+          }
+        }
+
+        // Transform entitlements into dropdown options
+        const options = entitlements
+          .filter((item: any) => item && item.name) // Filter out invalid items
+          .map((item: any) => ({
+            value: item.name,
+            label: item.name
+          }));
+
+        setModifyAccessOptions(options);
+        
+        if (options.length === 0) {
+          setOptionsError("No entitlements found");
+        }
+      } catch (error) {
+        console.error("Error fetching entitlements:", error);
+        setOptionsError(error instanceof Error ? error.message : "Failed to load entitlements");
+        setModifyAccessOptions([]);
+      } finally {
+        setIsLoadingOptions(false);
+      }
+    };
+
+    fetchEntitlements();
+  }, [modifyAccessChecked]);
 
   // Validate date when it changes
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -370,16 +467,24 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
               <span className="flex items-center m-2">
                 Select New Access
               </span>
-              <Select
-                options={optionsForRemidiate}
-                isDisabled={immediateRevokeChecked}
-                value={modifyAccessSelectedOption}
-                onChange={setModifyAccessSelectedOption}
-                styles={{
-                  control: (base) => ({ ...base, fontSize: "0.875rem" }),
-                  menu: (base) => ({ ...base, fontSize: "0.875rem" }),
-                }}
-              />
+              {isLoadingOptions ? (
+                <div className="px-3 py-2 text-sm text-gray-500">Loading entitlements...</div>
+              ) : optionsError ? (
+                <div className="px-3 py-2 text-sm text-red-500">{optionsError}</div>
+              ) : (
+                <Select
+                  options={modifyAccessOptions.length > 0 ? modifyAccessOptions : optionsForRemidiate}
+                  isDisabled={immediateRevokeChecked || isLoadingOptions}
+                  isLoading={isLoadingOptions}
+                  value={modifyAccessSelectedOption}
+                  onChange={setModifyAccessSelectedOption}
+                  placeholder={isLoadingOptions ? "Loading..." : "Select an entitlement"}
+                  styles={{
+                    control: (base) => ({ ...base, fontSize: "0.875rem" }),
+                    menu: (base) => ({ ...base, fontSize: "0.875rem" }),
+                  }}
+                />
+              )}
             </div>
           )}
           {modifyAccessChecked && (
