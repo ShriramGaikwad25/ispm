@@ -1762,12 +1762,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
               certId={certId}
               userEmail={userEmail}
               selectedFilters={selectedFilters}
-              onActionSuccess={() => {
-                // Fully refresh users and entitlements
-                refreshUsersAndEntitlements();
-                // Mark that a remediate action was performed
-                setActionStates(prev => ({ ...prev, remediate: true }));
-              }}
+              // Removed onActionSuccess to prevent table refresh on action button clicks
+              // Table will refresh only when actions are actually submitted via the Submit button
             />
           );
         },
@@ -1792,7 +1788,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
   );
 
   return (
-    <div className="flex h-[calc(100vh-120px)] relative">
+    <div className="flex relative">
       {error && (
         <div style={{ color: "red", padding: 10 }}>{String(error)}</div>
       )}
@@ -1965,7 +1961,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
       </div>
 
       {/* Entitlements Table */}
-      <div className={`flex-1 flex flex-col min-w-0 overflow-hidden ${isSidebarHovered ? "ml-72" : "ml-14"}`}>
+      <div className={`flex-1 flex flex-col min-w-0 ${isSidebarHovered ? "ml-72" : "ml-14"}`}>
         {selectedUser ? (
           <>
             {/* Selected User Header */}
@@ -2188,7 +2184,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
             </div>
 
             {/* Entitlements Grid */}
-            <div className="flex-1 p-4 pb-0 min-w-0" ref={entitlementsGridContainerRef}>
+            <div className="p-4 pb-0 min-w-0" ref={entitlementsGridContainerRef}>
               {loadingEntitlements ? (
                 <div className="flex items-center justify-center h-64">
                   <div className="text-gray-500">
@@ -2198,7 +2194,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
               ) : filteredEntitlements.length > 0 ? (
                 <>
                   {/* Pagination at top of table */}
-                  <div className="flex justify-center [&>div]:rounded-b-none [&>div]:border-b-0">
+                  <div className="flex justify-center [&>div]:rounded-b-none [&>div]:border-b-0 flex-shrink-0">
                     <CustomPagination
                       totalItems={entitlementsTotalItems}
                       currentPage={entitlementsPageNumber}
@@ -2212,7 +2208,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       pageSizeOptions={pageSizeSelector}
                     />
                   </div>
-                <div className="w-full overflow-x-auto" style={{ width: '100%', maxWidth: '100%' }}>
+                <div className="w-full" style={{ width: '100%', maxWidth: '100%' }}>
                 <AgGridReact
                   rowData={entPaginatedData}
                   columnDefs={entitlementsColumnDefs}
@@ -2221,12 +2217,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
                   rowSelection={{ mode: "multiRow" }}
                   suppressSizeToFit={false}
                   style={{ width: '100%', minWidth: 0 }}
-                  isRowSelectable={(node) => !node?.data?.__isDescRow}
-                  getRowId={(params: GetRowIdParams) => {
-                    const baseId = params.data.lineItemId || params.data.accountLineItemId || params.data.taskId || `${params.data.applicationName}-${params.data.entitlementName}`;
-                    return params.data.__isDescRow ? `${baseId}-desc` : baseId;
-                  }}
-                  getRowClass={(params) => params?.data?.__isDescRow ? "ag-row-custom ag-row-desc" : "ag-row-custom"}
                   onGridReady={(params) => {
                     entitlementsGridApiRef.current = params.api;
                     // Don't resize here - let onFirstDataRendered handle it after data is loaded
@@ -2244,6 +2234,12 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       window.removeEventListener("resize", handleResize);
                     });
                   }}
+                  isRowSelectable={(node) => !node?.data?.__isDescRow}
+                  getRowId={(params: GetRowIdParams) => {
+                    const baseId = params.data.lineItemId || params.data.accountLineItemId || params.data.taskId || `${params.data.applicationName}-${params.data.entitlementName}`;
+                    return params.data.__isDescRow ? `${baseId}-desc` : baseId;
+                  }}
+                  getRowClass={(params) => params?.data?.__isDescRow ? "ag-row-custom ag-row-desc" : "ag-row-custom"}
                   onModelUpdated={(params) => {
                     // AG Grid's onModelUpdated fires when data model changes
                     // We can use this to detect when rendering is complete

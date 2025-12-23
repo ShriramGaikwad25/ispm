@@ -24,11 +24,14 @@ import {
   CellClickedEvent,
   IDetailCellRendererParams,
   FirstDataRenderedEvent,
+  GridApi,
 } from "ag-grid-enterprise";
 import { MasterDetailModule } from "ag-grid-enterprise";
 import { ModuleRegistry } from "ag-grid-community";
 import "./Champaign.css";
 import TemplateTab from "./TemplateTab";
+import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
+import { useRightSidebar } from "@/contexts/RightSidebarContext";
 
 // Register AG Grid Enterprise modules
 ModuleRegistry.registerModules([MasterDetailModule]);
@@ -150,10 +153,14 @@ const TerminateModal = ({
 
 export default function Campaigns() {
   const gridRef = useRef<AgGridReactType>(null);
+  const gridContainerRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const [rows, setRows] = useState<CampaignRow[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [gridApi, setGridApi] = useState<GridApi | null>(null);
+  const { isVisible: isLeftSidebarVisible } = useLeftSidebar();
+  const { isOpen: isRightSidebarOpen } = useRightSidebar();
   const [terminateModal, setTerminateModal] = useState<{
     isOpen: boolean;
     campaignId: string | null;
@@ -447,50 +454,333 @@ export default function Campaigns() {
     [setTerminateModal, handleRowClick]
   );
 
-  const onFirstDataRendered = (params: FirstDataRenderedEvent) => {
+  const onFirstDataRendered = useCallback((params: FirstDataRenderedEvent) => {
     console.log("First data rendered, expanding all rows");
     params.api.forEachNode((node) => {
       if (node.master) {
         node.setExpanded(true); // Expand all master rows
       }
     });
-  };
+    // Resize columns after expanding rows
+    setTimeout(() => {
+      params.api.sizeColumnsToFit();
+    }, 50);
+  }, []);
 
-  const tabsData = [
+  const defaultColDef = useMemo(() => ({
+    sortable: true,
+    filter: true,
+    resizable: true,
+  }), []);
+
+  // Resize grid when sidebar visibility changes or container size changes
+  // Using refs to avoid dependency on gridApi in effect (prevents re-renders)
+  const gridApiRef = useRef<GridApi | null>(null);
+  const prevRightSidebarOpenRef = useRef<boolean>(false);
+  const prevLeftSidebarVisibleRef = useRef<boolean>(true);
+  
+  useEffect(() => {
+    if (gridApi) {
+      gridApiRef.current = gridApi;
+    }
+  }, [gridApi]);
+
+  // Separate effect to directly handle sidebar state changes
+  // This ensures resize happens when sidebar opens/closes, even if ResizeObserver doesn't catch it
+  useEffect(() => {
+    if (!gridApiRef.current || isLoading) return;
+
+    const api = gridApiRef.current;
+    const rightSidebarChanged = prevRightSidebarOpenRef.current !== isRightSidebarOpen;
+    const leftSidebarChanged = prevLeftSidebarVisibleRef.current !== isLeftSidebarVisible;
+
+    // Update refs
+    prevRightSidebarOpenRef.current = isRightSidebarOpen;
+    prevLeftSidebarVisibleRef.current = isLeftSidebarVisible;
+
+    // Only trigger if sidebar state actually changed
+    if (!rightSidebarChanged && !leftSidebarChanged) return;
+
+    // Force multiple resize attempts when sidebar state changes
+    const performResize = () => {
+      try {
+        if (api && gridContainerRef.current) {
+          // Get the actual container width to verify it changed
+          const containerWidth = gridContainerRef.current.offsetWidth;
+          
+          // Force resize using AG Grid API
+          api.sizeColumnsToFit();
+          
+          // Also trigger window resize event as fallback
+          // This helps AG Grid detect the container size change
+          window.dispatchEvent(new Event('resize'));
+          
+          // Try to manually trigger grid size changed
+          // Access the internal grid API if available
+          try {
+            // Force a recalculation by accessing the grid's size detector
+            const gridElement = gridContainerRef.current.querySelector('.ag-root-wrapper');
+            if (gridElement) {
+              // Trigger a resize event on the grid element itself
+              const resizeEvent = new Event('resize', { bubbles: true });
+              gridElement.dispatchEvent(resizeEvent);
+            }
+          } catch (e) {
+            // Ignore errors from internal API access
+          }
+        }
+      } catch (error) {
+        console.error("Error resizing grid on sidebar change:", error);
+      }
+    };
+
+    // Immediate resize
+    performResize();
+
+    // Resize attempts at different intervals to catch the transition
+    // More aggressive timing to ensure we catch the sidebar close
+    const timeouts: NodeJS.Timeout[] = [
+      setTimeout(() => performResize(), 0),
+      setTimeout(() => performResize(), 50),
+      setTimeout(() => performResize(), 100),
+      setTimeout(() => performResize(), 200), // During LayoutContentShift transition
+      setTimeout(() => performResize(), 300), // After LayoutContentShift transition (200ms)
+      setTimeout(() => performResize(), 400),
+      setTimeout(() => performResize(), 500),
+      setTimeout(() => performResize(), 700),
+      setTimeout(() => performResize(), 1000), // Extra long delay to catch any late changes
+    ];
+
+    return () => {
+      timeouts.forEach(timeout => clearTimeout(timeout));
+    };
+  }, [isRightSidebarOpen, isLeftSidebarVisible, isLoading]);
+
+  useEffect(() => {
+    if (!gridApiRef.current || !gridContainerRef.current || isLoading) return;
+
+    let resizeTimeout: NodeJS.Timeout | null = null;
+    let isResizing = false;
+    let rafId: number | null = null;
+
+    // Resize function that forces grid to use full width
+    const performResize = (force = false) => {
+      const api = gridApiRef.current;
+      if (!api || !gridContainerRef.current) return;
+      
+      if (isResizing && !force) return;
+      
+      // Cancel any pending animation frame
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
+      
+      // Use requestAnimationFrame for smoother resizing
+      rafId = requestAnimationFrame(() => {
+        try {
+          if (api && gridContainerRef.current) {
+            // Force a browser reflow to ensure container size is updated
+            // This is important when margin changes but container size appears unchanged
+            const container = gridContainerRef.current;
+            const containerWidth = container.offsetWidth;
+            
+            // Force reflow by reading layout properties
+            void container.offsetHeight;
+            
+            // Ensure container has explicit width
+            if (container.style.width !== '100%') {
+              container.style.width = '100%';
+            }
+            
+            // Force resize to use full available width
+            api.sizeColumnsToFit();
+            
+            // Multiple resize attempts to ensure it takes effect
+            setTimeout(() => {
+              if (api && gridContainerRef.current) {
+                api.sizeColumnsToFit();
+              }
+            }, 10);
+            
+            setTimeout(() => {
+              if (api && gridContainerRef.current) {
+                api.sizeColumnsToFit();
+              }
+            }, 50);
+            
+            isResizing = true;
+            // Reset flag after a brief moment
+            setTimeout(() => {
+              isResizing = false;
+            }, 200);
+          }
+        } catch (error) {
+          console.error("Error resizing grid:", error);
+          isResizing = false;
+        } finally {
+          rafId = null;
+        }
+      });
+    };
+
+    // Debounced resize function for ResizeObserver
+    const debouncedResize = () => {
+      if (resizeTimeout) {
+        clearTimeout(resizeTimeout);
+      }
+      resizeTimeout = setTimeout(() => {
+        performResize();
+      }, 150);
+    };
+
+    // Use ResizeObserver to detect container size changes (including sidebar expand/collapse)
+    const resizeObserver = new ResizeObserver(debouncedResize);
+    resizeObserver.observe(gridContainerRef.current);
+
+    // Also observe parent containers to catch LayoutContentShift margin changes
+    let currentParent = gridContainerRef.current.parentElement;
+    const parentsToObserve: Element[] = [];
+    while (currentParent && currentParent !== document.body) {
+      resizeObserver.observe(currentParent);
+      parentsToObserve.push(currentParent);
+      currentParent = currentParent.parentElement;
+    }
+
+    // Observe document body to catch any layout changes
+    resizeObserver.observe(document.body);
+
+    // Use MutationObserver to watch for style changes (margin changes from LayoutContentShift)
+    // ResizeObserver doesn't detect margin changes, so we need this
+    const mutationObserver = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+          // Style changed, likely margin from LayoutContentShift
+          debouncedResize();
+          break;
+        }
+      }
+    });
+
+    // Observe parent elements for style changes
+    let parentToObserve = gridContainerRef.current.parentElement;
+    while (parentToObserve && parentToObserve !== document.body) {
+      mutationObserver.observe(parentToObserve, {
+        attributes: true,
+        attributeFilter: ['style'],
+        attributeOldValue: false
+      });
+      parentToObserve = parentToObserve.parentElement;
+    }
+
+    // Window resize listener as fallback
+    const handleWindowResize = () => {
+      performResize(true);
+    };
+    window.addEventListener('resize', handleWindowResize);
+
+    // Multiple resize triggers when sidebar visibility changes to ensure full width
+    // This is especially important when sidebar closes to reclaim full width
+    const timeouts: NodeJS.Timeout[] = [];
+    
+    // Immediate resize attempt (for quick feedback)
+    timeouts.push(setTimeout(() => {
+      performResize(true);
+    }, 0));
+    
+    // Resize during transition (LayoutContentShift has 200ms transition)
+    timeouts.push(setTimeout(() => {
+      performResize(true);
+    }, 100));
+    
+    // Resize after transition completes
+    timeouts.push(setTimeout(() => {
+      performResize(true);
+    }, 300));
+    
+    // Final resize to ensure full width (with extra buffer)
+    timeouts.push(setTimeout(() => {
+      performResize(true);
+    }, 500));
+    
+    // One more resize after everything settles
+    timeouts.push(setTimeout(() => {
+      performResize(true);
+    }, 700));
+    
+    return () => {
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+      window.removeEventListener('resize', handleWindowResize);
+      if (resizeTimeout) {
+        clearTimeout(resizeTimeout);
+      }
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
+      timeouts.forEach(timeout => clearTimeout(timeout));
+    };
+  }, [isLeftSidebarVisible, isRightSidebarOpen, isLoading]);
+
+  // Memoize the grid component render function to prevent unnecessary re-renders
+  const renderGridComponent = useCallback(() => {
+    if (isLoading) return <div>Loading...</div>;
+    if (error) return <div className="text-red-600">{error}</div>;
+    
+    return (
+      <div 
+        ref={gridContainerRef} 
+        className="h-96 w-full"
+        style={{ width: '100%', minWidth: 0 }}
+      >
+        <AgGridReact
+          ref={gridRef}
+          rowData={rows}
+          columnDefs={columnDefs}
+          rowSelection="multiple"
+          context={{ gridRef }}
+          rowModelType="clientSide"
+          animateRows={true}
+          defaultColDef={defaultColDef}
+          masterDetail={true}
+          detailCellRenderer={DetailCellRenderer}
+          detailRowAutoHeight={true}
+          detailRowHeight={80}
+          onGridReady={(params) => {
+            setGridApi(params.api);
+            params.api.sizeColumnsToFit();
+            // Add window resize listener
+            const handleResize = () => {
+              try {
+                params.api.sizeColumnsToFit();
+              } catch {}
+            };
+            window.addEventListener("resize", handleResize);
+            params.api.addEventListener('gridPreDestroyed', () => {
+              window.removeEventListener("resize", handleResize);
+            });
+          }}
+          onGridSizeChanged={(params) => {
+            // Automatically resize columns when grid size changes
+            try {
+              params.api.sizeColumnsToFit();
+            } catch (e) {
+              // Ignore errors
+            }
+          }}
+          onFirstDataRendered={onFirstDataRendered}
+          suppressColumnVirtualisation={false}
+          suppressRowVirtualisation={false}
+        />
+      </div>
+    );
+  }, [isLoading, error, rows, columnDefs, defaultColDef, onFirstDataRendered]);
+
+  const tabsData = useMemo(() => [
     {
       label: "Active",
       icon: ChevronDown,
       iconOff: ChevronUp,
-      component: () => {
-        if (isLoading) return <div>Loading...</div>;
-        if (error) return <div className="text-red-600">{error}</div>;
-        return (
-          <div className="h-96 w-full">
-            <AgGridReact
-              ref={gridRef}
-              rowData={rows}
-              columnDefs={columnDefs}
-              rowSelection="multiple"
-              context={{ gridRef }}
-              rowModelType="clientSide"
-              animateRows={true}
-              defaultColDef={{
-                sortable: true,
-                filter: true,
-                resizable: true,
-              }}
-              masterDetail={true}
-              detailCellRenderer={DetailCellRenderer}
-              detailRowAutoHeight={true}
-              detailRowHeight={80}
-              onGridReady={(params) => {
-                params.api.sizeColumnsToFit();
-              }}
-              onFirstDataRendered={onFirstDataRendered}
-            />
-          </div>
-        );
-      },
+      component: renderGridComponent,
     },
     {
       label: "Completed",
@@ -504,7 +794,7 @@ export default function Campaigns() {
       iconOff: ChevronUp,
       component: () => <TemplateTab />,
     },
-  ];
+  ], [renderGridComponent]);
 
   const handleTerminateConfirm = async (justification: string) => {
     if (!terminateModal.campaignId) return;

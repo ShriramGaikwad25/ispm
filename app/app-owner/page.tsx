@@ -1040,10 +1040,8 @@ function AppOwnerContent() {
             context="entitlement"
             reviewerId={reviewerId}
             certId={certificationId}
-            onActionSuccess={() => {
-              // Refresh data and recompute progress after action
-              fetchData();
-            }}
+            // Removed onActionSuccess to prevent table refresh on action button clicks
+            // Table will refresh only when actions are actually submitted via the Submit button
           />
         );
       },

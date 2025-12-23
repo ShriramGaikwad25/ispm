@@ -421,3 +421,14 @@
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
+
+/* Remove height constraints from AG Grid when using autoHeight */
+.ag-main.ag-layout-auto-height .ag-body-viewport {
+  overflow: visible !important;
+  max-height: none !important;
+  height: auto !important;
+}
+
+.ag-main.ag-layout-auto-height .ag-center-cols-container {
+  overflow: visible !important;
+}

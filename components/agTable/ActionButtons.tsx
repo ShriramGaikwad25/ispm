@@ -42,6 +42,10 @@ interface ActionButtonsProps<T> {
   selectedFilters?: string[]; // Selected filters to control button visibility
 }
 
+// Module-level storage for pending actions to persist across component re-renders
+// This is necessary because AG Grid cell renderers can be recreated, losing component state
+const pendingActionsStorage = new Map<string, 'Approve' | 'Reject' | 'Pending' | 'Remediate' | 'Delegate'>();
+
 const ActionButtons = <T extends { status?: string }>({
   api,
   selectedRows,
@@ -75,7 +79,15 @@ const ActionButtons = <T extends { status?: string }>({
   const [error, setError] = useState<string | null>(null);
   const [lastAction, setLastAction] = useState<string | null>(null);
   const [isActionLoading, setIsActionLoading] = useState(false);
-  const [pendingById, setPendingById] = useState<Record<string, 'Approve' | 'Reject' | 'Pending' | 'Remediate' | 'Delegate'>>({});
+  // Use a state that syncs with module-level storage to trigger re-renders
+  const [pendingById, setPendingById] = useState<Record<string, 'Approve' | 'Reject' | 'Pending' | 'Remediate' | 'Delegate'>>(() => {
+    // Initialize from module-level storage
+    const initial: Record<string, 'Approve' | 'Reject' | 'Pending' | 'Remediate' | 'Delegate'> = {};
+    pendingActionsStorage.forEach((value, key) => {
+      initial[key] = value;
+    });
+    return initial;
+  });
   const [hasRemediateAction, setHasRemediateAction] = useState(false);
   
   const { showApiLoader, hideApiLoader } = useLoading();
@@ -104,9 +116,13 @@ const ActionButtons = <T extends { status?: string }>({
   const selectedIds = definedRows
     .map((row: any) => row.lineItemId || row.id)
     .filter(Boolean) as string[];
-  const isApprovePending = selectedIds.length > 0 && selectedIds.every((id) => pendingById[id] === 'Approve');
-  const isRejectPending = selectedIds.length > 0 && selectedIds.every((id) => pendingById[id] === 'Reject');
-  const isPendingReset = selectedIds.some((id) => pendingById[id] === 'Pending');
+  // Check both state and module-level storage for pending actions
+  const getPendingAction = (id: string): 'Approve' | 'Reject' | 'Pending' | 'Remediate' | 'Delegate' | undefined => {
+    return pendingById[id] || pendingActionsStorage.get(id);
+  };
+  const isApprovePending = selectedIds.length > 0 && selectedIds.every((id) => getPendingAction(id) === 'Approve');
+  const isRejectPending = selectedIds.length > 0 && selectedIds.every((id) => getPendingAction(id) === 'Reject');
+  const isPendingReset = selectedIds.some((id) => getPendingAction(id) === 'Pending');
   const hasAnyPending = isApprovePending || isRejectPending || isPendingReset;
 
   // Check if action is Approve/Reject/Remediate/Delegate for entitlement context (normalized)
@@ -119,14 +135,16 @@ const ActionButtons = <T extends { status?: string }>({
   const isRemediateAction = context === "entitlement" && (actionLower === "remediate" || statusLower === "remediated");
   const isDelegateAction = context === "entitlement" && (actionLower === "delegate" || statusLower === "delegated");
   const hasRemediateStatus = hasRemediateAction || isRemediateAction || 
-    selectedIds.some((id) => pendingById[id] === 'Remediate');
+    selectedIds.some((id) => getPendingAction(id) === 'Remediate');
   const hasDelegateStatus = isDelegateAction || 
-    selectedIds.some((id) => pendingById[id] === 'Delegate');
+    selectedIds.some((id) => getPendingAction(id) === 'Delegate');
 
-  // If last action was "Pending" (undo), buttons should be hollow
-  const isUndoState = lastAction === "Pending";
-  const approveFilled = !isUndoState && (isApprovePending || (!hasAnyPending && (isApproved || isApproveAction)));
-  const rejectFilled = !isUndoState && (isRejectPending || (!hasAnyPending && (isRejected || isRejectAction)));
+  // Button fill logic:
+  // - If pending Approve/Reject, show filled
+  // - If no pending action but row data shows approved/rejected, show filled
+  // - If explicitly set to Pending (undone), buttons should be hollow
+  const approveFilled = isApprovePending || (!hasAnyPending && !isPendingReset && (isApproved || isApproveAction));
+  const rejectFilled = isRejectPending || (!hasAnyPending && !isPendingReset && (isRejected || isRejectAction));
 
   // API call to update actions
   const updateActions = async (actionType: string, justification: string) => {
@@ -194,21 +212,23 @@ const ActionButtons = <T extends { status?: string }>({
 
       queueAction({ reviewerId, certId, payload, count: countDelta });
 
-      // Mark local pending state for button visuals
-      setPendingById((prev) => {
-        const next = { ...prev } as Record<string, 'Approve' | 'Reject' | 'Pending' | 'Remediate'>;
-        if (actionType === 'Pending') {
-          // Clear pending visual if user set back to Pending
-          selectedIds.forEach((id) => {
-            delete next[id];
-          });
-        } else {
-          selectedIds.forEach((id) => {
-            next[id] = actionType as any;
-          });
-        }
-        return next;
-      });
+       // Mark local pending state for button visuals (both state and module-level storage)
+       setPendingById((prev) => {
+         const next = { ...prev } as Record<string, 'Approve' | 'Reject' | 'Pending' | 'Remediate' | 'Delegate'>;
+         if (actionType === 'Pending') {
+           // When undoing (setting to Pending), mark as 'Pending' to ensure buttons become unfilled
+           selectedIds.forEach((id) => {
+             next[id] = 'Pending';
+             pendingActionsStorage.set(id, 'Pending');
+           });
+         } else {
+           selectedIds.forEach((id) => {
+             next[id] = actionType as any;
+             pendingActionsStorage.set(id, actionType as any);
+           });
+         }
+         return next;
+       });
       
       setLastAction(actionType);
       setError(null);
@@ -233,6 +253,24 @@ const ActionButtons = <T extends { status?: string }>({
   };
   useEffect(() => {
     setLastAction(null);
+    // Sync state from module-level storage when selectedRows change
+    const currentDefinedRows = (selectedRows || []).filter((r): r is T => !!r);
+    const selectedIds = currentDefinedRows
+      .map((row: any) => row.lineItemId || row.id)
+      .filter(Boolean) as string[];
+    if (selectedIds.length > 0) {
+      setPendingById((prev) => {
+        const next = { ...prev };
+        // Update from module-level storage for selected IDs
+        selectedIds.forEach((id) => {
+          const storedAction = pendingActionsStorage.get(id);
+          if (storedAction) {
+            next[id] = storedAction;
+          }
+        });
+        return next;
+      });
+    }
   }, [selectedRows]);
 
 
@@ -866,6 +904,7 @@ const ActionButtons = <T extends { status?: string }>({
             const next = { ...prev } as Record<string, 'Approve' | 'Reject' | 'Pending' | 'Remediate' | 'Delegate'>;
             delegateIds.forEach((id) => {
               next[id] = 'Delegate';
+              pendingActionsStorage.set(id, 'Delegate');
             });
             return next;
           });
