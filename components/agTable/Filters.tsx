@@ -29,6 +29,7 @@ const Filters = ({
   onFilterChange,
   context = "status",
   initialSelected,
+  actionStates,
 }: {
   gridApi?: any;
   columns?: string[];
@@ -36,6 +37,11 @@ const Filters = ({
   onFilterChange?: (filter: string) => void;
   context?: "status" | "account";
   initialSelected?: string;
+  actionStates?: {
+    certify?: boolean;
+    reject?: boolean;
+    remediate?: boolean;
+  };
 }) => {
   const [selectedFilter, setSelectedFilter] = useState<string>(initialSelected || "");
   const [filterCounts, setFilterCounts] = useState<{ [key: string]: number }>({});
@@ -231,7 +237,15 @@ const Filters = ({
               <div className="flex items-center">
                 <span className="mx-2 w-4 flex justify-center">
                   {isSelected ? (
-                    <Check size={16} className="text-blue-600" />
+                    <>
+                      {(option.value === "Certify" || option.value === "Remediated") ? (
+                        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-green-600">
+                          <Check size={12} className="text-white" strokeWidth={3} />
+                        </span>
+                      ) : (
+                        <Check size={16} className="text-blue-600" />
+                      )}
+                    </>
                   ) : (
                     <span className="w-4" />
                   )}

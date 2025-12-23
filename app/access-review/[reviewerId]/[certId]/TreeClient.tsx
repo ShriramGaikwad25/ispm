@@ -163,6 +163,15 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const [userSearch, setUserSearch] = useState("");
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
   const [accountFilter, setAccountFilter] = useState<string>("");
+  const [actionStates, setActionStates] = useState<{
+    certify: boolean;
+    reject: boolean;
+    remediate: boolean;
+  }>({
+    certify: false,
+    reject: false,
+    remediate: true, // Temporarily set to true to show dummy badge
+  });
   const { openSidebar } = useRightSidebar();
   const [selectedRowForPanel, setSelectedRowForPanel] = useState<any | null>(null);
   const [avatarErrorIndexByKey, setAvatarErrorIndexByKey] = useState<Record<string, number>>({});
@@ -1117,6 +1126,113 @@ const TreeClient: React.FC<TreeClientProps> = ({
     setEntitlementsPageNumber(1);
   }, [selectedFilters]);
 
+  // Function to check action states from entitlements data
+  const checkActionStates = useCallback(() => {
+    if (!entitlementsData || entitlementsData.length === 0) {
+      setActionStates({
+        certify: false,
+        reject: false,
+        remediate: false,
+      });
+      return;
+    }
+
+    let hasCertify = false;
+    let hasReject = false;
+    let hasRemediate = false;
+
+    for (const entitlement of entitlementsData) {
+      const action = String(entitlement.action || '').trim().toLowerCase();
+      const status = String(entitlement.status || '').trim().toLowerCase();
+
+      if (action === 'approve' || status === 'approved') {
+        hasCertify = true;
+      }
+      if (action === 'reject' || status === 'rejected' || status === 'revoked') {
+        hasReject = true;
+      }
+      if (action === 'remediate' || status === 'remediated') {
+        hasRemediate = true;
+      }
+
+      // If all actions found, break early
+      if (hasCertify && hasReject && hasRemediate) {
+        break;
+      }
+    }
+
+    setActionStates({
+      certify: hasCertify,
+      reject: hasReject,
+      remediate: hasRemediate,
+    });
+  }, [entitlementsData]);
+
+  // Check action states when entitlements data changes
+  useEffect(() => {
+    checkActionStates();
+  }, [checkActionStates]);
+
+  // Add dummy remediate record for testing (remove this in production)
+  useEffect(() => {
+    if (entitlementsData.length > 0 && !entitlementsData.some((e: any) => 
+      String(e.action || '').toLowerCase() === 'remediate' || 
+      String(e.status || '').toLowerCase() === 'remediated'
+    )) {
+      const dummyRemediateRecord = {
+        lineItemId: 'dummy-remediate-' + Date.now(),
+        entitlementName: 'Dummy Remediate Entitlement',
+        entitlementDescription: 'This is a dummy record to test the remediate filter badge',
+        entitlementType: 'Test',
+        action: 'Remediate',
+        status: 'Remediated',
+        user: selectedUser?.fullName || 'Test User',
+        applicationName: 'Test Application',
+        lastLogin: new Date().toISOString(),
+        itemRisk: 'Medium',
+        accessedWithinAMonth: 'Accessed',
+        recommendation: 'Remediate',
+        isNew: false,
+        appTag: 'Test',
+        SoDConflicts: [],
+        deltaChange: '',
+        accountType: '',
+        userStatus: 'Active',
+      };
+      setEntitlementsData((prev: any[]) => [...prev, dummyRemediateRecord]);
+    }
+  }, [entitlementsData, selectedUser]);
+
+  // Add dummy delegate record for testing (remove this in production)
+  useEffect(() => {
+    if (entitlementsData.length > 0 && !entitlementsData.some((e: any) => 
+      String(e.action || '').toLowerCase() === 'delegate' || 
+      String(e.status || '').toLowerCase() === 'delegated'
+    )) {
+      const dummyDelegateRecord = {
+        lineItemId: 'dummy-delegate-' + Date.now(),
+        entitlementName: 'Dummy Delegate Entitlement',
+        entitlementDescription: 'This is a dummy record to test the delegate filter badge',
+        entitlementType: 'Test',
+        action: 'Delegate',
+        status: 'Delegated',
+        user: selectedUser?.fullName || 'Test User',
+        applicationName: 'Test Application',
+        lastLogin: new Date().toISOString(),
+        itemRisk: 'Medium',
+        accessedWithinAMonth: 'Accessed',
+        recommendation: 'Delegate',
+        isNew: false,
+        appTag: 'Test',
+        SoDConflicts: [],
+        deltaChange: '',
+        accountType: '',
+        userStatus: 'Active',
+      };
+      setEntitlementsData((prev: any[]) => [...prev, dummyDelegateRecord]);
+    }
+  }, [entitlementsData, selectedUser]);
+
   // Filter entitlements based on selected filters
   const filteredEntitlements = useMemo(() => {
     // Helper to apply account filter predicates
@@ -1597,6 +1713,10 @@ const TreeClient: React.FC<TreeClientProps> = ({
                 selectedRow={rowData}
                 onActionSuccess={() => {
                   refreshUsersAndEntitlements();
+                  // Check action states after refresh
+                  setTimeout(() => {
+                    checkActionStates();
+                  }, 500);
                 }}
               />
             </div>
@@ -1645,6 +1765,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
               onActionSuccess={() => {
                 // Fully refresh users and entitlements
                 refreshUsersAndEntitlements();
+                // Mark that a remediate action was performed
+                setActionStates(prev => ({ ...prev, remediate: true }));
               }}
             />
           );
@@ -2043,6 +2165,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       onFilterChange={handleAccountFilterChange}
                       context="status"
                       initialSelected="Pending"
+                      actionStates={actionStates}
                     />
                   </div>
                   <div className="flex items-center gap-2">
