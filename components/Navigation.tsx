@@ -195,19 +195,21 @@ export function Navigation() {
         })}
         
         {/* Expand/Collapse Arrow Button - Just below last item */}
-        <div className="flex justify-start items-center w-full mt-2 pl-2">
+        <div className={`flex items-center w-full mt-2 ${isSidebarExpanded ? 'px-2' : 'pl-2 justify-start'}`}>
           <button
             onClick={toggleExpand}
-            className="flex items-center justify-center w-10 h-10 rounded-md hover:bg-blue-600 transition-colors bg-blue-500 shadow-sm"
+            className={`flex items-center justify-center h-10 rounded-lg bg-blue-50 hover:bg-blue-100 active:bg-blue-200 transition-all duration-200 border border-blue-200 hover:border-blue-300 hover:shadow-md group ${
+              isSidebarExpanded ? 'w-full' : 'w-10'
+            }`}
             title={isSidebarExpanded ? "Collapse sidebar" : "Expand sidebar"}
             style={{
-              color: '#ffffff'
+              color: '#2563eb'
             }}
           >
             {isSidebarExpanded ? (
-              <ChevronLeft className="h-5 w-5" />
+              <ChevronLeft className="h-5 w-5 transition-transform duration-200 group-hover:translate-x-[-2px]" />
             ) : (
-              <ChevronRight className="h-5 w-5" />
+              <ChevronRight className="h-5 w-5 transition-transform duration-200 group-hover:translate-x-[2px]" />
             )}
           </button>
         </div>

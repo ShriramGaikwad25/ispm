@@ -1,7 +1,7 @@
 import { LineItemDetail } from "@/types/lineItem";
 import { PaginatedResponse, CertAnalyticsResponse } from "@/types/api";
 import { string } from "yup";
-import { apiRequestWithAuth, checkTokenExpiredError } from "./auth";
+import { apiRequestWithAuth, checkTokenExpiredError, getCookie, COOKIE_NAMES } from "./auth";
 
 const BASE_URL = "https://preview.keyforge.ai/certification/api/v1/ACMECOM";
 
@@ -499,17 +499,43 @@ export async function getAllApplications(): Promise<any> {
   const endpoint = "https://preview.keyforge.ai/registerscimapp/registerfortenant/ACMECOM/getAllApplications";
   
   try {
-    // This API doesn't require authentication headers
+    // Get access token for authentication
+    const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
+    
+    if (!accessToken) {
+      throw new Error('No access token available');
+    }
+    
+    // Make request with required headers for registerscimapp endpoints
     const response = await fetch(endpoint, {
       method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'Authorization': `Bearer ${accessToken}`,
+      },
     });
 
     if (!response.ok) {
       const errorText = await response.text();
+      // Check if error body contains token expired error
+      try {
+        const errorData = JSON.parse(errorText);
+        if (await checkTokenExpiredError(errorData)) {
+          throw new Error('Token Expired');
+        }
+      } catch (e) {
+        // If parsing fails, continue with original error
+      }
       throw new Error(`API request failed: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
     const data = await response.json();
+    // Check for token expired error in successful responses
+    if (await checkTokenExpiredError(data)) {
+      throw new Error('Token Expired');
+    }
+    
     console.log('getAllApplications response:', data);
     return data;
   } catch (error) {

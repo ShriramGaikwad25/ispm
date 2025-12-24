@@ -113,9 +113,12 @@ const ActionButtons = <T extends { status?: string }>({
   const isRejected = normalizedStatus === "rejected" || normalizedStatus === "revoked";
 
   // Local pending visualization: if all selected rows have same pending action, reflect it on the button
-  const selectedIds = definedRows
-    .map((row: any) => row.lineItemId || row.id)
-    .filter(Boolean) as string[];
+  // Filter out duplicates and invalid IDs
+  const selectedIds = Array.from(new Set(
+    definedRows
+      .map((row: any) => row.lineItemId || row.id)
+      .filter((id: any) => Boolean(id) && id !== 'undefined' && id !== 'null')
+  )) as string[];
   // Check both state and module-level storage for pending actions
   const getPendingAction = (id: string): 'Approve' | 'Reject' | 'Pending' | 'Remediate' | 'Delegate' | undefined => {
     return pendingById[id] || pendingActionsStorage.get(id);
@@ -167,14 +170,19 @@ const ActionButtons = <T extends { status?: string }>({
         justification,
       }));
     } else if (context === "entitlement") {
+      // Remove duplicates and invalid IDs to prevent double-counting
+      const uniqueLineItemIds = Array.from(new Set(
+        definedRows
+          .map(
+            (row: any) => row.lineItemId || (row as any)?.accountLineItemId
+          )
+          .filter((id: any) => Boolean(id) && id !== 'undefined' && id !== 'null')
+      ));
+      
       payload.entitlementAction = [
         {
           actionType,
-          lineItemIds: definedRows
-            .map(
-              (row: any) => row.lineItemId || (row as any)?.accountLineItemId
-            )
-            .filter((id: any) => Boolean(id)),
+          lineItemIds: uniqueLineItemIds,
           justification,
         },
       ];
@@ -195,20 +203,39 @@ const ActionButtons = <T extends { status?: string }>({
       // Prevent double submit but no global loading overlay
       setIsActionLoading(true);
 
-      // Do not send now; queue for submit. Adjust floating count based on toggle intent and current pending state
+      // Do not send now; queue for submit. Adjust floating count based on button fill state
       const targetIds =
         context === "entitlement"
           ? ((payload.entitlementAction?.[0]?.lineItemIds as string[]) || [])
           : selectedIds;
       const isTogglingToPending = actionType === 'Pending';
-      const previouslyPendingIds = targetIds.filter((id) => pendingById[id]);
-      const notPreviouslyPendingIds = targetIds.filter((id) => !pendingById[id]);
-      // Rules:
-      // - Approve/Reject adds count only for ids not already pending
-      // - Pending removes count for ids already pending; if none were pending (e.g., certified status), treat as a new change (+)
-      const countDelta = isTogglingToPending
-        ? (previouslyPendingIds.length > 0 ? -previouslyPendingIds.length : targetIds.length)
-        : notPreviouslyPendingIds.length;
+      
+      // Determine if buttons are currently filled (have Approve/Reject actions) or unfilled (Pending)
+      // Filled = has Approve/Reject action queued → should count
+      // Unfilled = Pending state → should not count (remove from count)
+      const currentlyFilledIds = targetIds.filter((id) => {
+        const pendingAction = pendingById[id];
+        return pendingAction === 'Approve' || pendingAction === 'Reject' || 
+               pendingAction === 'Remediate' || pendingAction === 'Delegate';
+      });
+      const currentlyUnfilledIds = targetIds.filter((id) => {
+        const pendingAction = pendingById[id];
+        return !pendingAction || pendingAction === 'Pending';
+      });
+      
+      // Rules based on button fill state:
+      // - Setting to Approve/Reject (fills button) → add to count for items that become filled
+      // - Setting to Pending (unfills button) → remove from count for items that become unfilled
+      let countDelta: number;
+      if (isTogglingToPending) {
+        // Setting to Pending (unfilling buttons) → remove count for items that were filled
+        // If items were already unfilled (Pending), no change needed
+        countDelta = -currentlyFilledIds.length;
+      } else {
+        // Setting to Approve/Reject (filling buttons) → add count for items that become filled
+        // Only count items that are currently unfilled (will become filled)
+        countDelta = currentlyUnfilledIds.length;
+      }
 
       queueAction({ reviewerId, certId, payload, count: countDelta });
 

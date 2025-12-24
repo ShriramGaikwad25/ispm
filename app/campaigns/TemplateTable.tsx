@@ -7,6 +7,7 @@ type AgGridReactType = any;
 import "@/lib/ag-grid-setup";
 import { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 import { Edit, Play } from "lucide-react";
+import { apiRequestWithAuth } from "@/lib/auth";
 
 type TemplateRow = {
   id: string;
@@ -34,21 +35,14 @@ const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow }) => {
     try {
       setIsLoading(true);
       setError(null);
-      const response = await fetch(
+      
+      // Use apiRequestWithAuth for better error handling and automatic token refresh
+      const data = await apiRequestWithAuth<any>(
         "https://preview.keyforge.ai/campaign/api/v1/ACMECOM/getAllCampaigns",
         {
           method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
         }
       );
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch campaigns: ${response.status}`);
-      }
-
-      const data = await response.json();
       console.log("Campaigns API response:", data);
 
       // Handle different response structures
@@ -97,7 +91,20 @@ const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow }) => {
       setError(null);
     } catch (error: any) {
       console.error("Error fetching templates:", error);
-      setError(error?.message || "Failed to fetch campaigns. Please try again later.");
+      
+      // Provide more specific error messages
+      let errorMessage = "Failed to fetch campaigns. Please try again later.";
+      
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        // Network error (CORS, connection failure, etc.)
+        errorMessage = "Network error: Unable to connect to the server. Please check your internet connection and try again.";
+      } else if (error?.message) {
+        errorMessage = error.message;
+      } else if (typeof error === "string") {
+        errorMessage = error;
+      }
+      
+      setError(errorMessage);
       // Set empty array on error instead of showing mock data
       setRows([]);
     } finally {

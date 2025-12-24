@@ -15,23 +15,41 @@ export function ensureAuthFetchPatched(): void {
   const originalFetch = window.fetch.bind(window);
 
   window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
-    const jwtToken = getCookie(COOKIE_NAMES.JWT_TOKEN);
+    try {
+      const jwtToken = getCookie(COOKIE_NAMES.JWT_TOKEN);
 
-    if (!jwtToken) {
+      if (!jwtToken) {
+        return originalFetch(input, init);
+      }
+
+      // Handle headers properly - convert to Headers object if needed
+      let headers: Headers;
+      if (init?.headers instanceof Headers) {
+        headers = new Headers(init.headers);
+      } else if (Array.isArray(init?.headers)) {
+        headers = new Headers(init.headers);
+      } else if (init?.headers && typeof init.headers === 'object') {
+        headers = new Headers(init.headers as Record<string, string>);
+      } else {
+        headers = new Headers();
+      }
+
+      // Only add Authorization header if it doesn't already exist
+      if (!headers.has("Authorization")) {
+        headers.set("Authorization", `Bearer ${jwtToken}`);
+      }
+
+      const nextInit: RequestInit = {
+        ...init,
+        headers,
+      };
+
+      return originalFetch(input, nextInit);
+    } catch (error) {
+      // If there's an error in the patch logic, fall back to original fetch
+      console.error("Error in auth fetch patch:", error);
       return originalFetch(input, init);
     }
-
-    const headers = new Headers(init?.headers ?? {});
-    if (!headers.has("Authorization")) {
-      headers.set("Authorization", `Bearer ${jwtToken}`);
-    }
-
-    const nextInit: RequestInit = {
-      ...init,
-      headers,
-    };
-
-    return originalFetch(input, nextInit);
   }) as typeof window.fetch;
 
   fetchPatched = true;

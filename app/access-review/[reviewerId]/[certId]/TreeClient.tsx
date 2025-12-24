@@ -24,7 +24,7 @@ import ColumnSettings from "@/components/agTable/ColumnSettings";
 import Filters from "@/components/agTable/Filters";
 import ActionButtons from "@/components/agTable/ActionButtons";
 import { useCertificationDetails, fetchAccessDetails } from "@/hooks/useApi";
-import { getLineItemDetails, getCertAnalytics } from "@/lib/api";
+import { getLineItemDetails, executeQuery } from "@/lib/api";
 import { CertAnalytics } from "@/types/api";
 import { EntitlementInfo } from "@/types/lineItem";
 import { UserRowData } from "@/types/certification";
@@ -463,11 +463,19 @@ const TreeClient: React.FC<TreeClientProps> = ({
     return () => { controller1.abort(); controller2.abort(); };
   }, []);
 
-  // Fetch cert analytics when reviewerId or certId changes
+  // Fetch cert analytics using executeQuery with two SQL queries
   useEffect(() => {
     const fetchAnalytics = async () => {
       if (!reviewerId || !certId) {
         setCertAnalytics(null);
+        return;
+      }
+      
+      // Get taskId from selected user, or fallback to first user if no user is selected
+      const taskId = selectedUser?.taskId || (users.length > 0 && users[0]?.taskId ? users[0].taskId : null);
+      
+      if (!taskId) {
+        // Wait for users to load
         return;
       }
       
@@ -476,13 +484,38 @@ const TreeClient: React.FC<TreeClientProps> = ({
       setCertAnalytics(null);
       
       try {
-        const response = await getCertAnalytics(reviewerId);
-        if (response?.analytics && response.analytics[certId]) {
-          setCertAnalytics(response.analytics[certId]);
-        } else {
-          // Clear analytics if certId not found in response
-          setCertAnalytics(null);
-        }
+        // First query: Get entitlement analytics
+        const entitlementQuery = `SELECT certificationid, COUNT(*) FILTER (WHERE isnewaccess = 'Y') AS newaccess_count, COUNT(*) FILTER (WHERE itemrisk = 'High') AS highriskentitlement_count, COUNT(*) AS total_entitlements FROM vw_api_entitlement_lineitems  WHERE taskid = ?::uuid AND certificationid = ?::uuid GROUP BY certificationid`;
+        
+        // Second query: Get account analytics
+        const accountQuery = `SELECT certificationid,COUNT(*) FILTER (WHERE isorphan = 'Y') AS orphan_count, COUNT(*) FILTER (WHERE isdormant = 'Y') AS dormant_count, COUNT(*) FILTER (WHERE isacctactive = 'N') AS inactiveaccount_count, COUNT(*) FILTER (WHERE isuseractive = 'N') AS inactiveuser_count, COUNT(*) FILTER (WHERE isviolations = 'Y') AS violations_count, COUNT(*) FILTER (WHERE isnewentity = 'Y') AS newaccount_count, COUNT(*) FILTER (WHERE itemrisk = 'High') AS highriskaccount_count, COUNT(*) AS total_accounts FROM vw_api_account_lineitems WHERE taskid = ?::uuid AND certificationid = ?::uuid GROUP BY certificationid`;
+        
+        const parameters = [taskId, certId];
+        
+        // Call both queries in parallel
+        const [entitlementResponse, accountResponse] = await Promise.all([
+          executeQuery<any>(entitlementQuery, parameters),
+          executeQuery<any>(accountQuery, parameters)
+        ]);
+        
+        // Combine results from both queries
+        const entitlementData = entitlementResponse?.resultSet?.[0] || {};
+        const accountData = accountResponse?.resultSet?.[0] || {};
+        
+        // Merge the results into certAnalytics format
+        const combinedAnalytics: CertAnalytics = {
+          newaccess_count: entitlementData.newaccess_count || 0,
+          highriskentitlement_count: entitlementData.highriskentitlement_count || 0,
+          orphan_count: accountData.orphan_count || 0,
+          dormant_count: accountData.dormant_count || 0,
+          inactiveaccount_count: accountData.inactiveaccount_count || 0,
+          inactiveuser_count: accountData.inactiveuser_count || 0,
+          violations_count: accountData.violations_count || 0,
+          newaccount_count: accountData.newaccount_count || 0,
+          highriskaccount_count: accountData.highriskaccount_count || 0,
+        };
+        
+        setCertAnalytics(combinedAnalytics);
       } catch (error) {
         console.error("Error fetching cert analytics:", error);
         setCertAnalytics(null);
@@ -492,7 +525,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
     };
 
     fetchAnalytics();
-  }, [reviewerId, certId]);
+  }, [reviewerId, certId, selectedUser, users]);
 
   // Calculate total certID related count from the specific certId's analytics
   const certIdCount = useMemo(() => {

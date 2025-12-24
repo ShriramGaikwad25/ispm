@@ -3,13 +3,14 @@ import { Control, FieldValues, Resolver, useForm, UseFormSetValue, UseFormWatch 
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import MultiSelect from "@/components/MultiSelect";
-import { loadUsers, customOption, loadIspmApps } from "@/components/MsAsyncData";
+import { loadUsers, loadGroups, customOption, loadIspmApps } from "@/components/MsAsyncData";
 import FileDropzone from "@/components/FileDropzone";
 import ToggleSwitch from "@/components/ToggleSwitch";
 import { asterisk, downArrow, userGroups, excludeUsers, defaultExpression } from "@/utils/utils";
 import ExpressionBuilder from "@/components/ExpressionBuilder";
 import { StepProps } from "@/types/stepTypes";
 import { validationSchema } from "./step1CombinedValidation";
+import { apiRequestWithAuth } from "@/lib/auth";
 
 // Combined form data type
 type CombinedStep1FormData = {
@@ -37,24 +38,37 @@ type CombinedStep1FormData = {
 // Function to fetch templates from API
 const loadTemplates = async (inputValue: string) => {
   try {
-    const response = await fetch("https://preview.keyforge.ai/campaign/api/v1/ACMECOM/getAllCampaigns", {
+    // Use apiRequestWithAuth for better error handling and automatic token refresh
+    const data = await apiRequestWithAuth<any>("https://preview.keyforge.ai/campaign/api/v1/ACMECOM/getAllCampaigns", {
       method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
     });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch templates: ${response.status}`);
+    
+    // Handle different response structures
+    let campaignsArray: any[] = [];
+    if (Array.isArray(data)) {
+      campaignsArray = data;
+    } else if (data && typeof data === "object") {
+      campaignsArray = data.items || data.data || data.campaigns || data.results || [];
+      if (campaignsArray.length === 0 && (data.id || data.name || data.campaignID)) {
+        campaignsArray = [data];
+      }
     }
-
-    const data = await response.json();
-    return data.map((template: { id: string; name: string }) => ({
-      label: template.name,
-      value: template.id,
+    
+    return campaignsArray.map((template: { id?: string; campaignID?: string; campaignId?: string; name?: string; campaignName?: string; templateName?: string }) => ({
+      label: template.name || template.campaignName || template.templateName || "Unnamed Campaign",
+      value: template.id || template.campaignID || template.campaignId || String(template.id || ""),
     }));
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error fetching templates:", error);
+    
+    // Provide more specific error messages
+    if (error instanceof TypeError && (error.message.includes("fetch") || error.message === "Failed to fetch")) {
+      console.error("Network error: Unable to connect to the server. This could be due to CORS, network connectivity, or server availability.");
+    } else if (error.message) {
+      console.error("API error:", error.message);
+    }
+    
+    // Return empty array on error - the component should handle this gracefully
     return [];
   }
 };
@@ -197,18 +211,11 @@ const Step1: React.FC<StepProps> = ({
     try {
       setIsLoadingTemplates(true);
       setTemplateError(null);
-      const response = await fetch(`YOUR_TEMPLATE_API_ENDPOINT/${selectedTemplate}`, {
+      
+      // Use apiRequestWithAuth for better error handling and automatic token refresh
+      const templateData = await apiRequestWithAuth<any>(`YOUR_TEMPLATE_API_ENDPOINT/${selectedTemplate}`, {
         method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch template details: ${response.status}`);
-      }
-
-      const templateData = await response.json();
       setValue("certificationTemplate", templateData.name || "", { shouldValidate: true });
       setValue("description", templateData.description || "", { shouldValidate: true });
     } catch (error) {
@@ -338,7 +345,7 @@ const Step1: React.FC<StepProps> = ({
                     className="max-w-[420px]"
                     control={control as unknown as Control<FieldValues>}
                     isAsync
-                    loadOptions={loadUsers}
+                    loadOptions={loadGroups}
                     components={{ Option: customOption }}
                     {...register("ownerGroup")}
                   />

@@ -1,15 +1,116 @@
 import Image from 'next/image';
-type User = {
-  id: number;
-  firstName: string;
-  lastName: string;
-  image: string; // Assuming image is a URL (string), not HTMLImageElement
-};
+import { executeQuery } from '@/lib/api';
+
+// Load users from ISPM API using executeQuery
 export const loadUsers = async (inputValue: string) => {
-    const response = await fetch(`https://dummyjson.com/users/search?q=${inputValue}`);
-    const data = await response.json();
-    return data.users.map((user:User) => ({ value: user.id, label: `${user.firstName} ${user.lastName}`, image: user.image }));
-  };
+  try {
+    // Build query with search filter
+    let query = "SELECT username, email, displayname, firstname, lastname FROM usr";
+    const parameters: string[] = [];
+    
+    if (inputValue && inputValue.trim()) {
+      const searchTerm = `%${inputValue.trim()}%`;
+      query += " WHERE username ILIKE ? OR email::text ILIKE ? OR displayname ILIKE ? OR firstname ILIKE ? OR lastname ILIKE ?";
+      parameters.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+    }
+    
+    const response = await executeQuery<any>(query, parameters);
+    
+    // Handle different response structures
+    let usersData: any[] = [];
+    if (response?.resultSet && Array.isArray(response.resultSet)) {
+      usersData = response.resultSet;
+    } else if (Array.isArray(response)) {
+      usersData = response;
+    } else if (response?.results && Array.isArray(response.results)) {
+      usersData = response.results;
+    } else if (response?.data && Array.isArray(response.data)) {
+      usersData = response.data;
+    } else if (response?.items && Array.isArray(response.items)) {
+      usersData = response.items;
+    }
+    
+    // Map to MultiSelect format
+    return usersData.map((user: any) => {
+      // Extract email
+      let emailValue = "";
+      if (user.email) {
+        if (typeof user.email === "string") {
+          emailValue = user.email;
+        } else if (user.email.work) {
+          emailValue = user.email.work;
+        } else if (Array.isArray(user.email) && user.email.length > 0) {
+          const primaryEmail = user.email.find((e: any) => e.primary) || user.email[0];
+          emailValue = primaryEmail?.value || "";
+        }
+      }
+      
+      // Get display name
+      const displayName = user.displayname || user.displayName || 
+                         `${user.firstname || ""} ${user.lastname || ""}`.trim() || 
+                         user.username || 
+                         "Unknown User";
+      
+      // Use username as value, display name as label
+      // Use a random user image from available user images for variety
+      const userImageIndex = Math.floor(Math.random() * 9) + 2; // Random between 2-11
+      return {
+        value: user.username || emailValue || String(user.id || ""),
+        label: displayName,
+        image: `/pictures/user_image${userImageIndex}.svg`,
+      };
+    });
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    return [];
+  }
+};
+
+// Load groups from ISPM API using executeQuery
+export const loadGroups = async (inputValue: string) => {
+  try {
+    // Build query with search filter
+    let query = "SELECT group_id, name FROM kf_groups";
+    const parameters: string[] = [];
+    
+    if (inputValue && inputValue.trim()) {
+      const searchTerm = `%${inputValue.trim()}%`;
+      query += " WHERE name ILIKE ?";
+      parameters.push(searchTerm);
+    }
+    
+    const response = await executeQuery<any>(query, parameters);
+    
+    // Handle different response structures
+    let groupsData: any[] = [];
+    if (response?.resultSet && Array.isArray(response.resultSet)) {
+      groupsData = response.resultSet;
+    } else if (Array.isArray(response)) {
+      groupsData = response;
+    } else if (response?.results && Array.isArray(response.results)) {
+      groupsData = response.results;
+    } else if (response?.data && Array.isArray(response.data)) {
+      groupsData = response.data;
+    } else if (response?.items && Array.isArray(response.items)) {
+      groupsData = response.items;
+    }
+    
+    // Map to MultiSelect format
+    return groupsData.map((group: any) => {
+      const groupName = group.name || "Unknown Group";
+      const groupId = group.group_id || group.id || "";
+      
+      return {
+        value: groupId,
+        label: groupName,
+        image: "/window.svg", // Default icon for groups
+      };
+    });
+  } catch (error) {
+    console.error("Error fetching groups:", error);
+    return [];
+  }
+};
 
 type App = {
   label: string;

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { BackButton } from "@/components/BackButton";
-import { Mail, Calendar, User, FileText } from "lucide-react";
+import { Mail, Calendar, User, FileText, Edit } from "lucide-react";
 
 interface EmailTemplate {
   id: number;
@@ -101,6 +101,15 @@ export default function EmailTemplateDetailPage() {
             {template ? template.templateName : "Email Template Details"}
           </h1>
         </div>
+        {template && (
+          <button
+            onClick={() => router.push(`/settings/gateway/email-templates/edit/${template.id}`)}
+            className="flex items-center gap-2 px-4 py-2 bg-white text-[#27B973] rounded-md hover:bg-gray-100 transition-colors font-medium"
+          >
+            <Edit className="w-4 h-4" />
+            Edit
+          </button>
+        )}
       </div>
 
       {/* Main Content Area */}
