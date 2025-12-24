@@ -199,7 +199,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const isReadOnly = searchParams.get("readonly") === "true";
 
   const pageSizeSelector = [10, 20, 50, 100];
-  const [pageSize, setPageSize] = useState(pageSizeSelector[0]);
+  // Separate pagination for users sidebar - fixed at 10 users per page
+  const [usersPageSize, setUsersPageSize] = useState(10);
   const [pageNumber, setPageNumber] = useState(() => {
     const pageParam = searchParams.get('page');
     return pageParam ? parseInt(pageParam, 10) : 1;
@@ -210,7 +211,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
-  // Entitlements pagination
+  // Entitlements pagination - separate from users pagination
+  const [entitlementsPageSize, setEntitlementsPageSize] = useState(pageSizeSelector[0]);
   const [entitlementsPageNumber, setEntitlementsPageNumber] = useState(1);
   // Server-side status filter for entitlements (maps to query string, e.g. "action eq Reject")
   const [statusFilterQuery, setStatusFilterQuery] = useState<string | undefined>(undefined);
@@ -521,7 +523,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const { data: certificationDetailsData, error, refetch: refetchUsers } = useCertificationDetails(
     reviewerId,
     certId,
-    pageSize,
+    usersPageSize,
     pageNumber
   );
 
@@ -686,7 +688,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
         certId,
         user.taskId,
         undefined,
-        pageSize,
+        entitlementsPageSize,
         page
       );
 
@@ -1221,7 +1223,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
           certId,
           selectedUser.taskId,
           undefined,
-          pageSize,
+          entitlementsPageSize,
           entitlementsPageNumber,
           undefined,
           undefined,
@@ -1249,7 +1251,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
         : [...prev, filterName];
       return newFilters;
     });
-  }, [selectedFilters, selectedUser, reviewerId, certId, pageSize, entitlementsPageNumber, loadUserEntitlements, processFilteredEntitlements]);
+  }, [selectedFilters, selectedUser, reviewerId, certId, entitlementsPageSize, entitlementsPageNumber, loadUserEntitlements, processFilteredEntitlements]);
 
   // Handle filter changes from Filters component
   const handleAppliedFilter = useCallback(
@@ -1526,20 +1528,20 @@ const TreeClient: React.FC<TreeClientProps> = ({
     }
     
     // Calculate the start and end indices for the entRowsWithDesc array
-    // Each "page" contains pageSize records, which means pageSize * 2 rows total
-    const startIndex = (entitlementsPageNumber - 1) * pageSize * 2;
-    const endIndex = startIndex + (pageSize * 2);
+    // Each "page" contains entitlementsPageSize records, which means entitlementsPageSize * 2 rows total
+    const startIndex = (entitlementsPageNumber - 1) * entitlementsPageSize * 2;
+    const endIndex = startIndex + (entitlementsPageSize * 2);
     
     const paginated = entRowsWithDesc.slice(startIndex, endIndex);
     currentPaginatedDataRef.current = paginated;
     return paginated;
-  }, [entRowsWithDesc, entitlementsPageNumber, pageSize]);
+  }, [entRowsWithDesc, entitlementsPageNumber, entitlementsPageSize]);
 
   // Update entitlements pagination totals based on filtered data
   useEffect(() => {
     // filteredEntitlements already contains only actual entitlement rows (no description rows)
     const totalItems = filteredEntitlements.length;
-    const totalPages = Math.ceil(totalItems / pageSize);
+    const totalPages = Math.ceil(totalItems / entitlementsPageSize);
     
     setEntitlementsTotalItems(totalItems);
     setEntitlementsTotalPages(totalPages);
@@ -1551,7 +1553,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
       }
       return currentPage;
     });
-  }, [filteredEntitlements, pageSize]);
+  }, [filteredEntitlements, entitlementsPageSize]);
 
   // Robust resize function that checks container readiness
   const resizeColumnsWithRetry = useCallback((maxRetries = 5, delay = 200) => {
@@ -1980,11 +1982,11 @@ const TreeClient: React.FC<TreeClientProps> = ({
         onMouseLeave={() => setIsSidebarHovered(false)}
       >
         {/* Navigation Arrow - Up */}
-        <div className="px-1 py-1 border-b border-gray-200">
+        <div className="px-1 py-2 border-b border-gray-200">
           <button
             onClick={handleScrollUp}
             disabled={!canScrollUp || sidebarLoading}
-            className={`w-full py-1 px-2 rounded transition-all duration-200 ${
+            className={`w-full py-2 px-2 rounded transition-all duration-200 ${
               canScrollUp && !sidebarLoading
                 ? "bg-gray-100 hover:bg-gray-200 text-gray-700"
                 : "bg-gray-50 text-gray-400 cursor-not-allowed"
@@ -2007,15 +2009,15 @@ const TreeClient: React.FC<TreeClientProps> = ({
               value={userSearch}
               onChange={(e) => setUserSearch(e.target.value)}
               placeholder="Search users..."
-              className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400"
+              className="w-full px-2 py-2 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400"
             />
           ) : (
-            <div className="w-full px-2 py-1 text-xs" style={{ height: '28px' }}></div>
+            <div className="w-full px-2 py-2 text-xs" style={{ height: '36px' }}></div>
           )}
         </div>
 
         {/* Users List */}
-        <div className="flex-1 flex flex-col justify-start pt-2 pb-2 px-1">
+        <div className="flex flex-col justify-start pt-2 pb-2 pl-1 pr-0" style={{ height: '520px', overflow: 'hidden' }}>
           {sidebarLoading ? (
             <div className="flex items-center justify-center h-32">
               <div className="text-gray-500 text-sm">Loading users...</div>
@@ -2031,12 +2033,12 @@ const TreeClient: React.FC<TreeClientProps> = ({
                 <div
                   key={user.id}
                   onClick={() => handleUserSelect(user)}
-                  className={`user-item px-3 py-2 rounded-none cursor-pointer transition-all duration-200 ${
+                  className={`user-item ${isSidebarHovered ? "px-3" : "pl-1 pr-0"} py-2 rounded-none cursor-pointer transition-all duration-200 border-s-4 ${
                     isSidebarHovered ? "expanded" : "minimized"
                   } ${
                     selectedUser?.id === user.id
-                      ? "border-s-4 border-blue-500"
-                      : ""
+                      ? "border-blue-500"
+                      : "border-transparent"
                   }`}
                 >
                   <div
@@ -2048,17 +2050,16 @@ const TreeClient: React.FC<TreeClientProps> = ({
                   >
                     {/* User Avatar/Initials */}
                     <div
-                      className={`relative flex-shrink-0 ${
-                        !isSidebarHovered ? "ml-2" : ""
-                      } pointer-events-auto`}
+                      className="relative flex-shrink-0 pointer-events-auto"
                       onMouseEnter={handleAvatarEnter}
                       onMouseLeave={handleAvatarLeave}
                     >
                       {!isSidebarHovered ? (
                         <div
-                          className={`w-8 h-8 rounded-full bg-blue-200 text-blue-600 flex items-center justify-center font-semibold text-xs mx-auto avatar-hover-trigger ${
+                          className={`w-8 h-8 rounded bg-blue-200 text-blue-600 flex items-center justify-center font-semibold text-xs mx-auto avatar-hover-trigger leading-none ${
                             selectedUser?.id === user.id ? "bg-blue-200 " : ""
                           }`}
+                          style={{ lineHeight: '1' }}
                         >
                           {getUserInitials(user.fullName || "")}
                         </div>
@@ -2116,11 +2117,11 @@ const TreeClient: React.FC<TreeClientProps> = ({
         </div>
 
         {/* Navigation Arrow - Down */}
-        <div className="px-1 py-1 border-t border-gray-200">
+        <div className="px-1 py-2 border-t border-gray-200 mt-2">
           <button
             onClick={handleScrollDown}
             disabled={!canScrollDown || sidebarLoading}
-            className={`w-full py-1 px-2 rounded transition-all duration-200 ${
+            className={`w-full py-2 px-2 rounded transition-all duration-200 ${
               canScrollDown && !sidebarLoading
                 ? "bg-gray-100 hover:bg-gray-200 text-gray-700"
                 : "bg-gray-50 text-gray-400 cursor-not-allowed"
@@ -2405,10 +2406,10 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       totalItems={entitlementsTotalItems}
                       currentPage={entitlementsPageNumber}
                       totalPages={entitlementsTotalPages}
-                      pageSize={pageSize}
+                      pageSize={entitlementsPageSize}
                       onPageChange={handleEntitlementsPageChange}
                       onPageSizeChange={(newPageSize) => {
-                        setPageSize(newPageSize);
+                        setEntitlementsPageSize(newPageSize);
                         setEntitlementsPageNumber(1); // Reset to first page when changing page size
                       }}
                       pageSizeOptions={pageSizeSelector}
@@ -2535,10 +2536,10 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     totalItems={entitlementsTotalItems}
                     currentPage={entitlementsPageNumber}
                     totalPages={entitlementsTotalPages}
-                    pageSize={pageSize}
+                    pageSize={entitlementsPageSize}
                     onPageChange={handleEntitlementsPageChange}
                     onPageSizeChange={(newPageSize) => {
-                      setPageSize(newPageSize);
+                      setEntitlementsPageSize(newPageSize);
                       setEntitlementsPageNumber(1); // Reset to first page when changing page size
                     }}
                     pageSizeOptions={pageSizeSelector}
