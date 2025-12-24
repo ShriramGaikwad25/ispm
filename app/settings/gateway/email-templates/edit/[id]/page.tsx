@@ -453,13 +453,13 @@ export default function EditEmailTemplatePage() {
         id: parseInt(params.id),
         templateCode: formData.templateCode,
         templateName: formData.templateName,
-        description: formData.description || undefined,
+        description: formData.description || "",
         subject: formData.subject,
         body: formData.body,
         templateType: formData.templateType,
         active: formData.active,
-        ...(formData.createdBy && { createdBy: formData.createdBy }),
-        ...(formData.updatedBy && { updatedBy: formData.updatedBy }),
+        createdBy: formData.createdBy || "system",
+        updatedBy: formData.updatedBy || "system",
       };
 
       // Call API to update template
@@ -740,7 +740,10 @@ export default function EditEmailTemplatePage() {
                     <input
                       type="text"
                       value={formData.templateCode}
-                      onChange={(e) => handleFieldChange("templateCode", e.target.value)}
+                      onChange={(e) => {
+                        const transformedValue = e.target.value.toUpperCase().replace(/\s+/g, '_');
+                        handleFieldChange("templateCode", transformedValue);
+                      }}
                       onFocus={() => handleFieldFocus("templateCode")}
                       onBlur={() => handleFieldBlur("templateCode")}
                       className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white transition-all"
