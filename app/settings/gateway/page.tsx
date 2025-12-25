@@ -72,6 +72,13 @@ export default function GatewaySettings() {
       href: '/settings/gateway/workflow-builder',
       icon: <Workflow className="w-5 h-5 text-gray-600" />,
     },
+    {
+      id: 'entitlement-management',
+      title: 'Entitlement Management',
+      subtitle: 'Manage and configure entitlements and access permissions.',
+      href: '/settings/gateway/entitlement-management',
+      icon: <ShieldCheck className="w-5 h-5 text-gray-600" />,
+    },
   ];
 
   const filteredCards = useMemo(() => {

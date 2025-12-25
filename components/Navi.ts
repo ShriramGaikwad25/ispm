@@ -90,8 +90,7 @@ export const navLinks: NavItem[] = [
     subItems: [
       { name: 'App Inventory', href: '/settings/app-inventory', icon: Package },
       { name: 'Onboard App', href: '/settings/onboard-app', icon: Plus },
-      { name: 'Gateway', href: '/settings/gateway', icon: Server },
-      { name: 'Entitlement Management', href: '/settings/entitlement-management', icon: ShieldCheck }
+      { name: 'Gateway', href: '/settings/gateway', icon: Server }
     ]
   }
 ];
