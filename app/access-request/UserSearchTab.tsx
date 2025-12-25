@@ -40,8 +40,8 @@ const UserSearchTab: React.FC = () => {
     setHasSearched(true);
 
     try {
-      // Build query to get all users from operations department with specified fields
-      const query = `SELECT firstname, lastname, email, username, employeeid, department, title FROM usr WHERE lower(department) = ?`;
+      // Build query to get all users with specified fields
+      const query = `SELECT firstname, lastname, email, username, employeeid, department, title FROM usr`;
 
       const response = await fetch(
         "https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery",
@@ -52,7 +52,7 @@ const UserSearchTab: React.FC = () => {
           },
           body: JSON.stringify({
             query: query,
-            parameters: ["operations"],
+            parameters: [],
           }),
         }
       );

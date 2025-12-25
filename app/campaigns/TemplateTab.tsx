@@ -3,12 +3,9 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import TemplateTable from "./TemplateTable";
-import RunNowSidebar from "./RunNowSidebar";
-import { useRightSidebar } from "@/contexts/RightSidebarContext";
 
 const TemplateTab: React.FC = () => {
   const router = useRouter();
-  const { openSidebar } = useRightSidebar();
 
   const handleEdit = (template: any) => {
     // Navigate to edit page with template ID
@@ -16,20 +13,9 @@ const TemplateTab: React.FC = () => {
   };
 
   const handleRunNow = (template: any) => {
-    const handleRunNowSubmit = (data: any) => {
-      // Handle Run Now submission
-      console.log("Run Now data:", data);
-      // TODO: Call API to run the template
-      alert("Campaign started successfully!");
-    };
-
-    openSidebar(
-      <RunNowSidebar
-        template={template}
-        onRunNow={handleRunNowSubmit}
-      />,
-      { widthPx: 600 }
-    );
+    // Navigate to schedule page with template ID and name
+    const templateName = encodeURIComponent(template.name || "Template");
+    router.push(`/campaigns/schedule/${template.id}?name=${templateName}`);
   };
 
   return <TemplateTable onEdit={handleEdit} onRunNow={handleRunNow} />;

@@ -1,13 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useMemo } from "react";
 import dynamic from "next/dynamic";
 const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
 type AgGridReactType = any;
 import "@/lib/ag-grid-setup";
 import { ColDef, ICellRendererParams } from "ag-grid-enterprise";
-import { Edit, Play } from "lucide-react";
-import { apiRequestWithAuth } from "@/lib/auth";
+import { Edit, Calendar } from "lucide-react";
 
 type TemplateRow = {
   id: string;
@@ -26,95 +25,58 @@ interface TemplateTableProps {
 
 const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow }) => {
   const gridRef = React.useRef<AgGridReactType>(null);
-  const [rows, setRows] = useState<TemplateRow[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
 
-  // Extract fetch logic into a reusable function
-  const fetchTemplates = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      // Use apiRequestWithAuth for better error handling and automatic token refresh
-      const data = await apiRequestWithAuth<any>(
-        "https://preview.keyforge.ai/campaign/api/v1/ACMECOM/getAllCampaigns",
-        {
-          method: "GET",
-        }
-      );
-      console.log("Campaigns API response:", data);
-
-      // Handle different response structures
-      // The API might return an array directly or an object with a data/items property
-      let campaignsArray: any[] = [];
-      if (Array.isArray(data)) {
-        campaignsArray = data;
-      } else if (data && typeof data === "object") {
-        // Try common response structures
-        campaignsArray = data.items || data.data || data.campaigns || data.results || [];
-        // If still empty, check if response itself is a single campaign object
-        if (campaignsArray.length === 0 && (data.id || data.name || data.campaignID)) {
-          campaignsArray = [data];
-        }
-      }
-
-      // Map API response to TemplateRow format
-      const mappedTemplates: TemplateRow[] = campaignsArray.map((campaign: any) => ({
-        id: campaign.id || campaign.campaignID || campaign.campaignId || String(campaign.id || ""),
-        name: campaign.name || campaign.campaignName || campaign.templateName || "Unnamed Campaign",
-        owner: campaign.owner || 
-               campaign.ownerName || 
-               (Array.isArray(campaign.campaignOwner?.ownerName) 
-                 ? campaign.campaignOwner.ownerName.join(", ") 
-                 : campaign.campaignOwner?.ownerName) ||
-               campaign.createdBy ||
-               "Unknown",
-        createdOn: campaign.createdOn || 
-                  campaign.createdDate || 
-                  campaign.created || 
-                  campaign.startDate ||
-                  campaign.campaignStartDate ||
-                  new Date().toISOString(),
-        lastRun: campaign.lastRun || 
-                campaign.lastRunDate || 
-                campaign.lastExecuted ||
-                null,
-        nextRun: campaign.nextRun || 
-                campaign.nextRunDate || 
-                campaign.scheduledRun ||
-                null,
-        templateData: campaign, // Store full template data for editing
-      }));
-
-      setRows(mappedTemplates);
-      setError(null);
-    } catch (error: any) {
-      console.error("Error fetching templates:", error);
-      
-      // Provide more specific error messages
-      let errorMessage = "Failed to fetch campaigns. Please try again later.";
-      
-      if (error instanceof TypeError && error.message.includes("fetch")) {
-        // Network error (CORS, connection failure, etc.)
-        errorMessage = "Network error: Unable to connect to the server. Please check your internet connection and try again.";
-      } else if (error?.message) {
-        errorMessage = error.message;
-      } else if (typeof error === "string") {
-        errorMessage = error;
-      }
-      
-      setError(errorMessage);
-      // Set empty array on error instead of showing mock data
-      setRows([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchTemplates();
-  }, [fetchTemplates]);
+  // Dummy data for templates
+  const rows = useMemo<TemplateRow[]>(() => [
+    {
+      id: "1",
+      name: "Quarterly Access Review",
+      owner: "John Smith",
+      createdOn: new Date(2024, 0, 15).toISOString(),
+      lastRun: new Date(2024, 2, 1).toISOString(),
+      nextRun: new Date(2024, 5, 1).toISOString(),
+    },
+    {
+      id: "2",
+      name: "Monthly Compliance Check",
+      owner: "Sarah Johnson",
+      createdOn: new Date(2024, 1, 10).toISOString(),
+      lastRun: new Date(2024, 2, 10).toISOString(),
+      nextRun: new Date(2024, 3, 10).toISOString(),
+    },
+    {
+      id: "3",
+      name: "Annual Security Audit",
+      owner: "Michael Chen",
+      createdOn: new Date(2023, 11, 1).toISOString(),
+      lastRun: new Date(2023, 11, 15).toISOString(),
+      nextRun: new Date(2024, 11, 1).toISOString(),
+    },
+    {
+      id: "4",
+      name: "Department Access Review",
+      owner: "Emily Davis",
+      createdOn: new Date(2024, 2, 5).toISOString(),
+      lastRun: null,
+      nextRun: new Date(2024, 3, 5).toISOString(),
+    },
+    {
+      id: "5",
+      name: "Executive Privilege Review",
+      owner: "Robert Wilson",
+      createdOn: new Date(2024, 0, 20).toISOString(),
+      lastRun: new Date(2024, 1, 20).toISOString(),
+      nextRun: null,
+    },
+    {
+      id: "6",
+      name: "IT Admin Access Review",
+      owner: "Lisa Anderson",
+      createdOn: new Date(2024, 1, 28).toISOString(),
+      lastRun: new Date(2024, 2, 28).toISOString(),
+      nextRun: new Date(2024, 3, 28).toISOString(),
+    },
+  ], []);
 
   const columnDefs = React.useMemo<ColDef[]>(
     () => [
@@ -176,7 +138,7 @@ const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow }) => {
             <div className="flex items-center gap-3 h-full">
               <button
                 onClick={() => onEdit(params.data)}
-                className="p-1.5 rounded hover:bg-gray-100 text-blue-600 hover:text-blue-800 transition-colors"
+                className="p-1.5 rounded-full border-2 border-blue-600 hover:bg-blue-50 text-blue-600 hover:text-blue-800 transition-colors"
                 title="Edit"
                 aria-label="Edit template"
               >
@@ -184,11 +146,11 @@ const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow }) => {
               </button>
               <button
                 onClick={() => onRunNow(params.data)}
-                className="p-1.5 rounded hover:bg-gray-100 text-green-600 hover:text-green-800 transition-colors"
-                title="Run Now"
-                aria-label="Run template now"
+                className="p-1.5 rounded-full border-2 border-green-600 hover:bg-green-50 text-green-600 hover:text-green-800 transition-colors"
+                title="Schedule"
+                aria-label="Schedule template"
               >
-                <Play className="w-4 h-4" />
+                <Calendar className="w-4 h-4" />
               </button>
             </div>
           );
@@ -197,24 +159,6 @@ const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow }) => {
     ],
     [onEdit, onRunNow]
   );
-
-  if (isLoading) {
-    return <div className="flex justify-center items-center h-96">Loading templates...</div>;
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col justify-center items-center h-96">
-        <div className="text-red-600 mb-2">{error}</div>
-        <button
-          onClick={fetchTemplates}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-        >
-          Retry
-        </button>
-      </div>
-    );
-  }
 
   return (
     <div className="h-96 w-full">

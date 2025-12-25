@@ -422,8 +422,8 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({ onApply }) => {
       setHasSearched(true);
 
       try {
-        // Build query to get all users from operations department - only select username and email
-        const query = `SELECT username, email FROM usr WHERE lower(department) = ?`;
+        // Build query to get all users with specified fields
+        const query = `SELECT firstname, lastname, email, username, employeeid, department, title FROM usr`;
 
         const response = await fetch(
           "https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery",
@@ -434,7 +434,7 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({ onApply }) => {
             },
             body: JSON.stringify({
               query: query,
-              parameters: ["operations"],
+              parameters: [],
             }),
           }
         );
@@ -467,30 +467,50 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({ onApply }) => {
               }
             }
             
+            // Construct name from firstname and lastname
+            let nameValue = "";
+            if (user.firstname || user.lastname) {
+              const firstName = user.firstname || "";
+              const lastName = user.lastname || "";
+              nameValue = `${firstName} ${lastName}`.trim();
+            } else {
+              nameValue = user.username || "";
+            }
+            
             return {
-              username: user.username || "",
+              name: nameValue,
               email: emailValue,
+              username: user.username || "",
+              employeeid: (user.employeeid || "").toString(),
+              department: user.department || "",
+              jobtitle: user.title || "",
             };
           });
         }
 
         // Convert to User format expected by the component
         const normalizedUsers: User[] = usersData.map((user, index) => ({
-          id: `user-${index}-${user.username}`,
-          name: user.username, // Using username as name since we don't have full name
+          id: `user-${index}-${user.username || user.email || index}`,
+          name: user.name || user.username || "",
           email: user.email,
           username: user.username,
-          department: "",
-          jobTitle: "",
+          department: user.department || "",
+          jobTitle: user.jobtitle || "",
+          employeeId: user.employeeid || undefined,
         }));
 
         // Filter client-side based on search value
         const filteredUsers = normalizedUsers.filter((user) => {
-          const searchLower = searchValue.toLowerCase();
+          const searchLower = searchValue.toLowerCase().trim();
+          if (!searchLower) return false;
+          
           return (
-            user.username.toLowerCase().includes(searchLower) ||
-            user.email.toLowerCase().includes(searchLower) ||
-            user.name.toLowerCase().includes(searchLower)
+            user.name?.toLowerCase().includes(searchLower) ||
+            user.username?.toLowerCase().includes(searchLower) ||
+            user.email?.toLowerCase().includes(searchLower) ||
+            user.department?.toLowerCase().includes(searchLower) ||
+            user.jobTitle?.toLowerCase().includes(searchLower) ||
+            user.employeeId?.toLowerCase().includes(searchLower)
           );
         });
 
@@ -595,7 +615,7 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({ onApply }) => {
                 value={searchValue}
                 onChange={(e) => setSearchValue(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="Search by username or email..."
+                placeholder="Search by name, username, email, department, job title..."
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
