@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { BackButton } from "@/components/BackButton";
 import { ShieldCheck } from "lucide-react";
 import ClientOnlyAgGrid from "@/components/ClientOnlyAgGrid";
@@ -50,7 +50,7 @@ const ENTITLEMENT_FIELDS = [
   'Action on Native Change'
 ];
 
-interface EntitlementRow {
+interface EntitlementData {
   id: string;
   // Main fields
   entName?: string;
@@ -104,13 +104,40 @@ interface EntitlementRow {
   fieldGenAI?: Record<string, boolean>;
 }
 
+interface FieldRow {
+  id: string; // entitlementId-fieldName combination
+  entitlementId: string;
+  fieldName: string;
+  selection: boolean;
+  genAI: boolean;
+}
+
 export default function EntitlementManagementSettings() {
-  const [rows, setRows] = useState<EntitlementRow[]>([]);
+  const [entitlements, setEntitlements] = useState<EntitlementData[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState<number | 'all'>(10);
   const [dataLoaded, setDataLoaded] = useState<boolean>(false);
+  const gridApiRef = useRef<any>(null);
+  const [renderKey, setRenderKey] = useState(0);
+
+  // Transform entitlements into field-level rows
+  const fieldRows = useMemo(() => {
+    const rows: FieldRow[] = [];
+    entitlements.forEach(ent => {
+      ENTITLEMENT_FIELDS.forEach(field => {
+        rows.push({
+          id: `${ent.id}-${field}`,
+          entitlementId: ent.id,
+          fieldName: field,
+          selection: ent.fieldSelection?.[field] || false,
+          genAI: ent.fieldGenAI?.[field] || false
+        });
+      });
+    });
+    return rows;
+  }, [entitlements]);
 
   useEffect(() => {
     if (dataLoaded) return; // Prevent duplicate loading
@@ -128,7 +155,7 @@ export default function EntitlementManagementSettings() {
         // if (isMounted) setRows(data);
         
         // Placeholder data for now - includes all fields from Entitlement Details sidebar
-        const placeholderData: EntitlementRow[] = [
+        const placeholderData: EntitlementData[] = [
           {
             id: '1',
             entName: 'Administrator Access',
@@ -177,7 +204,7 @@ export default function EntitlementManagementSettings() {
           }
         ];
         if (isMounted) {
-          setRows(placeholderData);
+          setEntitlements(placeholderData);
           setDataLoaded(true);
         }
       } catch (e: any) {
@@ -197,32 +224,36 @@ export default function EntitlementManagementSettings() {
     };
   }, [dataLoaded]);
 
-  const handleSelectionChange = (id: string, fieldName: string, checked: boolean) => {
-    setRows(prev => prev.map(row => {
-      if (row.id === id) {
-        const fieldSelection = row.fieldSelection || {};
-        return { ...row, fieldSelection: { ...fieldSelection, [fieldName]: checked } };
-      }
-      return row;
-    }));
+  const handleSelectionChange = (entitlementId: string, fieldName: string, checked: boolean) => {
+    setEntitlements(prev => {
+      return prev.map(ent => {
+        if (ent.id === entitlementId) {
+          const fieldSelection = ent.fieldSelection || {};
+          return { ...ent, fieldSelection: { ...fieldSelection, [fieldName]: checked } };
+        }
+        return ent;
+      });
+    });
   };
 
-  const handleGenAIChange = (id: string, fieldName: string, checked: boolean) => {
-    setRows(prev => prev.map(row => {
-      if (row.id === id) {
-        const fieldGenAI = row.fieldGenAI || {};
-        return { ...row, fieldGenAI: { ...fieldGenAI, [fieldName]: checked } };
-      }
-      return row;
-    }));
+  const handleGenAIChange = (entitlementId: string, fieldName: string, checked: boolean) => {
+    setEntitlements(prev => {
+      return prev.map(ent => {
+        if (ent.id === entitlementId) {
+          const fieldGenAI = ent.fieldGenAI || {};
+          return { ...ent, fieldGenAI: { ...fieldGenAI, [fieldName]: checked } };
+        }
+        return ent;
+      });
+    });
   };
 
   const paginatedRows = useMemo(() => {
-    if (pageSize === 'all') return rows;
+    if (pageSize === 'all') return fieldRows;
     const start = (currentPage - 1) * (pageSize as number);
     const end = start + (pageSize as number);
-    return rows.slice(start, end);
-  }, [rows, currentPage, pageSize]);
+    return fieldRows.slice(start, end);
+  }, [fieldRows, currentPage, pageSize]);
 
   return (
     <div className="h-full p-6">
@@ -245,76 +276,64 @@ export default function EntitlementManagementSettings() {
             {error && <div className="px-5 py-3 text-sm text-red-600">{error}</div>}
             <div className="ag-theme-alpine w-full">
               <ClientOnlyAgGrid
+                key={renderKey}
                 rowData={paginatedRows}
+                onGridReady={(params: any) => {
+                  gridApiRef.current = params.api;
+                }}
+                getRowId={(params: any) => params.data.id}
                 columnDefs={[
                   { 
                     headerName: 'Entitlement Meta Data', 
-                    field: 'entName',
+                    field: 'fieldName',
                     flex: 2,
                     sortable: true,
                     filter: true,
                     cellRenderer: (params: any) => {
                       return (
-                        <div className="py-2 text-sm">
-                          {ENTITLEMENT_FIELDS.map((field, index) => (
-                            <div key={field} className="h-6 flex items-center">
-                              <strong>{field}</strong>
-                            </div>
-                          ))}
+                        <div className="py-2 text-sm h-6 flex items-center">
+                          <strong>{params.value}</strong>
                         </div>
                       );
-                    },
-                    autoHeight: true
+                    }
                   },
                   { 
                     headerName: 'Selection', 
                     field: 'selection',
                     width: 120,
                     cellRenderer: (params: any) => {
-                      const fieldSelection = params.data.fieldSelection || {};
                       return (
-                        <div className="py-2">
-                          {ENTITLEMENT_FIELDS.map((field) => (
-                            <div key={field} className="h-6 flex items-center justify-center">
-                              <input
-                                type="checkbox"
-                                checked={fieldSelection[field] || false}
-                                onChange={(e) => handleSelectionChange(params.data.id, field, e.target.checked)}
-                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                              />
-                            </div>
-                          ))}
+                        <div className="h-6 flex items-center justify-center">
+                          <input
+                            type="checkbox"
+                            checked={params.value || false}
+                            onChange={(e) => handleSelectionChange(params.data.entitlementId, params.data.fieldName, e.target.checked)}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
                         </div>
                       );
                     },
                     sortable: false,
-                    filter: false,
-                    autoHeight: true
+                    filter: false
                   },
                   { 
                     headerName: 'GenAI', 
                     field: 'genAI',
                     width: 120,
                     cellRenderer: (params: any) => {
-                      const fieldGenAI = params.data.fieldGenAI || {};
                       return (
-                        <div className="py-2">
-                          {ENTITLEMENT_FIELDS.map((field) => (
-                            <div key={field} className="h-6 flex items-center justify-center">
-                              <input
-                                type="checkbox"
-                                checked={fieldGenAI[field] || false}
-                                onChange={(e) => handleGenAIChange(params.data.id, field, e.target.checked)}
-                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                              />
-                            </div>
-                          ))}
+                        <div className="h-6 flex items-center justify-center">
+                          <input
+                            type="checkbox"
+                            checked={params.value || false}
+                            onChange={(e) => handleGenAIChange(params.data.entitlementId, params.data.fieldName, e.target.checked)}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
                         </div>
                       );
                     },
                     sortable: false,
-                    filter: false,
-                    autoHeight: true
+                    filter: false
                   }
                 ]}
                 domLayout="autoHeight"
@@ -322,9 +341,9 @@ export default function EntitlementManagementSettings() {
             </div>
             <div className="mt-1">
               <CustomPagination
-                totalItems={rows.length}
+                totalItems={fieldRows.length}
                 currentPage={currentPage}
-                totalPages={pageSize === 'all' ? 1 : Math.max(1, Math.ceil(rows.length / (pageSize as number)))}
+                totalPages={pageSize === 'all' ? 1 : Math.max(1, Math.ceil(fieldRows.length / (pageSize as number)))}
                 pageSize={pageSize}
                 onPageChange={setCurrentPage}
                 onPageSizeChange={(sz) => { setPageSize(sz); setCurrentPage(1); }}
