@@ -426,10 +426,15 @@ const HeaderContent = () => {
     const candidates = getAvatarCandidates(u);
     const index = Math.max(0, avatarErrorIndexByKey[userKey] ?? 0);
     const src = candidates[Math.min(index, candidates.length - 1)];
+    
+    // Generate descriptive alt text
+    const userName = u?.username || u?.userName || u?.fullName || u?.displayName || u?.email || u?.userId || 'User';
+    const altText = `Profile picture of ${userName}`;
+    
     return (
       <Image
         src={src}
-        alt="User Avatar"
+        alt={altText}
         width={size}
         height={size}
         className={`${roundedClass}`}

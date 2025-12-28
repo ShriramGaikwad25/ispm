@@ -203,15 +203,17 @@ type OptionData = {
 
 export const customOption = (props: { data: OptionData; innerRef: React.Ref<HTMLDivElement>; innerProps: React.HTMLAttributes<HTMLDivElement> }) => {
   const { data, innerRef, innerProps } = props;
+  const imageSrc = data.image && data.image.trim() ? data.image : "/window.svg";
+  
   return (
     <div ref={innerRef} {...innerProps} className="flex items-center p-2 hover:bg-[#DEEBFF]">
-        <Image
-          src={data.image as string}
-          alt={data.label}
-          width={32}
-          height={32}
-          className="rounded-full mr-2"
-        />
+      <Image
+        src={imageSrc}
+        alt={data.label || "Option"}
+        width={32}
+        height={32}
+        className="rounded-full mr-2"
+      />
       {data.label}
     </div>
   );

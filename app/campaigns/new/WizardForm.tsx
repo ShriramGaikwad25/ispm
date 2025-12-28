@@ -85,7 +85,7 @@ const WizardForm: React.FC<WizardFormProps> = ({ steps, initialFormData }) => {
   };
 
   const nextStep = () => {
-    if (validationStatus[currentStep] && currentStep < steps.length - 1) {
+    if (currentStep < steps.length - 1) {
       setCurrentStep((prev) => prev + 1);
     }
   };
@@ -177,10 +177,7 @@ const WizardForm: React.FC<WizardFormProps> = ({ steps, initialFormData }) => {
               {currentStep < steps.length - 1 ? (
                 <button
                   onClick={nextStep}
-                  disabled={!validationStatus[currentStep]}
-                  className={`flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium ${
-                    !validationStatus[currentStep] ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
+                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
                 >
                   Next
                   <ChevronRight className="w-4 h-4 ml-2" />
@@ -211,7 +208,7 @@ const WizardForm: React.FC<WizardFormProps> = ({ steps, initialFormData }) => {
         </div>
 
         {/* Form Content */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6" key={`step-${currentStep}-${JSON.stringify(formData.step3)}-${JSON.stringify(formData.step4)}`}>
           {steps[currentStep].component({
             formData,
             setFormData,

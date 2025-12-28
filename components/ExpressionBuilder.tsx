@@ -66,7 +66,12 @@ const ExpressionBuilder: React.FC<ExpressionBuilderProps> = ({
 }) => {
   const watchedConditions = useWatch({ control, name: fieldName });
   const conditions: Condition[] = useMemo(() => {
-    return Array.isArray(watchedConditions) ? watchedConditions : [];
+    if (!Array.isArray(watchedConditions)) return [];
+    // Ensure all conditions have an id
+    return watchedConditions.map((cond, index) => ({
+      ...cond,
+      id: cond.id || `condition-${index}-${Date.now()}`,
+    }));
   }, [watchedConditions]);
 
   const [isAccordionOpen, setIsAccordionOpen] = useState(false);
@@ -121,7 +126,7 @@ const ExpressionBuilder: React.FC<ExpressionBuilderProps> = ({
       <div className={`p-4 border rounded-md w-full border-gray-300 relative ${fullWidth ? '' : 'max-w-2xl'}`}>
         {conditions.map((condition, index) => (
           <div
-            key={condition.id}
+            key={condition.id || `expr-${index}`}
             className="flex space-x-2 items-center mb-2 justify-end"
           >
             {index > 0 && (

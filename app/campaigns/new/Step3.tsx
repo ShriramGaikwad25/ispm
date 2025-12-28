@@ -1,5 +1,5 @@
 import { CirclePlus, InfoIcon } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useFieldArray, useForm, Resolver } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 
@@ -17,6 +17,7 @@ const Step3: React.FC<StepProps> = ({
     watch,
     control,
     setValue,
+    reset,
     formState: { errors, isValid },
     resetField,
     unregister,
@@ -24,10 +25,9 @@ const Step3: React.FC<StepProps> = ({
     resolver: yupResolver(validationSchema) as Resolver<Step3FormData>,
     mode: "onChange",
     shouldUnregister: false,
-    defaultValues: {
-      ...formData.step3,
-      multiStageReview: formData.step3?.multiStageReview ?? false,
-      stages: formData.step3?.stages ?? [],
+    defaultValues: formData.step3 || {
+      multiStageReview: false,
+      stages: [],
     },
   });
   const { fields, append, remove } = useFieldArray({
@@ -35,19 +35,74 @@ const Step3: React.FC<StepProps> = ({
     name: "stages",
   });
 
+  const prevStep3Ref = useRef<string | undefined>();
+  const isInitialMount = useRef(true);
+
+  // Reset form when formData.step3 changes externally (e.g., when template is applied)
+  // Use serialized comparison to avoid infinite loops
+  useEffect(() => {
+    if (formData.step3) {
+      const currentSerialized = JSON.stringify({
+        multiStageReview: formData.step3.multiStageReview,
+        stages: formData.step3.stages,
+      });
+      
+      // Always reset on initial mount or if data actually changed
+      if (isInitialMount.current || prevStep3Ref.current !== currentSerialized) {
+        const newValues = {
+          multiStageReview: formData.step3.multiStageReview ?? false,
+          stages: formData.step3.stages ?? [],
+        };
+        console.log("Step3: Resetting form with values:", newValues, "Previous:", prevStep3Ref.current, "Current formData:", formData.step3);
+        
+        // Mark that we're resetting from template to prevent auto-append
+        hasResetFromTemplate.current = true;
+        
+        // Reset the form with new values - this should update all fields
+        reset(newValues);
+        
+        prevStep3Ref.current = currentSerialized;
+        isInitialMount.current = false;
+      }
+    }
+  }, [formData.step3, reset, setValue]);
+
   useEffect(() => {
     onValidationChange(isValid);
   }, [isValid, onValidationChange]);
 
   useEffect(() => {
-    const subscription = watch((values) =>
-      setFormData({ ...formData, step3: values as Step3FormData })
-    );
+    const subscription = watch((values) => {
+      setFormData((prev) => {
+        // Only update if values actually changed to prevent infinite loops
+        const currentSerialized = JSON.stringify({
+          multiStageReview: prev.step3?.multiStageReview,
+          stages: prev.step3?.stages,
+        });
+        const newSerialized = JSON.stringify({
+          multiStageReview: values.multiStageReview,
+          stages: values.stages,
+        });
+        
+        if (currentSerialized !== newSerialized) {
+          return { ...prev, step3: values as Step3FormData };
+        }
+        return prev;
+      });
+    });
     return () => subscription.unsubscribe();
-  }, [watch, setFormData, formData]);
+  }, [watch, setFormData]);
 
   const multiStageReviewEnabled = watch("multiStageReview");
+  const hasResetFromTemplate = useRef(false);
+  
   useEffect(() => {
+    // Don't auto-append if we just reset from template data
+    if (hasResetFromTemplate.current) {
+      hasResetFromTemplate.current = false;
+      return;
+    }
+    
     if (fields.length === 0 || multiStageReviewEnabled) {
       append({
         reviewer: "",

@@ -17,6 +17,7 @@ import { SelectedUsersProvider } from "@/contexts/SelectedUsersContext";
 import { ItemDetailsProvider } from "@/contexts/ItemDetailsContext";
 import RightSideBarHost from "@/components/RightSideBarHost";
 import LayoutContentShift from "@/components/LayoutContentShift";
+import { SkipLink } from "@/components/SkipLink";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -33,6 +34,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
+        <SkipLink />
         <AuthProvider>
           <QueryProvider>
             <LoadingProvider>

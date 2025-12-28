@@ -51,16 +51,22 @@ export function Navigation() {
   }
 
   return (
-    <div 
+    <aside 
       className="bg-white border-r border-gray-200 flex flex-col relative"
       style={{
         height: '100vh',
         width: isSidebarExpanded ? '280px' : '64px',
         transition: 'width 300ms ease-in-out'
       }}
+      aria-label="Main navigation"
     >
       {/* Navigation Links */}
-      <nav className="flex flex-col px-3 py-6 space-y-1 flex-1 w-full items-start" style={{ gap: '8px' }}>
+      <nav 
+        className="flex flex-col px-3 py-6 space-y-1 flex-1 w-full items-start" 
+        style={{ gap: '8px' }}
+        role="navigation"
+        aria-label="Primary navigation"
+      >
         {navigation.map((item) => {
           const Icon = item.icon;
           const isActive = isItemActive(item);
@@ -89,7 +95,10 @@ export function Navigation() {
                         toggleExpanded(item.name);
                       }
                     }}
-                    className={`flex items-center gap-2 px-2 py-2.5 rounded-md transition-colors flex-1 w-full ${
+                    aria-expanded={isExpanded}
+                    aria-controls={`submenu-${item.name}`}
+                    aria-label={!isSidebarExpanded ? item.name : `${item.name}, ${isExpanded ? 'expanded' : 'collapsed'}`}
+                    className={`flex items-center gap-2 px-2 py-2.5 rounded-md transition-colors flex-1 w-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
                       isActive 
                         ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600' 
                         : 'hover:bg-gray-50'
@@ -109,10 +118,11 @@ export function Navigation() {
                       style={{
                         color: isActive ? '#2563eb' : 'var(--text-icons-base-second, #68727D)'
                       }}
+                      aria-hidden="true"
                     />
                     {isSidebarExpanded && <span className="whitespace-normal">{item.name}</span>}
                     {isSidebarExpanded && (
-                      <div className="ml-auto">
+                      <div className="ml-auto" aria-hidden="true">
                         {isExpanded ? (
                           <ChevronDown className="h-4 w-4" />
                         ) : (
@@ -154,41 +164,49 @@ export function Navigation() {
 
               {/* Sub Items */}
               {hasSubItems && expandedItems.has(item.name) && isSidebarExpanded && (
-                <div className="ml-4 mt-1 space-y-1">
+                <ul 
+                  id={`submenu-${item.name}`}
+                  className="ml-4 mt-1 space-y-1"
+                  role="menu"
+                >
                   {item.subItems!.map((subItem) => {
                     const SubIcon = subItem.icon;
                     const isSubActive = isSubItemActive(subItem);
                     
                     return (
-                      <Link
-                        key={subItem.name}
-                        href={subItem.href}
-                        onClick={handleLinkClick}
-                        className={`flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors ${
-                          isSubActive 
-                            ? 'bg-blue-50 text-blue-600 border-l-2 border-blue-600' 
-                            : 'hover:bg-gray-50'
-                        }`}
-                        style={{
-                          color: isSubActive ? '#2563eb' : 'var(--text-icons-base-second, #68727D)',
-                          fontFamily: 'Inter',
-                          fontSize: '12px',
-                          fontStyle: 'normal',
-                          fontWeight: '500',
-                          lineHeight: '16px'
-                        }}
-                      >
-                        <SubIcon 
-                          className="h-3.5 w-3.5 flex-shrink-0" 
+                      <li key={subItem.name} role="none">
+                        <Link
+                          href={subItem.href}
+                          onClick={handleLinkClick}
+                          role="menuitem"
+                          aria-current={isSubActive ? 'page' : undefined}
+                          className={`flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                            isSubActive 
+                              ? 'bg-blue-50 text-blue-600 border-l-2 border-blue-600' 
+                              : 'hover:bg-gray-50'
+                          }`}
                           style={{
-                            color: isSubActive ? '#2563eb' : 'var(--text-icons-base-second, #68727D)'
+                            color: isSubActive ? '#2563eb' : 'var(--text-icons-base-second, #68727D)',
+                            fontFamily: 'Inter',
+                            fontSize: '12px',
+                            fontStyle: 'normal',
+                            fontWeight: '500',
+                            lineHeight: '16px'
                           }}
-                        />
-                        <span className="whitespace-normal">{subItem.name}</span>
-                      </Link>
+                        >
+                          <SubIcon 
+                            className="h-3.5 w-3.5 flex-shrink-0" 
+                            style={{
+                              color: isSubActive ? '#2563eb' : 'var(--text-icons-base-second, #68727D)'
+                            }}
+                            aria-hidden="true"
+                          />
+                          <span className="whitespace-normal">{subItem.name}</span>
+                        </Link>
+                      </li>
                     );
                   })}
-                </div>
+                </ul>
               )}
             </div>
           );
@@ -198,7 +216,9 @@ export function Navigation() {
         <div className={`flex items-center w-full mt-2 ${isSidebarExpanded ? 'px-2' : 'pl-2 justify-start'}`}>
           <button
             onClick={toggleExpand}
-            className={`flex items-center justify-center h-10 rounded-lg bg-blue-50 hover:bg-blue-100 active:bg-blue-200 transition-all duration-200 border border-blue-200 hover:border-blue-300 hover:shadow-md group ${
+            aria-label={isSidebarExpanded ? "Collapse sidebar" : "Expand sidebar"}
+            aria-expanded={isSidebarExpanded}
+            className={`flex items-center justify-center h-10 rounded-lg bg-blue-50 hover:bg-blue-100 active:bg-blue-200 transition-all duration-200 border border-blue-200 hover:border-blue-300 hover:shadow-md group focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
               isSidebarExpanded ? 'w-full' : 'w-10'
             }`}
             title={isSidebarExpanded ? "Collapse sidebar" : "Expand sidebar"}
@@ -207,13 +227,13 @@ export function Navigation() {
             }}
           >
             {isSidebarExpanded ? (
-              <ChevronLeft className="h-5 w-5 transition-transform duration-200 group-hover:translate-x-[-2px]" />
+              <ChevronLeft className="h-5 w-5 transition-transform duration-200 group-hover:translate-x-[-2px]" aria-hidden="true" />
             ) : (
-              <ChevronRight className="h-5 w-5 transition-transform duration-200 group-hover:translate-x-[2px]" />
+              <ChevronRight className="h-5 w-5 transition-transform duration-200 group-hover:translate-x-[2px]" aria-hidden="true" />
             )}
           </button>
         </div>
       </nav>
-    </div>
+    </aside>
   );
 }

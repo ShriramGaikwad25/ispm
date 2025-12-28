@@ -1,5 +1,5 @@
 import { BookTemplate, InfoIcon } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import {
   Control,
   FieldValues,
@@ -119,6 +119,7 @@ const Step4: React.FC<StepProps> = ({
     setValue,
     watch,
     control,
+    reset,
     formState: { errors, isValid },
   } = useForm<Step4FormData>({
     resolver: yupResolver(
@@ -126,17 +127,51 @@ const Step4: React.FC<StepProps> = ({
     ) as unknown as Resolver<Step4FormData>,
     shouldUnregister: !formData.step4,
     mode: "onChange",
-    defaultValues: {
-      ...formData.step4,
-      // genericExpression:[],
-      // certifierUnavailableUsers: []
-    },
+    defaultValues: formData.step4 || {},
   });
   const enforComments = watch("enforceComments");
   const showGenericExpression = enforComments === "Custom Fields";
   const [showTemplateSidebar, setShowTemplateSidebar] = useState(false);
   const [msTeamsWebhookUrl, setMsTeamsWebhookUrl] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+
+  const prevStep4Ref = useRef<string | undefined>();
+  const isInitialMount = useRef(true);
+
+  // Reset form when formData.step4 changes externally (e.g., when template is applied)
+  // Use serialized comparison to avoid infinite loops
+  useEffect(() => {
+    const currentSerialized = formData.step4 ? JSON.stringify({
+      duration: formData.step4.duration,
+      reviewRecurrence: formData.step4.reviewRecurrence,
+      startDate: formData.step4.startDate,
+      end: formData.step4.end,
+      socReminders: formData.step4.socReminders,
+      eocReminders: formData.step4.eocReminders,
+      msTeamsNotification: formData.step4.msTeamsNotification,
+      msTeamsWebhookUrl: formData.step4.msTeamsWebhookUrl,
+      enforceComments: formData.step4.enforceComments,
+      genericExpression: formData.step4.genericExpression,
+    }) : "";
+    
+    // Always reset on initial mount or if data actually changed
+    if (isInitialMount.current || prevStep4Ref.current !== currentSerialized) {
+      if (formData.step4) {
+        const newValues = { ...formData.step4 };
+        console.log("Step4: Resetting form with values:", newValues, "Previous:", prevStep4Ref.current, "Current formData:", formData.step4);
+        
+        // Reset the form with new values - this should update all fields
+        reset(newValues);
+        
+        prevStep4Ref.current = currentSerialized;
+        // Also update msTeamsWebhookUrl state if it exists
+        if (formData.step4.msTeamsWebhookUrl) {
+          setMsTeamsWebhookUrl(formData.step4.msTeamsWebhookUrl);
+        }
+      }
+      isInitialMount.current = false;
+    }
+  }, [formData.step4, reset]);
 
   const handleSaveMsTeamsWebhook = async () => {
     if (!msTeamsWebhookUrl.trim()) {
@@ -188,11 +223,30 @@ const Step4: React.FC<StepProps> = ({
   }, [watch("campaignPreviewEmailNotificationsEnabled"), setValue]);
 
   useEffect(() => {
-    const subscription = watch((values) =>
-      setFormData({ ...formData, step4: values as Step4FormData })
-    );
+    const subscription = watch((values) => {
+      setFormData((prev) => {
+        // Only update if values actually changed to prevent infinite loops
+        const currentSerialized = JSON.stringify({
+          duration: prev.step4?.duration,
+          reviewRecurrence: prev.step4?.reviewRecurrence,
+          startDate: prev.step4?.startDate,
+          end: prev.step4?.end,
+        });
+        const newSerialized = JSON.stringify({
+          duration: values.duration,
+          reviewRecurrence: values.reviewRecurrence,
+          startDate: values.startDate,
+          end: values.end,
+        });
+        
+        if (currentSerialized !== newSerialized) {
+          return { ...prev, step4: values as Step4FormData };
+        }
+        return prev;
+      });
+    });
     return () => subscription.unsubscribe();
-  }, [watch, setFormData, formData]);
+  }, [watch, setFormData]);
 
   const rowData = [
     {

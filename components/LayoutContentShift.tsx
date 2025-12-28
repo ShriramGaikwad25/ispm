@@ -7,7 +7,9 @@ const LayoutContentShift = ({ children }: { children: React.ReactNode }) => {
 	const { isOpen, widthPx } = useRightSidebar();
 	return (
 		<div style={{ marginRight: isOpen ? widthPx : 0, transition: "margin-right 200ms ease" }}>
-			{children}
+			<main id="main-content" role="main">
+				{children}
+			</main>
 		</div>
 	);
 };
