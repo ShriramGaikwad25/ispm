@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
 type AgGridReactType = any;
 import "@/lib/ag-grid-setup";
 import { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 import { Edit, Calendar } from "lucide-react";
+import { apiRequestWithAuth } from "@/lib/auth";
 
 type TemplateRow = {
   id: string;
@@ -25,58 +26,65 @@ interface TemplateTableProps {
 
 const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow }) => {
   const gridRef = React.useRef<AgGridReactType>(null);
+  const [rows, setRows] = useState<TemplateRow[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Dummy data for templates
-  const rows = useMemo<TemplateRow[]>(() => [
-    {
-      id: "1",
-      name: "Quarterly Access Review",
-      owner: "John Smith",
-      createdOn: new Date(2024, 0, 15).toISOString(),
-      lastRun: new Date(2024, 2, 1).toISOString(),
-      nextRun: new Date(2024, 5, 1).toISOString(),
-    },
-    {
-      id: "2",
-      name: "Monthly Compliance Check",
-      owner: "Sarah Johnson",
-      createdOn: new Date(2024, 1, 10).toISOString(),
-      lastRun: new Date(2024, 2, 10).toISOString(),
-      nextRun: new Date(2024, 3, 10).toISOString(),
-    },
-    {
-      id: "3",
-      name: "Annual Security Audit",
-      owner: "Michael Chen",
-      createdOn: new Date(2023, 11, 1).toISOString(),
-      lastRun: new Date(2023, 11, 15).toISOString(),
-      nextRun: new Date(2024, 11, 1).toISOString(),
-    },
-    {
-      id: "4",
-      name: "Department Access Review",
-      owner: "Emily Davis",
-      createdOn: new Date(2024, 2, 5).toISOString(),
-      lastRun: null,
-      nextRun: new Date(2024, 3, 5).toISOString(),
-    },
-    {
-      id: "5",
-      name: "Executive Privilege Review",
-      owner: "Robert Wilson",
-      createdOn: new Date(2024, 0, 20).toISOString(),
-      lastRun: new Date(2024, 1, 20).toISOString(),
-      nextRun: null,
-    },
-    {
-      id: "6",
-      name: "IT Admin Access Review",
-      owner: "Lisa Anderson",
-      createdOn: new Date(2024, 1, 28).toISOString(),
-      lastRun: new Date(2024, 2, 28).toISOString(),
-      nextRun: new Date(2024, 3, 28).toISOString(),
-    },
-  ], []);
+  useEffect(() => {
+    const fetchCampaigns = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        
+        const data = await apiRequestWithAuth<any>(
+          "https://preview.keyforge.ai/campaign/api/v1/ACMECOM/getAllCampaigns",
+          {
+            method: "GET",
+          }
+        );
+
+        // Handle different response structures
+        let campaignsArray: any[] = [];
+        if (Array.isArray(data)) {
+          campaignsArray = data;
+        } else if (data && typeof data === "object") {
+          campaignsArray = data.items || data.data || data.campaigns || data.results || [];
+          if (campaignsArray.length === 0 && (data.id || data.name || data.campaignID)) {
+            campaignsArray = [data];
+          }
+        }
+
+        // Transform API response to TemplateRow format
+        const transformedRows: TemplateRow[] = campaignsArray.map((campaign: any) => {
+          // Extract owner information
+          const ownerInfo = campaign.campaignOwner || campaign.owner || {};
+          const ownerName = Array.isArray(ownerInfo.ownerName) 
+            ? ownerInfo.ownerName.join(", ") 
+            : ownerInfo.ownerName || ownerInfo.ownerType || "Unknown";
+
+          return {
+            id: campaign.id || campaign.campaignID || campaign.campaignId || String(campaign.id || ""),
+            name: campaign.name || campaign.campaignName || campaign.templateName || "Unnamed Campaign",
+            owner: ownerName,
+            createdOn: campaign.createdOn || campaign.createdDate || campaign.created || new Date().toISOString(),
+            lastRun: campaign.lastRun || campaign.lastRunDate || campaign.lastExecutionDate || null,
+            nextRun: campaign.nextRun || campaign.nextRunDate || campaign.scheduledDate || null,
+            templateData: campaign, // Store full campaign data for editing
+          };
+        });
+
+        setRows(transformedRows);
+      } catch (err: any) {
+        console.error("Error fetching campaigns:", err);
+        setError(err.message || "Failed to fetch campaigns");
+        setRows([]); // Set empty array on error
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchCampaigns();
+  }, []);
 
   const columnDefs = React.useMemo<ColDef[]>(
     () => [
@@ -159,6 +167,22 @@ const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow }) => {
     ],
     [onEdit, onRunNow]
   );
+
+  if (isLoading) {
+    return (
+      <div className="h-96 w-full flex items-center justify-center">
+        <div className="text-gray-600">Loading campaigns...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="h-96 w-full flex items-center justify-center">
+        <div className="text-red-600">Error: {error}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-96 w-full">

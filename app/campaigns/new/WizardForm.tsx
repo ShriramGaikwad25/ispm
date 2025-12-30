@@ -5,6 +5,8 @@ import { useFormData } from "@/hooks/useFormData";
 import { Step, FormData } from "@/types/stepTypes";
 import { BookType, ChevronLeft, ChevronRight, Check, X } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { apiRequestWithAuth } from "@/lib/auth";
+import { transformFormDataToPayload } from "./transformFormData";
 interface WizardFormProps {
   steps: Step[];
   initialFormData?: FormData | null;
@@ -32,44 +34,42 @@ const WizardForm: React.FC<WizardFormProps> = ({ steps, initialFormData }) => {
 
   const handleSubmit = async () => {
     try {
-      // Show the loading dialog (optional)
+      // Show the loading dialog
       setIsDialogOpen(true);
 
-      // Send the form data to the server (replace with your API URL)
-      const response = await fetch(
-        "https://run.mocky.io/v3/ecaeebf3-b936-41b0-9d8e-176afc79099c",
+      // Transform form data to API payload structure
+      const payload = transformFormDataToPayload(formData);
+      
+      console.log("Transformed payload:", JSON.stringify(payload, null, 2));
+
+      // Call the API to create the template/campaign
+      const response = await apiRequestWithAuth<any>(
+        "https://preview.keyforge.ai/campaign/api/v1/ACMECOM/createCampaign",
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(formData), // Send the formData directly without modifications
+          body: JSON.stringify(payload),
         }
       );
 
-      // Check if the response is ok (status code 2xx)
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-
-      // Parse the response as JSON
-      const responseText = await response.text(); // Get the raw response text
-
-      if (responseText) {
-        const jsonData = JSON.parse(responseText); // Try to parse it to JSON
-        console.log("Form submission successful:", jsonData);
-        // You can process the response here if needed
-        // e.g., redirect the user or show a success message
-        setIsDialogOpen(false); // Close the dialog after success
-        alert("Data submitted successfully!"); // You can show a custom success message here
-      } else {
-        console.warn("Empty response received from server.");
-        alert("Submission failed. No data received.");
-      }
-    } catch (error) {
-      console.error("Error submitting form:", error);
-      setIsDialogOpen(false); // Close dialog on error
-      alert("An error occurred while submitting the form. Please try again.");
+      console.log("Campaign created successfully:", response);
+      
+      // Close the dialog
+      setIsDialogOpen(false);
+      
+      // Show success message
+      alert(saveAsTemplate 
+        ? "Template saved successfully!" 
+        : "Campaign created successfully!");
+      
+      // Navigate back to campaigns page
+      router.push("/campaigns");
+    } catch (error: any) {
+      console.error("Error creating campaign:", error);
+      setIsDialogOpen(false);
+      
+      // Show error message
+      const errorMessage = error.message || "An error occurred while creating the campaign. Please try again.";
+      alert(`Failed to create campaign: ${errorMessage}`);
     }
   };
 
