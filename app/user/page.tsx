@@ -430,6 +430,7 @@ function UserGroupsTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTermGroups, setSearchTermGroups] = useState<string>("");
+  const { isAuthenticated } = useAuth();
   
   // Pagination state
   const pageSizeSelector = [10, 20, 50, 100];
@@ -438,7 +439,7 @@ function UserGroupsTab() {
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
-  // Dummy default data for User Groups (until API is connected)
+  // Dummy default data for User Groups (fallback)
   const defaultGroupData: UserGroupData[] = [
     {
       userGroup: "Operations - Managers",
@@ -452,32 +453,86 @@ function UserGroupsTab() {
   // Fetch user groups data from API
   useEffect(() => {
     const fetchUserGroups = async () => {
+      // Check if user is authenticated before making API call
+      if (!isAuthenticated) {
+        console.log("UserGroups: User not authenticated, skipping API call");
+        setLoading(false);
+        setRowData([]);
+        setTotalItems(0);
+        setTotalPages(0);
+        return;
+      }
+
       try {
         setLoading(true);
         setError(null);
         
-        // TODO: Replace with actual API query when available
-        // const query = "SELECT * FROM user_groups";
-        // const response = await executeQuery(query, []);
+        // Execute query to get all user groups
+        const query = "SELECT * FROM kf_groups";
+        const parameters: string[] = [];
         
-        // Set dummy data until API is connected
-        setRowData(defaultGroupData);
-        setTotalItems(defaultGroupData.length);
-        setTotalPages(Math.ceil(defaultGroupData.length / pageSize));
+        const response = await executeQuery(query, parameters);
+        
+        // Transform API response to match our UserGroupData interface
+        if (response && typeof response === 'object' && 'resultSet' in response && Array.isArray((response as any).resultSet)) {
+          const sourceArray: any[] = (response as any).resultSet;
+          const transformedData: UserGroupData[] = sourceArray.map((group: any) => ({
+            userGroup: group.name || group.group_name || group.userGroup || "Unknown Group",
+            description: group.description || group.desc || "",
+            owner: group.owner || group.owner_email || group.created_by || "",
+            noOfUsers: group.no_of_users || group.user_count || group.member_count || 0,
+            tags: group.tags || group.category || group.type || "",
+          }));
+          setRowData(transformedData);
+          setTotalItems(transformedData.length);
+          setTotalPages(Math.ceil(transformedData.length / pageSize));
+        } else if (response && Array.isArray(response)) {
+          // Handle case where response is directly an array
+          const transformedData: UserGroupData[] = response.map((group: any) => ({
+            userGroup: group.name || group.group_name || group.userGroup || "Unknown Group",
+            description: group.description || group.desc || "",
+            owner: group.owner || group.owner_email || group.created_by || "",
+            noOfUsers: group.no_of_users || group.user_count || group.member_count || 0,
+            tags: group.tags || group.category || group.type || "",
+          }));
+          setRowData(transformedData);
+          setTotalItems(transformedData.length);
+          setTotalPages(Math.ceil(transformedData.length / pageSize));
+        } else {
+          // Fallback to default data if API response is empty
+          setRowData(defaultGroupData);
+          setTotalItems(defaultGroupData.length);
+          setTotalPages(Math.ceil(defaultGroupData.length / pageSize));
+        }
       } catch (err) {
         console.error("Error fetching user groups:", err);
-        setError(err instanceof Error ? err.message : "Failed to fetch user groups");
-        // On error, also fall back to dummy data
-        setRowData(defaultGroupData);
-        setTotalItems(defaultGroupData.length);
-        setTotalPages(Math.ceil(defaultGroupData.length / pageSize));
+        
+        // Handle authentication errors gracefully
+        if (err instanceof Error && (
+          err.message.includes("No JWT token") || 
+          err.message.includes("401") || 
+          err.message.includes("403") ||
+          err.message.includes("400")
+        )) {
+          console.log("UserGroups: Authentication error, user may have logged out");
+          setRowData([]);
+          setTotalItems(0);
+          setTotalPages(0);
+          setError(null); // Don't show error if user logged out
+        } else {
+          setError(err instanceof Error ? err.message : "Failed to fetch user groups");
+          // Fallback to default data on error
+          setRowData(defaultGroupData);
+          setTotalItems(defaultGroupData.length);
+          setTotalPages(Math.ceil(defaultGroupData.length / pageSize));
+        }
       } finally {
         setLoading(false);
       }
     };
 
     fetchUserGroups();
-  }, []);
+  }, [isAuthenticated]);
 
   // Filter data based on search term
   const filteredGroupData = useMemo(() => {

@@ -76,10 +76,10 @@ const HorizontalTabs: React.FC<TabsProps> = ({
   };
 
   useEffect(() => {
-    if (!isControlled && defaultIndex !== internalIndex) {
+    if (!isControlled) {
       setInternalIndex(defaultIndex);
     }
-  }, [defaultIndex, isControlled, internalIndex]);
+  }, [defaultIndex, isControlled]);
 
   return (
     <div className="w-full h-full flex flex-col">
@@ -92,18 +92,21 @@ const HorizontalTabs: React.FC<TabsProps> = ({
         {tabs.map((tab, index) => (
           <button
             key={index}
+            type="button"
             ref={(el) => (tabRefs.current[index] = el)}
             role="tab"
             id={tabId(index)}
             aria-controls={panelId(index)}
             aria-selected={activeIndex === index}
             tabIndex={activeIndex === index ? 0 : -1}
-            className={`px-4 py-2 text-sm font-medium transition-all duration-200 rounded-lg flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+            className={`px-4 py-2 text-sm font-medium transition-all duration-200 rounded-lg flex items-center gap-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
               index === activeIndex
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
-            onClick={() => handleTabClick(index)}
+            onClick={() => {
+              handleTabClick(index);
+            }}
             onKeyDown={(e) => handleKeyDown(e, index)}
           >
             {tab.icon && index === activeIndex ? (
