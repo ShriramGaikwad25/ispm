@@ -42,7 +42,7 @@ import { getReviewerId, getCookie, COOKIE_NAMES } from "@/lib/auth";
 import { useAuth } from "@/contexts/AuthContext";
 import ProxyActionModal from "@/components/ProxyActionModal";
 import SignOffModal from "@/components/SignOffModal";
-import { validatePassword, signOffCertification, getAccessDetails, getLineItemDetails } from "@/lib/api";
+import { validatePassword, signOffCertification, getAccessDetails, getLineItemDetails, executeQuery } from "@/lib/api";
 import ExcelJS from "exceljs";
 import "./AccessReview.css"
 import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
@@ -217,7 +217,12 @@ const OpenTab: React.FC = () => {
               console.log("isActionLoading:", isActionLoading);
               console.log("Button should not be disabled");
               try {
-                await handleDownloadExcel();
+                const certificationId = params.data?.certificationId;
+                if (!certificationId) {
+                  alert("Certification ID not found");
+                  return;
+                }
+                await handleDownloadExcel(certificationId);
               } catch (error) {
                 console.error("Error in handleDownloadExcel:", error);
                 alert(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
@@ -438,368 +443,246 @@ const OpenTab: React.FC = () => {
     }
   };
 
-  const handleDownloadExcel = async () => {
+  const handleDownloadExcel = async (certificationId: string) => {
     console.log("=== handleDownloadExcel START ===");
-    console.log("rowData length:", rowData.length);
-    console.log("filteredRowData length:", filteredRowData.length);
-    console.log("data:", data);
-    console.log("data?.certifications:", data?.certifications);
-    console.log("data?.certifications?.items:", data?.certifications?.items);
-    console.log("data?.certifications?.items?.length:", data?.certifications?.items?.length);
-    console.log("reviewerId:", reviewerId);
+    console.log("certificationId:", certificationId);
     
-    // Process download in background without blocking UI
-    (async () => {
-      // Get certifications from the API data directly, or use rowData/filteredRowData
-      let certsToProcess: CertificationRow[] = [];
+    try {
+      setIsActionLoading(true);
+      showApiLoader?.(true, "Downloading certification data...");
+
+      // Call the executeQuery API
+      const query = "select * from vw_download_cert_access_by_certid where certificationid = ?::uuid LIMIT 3000";
+      const parameters = [certificationId];
       
-      if (filteredRowData.length > 0) {
-        certsToProcess = filteredRowData as CertificationRow[];
-        console.log("Using filteredRowData, count:", certsToProcess.length);
-      } else if (rowData.length > 0) {
-        certsToProcess = rowData as CertificationRow[];
-        console.log("Using rowData, count:", certsToProcess.length);
-      } else if (data?.certifications?.items && data.certifications.items.length > 0) {
-        // Map the raw API data to CertificationRow format (same as useEffect at line 732)
-        console.log("Using data from API directly, items count:", data.certifications.items.length);
-        const certificationData = data.certifications;
-        certsToProcess = certificationData.items.map((item: RawCertification): CertificationRow => {
-          // Match the exact mapping from useEffect (line 732-764) - these are accessed directly
-          const certInfo = item.reviewerCertificationInfo as any;
-          const actionInfo = item.reviewerCertificateActionInfo as any;
-          
-          const totalActions = actionInfo?.totalActions ?? 0;
-          const totalActionsCompleted = actionInfo?.totalActionsCompleted ?? 0;
-          const progress = totalActions > 0 ? Math.round((totalActionsCompleted / totalActions) * 100) : 0;
-          
-          return {
-            id: `${item.reviewerId}-${item.certificationId}`,
-            taskId: item.campaignId ?? "",
-            reviewerId: item.reviewerId,
-            certificationId: item.certificationId,
-            campaignId: item.campaignId,
-            certificationName: certInfo?.certificationName ?? "",
-            certificationType: certInfo?.certificationType ?? "",
-            certificationCreatedOn: certInfo?.certificationCreatedOn ?? "",
-            certificationExpiration: certInfo?.certificationExpiration ?? "",
-            status: certInfo?.status ?? "",
-            certificationSignedOff: certInfo?.certificationSignedOff ?? false,
-            certificateRequester: certInfo?.certificateRequester ?? "",
-            certificateOwner: certInfo?.certificateRequester ?? "",
-            percentageCompleted: actionInfo?.percentageCompleted ?? 0,
-            progress: progress,
-            description: certInfo?.certificationDescription ?? "No description provided",
-            reviewerName: certInfo?.reviewerName ?? "",
-            dueIn: certInfo?.dueIn ?? "",
-            estimatedTimeToCompletion: certInfo?.estimatedTimeToCompletion ?? "",
-          } as CertificationRow;
-        });
-        console.log("Mapped certifications from API, count:", certsToProcess.length);
-      } else {
-        // If no data is available, try to fetch it directly
-        console.warn("No data available in state, fetching directly from API...");
-        try {
-          const freshData = await getCertifications(reviewerId, pageSize, pageNumber);
-          console.log("Fetched fresh data:", freshData);
-          if (freshData?.certifications?.items && freshData.certifications.items.length > 0) {
-            console.log("Fetched fresh data, items count:", freshData.certifications.items.length);
-            const certificationData = freshData.certifications;
-            certsToProcess = certificationData.items.map((item: RawCertification): CertificationRow => {
-              // Match the exact mapping from useEffect (line 732-764)
-              const certInfo = item.reviewerCertificationInfo as any;
-              const actionInfo = item.reviewerCertificateActionInfo as any;
-              const totalActions = actionInfo?.totalActions ?? 0;
-              const totalActionsCompleted = actionInfo?.totalActionsCompleted ?? 0;
-              const progress = totalActions > 0 ? Math.round((totalActionsCompleted / totalActions) * 100) : 0;
-              
-              return {
-                id: `${item.reviewerId}-${item.certificationId}`,
-                taskId: item.campaignId ?? "",
-                reviewerId: item.reviewerId,
-                certificationId: item.certificationId,
-                campaignId: item.campaignId,
-                certificationName: certInfo?.certificationName ?? "",
-                certificationType: certInfo?.certificationType ?? "",
-                certificationCreatedOn: certInfo?.certificationCreatedOn ?? "",
-                certificationExpiration: certInfo?.certificationExpiration ?? "",
-                status: certInfo?.status ?? "",
-                certificationSignedOff: certInfo?.certificationSignedOff ?? false,
-                certificateRequester: certInfo?.certificateRequester ?? "",
-                certificateOwner: certInfo?.certificateRequester ?? "",
-                percentageCompleted: actionInfo?.percentageCompleted ?? 0,
-                progress: progress,
-                description: certInfo?.certificationDescription ?? "No description provided",
-                reviewerName: certInfo?.reviewerName ?? "",
-                dueIn: certInfo?.dueIn ?? "",
-                estimatedTimeToCompletion: certInfo?.estimatedTimeToCompletion ?? "",
-              } as CertificationRow;
-            });
-            console.log("Mapped fresh certifications, count:", certsToProcess.length);
-          } else {
-            console.error("Fresh data fetch returned no items");
-          }
-        } catch (fetchError) {
-          console.error("Error fetching fresh data:", fetchError);
-          alert(`Failed to load certifications: ${fetchError instanceof Error ? fetchError.message : "Unknown error"}`);
-          return;
+      console.log("Calling executeQuery with:", { query, parameters });
+      const response = await executeQuery<any>(query, parameters);
+      
+      console.log("executeQuery response:", response);
+      console.log("Response type:", typeof response);
+      console.log("Is array:", Array.isArray(response));
+      
+      // Handle different response structures
+      let dataArray: any[] = [];
+      
+      if (response) {
+        // Check if response has resultSet property (common in SQL query responses)
+        if (response.resultSet && Array.isArray(response.resultSet)) {
+          dataArray = response.resultSet;
+          console.log("Using resultSet from response, length:", dataArray.length);
+        } 
+        // Check if response is directly an array
+        else if (Array.isArray(response)) {
+          dataArray = response;
+          console.log("Response is direct array, length:", dataArray.length);
+        }
+        // Check if response has data property
+        else if (response.data && Array.isArray(response.data)) {
+          dataArray = response.data;
+          console.log("Using data property from response, length:", dataArray.length);
+        }
+        // If response is a single object, wrap it in an array
+        else if (typeof response === 'object' && response !== null) {
+          dataArray = [response];
+          console.log("Response is single object, wrapping in array");
         }
       }
       
-      console.log("certsToProcess length:", certsToProcess.length);
-      console.log("certsToProcess:", certsToProcess);
-      
-      if (certsToProcess.length === 0) {
-        console.error("No certifications to process! All data sources are empty.");
-        console.error("Debug info - reviewerId:", reviewerId, "pageSize:", pageSize, "pageNumber:", pageNumber);
-        alert("No certifications available to download. Please wait for data to load or refresh the page.");
+      if (dataArray.length === 0) {
+        alert("No data found for this certification.");
         return;
       }
 
-      console.log("Starting API calls...");
-      try {
-        const pendingEntitlements: any[] = [];
-        let processedCerts = 0;
-        let totalAccounts = 0;
-        let totalEntitlements = 0;
+      console.log(`Processing ${dataArray.length} rows from query result`);
+      console.log("First row sample:", dataArray[0]);
 
-        // Process each certification - use the same API flow as TreeClient
-        for (const cert of certsToProcess) {
-          try {
-            const certRow = cert as CertificationRow;
-            console.log(`Processing certification: ${certRow.certificationName} (${certRow.certificationId})`);
-            
-            // Step 1: Get certification details (users/tasks) - same as TreeClient uses
-            console.log(`Calling getCertificationDetails for cert ${certRow.certificationId}`);
-            const certDetailsResponse = await getCertificationDetails(
-              certRow.reviewerId,
-              certRow.certificationId,
-              1000, // Large page size
-              1
-            );
-            
-            const users = certDetailsResponse.items || [];
-            console.log(`Found ${users.length} users/tasks for certification ${certRow.certificationName}`);
-
-            // Step 2: For each user/task, get access details (accounts) - same as TreeClient
-            for (const user of users as any[]) {
-              const taskId = user.taskId || user.campaignId || certRow.taskId || certRow.campaignId;
-              if (!taskId) {
-                console.log(`Skipping user - no taskId`);
-                continue;
-              }
-
-              console.log(`Calling fetchAccessDetails for taskId: ${taskId}`);
-              const accounts = await fetchAccessDetails(
-                certRow.reviewerId,
-                certRow.certificationId,
-                taskId,
-                undefined,
-                1000, // Large page size
-                1
-              );
-              
-              console.log(`Found ${accounts.length} accounts for taskId: ${taskId}`);
-              totalAccounts += accounts.length;
-
-              // Step 3: For each account, get pending entitlements - same as TreeClient
-              for (const account of accounts) {
-                const lineItemId = account.lineItemId;
-                
-                if (!lineItemId) {
-                  console.log(`Skipping account - no lineItemId`);
-                  continue;
-                }
-
-                try {
-                  console.log(`[API CALL 3] Calling getLineItemDetails(${certRow.reviewerId}, ${certRow.certificationId}, ${taskId}, ${lineItemId}, filter: "action eq Pending")`);
-                  // Get pending entitlements for this line item using the same API as TreeClient
-                  const entitlements = await getLineItemDetails(
-                    certRow.reviewerId,
-                    certRow.certificationId,
-                    taskId,
-                    lineItemId,
-                    undefined,
-                    undefined,
-                    "action eq Pending" // Filter for pending entitlements
-                  );
-                  console.log(`[API CALL 3] getLineItemDetails completed, returned ${entitlements.length} entitlements`);
-
-                  totalEntitlements += entitlements.length;
-
-                  // Add each pending entitlement to the list
-                  for (const entitlement of entitlements) {
-                    // Use the same pattern as TreeClient (matching TreeClient.tsx line 667-670)
-                    const entitlementInfo = (entitlement.entitlementInfo && Array.isArray(entitlement.entitlementInfo)) 
-                      ? entitlement.entitlementInfo[0] 
-                      : (entitlement.entitlementInfo || (entitlement as any).entityEntitlement || {});
-                    const aiAssist = entitlement.AIAssist?.[0];
-                    
-                    // Match TreeClient's entitlement name/description extraction
-                    const entitlementName = (entitlement as any).entitlementName 
-                      || entitlementInfo?.entitlementName 
-                      || (entitlement as any).name 
-                      || (entitlement as any).entitlement_name 
-                      || "Unknown";
-                    const entitlementDescription = (entitlement as any).entitlementDescription 
-                      || entitlementInfo?.entitlementDescription 
-                      || (entitlement as any).description 
-                      || (entitlement as any).entitlement_description 
-                      || "";
-                    const entitlementType = (entitlement as any).entitlementType 
-                      || entitlementInfo?.entitlementType 
-                      || (entitlement as any).type 
-                      || "";
-                    
-                    pendingEntitlements.push({
-                      "Entitlement": entitlementName,
-                      "Description": entitlementDescription,
-                      "Type": entitlementType,
-                      "Account": account.user || account.accountname || account.accountName || "Unknown",
-                      "Application": account.applicationName || "Unknown",
-                      "Last Login": account.lastLogin || account.lastLoginDate || "",
-                      "Action": "", // Empty initially, user will fill in Approve/Revoke
-                      "Comment": "", // Empty initially, user will fill in comments
-                    });
-                  }
-                } catch (err) {
-                  console.error(`Error fetching entitlements for lineItem ${lineItemId}:`, err);
-                  // Continue with next account
-                }
-              }
+      // Create Excel workbook using ExcelJS
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Certification Access Data");
+      
+      // Extract headers and data rows
+      let headers: string[] = [];
+      let rows: any[][] = [];
+      
+      const firstRow = dataArray[0];
+      
+      if (firstRow && typeof firstRow === 'object' && firstRow !== null && !Array.isArray(firstRow)) {
+        // Response is an array of objects - use object keys as headers
+        const allHeaders = Object.keys(firstRow);
+        console.log("All headers from object keys:", allHeaders);
+        
+        // Filter out unwanted columns (case-insensitive)
+        const excludedColumns = ['lineitemid', 'certificationid', 'taskid'];
+        headers = allHeaders.filter(header => 
+          !excludedColumns.some(excluded => header.toLowerCase() === excluded.toLowerCase())
+        );
+        console.log("Filtered headers (excluding lineitemid, certificationid, taskid):", headers);
+        
+        // Filter rows where comment is "NONE" (case-insensitive) and map to values
+        rows = dataArray
+          .filter((row: any) => {
+            // Check if comment column exists and is not "NONE"
+            const commentKey = allHeaders.find(h => h.toLowerCase() === 'comment');
+            if (commentKey) {
+              const commentValue = String(row[commentKey] || '').trim().toUpperCase();
+              return commentValue !== 'NONE';
             }
-            processedCerts++;
-          } catch (err) {
-            const certRow = cert as CertificationRow;
-            console.error(`Error processing cert ${certRow.certificationId}:`, err);
-            // Continue with next certification
-          }
-        }
-
-        console.log(`Processed ${processedCerts} certifications, ${totalAccounts} accounts, ${totalEntitlements} entitlements`);
-        console.log(`Total pending entitlements collected: ${pendingEntitlements.length}`);
-
-        if (pendingEntitlements.length === 0) {
-          alert("No pending entitlements found. Please check the console for details.");
-          return;
-        }
-
-        console.log("Creating Excel file with ExcelJS...");
-        // Create Excel workbook using ExcelJS for proper protection support
-        const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet("Pending Entitlements");
-        
-        // Define column headers
-        const headers = ["Entitlement", "Description", "Type", "Account", "Application", "Last Login", "Action", "Comment"];
-        worksheet.addRow(headers);
-        
-        // Style the header row
-        const headerRow = worksheet.getRow(1);
-        headerRow.font = { bold: true };
-        headerRow.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: 'FFE0E0E0' }
-        };
-        
-        // Add data rows
-        pendingEntitlements.forEach((item) => {
-          worksheet.addRow([
-            item.Entitlement,
-            item.Description,
-            item.Type,
-            item.Account,
-            item.Application,
-            item["Last Login"],
-            item.Action,
-            item.Comment
-          ]);
-        });
-        
-        // Set column widths
-        worksheet.columns = [
-          { width: 30 }, // Entitlement
-          { width: 40 }, // Description
-          { width: 15 }, // Type
-          { width: 25 }, // Account
-          { width: 20 }, // Application
-          { width: 15 }, // Last Login
-          { width: 15 }, // Action
-          { width: 30 }, // Comment
-        ];
-        
-        // Find Action and Comment column indices (1-based)
-        const actionColIndex = headers.indexOf("Action") + 1; // Column G (7)
-        const commentColIndex = headers.indexOf("Comment") + 1; // Column H (8)
-        
-        console.log(`Action column index: ${actionColIndex}, Comment column index: ${commentColIndex}`);
-        
-        // Unlock Action and Comment columns (make them editable)
-        // All other columns remain locked (non-editable)
-        worksheet.eachRow((row, rowNumber) => {
-          row.eachCell((cell, colNumber) => {
-            // Check if this is Action or Comment column
-            const isEditable = colNumber === actionColIndex || colNumber === commentColIndex;
-            
-            // Set protection: locked=false means editable, locked=true means non-editable
-            cell.protection = {
-              locked: !isEditable
-            };
+            return true; // Include row if no comment column found
+          })
+          .map((row: any) => {
+            return headers.map(header => {
+              const value = row[header];
+              // Handle null, undefined, and complex objects
+              if (value === null || value === undefined) {
+                return "";
+              }
+              // If value is an object or array, stringify it
+              if (typeof value === 'object') {
+                return JSON.stringify(value);
+              }
+              return value;
+            });
           });
-        });
-        
-        // Protect the worksheet - this enables the cell protection
-        // Users can only edit unlocked cells (Action and Comment columns)
-        worksheet.protect('', {
-          selectLockedCells: true,
-          selectUnlockedCells: true,
-          formatCells: false,
-          formatColumns: false,
-          formatRows: false,
-          insertColumns: false,
-          insertRows: false,
-          insertHyperlinks: false,
-          deleteColumns: false,
-          deleteRows: false,
-          sort: false,
-          autoFilter: false,
-          pivotTables: false,
-        });
-        
-        console.log("Worksheet protected, Action and Comment columns are editable");
-
-        // Generate Excel file buffer
-        console.log("Generating Excel buffer...");
-        const excelBuffer = await workbook.xlsx.writeBuffer();
-
-        console.log(`Excel buffer size: ${excelBuffer.byteLength} bytes`);
-
-        // Create blob and download
-        const blob = new Blob([excelBuffer], { 
-          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" 
-        });
-        
-        console.log(`Blob created, size: ${blob.size} bytes`);
-        
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        const fileName = `pending-entitlements-${new Date().toISOString().split('T')[0]}.xlsx`;
-        a.download = fileName;
-        document.body.appendChild(a);
-        console.log(`Triggering download: ${fileName}`);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-
-        console.log("Download completed successfully");
-        // Show completion toast when download finishes
-        setShowCompletionToast(true);
-      } catch (error) {
-        console.error("Error downloading Excel file:", error);
-        console.error("Error stack:", error instanceof Error ? error.stack : "No stack trace");
-        alert(`Failed to download Excel file: ${error instanceof Error ? error.message : "Unknown error"}\n\nCheck console for details.`);
+      } else if (Array.isArray(firstRow)) {
+        // Response is an array of arrays - first row might be headers
+        // Check if first row looks like headers (all strings) or data
+        const allStrings = firstRow.every((cell: any) => typeof cell === 'string');
+        if (allStrings && dataArray.length > 1) {
+          const allHeaders = firstRow as string[];
+          // Filter out unwanted columns (case-insensitive)
+          const excludedColumns = ['lineitemid', 'certificationid', 'taskid'];
+          const excludedIndices: number[] = [];
+          headers = allHeaders.filter((header, index) => {
+            const shouldExclude = excludedColumns.some(excluded => header.toLowerCase() === excluded.toLowerCase());
+            if (shouldExclude) {
+              excludedIndices.push(index);
+            }
+            return !shouldExclude;
+          });
+          
+          // Filter rows where comment is "NONE" and exclude unwanted columns
+          const commentIndex = allHeaders.findIndex(h => h.toLowerCase() === 'comment');
+          rows = dataArray.slice(1)
+            .filter((row: any[]) => {
+              if (commentIndex >= 0 && commentIndex < row.length) {
+                const commentValue = String(row[commentIndex] || '').trim().toUpperCase();
+                return commentValue !== 'NONE';
+              }
+              return true;
+            })
+            .map((row: any[]) => {
+              return row.filter((_, index) => !excludedIndices.includes(index));
+            });
+        } else {
+          // No headers, generate generic ones
+          headers = firstRow.map((_: any, index: number) => `Column ${index + 1}`);
+          rows = dataArray;
+        }
+      } else {
+        // Fallback: single column
+        headers = ["Data"];
+        rows = dataArray.map(row => [String(row)]);
       }
-    })();
+      
+      console.log("Final headers:", headers);
+      console.log("Number of data rows after filtering:", rows.length);
+      
+      // Add header row
+      const headerRow = worksheet.addRow(headers);
+      
+      // Style the header row
+      headerRow.font = { bold: true, size: 11 };
+      headerRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE0E0E0' }
+      };
+      headerRow.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+      
+      // Add borders to header row
+      headerRow.eachCell((cell) => {
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' }
+        };
+      });
+      
+      // Add data rows
+      rows.forEach((rowData) => {
+        const row = worksheet.addRow(rowData);
+        // Add borders to data rows
+        row.eachCell((cell) => {
+          cell.border = {
+            top: { style: 'thin' },
+            left: { style: 'thin' },
+            bottom: { style: 'thin' },
+            right: { style: 'thin' }
+          };
+          cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+        });
+      });
+      
+      // Set column widths based on content
+      headers.forEach((header, index) => {
+        const column = worksheet.getColumn(index + 1);
+        
+        // Calculate max width based on header and data
+        let maxLength = header.length;
+        rows.forEach(row => {
+          const cellValue = String(row[index] || '');
+          if (cellValue.length > maxLength) {
+            maxLength = cellValue.length;
+          }
+        });
+        
+        // Set width with min/max constraints
+        column.width = Math.min(Math.max(maxLength + 2, 10), 50);
+      });
+      
+      // Freeze header row
+      worksheet.views = [
+        {
+          state: 'frozen',
+          ySplit: 1
+        }
+      ];
+      
+      // Generate Excel file buffer
+      console.log("Generating Excel buffer...");
+      const excelBuffer = await workbook.xlsx.writeBuffer();
+
+      console.log(`Excel buffer size: ${excelBuffer.byteLength} bytes`);
+
+      // Create blob and download
+      const blob = new Blob([excelBuffer], { 
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" 
+      });
+      
+      console.log(`Blob created, size: ${blob.size} bytes`);
+      
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const fileName = `certification-access-${certificationId}-${new Date().toISOString().split('T')[0]}.xlsx`;
+      a.download = fileName;
+      document.body.appendChild(a);
+      console.log(`Triggering download: ${fileName}`);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      console.log("Download completed successfully");
+      setShowCompletionToast(true);
+    } catch (error) {
+      console.error("Error downloading Excel file:", error);
+      console.error("Error stack:", error instanceof Error ? error.stack : "No stack trace");
+      alert(`Failed to download Excel file: ${error instanceof Error ? error.message : "Unknown error"}\n\nCheck console for details.`);
+    } finally {
+      setIsActionLoading(false);
+      hideApiLoader?.();
+    }
   };
 
   const handleReleaseClaim = () => handleAction('Release/Claim');

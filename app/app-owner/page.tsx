@@ -43,12 +43,16 @@ import {
   getAppAccounts,
   getAPPOCertificationDetailsWithFilter,
   getCertAnalytics,
+  executeQuery,
 } from "@/lib/api";
 import { getReviewerId } from "@/lib/auth";
 import { useActionPanel } from "@/contexts/ActionPanelContext";
 import { PaginatedResponse } from "@/types/api";
 import { BackButton } from "@/components/BackButton";
 import { useRouter } from "next/navigation";
+import { useLoading } from "@/contexts/LoadingContext";
+import ExcelJS from "exceljs";
+import ActionCompletedToast from "@/components/ActionCompletedToast";
 
 // Register AG Grid Enterprise modules
 import { MasterDetailModule } from "ag-grid-enterprise";
@@ -328,6 +332,11 @@ function AppOwnerContent() {
   // State for analytics data
   const [analyticsData, setAnalyticsData] = useState<any>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  
+  // State for download functionality
+  const [isActionLoading, setIsActionLoading] = useState(false);
+  const [showCompletionToast, setShowCompletionToast] = useState(false);
+  const { showApiLoader, hideApiLoader } = useLoading();
 
   // Get reviewerId and certificationId from URL parameters, with fallback to hardcoded values
   const reviewerId =
@@ -646,6 +655,248 @@ function AppOwnerContent() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const handleDownloadExcel = async (certificationId: string) => {
+    console.log("=== handleDownloadExcel START ===");
+    console.log("certificationId:", certificationId);
+    
+    try {
+      setIsActionLoading(true);
+      showApiLoader?.(true, "Downloading certification data...");
+
+      // Call the executeQuery API
+      const query = "select * from vw_download_cert_access_by_certid where certificationid = ?::uuid LIMIT 3000";
+      const parameters = [certificationId];
+      
+      console.log("Calling executeQuery with:", { query, parameters });
+      const response = await executeQuery<any>(query, parameters);
+      
+      console.log("executeQuery response:", response);
+      console.log("Response type:", typeof response);
+      console.log("Is array:", Array.isArray(response));
+      
+      // Handle different response structures
+      let dataArray: any[] = [];
+      
+      if (response) {
+        // Check if response has resultSet property (common in SQL query responses)
+        if (response.resultSet && Array.isArray(response.resultSet)) {
+          dataArray = response.resultSet;
+          console.log("Using resultSet from response, length:", dataArray.length);
+        } 
+        // Check if response is directly an array
+        else if (Array.isArray(response)) {
+          dataArray = response;
+          console.log("Response is direct array, length:", dataArray.length);
+        }
+        // Check if response has data property
+        else if (response.data && Array.isArray(response.data)) {
+          dataArray = response.data;
+          console.log("Using data property from response, length:", dataArray.length);
+        }
+        // If response is a single object, wrap it in an array
+        else if (typeof response === 'object' && response !== null) {
+          dataArray = [response];
+          console.log("Response is single object, wrapping in array");
+        }
+      }
+      
+      if (dataArray.length === 0) {
+        alert("No data found for this certification.");
+        return;
+      }
+
+      console.log(`Processing ${dataArray.length} rows from query result`);
+      console.log("First row sample:", dataArray[0]);
+
+      // Create Excel workbook using ExcelJS
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Certification Access Data");
+      
+      // Extract headers and data rows
+      let headers: string[] = [];
+      let rows: any[][] = [];
+      
+      const firstRow = dataArray[0];
+      
+      if (firstRow && typeof firstRow === 'object' && firstRow !== null && !Array.isArray(firstRow)) {
+        // Response is an array of objects - use object keys as headers
+        const allHeaders = Object.keys(firstRow);
+        console.log("All headers from object keys:", allHeaders);
+        
+        // Filter out unwanted columns (case-insensitive)
+        const excludedColumns = ['lineitemid', 'certificationid', 'taskid'];
+        headers = allHeaders.filter(header => 
+          !excludedColumns.some(excluded => header.toLowerCase() === excluded.toLowerCase())
+        );
+        console.log("Filtered headers (excluding lineitemid, certificationid, taskid):", headers);
+        
+        // Filter rows where comment is "NONE" (case-insensitive) and map to values
+        rows = dataArray
+          .filter((row: any) => {
+            // Check if comment column exists and is not "NONE"
+            const commentKey = allHeaders.find(h => h.toLowerCase() === 'comment');
+            if (commentKey) {
+              const commentValue = String(row[commentKey] || '').trim().toUpperCase();
+              return commentValue !== 'NONE';
+            }
+            return true; // Include row if no comment column found
+          })
+          .map((row: any) => {
+            return headers.map(header => {
+              const value = row[header];
+              // Handle null, undefined, and complex objects
+              if (value === null || value === undefined) {
+                return "";
+              }
+              // If value is an object or array, stringify it
+              if (typeof value === 'object') {
+                return JSON.stringify(value);
+              }
+              return value;
+            });
+          });
+      } else if (Array.isArray(firstRow)) {
+        // Response is an array of arrays - first row might be headers
+        // Check if first row looks like headers (all strings) or data
+        const allStrings = firstRow.every((cell: any) => typeof cell === 'string');
+        if (allStrings && dataArray.length > 1) {
+          const allHeaders = firstRow as string[];
+          // Filter out unwanted columns (case-insensitive)
+          const excludedColumns = ['lineitemid', 'certificationid', 'taskid'];
+          const excludedIndices: number[] = [];
+          headers = allHeaders.filter((header, index) => {
+            const shouldExclude = excludedColumns.some(excluded => header.toLowerCase() === excluded.toLowerCase());
+            if (shouldExclude) {
+              excludedIndices.push(index);
+            }
+            return !shouldExclude;
+          });
+          
+          // Filter rows where comment is "NONE" and exclude unwanted columns
+          const commentIndex = allHeaders.findIndex(h => h.toLowerCase() === 'comment');
+          rows = dataArray.slice(1)
+            .filter((row: any[]) => {
+              if (commentIndex >= 0 && commentIndex < row.length) {
+                const commentValue = String(row[commentIndex] || '').trim().toUpperCase();
+                return commentValue !== 'NONE';
+              }
+              return true;
+            })
+            .map((row: any[]) => {
+              return row.filter((_, index) => !excludedIndices.includes(index));
+            });
+        } else {
+          // No headers, generate generic ones
+          headers = firstRow.map((_: any, index: number) => `Column ${index + 1}`);
+          rows = dataArray;
+        }
+      } else {
+        // Fallback: single column
+        headers = ["Data"];
+        rows = dataArray.map(row => [String(row)]);
+      }
+      
+      console.log("Final headers:", headers);
+      console.log("Number of data rows after filtering:", rows.length);
+      
+      // Add header row
+      const headerRow = worksheet.addRow(headers);
+      
+      // Style the header row
+      headerRow.font = { bold: true, size: 11 };
+      headerRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE0E0E0' }
+      };
+      headerRow.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+      
+      // Add borders to header row
+      headerRow.eachCell((cell) => {
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' }
+        };
+      });
+      
+      // Add data rows
+      rows.forEach((rowData) => {
+        const row = worksheet.addRow(rowData);
+        // Add borders to data rows
+        row.eachCell((cell) => {
+          cell.border = {
+            top: { style: 'thin' },
+            left: { style: 'thin' },
+            bottom: { style: 'thin' },
+            right: { style: 'thin' }
+          };
+          cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+        });
+      });
+      
+      // Set column widths based on content
+      headers.forEach((header, index) => {
+        const column = worksheet.getColumn(index + 1);
+        
+        // Calculate max width based on header and data
+        let maxLength = header.length;
+        rows.forEach(row => {
+          const cellValue = String(row[index] || '');
+          if (cellValue.length > maxLength) {
+            maxLength = cellValue.length;
+          }
+        });
+        
+        // Set width with min/max constraints
+        column.width = Math.min(Math.max(maxLength + 2, 10), 50);
+      });
+      
+      // Freeze header row
+      worksheet.views = [
+        {
+          state: 'frozen',
+          ySplit: 1
+        }
+      ];
+      
+      // Generate Excel file buffer
+      console.log("Generating Excel buffer...");
+      const excelBuffer = await workbook.xlsx.writeBuffer();
+
+      console.log(`Excel buffer size: ${excelBuffer.byteLength} bytes`);
+
+      // Create blob and download
+      const blob = new Blob([excelBuffer], { 
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" 
+      });
+      
+      console.log(`Blob created, size: ${blob.size} bytes`);
+      
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const fileName = `certification-access-${certificationId}-${new Date().toISOString().split('T')[0]}.xlsx`;
+      a.download = fileName;
+      document.body.appendChild(a);
+      console.log(`Triggering download: ${fileName}`);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      console.log("Download completed successfully");
+      setShowCompletionToast(true);
+    } catch (error) {
+      console.error("Error downloading Excel file:", error);
+      console.error("Error stack:", error instanceof Error ? error.stack : "No stack trace");
+      alert(`Failed to download Excel file: ${error instanceof Error ? error.message : "Unknown error"}\n\nCheck console for details.`);
+    } finally {
+      setIsActionLoading(false);
+      hideApiLoader?.();
+    }
+  };
 
   // Restore previously selected grouping from localStorage on mount
   useEffect(() => {
@@ -1654,7 +1905,12 @@ function AppOwnerContent() {
             </div>
           </div>
           <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
-            <Exports gridApi={gridApiRef.current} />
+            <Exports 
+              gridApi={gridApiRef.current} 
+              certificationId={certificationId}
+              onDownloadExcel={handleDownloadExcel}
+              isActionLoading={isActionLoading}
+            />
             <button
               className="flex items-center px-3 py-2 text-white rounded-md hover:bg-blue-400 transition-colors duration-200 text-xs font-medium"
               title="Open in Microsoft Teams"
@@ -1991,6 +2247,14 @@ function AppOwnerContent() {
           </div>,
           document.body
         )}
+
+      {/* Action Completed Toast */}
+      <ActionCompletedToast
+        isVisible={showCompletionToast}
+        message={"Action completed"}
+        onClose={() => setShowCompletionToast(false)}
+        duration={1500}
+      />
     </div>
   );
 }
