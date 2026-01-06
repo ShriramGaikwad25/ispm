@@ -564,7 +564,7 @@ export default function ManageCampaigns() {
       label: "Template",
       icon: ChevronDown,
       iconOff: ChevronRight,
-      component: () => <TemplateTab />,
+      component: () => <TemplateTab campaignId={campaignId} />,
     },
   ];
 

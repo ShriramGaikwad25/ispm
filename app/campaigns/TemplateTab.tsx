@@ -4,7 +4,11 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import TemplateTable from "./TemplateTable";
 
-const TemplateTab: React.FC = () => {
+interface TemplateTabProps {
+  campaignId?: string;
+}
+
+const TemplateTab: React.FC<TemplateTabProps> = ({ campaignId }) => {
   const router = useRouter();
 
   const handleEdit = (template: any) => {
@@ -15,7 +19,11 @@ const TemplateTab: React.FC = () => {
   const handleRunNow = (template: any) => {
     // Navigate to schedule page with template ID and name
     const templateName = encodeURIComponent(template.name || "Template");
-    router.push(`/campaigns/schedule/${template.id}?name=${templateName}`);
+    const queryParams = new URLSearchParams({ name: templateName });
+    if (campaignId) {
+      queryParams.append("campaignId", campaignId);
+    }
+    router.push(`/campaigns/schedule/${template.id}?${queryParams.toString()}`);
   };
 
   return <TemplateTable onEdit={handleEdit} onRunNow={handleRunNow} />;

@@ -12,6 +12,7 @@ import ToggleSwitch from "@/components/ToggleSwitch";
 import FileDropzone from "@/components/FileDropzone";
 import { BackButton } from "@/components/BackButton";
 import DateInput from "@/components/DatePicker";
+import { executeQuery } from "@/lib/api";
 
 const SchedulePage: React.FC = () => {
   const router = useRouter();
@@ -19,6 +20,7 @@ const SchedulePage: React.FC = () => {
   const searchParams = useSearchParams();
   const templateId = params?.templateId as string;
   const templateName = searchParams?.get("name") || "Template";
+  const campaignId = searchParams?.get("campaignId") || null;
   
   const [template, setTemplate] = useState<any>(null);
   const [showRunNowModal, setShowRunNowModal] = useState(false);
@@ -26,6 +28,7 @@ const SchedulePage: React.FC = () => {
   const [stagingTiming, setStagingTiming] = useState("Before First Run Only");
   const [stagingDuration, setStagingDuration] = useState("");
   const [stagingDurationUnit, setStagingDurationUnit] = useState("Days");
+  const [isStartingCampaign, setIsStartingCampaign] = useState(false);
   // Run history state
   const [runHistoryLoading, setRunHistoryLoading] = useState(false);
   const [runHistoryError, setRunHistoryError] = useState<string | null>(null);
@@ -76,7 +79,10 @@ const SchedulePage: React.FC = () => {
       userType: "All users",
       selectData: "All Applications",
     });
-  }, [templateId, templateName]);
+    // Debug: Log campaignId when component mounts
+    console.log("Schedule page mounted - templateId:", templateId, "campaignId:", campaignId);
+  }, [templateId, templateName, campaignId]);
+
 
   // Fetch run history when templateId is available
   useEffect(() => {
@@ -197,15 +203,52 @@ const SchedulePage: React.FC = () => {
     setShowStagingForm(false);
   };
 
-  const handleRunNow = () => {
+  const handleRunNow = async () => {
     // Handle run now - execute campaign immediately
     const formData = watch();
-    console.log("Run Now data:", formData);
-    // TODO: Call API to run the campaign immediately
-    setShowRunNowModal(false);
-    setShowStagingForm(false);
-    alert("Campaign started successfully!");
-    router.push("/campaigns");
+    console.log("Run Now clicked - formData:", formData);
+    console.log("Campaign ID from URL:", campaignId);
+    console.log("Template ID from URL:", templateId);
+    
+    // Use campaignId from manage campaign page, or fallback to templateId
+    const idToUse = campaignId || templateId;
+    
+    if (!idToUse) {
+      console.error("No campaign ID or template ID available");
+      alert("Error: No campaign ID found. Cannot start campaign.");
+      return;
+    }
+    
+    setIsStartingCampaign(true);
+    
+    try {
+      console.log("Calling API to start campaign with ID:", idToUse);
+      console.log("API endpoint: https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery");
+      console.log("Query: CALL kf_start_campaign(?::uuid)");
+      console.log("Parameters:", [idToUse]);
+      
+      const result = await executeQuery(
+        "CALL kf_start_campaign(?::uuid)",
+        [idToUse]
+      );
+      
+      console.log("API call successful, result:", result);
+      setIsStartingCampaign(false);
+      setShowRunNowModal(false);
+      setShowStagingForm(false);
+      alert("Campaign started successfully!");
+      router.push("/campaigns");
+    } catch (error) {
+      console.error("Error starting campaign:", error);
+      console.error("Error details:", {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      setIsStartingCampaign(false);
+      setShowRunNowModal(false);
+      setShowStagingForm(false);
+      alert(`Failed to start campaign: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   };
 
   const handleStagingClick = () => {
@@ -677,10 +720,20 @@ const SchedulePage: React.FC = () => {
                   <div className="flex flex-col gap-3">
                     <button
                       onClick={handleRunNow}
-                      className="flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium shadow-sm"
+                      disabled={isStartingCampaign}
+                      className="flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <Play className="w-4 h-4" />
-                      Run Now
+                      {isStartingCampaign ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Starting Campaign...
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-4 h-4" />
+                          Run Now
+                        </>
+                      )}
                     </button>
                     <button
                       onClick={handleStagingClick}
