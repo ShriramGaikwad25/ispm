@@ -145,7 +145,10 @@ const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow }) => {
           return (
             <div className="flex items-center gap-3 h-full">
               <button
-                onClick={() => onEdit(params.data)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(params.data);
+                }}
                 className="p-1.5 rounded-full border-2 border-blue-600 hover:bg-blue-50 text-blue-600 hover:text-blue-800 transition-colors"
                 title="Edit"
                 aria-label="Edit template"
@@ -153,7 +156,10 @@ const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow }) => {
                 <Edit className="w-4 h-4" />
               </button>
               <button
-                onClick={() => onRunNow(params.data)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRunNow(params.data);
+                }}
                 className="p-1.5 rounded-full border-2 border-green-600 hover:bg-green-50 text-green-600 hover:text-green-800 transition-colors"
                 title="Schedule"
                 aria-label="Schedule template"

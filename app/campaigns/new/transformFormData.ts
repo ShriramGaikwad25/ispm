@@ -12,118 +12,165 @@ export function transformFormDataToPayload(formData: FormData): any {
   // Helper function to build filter criteria from expression array
   const buildFilterCriteria = (expressions: any[]) => {
     if (!expressions || expressions.length === 0) {
-      return undefined;
+      return {
+        attribute: null,
+        children: null,
+        condition: null,
+        operator: null,
+        value: null,
+      };
     }
 
     if (expressions.length === 1) {
       const exp = expressions[0];
       return {
-        attribute: exp.attribute?.value || exp.attribute,
-        operator: exp.operator?.value || exp.operator,
-        value: exp.value,
+        attribute: exp.attribute?.value || exp.attribute || null,
+        operator: exp.operator?.value || exp.operator || null,
+        value: exp.value || null,
+        children: null,
+        condition: null,
       };
     }
 
     // For multiple expressions, build a tree structure
     return {
-      condition: "AND", // Default to AND, could be made configurable
+      condition: "AND",
       children: expressions.map((exp) => ({
-        attribute: exp.attribute?.value || exp.attribute,
-        operator: exp.operator?.value || exp.operator,
-        value: exp.value,
+        attribute: exp.attribute?.value || exp.attribute || null,
+        operator: exp.operator?.value || exp.operator || null,
+        value: exp.value || null,
+        children: null,
+        condition: null,
       })),
+      attribute: null,
+      operator: null,
+      value: null,
     };
   };
 
   // Build reviewers array from stages
   const reviewers: any[] = [];
   if (step3.stages && step3.stages.length > 0) {
-    step3.stages.forEach((stage) => {
+    step3.stages.forEach((stage, index) => {
       const reviewerType = stage.reviewer;
       
       // Map form reviewer types to API reviewer types
       let mappedReviewerType = reviewerType;
       if (reviewerType === "Manager") mappedReviewerType = "Manager";
       else if (reviewerType === "User") mappedReviewerType = "User";
-      else if (reviewerType === "Entitlement Owner") mappedReviewerType = "Entitlement Owner";
-      else if (reviewerType === "Application Owner") mappedReviewerType = "Application Owner";
-      else if (reviewerType === "Role Owner") mappedReviewerType = "Role Owner";
+      else if (reviewerType === "Entitlement Owner") mappedReviewerType = "EntitlementOwner";
+      else if (reviewerType === "Application Owner") mappedReviewerType = "ApplicationOwner";
+      else if (reviewerType === "Role Owner") mappedReviewerType = "RoleOwner";
       else if (reviewerType === "custom-reviewer") {
-        // Handle custom certifier
-        if (stage.genericExpression && stage.genericExpression.length > 0) {
-          // This is a CustomCertifiers type
-          const customCertifiers: any[] = [];
-          
-          // Group expressions by entity type if possible, or create entries
-          // For now, create a simple structure
-          stage.genericExpression.forEach((exp: any) => {
-            // This is a simplified mapping - you may need to adjust based on actual form structure
-            customCertifiers.push({
-              entitytype: "User", // Default, should be determined from form
-              entityList: [], // Should be populated from form data
-              reviewerId: exp.value || "", // Use value as reviewerId
-            });
-          });
-
-          reviewers.push({
-            reviewerType: "CustomCertifiers",
-            customCertifiers: customCertifiers,
-            description: `Custom certifiers for stage`,
-          });
-        } else {
-          // Static or Dynamic certifier
-          reviewers.push({
-            reviewerType: "Certifier",
-            certifier: {
-              type: "Static", // Default, could be dynamic based on form
-              reviewerId: stage.customReviewerlist?.name || "",
-            },
-            description: `Certifier for stage`,
-          });
-        }
-      } else {
-        // Standard reviewer types
-        reviewers.push({
-          reviewerType: mappedReviewerType,
-          description: `${mappedReviewerType} will review the access`,
-        });
+        mappedReviewerType = "CustomCertifiers";
       }
+
+      const reviewer: any = {
+        stage: index + 1,
+        reviewerType: mappedReviewerType,
+        reviewDuration: Number(stage.duration) || 30,
+        description: stage.description || `${mappedReviewerType} Review`,
+        reviewerID: "",
+        customCertifiers: [],
+      };
+
+      // Handle custom certifiers
+      if (reviewerType === "custom-reviewer" && stage.genericExpression && stage.genericExpression.length > 0) {
+        reviewer.customCertifiers = stage.genericExpression.map((exp: any) => ({
+          attribute: exp.attribute?.value || exp.attribute || null,
+          operator: exp.operator?.value || exp.operator || null,
+          value: exp.value || null,
+        }));
+      }
+
+      reviewers.push(reviewer);
     });
   } else {
     // Default reviewer if no stages
     reviewers.push({
+      stage: 1,
       reviewerType: "Manager",
-      description: "User's manager will review the access",
+      reviewDuration: 30,
+      description: "Manager Review",
+      reviewerID: "",
+      customCertifiers: [],
     });
   }
 
   // Build userCriteria
   const userCriteria: any = {
-    criteria: "allUsers", // Default
+    criteria: "allUsers",
+    selectedUsers: [],
+    customUserGroups: [],
+    excludeUsersFromCampaign: [],
+    filtercriteria: {
+      attribute: null,
+      children: null,
+      condition: null,
+      operator: null,
+      value: null,
+    },
   };
 
   if (step2.userType === "All users") {
     userCriteria.criteria = "allUsers";
   } else if (step2.userType === "Specific users") {
-    userCriteria.criteria = "filter";
+    userCriteria.criteria = "selectedUsers";
+    userCriteria.selectedUsers = (step2.specificUserExpression || []).map((exp: any) => ({
+      attribute: exp.attribute?.value || exp.attribute,
+      operator: exp.operator?.value || exp.operator,
+      value: exp.value,
+    }));
     userCriteria.filtercriteria = buildFilterCriteria(step2.specificUserExpression || []);
   } else if (step2.userType === "Custom User Group") {
-    userCriteria.criteria = "specificUsers";
-    // Extract user IDs from group list or file
-    userCriteria.selectedUsers = step2.userGroupList 
-      ? step2.userGroupList.split(",").map((u: string) => u.trim())
-      : [];
+    userCriteria.criteria = "customUserGroups";
+    if (step2.groupListIsChecked && step2.importNewUserGroup) {
+      userCriteria.customUserGroups = [`Imported ${step2.importNewUserGroup.name || "Group"}`];
+    } else if (step2.userGroupList) {
+      userCriteria.customUserGroups = step2.userGroupList.split(",").map((g: string) => g.trim());
+    }
   }
 
   if (step2.excludeUsersIsChecked && step2.excludeUsers) {
-    userCriteria.excludeUsersFromCampaign = step2.excludeUsers
-      .split(",")
-      .map((u: string) => u.trim());
+    if (typeof step2.excludeUsers === "string") {
+      userCriteria.excludeUsersFromCampaign = step2.excludeUsers.split(",").map((u: string) => u.trim());
+    } else if (Array.isArray(step2.excludeUsers)) {
+      userCriteria.excludeUsersFromCampaign = step2.excludeUsers.map((u: any) => 
+        typeof u === "string" ? u : u.value || u.label || u
+      );
+    }
   }
 
   // Build scopingCriteria
   const scopingCriteria: any = {
-    criteria: "allApplications", // Default
+    criteria: "allApplications",
+    selectedApplications: [],
+    appSpecificFilter: [],
+    specificEntitlementsFilter: [],
+    commonFilterForAccounts: {
+      criteria: "allAccounts",
+      filtercriteria: {
+        attribute: null,
+        children: null,
+        condition: null,
+        operator: null,
+        value: null,
+      },
+      assignedAfter: null,
+      createdAfter: "",
+    },
+    commonFilterForEntitlements: {
+      criteria: "allEntitlementsOfAccount",
+      filtercriteria: {
+        attribute: null,
+        children: null,
+        condition: null,
+        operator: null,
+        value: null,
+      },
+      assignedAfter: "",
+      createdAfter: null,
+    },
   };
 
   if (step2.selectData === "All Applications") {
@@ -131,153 +178,153 @@ export function transformFormDataToPayload(formData: FormData): any {
   } else if (step2.selectData === "Specific Applications") {
     scopingCriteria.criteria = "selectedApplications";
     scopingCriteria.selectedApplications = (step2.specificApps || []).map((app: any) => 
-      typeof app === "string" ? app : app.value || app.label || app
+      typeof app === "string" ? app : app.value || app.id || app.label || app
     );
+  } else if (step2.selectData === "Select Entitlement") {
+    scopingCriteria.criteria = "specificEntitlements";
   }
 
-  // Build app-specific filters
-  if (step2.specificApps && step2.specificApps.length > 0) {
-    scopingCriteria.appSpecificFilter = step2.specificApps.map((app: any) => {
-      const appName = typeof app === "string" ? app : app.value || app.label || app;
-      return {
-        appName: appName,
-        criteria: "allAccounts", // Default
-        filtercriteria: buildFilterCriteria(step2.expressionApps || []),
-        createdAfter: "",
-      };
-    });
+  // Build commonFilterForAccounts
+  if (step2.expressionApps && step2.expressionApps.length > 0) {
+    scopingCriteria.commonFilterForAccounts.filtercriteria = buildFilterCriteria(step2.expressionApps);
+    if (step4.applicationScope) {
+      scopingCriteria.commonFilterForAccounts.criteria = "allUserAccounts";
+    }
   }
 
-  // Build entitlement filters
+  // Build commonFilterForEntitlements
   if (step2.expressionEntitlement && step2.expressionEntitlement.length > 0) {
-    scopingCriteria.commonFilterForEntitlements = {
-      criteria: "allEntitlements",
-      filtercriteria: buildFilterCriteria(step2.expressionEntitlement),
-      assignedAfter: "",
-    };
-
-    // Build specific entitlements filter per app
-    if (step2.specificApps && step2.specificApps.length > 0) {
-      scopingCriteria.specificEntitlementsFilter = step2.specificApps.map((app: any) => {
-        const appName = typeof app === "string" ? app : app.value || app.label || app;
-        return {
-          appName: appName,
-          criteria: "allEntitlements",
-          filtercriteria: buildFilterCriteria(step2.expressionEntitlement || []),
-          assignedAfter: "",
-        };
-      });
+    scopingCriteria.commonFilterForEntitlements.filtercriteria = buildFilterCriteria(step2.expressionEntitlement);
+    if (step2.selectData === "Select Entitlement") {
+      scopingCriteria.commonFilterForEntitlements.criteria = "specificEntitlements";
+      scopingCriteria.commonFilterForEntitlements.assignedAfter = step2.expressionEntitlement[0]?.value || "";
     }
   }
 
   // Build reminders
   const reminders = {
-    enabled: (step4.socReminders && step4.socReminders.length > 0) || 
-             (step4.eocReminders && step4.eocReminders.length > 0),
-    frequencyInDays: 5, // Default, could be extracted from form
+    enabled: (step4.socReminders && step4.socReminders.length > 0),
+    frequencyInDays: step4.socReminders && step4.socReminders.length > 0 
+      ? Number(step4.socReminders[0]?.value) || 7 
+      : 7,
     notificationTemplate: {
-      subject: `Reminder: Access Review for Campaign ${step1.certificationTemplate || "Campaign"}`,
-      body: `Hi ${"${reviewer.firstname}"},<br/><br/>You have pending items in the access review campaign: <strong>${step1.certificationTemplate || "Campaign"}</strong>.<br/>Please complete your review by <strong>${"${campaign.enddate}"}</strong>.<br/><br/><a href='${"${certificationUrl}"}'>Access Review Link</a><br/><br/>Thanks,<br/>Saviynt Team`,
+      subject: `Reminder: Access Review for Campaign \${campaign.name}`,
+      body: `Hi \${reviewer.firstname},<br/><br/>You have pending items in the access review campaign: <strong>\${campaign.name}</strong>.<br/>Please complete your review by <strong>\${campaign.enddate}</strong>.<br/><br/><a href='\${certificationUrl}'>Access Review Link</a><br/><br/>Thanks,<br/>Access Governance Team`,
     },
   };
 
   // Build notifications
+  const campaignName = step1.certificationTemplate || "Campaign";
   const notifications: any = {
     onStart: {
       notificationTemplate: {
-        subject: `Access Review Started: ${step1.certificationTemplate || "Campaign"}`,
-        body: `Hello ${"${reviewer.firstname}"},<br/><br/>The access certification campaign <strong>${step1.certificationTemplate || "Campaign"}</strong> has started.<br/>Start Date: ${"${campaign.startdate}"}<br/>End Date: ${"${campaign.enddate}"}<br/><br/><a href='${"${certificationUrl}"}'>Review Now</a><br/><br/>Thanks,<br/>Saviynt Governance Team`,
+        subject: `Access Review Started: \${campaign.name}`,
+        body: `Hello \${reviewer.firstname},<br/><br/>The access certification campaign <strong>\${campaign.name}</strong> has started.<br/>Start Date: \${campaign.startdate}<br/>End Date: \${campaign.enddate}<br/><br/><a href='\${certificationUrl}'>Review Now</a><br/><br/>Thanks,<br/>Access Governance Team`,
       },
     },
     onCompletion: {
       notificationTemplate: {
-        subject: `Access Review Completed: ${step1.certificationTemplate || "Campaign"}`,
-        body: `Dear ${"${reviewer.firstname}"},<br/><br/>The campaign <strong>${step1.certificationTemplate || "Campaign"}</strong> has been completed.<br/><br/>Thank you for your participation.<br/><br/>Saviynt Governance Team`,
+        subject: `Access Review Completed: \${campaign.name}`,
+        body: `Dear \${reviewer.firstname},<br/><br/>The campaign <strong>\${campaign.name}</strong> has been completed.<br/><br/>Thank you for your participation.<br/><br/>Access Governance Team`,
+      },
+    },
+    beforeExpiry: {
+      numOfDaysBeforeExpiry: (step4.eocReminders || []).map((reminder: any) => 
+        Number(reminder.value) || Number(reminder) || 7
+      ),
+      notificationTemplate: {
+        subject: `Access Review about to Expire: \${campaign.name}`,
+        body: `Dear \${reviewer.firstname},<br/><br/>The campaign <strong>\${campaign.name}</strong> is about to expire.<br/><br/>Please take action before expiry.<br/><br/>Access Governance Team`,
+      },
+    },
+    onEscalation: {
+      notificationTemplate: {
+        subject: `Escalation: Pending Access Review for \${campaign.name}`,
+        body: `Hi \${reviewer.firstname},<br/><br/>You have not yet completed your access review for <strong>\${campaign.name}</strong>.<br/>Please take action immediately to avoid non-compliance.<br/><br/><a href='\${certificationUrl}'>Complete Review</a><br/><br/>Regards,<br/>Access Governance Team`,
       },
     },
   };
 
-  if (step4.allowEscalation) {
-    notifications.onEscalation = {
-      enabled: true,
-      notificationTemplate: {
-        subject: `Escalation: Pending Access Review for ${step1.certificationTemplate || "Campaign"}`,
-        body: `Hi ${"${reviewer.firstname}"},<br/><br/>You have not yet completed your access review for <strong>${step1.certificationTemplate || "Campaign"}</strong>.<br/>Please take action immediately to avoid non-compliance.<br/><br/><a href='${"${certificationUrl}"}'>Complete Review</a><br/><br/>Regards,<br/>Saviynt`,
-      },
-    };
-  }
-
   // Build escalation
   const escalation = {
-    enabled: !!step4.allowEscalation,
-    daysBeforeExpiry: step4.allowEscalation ? parseInt(step4.allowEscalation) || 10 : 10,
+    enabled: !!step4.allowEscalation && step4.allowEscalation !== "",
+    daysBeforeExpiry: step4.allowEscalation ? Number(step4.allowEscalation) || 1 : 1,
   };
 
   // Build certificationOptions
-  const certificationOptions = {
-    allowDelegation: true, // Default
+  const certificationOptions: any = {
+    allowDelegation: false,
     allowPreDelegateToSignOff: step4.preDelegate || false,
     requireCommentOnRevoke: step4.enforceComments === "Revoke" || step4.enforceComments === "Custom Fields",
     requireCommentOnCertify: step4.enforceComments === "Certify" || step4.enforceComments === "Custom Fields",
     closedLoopRemediation: step4.remediationTicketing || false,
+    defaultCertifier: {
+      reviewerId: step4.certifierUnavailableUsers && step4.certifierUnavailableUsers.length > 0
+        ? (step4.certifierUnavailableUsers[0]?.value || step4.certifierUnavailableUsers[0]?.label || step4.certifierUnavailableUsers[0] || "")
+        : "",
+      type: step4.certifierUnavailableUsers && step4.certifierUnavailableUsers.length > 0 ? "User" : "",
+    },
   };
 
-  // Build campaignSchedularSetting
-  const campaignSchedularSetting: any = {};
-  if (step4.startDate) {
-    campaignSchedularSetting.startDate = step4.startDate instanceof Date 
-      ? step4.startDate.toISOString() 
-      : step4.startDate;
-  }
-  if (step4.reviewRecurrence) {
-    campaignSchedularSetting.frequency = parseInt(step4.reviewRecurrence) || 90;
-  }
-  campaignSchedularSetting.endOfCampaign = step4.end || "Never";
+  // Build campaignSchedular
+  const campaignSchedular: any = {
+    endOfCampaign: step4.end || "Never,Date on which the Campaign Ends(yyyy/MM/dd)",
+    frequency: Number(step4.reviewRecurrence) || Number(step3.duration) || 7,
+    startDate: step4.startDate 
+      ? (step4.startDate instanceof Date 
+          ? step4.startDate.toISOString() 
+          : step4.startDate)
+      : "Start Date on which Campaign Trigger",
+  };
 
-  // Determine campaign type (default to UserAccessReview)
+  // Determine campaign type based on reviewers
   let campaignType = "UserAccessReview";
-  // Could be determined from form data if available
+  if (reviewers.some((r: any) => r.reviewerType === "ApplicationOwner")) {
+    campaignType = "AppOwnerReview";
+  } else if (reviewers.some((r: any) => r.reviewerType === "EntitlementOwner")) {
+    campaignType = "EntitlementOwnerReview";
+  } else if (reviewers.some((r: any) => r.reviewerType === "RoleOwner")) {
+    campaignType = "RoleOwnerReview";
+  }
 
   // Build campaign owner
-  const campaignOwner = step1.ownerType === "User" 
-    ? (step1.ownerUser?.[0]?.value || step1.ownerUser?.[0]?.label || "owner1")
-    : (step1.ownerGroup?.[0]?.value || step1.ownerGroup?.[0]?.label || "owner1");
+  const campaignOwner = {
+    ownerType: step1.ownerType || "User",
+    ownerName: step1.ownerType === "User"
+      ? (step1.ownerUser || []).map((u: any) => 
+          typeof u === "string" ? u : u.value || u.label || u
+        )
+      : (step1.ownerGroup || []).map((g: any) => 
+          typeof g === "string" ? g : g.value || g.label || g
+        ),
+  };
+
+  // If no owners specified, use default
+  if (campaignOwner.ownerName.length === 0) {
+    campaignOwner.ownerName = ["SYSADMIN"];
+  }
 
   // Build the final payload
   const payload: any = {
-    name: step1.certificationTemplate || "",
-    description: step1.description || "",
-    campaignType: campaignType,
+    campaignDefinitionMasterID: null,
+    campaignDefinitionParentID: null,
+    campaignDefinitionType: "MASTER",
+    campaignID: null,
     campaignOwner: campaignOwner,
-    reviewers: reviewers,
-    userCriteria: userCriteria,
-    scopingCriteria: scopingCriteria,
-    reminders: reminders,
+    campaignSchedular: campaignSchedular,
+    campaignType: campaignType,
+    certificationDuration: Number(step3.duration) || Number(step4.duration) || 30,
+    copyFromTemplate: step1.template || "",
+    description: step1.description || "",
+    name: step1.certificationTemplate || "",
     notifications: notifications,
+    reminders: reminders,
+    reviewers: reviewers,
+    scopingCriteria: scopingCriteria,
+    userCriteria: userCriteria,
     escalation: escalation,
     certificationOptions: certificationOptions,
   };
 
-  // Add dates if available (from step4 or step1)
-  if (step4.startDate) {
-    payload.startDate = step4.startDate instanceof Date 
-      ? step4.startDate.toISOString() 
-      : step4.startDate;
-  }
-  if (step4.duration) {
-    // Calculate endDate from startDate + duration
-    const start = step4.startDate instanceof Date ? step4.startDate : new Date(step4.startDate);
-    const days = parseInt(step4.duration) || 30;
-    const endDate = new Date(start);
-    endDate.setDate(endDate.getDate() + days);
-    payload.endDate = endDate.toISOString();
-  }
-
-  // Add scheduler settings if provided
-  if (Object.keys(campaignSchedularSetting).length > 0) {
-    payload.campaignSchedularSetting = campaignSchedularSetting;
-  }
-
   return payload;
 }
-
