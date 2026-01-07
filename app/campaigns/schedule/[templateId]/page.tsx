@@ -13,13 +13,43 @@ import FileDropzone from "@/components/FileDropzone";
 import { BackButton } from "@/components/BackButton";
 import DateInput from "@/components/DatePicker";
 import { executeQuery } from "@/lib/api";
+import { apiRequestWithAuth } from "@/lib/auth";
+
+// Common timezones list
+const COMMON_TIMEZONES = [
+  { value: "UTC", label: "UTC (Coordinated Universal Time)" },
+  { value: "America/New_York", label: "Eastern Time (ET)" },
+  { value: "America/Chicago", label: "Central Time (CT)" },
+  { value: "America/Denver", label: "Mountain Time (MT)" },
+  { value: "America/Los_Angeles", label: "Pacific Time (PT)" },
+  { value: "America/Phoenix", label: "Arizona Time (MST)" },
+  { value: "America/Anchorage", label: "Alaska Time (AKT)" },
+  { value: "Pacific/Honolulu", label: "Hawaii Time (HST)" },
+  { value: "Europe/London", label: "London (GMT/BST)" },
+  { value: "Europe/Paris", label: "Paris (CET/CEST)" },
+  { value: "Europe/Berlin", label: "Berlin (CET/CEST)" },
+  { value: "Europe/Rome", label: "Rome (CET/CEST)" },
+  { value: "Europe/Madrid", label: "Madrid (CET/CEST)" },
+  { value: "Europe/Amsterdam", label: "Amsterdam (CET/CEST)" },
+  { value: "Asia/Dubai", label: "Dubai (GST)" },
+  { value: "Asia/Kolkata", label: "Mumbai/New Delhi (IST)" },
+  { value: "Asia/Singapore", label: "Singapore (SGT)" },
+  { value: "Asia/Hong_Kong", label: "Hong Kong (HKT)" },
+  { value: "Asia/Tokyo", label: "Tokyo (JST)" },
+  { value: "Asia/Shanghai", label: "Shanghai (CST)" },
+  { value: "Asia/Seoul", label: "Seoul (KST)" },
+  { value: "Australia/Sydney", label: "Sydney (AEDT/AEST)" },
+  { value: "Australia/Melbourne", label: "Melbourne (AEDT/AEST)" },
+  { value: "Pacific/Auckland", label: "Auckland (NZDT/NZST)" },
+];
 
 const SchedulePage: React.FC = () => {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
   const templateId = params?.templateId as string;
-  const templateName = searchParams?.get("name") || "Template";
+  const templateNameFromQuery = searchParams?.get("name");
+  const templateName = templateNameFromQuery ? decodeURIComponent(templateNameFromQuery) : "Template";
   const campaignId = searchParams?.get("campaignId") || null;
   
   const [template, setTemplate] = useState<any>(null);
@@ -69,19 +99,88 @@ const SchedulePage: React.FC = () => {
     }
   };
 
-  // In a real app, you would fetch the template data based on templateId
+  // Fetch template data from API
   useEffect(() => {
-    // For now, we'll use template name from query params. In production, fetch from API
-    setTemplate({
-      id: templateId,
-      name: templateName,
-      description: "",
-      userType: "All users",
-      selectData: "All Applications",
-    });
-    // Debug: Log campaignId when component mounts
-    console.log("Schedule page mounted - templateId:", templateId, "campaignId:", campaignId);
-  }, [templateId, templateName, campaignId]);
+    const fetchTemplate = async () => {
+      if (!templateId) return;
+      
+      try {
+        // Try to fetch campaign by ID
+        let templateData: any = null;
+        try {
+          templateData = await apiRequestWithAuth<any>(
+            `https://preview.keyforge.ai/campaign/api/v1/ACMECOM/getCampaign/${templateId}`,
+            { method: "GET" }
+          );
+        } catch (firstError) {
+          // Fallback: Get all campaigns and find the matching one
+          try {
+            const allCampaigns = await apiRequestWithAuth<any>(
+              "https://preview.keyforge.ai/campaign/api/v1/ACMECOM/getAllCampaigns",
+              { method: "GET" }
+            );
+            
+            let campaignsArray: any[] = [];
+            if (Array.isArray(allCampaigns)) {
+              campaignsArray = allCampaigns;
+            } else if (allCampaigns && typeof allCampaigns === "object") {
+              campaignsArray = allCampaigns.items || allCampaigns.data || allCampaigns.campaigns || allCampaigns.results || [];
+            }
+            
+            templateData = campaignsArray.find(
+              (campaign: any) =>
+                campaign.id === templateId ||
+                campaign.campaignID === templateId ||
+                campaign.campaignId === templateId
+            );
+          } catch (secondError) {
+            console.error("Error fetching template:", secondError);
+            // Use fallback data from query params
+            templateData = null;
+          }
+        }
+
+        if (templateData) {
+          // Extract duration from certificationDuration or step3 duration
+          const duration = templateData.certificationDuration 
+            ? `${templateData.certificationDuration} days`
+            : templateData.duration || "";
+          
+          setTemplate({
+            id: templateId,
+            name: templateData.name || templateName,
+            description: templateData.description || "",
+            duration: duration,
+            userType: templateData.userType || "All users",
+            selectData: templateData.selectData || "All Applications",
+          });
+        } else {
+          // Fallback to query params if API fails
+          setTemplate({
+            id: templateId,
+            name: templateName,
+            description: "",
+            duration: "",
+            userType: "All users",
+            selectData: "All Applications",
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching template data:", error);
+        // Fallback to query params on error
+        setTemplate({
+          id: templateId,
+          name: templateName,
+          description: "",
+          duration: "",
+          userType: "All users",
+          selectData: "All Applications",
+        });
+      }
+    };
+
+    fetchTemplate();
+  }, [templateId, templateName]);
 
 
   // Fetch run history when templateId is available
@@ -107,6 +206,7 @@ const SchedulePage: React.FC = () => {
     defaultValues: {
       certificationTemplate: template?.name || "",
       description: template?.description || "",
+      duration: template?.duration || "",
       userType: template?.userType || "All users",
       selectData: template?.selectData || "All Applications",
       specificUserExpression: template?.specificUserExpression || [defaultExpression],
@@ -119,6 +219,11 @@ const SchedulePage: React.FC = () => {
       excludeUsers: template?.excludeUsers || "",
       // Scheduling fields
       startDate: null,
+      timezone: (() => {
+        const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        // Check if user's timezone is in our common list, otherwise default to UTC
+        return COMMON_TIMEZONES.some(tz => tz.value === userTz) ? userTz : "UTC";
+      })(),
       runOnceOnly: false,
       recurrenceNumber: "",
       recurrenceUnit: "Days",
@@ -136,6 +241,7 @@ const SchedulePage: React.FC = () => {
     if (template) {
       setValue("certificationTemplate", template.name || "");
       setValue("description", template.description || "");
+      setValue("duration", template.duration || "");
       setValue("userType", template.userType || "All users");
       setValue("selectData", template.selectData || "All Applications");
     }
@@ -309,7 +415,8 @@ const SchedulePage: React.FC = () => {
                 <div className="w-full max-w-md">
                   <input
                     type="text"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 cursor-not-allowed"
                     {...register("certificationTemplate", { required: "Template Name is required" })}
                   />
                   {errors.certificationTemplate?.message &&
@@ -326,13 +433,33 @@ const SchedulePage: React.FC = () => {
                 </label>
                 <div className="w-full max-w-md">
                   <textarea
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 cursor-not-allowed"
                     rows={3}
                     {...register("description", { required: "Description is required" })}
                   />
                   {errors.description?.message &&
                     typeof errors.description.message === "string" && (
                       <p className="text-red-500 text-sm mt-1">{errors.description.message}</p>
+                    )}
+                </div>
+              </div>
+
+              {/* Duration */}
+              <div className="grid grid-cols-[200px_1fr] gap-6 items-start">
+                <label className="text-sm font-medium text-gray-700 pt-2">
+                  Duration
+                </label>
+                <div className="w-full max-w-md">
+                  <input
+                    type="text"
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 cursor-not-allowed"
+                    {...register("duration")}
+                  />
+                  {errors.duration?.message &&
+                    typeof errors.duration.message === "string" && (
+                      <p className="text-red-500 text-sm mt-1">{errors.duration.message}</p>
                     )}
                 </div>
               </div>
@@ -348,13 +475,27 @@ const SchedulePage: React.FC = () => {
                 <label className={`text-sm font-medium text-gray-700 pt-2 ${asterisk}`}>
                   Start Date
                 </label>
-                <div className="w-full max-w-sm">
-                  <DateInput
-                    control={control as unknown as Control<FieldValues>}
-                    name="startDate"
-                    showTime={true}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                  />
+                <div className="w-full space-y-3">
+                  <div className="w-full max-w-lg">
+                    <DateInput
+                      control={control as unknown as Control<FieldValues>}
+                      name="startDate"
+                      showTime={true}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div className="w-100">
+                    <select
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      {...register("timezone")}
+                    >
+                      {COMMON_TIMEZONES.map((tz) => (
+                        <option key={tz.value} value={tz.value}>
+                          {tz.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   {errors.startDate?.message &&
                     typeof errors.startDate.message === "string" && (
                       <p className="text-red-500 text-sm mt-1">{errors.startDate.message}</p>
@@ -484,7 +625,7 @@ const SchedulePage: React.FC = () => {
                 {enableStaging === "Yes" && (
                   <div className="ml-[200px] space-y-6 pl-6 border-l-2 border-gray-200">
                     {/* Staging Timing */}
-                    <div className="space-y-3">
+                    {/* <div className="space-y-3">
                       <label className="block text-sm font-medium text-gray-700">Staging Timing</label>
                       <div className="flex flex-col gap-3">
                         <label className="flex items-center gap-2 cursor-pointer">
@@ -506,13 +647,13 @@ const SchedulePage: React.FC = () => {
                           <span className="text-sm text-gray-700">Before Each Run</span>
                         </label>
                       </div>
-                    </div>
+                    </div> */}
 
                     {/* Staging Duration */}
                     <div className="space-y-3">
                       <label className="block text-sm font-medium text-gray-700">Duration</label>
-                      <div className="flex items-center gap-3">
-                        <label className="text-sm text-gray-600 whitespace-nowrap">Number</label>
+                      <div className="flex items-center gap-2">
+                        {/* <label className="text-sm text-gray-600 whitespace-nowrap">Number</label> */}
                         <input
                           type="number"
                           min="1"
