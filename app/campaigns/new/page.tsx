@@ -66,7 +66,6 @@ const CreateCampaign = () => {
           // Map the template data to FormData structure
           // Step1 data
           const step1Data = {
-            template: editTemplateId,
             certificationTemplate: templateData.name || templateData.campaignName || templateData.templateName || "",
             description: templateData.description || "",
             ownerType: templateData.ownerType || templateData.campaignOwner?.ownerType || "User",
@@ -172,7 +171,6 @@ const CreateCampaign = () => {
             socReminders: reminders.enabled ? (reminders.frequencyInDays ? [{ label: `Every ${reminders.frequencyInDays} days`, value: reminders.frequencyInDays.toString() }] : []) : [],
             eocReminders: notifications.beforeExpiry?.numOfDaysBeforeExpiry?.map((days: number) => ({ label: `${days} days before expiry`, value: days.toString() })) || [],
             msTeamsNotification: templateData.msTeamsNotification || false,
-            remediationTicketing: certificationOptions.closedLoopRemediation || false,
             allowDownloadUploadCropNetwork: templateData.allowDownloadUploadCropNetwork || false,
             markUndecidedRevoke: templateData.markUndecidedRevoke || false,
             disableBulkAction: templateData.disableBulkAction || false,
@@ -196,10 +194,6 @@ const CreateCampaign = () => {
             verifyUserAttribute: templateData.verifyUserAttribute || "",
             applicationScope: scopingCriteria.commonFilterForAccounts?.criteria === "allUserAccounts" || false,
             preDelegate: certificationOptions.allowPreDelegateToSignOff || false,
-            campaignPreview: templateData.campaignPreview || false,
-            campaignPreviewDuration: templateData.campaignPreviewDuration || "",
-            campaignPreviewEmailNotificationsEnabled: templateData.campaignPreviewEmailNotificationsEnabled || false,
-            campaignPreviewEmailNotifications: templateData.campaignPreviewEmailNotifications || false,
           };
 
           const mappedTemplate: FormData = {

@@ -44,7 +44,17 @@ function MultiSelect<FormValues extends FieldValues>({
   // Fix SSR hydration issues by ensuring it's a client-only component
   const [isClient, setIsClient] = useState(false);
   useEffect(() => setIsClient(true), []);
-  if (!isClient) return null; // Prevents SSR mismatches
+  
+  // Show a placeholder input during SSR to prevent layout shift
+  if (!isClient) {
+    return (
+      <div className="w-full">
+        <div className="px-3 py-2 text-sm border border-gray-300 rounded bg-white min-h-[38px] flex items-center text-gray-400">
+          {placeholder}
+        </div>
+      </div>
+    );
+  }
   
   interface CustomOptionProps extends OptionProps<unknown, boolean, GroupBase<unknown>> {
     image?: string;

@@ -15,9 +15,7 @@ import MultiSelect from "@/components/MultiSelect";
 import {
   asterisk,
   beforeExpiryReminders,
-  durationOptions,
   enforceComments,
-  recurrenceOptions,
   startOfCampaign,
   optionsData,
   selectAttribute,
@@ -25,7 +23,6 @@ import {
 import { customOption, loadUsers } from "@/components/MsAsyncData";
 import ExpressionBuilder from "@/components/ExpressionBuilder";
 import { Step4FormData, StepProps } from "@/types/stepTypes";
-import DateInput from "@/components/DatePicker";
 import dynamic from "next/dynamic";
 const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
 import "@/lib/ag-grid-setup";
@@ -44,7 +41,6 @@ const validationSchema = yup.object().shape({
     then: (schema) => schema.required("Microsoft Teams webhook URL is required"),
     otherwise: (schema) => schema.notRequired(),
   }),
-  remediationTicketing: yup.boolean(),
   allowDownloadUploadCropNetwork: yup.boolean(),
 
   // Campaign Management
@@ -86,27 +82,6 @@ const validationSchema = yup.object().shape({
   // }),
   applicationScope: yup.boolean(),
   preDelegate: yup.boolean(),
-  campaignPreview: yup.boolean(),
-  campaignPreviewDuration: yup.string().when("campaignPreview", {
-    is: true,
-    then: (schema) => 
-      schema
-        .required("Duration is required")
-        .test("is-number", "Duration must be a valid number", (value) => {
-          return /^\d+$/.test(value?.trim() || "");
-        })
-        .test("is-greater-than-0", "Duration must be greater than 0", (value) => {
-          return Number(value) > 0;
-        }),
-    otherwise: (schema) => schema.notRequired(),
-  }),
-  campaignPreviewEmailNotificationsEnabled: yup.boolean(),
-  campaignPreviewEmailNotifications: yup.boolean(),
-
-  duration: yup.string().required("Duration is required"),
-  reviewRecurrence: yup.string().required("Review recurrence is required"),
-  startDate: yup.date().nullable().required("Start date is required"),
-  end: yup.string().required("End is required"),
 });
 
 const Step4: React.FC<StepProps> = ({
@@ -142,10 +117,6 @@ const Step4: React.FC<StepProps> = ({
   // Use serialized comparison to avoid infinite loops
   useEffect(() => {
     const currentSerialized = formData.step4 ? JSON.stringify({
-      duration: formData.step4.duration,
-      reviewRecurrence: formData.step4.reviewRecurrence,
-      startDate: formData.step4.startDate,
-      end: formData.step4.end,
       socReminders: formData.step4.socReminders,
       eocReminders: formData.step4.eocReminders,
       msTeamsNotification: formData.step4.msTeamsNotification,
@@ -209,34 +180,20 @@ const Step4: React.FC<StepProps> = ({
   }, [watch("authenticationSignOff"), setValue]);
 
   useEffect(() => {
-    if (!watch("campaignPreview")) {
-      setValue("campaignPreviewDuration", undefined);
-      setValue("campaignPreviewEmailNotificationsEnabled", false);
-      setValue("campaignPreviewEmailNotifications", false);
-    }
-  }, [watch("campaignPreview"), setValue]);
-
-  useEffect(() => {
-    if (!watch("campaignPreviewEmailNotificationsEnabled")) {
-      setValue("campaignPreviewEmailNotifications", false);
-    }
-  }, [watch("campaignPreviewEmailNotificationsEnabled"), setValue]);
-
-  useEffect(() => {
     const subscription = watch((values) => {
       setFormData((prev) => {
         // Only update if values actually changed to prevent infinite loops
         const currentSerialized = JSON.stringify({
-          duration: prev.step4?.duration,
-          reviewRecurrence: prev.step4?.reviewRecurrence,
-          startDate: prev.step4?.startDate,
-          end: prev.step4?.end,
+          socReminders: prev.step4?.socReminders,
+          eocReminders: prev.step4?.eocReminders,
+          msTeamsNotification: prev.step4?.msTeamsNotification,
+          enforceComments: prev.step4?.enforceComments,
         });
         const newSerialized = JSON.stringify({
-          duration: values.duration,
-          reviewRecurrence: values.reviewRecurrence,
-          startDate: values.startDate,
-          end: values.end,
+          socReminders: values.socReminders,
+          eocReminders: values.eocReminders,
+          msTeamsNotification: values.msTeamsNotification,
+          enforceComments: values.enforceComments,
         });
         
         if (currentSerialized !== newSerialized) {
@@ -404,17 +361,6 @@ const Step4: React.FC<StepProps> = ({
           </div>
         </dd>
         <dd className="grid grid-cols-2">
-          <span>Integrate with Ticketing tool for Remediation</span>
-          <span className="flex gap-2 items-center">
-            No
-            <ToggleSwitch
-              checked={watch("remediationTicketing")}
-              onChange={(checked) => setValue("remediationTicketing", checked)}
-            />
-            Yes
-          </span>
-        </dd>
-        <dd className="grid grid-cols-2">
           <span className="flex gap-2 items-center">
             Only allow Download/Upload on “Sharepoint/Corporate Network”
             <InfoIcon className=" text-gray-500" size={16} />
@@ -430,15 +376,27 @@ const Step4: React.FC<StepProps> = ({
       </dl>
       <h2 className="font-medium">Campaign Management</h2>
       <dl className="px-4 py-8 border-b border-gray-300 space-y-4 mb-8 grid grid-cols-2 text-sm">
-        <dt> Mark all undecided access as Revoke</dt>
+        <dt> Mark undecided access as</dt>
         <dd className="flex gap-2 items-center">
-          {" "}
-          No
+          <span
+            className={`flex items-center ${
+              !watch("markUndecidedRevoke") ? ` text-black` : "text-black/50"
+            }`}
+          >
+            {" "}
+            Revoke
+          </span>
           <ToggleSwitch
             checked={watch("markUndecidedRevoke")}
             onChange={(checked) => setValue("markUndecidedRevoke", checked)}
           />
-          Yes{" "}
+          <span
+            className={`flex items-center ${
+              watch("markUndecidedRevoke") ? ` text-black` : "text-black/50"
+            }`}
+          >
+            Certify{" "}
+          </span>
         </dd>
         <dt> Disable Bulk Action</dt>
         <dd className="flex gap-2 items-center">
@@ -540,7 +498,7 @@ const Step4: React.FC<StepProps> = ({
           />
           Yes{" "}
         </dd>
-        <dt>Enable additional Authentication for certification sign off </dt>
+        <dt>Enable additional Authentication for certification sign off(Password)</dt>
         <dd>
           <div className="flex gap-2 items-center">
             No
@@ -602,143 +560,6 @@ const Step4: React.FC<StepProps> = ({
           />
           Yes{" "}
         </dd>
-        <dt>Enable Campaign Preview </dt>
-        <dd>
-          <div className="flex gap-2 items-center">
-            No
-            <ToggleSwitch
-              checked={watch("campaignPreview")}
-              onChange={(checked) => setValue("campaignPreview", checked)}
-            />
-            Yes{" "}
-          </div>
-
-          {watch("campaignPreview") && (
-            <div className="space-y-4 mt-6">
-              <div>
-                <span className={`flex items-center ${asterisk}`}>Duration (in Days)</span>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="Enter duration in days"
-                  {...register("campaignPreviewDuration")}
-                  onKeyPress={(e) => {
-                    if (!/^\d$/.test(e.key) && e.key !== "Backspace" && e.key !== "Delete" && e.key !== "Tab") {
-                      e.preventDefault();
-                    }
-                  }}
-                  onChange={(e) => {
-                    const value = e.target.value.replace(/\D/g, "");
-                    setValue("campaignPreviewDuration", value, { shouldValidate: true });
-                  }}
-                />
-                {errors.campaignPreviewDuration?.message &&
-                  typeof errors.campaignPreviewDuration.message === "string" && (
-                    <p className="text-red-500">{errors.campaignPreviewDuration.message}</p>
-                  )}
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    className="scale-130"
-                    {...register("campaignPreviewEmailNotificationsEnabled")}
-                  />
-                  <span>Enable Email notifications for</span>
-                  {watch("campaignPreviewEmailNotificationsEnabled") && (
-                    <>
-                      <span
-                        className={`flex items-center ml-2 ${
-                          !watch("campaignPreviewEmailNotifications") ? ` text-black` : "text-black/50"
-                        }`}
-                      >
-                        Owner
-                      </span>
-                      <ToggleSwitch
-                        checked={watch("campaignPreviewEmailNotifications")}
-                        onChange={(checked) => setValue("campaignPreviewEmailNotifications", checked)}
-                      />
-                      <span
-                        className={`flex items-center ${
-                          watch("campaignPreviewEmailNotifications") ? ` text-black` : "text-black/50"
-                        }`}
-                      >
-                        IAM Admin
-                      </span>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-        </dd>
-      </dl>
-      <h2 className="font-medium">Template Scheduling</h2>
-      <dl className="px-4 py-8 space-y-4 mb-8 grid grid-cols-2 text-sm">
-        <div className="w-108">
-          <label className={`h-10 ${asterisk}`}>Duration</label>
-
-          <MultiSelect
-            className="mb-4"
-            isSearchable={false}
-            isMulti={false}
-            control={control as unknown as Control<FieldValues>}
-            options={durationOptions}
-            {...register("duration")}
-          />
-          {errors.duration?.message &&
-            typeof errors.duration.message === "string" && (
-              <p className="text-red-500">{errors.duration.message}</p>
-            )}
-
-          <label className={`h-10 ${asterisk}`}>Start Date</label>
-          <DateInput
-            control={control as unknown as Control<FieldValues>}
-            name="startDate"
-            className="w-108 px-2 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-          />
-        </div>
-        <div className="w-108">
-          <label className={`h-10 ${asterisk}`}>Review Recurrence</label>
-          <MultiSelect
-            className="mb-4"
-            isSearchable={false}
-            isMulti={false}
-            control={control as unknown as Control<FieldValues>}
-            options={recurrenceOptions}
-            {...register("reviewRecurrence")}
-          />
-          {errors.reviewRecurrence?.message &&
-            typeof errors.reviewRecurrence.message === "string" && (
-              <p className="text-red-500">{errors.reviewRecurrence.message}</p>
-            )}
-
-          <label className={`h-10 ${asterisk}`}>End</label>
-          <div className="w-110">
-            {["Never", "On specific date", "After number of occurences"].map(
-              (option, index) => (
-                <button
-                  key={option}
-                  type="button"
-                  className={`px-4 py-2 rounded-md border border-gray-300 ${
-                    watch("end") === option ? "bg-[#15274E] text-white" : ""
-                  } ${
-                    index === 0
-                      ? "rounded-r-none"
-                      : index === 1
-                      ? "rounded-none border-r-0  border-l-0 px-4.5"
-                      : "rounded-l-none"
-                  }`}
-                  onClick={() =>
-                    setValue("end", option, { shouldValidate: true })
-                  }
-                >
-                  {option}
-                </button>
-              )
-            )}
-          </div>
-        </div>
       </dl>
       {showTemplateSidebar && (
         <div className="fixed top-16 right-0 h-[calc(100%-4rem)] w-[500px] bg-white shadow-lg z-50 overflow-auto">

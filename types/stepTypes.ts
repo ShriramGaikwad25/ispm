@@ -26,10 +26,9 @@ export interface GenericExpression {
 }
 /***steps1****/
 export interface Step1FormData {
-  template?: string; // Certification Template name
   ownerUser?: any[];
   ownerGroup?: any[];
-  certificationTemplate: string; // Copy from Template
+  certificationTemplate: string;
   description: string;
   ownerType: string;
 }
@@ -109,7 +108,6 @@ export interface Step4FormData {
   eocReminders: { label: string; value: string }[];
   msTeamsNotification: boolean;
   msTeamsWebhookUrl?: string;
-  remediationTicketing: boolean;
   allowDownloadUploadCropNetwork: boolean;
   markUndecidedRevoke: boolean;
   disableBulkAction: boolean;
@@ -124,15 +122,6 @@ export interface Step4FormData {
   userAttribute?: string;
   applicationScope: boolean;
   preDelegate: boolean;
-  campaignPreview: boolean;
-  campaignPreviewDuration?: string;
-  campaignPreviewEmailNotificationsEnabled?: boolean;
-  campaignPreviewEmailNotifications?: boolean;
-
-  reviewRecurrence?: string;
-  duration?: string;
-  startDate?: Date | null;
-  end?: string;
 }
 
 /***End of Step4 */

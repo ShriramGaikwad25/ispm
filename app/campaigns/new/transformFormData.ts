@@ -257,7 +257,7 @@ export function transformFormDataToPayload(formData: FormData): any {
     allowPreDelegateToSignOff: step4.preDelegate || false,
     requireCommentOnRevoke: step4.enforceComments === "Revoke" || step4.enforceComments === "Custom Fields",
     requireCommentOnCertify: step4.enforceComments === "Certify" || step4.enforceComments === "Custom Fields",
-    closedLoopRemediation: step4.remediationTicketing || false,
+    closedLoopRemediation: false,
     defaultCertifier: {
       reviewerId: step4.certifierUnavailableUsers && step4.certifierUnavailableUsers.length > 0
         ? (step4.certifierUnavailableUsers[0]?.value || step4.certifierUnavailableUsers[0]?.label || step4.certifierUnavailableUsers[0] || "")
@@ -268,13 +268,9 @@ export function transformFormDataToPayload(formData: FormData): any {
 
   // Build campaignSchedular
   const campaignSchedular: any = {
-    endOfCampaign: step4.end || "Never,Date on which the Campaign Ends(yyyy/MM/dd)",
-    frequency: Number(step4.reviewRecurrence) || Number(step3.duration) || 7,
-    startDate: step4.startDate 
-      ? (step4.startDate instanceof Date 
-          ? step4.startDate.toISOString() 
-          : step4.startDate)
-      : "Start Date on which Campaign Trigger",
+    endOfCampaign: "Never,Date on which the Campaign Ends(yyyy/MM/dd)",
+    frequency: Number(step3.duration) || 7,
+    startDate: "Start Date on which Campaign Trigger",
   };
 
   // Determine campaign type based on reviewers
@@ -313,8 +309,7 @@ export function transformFormDataToPayload(formData: FormData): any {
     campaignOwner: campaignOwner,
     campaignSchedular: campaignSchedular,
     campaignType: campaignType,
-    certificationDuration: Number(step3.duration) || Number(step4.duration) || 30,
-    copyFromTemplate: step1.template || "",
+    certificationDuration: Number(step3.duration) || 30,
     description: step1.description || "",
     name: step1.certificationTemplate || "",
     notifications: notifications,

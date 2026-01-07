@@ -27,7 +27,16 @@ const Step3: React.FC<StepProps> = ({
     shouldUnregister: false,
     defaultValues: formData.step3 || {
       multiStageReview: false,
-      stages: [],
+      stages: [
+        {
+          reviewer: "",
+          duration: "",
+          nextReviewerAction: false,
+          reviewerlistIsChecked: false,
+          genericExpression: [],
+          customReviewerlist: null,
+        },
+      ],
     },
   });
   const { fields, append, remove } = useFieldArray({
@@ -35,8 +44,9 @@ const Step3: React.FC<StepProps> = ({
     name: "stages",
   });
 
-  const prevStep3Ref = useRef<string | undefined>();
+  const prevStep3Ref = useRef<string | undefined>(undefined);
   const isInitialMount = useRef(true);
+  const hasResetFromTemplate = useRef(false);
 
   // Reset form when formData.step3 changes externally (e.g., when template is applied)
   // Use serialized comparison to avoid infinite loops
@@ -73,37 +83,45 @@ const Step3: React.FC<StepProps> = ({
 
   useEffect(() => {
     const subscription = watch((values) => {
-      setFormData((prev) => {
-        // Only update if values actually changed to prevent infinite loops
-        const currentSerialized = JSON.stringify({
-          multiStageReview: prev.step3?.multiStageReview,
-          stages: prev.step3?.stages,
-        });
-        const newSerialized = JSON.stringify({
-          multiStageReview: values.multiStageReview,
-          stages: values.stages,
-        });
-        
-        if (currentSerialized !== newSerialized) {
-          return { ...prev, step3: values as Step3FormData };
-        }
-        return prev;
+      // Only update if values actually changed to prevent infinite loops
+      const currentSerialized = JSON.stringify({
+        multiStageReview: formData.step3?.multiStageReview,
+        stages: formData.step3?.stages,
       });
+      const newSerialized = JSON.stringify({
+        multiStageReview: values.multiStageReview,
+        stages: values.stages,
+      });
+      
+      if (currentSerialized !== newSerialized) {
+        setFormData({ ...formData, step3: values as Step3FormData });
+      }
     });
     return () => subscription.unsubscribe();
-  }, [watch, setFormData]);
+  }, [watch, setFormData, formData]);
 
   const multiStageReviewEnabled = watch("multiStageReview");
-  const hasResetFromTemplate = useRef(false);
   
   useEffect(() => {
     // Don't auto-append if we just reset from template data
     if (hasResetFromTemplate.current) {
       hasResetFromTemplate.current = false;
+      // Ensure at least one stage exists after template reset
+      if (fields.length === 0) {
+        append({
+          reviewer: "",
+          duration: "",
+          nextReviewerAction: false,
+          reviewerlistIsChecked: false,
+          genericExpression: [],
+          customReviewerlist: null,
+        });
+      }
       return;
     }
     
-    if (fields.length === 0 || multiStageReviewEnabled) {
+    // Always ensure at least one stage exists
+    if (fields.length === 0) {
       append({
         reviewer: "",
         duration: "",
@@ -114,13 +132,14 @@ const Step3: React.FC<StepProps> = ({
       });
     }
 
-    if (!multiStageReviewEnabled && fields.length > 0) {
+    if (!multiStageReviewEnabled && fields.length > 1) {
+      // Remove extra stages but keep the first one
       fields.forEach((_, index) => {
         if (index > 0) remove(fields.length - index);
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [multiStageReviewEnabled]);
+  }, [multiStageReviewEnabled, fields.length]);
 
   return (
     <div className="container flex justify-center p-4">

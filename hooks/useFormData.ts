@@ -43,7 +43,6 @@ interface Step4 {
   socReminders: string[];
   eocReminders: string[];
   msTeamsNotification: boolean;
-  remediationTicketing: boolean;
   allowDownloadUploadCropNetwork: boolean;
   markUndecidedRevoke: boolean;
   disableBulkAction: boolean;
@@ -57,10 +56,6 @@ interface Step4 {
   verifyUserAttribute: string;
   applicationScope: boolean;
   preDelegate: boolean;
-      campaignPreview: boolean;
-      campaignPreviewDuration: string;
-      campaignPreviewEmailNotificationsEnabled: boolean;
-      campaignPreviewEmailNotifications: boolean;
 }
 
 type FormData = {
@@ -111,7 +106,6 @@ export function useFormData() {
       socReminders: [],
       eocReminders: [],
       msTeamsNotification: false,
-      remediationTicketing: false,
       allowDownloadUploadCropNetwork: false,
       markUndecidedRevoke: false,
       disableBulkAction: false,
@@ -125,10 +119,6 @@ export function useFormData() {
       verifyUserAttribute: "",
       applicationScope: false,
       preDelegate: false,
-      campaignPreview: false,
-      campaignPreviewDuration: "",
-      campaignPreviewEmailNotificationsEnabled: false,
-      campaignPreviewEmailNotifications: false,
     },
   });
 

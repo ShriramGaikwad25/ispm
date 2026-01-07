@@ -96,6 +96,14 @@ const MultiStageReviewForm: React.FC<MultiStageReviewFormProps> = ({
   const selectedReviewer = watch(reviewer as Path<Step3FormData>);
   const reviewerlistIsChecked = watch(checkedReviewerlist);
 
+  // Ensure the reviewer field is initialized with an empty string if not set
+  useEffect(() => {
+    const currentValue = watch(reviewer as Path<Step3FormData>);
+    if (currentValue === undefined || currentValue === null) {
+      setValue(reviewer as Path<Step3FormData>, "", { shouldValidate: false });
+    }
+  }, [reviewer, setValue, watch]);
+
   const handleReviewerLogic = useCallback(() => {
     if (selectedReviewer !== "custom-reviewer") {
       resetField(custRevList);

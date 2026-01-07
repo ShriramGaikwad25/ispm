@@ -10,13 +10,9 @@ import { asterisk, downArrow, userGroups, excludeUsers, defaultExpression } from
 import ExpressionBuilder from "@/components/ExpressionBuilder";
 import { StepProps, FormData } from "@/types/stepTypes";
 import { validationSchema } from "./step1CombinedValidation";
-import { apiRequestWithAuth } from "@/lib/auth";
-import { v4 as uuidv4 } from "uuid";
-
 // Combined form data type
 type CombinedStep1FormData = {
   // Step1 fields
-  template?: string;
   ownerUser?: any[];
   ownerGroup?: any[];
   certificationTemplate: string;
@@ -34,44 +30,6 @@ type CombinedStep1FormData = {
   excludeUsersIsChecked: boolean;
   excludeUsers: string | null;
   selectData: string;
-};
-
-// Function to fetch templates from API
-const loadTemplates = async (inputValue: string) => {
-  try {
-    // Use apiRequestWithAuth for better error handling and automatic token refresh
-    const data = await apiRequestWithAuth<any>("https://preview.keyforge.ai/campaign/api/v1/ACMECOM/getAllCampaigns", {
-      method: "GET",
-    });
-    
-    // Handle different response structures
-    let campaignsArray: any[] = [];
-    if (Array.isArray(data)) {
-      campaignsArray = data;
-    } else if (data && typeof data === "object") {
-      campaignsArray = data.items || data.data || data.campaigns || data.results || [];
-      if (campaignsArray.length === 0 && (data.id || data.name || data.campaignID)) {
-        campaignsArray = [data];
-      }
-    }
-    
-    return campaignsArray.map((template: { id?: string; campaignID?: string; campaignId?: string; name?: string; campaignName?: string; templateName?: string }) => ({
-      label: template.name || template.campaignName || template.templateName || "Unnamed Campaign",
-      value: template.id || template.campaignID || template.campaignId || String(template.id || ""),
-    }));
-  } catch (error: any) {
-    console.error("Error fetching templates:", error);
-    
-    // Provide more specific error messages
-    if (error instanceof TypeError && (error.message.includes("fetch") || error.message === "Failed to fetch")) {
-      console.error("Network error: Unable to connect to the server. This could be due to CORS, network connectivity, or server availability.");
-    } else if (error.message) {
-      console.error("API error:", error.message);
-    }
-    
-    // Return empty array on error - the component should handle this gracefully
-    return [];
-  }
 };
 
 const Step1: React.FC<StepProps> = ({
@@ -112,9 +70,6 @@ const Step1: React.FC<StepProps> = ({
     defaultValues: combinedData,
   });
 
-  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
-  const [templateError, setTemplateError] = useState<string | null>(null);
-
   // Watch for form value changes and trigger validation
   const watchedValues = watch();
 
@@ -151,7 +106,6 @@ const Step1: React.FC<StepProps> = ({
     const subscription = watch((values) => {
       // Split the combined data back into step1 and step2
       const step1Data = {
-        template: values.template,
         ownerUser: values.ownerUser,
         ownerGroup: values.ownerGroup,
         certificationTemplate: values.certificationTemplate,
@@ -238,257 +192,6 @@ const Step1: React.FC<StepProps> = ({
     }
   }, [selectData, setValue]);
 
-  const handleApplyTemplate = async () => {
-    const selectedTemplate = watch("template");
-    if (!selectedTemplate) {
-      alert("Please select a template before applying.");
-      return;
-    }
-
-    try {
-      setIsLoadingTemplates(true);
-      setTemplateError(null);
-      
-      // Fetch the full template/campaign data
-      // Try multiple possible endpoints in case the API structure varies
-      let templateData: any = null;
-      try {
-        // First try: Get campaign by ID
-        templateData = await apiRequestWithAuth<any>(
-          `https://preview.keyforge.ai/campaign/api/v1/ACMECOM/getCampaign/${selectedTemplate}`,
-          { method: "GET" }
-        );
-      } catch (firstError) {
-        // Fallback: Get all campaigns and find the matching one
-        try {
-          const allCampaigns = await apiRequestWithAuth<any>(
-            "https://preview.keyforge.ai/campaign/api/v1/ACMECOM/getAllCampaigns",
-            { method: "GET" }
-          );
-          
-          let campaignsArray: any[] = [];
-          if (Array.isArray(allCampaigns)) {
-            campaignsArray = allCampaigns;
-          } else if (allCampaigns && typeof allCampaigns === "object") {
-            campaignsArray = allCampaigns.items || allCampaigns.data || allCampaigns.campaigns || allCampaigns.results || [];
-          }
-          
-          templateData = campaignsArray.find(
-            (campaign: any) =>
-              campaign.id === selectedTemplate ||
-              campaign.campaignID === selectedTemplate ||
-              campaign.campaignId === selectedTemplate
-          );
-        } catch (secondError) {
-          console.error("Error fetching template:", secondError);
-          throw secondError;
-        }
-      }
-
-      if (!templateData) {
-        throw new Error("Template not found");
-      }
-
-      // Map the template data to FormData structure
-      // Step1 data
-      const step1Data = {
-        template: selectedTemplate,
-        certificationTemplate: templateData.name || templateData.campaignName || templateData.templateName || "",
-        description: templateData.description || "",
-        ownerType: templateData.ownerType || templateData.campaignOwner?.ownerType || "User",
-        ownerUser: templateData.ownerUser || templateData.campaignOwner?.ownerName?.filter((_: any, idx: number) => 
-          (templateData.ownerType || templateData.campaignOwner?.ownerType || "User") === "User"
-        ).map((name: string) => ({ label: name, value: name })) || [],
-        ownerGroup: templateData.ownerGroup || templateData.campaignOwner?.ownerName?.filter((_: any, idx: number) => 
-          (templateData.ownerType || templateData.campaignOwner?.ownerType || "User") === "Group"
-        ).map((name: string) => ({ label: name, value: name })) || [],
-      };
-
-      // Step2 data
-      const userCriteria = templateData.userCriteria || {};
-      const scopingCriteria = templateData.scopingCriteria || {};
-      
-      let userType = "All users";
-      if (userCriteria.criteria === "selectedUsers") {
-        userType = "Specific users";
-      } else if (userCriteria.criteria === "customUserGroups") {
-        userType = "Custom User Group";
-      }
-
-      let selectData = "All Applications";
-      if (scopingCriteria.criteria === "selectedApplications") {
-        selectData = "Specific Applications";
-      } else if (scopingCriteria.criteria === "specificEntitlements") {
-        selectData = "Select Entitlement";
-      }
-
-      const step2Data = {
-        userType: userType,
-        specificUserExpression: userCriteria.selectedUsers?.map((user: any) => ({
-          id: uuidv4(),
-          attribute: user.attribute ? { label: user.attribute, value: user.attribute } : null,
-          operator: user.operator ? { label: user.operator, value: user.operator } : null,
-          value: user.value || "",
-          logicalOp: "AND",
-        })) || [],
-        specificApps: scopingCriteria.selectedApplications?.map((app: string) => ({ label: app, value: app })) || [],
-        expressionApps: scopingCriteria.commonFilterForAccounts?.filtercriteria ? [{
-          id: uuidv4(),
-          attribute: scopingCriteria.commonFilterForAccounts.filtercriteria.attribute ? 
-            { label: scopingCriteria.commonFilterForAccounts.filtercriteria.attribute, value: scopingCriteria.commonFilterForAccounts.filtercriteria.attribute } : null,
-          operator: scopingCriteria.commonFilterForAccounts.filtercriteria.operator ? 
-            { label: scopingCriteria.commonFilterForAccounts.filtercriteria.operator, value: scopingCriteria.commonFilterForAccounts.filtercriteria.operator } : null,
-          value: scopingCriteria.commonFilterForAccounts.filtercriteria.value || "",
-          logicalOp: "AND",
-        }] : [],
-        expressionEntitlement: scopingCriteria.commonFilterForEntitlements?.filtercriteria ? [{
-          id: uuidv4(),
-          attribute: scopingCriteria.commonFilterForEntitlements.filtercriteria.attribute ? 
-            { label: scopingCriteria.commonFilterForEntitlements.filtercriteria.attribute, value: scopingCriteria.commonFilterForEntitlements.filtercriteria.attribute } : null,
-          operator: scopingCriteria.commonFilterForEntitlements.filtercriteria.operator ? 
-            { label: scopingCriteria.commonFilterForEntitlements.filtercriteria.operator, value: scopingCriteria.commonFilterForEntitlements.filtercriteria.operator } : null,
-          value: scopingCriteria.commonFilterForEntitlements.filtercriteria.value || "",
-          logicalOp: "AND",
-        }] : [defaultExpression],
-        groupListIsChecked: userCriteria.customUserGroups?.some((group: string) => group.includes("Imported") || group.includes("import")) || false,
-        userGroupList: userCriteria.customUserGroups?.filter((group: string) => !group.includes("Imported") && !group.includes("import")).join(",") || null,
-        importNewUserGroup: null,
-        excludeUsersIsChecked: userCriteria.excludeUsersFromCampaign && userCriteria.excludeUsersFromCampaign.length > 0,
-        excludeUsers: userCriteria.excludeUsersFromCampaign?.map((user: string) => ({ label: user, value: user })) || null,
-        selectData: selectData,
-      };
-
-      // Step3 data
-      const reviewers = templateData.reviewers || [];
-      const step3Data = {
-        multiStageReview: reviewers.length > 1,
-        stages: reviewers.length > 0 ? reviewers.map((reviewer: any) => ({
-          reviewer: reviewer.reviewerType || reviewer.reviewer || "",
-          duration: reviewer.reviewDuration?.toString() || reviewer.duration || "",
-          nextReviewerAction: reviewer.nextReviewerAction || false,
-          reviewerlistIsChecked: reviewer.reviewerType === "custom-reviewer" || false,
-          genericExpression: reviewer.customCertifiers?.map((cert: any) => ({
-            id: uuidv4(),
-            attribute: cert.attribute ? { label: cert.attribute, value: cert.attribute } : null,
-            operator: cert.operator ? { label: cert.operator, value: cert.operator } : null,
-            value: cert.value || "",
-            logicalOp: "AND",
-          })) || [],
-          customReviewerlist: null,
-        })) : [{
-          reviewer: "",
-          duration: "",
-          nextReviewerAction: false,
-          reviewerlistIsChecked: false,
-          genericExpression: [],
-          customReviewerlist: null,
-        }],
-      };
-
-      // Step4 data
-      const notifications = templateData.notifications || {};
-      const reminders = templateData.reminders || {};
-      const certificationOptions = templateData.certificationOptions || {};
-      const escalation = templateData.escalation || {};
-      const campaignSchedular = templateData.campaignSchedular || {};
-
-      const step4Data = {
-        socReminders: reminders.enabled ? (reminders.frequencyInDays ? [{ label: `Every ${reminders.frequencyInDays} days`, value: reminders.frequencyInDays.toString() }] : []) : [],
-        eocReminders: notifications.beforeExpiry?.numOfDaysBeforeExpiry?.map((days: number) => ({ label: `${days} days before expiry`, value: days.toString() })) || [],
-        msTeamsNotification: templateData.msTeamsNotification || false,
-        msTeamsWebhookUrl: templateData.msTeamsWebhookUrl || "",
-        remediationTicketing: certificationOptions.closedLoopRemediation || false,
-        allowDownloadUploadCropNetwork: templateData.allowDownloadUploadCropNetwork || false,
-        markUndecidedRevoke: templateData.markUndecidedRevoke || false,
-        disableBulkAction: templateData.disableBulkAction || false,
-        enforceComments: 
-          (certificationOptions.requireCommentOnRevoke && certificationOptions.requireCommentOnCertify) ? "Custom Fields" :
-          certificationOptions.requireCommentOnRevoke ? "Revoke" :
-          certificationOptions.requireCommentOnCertify ? "Certify" : "",
-        genericExpression: templateData.genericExpression?.map((exp: any) => ({
-          id: uuidv4(),
-          attribute: exp.attribute ? { label: exp.attribute, value: exp.attribute } : null,
-          operator: exp.operator ? { label: exp.operator, value: exp.operator } : null,
-          value: exp.value || "",
-          logicalOp: "AND",
-        })) || [],
-        allowEscalation: escalation.enabled ? escalation.daysBeforeExpiry?.toString() || "" : "",
-        certifierUnavailableUsers: certificationOptions.defaultCertifier?.reviewerId ? 
-          [{ label: certificationOptions.defaultCertifier.reviewerId, value: certificationOptions.defaultCertifier.reviewerId }] : [],
-        ticketConditionalApproval: templateData.ticketConditionalApproval || false,
-        authenticationSignOff: templateData.authenticationSignOff || false,
-        generatePin: templateData.generatePin || "",
-        verifyUserAttribute: templateData.verifyUserAttribute || "",
-        applicationScope: scopingCriteria.commonFilterForAccounts?.criteria === "allUserAccounts" || false,
-        preDelegate: certificationOptions.allowPreDelegateToSignOff || false,
-        campaignPreview: templateData.campaignPreview || false,
-        campaignPreviewDuration: templateData.campaignPreviewDuration || "",
-        campaignPreviewEmailNotificationsEnabled: templateData.campaignPreviewEmailNotificationsEnabled || false,
-        campaignPreviewEmailNotifications: templateData.campaignPreviewEmailNotifications || false,
-        duration: campaignSchedular.frequency?.toString() || templateData.certificationDuration?.toString() || "",
-        reviewRecurrence: campaignSchedular.frequency?.toString() || "",
-        startDate: campaignSchedular.startDate ? new Date(campaignSchedular.startDate) : null,
-        end: campaignSchedular.endOfCampaign || "Never",
-      };
-
-      // Update all form data at once
-      const updatedFormData: FormData = {
-        step1: step1Data,
-        step2: step2Data,
-        step3: step3Data,
-        step4: step4Data,
-      };
-
-      console.log("Applying template data:", {
-        step1: step1Data,
-        step2: step2Data,
-        step3: step3Data,
-        step4: step4Data,
-      });
-
-      // Use functional update to ensure state is properly set
-      setFormData((prev) => ({
-        ...prev,
-        step1: step1Data,
-        step2: step2Data,
-        step3: step3Data,
-        step4: step4Data,
-      }));
-
-      // Also update Step1 form values for immediate UI feedback
-      setValue("certificationTemplate", step1Data.certificationTemplate, { shouldValidate: true });
-      setValue("description", step1Data.description, { shouldValidate: true });
-      setValue("ownerType", step1Data.ownerType, { shouldValidate: true });
-      setValue("ownerUser", step1Data.ownerUser || [], { shouldValidate: true });
-      setValue("ownerGroup", step1Data.ownerGroup || [], { shouldValidate: true });
-      setValue("userType", step2Data.userType, { shouldValidate: true });
-      setValue("specificUserExpression", step2Data.specificUserExpression || [], { shouldValidate: true });
-      setValue("specificApps", step2Data.specificApps || [], { shouldValidate: true });
-      setValue("expressionApps", step2Data.expressionApps || [], { shouldValidate: true });
-      setValue("expressionEntitlement", step2Data.expressionEntitlement || [defaultExpression], { shouldValidate: true });
-      setValue("groupListIsChecked", step2Data.groupListIsChecked, { shouldValidate: true });
-      setValue("userGroupList", step2Data.userGroupList || "", { shouldValidate: true });
-      setValue("excludeUsersIsChecked", step2Data.excludeUsersIsChecked, { shouldValidate: true });
-      setValue("excludeUsers", step2Data.excludeUsers || null, { shouldValidate: true });
-      setValue("selectData", step2Data.selectData || "All Applications", { shouldValidate: true });
-
-      // Trigger validation after all values are set to ensure isValid is updated
-      // Use requestAnimationFrame to ensure DOM updates are complete
-      requestAnimationFrame(() => {
-        trigger().then((isFormValid) => {
-          // Force validation state update
-          onValidationChange(isFormValid);
-        });
-      });
-
-    } catch (error) {
-      console.error("Error applying template:", error);
-      setTemplateError("Failed to apply template. Please try again.");
-    } finally {
-      setIsLoadingTemplates(false);
-    }
-  };
-
   return (
     <div className="w-full flex flex-col items-center">
       <h2 className="text-xl font-bold text-blue-950 text-center mb-2">
@@ -537,37 +240,6 @@ const Step1: React.FC<StepProps> = ({
                     {errors.description.message}
                   </p>
                 )}
-            </div>
-          </div>
-
-          <div className={`grid grid-cols-[280px_1.5fr] gap-2`}>
-            <label className={`pl-2`}>Copy from Template</label>
-            <div className="max-w-md">
-              <div className="grid grid-cols-[1fr_.5fr] gap-2">
-                <MultiSelect
-                  isMulti={false}
-                  isAsync
-                  control={control as unknown as Control<FieldValues>}
-                  loadOptions={loadTemplates}
-                  placeholder="Select a template"
-                  components={{ Option: customOption }}
-                  {...register("template")}
-                />
-                {errors.template?.message &&
-                  typeof errors.template.message === "string" && (
-                    <p className="text-red-500">{errors.template.message}</p>
-                  )}
-                {templateError && <p className="text-red-500">{templateError}</p>}
-                <button
-                  className={`rounded bg-blue-500 hover:bg-blue-500/80 text-white ${
-                    isLoadingTemplates ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
-                  onClick={handleApplyTemplate}
-                  disabled={isLoadingTemplates}
-                >
-                  {isLoadingTemplates ? "Applying..." : "Apply"}
-                </button>
-              </div>
             </div>
           </div>
 
