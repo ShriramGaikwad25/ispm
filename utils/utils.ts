@@ -105,10 +105,7 @@ export const recurrenceOptions = [
 ];
 
 export const everyDayReminders = [
-  { value: "every 2 Days", label: "every 2 Days" },
-  { value: "every 7 Days", label: "every 7 Days" },
-  { value: "every 15 Days", label: "every 15 Days" },
-  { value: "every 30 Days", label: "every 30 Days" },
+
 ];
 export const startOfCampaign = [
   { value: "Start Of Campaign", label: "Start Of Campaign" },
@@ -117,16 +114,10 @@ export const startOfCampaign = [
   // { value: "every 310 Days", label: "every 10 Days" },
 ];
 export const beforeExpiryReminders = [
-  { value: "before 2 Days expiry", label: "Before 2 Days Expiry" },
-  { value: "before 7 Days expiry", label: "Before 7 Days Expiry" },
-  { value: "before 15 Days expiry", label: "Before 15 Days Expiry" },
-  { value: "before 30 Days expiry", label: "Before 30 Days Expiry" },
+ 
 ];
 export const beforeReminders = [
-  { value: "before 2 Days", label: "Before 2 Days" },
-  { value: "before 7 Days", label: "Before 7 Days" },
-  { value: "before 15 Days", label: "Before 15 Days" },
-  { value: "before 30 Days", label: "Before 30 Days" },
+  
 ];
 
 export const enforceComments = [

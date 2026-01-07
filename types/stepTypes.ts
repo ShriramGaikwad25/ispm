@@ -106,8 +106,18 @@ export interface MultiStageReviewFormProps {
 export interface Step4FormData {
   socReminders: { label: string; value: string }[];
   eocReminders: { label: string; value: string }[];
+  // New notification fields
+  startOfCampaign: boolean;
+  startOfCampaignReminders?: { label: string; value: string }[];
+  remindersDuringCampaign: boolean;
+  remindersDuringCampaignReminders?: { label: string; value: string }[];
+  atEscalation: boolean;
+  atEscalationReminders?: { label: string; value: string }[];
+  campaignClosure: boolean;
   msTeamsNotification: boolean;
-  msTeamsWebhookUrl?: string;
+  msTeamsChannelName?: string;
+  msTeamsDescription?: string;
+  msTeamsTeamId?: string;
   allowDownloadUploadCropNetwork: boolean;
   markUndecidedRevoke: boolean;
   disableBulkAction: boolean;

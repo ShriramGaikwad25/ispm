@@ -1,5 +1,5 @@
 import { BookTemplate, InfoIcon } from "lucide-react";
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   Control,
   FieldValues,
@@ -17,28 +17,61 @@ import {
   beforeExpiryReminders,
   enforceComments,
   startOfCampaign,
+  everyDayReminders,
+  beforeReminders,
   optionsData,
   selectAttribute,
 } from "@/utils/utils";
 import { customOption, loadUsers } from "@/components/MsAsyncData";
 import ExpressionBuilder from "@/components/ExpressionBuilder";
 import { Step4FormData, StepProps } from "@/types/stepTypes";
-import dynamic from "next/dynamic";
-const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
-import "@/lib/ag-grid-setup";
 import CustomMultiSelect from "@/components/CustomMultiSelect";
 import CustomMultiSelectBeforeExpiry from "@/components/CustomMultiSelectBeforeExpiry";
-import { ColDef, IDetailCellRendererParams } from "ag-grid-enterprise";
+import CustomMultiSelectBeforeEscalation from "@/components/CustomMultiSelectBeforeEscalation";
+import { useRightSidebar } from "@/contexts/RightSidebarContext";
+import EmailTemplateEditor from "@/components/EmailTemplateEditor";
 
 
 const validationSchema = yup.object().shape({
   // Notifications
   socReminders: yup.array(),
   eocReminders: yup.array(),
-  msTeamsNotification: yup.boolean(),
-  msTeamsWebhookUrl: yup.string().when("msTeamsNotification", {
+  // New notification fields
+  startOfCampaign: yup.boolean(),
+  startOfCampaignReminders: yup.array().when("startOfCampaign", {
     is: true,
-    then: (schema) => schema.required("Microsoft Teams webhook URL is required"),
+    then: (schema) => schema.min(1, "At least one reminder is required"),
+    otherwise: (schema) => schema.notRequired(),
+  }),
+  remindersDuringCampaign: yup.boolean(),
+  remindersDuringCampaignReminders: yup.array().when("remindersDuringCampaign", {
+    is: true,
+    then: (schema) => schema.min(1, "At least one reminder is required"),
+    otherwise: (schema) => schema.notRequired(),
+  }),
+  atEscalation: yup.boolean(),
+  atEscalationReminders: yup.array().when("atEscalation", {
+    is: true,
+    then: (schema) => schema.min(1, "At least one reminder is required"),
+    otherwise: (schema) => schema.notRequired(),
+  }),
+  campaignClosure: yup.boolean(),
+  msTeamsNotification: yup.boolean(),
+  msTeamsChannelName: yup.string().when("msTeamsNotification", {
+    is: true,
+    then: (schema) => schema
+      .required("Channel name is required")
+      .max(50, "Channel name must be no more than 50 characters"),
+    otherwise: (schema) => schema.notRequired(),
+  }),
+  msTeamsDescription: yup.string().when("msTeamsNotification", {
+    is: true,
+    then: (schema) => schema.notRequired(),
+    otherwise: (schema) => schema.notRequired(),
+  }),
+  msTeamsTeamId: yup.string().when("msTeamsNotification", {
+    is: true,
+    then: (schema) => schema.required("Team ID/Microsoft 365 Group ID is required"),
     otherwise: (schema) => schema.notRequired(),
   }),
   allowDownloadUploadCropNetwork: yup.boolean(),
@@ -106,9 +139,40 @@ const Step4: React.FC<StepProps> = ({
   });
   const enforComments = watch("enforceComments");
   const showGenericExpression = enforComments === "Custom Fields";
-  const [showTemplateSidebar, setShowTemplateSidebar] = useState(false);
-  const [msTeamsWebhookUrl, setMsTeamsWebhookUrl] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
+  const { openSidebar, closeSidebar } = useRightSidebar();
+
+  // Options for dropdowns
+  // During campaign options (includes Start Of Campaign)
+  const duringCampaignOptions = [...startOfCampaign, ...everyDayReminders];
+  // During campaign options without Start Of Campaign
+  const duringCampaignWithoutStartOptions = [...everyDayReminders];
+  // During campaign before escalation options (includes On Day of Escalation)
+  const onDayOfEscalation = [{ value: "On Day of Escalation", label: "On Day of Escalation" }];
+  const beforeEscalationOptions = [...onDayOfEscalation, ...beforeReminders];
+
+  // Helper function to open email template editor in right sidebar
+  const handleOpenTemplateEditor = (templateType: "start" | "reminders" | "escalation" | "closure") => {
+    const titles = {
+      start: "Email Template - Start of Campaign",
+      reminders: "Email Template - Reminders during Campaign",
+      escalation: "Email Template - At Escalation",
+      closure: "Email Template - Campaign Closure",
+    };
+
+    openSidebar(
+      <EmailTemplateEditor
+        templateType={templateType}
+        onSave={(data) => {
+          console.log("Template saved:", templateType, data);
+          // You can save this to formData or make an API call here
+        }}
+      />,
+      {
+        widthPx: 600,
+        title: titles[templateType],
+      }
+    );
+  };
 
   const prevStep4Ref = useRef<string | undefined>();
   const isInitialMount = useRef(true);
@@ -119,8 +183,17 @@ const Step4: React.FC<StepProps> = ({
     const currentSerialized = formData.step4 ? JSON.stringify({
       socReminders: formData.step4.socReminders,
       eocReminders: formData.step4.eocReminders,
+      startOfCampaign: formData.step4.startOfCampaign,
+      startOfCampaignReminders: formData.step4.startOfCampaignReminders,
+      remindersDuringCampaign: formData.step4.remindersDuringCampaign,
+      remindersDuringCampaignReminders: formData.step4.remindersDuringCampaignReminders,
+      atEscalation: formData.step4.atEscalation,
+      atEscalationReminders: formData.step4.atEscalationReminders,
+      campaignClosure: formData.step4.campaignClosure,
       msTeamsNotification: formData.step4.msTeamsNotification,
-      msTeamsWebhookUrl: formData.step4.msTeamsWebhookUrl,
+      msTeamsChannelName: formData.step4.msTeamsChannelName,
+      msTeamsDescription: formData.step4.msTeamsDescription,
+      msTeamsTeamId: formData.step4.msTeamsTeamId,
       enforceComments: formData.step4.enforceComments,
       genericExpression: formData.step4.genericExpression,
     }) : "";
@@ -135,38 +208,10 @@ const Step4: React.FC<StepProps> = ({
         reset(newValues);
         
         prevStep4Ref.current = currentSerialized;
-        // Also update msTeamsWebhookUrl state if it exists
-        if (formData.step4.msTeamsWebhookUrl) {
-          setMsTeamsWebhookUrl(formData.step4.msTeamsWebhookUrl);
-        }
       }
       isInitialMount.current = false;
     }
   }, [formData.step4, reset]);
-
-  const handleSaveMsTeamsWebhook = async () => {
-    if (!msTeamsWebhookUrl.trim()) {
-      return;
-    }
-    
-    setIsSaving(true);
-    try {
-      // Here you would typically make an API call to save the webhook URL
-      // For now, we'll just update the form value
-      setValue("msTeamsWebhookUrl", msTeamsWebhookUrl);
-      
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // You could add a success toast here
-      console.log("Microsoft Teams webhook URL saved:", msTeamsWebhookUrl);
-    } catch (error) {
-      console.error("Error saving Microsoft Teams webhook URL:", error);
-      // You could add an error toast here
-    } finally {
-      setIsSaving(false);
-    }
-  };
 
   useEffect(() => {
     onValidationChange(isValid);
@@ -186,12 +231,26 @@ const Step4: React.FC<StepProps> = ({
         const currentSerialized = JSON.stringify({
           socReminders: prev.step4?.socReminders,
           eocReminders: prev.step4?.eocReminders,
+          startOfCampaign: prev.step4?.startOfCampaign,
+          startOfCampaignReminders: prev.step4?.startOfCampaignReminders,
+          remindersDuringCampaign: prev.step4?.remindersDuringCampaign,
+          remindersDuringCampaignReminders: prev.step4?.remindersDuringCampaignReminders,
+          atEscalation: prev.step4?.atEscalation,
+          atEscalationReminders: prev.step4?.atEscalationReminders,
+          campaignClosure: prev.step4?.campaignClosure,
           msTeamsNotification: prev.step4?.msTeamsNotification,
           enforceComments: prev.step4?.enforceComments,
         });
         const newSerialized = JSON.stringify({
           socReminders: values.socReminders,
           eocReminders: values.eocReminders,
+          startOfCampaign: values.startOfCampaign,
+          startOfCampaignReminders: values.startOfCampaignReminders,
+          remindersDuringCampaign: values.remindersDuringCampaign,
+          remindersDuringCampaignReminders: values.remindersDuringCampaignReminders,
+          atEscalation: values.atEscalation,
+          atEscalationReminders: values.atEscalationReminders,
+          campaignClosure: values.campaignClosure,
           msTeamsNotification: values.msTeamsNotification,
           enforceComments: values.enforceComments,
         });
@@ -205,64 +264,6 @@ const Step4: React.FC<StepProps> = ({
     return () => subscription.unsubscribe();
   }, [watch, setFormData]);
 
-  const rowData = [
-    {
-      name: "On Start",
-      details: "Details for Notification 1",
-      reviewer: { firstname: "Alice" },
-    },
-    {
-      name: "Before Expiry",
-      details: "Details for Notification 2",
-      reviewer: { firstname: "Alice" },
-    },
-    {
-      name: "On Completion",
-      details: "Details for Notification 3",
-      reviewer: { firstname: "Alice" },
-    },
-    {
-      name: "On Escalation",
-      details: "Details for Notification 4",
-      reviewer: { firstname: "Alice" },
-    },
-  ];
-
- const columnDefs: ColDef[] = useMemo(() => [
-    {
-      headerName: "Notifications",
-      field: "name",
-      cellRenderer: "agGroupCellRenderer",
-      filter: false, // Disable filtering
-      sortable: false, // Optional: disable sorting
-      suppressMenu: true, // Suppress column menu (3-dot icon)
-      suppressFiltersToolPanel: true,
-    },
-  ],[]);
-  const defaultColDef = useMemo(() => {
-    return {
-      width: 440,
-      cellStyle: { fontWeight: "bold" },
-    };
-  }, []);
-
-  const CustomDetailRenderer = (props:IDetailCellRendererParams) => {
-    const { campaign, reviewer } = props.data;
-    return (
-      <div style={{ padding: "5%", backgroundColor: "whitesmoke" }}>
-        <p>Subject: Access Review Completed: "asd"</p>
-        <br />
-        <p>
-          Dear {reviewer.firstname},<br />
-          <br />
-          The campaign <strong>"asd"</strong> has been completed.
-          <br />
-          Thank you for your participation.
-          <br />
-        </p>
-      </div>
-    );
-  };
   return (
     <div className="p-6 bg-white shadow-lg rounded-lg mx-auto">
       <h2 className="text-lg font-bold">General Settings</h2>
@@ -271,52 +272,170 @@ const Step4: React.FC<StepProps> = ({
       </small>
 
       <h2 className="font-medium"> Notification(s) </h2>
-      <dl className="px-4 py-8 border-b border-gray-300 space-y-4 mb-8 text-sm">
-        <dd className="mb-10">
-          Enable Email notification for:-
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="h-10 flex gap-4 items-center">
-                During the Campaign
-              </label>
-              {}
-              <CustomMultiSelect
-                control={control}
-                name="socReminders"
-                options={startOfCampaign}
-                placeholder="Select reminders or add custom value"
+      <dl className="px-4 py-8 border-b border-gray-300 space-y-6 mb-8 text-sm">
+        {/* Start of Campaign */}
+        <dd className="space-y-3">
+          <div className="flex items-center gap-4">
+            <span className="w-48">Start of Campaign</span>
+            <div className="flex gap-2 items-center">
+              No
+              <ToggleSwitch
+                checked={watch("startOfCampaign")}
+                onChange={(checked) => {
+                  setValue("startOfCampaign", checked);
+                  if (!checked) {
+                    setValue("startOfCampaignReminders", []);
+                  }
+                }}
               />
-              {errors.socReminders?.message &&
-                typeof errors.socReminders.message === "string" && (
-                  <p className="text-red-500">{errors.socReminders.message}</p>
-                )}
-            </div>
-            <div>
-              <label className="h-10 flex gap-4 items-center">
-                End of Campaign
-              </label>
-
-              <CustomMultiSelectBeforeExpiry
-                control={control}
-                name="eocReminders"
-                // options={beforeExpiryReminders}
-                placeholder="Select reminders or add custom value"
-              />
-              {errors.eocReminders?.message &&
-                typeof errors.eocReminders.message === "string" && (
-                  <p className="text-red-500">{errors.eocReminders.message}</p>
-                )}
-            </div>
-            <div className="flex items-start mt-10 justify-center">
-              <button
-                className="h-10 flex gap-4 items-center bg-blue-500 text-white rounded-md px-4 cursor-pointer"
-                onClick={() => setShowTemplateSidebar(true)}
-              >
-                <BookTemplate size={16} />
-                Review and Edit Template
-              </button>
+              Yes
             </div>
           </div>
+          {watch("startOfCampaign") && (
+            <div className="ml-52 space-y-2">
+              <div className="flex gap-2 items-start">
+                <div className="w-1/2">
+                  <CustomMultiSelect
+                    control={control}
+                    name="startOfCampaignReminders"
+                    options={duringCampaignOptions}
+                    placeholder="Select reminders or add custom value"
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="flex gap-2 items-center bg-blue-500 text-white rounded-md px-4 py-2 cursor-pointer hover:bg-blue-600 whitespace-nowrap"
+                  onClick={() => handleOpenTemplateEditor("start")}
+                >
+                  <BookTemplate size={16} />
+                  Select Template
+                </button>
+              </div>
+              {errors.startOfCampaignReminders?.message &&
+                typeof errors.startOfCampaignReminders.message === "string" && (
+                  <p className="text-red-500">{errors.startOfCampaignReminders.message}</p>
+                )}
+            </div>
+          )}
+        </dd>
+
+        {/* Reminders during Campaign */}
+        <dd className="space-y-3">
+          <div className="flex items-center gap-4">
+            <span className="w-48">Reminders during Campaign</span>
+            <div className="flex gap-2 items-center">
+              No
+              <ToggleSwitch
+                checked={watch("remindersDuringCampaign")}
+                onChange={(checked) => {
+                  setValue("remindersDuringCampaign", checked);
+                  if (!checked) {
+                    setValue("remindersDuringCampaignReminders", []);
+                  }
+                }}
+              />
+              Yes
+            </div>
+          </div>
+          {watch("remindersDuringCampaign") && (
+            <div className="ml-52 space-y-2">
+              <div className="flex gap-2 items-start">
+                <div className="w-1/2">
+                  <CustomMultiSelect
+                    control={control}
+                    name="remindersDuringCampaignReminders"
+                    options={duringCampaignWithoutStartOptions}
+                    placeholder="Select reminders or add custom value"
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="flex gap-2 items-center bg-blue-500 text-white rounded-md px-4 py-2 cursor-pointer hover:bg-blue-600 whitespace-nowrap"
+                  onClick={() => handleOpenTemplateEditor("reminders")}
+                >
+                  <BookTemplate size={16} />
+                  Select Template
+                </button>
+              </div>
+              {errors.remindersDuringCampaignReminders?.message &&
+                typeof errors.remindersDuringCampaignReminders.message === "string" && (
+                  <p className="text-red-500">{errors.remindersDuringCampaignReminders.message}</p>
+                )}
+            </div>
+          )}
+        </dd>
+
+        {/* At Escalation */}
+        <dd className="space-y-3">
+          <div className="flex items-center gap-4">
+            <span className="w-48">At Escalation</span>
+            <div className="flex gap-2 items-center">
+              No
+              <ToggleSwitch
+                checked={watch("atEscalation")}
+                onChange={(checked) => {
+                  setValue("atEscalation", checked);
+                  if (!checked) {
+                    setValue("atEscalationReminders", []);
+                  }
+                }}
+              />
+              Yes
+            </div>
+          </div>
+          {watch("atEscalation") && (
+            <div className="ml-52 space-y-2">
+              <div className="flex gap-2 items-start">
+                <div className="w-1/2">
+                  <CustomMultiSelectBeforeEscalation
+                    control={control}
+                    name="atEscalationReminders"
+                    options={beforeEscalationOptions}
+                    placeholder="every - days before escalation"
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="flex gap-2 items-center bg-blue-500 text-white rounded-md px-4 py-2 cursor-pointer hover:bg-blue-600 whitespace-nowrap"
+                  onClick={() => handleOpenTemplateEditor("escalation")}
+                >
+                  <BookTemplate size={16} />
+                  Select Template
+                </button>
+              </div>
+              {errors.atEscalationReminders?.message &&
+                typeof errors.atEscalationReminders.message === "string" && (
+                  <p className="text-red-500">{errors.atEscalationReminders.message}</p>
+                )}
+            </div>
+          )}
+        </dd>
+
+        {/* Campaign Closure */}
+        <dd className="space-y-3">
+          <div className="flex items-center gap-4">
+            <span className="w-48">Campaign Closure</span>
+            <div className="flex gap-2 items-center">
+              No
+              <ToggleSwitch
+                checked={watch("campaignClosure")}
+                onChange={(checked) => setValue("campaignClosure", checked)}
+              />
+              Yes
+            </div>
+          </div>
+          {watch("campaignClosure") && (
+            <div className="ml-52">
+              <button
+                type="button"
+                className="flex gap-2 items-center bg-blue-500 text-white rounded-md px-4 py-2 cursor-pointer hover:bg-blue-600"
+                onClick={() => handleOpenTemplateEditor("closure")}
+              >
+                <BookTemplate size={16} />
+                Select Template
+              </button>
+            </div>
+          )}
         </dd>
 
         <dd className="grid grid-cols-2">
@@ -329,34 +448,60 @@ const Step4: React.FC<StepProps> = ({
                 onChange={(checked) => {
                   setValue("msTeamsNotification", checked);
                   if (!checked) {
-                    setMsTeamsWebhookUrl("");
-                    setValue("msTeamsWebhookUrl", "");
+                    setValue("msTeamsChannelName", "");
+                    setValue("msTeamsDescription", "");
+                    setValue("msTeamsTeamId", "");
                   }
                 }}
               />
               Yes
             </span>
             {watch("msTeamsNotification") && (
-              <div className="flex gap-2 items-center">
-                <span className="text-sm whitespace-nowrap">Channel:</span>
-                <input
-                  type="url"
-                  value={msTeamsWebhookUrl}
-                  onChange={(e) => setMsTeamsWebhookUrl(e.target.value)}
-                  className="w-64 px-3 py-2 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
-                />
-                <button
-                  type="button"
-                  onClick={handleSaveMsTeamsWebhook}
-                  disabled={!msTeamsWebhookUrl.trim() || isSaving}
-                  className="px-4 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed whitespace-nowrap"
-                >
-                  {isSaving ? "Saving..." : "Save"}
-                </button>
+              <div className="flex flex-col gap-3 mt-2">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Channel Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    {...register("msTeamsChannelName")}
+                    maxLength={50}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Provide channel name (no more than 50 characters)"
+                  />
+                  {errors.msTeamsChannelName?.message && (
+                    <p className="text-red-500 text-sm mt-1">{errors.msTeamsChannelName.message}</p>
+                  )}
+                  <p className="text-xs text-gray-500 mt-1">
+                    {watch("msTeamsChannelName")?.length || 0}/50 characters
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    {...register("msTeamsDescription")}
+                    rows={3}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500 resize-y"
+                    placeholder="Enter description"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Team ID/Microsoft 365 Group ID <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    {...register("msTeamsTeamId")}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter Team ID or Microsoft 365 Group ID"
+                  />
+                  {errors.msTeamsTeamId?.message && (
+                    <p className="text-red-500 text-sm mt-1">{errors.msTeamsTeamId.message}</p>
+                  )}
+                </div>
               </div>
-            )}
-            {watch("msTeamsNotification") && errors.msTeamsWebhookUrl?.message && (
-              <p className="text-red-500 text-sm">{errors.msTeamsWebhookUrl.message}</p>
             )}
           </div>
         </dd>
@@ -561,35 +706,6 @@ const Step4: React.FC<StepProps> = ({
           Yes{" "}
         </dd>
       </dl>
-      {showTemplateSidebar && (
-        <div className="fixed top-16 right-0 h-[calc(100%-4rem)] w-[500px] bg-white shadow-lg z-50 overflow-auto">
-          <div className="flex justify-between items-center p-4 border-b ">
-            <h3 className="text-lg font-semibold">Notification Template</h3>
-            <button
-              onClick={() => setShowTemplateSidebar(false)}
-              className="text-gray-600 hover:text-black text-lg"
-            >
-              &times;
-            </button>
-          </div>
-          <div className="p-4">
-            {/* You can replace this with the actual form or editor */}
-            <div style={{ height: 700, width: 450 }}>
-              <AgGridReact
-                rowData={rowData}
-                columnDefs={columnDefs}
-                suppressMenuHide={true}
-                suppressColumnVirtualisation={true}
-                suppressContextMenu={true}
-                masterDetail={true}
-                defaultColDef={defaultColDef}
-                detailCellRenderer={CustomDetailRenderer}
-                detailRowHeight={200} // Adjust as needed
-              />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
