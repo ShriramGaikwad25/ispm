@@ -176,7 +176,7 @@ const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow }) => {
 
   if (isLoading) {
     return (
-      <div className="h-96 w-full flex items-center justify-center">
+      <div className="w-full flex items-center justify-center py-8">
         <div className="text-gray-600">Loading campaigns...</div>
       </div>
     );
@@ -184,14 +184,14 @@ const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow }) => {
 
   if (error) {
     return (
-      <div className="h-96 w-full flex items-center justify-center">
+      <div className="w-full flex items-center justify-center py-8">
         <div className="text-red-600">Error: {error}</div>
       </div>
     );
   }
 
   return (
-    <div className="h-96 w-full">
+    <div className="w-full">
       <AgGridReact
         ref={gridRef}
         rowData={rows}
@@ -199,6 +199,7 @@ const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow }) => {
         rowSelection="multiple"
         rowModelType="clientSide"
         animateRows={true}
+        domLayout="autoHeight"
         defaultColDef={{
           sortable: true,
           filter: true,

@@ -28,6 +28,7 @@ import { Step4FormData, StepProps } from "@/types/stepTypes";
 import CustomMultiSelect from "@/components/CustomMultiSelect";
 import CustomMultiSelectBeforeExpiry from "@/components/CustomMultiSelectBeforeExpiry";
 import CustomMultiSelectBeforeEscalation from "@/components/CustomMultiSelectBeforeEscalation";
+import CustomMultiSelectOnDay from "@/components/CustomMultiSelectOnDay";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import EmailTemplateEditor from "@/components/EmailTemplateEditor";
 
@@ -146,9 +147,8 @@ const Step4: React.FC<StepProps> = ({
   const duringCampaignOptions = [...startOfCampaign, ...everyDayReminders];
   // During campaign options without Start Of Campaign
   const duringCampaignWithoutStartOptions = [...everyDayReminders];
-  // During campaign before escalation options (includes On Day of Escalation)
-  const onDayOfEscalation = [{ value: "On Day of Escalation", label: "On Day of Escalation" }];
-  const beforeEscalationOptions = [...onDayOfEscalation, ...beforeReminders];
+  // During campaign before escalation options
+  const beforeEscalationOptions = [...beforeReminders];
 
   // Helper function to open email template editor in right sidebar
   const handleOpenTemplateEditor = (templateType: "start" | "reminders" | "escalation" | "closure") => {
@@ -292,29 +292,15 @@ const Step4: React.FC<StepProps> = ({
             </div>
           </div>
           {watch("startOfCampaign") && (
-            <div className="ml-52 space-y-2">
-              <div className="flex gap-2 items-start">
-                <div className="w-1/2">
-                  <CustomMultiSelect
-                    control={control}
-                    name="startOfCampaignReminders"
-                    options={duringCampaignOptions}
-                    placeholder="Select reminders or add custom value"
-                  />
-                </div>
-                <button
-                  type="button"
-                  className="flex gap-2 items-center bg-blue-500 text-white rounded-md px-4 py-2 cursor-pointer hover:bg-blue-600 whitespace-nowrap"
-                  onClick={() => handleOpenTemplateEditor("start")}
-                >
-                  <BookTemplate size={16} />
-                  Select Template
-                </button>
-              </div>
-              {errors.startOfCampaignReminders?.message &&
-                typeof errors.startOfCampaignReminders.message === "string" && (
-                  <p className="text-red-500">{errors.startOfCampaignReminders.message}</p>
-                )}
+            <div className="ml-52">
+              <button
+                type="button"
+                className="flex gap-2 items-center bg-blue-500 text-white rounded-md px-4 py-2 cursor-pointer hover:bg-blue-600 whitespace-nowrap"
+                onClick={() => handleOpenTemplateEditor("start")}
+              >
+                <BookTemplate size={16} />
+                Select Template
+              </button>
             </div>
           )}
         </dd>
@@ -341,7 +327,7 @@ const Step4: React.FC<StepProps> = ({
             <div className="ml-52 space-y-2">
               <div className="flex gap-2 items-start">
                 <div className="w-1/2">
-                  <CustomMultiSelect
+                  <CustomMultiSelectOnDay
                     control={control}
                     name="remindersDuringCampaignReminders"
                     options={duringCampaignWithoutStartOptions}
@@ -654,7 +640,7 @@ const Step4: React.FC<StepProps> = ({
             Yes{" "}
           </div>
 
-          {watch("authenticationSignOff") && (
+          {/* {watch("authenticationSignOff") && (
             <div className="grid grid-cols-2 gap-2 mt-6">
               <div>
                 <span className={`flex items-center ${asterisk}`}>Options</span>
@@ -670,7 +656,7 @@ const Step4: React.FC<StepProps> = ({
 
               {}
             </div>
-          )}
+          )} */}
         </dd>
         <dt>Application Scope </dt>
         <dd className="flex gap-2 items-center">

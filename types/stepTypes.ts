@@ -30,6 +30,8 @@ export interface Step1FormData {
   ownerGroup?: any[];
   certificationTemplate: string;
   description: string;
+  campaignType?: string;
+  instanceDefaultname?: string;
   ownerType: string;
 }
 
@@ -37,6 +39,7 @@ export interface StepProps {
   formData: FormData;
   setFormData: (data: FormData) => void;
   onValidationChange: (isValid: boolean) => void;
+  isEditMode?: boolean;
 }
 
 /***Steps2****/

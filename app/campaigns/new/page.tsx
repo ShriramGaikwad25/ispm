@@ -68,6 +68,8 @@ const CreateCampaign = () => {
           const step1Data = {
             certificationTemplate: templateData.name || templateData.campaignName || templateData.templateName || "",
             description: templateData.description || "",
+            campaignType: templateData.campaignType || "",
+            instanceDefaultname: templateData.instanceDefaultname || "",
             ownerType: templateData.ownerType || templateData.campaignOwner?.ownerType || "User",
             ownerUser: templateData.ownerUser || (templateData.campaignOwner?.ownerType === "User" && templateData.campaignOwner?.ownerName ? 
               templateData.campaignOwner.ownerName.map((name: string) => ({ label: name, value: name })) : []) || [],
@@ -220,7 +222,7 @@ const CreateCampaign = () => {
     {
       name: "Basic Information",
       component: (props: React.JSX.IntrinsicAttributes & StepProps) => (
-        <Step1 {...props} />
+        <Step1 {...props} isEditMode={!!editTemplateId} />
       ),
     },
     {

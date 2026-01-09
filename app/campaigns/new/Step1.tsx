@@ -17,6 +17,8 @@ type CombinedStep1FormData = {
   ownerGroup?: any[];
   certificationTemplate: string;
   description: string;
+  campaignType: string;
+  instanceDefaultname: string;
   ownerType: string;
   // Step2 fields
   userType: string;
@@ -36,6 +38,7 @@ const Step1: React.FC<StepProps> = ({
   formData,
   setFormData,
   onValidationChange,
+  isEditMode = false,
 }) => {
   // Combine step1 and step2 data for the form
   const combinedData: CombinedStep1FormData = {
@@ -53,6 +56,8 @@ const Step1: React.FC<StepProps> = ({
     ownerGroup: formData.step1?.ownerGroup ?? [],
     certificationTemplate: formData.step1?.certificationTemplate ?? "",
     description: formData.step1?.description ?? "",
+    campaignType: formData.step1?.campaignType ?? "",
+    instanceDefaultname: formData.step1?.instanceDefaultname ?? "",
   };
 
   const {
@@ -110,6 +115,8 @@ const Step1: React.FC<StepProps> = ({
         ownerGroup: values.ownerGroup,
         certificationTemplate: values.certificationTemplate,
         description: values.description,
+        campaignType: values.campaignType,
+        instanceDefaultname: values.instanceDefaultname,
         ownerType: values.ownerType,
       };
       const step2Data = {
@@ -138,6 +145,16 @@ const Step1: React.FC<StepProps> = ({
       setValue("ownerUser", [], { shouldValidate: true });
     }
   }, [ownerType, setValue]);
+
+  // Auto-populate instanceDefaultname when certificationTemplate changes (only if not in edit mode)
+  const certificationTemplate = watch("certificationTemplate");
+  const currentInstanceDefaultname = watch("instanceDefaultname");
+  useEffect(() => {
+    if (certificationTemplate && !isEditMode && !currentInstanceDefaultname) {
+      const defaultInstanceName = `${certificationTemplate} - {{QTR}}_{{MONTH}}_{{DATE}}_{{YEAR}}`;
+      setValue("instanceDefaultname", defaultInstanceName, { shouldValidate: false });
+    }
+  }, [certificationTemplate, setValue, isEditMode, currentInstanceDefaultname]);
 
   // Step2 field resets
   const userType = watch("userType");
@@ -210,6 +227,7 @@ const Step1: React.FC<StepProps> = ({
                 id="certificationTemplate"
                 type="text"
                 className="form-input"
+                disabled={isEditMode}
                 aria-invalid={!!errors.certificationTemplate}
                 aria-describedby={errors.certificationTemplate ? "certificationTemplate-error" : undefined}
                 {...register("certificationTemplate")}
@@ -240,6 +258,31 @@ const Step1: React.FC<StepProps> = ({
                     {errors.description.message}
                   </p>
                 )}
+            </div>
+          </div>
+
+          <div className={`grid grid-cols-[280px_1.5fr] gap-2`}>
+            <label htmlFor="instanceDefaultname" className="pl-2">Default instance name</label>
+            <div className="max-w-md">
+              <input
+                id="instanceDefaultname"
+                type="text"
+                className="form-input"
+                {...register("instanceDefaultname")}
+              />
+            </div>
+          </div>
+
+          <div className={`grid grid-cols-[280px_1.5fr] gap-2`}>
+            <label htmlFor="campaignType" className={`pl-2 ${asterisk}`}>Campaign Type</label>
+            <div className="max-w-md">
+              <input
+                id="campaignType"
+                type="text"
+                className="form-input"
+                disabled={isEditMode}
+                {...register("campaignType")}
+              />
             </div>
           </div>
 

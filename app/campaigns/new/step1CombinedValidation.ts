@@ -4,6 +4,7 @@ export const validationSchema = yup.object().shape({
   // Step1 fields
   certificationTemplate: yup.string(),
   description: yup.string(),
+  campaignType: yup.string().required("Campaign Type is required"),
   ownerType: yup.string().required("Owner Type is required"),
   ownerUser: yup.array().when("ownerType", {
     is: "User",

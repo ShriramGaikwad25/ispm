@@ -207,41 +207,43 @@ export function transformFormDataToPayload(formData: FormData): any {
     frequencyInDays: step4.socReminders && step4.socReminders.length > 0 
       ? Number(step4.socReminders[0]?.value) || 7 
       : 7,
-    notificationTemplate: {
-      subject: `Reminder: Access Review for Campaign \${campaign.name}`,
-      body: `Hi \${reviewer.firstname},<br/><br/>You have pending items in the access review campaign: <strong>\${campaign.name}</strong>.<br/>Please complete your review by <strong>\${campaign.enddate}</strong>.<br/><br/><a href='\${certificationUrl}'>Access Review Link</a><br/><br/>Thanks,<br/>Access Governance Team`,
-    },
+    templateName: "CERT_REVIEW_ASSIGNMENT",
+    toAddress: [],
+    ccAddress: [],
+    bccAddress: [],
   };
 
   // Build notifications
   const campaignName = step1.certificationTemplate || "Campaign";
   const notifications: any = {
     onStart: {
-      notificationTemplate: {
-        subject: `Access Review Started: \${campaign.name}`,
-        body: `Hello \${reviewer.firstname},<br/><br/>The access certification campaign <strong>\${campaign.name}</strong> has started.<br/>Start Date: \${campaign.startdate}<br/>End Date: \${campaign.enddate}<br/><br/><a href='\${certificationUrl}'>Review Now</a><br/><br/>Thanks,<br/>Access Governance Team`,
-      },
+      templateName: "CERT_REVIEW_ASSIGNMENT",
+      toAddress: [],
+      ccAddress: [],
+      bccAddress: [],
     },
     onCompletion: {
-      notificationTemplate: {
-        subject: `Access Review Completed: \${campaign.name}`,
-        body: `Dear \${reviewer.firstname},<br/><br/>The campaign <strong>\${campaign.name}</strong> has been completed.<br/><br/>Thank you for your participation.<br/><br/>Access Governance Team`,
-      },
+      templateName: "CERT_REVIEW_ASSIGNMENT",
+      toAddress: [],
+      ccAddress: [],
+      bccAddress: [],
     },
     beforeExpiry: {
-      numOfDaysBeforeExpiry: (step4.eocReminders || []).map((reminder: any) => 
-        Number(reminder.value) || Number(reminder) || 7
-      ),
-      notificationTemplate: {
-        subject: `Access Review about to Expire: \${campaign.name}`,
-        body: `Dear \${reviewer.firstname},<br/><br/>The campaign <strong>\${campaign.name}</strong> is about to expire.<br/><br/>Please take action before expiry.<br/><br/>Access Governance Team`,
-      },
+      numOfDaysBeforeExpiry: (step4.eocReminders && step4.eocReminders.length > 0)
+        ? step4.eocReminders.map((reminder: any) => 
+            Number(reminder.value) || Number(reminder) || 7
+          )
+        : [7, 5, 3, 2],
+      templateName: "CERT_REVIEW_ASSIGNMENT",
+      toAddress: [],
+      ccAddress: [],
+      bccAddress: [],
     },
     onEscalation: {
-      notificationTemplate: {
-        subject: `Escalation: Pending Access Review for \${campaign.name}`,
-        body: `Hi \${reviewer.firstname},<br/><br/>You have not yet completed your access review for <strong>\${campaign.name}</strong>.<br/>Please take action immediately to avoid non-compliance.<br/><br/><a href='\${certificationUrl}'>Complete Review</a><br/><br/>Regards,<br/>Access Governance Team`,
-      },
+      templateName: "CERT_REVIEW_ASSIGNMENT",
+      toAddress: [],
+      ccAddress: [],
+      bccAddress: [],
     },
   };
 
@@ -255,14 +257,17 @@ export function transformFormDataToPayload(formData: FormData): any {
   const certificationOptions: any = {
     allowDelegation: false,
     allowPreDelegateToSignOff: step4.preDelegate || false,
+    allowBulkActions: step4.disableBulkAction === undefined ? true : !step4.disableBulkAction,
+    usePasswordOnSignOff: step4.authenticationSignOff || false,
+    actionOnUndecidedAccess: step4.markUndecidedRevoke ? "Revoke" : "Certify",
     requireCommentOnRevoke: step4.enforceComments === "Revoke" || step4.enforceComments === "Custom Fields",
     requireCommentOnCertify: step4.enforceComments === "Certify" || step4.enforceComments === "Custom Fields",
-    closedLoopRemediation: false,
+    closedLoopRemediation: step4.ticketConditionalApproval || false,
     defaultCertifier: {
+      type: step4.certifierUnavailableUsers && step4.certifierUnavailableUsers.length > 0 ? "User" : "",
       reviewerId: step4.certifierUnavailableUsers && step4.certifierUnavailableUsers.length > 0
         ? (step4.certifierUnavailableUsers[0]?.value || step4.certifierUnavailableUsers[0]?.label || step4.certifierUnavailableUsers[0] || "")
         : "",
-      type: step4.certifierUnavailableUsers && step4.certifierUnavailableUsers.length > 0 ? "User" : "",
     },
   };
 
@@ -273,14 +278,18 @@ export function transformFormDataToPayload(formData: FormData): any {
     startDate: "Start Date on which Campaign Trigger",
   };
 
-  // Determine campaign type based on reviewers
-  let campaignType = "UserAccessReview";
-  if (reviewers.some((r: any) => r.reviewerType === "ApplicationOwner")) {
-    campaignType = "AppOwnerReview";
-  } else if (reviewers.some((r: any) => r.reviewerType === "EntitlementOwner")) {
-    campaignType = "EntitlementOwnerReview";
-  } else if (reviewers.some((r: any) => r.reviewerType === "RoleOwner")) {
-    campaignType = "RoleOwnerReview";
+  // Get campaign type from step1, or determine based on reviewers if not provided
+  let campaignType = step1.campaignType || "UserAccessReview";
+  
+  // If campaign type is not explicitly set in step1, determine it from reviewers
+  if (!step1.campaignType) {
+    if (reviewers.some((r: any) => r.reviewerType === "ApplicationOwner")) {
+      campaignType = "AppOwnerReview";
+    } else if (reviewers.some((r: any) => r.reviewerType === "EntitlementOwner")) {
+      campaignType = "EntitlementOwnerReview";
+    } else if (reviewers.some((r: any) => r.reviewerType === "RoleOwner")) {
+      campaignType = "RoleOwnerReview";
+    }
   }
 
   // Build campaign owner
@@ -300,25 +309,35 @@ export function transformFormDataToPayload(formData: FormData): any {
     campaignOwner.ownerName = ["SYSADMIN"];
   }
 
+  // Build instanceDefaultname - use from step1 if provided, otherwise generate from template name
+  const instanceDefaultname = step1.instanceDefaultname || (step1.certificationTemplate 
+    ? `${step1.certificationTemplate} - {{QTR}}`
+    : "");
+
+  // Build copyFromTemplate - from step1 template field if exists
+  const copyFromTemplate = step1.template || "";
+
   // Build the final payload
   const payload: any = {
-    campaignDefinitionMasterID: null,
-    campaignDefinitionParentID: null,
-    campaignDefinitionType: "MASTER",
-    campaignID: null,
-    campaignOwner: campaignOwner,
-    campaignSchedular: campaignSchedular,
-    campaignType: campaignType,
-    certificationDuration: Number(step3.duration) || 30,
-    description: step1.description || "",
     name: step1.certificationTemplate || "",
-    notifications: notifications,
-    reminders: reminders,
+    instanceDefaultname: instanceDefaultname,
+    description: step1.description || "",
+    campaignType: campaignType,
+    copyFromTemplate: copyFromTemplate,
+    campaignID: null,
+    campaignDefinitionType: "MASTER",
+    campaignDefinitionParentID: null,
+    campaignDefinitionMasterID: null,
+    campaignOwner: campaignOwner,
+    certificationDuration: Number(step3.duration) || 30,
     reviewers: reviewers,
-    scopingCriteria: scopingCriteria,
     userCriteria: userCriteria,
+    scopingCriteria: scopingCriteria,
+    reminders: reminders,
+    notifications: notifications,
     escalation: escalation,
     certificationOptions: certificationOptions,
+    campaignSchedular: campaignSchedular,
   };
 
   return payload;

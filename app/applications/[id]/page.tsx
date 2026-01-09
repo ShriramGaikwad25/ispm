@@ -20,6 +20,7 @@ import {
   CircleCheck,
   CircleX,
   ArrowRightCircle,
+  ArrowRight,
   X,
   Edit,
   Trash2,
@@ -127,6 +128,12 @@ export default function ApplicationDetailPage() {
   const [accountsSearchQuery, setAccountsSearchQuery] = useState("");
   const accountsSearchInputRef = useRef<HTMLInputElement>(null);
   const [isSearchInputFocused, setIsSearchInputFocused] = useState(false);
+  const [accountsTabIndex, setAccountsTabIndex] = useState(0); // 0 for All, 1 for Service Accounts
+  const [serviceAccountsRowData, setServiceAccountsRowData] = useState<any[]>([]);
+  const [filteredServiceAccountsRowData, setFilteredServiceAccountsRowData] = useState<any[]>([]);
+  const [serviceAccountsSearchQuery, setServiceAccountsSearchQuery] = useState("");
+  const serviceAccountsSearchInputRef = useRef<HTMLInputElement>(null);
+  const serviceAccountsGridApiRef = useRef<GridApi | null>(null);
   const [entRowData, setEntRowData] = useState<any[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -1384,6 +1391,240 @@ export default function ApplicationDetailPage() {
     }
   }, [accountsRowData, accountsSearchQuery]);
 
+  // Fetch service accounts data from API (same as service account page)
+  useEffect(() => {
+    const fetchServiceAccountsData = async () => {
+      try {
+        // Use reviewerId if available, otherwise fallback to hardcoded value (same as service account page)
+        const reviewerIdToUse = reviewerId || "430ea9e6-3cff-449c-a24e-59c057f81e3d";
+        const response = await fetch(
+          `https://preview.keyforge.ai/entities/api/v1/ACMECOM/getAppAccounts/${reviewerIdToUse}/service-accounts`
+        );
+        const data = await response.json();
+        console.log("Service accounts data:", data);
+        if (data.executionStatus === "success") {
+          setServiceAccountsRowData(data.items || []);
+          setFilteredServiceAccountsRowData(data.items || []);
+        } else {
+          // Add dummy data if API doesn't return success
+          const dummyData = [
+            {
+              accountName: "svc-app-account-01",
+              entitlementName: "Administrator Access",
+              entitlementDescription: "Full administrative access to the production database system. This entitlement grants the ability to create, modify, and delete database objects, manage user permissions, and configure system settings.",
+              description: "Service account for production database management with elevated privileges. Used for automated maintenance tasks and system administration.",
+              userManager: "John Doe",
+              lastlogindate: "2024-01-15",
+              businessService: "Production Database",
+              backupOwner: "Jane Smith",
+              environment: "Production",
+              pamPolicy: "Standard PAM Policy",
+              rotationPolicy: "30 Days Rotation",
+              smeUser: "admin@company.com",
+              continuousCompliance: true,
+              reviewCycle: "Quarterly",
+              entitlements: [
+                {
+                  entitlementName: "Administrator Access",
+                  entitlementDescription: "Full administrative access to the production database system.",
+                  lastlogindate: "2024-01-15",
+                  businessService: "Production Database",
+                  userManager: "John Doe",
+                },
+                {
+                  entitlementName: "Backup Operator",
+                  entitlementDescription: "Access to perform database backup operations.",
+                  lastlogindate: "2024-01-14",
+                  businessService: "Production Database",
+                  userManager: "John Doe",
+                },
+              ],
+            },
+            {
+              accountName: "svc-api-gateway-02",
+              entitlementName: "Read-Only Access",
+              entitlementDescription: "Read-only access to API gateway services and configuration. This entitlement allows viewing of API endpoints, monitoring metrics, and accessing logs without the ability to modify settings.",
+              description: "Service account for API gateway monitoring and read-only operations. Used for automated monitoring, reporting, and analytics purposes.",
+              userManager: "Mike Johnson",
+              lastlogindate: "2024-01-20",
+              businessService: "API Gateway Service",
+              backupOwner: "Sarah Williams",
+              environment: "Development",
+              pamPolicy: "Basic PAM Policy",
+              rotationPolicy: "60 Days Rotation",
+              smeUser: "devops@company.com",
+              continuousCompliance: false,
+              reviewCycle: "Semi-Annual",
+              entitlements: [
+                {
+                  entitlementName: "Read-Only Access",
+                  entitlementDescription: "Read-only access to API gateway services and configuration.",
+                  lastlogindate: "2024-01-20",
+                  businessService: "API Gateway Service",
+                  userManager: "Mike Johnson",
+                },
+              ],
+            },
+            {
+              accountName: "svc-monitoring-03",
+              entitlementName: "Monitoring Access",
+              entitlementDescription: "Access to monitoring and alerting systems for infrastructure health checks.",
+              description: "Service account used for automated monitoring and alerting across all production systems.",
+              userManager: "Emily Chen",
+              lastlogindate: "2024-01-18",
+              businessService: "Infrastructure Monitoring",
+              backupOwner: "David Lee",
+              environment: "Production",
+              pamPolicy: "Standard PAM Policy",
+              rotationPolicy: "45 Days Rotation",
+              smeUser: "ops@company.com",
+              continuousCompliance: true,
+              reviewCycle: "Quarterly",
+              entitlements: [
+                {
+                  entitlementName: "Monitoring Access",
+                  entitlementDescription: "Access to monitoring and alerting systems.",
+                  lastlogindate: "2024-01-18",
+                  businessService: "Infrastructure Monitoring",
+                  userManager: "Emily Chen",
+                },
+                {
+                  entitlementName: "Alert Management",
+                  entitlementDescription: "Ability to manage and configure alerting rules.",
+                  lastlogindate: "2024-01-17",
+                  businessService: "Infrastructure Monitoring",
+                  userManager: "Emily Chen",
+                },
+              ],
+            },
+          ];
+          setServiceAccountsRowData(dummyData);
+          setFilteredServiceAccountsRowData(dummyData);
+        }
+      } catch (error) {
+        console.error("Error fetching service accounts data:", error);
+        // Add dummy data on error
+        const dummyData = [
+          {
+            accountName: "svc-app-account-01",
+            entitlementName: "Administrator Access",
+            entitlementDescription: "Full administrative access to the production database system. This entitlement grants the ability to create, modify, and delete database objects, manage user permissions, and configure system settings.",
+            description: "Service account for production database management with elevated privileges. Used for automated maintenance tasks and system administration.",
+            userManager: "John Doe",
+            lastlogindate: "2024-01-15",
+            businessService: "Production Database",
+            backupOwner: "Jane Smith",
+            environment: "Production",
+            pamPolicy: "Standard PAM Policy",
+            rotationPolicy: "30 Days Rotation",
+            smeUser: "admin@company.com",
+            continuousCompliance: true,
+            reviewCycle: "Quarterly",
+            entitlements: [
+              {
+                entitlementName: "Administrator Access",
+                entitlementDescription: "Full administrative access to the production database system.",
+                lastlogindate: "2024-01-15",
+                businessService: "Production Database",
+                userManager: "John Doe",
+              },
+              {
+                entitlementName: "Backup Operator",
+                entitlementDescription: "Access to perform database backup operations.",
+                lastlogindate: "2024-01-14",
+                businessService: "Production Database",
+                userManager: "John Doe",
+              },
+            ],
+          },
+          {
+            accountName: "svc-api-gateway-02",
+            entitlementName: "Read-Only Access",
+            entitlementDescription: "Read-only access to API gateway services and configuration. This entitlement allows viewing of API endpoints, monitoring metrics, and accessing logs without the ability to modify settings.",
+            description: "Service account for API gateway monitoring and read-only operations. Used for automated monitoring, reporting, and analytics purposes.",
+            userManager: "Mike Johnson",
+            lastlogindate: "2024-01-20",
+            businessService: "API Gateway Service",
+            backupOwner: "Sarah Williams",
+            environment: "Development",
+            pamPolicy: "Basic PAM Policy",
+            rotationPolicy: "60 Days Rotation",
+            smeUser: "devops@company.com",
+            continuousCompliance: false,
+            reviewCycle: "Semi-Annual",
+            entitlements: [
+              {
+                entitlementName: "Read-Only Access",
+                entitlementDescription: "Read-only access to API gateway services and configuration.",
+                lastlogindate: "2024-01-20",
+                businessService: "API Gateway Service",
+                userManager: "Mike Johnson",
+              },
+            ],
+          },
+          {
+            accountName: "svc-monitoring-03",
+            entitlementName: "Monitoring Access",
+            entitlementDescription: "Access to monitoring and alerting systems for infrastructure health checks.",
+            description: "Service account used for automated monitoring and alerting across all production systems.",
+            userManager: "Emily Chen",
+            lastlogindate: "2024-01-18",
+            businessService: "Infrastructure Monitoring",
+            backupOwner: "David Lee",
+            environment: "Production",
+            pamPolicy: "Standard PAM Policy",
+            rotationPolicy: "45 Days Rotation",
+            smeUser: "ops@company.com",
+            continuousCompliance: true,
+            reviewCycle: "Quarterly",
+            entitlements: [
+              {
+                entitlementName: "Monitoring Access",
+                entitlementDescription: "Access to monitoring and alerting systems.",
+                lastlogindate: "2024-01-18",
+                businessService: "Infrastructure Monitoring",
+                userManager: "Emily Chen",
+              },
+              {
+                entitlementName: "Alert Management",
+                entitlementDescription: "Ability to manage and configure alerting rules.",
+                lastlogindate: "2024-01-17",
+                businessService: "Infrastructure Monitoring",
+                userManager: "Emily Chen",
+              },
+            ],
+          },
+        ];
+        setServiceAccountsRowData(dummyData);
+        setFilteredServiceAccountsRowData(dummyData);
+      }
+    };
+    fetchServiceAccountsData();
+  }, [reviewerId]);
+
+  // Filter service accounts based on search query
+  useEffect(() => {
+    if (!serviceAccountsSearchQuery.trim()) {
+      setFilteredServiceAccountsRowData(serviceAccountsRowData);
+    } else {
+      const searchLower = serviceAccountsSearchQuery.toLowerCase();
+      const filtered = serviceAccountsRowData.filter((item: any) => {
+        const accountName = (item.accountName || "").toLowerCase();
+        const entitlementName = (item.entitlementName || "").toLowerCase();
+        const userManager = (item.userManager || item.custodian || "").toLowerCase();
+        const businessService = (item.businessService || item.applicationName || item.businessUnit || "").toLowerCase();
+        
+        return (
+          accountName.includes(searchLower) ||
+          entitlementName.includes(searchLower) ||
+          userManager.includes(searchLower) ||
+          businessService.includes(searchLower)
+        );
+      });
+      setFilteredServiceAccountsRowData(filtered);
+    }
+  }, [serviceAccountsSearchQuery, serviceAccountsRowData]);
+
   // Restore focus after component updates if input was focused
   useEffect(() => {
     if (isSearchInputFocused && accountsSearchInputRef.current) {
@@ -1861,6 +2102,516 @@ export default function ApplicationDetailPage() {
     ],
     []
   );
+
+  // Service accounts column definitions
+  const serviceAccountsColumnDefs = useMemo<ColDef[]>(
+    () => [
+      {
+        field: "accountName",
+        headerName: "Account",
+        flex: 2,
+        cellRenderer: "agGroupCellRenderer",
+        cellRendererParams: {
+          innerRenderer: (params: ICellRendererParams) => (
+            <div className="flex flex-col gap-0">
+              <span className="text-md text-gray-800">{params.value || "-"}</span>
+            </div>
+          ),
+        },
+      },
+      {
+        field: "userManager",
+        headerName: "Custodian",
+        flex: 2,
+        cellRenderer: (params: ICellRendererParams) => (
+          <div className="flex flex-col gap-0">
+            <span className="text-md text-gray-800">{params.value || params.data?.custodian || "-"}</span>
+          </div>
+        ),
+      },
+      {
+        field: "lastlogindate",
+        headerName: "Last Login",
+        enableRowGroup: true,
+        flex: 1.5,
+        valueFormatter: (params: ICellRendererParams) =>
+          params.value ? formatDateMMDDYY(params.value) : "-",
+      },
+      {
+        field: "businessService",
+        headerName: "Business Service",
+        flex: 2,
+        cellRenderer: (params: ICellRendererParams) => (
+          <div className="flex flex-col gap-0">
+            <span className="text-md text-gray-800">
+              {params.value || params.data?.applicationName || params.data?.businessUnit || "-"}
+            </span>
+          </div>
+        ),
+      },
+      {
+        field: "__action__",
+        headerName: "Action",
+        width: 150,
+        sortable: false,
+        filter: false,
+        suppressHeaderMenuButton: true,
+        cellRenderer: (params: ICellRendererParams) => (
+          <div className="flex items-center gap-2 h-full" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="p-1.5 rounded hover:bg-gray-100 text-gray-600 hover:text-gray-900"
+              title="Edit"
+              aria-label="Edit account"
+              onClick={() => {
+                const row = params?.data || {};
+                const EditAccountSidebar = () => {
+                  const [accountType, setAccountType] = useState("");
+                  const [changeOwner, setChangeOwner] = useState(false);
+                  const [ownerType, setOwnerType] = useState<"User" | "Group">("User");
+                  const [selectedAttribute, setSelectedAttribute] = useState<string>("username");
+                  const [searchValue, setSearchValue] = useState("");
+                  const [selectedItem, setSelectedItem] = useState<Record<string, string> | null>(null);
+
+                  const users: Record<string, string>[] = [
+                    { username: "john", email: "john@example.com", role: "admin" },
+                    { username: "jane", email: "jane@example.com", role: "user" },
+                  ];
+                  const groups: Record<string, string>[] = [
+                    { name: "admins", email: "admins@corp.com", role: "admin" },
+                    { name: "devs", email: "devs@corp.com", role: "developer" },
+                  ];
+                  const userAttributes = [
+                    { value: "username", label: "Username" },
+                    { value: "email", label: "Email" },
+                  ];
+                  const groupAttributes = [
+                    { value: "name", label: "Group Name" },
+                    { value: "role", label: "Role" },
+                  ];
+                  const sourceData = ownerType === "User" ? users : groups;
+                  const currentAttributes = ownerType === "User" ? userAttributes : groupAttributes;
+                  const filteredData =
+                    searchValue.trim() === ""
+                      ? []
+                      : sourceData.filter((item) => {
+                          const value = item[selectedAttribute];
+                          return value?.toLowerCase().includes(searchValue.toLowerCase());
+                        });
+                  
+                  return (
+                    <div className="flex flex-col h-full">
+                      <div className="flex-1 overflow-y-auto p-3 space-y-4">
+                        <div className="border border-gray-300 rounded-md p-3 bg-gray-50">
+                          <div className="text-sm text-gray-700 break-words">
+                            {row.accountName || "-"}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Select Account Type</label>
+                          <select 
+                            value={accountType}
+                            onChange={(e) => setAccountType(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          >
+                            <option value=""></option>
+                            <option value="Regular">Regular</option>
+                            <option value="Orphan">Orphan</option>
+                            <option value="Service">Service</option>
+                          </select>
+                        </div>
+                        <div className="flex items-center space-x-3">
+                          <span className="text-sm font-medium text-gray-700">Change Account Owner</span>
+                          <span className="text-sm text-gray-900">No</span>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              checked={changeOwner}
+                              onChange={(e) => setChangeOwner(e.target.checked)}
+                              className="sr-only peer" 
+                            />
+                            <div className="w-12 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-6 peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:left-[1px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gray-600"></div>
+                          </label>
+                          <span className="text-sm text-gray-900">Yes</span>
+                        </div>
+                        {changeOwner && (
+                          <div className="mt-2">
+                            <div className="flex mt-3 bg-gray-100 p-1 rounded-md">
+                              {(["User", "Group"] as const).map((type) => (
+                                <button
+                                  key={type}
+                                  className={`flex-1 py-2.5 px-3 text-sm font-medium transition-colors ${
+                                    ownerType === type
+                                      ? "bg-white text-[#15274E] border border-gray-300 shadow-sm relative z-10 rounded-md"
+                                      : "bg-transparent text-gray-500 hover:text-gray-700 rounded-md"
+                                  }`}
+                                  onClick={() => {
+                                    setOwnerType(type);
+                                    const initialAttr = type === "User" ? userAttributes[0] : groupAttributes[0];
+                                    setSelectedAttribute(initialAttr?.value || "");
+                                    setSearchValue("");
+                                    setSelectedItem(null);
+                                  }}
+                                >
+                                  {type}
+                                </button>
+                              ))}
+                            </div>
+                            <div className="mt-4">
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Select Attribute</label>
+                              <div className="relative">
+                                <select
+                                  value={selectedAttribute}
+                                  onChange={(e) => setSelectedAttribute(e.target.value)}
+                                  className="w-full border border-gray-300 rounded-md px-3 py-2 pr-8 appearance-none bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                >
+                                  {currentAttributes.map((attr) => (
+                                    <option key={attr.value} value={attr.value}>
+                                      {attr.label}
+                                    </option>
+                                  ))}
+                                </select>
+                                <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="mt-4">
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Search Value</label>
+                              <div className="relative">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                                </div>
+                                <input type="text" value={searchValue} onChange={(e) => setSearchValue(e.target.value)} className="w-full border border-gray-300 rounded-md pl-10 pr-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Search" />
+                              </div>
+                            </div>
+                            {searchValue.trim() !== "" && (
+                              <div className="max-h-36 overflow-auto border rounded p-2 mt-3 text-sm bg-gray-50">
+                                {filteredData.length === 0 ? (
+                                  <p className="text-gray-500 italic">No results found.</p>
+                                ) : (
+                                  <ul className="space-y-1">
+                                    {filteredData.map((item, index) => (
+                                      <li key={index} className={`p-2 border rounded cursor-pointer transition-colors ${selectedItem === item ? "bg-blue-100 border-blue-300" : "hover:bg-gray-100"}`} onClick={() => {
+                                        setSelectedItem(item);
+                                        setSearchValue(item[selectedAttribute]);
+                                      }}>
+                                        {Object.values(item).join(" | ")}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-shrink-0 flex justify-center items-center p-3 border-t border-gray-200 bg-gray-50 min-h-[60px]">
+                        <button 
+                          onClick={() => { 
+                            console.log("Save clicked", { accountType, changeOwner, selectedItem });
+                          }} 
+                          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                        >
+                          Save
+                        </button>
+                      </div>
+                    </div>
+                  );
+                };
+                
+                openSidebar(<EditAccountSidebar />, { widthPx: 450 });
+              }}
+            >
+              <Edit className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const row = params?.data || {};
+                const InfoSidebar = () => {
+                  const [sectionsOpen, setSectionsOpen] = useState({
+                    general: true,
+                  });
+                  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+                  useEffect(() => {
+                    if (scrollContainerRef.current) {
+                      const style = document.createElement('style');
+                      style.id = 'hide-scrollbar-style';
+                      if (!document.getElementById('hide-scrollbar-style')) {
+                        style.textContent = `
+                          .sidebar-scroll-container::-webkit-scrollbar {
+                            display: none;
+                          }
+                        `;
+                        document.head.appendChild(style);
+                      }
+                    }
+                  }, []);
+
+                  return (
+                    <div className="flex flex-col h-full">
+                      <div 
+                        ref={scrollContainerRef}
+                        className="flex-1 overflow-y-auto sidebar-scroll-container"
+                        style={{
+                          scrollbarWidth: 'none',
+                          msOverflowStyle: 'none',
+                        }}
+                      >
+                        <div className="p-4 border-b bg-gray-50">
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <h2 className="text-lg font-semibold">Service Account Details</h2>
+                              <div className="mt-2">
+                                <span className="text-xs uppercase text-gray-500">
+                                  Account:
+                                </span>
+                                <div className="text-md font-medium break-words break-all whitespace-normal max-w-full">
+                                  {row.accountName || "-"}
+                                </div>
+                              </div>
+                              <div className="mt-2">
+                                <span className="text-xs uppercase text-gray-500">
+                                  Entitlement:
+                                </span>
+                                <div className="text-md font-medium break-words break-all whitespace-normal max-w-full">
+                                  {row.entitlementName || "-"}
+                                </div>
+                              </div>
+                              <div className="mt-2">
+                                <span className="text-xs uppercase text-gray-500">
+                                  Description:
+                                </span>
+                                <p className="text-sm text-gray-700 break-words break-all whitespace-pre-wrap max-w-full">
+                                  {row.entitlementDescription || row.entitlement_description || row.description || "-"}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="p-4 space-y-4">
+                          <div className="bg-white border border-gray-200 rounded-md shadow-sm">
+                            <button
+                              className="flex items-center justify-between w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
+                              onClick={() =>
+                                setSectionsOpen((s: any) => ({ ...s, general: !s.general }))
+                              }
+                            >
+                              <span>General</span>
+                              {sectionsOpen.general ? (
+                                <ChevronDown size={20} />
+                              ) : (
+                                <ChevronRight size={20} />
+                              )}
+                            </button>
+                            {sectionsOpen.general && (
+                              <div className="p-4 space-y-4">
+                                <div className="flex space-x-4">
+                                  <div className="flex-1">
+                                    <label className="text-xs uppercase text-gray-500 font-medium">Custodian</label>
+                                    <div className="text-sm text-gray-900 mt-1 break-words">
+                                      {row.userManager || row.custodian || "N/A"}
+                                    </div>
+                                  </div>
+                                  <div className="flex-1">
+                                    <label className="text-xs uppercase text-gray-500 font-medium">Last Login</label>
+                                    <div className="text-sm text-gray-900 mt-1">
+                                      {row.lastlogindate ? formatDateMMDDYY(row.lastlogindate) : "N/A"}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex space-x-4">
+                                  <div className="flex-1">
+                                    <label className="text-xs uppercase text-gray-500 font-medium">Business Service</label>
+                                    <div className="text-sm text-gray-900 mt-1 break-words">
+                                      {row.businessService || row.applicationName || row.businessUnit || "N/A"}
+                                    </div>
+                                  </div>
+                                  <div className="flex-1">
+                                    <label className="text-xs uppercase text-gray-500 font-medium">Environment</label>
+                                    <div className="text-sm text-gray-900 mt-1 break-words">
+                                      {row.environment || "N/A"}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex space-x-4">
+                                  <div className="flex-1">
+                                    <label className="text-xs uppercase text-gray-500 font-medium">Backup Owner</label>
+                                    <div className="text-sm text-gray-900 mt-1 break-words">
+                                      {row.backupOwner || "N/A"}
+                                    </div>
+                                  </div>
+                                  <div className="flex-1">
+                                    <label className="text-xs uppercase text-gray-500 font-medium">SME User</label>
+                                    <div className="text-sm text-gray-900 mt-1 break-words">
+                                      {row.smeUser || row.sme_user || "N/A"}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex space-x-4">
+                                  <div className="flex-1">
+                                    <label className="text-xs uppercase text-gray-500 font-medium">PAM Policy</label>
+                                    <div className="text-sm text-gray-900 mt-1 break-words">
+                                      {row.pamPolicy || "N/A"}
+                                    </div>
+                                  </div>
+                                  <div className="flex-1">
+                                    <label className="text-xs uppercase text-gray-500 font-medium">Rotation Policy</label>
+                                    <div className="text-sm text-gray-900 mt-1 break-words">
+                                      {row.rotationPolicy || row.rotation_policy || "N/A"}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex space-x-4">
+                                  <div className="flex-1">
+                                    <label className="text-xs uppercase text-gray-500 font-medium">Continuous Compliance</label>
+                                    <div className="text-sm text-gray-900 mt-1">
+                                      {row.continuousCompliance === true || row.continuousCompliance === "true" || row.continuousCompliance === "Y" || row.continuous_compliance === true ? "Yes" : "No"}
+                                    </div>
+                                  </div>
+                                  <div className="flex-1">
+                                    <label className="text-xs uppercase text-gray-500 font-medium">Review Cycle</label>
+                                    <div className="text-sm text-gray-900 mt-1 break-words">
+                                      {row.reviewCycle || row.review_cycle || "N/A"}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                };
+                
+                openSidebar(<InfoSidebar />, { widthPx: 500 });
+              }}
+              className="p-1.5 rounded hover:bg-gray-100 text-gray-600 hover:text-gray-900"
+              title="Info"
+              aria-label="View account details"
+            >
+              <ArrowRight
+                color="#55544dff"
+                size={20}
+                className="transform scale-[0.9]"
+              />
+            </button>
+          </div>
+        ),
+      },
+    ],
+    []
+  );
+
+  // Service accounts entitlements detail column definitions
+  const serviceAccountsEntitlementsColumnDefs = useMemo<ColDef[]>(
+    () => [
+      {
+        field: "entitlementName",
+        headerName: "Entitlement",
+        flex: 2,
+        cellRenderer: (params: ICellRendererParams) => (
+          <div className="flex flex-col gap-0">
+            <span className="text-md text-gray-800">{params.value || "-"}</span>
+          </div>
+        ),
+      },
+      {
+        field: "entitlementDescription",
+        headerName: "Description",
+        flex: 3,
+        cellRenderer: (params: ICellRendererParams) => (
+          <div className="flex flex-col gap-0">
+            <span className="text-sm text-gray-700 break-words">
+              {params.value || params.data?.description || "-"}
+            </span>
+          </div>
+        ),
+      },
+      {
+        field: "lastlogindate",
+        headerName: "Last Login",
+        flex: 1.5,
+        valueFormatter: (params: ICellRendererParams) =>
+          params.value ? formatDateMMDDYY(params.value) : "-",
+      },
+      {
+        field: "businessService",
+        headerName: "Business Service",
+        flex: 2,
+        cellRenderer: (params: ICellRendererParams) => (
+          <div className="flex flex-col gap-0">
+            <span className="text-md text-gray-800">
+              {params.value || params.data?.applicationName || params.data?.businessUnit || "-"}
+            </span>
+          </div>
+        ),
+      },
+      {
+        field: "userManager",
+        headerName: "Custodian",
+        flex: 2,
+        cellRenderer: (params: ICellRendererParams) => (
+          <div className="flex flex-col gap-0">
+            <span className="text-md text-gray-800">{params.value || params.data?.custodian || "-"}</span>
+          </div>
+        ),
+      },
+    ],
+    []
+  );
+
+  // Service accounts detail cell renderer params
+  const serviceAccountsDetailCellRendererParams = useMemo(() => {
+    return {
+      detailGridOptions: {
+        columnDefs: serviceAccountsEntitlementsColumnDefs,
+        defaultColDef: {
+          sortable: true,
+          filter: true,
+          resizable: true,
+          flex: 1,
+        },
+        headerHeight: 40,
+        rowHeight: 50,
+      },
+      getDetailRowData: (params: any) => {
+        // Each service account row has entitlement data
+        const serviceAccount = params.data;
+        console.log("Service account data for detail:", serviceAccount);
+        
+        // If the service account has multiple entitlements in an array, use those
+        if (Array.isArray(serviceAccount.entitlements) && serviceAccount.entitlements.length > 0) {
+          console.log("Using entitlements array:", serviceAccount.entitlements);
+          params.successCallback(serviceAccount.entitlements);
+        } else {
+          // Create an array with the entitlement information from the service account itself
+          const entitlements = [];
+          
+          if (serviceAccount.entitlementName) {
+            entitlements.push({
+              entitlementName: serviceAccount.entitlementName,
+              entitlementDescription: serviceAccount.entitlementDescription || serviceAccount.description || "",
+              lastlogindate: serviceAccount.lastlogindate,
+              businessService: serviceAccount.businessService || serviceAccount.applicationName || serviceAccount.businessUnit,
+              userManager: serviceAccount.userManager || serviceAccount.custodian,
+            });
+          }
+          
+          console.log("Created entitlements from service account:", entitlements);
+          if (entitlements.length > 0) {
+            params.successCallback(entitlements);
+          } else {
+            // Return empty array if no entitlements found
+            params.successCallback([]);
+          }
+        }
+      },
+    };
+  }, [serviceAccountsEntitlementsColumnDefs]);
 
   const DetailCellRenderer = (props: IDetailCellRendererParams) => {
     const { data } = props;
@@ -2883,35 +3634,68 @@ export default function ApplicationDetailPage() {
         
         <div className="mb-2 relative z-10 pt-4">
           <div className="flex items-center justify-between mb-2">
-            {/* Search Bar */}
-            <div className="relative max-w-md w-full">
-              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                <Search className="h-5 w-5 text-gray-400" />
-              </div>
-              <input
-                ref={accountsSearchInputRef}
-                key="accounts-search-input"
-                type="text"
-                placeholder="Search by Account, Identity, Entitlement..."
-                value={accountsSearchQuery}
-                onChange={(e) => setAccountsSearchQuery(e.target.value)}
-                onFocus={() => setIsSearchInputFocused(true)}
-                onBlur={() => setIsSearchInputFocused(false)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-              />
+            {/* Tabs */}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setAccountsTabIndex(0)}
+                className={`px-4 py-2 text-sm font-medium transition-all duration-200 rounded-lg ${
+                  accountsTabIndex === 0
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                All
+              </button>
+              <button
+                type="button"
+                onClick={() => setAccountsTabIndex(1)}
+                className={`px-4 py-2 text-sm font-medium transition-all duration-200 rounded-lg ${
+                  accountsTabIndex === 1
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                Service Accounts
+              </button>
             </div>
-            {accountsSearchQuery && (
-              <p className="text-sm text-gray-600">
-                Showing {filteredAccountsRowData.length} of {accountsRowData.length} accounts
-              </p>
-            )}
-            <Exports gridApi={gridApiRef.current} />
+            <div className="flex items-center gap-4 flex-1 justify-end">
+              {/* Search Bar */}
+              <div className="relative max-w-md w-full">
+                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                  <Search className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  ref={accountsTabIndex === 0 ? accountsSearchInputRef : serviceAccountsSearchInputRef}
+                  key={`accounts-search-input-${accountsTabIndex}`}
+                  type="text"
+                  placeholder={accountsTabIndex === 0 ? "Search by Account, Identity, Entitlement..." : "Search by Account, Entitlement, Custodian..."}
+                  value={accountsTabIndex === 0 ? accountsSearchQuery : serviceAccountsSearchQuery}
+                  onChange={(e) => {
+                    if (accountsTabIndex === 0) {
+                      setAccountsSearchQuery(e.target.value);
+                    } else {
+                      setServiceAccountsSearchQuery(e.target.value);
+                    }
+                  }}
+                  onFocus={() => setIsSearchInputFocused(true)}
+                  onBlur={() => setIsSearchInputFocused(false)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                />
+              </div>
+              {((accountsTabIndex === 0 && accountsSearchQuery) || (accountsTabIndex === 1 && serviceAccountsSearchQuery)) && (
+                <p className="text-sm text-gray-600">
+                  Showing {accountsTabIndex === 0 ? filteredAccountsRowData.length : filteredServiceAccountsRowData.length} of {accountsTabIndex === 0 ? accountsRowData.length : serviceAccountsRowData.length} accounts
+                </p>
+              )}
+              <Exports gridApi={accountsTabIndex === 0 ? gridApiRef.current : serviceAccountsGridApiRef.current} />
+            </div>
           </div>
           <div className="flex justify-center">
             <CustomPagination
-              totalItems={totalItems}
+              totalItems={accountsTabIndex === 0 ? totalItems : filteredServiceAccountsRowData.length}
               currentPage={currentPage}
-              totalPages={totalPages}
+              totalPages={accountsTabIndex === 0 ? totalPages : Math.ceil(filteredServiceAccountsRowData.length / pageSize)}
               pageSize={pageSize}
               onPageChange={handlePageChange}
               onPageSizeChange={(newPageSize) => {
@@ -2923,7 +3707,7 @@ export default function ApplicationDetailPage() {
             />
           </div>
         </div>
-        {mounted && (
+        {mounted && accountsTabIndex === 0 && (
           <AgGridReact
             key={`accounts-grid-${filteredAccountsRowData.length}-${currentPage}-${pageSize}`}
             rowData={paginatedData}
@@ -2936,11 +3720,27 @@ export default function ApplicationDetailPage() {
             // detailCellRendererParams={detailCellRendererParams}
           />
         )}
+        {mounted && accountsTabIndex === 1 && (
+          <div style={{ height: 600, width: "100%" }}>
+            <AgGridReact
+              key={`service-accounts-grid-${filteredServiceAccountsRowData.length}-${currentPage}-${pageSize}`}
+              rowData={filteredServiceAccountsRowData.slice((currentPage - 1) * pageSize, currentPage * pageSize)}
+              columnDefs={serviceAccountsColumnDefs}
+              defaultColDef={defaultColDef}
+              masterDetail={true}
+              detailCellRendererParams={serviceAccountsDetailCellRendererParams}
+              detailRowHeight={300}
+              onGridReady={(params: any) => {
+                serviceAccountsGridApiRef.current = params.api;
+              }}
+            />
+          </div>
+        )}
         <div className="flex justify-center">
           <CustomPagination
-            totalItems={totalItems}
+            totalItems={accountsTabIndex === 0 ? totalItems : filteredServiceAccountsRowData.length}
             currentPage={currentPage}
-            totalPages={totalPages}
+            totalPages={accountsTabIndex === 0 ? totalPages : Math.ceil(filteredServiceAccountsRowData.length / pageSize)}
             pageSize={pageSize}
             onPageChange={handlePageChange}
             onPageSizeChange={(newPageSize) => {
@@ -2958,16 +3758,30 @@ export default function ApplicationDetailPage() {
   }, [
     filteredAccountsRowData,
     accountsRowData,
+    filteredServiceAccountsRowData,
+    serviceAccountsRowData,
+    accountsTabIndex,
     currentPage,
     pageSize,
     columnDefs,
+    serviceAccountsColumnDefs,
+    serviceAccountsDetailCellRendererParams,
     mounted,
     selected,
     handlePageChange,
     handleSelect,
     gridApiRef,
+    serviceAccountsGridApiRef,
     openSidebar,
     closeSidebar,
+    accountsSearchQuery,
+    serviceAccountsSearchQuery,
+    accountsSearchInputRef,
+    serviceAccountsSearchInputRef,
+    isSearchInputFocused,
+    setAccountsTabIndex,
+    setAccountsSearchQuery,
+    setServiceAccountsSearchQuery,
   ]);
 
   const tabsData = useMemo(() => [

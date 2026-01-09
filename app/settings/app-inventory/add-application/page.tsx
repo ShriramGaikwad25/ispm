@@ -53,7 +53,7 @@ export default function AddApplicationPage() {
   const [searchQuery, setSearchQuery] = useState("");
   
   // Attribute mapping state
-  type AttributeMapping = { source: string; target: string; defaultValue?: string; type: string };
+  type AttributeMapping = { source: string; target: string; defaultValue?: string; type: string; keyfieldMapping?: boolean };
   const [attributeMappingData, setAttributeMappingData] = useState<AttributeMapping[]>([
     {
       source: "user.name",
@@ -5953,6 +5953,16 @@ export default function AddApplicationPage() {
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                           defaultValue={editingAttribute?.target || ""}
                         />
+                        <div className="mt-2 flex justify-end">
+                          <label className="flex items-center">
+                            <input
+                              type="checkbox"
+                              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                              defaultChecked={editingAttribute?.keyfieldMapping || false}
+                            />
+                            <span className="ml-2 text-sm text-gray-700">Keyfield Mapping</span>
+                          </label>
+                        </div>
                       </div>
 
                       <div>
@@ -6120,6 +6130,15 @@ export default function AddApplicationPage() {
                           <button className="absolute right-2 top-2 text-gray-400">
                             <ChevronDown className="w-4 h-4" />
                           </button>
+                        </div>
+                        <div className="mt-2 flex justify-end">
+                          <label className="flex items-center">
+                            <input
+                              type="checkbox"
+                              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                            <span className="ml-2 text-sm text-gray-700">Keyfield Mapping</span>
+                          </label>
                         </div>
                       </div>
 

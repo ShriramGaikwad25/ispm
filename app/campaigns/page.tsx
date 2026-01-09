@@ -729,7 +729,7 @@ export default function Campaigns() {
     return (
       <div 
         ref={gridContainerRef} 
-        className="h-96 w-full"
+        className="campaigns-table w-full"
         style={{ width: '100%', minWidth: 0 }}
       >
         <AgGridReact
@@ -740,6 +740,7 @@ export default function Campaigns() {
           context={{ gridRef }}
           rowModelType="clientSide"
           animateRows={true}
+          domLayout="autoHeight"
           defaultColDef={defaultColDef}
           masterDetail={true}
           detailCellRenderer={DetailCellRenderer}

@@ -102,6 +102,7 @@ interface EntitlementData {
   // Table controls - per field selection
   fieldSelection?: Record<string, boolean>;
   fieldGenAI?: Record<string, boolean>;
+  fieldEditOnReview?: Record<string, boolean>;
 }
 
 interface FieldRow {
@@ -110,6 +111,7 @@ interface FieldRow {
   fieldName: string;
   selection: boolean;
   genAI: boolean;
+  editOnReview: boolean;
 }
 
 export default function EntitlementManagementSettings() {
@@ -132,7 +134,8 @@ export default function EntitlementManagementSettings() {
           entitlementId: ent.id,
           fieldName: field,
           selection: ent.fieldSelection?.[field] || false,
-          genAI: ent.fieldGenAI?.[field] || false
+          genAI: ent.fieldGenAI?.[field] || false,
+          editOnReview: ent.fieldEditOnReview?.[field] || false
         });
       });
     });
@@ -200,7 +203,8 @@ export default function EntitlementManagementSettings() {
             provisioningMechanism: 'Automated',
             actionOnNativeChange: 'Sync',
             fieldSelection: {},
-            fieldGenAI: {}
+            fieldGenAI: {},
+            fieldEditOnReview: {}
           }
         ];
         if (isMounted) {
@@ -242,6 +246,18 @@ export default function EntitlementManagementSettings() {
         if (ent.id === entitlementId) {
           const fieldGenAI = ent.fieldGenAI || {};
           return { ...ent, fieldGenAI: { ...fieldGenAI, [fieldName]: checked } };
+        }
+        return ent;
+      });
+    });
+  };
+
+  const handleEditOnReviewChange = (entitlementId: string, fieldName: string, checked: boolean) => {
+    setEntitlements(prev => {
+      return prev.map(ent => {
+        if (ent.id === entitlementId) {
+          const fieldEditOnReview = ent.fieldEditOnReview || {};
+          return { ...ent, fieldEditOnReview: { ...fieldEditOnReview, [fieldName]: checked } };
         }
         return ent;
       });
@@ -327,6 +343,25 @@ export default function EntitlementManagementSettings() {
                             type="checkbox"
                             checked={params.value || false}
                             onChange={(e) => handleGenAIChange(params.data.entitlementId, params.data.fieldName, e.target.checked)}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                        </div>
+                      );
+                    },
+                    sortable: false,
+                    filter: false
+                  },
+                  { 
+                    headerName: 'Edit on Review', 
+                    field: 'editOnReview',
+                    width: 140,
+                    cellRenderer: (params: any) => {
+                      return (
+                        <div className="h-6 flex items-center justify-center">
+                          <input
+                            type="checkbox"
+                            checked={params.value || false}
+                            onChange={(e) => handleEditOnReviewChange(params.data.entitlementId, params.data.fieldName, e.target.checked)}
                             className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                           />
                         </div>

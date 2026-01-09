@@ -346,7 +346,7 @@ export default function ManageCampaigns() {
         if (!reviewerRows || reviewerRows.length === 0) return <div className="text-gray-500 text-center h-72 flex items-center justify-center">No reviewers found for this campaign</div>;
         
         return (
-          <div className="ag-theme-alpine h-72">
+          <div className="ag-theme-alpine manage-campaign-table">
 
             <div className="mb-4">
               <Accordion
@@ -536,6 +536,7 @@ export default function ManageCampaigns() {
               context={{ gridRef }}
               rowModelType="clientSide"
               animateRows={true}
+              domLayout="autoHeight"
               defaultColDef={{
                 sortable: true,
                 filter: true,
