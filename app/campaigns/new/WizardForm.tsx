@@ -3,16 +3,18 @@ import React from "react";
 import SubmitDialog from "@/components/SubmitDialog";
 import { useFormData } from "@/hooks/useFormData";
 import { Step, FormData } from "@/types/stepTypes";
-import { BookType, ChevronLeft, ChevronRight, Check, X } from "lucide-react";
+import { BookType, ChevronLeft, ChevronRight, Check, X, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { apiRequestWithAuth } from "@/lib/auth";
 import { transformFormDataToPayload } from "./transformFormData";
 interface WizardFormProps {
   steps: Step[];
   initialFormData?: FormData | null;
+  isEditMode?: boolean;
+  editTemplateId?: string;
 }
 
-const WizardForm: React.FC<WizardFormProps> = ({ steps, initialFormData }) => {
+const WizardForm: React.FC<WizardFormProps> = ({ steps, initialFormData, isEditMode = false, editTemplateId }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useFormData();
   
@@ -34,9 +36,6 @@ const WizardForm: React.FC<WizardFormProps> = ({ steps, initialFormData }) => {
 
   const handleSubmit = async () => {
     try {
-      // Show the loading dialog
-      setIsDialogOpen(true);
-
       // Transform form data to API payload structure
       const payload = transformFormDataToPayload(formData);
       
@@ -53,9 +52,6 @@ const WizardForm: React.FC<WizardFormProps> = ({ steps, initialFormData }) => {
 
       console.log("Campaign created successfully:", response);
       
-      // Close the dialog
-      setIsDialogOpen(false);
-      
       // Show success message
       alert(saveAsTemplate 
         ? "Template saved successfully!" 
@@ -65,11 +61,51 @@ const WizardForm: React.FC<WizardFormProps> = ({ steps, initialFormData }) => {
       router.push("/campaigns");
     } catch (error: any) {
       console.error("Error creating campaign:", error);
-      setIsDialogOpen(false);
       
       // Show error message
       const errorMessage = error.message || "An error occurred while creating the campaign. Please try again.";
       alert(`Failed to create campaign: ${errorMessage}`);
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      if (!editTemplateId) {
+        alert("Error: Campaign ID is missing. Cannot update template.");
+        return;
+      }
+
+      // Transform form data to API payload structure
+      const payload = transformFormDataToPayload(formData);
+      
+      // Include the campaign ID in payload
+      payload.campaignID = editTemplateId;
+      payload.id = editTemplateId;
+      
+      console.log("Transformed payload for update:", JSON.stringify(payload, null, 2));
+
+      // Call the update campaign API endpoint
+      const response = await apiRequestWithAuth<any>(
+        `https://preview.keyforge.ai/campaign/api/v1/ACMECOM/updateCampaign/${editTemplateId}`,
+        {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        }
+      );
+
+      console.log("Campaign updated successfully:", response);
+      
+      // Show success message for update
+      alert("Template updated successfully!");
+      
+      // Navigate back to campaigns page with template tab
+      router.push("/campaigns?tab=template");
+    } catch (error: any) {
+      console.error("Error updating campaign:", error);
+      
+      // Show error message
+      const errorMessage = error.message || "An error occurred while updating the template. Please try again.";
+      alert(`Failed to update template: ${errorMessage}`);
     }
   };
 
@@ -174,6 +210,15 @@ const WizardForm: React.FC<WizardFormProps> = ({ steps, initialFormData }) => {
             </button>
 
             <div className="flex gap-3">
+              {isEditMode && (
+                <button
+                  onClick={handleSave}
+                  className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium"
+                >
+                  <Save size={18} className="mr-2" />
+                  {currentStep === steps.length - 1 ? "Finish" : "Save"}
+                </button>
+              )}
               {currentStep < steps.length - 1 ? (
                 <button
                   onClick={nextStep}
@@ -195,7 +240,6 @@ const WizardForm: React.FC<WizardFormProps> = ({ steps, initialFormData }) => {
                       : true
                   }
                   onClick={() => {
-                    setIsDialogOpen(true);
                     setSaveAsTemplate(true);
                     handleSubmit();
                   }}

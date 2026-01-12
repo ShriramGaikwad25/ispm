@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Tabs from "@/components/tabs";
 import {
   CheckCircleIcon,
@@ -155,6 +155,7 @@ export default function Campaigns() {
   const gridRef = useRef<AgGridReactType>(null);
   const gridContainerRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [rows, setRows] = useState<CampaignRow[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -797,6 +798,28 @@ export default function Campaigns() {
     },
   ], [renderGridComponent]);
 
+  // Get active tab from URL parameter
+  const tabParam = searchParams.get("tab");
+  const getActiveTabIndex = useCallback(() => {
+    if (tabParam === "template") return 2;
+    if (tabParam === "completed") return 1;
+    if (tabParam === "active") return 0;
+    return 0; // Default to Active tab
+  }, [tabParam]);
+  
+  const [activeTabIndex, setActiveTabIndex] = useState(() => {
+    const param = searchParams.get("tab");
+    if (param === "template") return 2;
+    if (param === "completed") return 1;
+    if (param === "active") return 0;
+    return 0; // Default to Active tab
+  });
+
+  // Update active tab when URL parameter changes
+  useEffect(() => {
+    setActiveTabIndex(getActiveTabIndex());
+  }, [getActiveTabIndex]);
+
   const handleTerminateConfirm = async (justification: string) => {
     if (!terminateModal.campaignId) return;
     
@@ -852,6 +875,8 @@ export default function Campaigns() {
         <div className="mb-6">
           <Tabs
             tabs={tabsData}
+            activeIndex={activeTabIndex}
+            onChange={(index) => setActiveTabIndex(index)}
             activeClass="bg-blue-600 text-white rounded-lg -ml-1"
             buttonClass="h-9 -mt-1 w-26 text-sm px-2 py-1"
             className="ml-0.5 border border-gray-300 w-80 h-8 rounded-md"

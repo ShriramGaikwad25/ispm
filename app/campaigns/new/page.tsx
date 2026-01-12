@@ -261,7 +261,7 @@ const CreateCampaign = () => {
     );
   }
 
-  return <WizardForm steps={steps} initialFormData={initialFormData} />;
+  return <WizardForm steps={steps} initialFormData={initialFormData} isEditMode={!!editTemplateId} editTemplateId={editTemplateId || undefined} />;
 };
 
 export default CreateCampaign;
