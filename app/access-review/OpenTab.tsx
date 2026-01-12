@@ -744,15 +744,44 @@ const OpenTab: React.FC = () => {
         }
       );
       console.log("Mapped Row Data:", mapped); // Debug mapped data
-      setRowData(mapped as unknown as UserRowData[]);
-      localStorage.setItem("sharedRowData", JSON.stringify(mapped));
+      
+      // Add dummy Entitlement Owner record for testing
+      const dummyEntitlementOwnerRecord: CertificationRow = {
+        id: `dummy-${reviewerId}-entitlement-owner-test`,
+        taskId: "dummy-task-id",
+        reviewerId: reviewerId,
+        certificationId: "dummy-cert-id-entitlement-owner",
+        campaignId: "dummy-campaign-id",
+        certificationName: "Test Entitlement Owner Review",
+        certificationType: "Entitlement Owner",
+        certificationCreatedOn: new Date().toISOString(),
+        certificationExpiration: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+        status: "Active",
+        certificationSignedOff: false,
+        certificateRequester: "Test User",
+        certificateOwner: "Test User",
+        percentageCompleted: 45,
+        totalActions: 100,
+        totalActionsCompleted: 45,
+        progress: 45,
+        description: "This is a dummy record for testing Entitlement Owner review functionality",
+        reviewerName: reviewerId,
+        dueIn: "30 days",
+        estimatedTimeToCompletion: "2 hours",
+      };
+      
+      // Add dummy record at the beginning of the array
+      const dataWithDummy = [dummyEntitlementOwnerRecord, ...mapped];
+      
+      setRowData(dataWithDummy as unknown as UserRowData[]);
+      localStorage.setItem("sharedRowData", JSON.stringify(dataWithDummy));
       try { window.dispatchEvent(new Event("localStorageChange")); } catch {}
-      setTotalItems(certificationData.total_items || 0);
+      setTotalItems((certificationData.total_items || 0) + 1); // Add 1 for dummy record
       setTotalPages(certificationData.total_pages || 1);
       
       // Progress data will be sent to header when a certification row is clicked
     }
-  }, [certificationData]);
+  }, [certificationData, reviewerId]);
 
   useEffect(() => {
     let filtered = rowData;
@@ -849,8 +878,8 @@ const OpenTab: React.FC = () => {
       window.dispatchEvent(progressEvent);
     }
     
-    // Store campaign summary data for navigation to App Owner or User Access Review
-    if (e.data && (certificationType === "App Owner" || certificationType === "User Manager")) {
+    // Store campaign summary data for navigation to App Owner, User Access Review, or Entitlement Owner
+    if (e.data && (certificationType === "App Owner" || certificationType === "User Manager" || certificationType === "Entitlement Owner")) {
       const campaignSummary = {
         campaignName: e.data.certificationName,
         status: e.data.status,
@@ -877,6 +906,12 @@ const OpenTab: React.FC = () => {
           certificationId: clickedCertificationId
         });
         router.push(`/app-owner?reviewerId=${clickedReviewerId}&certificationId=${clickedCertificationId}`);
+      } else if (certificationType === "Entitlement Owner") {
+        console.log('Navigating to Entitlement Owner with parameters:', {
+          reviewerId: clickedReviewerId,
+          certificationId: clickedCertificationId
+        });
+        router.push(`/entitlement-owner?reviewerId=${clickedReviewerId}&certificationId=${clickedCertificationId}`);
       }
     }
   }
