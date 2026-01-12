@@ -132,7 +132,7 @@ const WizardForm: React.FC<WizardFormProps> = ({ steps, initialFormData, isEditM
     }
   };
     const handleClose = () => {
-    router.push("/campaigns"); // Navigate back to campaigns page
+    router.push("/campaigns?tab=template"); // Navigate back to campaigns page with template tab
   };
 
   return (
@@ -216,35 +216,16 @@ const WizardForm: React.FC<WizardFormProps> = ({ steps, initialFormData, isEditM
                   className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium"
                 >
                   <Save size={18} className="mr-2" />
-                  {currentStep === steps.length - 1 ? "Finish" : "Save"}
+                  Save
                 </button>
               )}
-              {currentStep < steps.length - 1 ? (
+              {currentStep < steps.length - 1 && (
                 <button
                   onClick={nextStep}
                   className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
                 >
                   Next
                   <ChevronRight className="w-4 h-4 ml-2" />
-                </button>
-              ) : (
-                <button
-                  className={`px-4 py-2 rounded cursor-pointer flex gap-2 items-center bg-[#8b03c6] text-white hover:bg-[#8b03c6]/80 text-sm font-medium ${
-                    currentStep === steps.length - 1 && validationStatus[currentStep]
-                      ? ""
-                      : "opacity-50 cursor-not-allowed"
-                  }`}
-                  disabled={
-                    currentStep === steps.length - 1
-                      ? !validationStatus[currentStep]
-                      : true
-                  }
-                  onClick={() => {
-                    setSaveAsTemplate(true);
-                    handleSubmit();
-                  }}
-                >
-                  <BookType size={18} /> Save As Template
                 </button>
               )}
             </div>
