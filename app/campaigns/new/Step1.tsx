@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Control, FieldValues, Resolver, useForm, UseFormSetValue, UseFormWatch } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
@@ -65,8 +65,10 @@ const Step1: React.FC<StepProps> = ({
     setValue,
     control,
     watch,
+    reset,
     resetField,
     trigger,
+    getValues,
     formState: { errors, isValid },
   } = useForm<CombinedStep1FormData>({
     resolver: yupResolver(validationSchema) as unknown as Resolver<CombinedStep1FormData>,
@@ -107,6 +109,67 @@ const Step1: React.FC<StepProps> = ({
     return () => clearTimeout(timeoutId);
   }, [trigger, watchedValues.certificationTemplate, watchedValues.description, watchedValues.ownerType, watchedValues.userType, watchedValues.selectData]);
 
+  const prevCombinedDataRef = useRef<string | undefined>();
+
+  // Reset form when formData changes externally (e.g., when template is applied)
+  useEffect(() => {
+    const newCombinedData: CombinedStep1FormData = {
+      ...formData.step1,
+      ...formData.step2,
+      userType: formData.step2?.userType ?? "All users",
+      selectData: formData.step2?.selectData ?? "All Applications",
+      expressionEntitlement: formData.step2?.expressionEntitlement ?? [defaultExpression],
+      groupListIsChecked: formData.step2?.groupListIsChecked ?? false,
+      specificUserExpression: formData.step2?.specificUserExpression ?? [],
+      specificApps: formData.step2?.specificApps ?? [],
+      expressionApps: formData.step2?.expressionApps ?? [],
+      ownerType: formData.step1?.ownerType ?? "User",
+      ownerUser: formData.step1?.ownerUser ?? [],
+      ownerGroup: formData.step1?.ownerGroup ?? [],
+      certificationTemplate: formData.step1?.certificationTemplate ?? "",
+      description: formData.step1?.description ?? "",
+      campaignType: formData.step1?.campaignType ?? "",
+      instanceDefaultname: formData.step1?.instanceDefaultname ?? "",
+    };
+
+    const currentSerialized = JSON.stringify(newCombinedData);
+    
+    // If this is the first time we have data, always reset
+    if (prevCombinedDataRef.current === undefined) {
+      console.log("Step1: First time loading data, resetting with values:", newCombinedData);
+      reset(newCombinedData, { keepDefaultValues: false });
+      prevCombinedDataRef.current = currentSerialized;
+      return;
+    }
+
+    // If we previously had empty data and now have meaningful data, reset
+    if (prevCombinedDataRef.current && prevCombinedDataRef.current === "{}" && currentSerialized !== "{}") {
+      console.log("Step1: Data loaded after empty initial state, resetting with values:", newCombinedData);
+      reset(newCombinedData, { keepDefaultValues: false });
+      prevCombinedDataRef.current = currentSerialized;
+      return;
+    }
+
+    // For subsequent updates, only reset if formData is different from current form values
+    if (prevCombinedDataRef.current !== currentSerialized) {
+      const currentFormValues = getValues();
+      const currentFormSerialized = JSON.stringify(currentFormValues);
+      
+      // Only reset if formData is different from current form values (external change)
+      if (currentFormSerialized !== currentSerialized) {
+        console.log("Step1: Resetting form with external values:", newCombinedData);
+        reset(newCombinedData, { keepDefaultValues: false });
+        prevCombinedDataRef.current = currentSerialized;
+      } else {
+        // Update the ref even if we don't reset, to track the change
+        prevCombinedDataRef.current = currentSerialized;
+      }
+    } else if (prevCombinedDataRef.current === undefined) {
+      // If prevCombinedDataRef is still undefined and we have data, set it
+      prevCombinedDataRef.current = currentSerialized;
+    }
+  }, [formData.step1, formData.step2, reset, getValues]);
+
   useEffect(() => {
     const subscription = watch((values) => {
       // Split the combined data back into step1 and step2
@@ -132,10 +195,10 @@ const Step1: React.FC<StepProps> = ({
         excludeUsers: values.excludeUsers,
         selectData: values.selectData,
       };
-      setFormData({ ...formData, step1: step1Data, step2: step2Data });
+      setFormData((prev) => ({ ...prev, step1: step1Data, step2: step2Data }));
     });
     return () => subscription.unsubscribe();
-  }, [watch, setFormData, formData]);
+  }, [watch, setFormData]);
 
   const ownerType = watch("ownerType");
   useEffect(() => {

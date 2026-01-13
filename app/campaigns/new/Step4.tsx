@@ -129,6 +129,7 @@ const Step4: React.FC<StepProps> = ({
     watch,
     control,
     reset,
+    getValues,
     formState: { errors, isValid },
   } = useForm<Step4FormData>({
     resolver: yupResolver(
@@ -177,41 +178,73 @@ const Step4: React.FC<StepProps> = ({
   const prevStep4Ref = useRef<string | undefined>();
   const isInitialMount = useRef(true);
 
+  // Helper to check if formData has meaningful data (not just empty object)
+  const hasMeaningfulData = (data: any) => {
+    if (!data || typeof data !== 'object') return false;
+    const keys = Object.keys(data);
+    if (keys.length === 0) return false;
+    // Check if at least one field has a non-empty value
+    return keys.some(key => {
+      const value = data[key];
+      if (value === null || value === undefined) return false;
+      if (typeof value === 'string' && value.trim() === '') return false;
+      if (Array.isArray(value) && value.length === 0) return false;
+      if (typeof value === 'object' && Object.keys(value).length === 0) return false;
+      return true;
+    });
+  };
+
   // Reset form when formData.step4 changes externally (e.g., when template is applied)
   // Use serialized comparison to avoid infinite loops
   useEffect(() => {
-    const currentSerialized = formData.step4 ? JSON.stringify({
-      socReminders: formData.step4.socReminders,
-      eocReminders: formData.step4.eocReminders,
-      startOfCampaign: formData.step4.startOfCampaign,
-      startOfCampaignReminders: formData.step4.startOfCampaignReminders,
-      remindersDuringCampaign: formData.step4.remindersDuringCampaign,
-      remindersDuringCampaignReminders: formData.step4.remindersDuringCampaignReminders,
-      atEscalation: formData.step4.atEscalation,
-      atEscalationReminders: formData.step4.atEscalationReminders,
-      campaignClosure: formData.step4.campaignClosure,
-      msTeamsNotification: formData.step4.msTeamsNotification,
-      msTeamsChannelName: formData.step4.msTeamsChannelName,
-      msTeamsDescription: formData.step4.msTeamsDescription,
-      msTeamsTeamId: formData.step4.msTeamsTeamId,
-      enforceComments: formData.step4.enforceComments,
-      genericExpression: formData.step4.genericExpression,
-    }) : "";
+    if (!formData.step4) return;
+
+    const currentSerialized = JSON.stringify(formData.step4);
+    const hasData = hasMeaningfulData(formData.step4);
     
-    // Always reset on initial mount or if data actually changed
-    if (isInitialMount.current || prevStep4Ref.current !== currentSerialized) {
-      if (formData.step4) {
+    // If this is the first time we have meaningful data, always reset
+    if (prevStep4Ref.current === undefined && hasData) {
+      const newValues = { ...formData.step4 };
+      console.log("Step4: First time loading meaningful data, resetting with values:", newValues);
+      reset(newValues, { keepDefaultValues: false });
+      prevStep4Ref.current = currentSerialized;
+      isInitialMount.current = false;
+      return;
+    }
+
+    // If we previously had empty data and now have meaningful data, reset
+    if (prevStep4Ref.current && prevStep4Ref.current === "{}" && hasData) {
+      const newValues = { ...formData.step4 };
+      console.log("Step4: Data loaded after empty initial state, resetting with values:", newValues);
+      reset(newValues, { keepDefaultValues: false });
+      prevStep4Ref.current = currentSerialized;
+      return;
+    }
+
+    // For subsequent updates, only reset if:
+    // 1. The formData actually changed (different from previous)
+    // 2. The formData is different from current form values (external change, not from form itself)
+    if (prevStep4Ref.current !== currentSerialized) {
+      const currentFormValues = getValues();
+      const currentFormSerialized = JSON.stringify(currentFormValues);
+      
+      // Only reset if formData is different from current form values
+      // This means the change came from external source (template load, etc.)
+      // If they match, it means the change came from the form itself, so don't reset
+      if (currentFormSerialized !== currentSerialized) {
         const newValues = { ...formData.step4 };
-        console.log("Step4: Resetting form with values:", newValues, "Previous:", prevStep4Ref.current, "Current formData:", formData.step4);
-        
-        // Reset the form with new values - this should update all fields
-        reset(newValues);
-        
+        console.log("Step4: Resetting form with external values:", newValues);
+        reset(newValues, { keepDefaultValues: false });
+        prevStep4Ref.current = currentSerialized;
+      } else {
+        // Update the ref even if we don't reset, to track the change
         prevStep4Ref.current = currentSerialized;
       }
-      isInitialMount.current = false;
+    } else if (prevStep4Ref.current === undefined) {
+      // If prevStep4Ref is still undefined and we have data (even if empty), set it
+      prevStep4Ref.current = currentSerialized;
     }
-  }, [formData.step4, reset]);
+  }, [formData.step4, reset, getValues]);
 
   useEffect(() => {
     onValidationChange(isValid);
@@ -228,32 +261,9 @@ const Step4: React.FC<StepProps> = ({
     const subscription = watch((values) => {
       setFormData((prev) => {
         // Only update if values actually changed to prevent infinite loops
-        const currentSerialized = JSON.stringify({
-          socReminders: prev.step4?.socReminders,
-          eocReminders: prev.step4?.eocReminders,
-          startOfCampaign: prev.step4?.startOfCampaign,
-          startOfCampaignReminders: prev.step4?.startOfCampaignReminders,
-          remindersDuringCampaign: prev.step4?.remindersDuringCampaign,
-          remindersDuringCampaignReminders: prev.step4?.remindersDuringCampaignReminders,
-          atEscalation: prev.step4?.atEscalation,
-          atEscalationReminders: prev.step4?.atEscalationReminders,
-          campaignClosure: prev.step4?.campaignClosure,
-          msTeamsNotification: prev.step4?.msTeamsNotification,
-          enforceComments: prev.step4?.enforceComments,
-        });
-        const newSerialized = JSON.stringify({
-          socReminders: values.socReminders,
-          eocReminders: values.eocReminders,
-          startOfCampaign: values.startOfCampaign,
-          startOfCampaignReminders: values.startOfCampaignReminders,
-          remindersDuringCampaign: values.remindersDuringCampaign,
-          remindersDuringCampaignReminders: values.remindersDuringCampaignReminders,
-          atEscalation: values.atEscalation,
-          atEscalationReminders: values.atEscalationReminders,
-          campaignClosure: values.campaignClosure,
-          msTeamsNotification: values.msTeamsNotification,
-          enforceComments: values.enforceComments,
-        });
+        // Compare the entire step4 object to catch all field changes
+        const currentSerialized = JSON.stringify(prev.step4 || {});
+        const newSerialized = JSON.stringify(values);
         
         if (currentSerialized !== newSerialized) {
           return { ...prev, step4: values as Step4FormData };

@@ -75,13 +75,31 @@ const WizardForm: React.FC<WizardFormProps> = ({ steps, initialFormData, isEditM
         return;
       }
 
+      // Wait a brief moment to ensure all form watch subscriptions have synced
+      // This ensures we get the latest form data from all steps
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Get the latest formData by using a function that reads current state
+      // We'll use a ref-based approach or get the latest from state
+      const getLatestFormData = () => {
+        return new Promise<typeof formData>((resolve) => {
+          setFormData((currentFormData) => {
+            resolve(currentFormData);
+            return currentFormData; // Don't change state
+          });
+        });
+      };
+
+      const latestFormData = await getLatestFormData();
+      
       // Transform form data to API payload structure
-      const payload = transformFormDataToPayload(formData);
+      const payload = transformFormDataToPayload(latestFormData);
       
       // Include the campaign ID in payload
       payload.campaignID = editTemplateId;
       payload.id = editTemplateId;
       
+      console.log("Current formData before transform:", JSON.stringify(latestFormData, null, 2));
       console.log("Transformed payload for update:", JSON.stringify(payload, null, 2));
 
       // Call the update campaign API endpoint
@@ -233,7 +251,7 @@ const WizardForm: React.FC<WizardFormProps> = ({ steps, initialFormData, isEditM
         </div>
 
         {/* Form Content */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6" key={`step-${currentStep}-${JSON.stringify(formData.step3)}-${JSON.stringify(formData.step4)}`}>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6" key={`step-${currentStep}`}>
           {steps[currentStep].component({
             formData,
             setFormData,

@@ -172,7 +172,19 @@ const CreateCampaign = () => {
           const step4Data = {
             socReminders: reminders.enabled ? (reminders.frequencyInDays ? [{ label: `Every ${reminders.frequencyInDays} days`, value: reminders.frequencyInDays.toString() }] : []) : [],
             eocReminders: notifications.beforeExpiry?.numOfDaysBeforeExpiry?.map((days: number) => ({ label: `${days} days before expiry`, value: days.toString() })) || [],
+            // Map notification toggles
+            startOfCampaign: !!notifications.onStart,
+            startOfCampaignReminders: notifications.onStart ? [] : undefined,
+            remindersDuringCampaign: reminders.enabled || false,
+            remindersDuringCampaignReminders: reminders.enabled && reminders.frequencyInDays ? 
+              [{ label: `Every ${reminders.frequencyInDays} days`, value: reminders.frequencyInDays.toString() }] : [],
+            atEscalation: !!notifications.onEscalation,
+            atEscalationReminders: notifications.onEscalation ? [] : undefined,
+            campaignClosure: !!notifications.onCompletion,
             msTeamsNotification: templateData.msTeamsNotification || false,
+            msTeamsChannelName: templateData.msTeamsChannelName || "",
+            msTeamsDescription: templateData.msTeamsDescription || "",
+            msTeamsTeamId: templateData.msTeamsTeamId || "",
             allowDownloadUploadCropNetwork: templateData.allowDownloadUploadCropNetwork || false,
             markUndecidedRevoke: templateData.markUndecidedRevoke || false,
             disableBulkAction: templateData.disableBulkAction || false,
