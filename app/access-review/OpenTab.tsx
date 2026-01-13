@@ -764,7 +764,7 @@ const OpenTab: React.FC = () => {
         totalActions: 100,
         totalActionsCompleted: 45,
         progress: 45,
-        description: "This is a dummy record for testing Entitlement Owner review functionality",
+        description: "Entitlement Owner review Certification",
         reviewerName: reviewerId,
         dueIn: "30 days",
         estimatedTimeToCompletion: "2 hours",

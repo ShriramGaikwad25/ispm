@@ -173,21 +173,68 @@ const CreateCampaign = () => {
             socReminders: reminders.enabled ? (reminders.frequencyInDays ? [{ label: `Every ${reminders.frequencyInDays} days`, value: reminders.frequencyInDays.toString() }] : []) : [],
             eocReminders: notifications.beforeExpiry?.numOfDaysBeforeExpiry?.map((days: number) => ({ label: `${days} days before expiry`, value: days.toString() })) || [],
             // Map notification toggles
-            startOfCampaign: !!notifications.onStart,
+            startOfCampaign: !!(notifications.onStart && (
+              notifications.onStart.templateName ||
+              (notifications.onStart.toAddress && notifications.onStart.toAddress.length > 0) ||
+              (notifications.onStart.ccAddress && notifications.onStart.ccAddress.length > 0) ||
+              (notifications.onStart.bccAddress && notifications.onStart.bccAddress.length > 0)
+            )),
             startOfCampaignReminders: notifications.onStart ? [] : undefined,
+            startOfCampaignTemplateName: notifications.onStart?.templateName || "",
+            startOfCampaignTemplateData: notifications.onStart ? {
+              selectedTemplateId: null,
+              to: Array.isArray(notifications.onStart.toAddress) ? notifications.onStart.toAddress.join(', ') : (notifications.onStart.toAddress || ""),
+              cc: Array.isArray(notifications.onStart.ccAddress) ? notifications.onStart.ccAddress.join(', ') : (notifications.onStart.ccAddress || ""),
+              bcc: Array.isArray(notifications.onStart.bccAddress) ? notifications.onStart.bccAddress.join(', ') : (notifications.onStart.bccAddress || ""),
+              templateName: notifications.onStart.templateName || "",
+            } : undefined,
             remindersDuringCampaign: reminders.enabled || false,
             remindersDuringCampaignReminders: reminders.enabled && reminders.frequencyInDays ? 
               [{ label: `Every ${reminders.frequencyInDays} days`, value: reminders.frequencyInDays.toString() }] : [],
-            atEscalation: !!notifications.onEscalation,
+            remindersDuringCampaignTemplateName: reminders.templateName || "",
+            remindersDuringCampaignTemplateData: reminders.enabled ? {
+              selectedTemplateId: null,
+              to: Array.isArray(reminders.toAddress) ? reminders.toAddress.join(', ') : (reminders.toAddress || ""),
+              cc: Array.isArray(reminders.ccAddress) ? reminders.ccAddress.join(', ') : (reminders.ccAddress || ""),
+              bcc: Array.isArray(reminders.bccAddress) ? reminders.bccAddress.join(', ') : (reminders.bccAddress || ""),
+              templateName: reminders.templateName || "",
+            } : undefined,
+            atEscalation: !!(notifications.onEscalation && (
+              notifications.onEscalation.templateName ||
+              (notifications.onEscalation.toAddress && notifications.onEscalation.toAddress.length > 0) ||
+              (notifications.onEscalation.ccAddress && notifications.onEscalation.ccAddress.length > 0) ||
+              (notifications.onEscalation.bccAddress && notifications.onEscalation.bccAddress.length > 0)
+            )),
             atEscalationReminders: notifications.onEscalation ? [] : undefined,
-            campaignClosure: !!notifications.onCompletion,
+            atEscalationTemplateName: notifications.onEscalation?.templateName || "",
+            atEscalationTemplateData: notifications.onEscalation ? {
+              selectedTemplateId: null,
+              to: Array.isArray(notifications.onEscalation.toAddress) ? notifications.onEscalation.toAddress.join(', ') : (notifications.onEscalation.toAddress || ""),
+              cc: Array.isArray(notifications.onEscalation.ccAddress) ? notifications.onEscalation.ccAddress.join(', ') : (notifications.onEscalation.ccAddress || ""),
+              bcc: Array.isArray(notifications.onEscalation.bccAddress) ? notifications.onEscalation.bccAddress.join(', ') : (notifications.onEscalation.bccAddress || ""),
+              templateName: notifications.onEscalation.templateName || "",
+            } : undefined,
+            campaignClosure: !!(notifications.onCompletion && (
+              notifications.onCompletion.templateName ||
+              (notifications.onCompletion.toAddress && notifications.onCompletion.toAddress.length > 0) ||
+              (notifications.onCompletion.ccAddress && notifications.onCompletion.ccAddress.length > 0) ||
+              (notifications.onCompletion.bccAddress && notifications.onCompletion.bccAddress.length > 0)
+            )),
+            campaignClosureTemplateName: notifications.onCompletion?.templateName || "",
+            campaignClosureTemplateData: notifications.onCompletion ? {
+              selectedTemplateId: null,
+              to: Array.isArray(notifications.onCompletion.toAddress) ? notifications.onCompletion.toAddress.join(', ') : (notifications.onCompletion.toAddress || ""),
+              cc: Array.isArray(notifications.onCompletion.ccAddress) ? notifications.onCompletion.ccAddress.join(', ') : (notifications.onCompletion.ccAddress || ""),
+              bcc: Array.isArray(notifications.onCompletion.bccAddress) ? notifications.onCompletion.bccAddress.join(', ') : (notifications.onCompletion.bccAddress || ""),
+              templateName: notifications.onCompletion.templateName || "",
+            } : undefined,
             msTeamsNotification: templateData.msTeamsNotification || false,
             msTeamsChannelName: templateData.msTeamsChannelName || "",
             msTeamsDescription: templateData.msTeamsDescription || "",
             msTeamsTeamId: templateData.msTeamsTeamId || "",
             allowDownloadUploadCropNetwork: templateData.allowDownloadUploadCropNetwork || false,
             markUndecidedRevoke: templateData.markUndecidedRevoke || false,
-            disableBulkAction: templateData.disableBulkAction || false,
+            disableBulkAction: certificationOptions.allowBulkActions !== undefined ? !certificationOptions.allowBulkActions : false,
             enforceComments: 
               (certificationOptions.requireCommentOnRevoke && certificationOptions.requireCommentOnCertify) ? "Custom Fields" :
               certificationOptions.requireCommentOnRevoke ? "Revoke" :
@@ -203,7 +250,7 @@ const CreateCampaign = () => {
             certifierUnavailableUsers: certificationOptions.defaultCertifier?.reviewerId ? 
               [{ label: certificationOptions.defaultCertifier.reviewerId, value: certificationOptions.defaultCertifier.reviewerId }] : [],
             ticketConditionalApproval: templateData.ticketConditionalApproval || false,
-            authenticationSignOff: templateData.authenticationSignOff || false,
+            authenticationSignOff: certificationOptions.usePasswordOnSignOff || false,
             generatePin: templateData.generatePin || "",
             verifyUserAttribute: templateData.verifyUserAttribute || "",
             applicationScope: scopingCriteria.commonFilterForAccounts?.criteria === "allUserAccounts" || false,

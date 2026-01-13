@@ -201,49 +201,84 @@ export function transformFormDataToPayload(formData: FormData): any {
     }
   }
 
+  // Helper function to convert address data to array
+  const convertToAddressArray = (addressData: any): string[] => {
+    if (!addressData) return [];
+    if (Array.isArray(addressData)) {
+      return addressData.filter(addr => addr && addr.trim());
+    }
+    if (typeof addressData === 'string') {
+      return addressData.split(',').map(addr => addr.trim()).filter(addr => addr.length > 0);
+    }
+    return [];
+  };
+
   // Build reminders
+  const remindersTemplateData = (step4 as any).remindersDuringCampaignTemplateData || {};
+  const remindersReminders = step4.remindersDuringCampaignReminders || [];
+  
+  // Extract frequency from reminders - handle both object format {label, value} and direct value
+  let frequencyValue = 7; // default
+  if (remindersReminders.length > 0) {
+    const firstReminder = remindersReminders[0];
+    if (firstReminder) {
+      const value = firstReminder.value !== undefined ? firstReminder.value : firstReminder;
+      // Try to extract number from string like "Every 7 days" or just "7"
+      if (typeof value === 'string') {
+        // Extract number from string (e.g., "Every 7 days" -> 7, or "7" -> 7)
+        const match = value.match(/\d+/);
+        frequencyValue = match ? Number(match[0]) : 7;
+      } else if (typeof value === 'number') {
+        frequencyValue = value;
+      } else {
+        frequencyValue = Number(value) || 7;
+      }
+    }
+  }
+  
   const reminders = {
-    enabled: (step4.socReminders && step4.socReminders.length > 0),
-    frequencyInDays: step4.socReminders && step4.socReminders.length > 0 
-      ? Number(step4.socReminders[0]?.value) || 7 
-      : 7,
-    templateName: "CERT_REVIEW_ASSIGNMENT",
-    toAddress: [],
-    ccAddress: [],
-    bccAddress: [],
+    enabled: step4.remindersDuringCampaign || false,
+    frequencyInDays: frequencyValue,
+    templateName: (step4 as any).remindersDuringCampaignTemplateName || "",
+    toAddress: convertToAddressArray(remindersTemplateData.to),
+    ccAddress: convertToAddressArray(remindersTemplateData.cc),
+    bccAddress: convertToAddressArray(remindersTemplateData.bcc),
   };
 
   // Build notifications
-  const campaignName = step1.certificationTemplate || "Campaign";
+  const startTemplateData = (step4 as any).startOfCampaignTemplateData || {};
+  const completionTemplateData = (step4 as any).campaignClosureTemplateData || {};
+  const escalationTemplateData = (step4 as any).atEscalationTemplateData || {};
+  
   const notifications: any = {
     onStart: {
-      templateName: "CERT_REVIEW_ASSIGNMENT",
-      toAddress: [],
-      ccAddress: [],
-      bccAddress: [],
+      templateName: (step4 as any).startOfCampaignTemplateName || "",
+      toAddress: convertToAddressArray(startTemplateData.to),
+      ccAddress: convertToAddressArray(startTemplateData.cc),
+      bccAddress: convertToAddressArray(startTemplateData.bcc),
     },
     onCompletion: {
-      templateName: "CERT_REVIEW_ASSIGNMENT",
-      toAddress: [],
-      ccAddress: [],
-      bccAddress: [],
+      templateName: (step4 as any).campaignClosureTemplateName || "",
+      toAddress: convertToAddressArray(completionTemplateData.to),
+      ccAddress: convertToAddressArray(completionTemplateData.cc),
+      bccAddress: convertToAddressArray(completionTemplateData.bcc),
     },
     beforeExpiry: {
       numOfDaysBeforeExpiry: (step4.eocReminders && step4.eocReminders.length > 0)
         ? step4.eocReminders.map((reminder: any) => 
             Number(reminder.value) || Number(reminder) || 7
           )
-        : [7, 5, 3, 2],
-      templateName: "CERT_REVIEW_ASSIGNMENT",
+        : [],
+      templateName: "",
       toAddress: [],
       ccAddress: [],
       bccAddress: [],
     },
     onEscalation: {
-      templateName: "CERT_REVIEW_ASSIGNMENT",
-      toAddress: [],
-      ccAddress: [],
-      bccAddress: [],
+      templateName: (step4 as any).atEscalationTemplateName || "",
+      toAddress: convertToAddressArray(escalationTemplateData.to),
+      ccAddress: convertToAddressArray(escalationTemplateData.cc),
+      bccAddress: convertToAddressArray(escalationTemplateData.bcc),
     },
   };
 
@@ -279,7 +314,7 @@ export function transformFormDataToPayload(formData: FormData): any {
   };
 
   // Get campaign type from step1, or determine based on reviewers if not provided
-  let campaignType = step1.campaignType || "UserAccessReview";
+  let campaignType = step1.campaignType || "";
   
   // If campaign type is not explicitly set in step1, determine it from reviewers
   if (!step1.campaignType) {
@@ -294,20 +329,17 @@ export function transformFormDataToPayload(formData: FormData): any {
 
   // Build campaign owner
   const campaignOwner = {
-    ownerType: step1.ownerType || "User",
+    ownerType: step1.ownerType || "",
     ownerName: step1.ownerType === "User"
       ? (step1.ownerUser || []).map((u: any) => 
           typeof u === "string" ? u : u.value || u.label || u
         )
-      : (step1.ownerGroup || []).map((g: any) => 
+      : step1.ownerType === "Group"
+      ? (step1.ownerGroup || []).map((g: any) => 
           typeof g === "string" ? g : g.value || g.label || g
-        ),
+        )
+      : [],
   };
-
-  // If no owners specified, use default
-  if (campaignOwner.ownerName.length === 0) {
-    campaignOwner.ownerName = ["SYSADMIN"];
-  }
 
   // Build instanceDefaultname - use from step1 if provided, otherwise generate from template name
   const instanceDefaultname = step1.instanceDefaultname || (step1.certificationTemplate 

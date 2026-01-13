@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { ChevronRight, X, Eye } from "lucide-react";
+import { InfoIcon, ArrowLeft } from "lucide-react";
 
 interface EmailTemplate {
   id: number;
@@ -20,6 +20,7 @@ interface EmailTemplateData {
   to: string;
   cc: string;
   bcc: string;
+  templateName?: string;
 }
 
 interface EmailTemplateEditorProps {
@@ -52,6 +53,7 @@ const EmailTemplateEditor: React.FC<EmailTemplateEditorProps> = ({
     handleSubmit,
     watch,
     setValue,
+    reset,
     formState: { errors },
   } = useForm<EmailTemplateData>({
     defaultValues: initialData || {
@@ -61,6 +63,13 @@ const EmailTemplateEditor: React.FC<EmailTemplateEditorProps> = ({
       bcc: "",
     },
   });
+
+  // Reset form when initialData changes (when editing)
+  useEffect(() => {
+    if (initialData) {
+      reset(initialData);
+    }
+  }, [initialData, reset]);
 
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,6 +101,30 @@ const EmailTemplateEditor: React.FC<EmailTemplateEditorProps> = ({
           // Filter only active templates
           const activeTemplates = result.data.filter((t) => t.active);
           setTemplates(activeTemplates);
+          
+          // If we have initialData, try to set the selectedTemplateId
+          if (initialData) {
+            let templateIdToSet: number | undefined = undefined;
+            
+            // If we already have a selectedTemplateId, use it
+            if (initialData.selectedTemplateId) {
+              templateIdToSet = initialData.selectedTemplateId;
+            }
+            // Otherwise, if we have a templateName, find the template by name
+            else if (initialData.templateName) {
+              const matchingTemplate = activeTemplates.find(
+                (t) => t.templateName === initialData.templateName
+              );
+              if (matchingTemplate) {
+                templateIdToSet = matchingTemplate.id;
+              }
+            }
+            
+            // Set the selectedTemplateId if we found one
+            if (templateIdToSet !== undefined) {
+              setValue("selectedTemplateId", templateIdToSet, { shouldValidate: true });
+            }
+          }
         } else {
           throw new Error(result.message || "Failed to load templates");
         }
@@ -104,11 +137,15 @@ const EmailTemplateEditor: React.FC<EmailTemplateEditorProps> = ({
     };
 
     fetchTemplates();
-  }, []);
+  }, [initialData, setValue]);
 
   const onSubmit = (data: EmailTemplateData) => {
     if (onSave) {
-      onSave(data);
+      const selectedTemplate = templates.find((t) => t.id === data.selectedTemplateId);
+      onSave({
+        ...data,
+        templateName: selectedTemplate?.templateName || "",
+      });
     }
     console.log("Email template saved:", data);
   };
@@ -167,56 +204,73 @@ const EmailTemplateEditor: React.FC<EmailTemplateEditorProps> = ({
 
         {/* To */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            To
-          </label>
-          <input
-            type="text"
-            {...register("to")}
-            value={watch("to") || ""}
-            onChange={(e) => setValue("to", e.target.value)}
-            ref={toInputRef}
-            onDragOver={handleDragOver}
-            onDrop={(e) => handleDrop(e, "to")}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter To email addresses or drag roles here"
-          />
+          <div className="flex items-center gap-3">
+            <label className="text-sm font-medium text-gray-700 w-16">
+              To <span className="text-red-500">*</span>
+            </label>
+            <div className="flex-1">
+              <input
+                type="text"
+                {...register("to", { required: "To field is required" })}
+                value={watch("to") || ""}
+                onChange={(e) => setValue("to", e.target.value, { shouldValidate: true })}
+                ref={toInputRef}
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, "to")}
+                className={`w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  errors.to ? "border-red-500" : "border-gray-300"
+                }`}
+                placeholder="Enter To email addresses or drag roles here"
+              />
+            </div>
+          </div>
+          {errors.to && (
+            <p className="text-red-500 text-sm mt-1 ml-16">{errors.to.message}</p>
+          )}
         </div>
 
         {/* CC */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            CC
-          </label>
-          <input
-            type="text"
-            {...register("cc")}
-            value={watch("cc") || ""}
-            onChange={(e) => setValue("cc", e.target.value)}
-            ref={ccInputRef}
-            onDragOver={handleDragOver}
-            onDrop={(e) => handleDrop(e, "cc")}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter CC email addresses or drag roles here"
-          />
+          <div className="flex items-center gap-3">
+            <label className="text-sm font-medium text-gray-700 w-16">
+              CC
+            </label>
+            <div className="flex-1">
+              <input
+                type="text"
+                {...register("cc")}
+                value={watch("cc") || ""}
+                onChange={(e) => setValue("cc", e.target.value)}
+                ref={ccInputRef}
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, "cc")}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter CC email addresses or drag roles here"
+              />
+            </div>
+          </div>
         </div>
 
         {/* BCC */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            BCC
-          </label>
-          <input
-            type="text"
-            {...register("bcc")}
-            value={watch("bcc") || ""}
-            onChange={(e) => setValue("bcc", e.target.value)}
-            ref={bccInputRef}
-            onDragOver={handleDragOver}
-            onDrop={(e) => handleDrop(e, "bcc")}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter BCC email addresses or drag roles here"
-          />
+          <div className="flex items-center gap-3">
+            <label className="text-sm font-medium text-gray-700 w-16">
+              BCC
+            </label>
+            <div className="flex-1">
+              <input
+                type="text"
+                {...register("bcc")}
+                value={watch("bcc") || ""}
+                onChange={(e) => setValue("bcc", e.target.value)}
+                ref={bccInputRef}
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, "bcc")}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter BCC email addresses or drag roles here"
+              />
+            </div>
+          </div>
         </div>
 
         {/* Email Template Selection */}
@@ -233,6 +287,7 @@ const EmailTemplateEditor: React.FC<EmailTemplateEditorProps> = ({
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
+                    <th className="px-4 py-2 text-center text-sm font-medium text-gray-700 w-12"></th>
                     <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Template Name</th>
                     <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Description</th>
                     <th className="px-4 py-2 text-center text-sm font-medium text-gray-700 w-12"></th>
@@ -247,6 +302,14 @@ const EmailTemplateEditor: React.FC<EmailTemplateEditorProps> = ({
                         watch("selectedTemplateId") === template.id ? "bg-blue-50" : ""
                       }`}
                     >
+                      <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={watch("selectedTemplateId") === template.id}
+                          onChange={() => setValue("selectedTemplateId", template.id, { shouldValidate: true })}
+                          className="scale-130 cursor-pointer"
+                        />
+                      </td>
                       <td className="px-4 py-3 text-sm text-gray-900">{template.templateName}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">
                         {template.description || "-"}
@@ -256,12 +319,12 @@ const EmailTemplateEditor: React.FC<EmailTemplateEditorProps> = ({
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            // Handle view template action
-                            console.log("View template:", template);
+                            setValue("selectedTemplateId", template.id, { shouldValidate: true });
+                            setShowPreview(true);
                           }}
                           className="text-gray-400 hover:text-blue-600 transition-colors"
                         >
-                          <ChevronRight size={20} />
+                          <InfoIcon size={20} />
                         </button>
                       </td>
                     </tr>
@@ -283,20 +346,15 @@ const EmailTemplateEditor: React.FC<EmailTemplateEditorProps> = ({
         <div className="flex gap-3 pt-4 border-t">
           <button
             type="submit"
-            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            disabled={!watch("to") || !watch("selectedTemplateId")}
+            className={`px-4 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+              watch("to") && watch("selectedTemplateId")
+                ? "bg-blue-500 text-white hover:bg-blue-600"
+                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+            }`}
           >
             Save Template
           </button>
-          {watch("selectedTemplateId") && (
-            <button
-              type="button"
-              onClick={() => setShowPreview(true)}
-              className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 flex items-center gap-2"
-            >
-              <Eye size={16} />
-              Preview
-            </button>
-          )}
           <button
             type="button"
             className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500"
@@ -317,17 +375,17 @@ const EmailTemplateEditor: React.FC<EmailTemplateEditorProps> = ({
       {showPreview && watch("selectedTemplateId") && (
         <div className="absolute inset-0 bg-white z-50 flex flex-col">
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-900">Email Template Preview</h2>
+            <div className="flex items-center gap-3 p-4 border-b border-gray-200">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowPreview(false);
                 }}
                 onMouseDown={(e) => e.stopPropagation()}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
+                className="flex items-center gap-2 text-gray-700 hover:text-gray-900 transition-colors"
               >
-                <X size={24} />
+                <ArrowLeft size={20} />
+                <span>Go Back</span>
               </button>
             </div>
 
@@ -365,50 +423,11 @@ const EmailTemplateEditor: React.FC<EmailTemplateEditorProps> = ({
                         )}
                       </div>
                     </div>
-
-                    {/* Email Addresses */}
-                    {(watch("to") || watch("cc") || watch("bcc")) && (
-                      <div>
-                        <h2 className="text-lg font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                          Email Addresses
-                        </h2>
-                        <div className="bg-gray-50 p-3 rounded-md border border-gray-200 space-y-2 text-sm">
-                          {watch("to") && (
-                            <div>
-                              <strong>To:</strong> {watch("to")}
-                            </div>
-                          )}
-                          {watch("cc") && (
-                            <div>
-                              <strong>CC:</strong> {watch("cc")}
-                            </div>
-                          )}
-                          {watch("bcc") && (
-                            <div>
-                              <strong>BCC:</strong> {watch("bcc")}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
                   </>
                 ) : null;
               })()}
             </div>
 
-            {/* Modal Footer */}
-            <div className="p-4 border-t border-gray-200 flex justify-end">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowPreview(false);
-                }}
-                onMouseDown={(e) => e.stopPropagation()}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500"
-              >
-                Close
-              </button>
-            </div>
         </div>
       )}
     </div>

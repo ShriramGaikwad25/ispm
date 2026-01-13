@@ -246,6 +246,23 @@ const WizardForm: React.FC<WizardFormProps> = ({ steps, initialFormData, isEditM
                   <ChevronRight className="w-4 h-4 ml-2" />
                 </button>
               )}
+              {!isEditMode && currentStep === steps.length - 1 && (
+                <button
+                  onClick={() => {
+                    setIsDialogOpen(true);
+                    setSaveAsTemplate(false);
+                  }}
+                  disabled={!validationStatus[currentStep]}
+                  className={`flex items-center px-4 py-2 rounded-md text-sm font-medium ${
+                    validationStatus[currentStep]
+                      ? "bg-blue-600 text-white hover:bg-blue-700"
+                      : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                  }`}
+                >
+                  <Save size={18} className="mr-2" />
+                  Create Campaign
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -263,6 +280,7 @@ const WizardForm: React.FC<WizardFormProps> = ({ steps, initialFormData, isEditM
       <SubmitDialog
         isOpen={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}
+        onConfirm={handleSubmit}
         saveAsTemplate={saveAsTemplate}
         setSaveAsTemplate={setSaveAsTemplate}
         certificationTemplate={formData.step1?.certificationTemplate || ""}

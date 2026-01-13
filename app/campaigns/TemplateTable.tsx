@@ -86,6 +86,7 @@ const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow }) => {
     fetchCampaigns();
   }, []);
 
+
   const columnDefs = React.useMemo<ColDef[]>(
     () => [
       {
@@ -191,7 +192,7 @@ const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow }) => {
   }
 
   return (
-    <div className="w-full">
+    <div className="w-full" style={{ width: '100%', minWidth: 0 }}>
       <AgGridReact
         ref={gridRef}
         rowData={rows}
@@ -207,7 +208,30 @@ const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow }) => {
         }}
         onGridReady={(params) => {
           params.api.sizeColumnsToFit();
+          // Add window resize listener
+          const handleResize = () => {
+            try {
+              params.api.sizeColumnsToFit();
+            } catch {}
+          };
+          window.addEventListener("resize", handleResize);
+          // Clean up listener when grid is destroyed
+          params.api.addEventListener('gridPreDestroyed', () => {
+            window.removeEventListener("resize", handleResize);
+          });
         }}
+        onGridSizeChanged={(params) => {
+          // Automatically resize columns when grid size changes
+          try {
+            params.api.sizeColumnsToFit();
+          } catch (e) {
+            // Ignore errors
+          }
+        }}
+        onFirstDataRendered={(params) => {
+          params.api.sizeColumnsToFit();
+        }}
+        suppressSizeToFit={false}
       />
     </div>
   );

@@ -155,7 +155,16 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
       const groupEntitlement = group.entitlementInfo || {};
       const groupEntitlementName =
         groupEntitlement.entitlementName || "Unknown Entitlement";
-      const groupEntitlementDescription = groupEntitlement.description || "";
+      // Try multiple possible field names for description
+      const groupEntitlementDescription = 
+        groupEntitlement.description ||
+        groupEntitlement.entitlementDescription ||
+        groupEntitlement.entitlement_description ||
+        groupEntitlement.details ||
+        groupEntitlement.summary ||
+        group.description ||
+        group.entitlementDescription ||
+        "";
       const accounts = Array.isArray(group.accounts) ? group.accounts : [];
 
       return accounts.map((account: any, index: number) => {
@@ -1570,73 +1579,60 @@ function AppOwnerContent() {
     if (groupKey && isEntitlementGrouping && props.node.group) {
       const normalizedKey = String(groupKey).trim().toLowerCase();
       
-      // Method 1: From first child node - check this FIRST as it's most reliable when grouping
-      if (node?.allLeafChildren?.length > 0) {
-        const firstChild = node.allLeafChildren.find((c: any) => !c.group) || node.allLeafChildren[0];
-        if (firstChild?.data) {
-          description = 
-            firstChild.data.entitlementDescription ||
-            firstChild.data.description ||
-            firstChild.data.entitlement_description ||
-            "";
-        }
-      }
+      // PRIORITY 1: Direct lookup from the map (most reliable)
+      description = entitlementDescriptionMapRef.current.get(normalizedKey) || "";
       
-      // Method 2: From entitlementDescriptionMapRef (always fresh)
-      if (!description) {
-        description = entitlementDescriptionMapRef.current.get(normalizedKey) || "";
-      }
-      
-      // Method 3: From getDescriptionForEntitlement (uses map + fallbacks)
-      if (!description) {
-        description = getDescriptionForEntitlement(groupKey);
-      }
-      
-      // Method 4: From aggregated group data (from getGroupRowAgg)
-      if (!description) {
-        description = props.data?.entitlementDescription || props.data?.aggData?.entitlementDescription || "";
-      }
-      
-      // Method 5: From any child node in any child array
-      if (!description && node) {
-        const childArrays = [
-          node?.childrenAfterFilter,
-          node?.childrenAfterGroup,
-          node?.childrenAfterSort,
-        ];
-        
-        for (const children of childArrays) {
-          if (Array.isArray(children) && children.length > 0) {
-            for (const child of children) {
-              if (child?.data && !child.group) {
-                const childDesc = 
-                  child.data.entitlementDescription ||
-                  child.data.description ||
-                  child.data.entitlement_description ||
-                  "";
-                if (childDesc) {
-                  description = childDesc;
-                  break;
-                }
-              }
+      // PRIORITY 2: From first leaf child node
+      if (!description && node?.allLeafChildren?.length > 0) {
+        for (const child of node.allLeafChildren) {
+          if (child?.data && !child.group) {
+            const childDesc = 
+              child.data.entitlementDescription ||
+              child.data.description ||
+              child.data.entitlement_description ||
+              "";
+            if (childDesc && childDesc.trim()) {
+              description = childDesc;
+              break;
             }
-            if (description) break;
           }
         }
       }
       
-      // Debug logging - always log to see what's happening
-      console.log(`[GroupCellRenderer] Rendering for: "${groupKey}"`, {
-        hasDescription: !!description,
+      // PRIORITY 3: From aggregated group data
+      if (!description) {
+        const aggData = props.data?.aggData || props.aggData || (props as any).aggData;
+        description = 
+          aggData?.entitlementDescription ||
+          props.data?.entitlementDescription ||
+          props.data?.description ||
+          "";
+      }
+      
+      // PRIORITY 4: Search in rowDataRef directly
+      if (!description && rowDataRef.current.length > 0) {
+        const matchingRow = rowDataRef.current.find((row: any) => {
+          const rowEntitlementName = String(row.entitlementName || "").trim().toLowerCase();
+          return rowEntitlementName === normalizedKey;
+        });
+        if (matchingRow) {
+          description = 
+            matchingRow.entitlementDescription ||
+            matchingRow.description ||
+            matchingRow.entitlement_description ||
+            "";
+        }
+      }
+      
+      // Debug logging
+      console.log(`[GroupCellRenderer] "${groupKey}"`, {
+        foundDescription: !!description,
         descriptionLength: description.length,
-        descriptionPreview: description.substring(0, 50),
-        normalizedKey,
-        mapSize: entitlementDescriptionMapRef.current.size,
+        descriptionPreview: description ? description.substring(0, 50) : 'EMPTY',
         mapHasKey: entitlementDescriptionMapRef.current.has(normalizedKey),
-        rowDataRefLength: rowDataRef.current.length,
-        nodeChildren: node?.allLeafChildren?.length || 0,
-        firstChildDataKeys: node?.allLeafChildren?.[0]?.data ? Object.keys(node.allLeafChildren[0].data) : [],
-        firstChildData: node?.allLeafChildren?.[0]?.data,
+        mapValue: entitlementDescriptionMapRef.current.get(normalizedKey) || 'NOT IN MAP',
+        leafChildrenCount: node?.allLeafChildren?.length || 0,
+        rowDataRefSize: rowDataRef.current.length,
       });
     }
 
@@ -1644,38 +1640,49 @@ function AppOwnerContent() {
       return <span className="ag-group-value">{props.value}</span>;
     }
 
-    // Always show description if available - entitlement name at start and vertically centered
+    // Always show description if available
+    const shouldShowDescription = description && description.trim().length > 0;
+    
     return (
       <div 
-        className="flex items-center gap-2 py-1 w-full" 
+        className="flex flex-col gap-1 py-2 w-full" 
         style={{ 
-          minHeight: '32px', 
-          width: '100%', 
-          padding: '4px 0',
-          alignItems: 'center',
+          minHeight: 'auto', 
+          width: '100%',
         }}
       >
-        <span className="ag-group-value font-medium flex-shrink-0" style={{ fontWeight: 600, alignSelf: 'center' }}>{groupKey}</span>
-        {description ? (
-          <span 
-            className="text-gray-700 text-sm break-words whitespace-pre-wrap leading-relaxed flex-1 min-w-0" 
+        <div className="flex items-center gap-2">
+          <span className="ag-group-value font-semibold text-base" style={{ fontWeight: 600 }}>{groupKey}</span>
+        </div>
+        {shouldShowDescription ? (
+          <div 
+            className="text-gray-600 text-sm break-words whitespace-pre-wrap leading-relaxed w-full mt-1" 
             style={{ 
-              display: 'inline',
-              color: '#1f2937',
-              fontSize: '14px',
-              lineHeight: '1.5',
+              display: 'block',
+              color: '#4b5563',
+              fontSize: '13px',
+              lineHeight: '1.6',
               wordBreak: 'break-word',
               fontWeight: 400,
-              marginLeft: '8px',
-              alignSelf: 'center'
+              paddingLeft: '0px',
             }}
           >
-            — {description}
-          </span>
-        ) : null}
+            {description}
+          </div>
+        ) : (
+          <div 
+            className="text-gray-400 text-xs italic w-full mt-1" 
+            style={{ 
+              display: 'block',
+              paddingLeft: '0px',
+            }}
+          >
+            (No description available)
+          </div>
+        )}
       </div>
     );
-  }, [groupByOption, isGroupedByEntitlementCheckbox, getDescriptionForEntitlement]);
+  }, [groupByOption, isGroupedByEntitlementCheckbox]);
 
   const autoGroupColumnDef = useMemo<ColDef>(
     () => {
@@ -1685,13 +1692,19 @@ function AppOwnerContent() {
         mapSize: entitlementDescriptionMapRef.current.size,
       });
       return {
-        minWidth: 200,
+        minWidth: 300,
+        flex: 1,
         autoHeight: true, // Allow row to expand to show description
         wrapText: true,
         cellRendererParams: {
           suppressExpand: true,
         },
         cellRenderer: GroupCellRenderer,
+        cellStyle: {
+          display: 'flex',
+          alignItems: 'flex-start',
+          padding: '8px',
+        },
       };
     },
     [GroupCellRenderer, groupByOption, isGroupedByEntitlementCheckbox]
@@ -1834,16 +1847,6 @@ function AppOwnerContent() {
               <option value="Entitlements">Group by Entitlements</option>
               {}
             </select>
-            {/* Show ActionButtons inline when not all selected */}
-            {selectedRows.length > 0 && !isAllSelected && gridApiRef.current && (
-              <ActionButtons
-                api={gridApiRef.current as any}
-                selectedRows={selectedRows}
-                context="entitlement"
-                reviewerId={reviewerId}
-                certId={certificationId}
-              />
-            )}
             <div className="flex items-center space-x-2">
               <input
                 type="text"
@@ -2088,35 +2091,62 @@ function AppOwnerContent() {
                 detailRowAutoHeight={true}
                 getGroupRowAgg={(params: any) => {
                   // Aggregate entitlementDescription for group rows
-                  if (params.nodes && params.nodes.length > 0) {
-                    // Try to find description from any child node
+                  // params.nodes contains all nodes in this group
+                  let description = "";
+                  
+                  console.log('[getGroupRowAgg] Called for key:', params.key, {
+                    nodesCount: params.nodes?.length || 0,
+                    mapSize: entitlementDescriptionMapRef.current.size,
+                    mapHasKey: params.key ? entitlementDescriptionMapRef.current.has(String(params.key).trim().toLowerCase()) : false
+                  });
+                  
+                  if (params.nodes && Array.isArray(params.nodes) && params.nodes.length > 0) {
+                    // Try to find description from any child node (leaf nodes first)
                     for (const node of params.nodes) {
-                      if (node.data && !node.group) {
+                      if (node && node.data && !node.group) {
                         const desc = 
                           node.data.entitlementDescription ||
                           node.data.description ||
                           node.data.entitlement_description ||
                           "";
-                        if (desc) {
-                          return { entitlementDescription: desc };
+                        if (desc && desc.trim()) {
+                          description = desc;
+                          console.log('[getGroupRowAgg] Found description from leaf node:', desc.substring(0, 50));
+                          break; // Use first non-empty description found
                         }
                       }
                     }
-                    // If no description found in non-group nodes, try group nodes
-                    for (const node of params.nodes) {
-                      if (node.data) {
-                        const desc = 
-                          node.data.entitlementDescription ||
-                          node.data.description ||
-                          node.data.entitlement_description ||
-                          "";
-                        if (desc) {
-                          return { entitlementDescription: desc };
+                    
+                    // If still no description, try from group nodes
+                    if (!description) {
+                      for (const node of params.nodes) {
+                        if (node && node.data) {
+                          const desc = 
+                            node.data.entitlementDescription ||
+                            node.data.description ||
+                            node.data.entitlement_description ||
+                            "";
+                          if (desc && desc.trim()) {
+                            description = desc;
+                            console.log('[getGroupRowAgg] Found description from group node:', desc.substring(0, 50));
+                            break;
+                          }
                         }
                       }
                     }
                   }
-                  return { entitlementDescription: "" };
+                  
+                  // Also try to get from the entitlement description map using the group key
+                  if (!description && params.key) {
+                    const normalizedKey = String(params.key).trim().toLowerCase();
+                    description = entitlementDescriptionMapRef.current.get(normalizedKey) || "";
+                    if (description) {
+                      console.log('[getGroupRowAgg] Found description from map:', description.substring(0, 50));
+                    }
+                  }
+                  
+                  console.log('[getGroupRowAgg] Returning:', description ? description.substring(0, 50) : 'EMPTY');
+                  return { entitlementDescription: description };
                 }}
                 onGridReady={(params: any) => {
                   console.log(
@@ -2224,8 +2254,8 @@ function AppOwnerContent() {
         {/* Right sidebar content is rendered globally via RightSideBarHost */}
       </div>
 
-      {/* Floating ActionButtons when all rows are selected */}
-      {isAllSelected && selectedRows.length > 0 && gridApiRef.current &&
+      {/* Floating ActionButtons when any rows are selected (individual or all) */}
+      {selectedRows.length > 0 && gridApiRef.current &&
         createPortal(
           <div
             className={`fixed left-1/2 transform -translate-x-1/2 z-50 rounded-lg shadow-2xl px-4 py-3 flex items-center gap-2 transition-all duration-300 ${

@@ -125,7 +125,8 @@ const ActionButtons = <T extends { status?: string }>({
   };
   const isApprovePending = selectedIds.length > 0 && selectedIds.every((id) => getPendingAction(id) === 'Approve');
   const isRejectPending = selectedIds.length > 0 && selectedIds.every((id) => getPendingAction(id) === 'Reject');
-  const isPendingReset = selectedIds.some((id) => getPendingAction(id) === 'Pending');
+  const isPendingReset = selectedIds.length > 0 && selectedIds.some((id) => getPendingAction(id) === 'Pending');
+  const isAllPendingReset = selectedIds.length > 0 && selectedIds.every((id) => getPendingAction(id) === 'Pending');
   const hasAnyPending = isApprovePending || isRejectPending || isPendingReset;
 
   // Check if action is Approve/Reject/Remediate/Delegate for entitlement context (normalized)
@@ -145,9 +146,10 @@ const ActionButtons = <T extends { status?: string }>({
   // Button fill logic:
   // - If pending Approve/Reject, show filled
   // - If no pending action but row data shows approved/rejected, show filled
-  // - If explicitly set to Pending (undone), buttons should be hollow
-  const approveFilled = isApprovePending || (!hasAnyPending && !isPendingReset && (isApproved || isApproveAction));
-  const rejectFilled = isRejectPending || (!hasAnyPending && !isPendingReset && (isRejected || isRejectAction));
+  // - If explicitly set to Pending (undone), buttons should be hollow (override row data state)
+  // Check if ANY selected item is explicitly set to Pending (undone) - if so, button should be unfilled
+  const approveFilled = isPendingReset ? false : (isApprovePending || (!hasAnyPending && (isApproved || isApproveAction)));
+  const rejectFilled = isPendingReset ? false : (isRejectPending || (!hasAnyPending && (isRejected || isRejectAction)));
 
   // API call to update actions
   const updateActions = async (actionType: string, justification: string) => {
@@ -305,8 +307,12 @@ const ActionButtons = <T extends { status?: string }>({
     e.stopPropagation();
     if (!api || definedRows.length === 0 || isActionLoading) return;
     
+    // If currently set to Pending (undone) and button is clicked, restore to Approve
+    if (isAllPendingReset || (isPendingReset && !isApprovePending && !isRejectPending)) {
+      await updateActions("Approve", "Approved via UI");
+    }
     // If already marked approve (pending state) OR underlying state approved, toggle to Pending
-    if (isApprovePending || isApproved || isApproveAction) {
+    else if (isApprovePending || isApproved || isApproveAction) {
       await updateActions("Pending", "Reset to pending");
     } else {
       await updateActions("Approve", "Approved via UI");
@@ -317,8 +323,12 @@ const ActionButtons = <T extends { status?: string }>({
     e.stopPropagation();
     if (!api || definedRows.length === 0 || isActionLoading) return;
     
+    // If currently set to Pending (undone) and button is clicked, restore to Reject
+    if (isAllPendingReset || (isPendingReset && !isApprovePending && !isRejectPending)) {
+      await updateActions("Reject", "Revoked via UI");
+    }
     // If already marked reject (pending state) OR underlying state rejected, toggle to Pending
-    if (isRejectPending || isRejected || isRejectAction) {
+    else if (isRejectPending || isRejected || isRejectAction) {
       await updateActions("Pending", "Reset to pending");
     } else {
       await updateActions("Reject", "Revoked via UI");

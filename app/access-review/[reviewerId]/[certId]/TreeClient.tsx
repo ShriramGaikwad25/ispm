@@ -2381,6 +2381,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                         context="entitlement"
                         reviewerId={reviewerId}
                         certId={certId}
+                        selectedFilters={selectedFilters}
                       />
                     )}
                     <input

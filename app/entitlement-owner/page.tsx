@@ -14,7 +14,7 @@ import {
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
-import { getAccessDetails } from "@/lib/api";
+import { getCatalogEntitlements } from "@/lib/api";
 import { getReviewerId } from "@/lib/auth";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import CustomPagination from "@/components/agTable/CustomPagination";
@@ -41,11 +41,13 @@ const EntitlementOwnerPageContent = () => {
   const [commentSubcategory, setCommentSubcategory] = useState("");
   const [isCommentDropdownOpen, setIsCommentDropdownOpen] = useState(false);
 
-  // Get reviewerId and certificationId from URL parameters
+  // Get reviewerId, certificationId, and appInstanceId from URL parameters
   const reviewerId =
     searchParams.get("reviewerId") || getReviewerId() || "";
   const certificationId =
     searchParams.get("certificationId") || "";
+  const appInstanceId =
+    searchParams.get("appinstanceid") || "b73ac8d7-f4cd-486f-93c7-3589ab5c5296";
 
   // Transform rowData to add description rows (separate row for each description)
   const filteredRowData = useMemo(() => {
@@ -126,8 +128,8 @@ const EntitlementOwnerPageContent = () => {
   // Fetch data from API
   useEffect(() => {
     const fetchData = async () => {
-      if (!reviewerId || !certificationId) {
-        setApiError("Missing reviewerId or certificationId");
+      if (!reviewerId || !appInstanceId) {
+        setApiError("Missing reviewerId or appInstanceId");
         setLoading(false);
         return;
       }
@@ -136,198 +138,264 @@ const EntitlementOwnerPageContent = () => {
         setLoading(true);
         setApiError(null);
 
-        // Handle dummy test record
-        if (certificationId === "dummy-cert-id-entitlement-owner") {
-          // Return dummy data for testing
-          const dummyData = [
-            {
-              entitlementName: "Administrator Access",
-              description: "Full administrative access to system resources and configurations",
-              "Ent Name": "Administrator Access",
-              "Ent Description": "Full administrative access to system resources and configurations",
-              type: "Role",
-              "Ent Type": "Role",
-              applicationName: "Active Directory",
-              "App Name": "Active Directory",
-              risk: "High",
-              "Risk": "High",
-              "Total Assignments": "25",
-              "Dynamic Tag": "Admin",
-              "Business Objective": "System Administration",
-              "Business Unit": "IT Operations",
-              "Ent Owner": "John Doe",
-              "Compliance Type": "SOX",
-              "Data Classification": "Confidential",
-              "Cost Center": "IT-001",
-              "Created On": "2024-01-15",
-              "Last Sync": "2024-12-01",
-              "App Instance": "AD-PROD-01",
-              "App Owner": "IT Team",
-              "Hierarchy": "Enterprise",
-              "MFA Status": "Required",
-              "assignment": "Direct",
-              "License Type": "Enterprise",
-              "Certifiable": "Yes",
-              "Revoke on Disable": "Yes",
-              "Shared Pwd": "No",
-              "SOD Check": "Yes",
-              "Access Scope": "Global",
-              "Review Schedule": "Quarterly",
-              "Last Reviewed on": "2024-09-15",
-              "Privileged": "Yes",
-              "Non Persistent Access": "No",
-              "Audit Comments": "Regular review required",
-              "Account Type Restriction": "Service Account",
-              "Requestable": "Yes",
-              "Pre- Requisite": "Security Training",
-              "Pre-Requisite Details": "Must complete security awareness training",
-              "Auto Assign Access Policy": "No",
-              "Provisioner Group": "IT Admins",
-              "Provisioning Steps": "Approval, Assignment, Notification",
-              "Provisioning Mechanism": "Automated",
-              "Action on Native Change": "Sync",
-              entitlementId: "dummy-ent-001",
-              lineItemId: "dummy-line-001",
-              status: "Pending",
-            },
-            {
-              entitlementName: "Database Read Access",
-              description: "Read-only access to production database for reporting purposes",
-              "Ent Name": "Database Read Access",
-              "Ent Description": "Read-only access to production database for reporting purposes",
-              type: "Permission",
-              "Ent Type": "Permission",
-              applicationName: "Oracle Database",
-              "App Name": "Oracle Database",
-              risk: "Medium",
-              "Risk": "Medium",
-              "Total Assignments": "150",
-              "Dynamic Tag": "ReadOnly",
-              "Business Objective": "Business Reporting",
-              "Business Unit": "Analytics",
-              "Ent Owner": "Jane Smith",
-              "Compliance Type": "GDPR",
-              "Data Classification": "Internal",
-              "Cost Center": "ANAL-002",
-              "Created On": "2024-03-20",
-              "Last Sync": "2024-12-01",
-              "App Instance": "ORACLE-PROD",
-              "App Owner": "DBA Team",
-              "Hierarchy": "Department",
-              "MFA Status": "Optional",
-              "assignment": "Group",
-              "License Type": "Standard",
-              "Certifiable": "Yes",
-              "Revoke on Disable": "No",
-              "Shared Pwd": "No",
-              "SOD Check": "No",
-              "Access Scope": "Department",
-              "Review Schedule": "Annually",
-              "Last Reviewed on": "2024-06-10",
-              "Privileged": "No",
-              "Non Persistent Access": "No",
-              "Audit Comments": "Low risk entitlement",
-              "Account Type Restriction": "User Account",
-              "Requestable": "Yes",
-              "Pre- Requisite": "None",
-              "Pre-Requisite Details": "N/A",
-              "Auto Assign Access Policy": "Yes",
-              "Provisioner Group": "DB Admins",
-              "Provisioning Steps": "Auto Assignment",
-              "Provisioning Mechanism": "Automated",
-              "Action on Native Change": "Sync",
-              entitlementId: "dummy-ent-002",
-              lineItemId: "dummy-line-002",
-              status: "Pending",
-            },
-          ];
-          
-          setRowData(dummyData);
-          setTotalItems(dummyData.length);
+        // Fetch entitlements using getCatalogEntitlements (same API as catalog page)
+        console.log("Fetching entitlements with appInstanceId:", appInstanceId, "reviewerId:", reviewerId);
+        const response = await getCatalogEntitlements<any>(
+          appInstanceId,
+          reviewerId
+        );
+
+        // Debug: Log the API response to see what fields are available
+        console.log("API Response:", response);
+        console.log("Response type:", typeof response);
+        console.log("Response items:", response.items);
+        console.log("Response items type:", typeof response.items);
+        console.log("Is array:", Array.isArray(response.items));
+        
+        if (!response) {
+          throw new Error("No response received from API");
+        }
+
+        // Handle different response structures
+        const items = response.items || response.data?.items || (Array.isArray(response) ? response : []);
+        
+        if (!items || items.length === 0) {
+          console.warn("No entitlements found in response");
+          setRowData([]);
+          setTotalItems(0);
           setTotalPages(1);
           setLoading(false);
           return;
         }
 
-        // Fetch all entitlements for this certification
-        const response = await getAccessDetails<any>(
-          reviewerId,
-          certificationId,
-          undefined,
-          "All",
-          pageSize,
-          currentPage
-        );
-
-        // Transform API response to match Catalog format
-        const transformedData: any[] = [];
-        
-        if (response.items && Array.isArray(response.items)) {
-          response.items.forEach((item: any) => {
-            const entitlements = item.entityEntitlements?.items || [];
-            
-            entitlements.forEach((ent: any) => {
-              // Handle both entityEntitlement (singular) and entityEntitlements (plural)
-              const entInfo = ent.entityEntitlement || ent.entityEntitlements || {};
-              const catalogDetails = ent.catalogDetails || {};
-              
-              transformedData.push({
-                entitlementName: catalogDetails.entitlementName || entInfo.entitlementName || "N/A",
-                description: catalogDetails.description || entInfo.entitlementDescription || "N/A",
-                "Ent Name": catalogDetails.entitlementName || entInfo.entitlementName || "N/A",
-                "Ent Description": catalogDetails.description || entInfo.entitlementDescription || "N/A",
-                type: catalogDetails.entitlementType || entInfo.entitlementType || "N/A",
-                "Ent Type": catalogDetails.entitlementType || entInfo.entitlementType || "N/A",
-                applicationName: item.applicationInfo?.applicationName || "N/A",
-                "App Name": item.applicationInfo?.applicationName || "N/A",
-                risk: catalogDetails.risk || "N/A",
-                "Risk": catalogDetails.risk || "N/A",
-                "Total Assignments": catalogDetails.totalAssignments || "N/A",
-                "Dynamic Tag": catalogDetails.dynamicTag || "N/A",
-                "Business Objective": catalogDetails.businessObjective || "N/A",
-                "Business Unit": catalogDetails.businessUnit || "N/A",
-                "Ent Owner": catalogDetails.entitlementOwner || "N/A",
-                "Compliance Type": catalogDetails.complianceType || "N/A",
-                "Data Classification": catalogDetails.dataClassification || "N/A",
-                "Cost Center": catalogDetails.costCenter || "N/A",
-                "Created On": catalogDetails.createdOn || "N/A",
-                "Last Sync": catalogDetails.lastSync || "N/A",
-                "App Instance": item.applicationInfo?.applicationInstanceId || "N/A",
-                "App Owner": catalogDetails.appOwner || "N/A",
-                "Hierarchy": catalogDetails.hierarchy || "N/A",
-                "MFA Status": catalogDetails.mfaStatus || "N/A",
-                "assignment": catalogDetails.assignment || "N/A",
-                "License Type": catalogDetails.licenseType || "N/A",
-                "Certifiable": catalogDetails.certifiable || "N/A",
-                "Revoke on Disable": catalogDetails.revokeOnDisable || "N/A",
-                "Shared Pwd": catalogDetails.sharedPwd || "N/A",
-                "SOD Check": catalogDetails.sodCheck || "N/A",
-                "Access Scope": catalogDetails.accessScope || "N/A",
-                "Review Schedule": catalogDetails.reviewSchedule || "N/A",
-                "Last Reviewed on": catalogDetails.lastReviewedOn || "N/A",
-                "Privileged": catalogDetails.privileged || "N/A",
-                "Non Persistent Access": catalogDetails.nonPersistentAccess || "N/A",
-                "Audit Comments": catalogDetails.auditComments || "N/A",
-                "Account Type Restriction": catalogDetails.accountTypeRestriction || "N/A",
-                "Requestable": catalogDetails.requestable || "N/A",
-                "Pre- Requisite": catalogDetails.preRequisite || "N/A",
-                "Pre-Requisite Details": catalogDetails.preRequisiteDetails || "N/A",
-                "Auto Assign Access Policy": catalogDetails.autoAssignAccessPolicy || "N/A",
-                "Provisioner Group": catalogDetails.provisionerGroup || "N/A",
-                "Provisioning Steps": catalogDetails.provisioningSteps || "N/A",
-                "Provisioning Mechanism": catalogDetails.provisioningMechanism || "N/A",
-                "Action on Native Change": catalogDetails.actionOnNativeChange || "N/A",
-                entitlementId: catalogDetails.entitlementId || entInfo.entitlementId || "",
-                lineItemId: entInfo.lineItemId || "",
-                status: entInfo.action || "Pending",
-              });
-            });
-          });
+        if (items.length > 0) {
+          console.log("First item structure:", items[0]);
+          console.log(
+            "Available fields in first item:",
+            Object.keys(items[0])
+          );
         }
 
+        // Transform API response to match the expected format (same as catalog page)
+        const transformedData =
+          items.map((item: any) => {
+            // Normalize snake_case and different APIs to the keys used by Applications sidebar
+            const name =
+              item.name ||
+              item.entitlementName ||
+              item.entitlementname ||
+              "N/A";
+            const description =
+              item.description ||
+              item.entitlementDescription ||
+              item.details ||
+              item.summary ||
+              item.comment ||
+              item.notes ||
+              "N/A";
+            const entType =
+              item["Ent Type"] ||
+              item.entitlementType ||
+              item.entitlementtype ||
+              item.type ||
+              "N/A";
+            const appName =
+              item["App Name"] ||
+              item.applicationName ||
+              item.applicationname ||
+              item.appName ||
+              "N/A";
+            const entOwner =
+              item["Ent Owner"] ||
+              item.entitlementOwner ||
+              item.entitlementowner ||
+              item.owner ||
+              "N/A";
+            const appOwner =
+              item["App Owner"] ||
+              item.applicationowner ||
+              item.appOwner ||
+              "N/A";
+            const businessObjective =
+              item["Business Objective"] ||
+              item.businessObjective ||
+              item.business_objective ||
+              "N/A";
+            const complianceType =
+              item["Compliance Type"] ||
+              item.complianceType ||
+              item.regulatory_scope ||
+              "N/A";
+            const dataClassification =
+              item["Data Classification"] || item.data_classification || "N/A";
+            const businessUnit =
+              item["Business Unit"] || item.businessunit_department || "N/A";
+            const risk = item["Risk"] || item.risk || item.riskLevel || "N/A";
+            const requestable =
+              item.requestable ?? item["Requestable"] ? "Yes" : "No";
+            const certifiable =
+              item.certifiable ?? item["Certifiable"] ? "Yes" : "No";
+            const lastReviewed =
+              item["Last Reviewed on"] ||
+              item.last_reviewed_on ||
+              item.lastReviewedOn ||
+              item.last_reviewed ||
+              "N/A";
+            const lastSync =
+              item["Last Sync"] || item.last_sync || item.lastSync || "N/A";
+            const createdOn =
+              item["Created On"] ||
+              item.created_on ||
+              item.createdOn ||
+              item.createdDate ||
+              item.createddate ||
+              "N/A";
+            const reviewSchedule =
+              item["Review Schedule"] ||
+              item.review_schedule ||
+              item.reviewSchedule ||
+              "N/A";
+            const accessScope =
+              item["Access Scope"] ||
+              item.access_scope ||
+              item.accessScope ||
+              "N/A";
+            const dynamicTag =
+              item["Dynamic Tag"] || item.tags || item.dynamicTag || "N/A";
+            const revokeOnDisable =
+              item["Revoke on Disable"] ??
+              item.revoke_on_disable ??
+              item.revokeOnDisable
+                ? "Yes"
+                : "No";
+            const sharedPwd =
+              item["Shared Pwd"] ?? item.shared_pwd ?? item.sharedPassword;
+            const sharedPwdText =
+              sharedPwd === true || sharedPwd === "true"
+                ? "Yes"
+                : sharedPwd === false || sharedPwd === "false"
+                ? "No"
+                : sharedPwd || "N/A";
+            const mfaStatus =
+              item["MFA Status"] || item.mfa_status || item.mfaStatus || "N/A";
+            const hierarchy = item["Hierarchy"] || item.hierarchy || "N/A";
+            const preReq = item["Pre- Requisite"] || item.prerequisite || "N/A";
+            const preReqDetails =
+              item["Pre-Requisite Details"] ||
+              item.prerequisite_details ||
+              item.prerequisiteDetails ||
+              "N/A";
+            const totalAssignments =
+              item["Total Assignments"] ||
+              item.totalAssignments ||
+              item.assignmentCount ||
+              item.totalassignmentstousers ||
+              0;
+            const assignment =
+              item["assignment"] ||
+              item.assignment ||
+              item.assigned_to ||
+              item.assignedTo ||
+              "N/A";
+            const licenseType =
+              item["License Type"] || item.license_type || "N/A";
+            const toxicCombination =
+              item["SOD Check"] ||
+              item.toxic_combination ||
+              item.sodCheck ||
+              "N/A";
+            const provisionerGroup =
+              item["Provisioner Group"] || item.provisioner_group || "N/A";
+            const provisioningSteps =
+              item["Provisioning Steps"] || item.provisioning_steps || "N/A";
+            const provisioningMechanism =
+              item["Provisioning Mechanism"] ||
+              item.provisioning_mechanism ||
+              "N/A";
+            const autoAssignPolicy =
+              item["Auto Assign Access Policy"] ||
+              item.auto_assign_access_policy ||
+              "N/A";
+            const actionOnNativeChange =
+              item["Action on Native Change"] ||
+              item.action_on_native_change ||
+              "N/A";
+            const accountTypeRestriction =
+              item["Account Type Restriction"] ||
+              item.account_type_restriction ||
+              "N/A";
+            const nonPersistentAccess =
+              item["Non Persistent Access"] ??
+              item.non_persistent_access ??
+              item.nonPersistentAccess
+                ? "Yes"
+                : "No";
+            const privileged =
+              item["Privileged"] ?? item.privileged ? "Yes" : "No";
+            const costCenter =
+              item["Cost Center"] || item.cost_center || item.costCenter || "N/A";
+            const auditComments =
+              item["Audit Comments"] ||
+              item.audit_comments ||
+              item.auditComments ||
+              "N/A";
+
+            return {
+              entitlementName: name,
+              description: description,
+              "Ent Name": name,
+              "Ent Description": description,
+              type: entType,
+              "Ent Type": entType,
+              applicationName: appName,
+              "App Name": appName,
+              risk: risk,
+              "Risk": risk,
+              "Total Assignments": totalAssignments,
+              "Dynamic Tag": dynamicTag,
+              "Business Objective": businessObjective,
+              "Business Unit": businessUnit,
+              "Ent Owner": entOwner,
+              "Compliance Type": complianceType,
+              "Data Classification": dataClassification,
+              "Cost Center": costCenter,
+              "Created On": createdOn,
+              "Last Sync": lastSync,
+              "App Instance": appInstanceId,
+              "App Owner": appOwner,
+              "Hierarchy": hierarchy,
+              "MFA Status": mfaStatus,
+              "assignment": assignment,
+              "License Type": licenseType,
+              "Certifiable": certifiable,
+              "Revoke on Disable": revokeOnDisable,
+              "Shared Pwd": sharedPwdText,
+              "SOD Check": toxicCombination,
+              "Access Scope": accessScope,
+              "Review Schedule": reviewSchedule,
+              "Last Reviewed on": lastReviewed,
+              "Privileged": privileged,
+              "Non Persistent Access": nonPersistentAccess,
+              "Audit Comments": auditComments,
+              "Account Type Restriction": accountTypeRestriction,
+              "Requestable": requestable,
+              "Pre- Requisite": preReq,
+              "Pre-Requisite Details": preReqDetails,
+              "Auto Assign Access Policy": autoAssignPolicy,
+              "Provisioner Group": provisionerGroup,
+              "Provisioning Steps": provisioningSteps,
+              "Provisioning Mechanism": provisioningMechanism,
+              "Action on Native Change": actionOnNativeChange,
+              entitlementId: item.entitlementId || item.id || "",
+              lineItemId: item.lineItemId || "",
+              status: item.status || "Pending",
+            };
+          }) || [];
+
+        console.log("Transformed data count:", transformedData.length);
         setRowData(transformedData);
-        setTotalItems(response.total_items || transformedData.length);
-        setTotalPages(response.total_pages || 1);
+        setTotalItems(response.total_items || response.totalItems || items.length || transformedData.length);
+        setTotalPages(response.total_pages || response.totalPages || 1);
       } catch (err: any) {
         console.error("Error fetching entitlements:", err);
         setApiError(err.message || "Failed to load entitlements");
@@ -337,7 +405,24 @@ const EntitlementOwnerPageContent = () => {
     };
 
     fetchData();
-  }, [reviewerId, certificationId, pageSize, currentPage]);
+  }, [reviewerId, appInstanceId, pageSize, currentPage]);
+
+  // Sync grid pagination with entitlement-based pagination
+  useEffect(() => {
+    if (gridApi) {
+      // Update pagination page size when pageSize changes
+      gridApi.setGridOption("paginationPageSize", pageSize * 2);
+      // Convert entitlement page (1-based) to grid page (0-based)
+      // Since each entitlement = 2 rows, and paginationPageSize = pageSize * 2,
+      // grid page = currentPage - 1
+      const gridPage = currentPage - 1;
+      const currentGridPage = gridApi.paginationGetCurrentPage?.() ?? 0;
+      if (currentGridPage !== gridPage) {
+        gridApi.paginationGoToPage(gridPage);
+      }
+      updatePaginationState(gridApi);
+    }
+  }, [currentPage, pageSize, gridApi]);
 
   const underReviewColDefs = useMemo<ColDef[]>(
     () => [
@@ -909,11 +994,14 @@ const EntitlementOwnerPageContent = () => {
   const updatePaginationState = (api: GridApi | null) => {
     if (!api) return;
     const pageZeroBased = api.paginationGetCurrentPage?.() ?? 0;
-    const totalPageCount = api.paginationGetTotalPages?.() ?? 1;
-    const filteredRowCount = api.getDisplayedRowCount?.() ?? rowData.length;
+    // Calculate total pages based on actual entitlements, not rows
+    // Since each entitlement = 2 rows (entitlement + description),
+    // we divide filteredRowData.length by 2 to get actual entitlements
+    const actualTotalItems = rowData.length;
+    const actualTotalPages = Math.ceil(actualTotalItems / pageSize);
     setCurrentPage(Math.max(1, pageZeroBased + 1));
-    setTotalPages(Math.max(1, totalPageCount));
-    setTotalItems(filteredRowCount);
+    setTotalPages(Math.max(1, actualTotalPages));
+    setTotalItems(actualTotalItems);
   };
 
   if (loading) {
@@ -999,8 +1087,10 @@ const EntitlementOwnerPageContent = () => {
             setCurrentPage(newPage);
           }}
           onPageSizeChange={(newPageSize) => {
-            setPageSize(newPageSize);
-            setCurrentPage(1);
+            if (typeof newPageSize === 'number') {
+              setPageSize(newPageSize);
+              setCurrentPage(1);
+            }
           }}
         />
       </div>
@@ -1013,7 +1103,7 @@ const EntitlementOwnerPageContent = () => {
           rowSelection="multiple"
           domLayout="autoHeight"
           pagination={true}
-          paginationPageSize={pageSize}
+          paginationPageSize={pageSize * 2}
           suppressRowTransform={true}
           getRowId={(params: any) => {
             const d = params.data || {};
@@ -1026,7 +1116,7 @@ const EntitlementOwnerPageContent = () => {
           }}
           onGridReady={(params: any) => {
             setGridApi(params.api);
-            params.api.setGridOption("paginationPageSize", pageSize);
+            params.api.setGridOption("paginationPageSize", pageSize * 2);
             updatePaginationState(params.api);
             params.api.addEventListener("paginationChanged", () => updatePaginationState(params.api));
             params.api.addEventListener("modelUpdated", () => updatePaginationState(params.api));
@@ -1046,8 +1136,10 @@ const EntitlementOwnerPageContent = () => {
             setCurrentPage(newPage);
           }}
           onPageSizeChange={(newPageSize) => {
-            setPageSize(newPageSize);
-            setCurrentPage(1);
+            if (typeof newPageSize === 'number') {
+              setPageSize(newPageSize);
+              setCurrentPage(1);
+            }
           }}
         />
       </div>

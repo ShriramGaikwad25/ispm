@@ -557,6 +557,23 @@ const CatalogPageContent = () => {
     fetchData();
   }, [appInstanceId, reviewerId]);
 
+  // Sync grid pagination with entitlement-based pagination
+  useEffect(() => {
+    if (gridApi) {
+      // Update pagination page size when pageSize changes
+      gridApi.setGridOption("paginationPageSize", pageSize * 2);
+      // Convert entitlement page (1-based) to grid page (0-based)
+      // Since each entitlement = 2 rows, and paginationPageSize = pageSize * 2,
+      // grid page = currentPage - 1
+      const gridPage = currentPage - 1;
+      const currentGridPage = gridApi.paginationGetCurrentPage?.() ?? 0;
+      if (currentGridPage !== gridPage) {
+        gridApi.paginationGoToPage(gridPage);
+      }
+      updatePaginationState(gridApi);
+    }
+  }, [currentPage, pageSize, gridApi]);
+
   const handleRowClick = (event: any) => {
     const entitlementData = {
       entitlementName: event.data.entitlementName || "N/A",
@@ -800,7 +817,7 @@ const CatalogPageContent = () => {
       {
         field: "actionColumn",
         headerName: "Action",
-        width: 100,
+        width: 190,
         cellRenderer: (params: ICellRendererParams) => {
           return (
             <EditReassignButtons
@@ -1396,11 +1413,14 @@ const CatalogPageContent = () => {
   const updatePaginationState = (api: GridApi | null) => {
     if (!api) return;
     const pageZeroBased = api.paginationGetCurrentPage?.() ?? 0;
-    const totalPageCount = api.paginationGetTotalPages?.() ?? 1;
-    const filteredRowCount = api.getDisplayedRowCount?.() ?? rowData.length;
+    // Calculate total pages based on actual entitlements, not rows
+    // Since each entitlement = 2 rows (entitlement + description),
+    // we divide filteredRowData.length by 2 to get actual entitlements
+    const actualTotalItems = rowData.length;
+    const actualTotalPages = Math.ceil(actualTotalItems / pageSize);
     setCurrentPage(Math.max(1, pageZeroBased + 1));
-    setTotalPages(Math.max(1, totalPageCount));
-    setTotalItems(filteredRowCount);
+    setTotalPages(Math.max(1, actualTotalPages));
+    setTotalItems(actualTotalItems);
   };
 
   if (loading) {
@@ -1516,9 +1536,7 @@ const CatalogPageContent = () => {
           totalPages={totalPages}
           pageSize={pageSize}
           onPageChange={(newPage) => {
-            if (!gridApi) return;
-            gridApi.paginationGoToPage(newPage - 1);
-            updatePaginationState(gridApi);
+            setCurrentPage(newPage);
           }}
           onPageSizeChange={(newPageSize) => {
             setPageSize(newPageSize);
@@ -1541,7 +1559,7 @@ const CatalogPageContent = () => {
           onRowClicked={handleRowClick}
           domLayout="autoHeight"
           pagination={true}
-          paginationPageSize={pageSize}
+          paginationPageSize={pageSize * 2}
           suppressRowTransform={true}
           getRowId={(params: any) => {
             const d = params.data || {};
@@ -1554,7 +1572,7 @@ const CatalogPageContent = () => {
           }}
           onGridReady={(params: any) => {
             setGridApi(params.api);
-            params.api.setGridOption("paginationPageSize", pageSize);
+            params.api.setGridOption("paginationPageSize", pageSize * 2);
             updatePaginationState(params.api);
             params.api.addEventListener("paginationChanged", () => updatePaginationState(params.api));
             params.api.addEventListener("modelUpdated", () => updatePaginationState(params.api));
@@ -1571,16 +1589,16 @@ const CatalogPageContent = () => {
           totalPages={totalPages}
           pageSize={pageSize}
           onPageChange={(newPage) => {
-            if (!gridApi) return;
-            gridApi.paginationGoToPage(newPage - 1);
-            updatePaginationState(gridApi);
+            setCurrentPage(newPage);
           }}
           onPageSizeChange={(newPageSize) => {
-            setPageSize(newPageSize);
-            if (gridApi) {
-              gridApi.setGridOption("paginationPageSize", newPageSize);
-              gridApi.paginationGoToPage(0); // Go to first page when changing page size
-              updatePaginationState(gridApi);
+            if (typeof newPageSize === 'number') {
+              setPageSize(newPageSize);
+              if (gridApi) {
+                gridApi.setGridOption("paginationPageSize", newPageSize * 2);
+                gridApi.paginationGoToPage(0); // Go to first page when changing page size
+                updatePaginationState(gridApi);
+              }
             }
           }}
           gridApi={gridApi as any}

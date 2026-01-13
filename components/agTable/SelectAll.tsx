@@ -15,6 +15,7 @@ interface SelectAllProps {
   context?: "user" | "account" | "entitlement";
   reviewerId?: string;
   certId?: string;
+  selectedFilters?: string[]; // Selected filters to pass to ActionButtons
 }
 
 const SelectAll: React.FC<SelectAllProps> = ({
@@ -25,6 +26,7 @@ const SelectAll: React.FC<SelectAllProps> = ({
   context,
   reviewerId,
   certId,
+  selectedFilters = [],
 }) => {
   const { isVisible: isActionPanelVisible } = useActionPanel();
   const [isAllSelected, setIsAllSelected] = useState(false);
@@ -97,12 +99,14 @@ const SelectAll: React.FC<SelectAllProps> = ({
     gridApi.addEventListener("paginationChanged", listener);
     gridApi.addEventListener("rowDataUpdated", listener);
     gridApi.addEventListener("rowGroupOpened", listener);
+    gridApi.addEventListener("filterChanged", listener);
 
     return () => {
       gridApi.removeEventListener("selectionChanged", listener);
       gridApi.removeEventListener("paginationChanged", listener);
       gridApi.removeEventListener("rowDataUpdated", listener);
       gridApi.removeEventListener("rowGroupOpened", listener);
+      gridApi.removeEventListener("filterChanged", listener);
     };
   }, [gridApi, updateSelectedCount]);
 
@@ -127,22 +131,10 @@ const SelectAll: React.FC<SelectAllProps> = ({
 
           {}
         </div>
-
-        {/* Show ActionButtons inline when not all selected */}
-        {selectedCount > 0 && !isAllSelected && gridApi && (
-          <ActionButtons
-            api={gridApi}
-            selectedRows={gridApi.getSelectedRows()}
-            viewChangeEnable
-            context={context as any}
-            reviewerId={reviewerId as any}
-            certId={certId as any}
-          />
-        )}
       </div>
 
-      {/* Floating ActionButtons when all items are selected */}
-      {isAllSelected && gridApi &&
+      {/* Floating ActionButtons when any items are selected (individual or all) */}
+      {selectedCount > 0 && gridApi &&
         createPortal(
           <div
             className={`fixed left-1/2 transform -translate-x-1/2 z-50 rounded-lg shadow-2xl px-4 py-3 flex items-center gap-2 transition-all duration-300 ${
@@ -161,6 +153,7 @@ const SelectAll: React.FC<SelectAllProps> = ({
               context={context as any}
               reviewerId={reviewerId as any}
               certId={certId as any}
+              selectedFilters={selectedFilters}
             />
           </div>,
           document.body

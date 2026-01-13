@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 interface SubmitDialogProps {
   isOpen: boolean;
   onClose: () => void;
+  onConfirm?: () => void;
   saveAsTemplate: boolean;
   setSaveAsTemplate: React.Dispatch<React.SetStateAction<boolean>>;
   certificationTemplate: string;
@@ -13,6 +14,7 @@ interface SubmitDialogProps {
 const SubmitDialog: React.FC<SubmitDialogProps> = ({  
   isOpen,
   onClose,
+  onConfirm,
   saveAsTemplate,
   setSaveAsTemplate,
   certificationTemplate,
@@ -30,9 +32,11 @@ const SubmitDialog: React.FC<SubmitDialogProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={`${saveAsTemplate ? 'Save New Template' : 'Data submitted successfully'}`}
-      ctaText={`${saveAsTemplate ? 'Save Template' : 'Save'}`}
+      ctaText={`${saveAsTemplate ? 'Save Template' : 'Create Campaign'}`}
       onConfirm={() => {
-        alert("Confirmed!");
+        if (onConfirm) {
+          onConfirm();
+        }
         onClose();
         setSaveAsTemplate(false);
       }}
@@ -45,7 +49,6 @@ const SubmitDialog: React.FC<SubmitDialogProps> = ({
           Save time and streamline your workflow! You can save this campaign creation flow as a template. This allows you to reuse the same setup for future campaigns without starting from scratch. Simply select a saved template, make necessary adjustments, and launch your campaign faster!
         </p>
         <p className="cursor-pointer" onClick={() => {
-          onClose();
           setSaveAsTemplate(true);
         }}>
           <strong>Save as Template</strong>.

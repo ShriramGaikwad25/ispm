@@ -113,44 +113,37 @@ export const ActionPanelProvider: React.FC<{ children: React.ReactNode }> = ({ c
       // Add the new action to the queue
       const updatedActions = [...filtered, params];
       
-      // Recalculate count based on actual queued actions (only count filled buttons)
-      // Filled = Approve/Reject/Remediate/Delegate actions
-      // Unfilled = Pending actions (don't count)
+      // Recalculate count based on actual queued actions
+      // Count ALL queued actions (including Pending/undo actions) so submit button appears
+      // when there are any pending changes to submit
       // Use a Set to track unique items to avoid double-counting
-      const uniqueFilledItems = new Set<string>();
+      const uniqueItemsWithActions = new Set<string>();
       
       updatedActions.forEach((action) => {
-        // Check if this action represents filled buttons (not Pending)
-        const actionType = action.payload.useraction?.[0]?.actionType ||
-                          action.payload.accountAction?.[0]?.actionType ||
-                          action.payload.entitlementAction?.[0]?.actionType;
-        
-        // Only count if action type is not 'Pending'
-        if (actionType && actionType !== 'Pending') {
-          // Add unique items to the set
-          if (action.payload.useraction) {
-            action.payload.useraction.forEach((ua: any) => {
-              if (ua.userId) uniqueFilledItems.add(`user-${ua.userId}`);
-            });
-          }
-          if (action.payload.accountAction) {
-            action.payload.accountAction.forEach((aa: any) => {
-              if (aa.lineItemId) uniqueFilledItems.add(`account-${aa.lineItemId}`);
-            });
-          }
-          if (action.payload.entitlementAction) {
-            action.payload.entitlementAction.forEach((ea: any) => {
-              if (ea.lineItemIds && Array.isArray(ea.lineItemIds)) {
-                ea.lineItemIds.forEach((id: string) => {
-                  if (id) uniqueFilledItems.add(`entitlement-${id}`);
-                });
-              }
-            });
-          }
+        // Count all actions, including Pending (undo actions need to be submitted too)
+        // Add unique items to the set
+        if (action.payload.useraction) {
+          action.payload.useraction.forEach((ua: any) => {
+            if (ua.userId) uniqueItemsWithActions.add(`user-${ua.userId}`);
+          });
+        }
+        if (action.payload.accountAction) {
+          action.payload.accountAction.forEach((aa: any) => {
+            if (aa.lineItemId) uniqueItemsWithActions.add(`account-${aa.lineItemId}`);
+          });
+        }
+        if (action.payload.entitlementAction) {
+          action.payload.entitlementAction.forEach((ea: any) => {
+            if (ea.lineItemIds && Array.isArray(ea.lineItemIds)) {
+              ea.lineItemIds.forEach((id: string) => {
+                if (id) uniqueItemsWithActions.add(`entitlement-${id}`);
+              });
+            }
+          });
         }
       });
       
-      const actualCount = uniqueFilledItems.size;
+      const actualCount = uniqueItemsWithActions.size;
       
       // Update count to match actual queued items with filled buttons
       setActionCount(actualCount);

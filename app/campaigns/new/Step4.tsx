@@ -160,12 +160,41 @@ const Step4: React.FC<StepProps> = ({
       closure: "Email Template - Campaign Closure",
     };
 
+    const fieldNames = {
+      start: "startOfCampaignTemplateName",
+      reminders: "remindersDuringCampaignTemplateName",
+      escalation: "atEscalationTemplateName",
+      closure: "campaignClosureTemplateName",
+    };
+
+    const templateDataFields = {
+      start: "startOfCampaignTemplateData",
+      reminders: "remindersDuringCampaignTemplateData",
+      escalation: "atEscalationTemplateData",
+      closure: "campaignClosureTemplateData",
+    };
+
+    // Get previously saved template data if it exists
+    const savedTemplateData = watch(templateDataFields[templateType] as any) || null;
+
     openSidebar(
       <EmailTemplateEditor
         templateType={templateType}
+        initialData={savedTemplateData}
         onSave={(data) => {
           console.log("Template saved:", templateType, data);
-          // You can save this to formData or make an API call here
+          if (data.templateName) {
+            setValue(fieldNames[templateType] as any, data.templateName);
+          }
+          // Store the full template data
+          setValue(templateDataFields[templateType] as any, {
+            selectedTemplateId: data.selectedTemplateId,
+            to: data.to,
+            cc: data.cc,
+            bcc: data.bcc,
+            templateName: data.templateName,
+          });
+          closeSidebar();
         }}
       />,
       {
@@ -295,6 +324,8 @@ const Step4: React.FC<StepProps> = ({
                   setValue("startOfCampaign", checked);
                   if (!checked) {
                     setValue("startOfCampaignReminders", []);
+                    setValue("startOfCampaignTemplateName", undefined);
+                    setValue("startOfCampaignTemplateData", undefined);
                   }
                 }}
               />
@@ -302,15 +333,21 @@ const Step4: React.FC<StepProps> = ({
             </div>
           </div>
           {watch("startOfCampaign") && (
-            <div className="ml-52">
+            <div className="ml-52 flex items-center gap-3">
               <button
                 type="button"
                 className="flex gap-2 items-center bg-blue-500 text-white rounded-md px-4 py-2 cursor-pointer hover:bg-blue-600 whitespace-nowrap"
                 onClick={() => handleOpenTemplateEditor("start")}
               >
                 <BookTemplate size={16} />
-                Select Template
+                {watch("startOfCampaignTemplateName") && watch("startOfCampaignTemplateName").trim() ? "Edit Template" : "Select Template"}
               </button>
+              {watch("startOfCampaignTemplateName") && watch("startOfCampaignTemplateName").trim() && (
+                <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-md border border-blue-200 text-sm font-medium">
+                  <BookTemplate size={14} className="text-blue-600" />
+                  {watch("startOfCampaignTemplateName")}
+                </span>
+              )}
             </div>
           )}
         </dd>
@@ -319,24 +356,24 @@ const Step4: React.FC<StepProps> = ({
         <dd className="space-y-3">
           <div className="flex items-center gap-4">
             <span className="w-48">Reminders during Campaign</span>
-            <div className="flex gap-2 items-center">
-              No
-              <ToggleSwitch
-                checked={watch("remindersDuringCampaign")}
-                onChange={(checked) => {
-                  setValue("remindersDuringCampaign", checked);
-                  if (!checked) {
-                    setValue("remindersDuringCampaignReminders", []);
-                  }
-                }}
-              />
-              Yes
-            </div>
-          </div>
-          {watch("remindersDuringCampaign") && (
-            <div className="ml-52 space-y-2">
-              <div className="flex gap-2 items-start">
-                <div className="w-1/2">
+            <div className="flex gap-2 items-center flex-1">
+              <div className="flex gap-2 items-center">
+                No
+                <ToggleSwitch
+                  checked={watch("remindersDuringCampaign")}
+                  onChange={(checked) => {
+                    setValue("remindersDuringCampaign", checked);
+                    if (!checked) {
+                      setValue("remindersDuringCampaignReminders", []);
+                      setValue("remindersDuringCampaignTemplateName", undefined);
+                      setValue("remindersDuringCampaignTemplateData", undefined);
+                    }
+                  }}
+                />
+                Yes
+              </div>
+              {watch("remindersDuringCampaign") && (
+                <div className="w-1/2 ml-4">
                   <CustomMultiSelectOnDay
                     control={control}
                     name="remindersDuringCampaignReminders"
@@ -344,14 +381,26 @@ const Step4: React.FC<StepProps> = ({
                     placeholder="Select reminders or add custom value"
                   />
                 </div>
+              )}
+            </div>
+          </div>
+          {watch("remindersDuringCampaign") && (
+            <div className="ml-52 space-y-2">
+              <div className="flex items-center gap-3">
                 <button
                   type="button"
                   className="flex gap-2 items-center bg-blue-500 text-white rounded-md px-4 py-2 cursor-pointer hover:bg-blue-600 whitespace-nowrap"
                   onClick={() => handleOpenTemplateEditor("reminders")}
                 >
                   <BookTemplate size={16} />
-                  Select Template
+                  {watch("remindersDuringCampaignTemplateName") && watch("remindersDuringCampaignTemplateName").trim() ? "Edit Template" : "Select Template"}
                 </button>
+                {watch("remindersDuringCampaignTemplateName") && watch("remindersDuringCampaignTemplateName").trim() && (
+                  <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-md border border-blue-200 text-sm font-medium">
+                    <BookTemplate size={14} className="text-blue-600" />
+                    {watch("remindersDuringCampaignTemplateName")}
+                  </span>
+                )}
               </div>
               {errors.remindersDuringCampaignReminders?.message &&
                 typeof errors.remindersDuringCampaignReminders.message === "string" && (
@@ -365,24 +414,24 @@ const Step4: React.FC<StepProps> = ({
         <dd className="space-y-3">
           <div className="flex items-center gap-4">
             <span className="w-48">At Escalation</span>
-            <div className="flex gap-2 items-center">
-              No
-              <ToggleSwitch
-                checked={watch("atEscalation")}
-                onChange={(checked) => {
-                  setValue("atEscalation", checked);
-                  if (!checked) {
-                    setValue("atEscalationReminders", []);
-                  }
-                }}
-              />
-              Yes
-            </div>
-          </div>
-          {watch("atEscalation") && (
-            <div className="ml-52 space-y-2">
-              <div className="flex gap-2 items-start">
-                <div className="w-1/2">
+            <div className="flex gap-2 items-center flex-1">
+              <div className="flex gap-2 items-center">
+                No
+                <ToggleSwitch
+                  checked={watch("atEscalation")}
+                  onChange={(checked) => {
+                    setValue("atEscalation", checked);
+                    if (!checked) {
+                      setValue("atEscalationReminders", []);
+                      setValue("atEscalationTemplateName", undefined);
+                      setValue("atEscalationTemplateData", undefined);
+                    }
+                  }}
+                />
+                Yes
+              </div>
+              {watch("atEscalation") && (
+                <div className="w-1/2 ml-4">
                   <CustomMultiSelectBeforeEscalation
                     control={control}
                     name="atEscalationReminders"
@@ -390,14 +439,26 @@ const Step4: React.FC<StepProps> = ({
                     placeholder="every - days before escalation"
                   />
                 </div>
+              )}
+            </div>
+          </div>
+          {watch("atEscalation") && (
+            <div className="ml-52 space-y-2">
+              <div className="flex items-center gap-3">
                 <button
                   type="button"
                   className="flex gap-2 items-center bg-blue-500 text-white rounded-md px-4 py-2 cursor-pointer hover:bg-blue-600 whitespace-nowrap"
                   onClick={() => handleOpenTemplateEditor("escalation")}
                 >
                   <BookTemplate size={16} />
-                  Select Template
+                  {watch("atEscalationTemplateName") && watch("atEscalationTemplateName").trim() ? "Edit Template" : "Select Template"}
                 </button>
+                {watch("atEscalationTemplateName") && watch("atEscalationTemplateName").trim() && (
+                  <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-md border border-blue-200 text-sm font-medium">
+                    <BookTemplate size={14} className="text-blue-600" />
+                    {watch("atEscalationTemplateName")}
+                  </span>
+                )}
               </div>
               {errors.atEscalationReminders?.message &&
                 typeof errors.atEscalationReminders.message === "string" && (
@@ -415,21 +476,33 @@ const Step4: React.FC<StepProps> = ({
               No
               <ToggleSwitch
                 checked={watch("campaignClosure")}
-                onChange={(checked) => setValue("campaignClosure", checked)}
+                onChange={(checked) => {
+                  setValue("campaignClosure", checked);
+                  if (!checked) {
+                    setValue("campaignClosureTemplateName", undefined);
+                    setValue("campaignClosureTemplateData", undefined);
+                  }
+                }}
               />
               Yes
             </div>
           </div>
           {watch("campaignClosure") && (
-            <div className="ml-52">
+            <div className="ml-52 flex items-center gap-3">
               <button
                 type="button"
-                className="flex gap-2 items-center bg-blue-500 text-white rounded-md px-4 py-2 cursor-pointer hover:bg-blue-600"
+                className="flex gap-2 items-center bg-blue-500 text-white rounded-md px-4 py-2 cursor-pointer hover:bg-blue-600 whitespace-nowrap"
                 onClick={() => handleOpenTemplateEditor("closure")}
               >
                 <BookTemplate size={16} />
-                Select Template
+                {watch("campaignClosureTemplateName") && watch("campaignClosureTemplateName").trim() ? "Edit Template" : "Select Template"}
               </button>
+              {watch("campaignClosureTemplateName") && watch("campaignClosureTemplateName").trim() && (
+                <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-md border border-blue-200 text-sm font-medium">
+                  <BookTemplate size={14} className="text-blue-600" />
+                  {watch("campaignClosureTemplateName")}
+                </span>
+              )}
             </div>
           )}
         </dd>
