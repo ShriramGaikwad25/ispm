@@ -284,6 +284,21 @@ const TreeClient: React.FC<TreeClientProps> = ({
 
   const getAvatarCandidates = useCallback((u: any, indexHint?: number): string[] => {
     const candidates: string[] = [];
+    
+    // Add a deterministic random SVG per user if a list is provided (prioritize this for uniqueness)
+    if (u && Array.isArray(availableRandomSvgs) && availableRandomSvgs.length > 0) {
+      const key = getUserStableKey(u);
+      let hash = 0;
+      for (let i = 0; i < key.length; i++) {
+        hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+      }
+      const filename = availableRandomSvgs[hash % availableRandomSvgs.length];
+      if (filename) {
+        const normalized = filename.startsWith('/') ? filename : `/pictures/${filename}`;
+        candidates.push(normalized);
+      }
+    }
+    
     // Index-based mapping if provided (1-based index)
     if (indexHint && indexImageBases.length > 0) {
       const base = indexImageBases[(indexHint - 1) % indexImageBases.length];
@@ -297,7 +312,24 @@ const TreeClient: React.FC<TreeClientProps> = ({
         );
       }
     }
-    // Prefer a global user image if present
+    
+    // Use index-based unique images if availableRandomSvgs is not available
+    if (indexHint && (!availableRandomSvgs || availableRandomSvgs.length === 0)) {
+      // Create unique image paths based on index to ensure different users get different pictures
+      const imageIndex = ((indexHint - 1) % 20) + 1; // Cycle through 20 different images
+      candidates.push(
+        `/pictures/user_${imageIndex}.svg`,
+        `/pictures/user_${imageIndex}.png`,
+        `/pictures/user_${imageIndex}.jpg`,
+        `/pictures/user_${imageIndex}.webp`,
+        `/pictures/user_${imageIndex}.jpeg`,
+        `/pictures/avatar_${imageIndex}.svg`,
+        `/pictures/avatar_${imageIndex}.png`,
+        `/pictures/avatar_${imageIndex}.jpg`,
+      );
+    }
+    
+    // Prefer a global user image if present (lower priority)
     candidates.push(
       "/pictures/user_image2.jpg",
       "/pictures/user_image2.png",
@@ -323,19 +355,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
           "/pictures/user_female.webp",
           "/pictures/user_female.jpeg",
         );
-      }
-    }
-    // Add a deterministic random SVG per user if a list is provided
-    if (u && Array.isArray(availableRandomSvgs) && availableRandomSvgs.length > 0) {
-      const key = getUserStableKey(u);
-      let hash = 0;
-      for (let i = 0; i < key.length; i++) {
-        hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
-      }
-      const filename = availableRandomSvgs[hash % availableRandomSvgs.length];
-      if (filename) {
-        const normalized = filename.startsWith('/') ? filename : `/pictures/${filename}`;
-        candidates.push(normalized);
       }
     }
     // If a mapping exists, prioritize it
@@ -1999,61 +2018,77 @@ const TreeClient: React.FC<TreeClientProps> = ({
   );
 
   return (
-    <div className="flex relative">
+    <div className="flex flex-col relative">
       {error && (
         <div style={{ color: "red", padding: 10 }}>{String(error)}</div>
       )}
       {/* Right sidebar content is rendered globally via RightSideBarHost */}
 
-      {/* Users Sidebar */}
+      {/* Users List - Top Bar */}
       <div
-        className={`absolute left-0 top-0 bottom-0 bg-white border-r border-gray-200 flex flex-col transition-all duration-300 ease-in-out z-30 shadow-lg ${
+        className={`bg-gradient-to-r from-gray-50 to-white border-b border-gray-200 flex flex-row transition-all duration-300 ease-in-out z-30 shadow-sm ${
           isSidebarHovered
-            ? "w-72 translate-x-0 pr-0 pointer-events-auto"
-            : "w-14 -translate-x-0 pr-0 pointer-events-none"
+            ? "h-32"
+            : "h-28"
         }`}
+        onMouseEnter={() => setIsSidebarHovered(true)}
         onMouseLeave={() => setIsSidebarHovered(false)}
       >
-        {/* Navigation Arrow - Up */}
-        <div className="px-1 py-2 border-b border-gray-200">
+        {/* Navigation Arrow - Left */}
+        <div className="px-2 py-2 border-r border-gray-200 bg-white flex items-center">
           <button
             onClick={handleScrollUp}
             disabled={!canScrollUp || sidebarLoading}
-            className={`w-full py-2 px-2 rounded transition-all duration-200 ${
+            className={`p-1.5 rounded-md transition-all duration-200 ${
               canScrollUp && !sidebarLoading
-                ? "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                ? "bg-blue-50 hover:bg-blue-100 text-blue-600"
                 : "bg-gray-50 text-gray-400 cursor-not-allowed"
             }`}
             title={sidebarLoading ? "Loading..." : "Previous page"}
           >
             {sidebarLoading ? (
-              <div className="w-3 h-3 mx-auto animate-spin border-2 border-gray-400 border-t-transparent rounded-full"></div>
+              <div className="w-3.5 h-3.5 animate-spin border-2 border-gray-400 border-t-transparent rounded-full"></div>
             ) : (
-              <ChevronUp className="w-3 h-3 mx-auto" />
+              <ChevronUp className="w-3.5 h-3.5 rotate-[-90deg]" />
             )}
           </button>
         </div>
 
-        {/* User Search (always reserve space, visible when expanded) */}
-        <div className="px-2 py-2 border-b border-gray-200">
-          {isSidebarHovered ? (
+        {/* User Search */}
+        <div className="px-2 py-2 border-r border-gray-200 bg-white flex items-center min-w-[160px]">
+          <div className="relative w-full">
             <input
               type="text"
               value={userSearch}
               onChange={(e) => setUserSearch(e.target.value)}
               placeholder="Search users..."
-              className="w-full px-2 py-2 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400"
+              className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all"
             />
-          ) : (
-            <div className="w-full px-2 py-2 text-xs" style={{ height: '36px' }}></div>
-          )}
+            {userSearch && (
+              <button
+                onClick={() => setUserSearch("")}
+                className="absolute right-1.5 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm"
+              >
+                ×
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Users List */}
-        <div className="flex flex-col justify-start pt-2 pb-2 pl-1 pr-0" style={{ height: '520px', overflow: 'hidden' }}>
+        {/* Users List - Horizontal Scroll */}
+        <div className={`flex flex-row items-start py-2 px-2 overflow-y-hidden flex-1 w-full gap-1 ${
+          users.filter((user) =>
+            (user.fullName || "")
+              .toLowerCase()
+              .includes(userSearch.trim().toLowerCase())
+          ).length > 10 ? "overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100" : "overflow-x-hidden"
+        }`} style={{ minHeight: isSidebarHovered ? '112px' : '96px' }}>
           {sidebarLoading ? (
-            <div className="flex items-center justify-center h-32">
-              <div className="text-gray-500 text-sm">Loading users...</div>
+            <div className="flex items-center justify-center w-full">
+              <div className="flex items-center gap-2 text-gray-500 text-xs">
+                <div className="w-3.5 h-3.5 animate-spin border-2 border-blue-500 border-t-transparent rounded-full"></div>
+                Loading users...
+              </div>
             </div>
           ) : (
             users
@@ -2062,121 +2097,174 @@ const TreeClient: React.FC<TreeClientProps> = ({
                   .toLowerCase()
                   .includes(userSearch.trim().toLowerCase())
               )
-              .map((user, index) => (
-                <div
-                  key={user.id}
-                  onClick={() => handleUserSelect(user)}
-                  className={`user-item ${isSidebarHovered ? "px-3" : "pl-1 pr-0"} py-2 rounded-none cursor-pointer transition-all duration-200 border-s-4 ${
-                    isSidebarHovered ? "expanded" : "minimized"
-                  } ${
-                    selectedUser?.id === user.id
-                      ? "border-blue-500"
-                      : "border-transparent"
-                  }`}
-                >
+              .map((user, index) => {
+                const progress = getUserProgress(user);
+                const isSelected = selectedUser?.id === user.id;
+                const filteredUsers = users.filter((u) =>
+                  (u.fullName || "")
+                    .toLowerCase()
+                    .includes(userSearch.trim().toLowerCase())
+                );
+                const userCount = filteredUsers.length;
+                return (
                   <div
-                    className={`flex items-center ${
-                      isSidebarHovered
-                        ? "gap-3 justify-start"
-                        : "justify-center w-full"
+                    key={user.id}
+                    onClick={() => handleUserSelect(user)}
+                    className={`user-item rounded-lg cursor-pointer transition-all duration-200 h-full ${
+                      isSidebarHovered ? "px-2 py-2" : "px-1 py-1"
+                    } ${
+                      isSelected
+                        ? "bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-500 border-b-4 border-b-blue-500 shadow-sm"
+                        : "bg-white border border-gray-200 hover:border-blue-300 hover:shadow-sm"
                     }`}
+                    style={{ 
+                      flex: userCount <= 10 ? '1 1 0%' : '0 0 auto',
+                      minWidth: isSidebarHovered ? (userCount <= 10 ? 'auto' : '140px') : 'auto',
+                      maxWidth: isSidebarHovered ? (userCount <= 10 ? 'none' : '200px') : 'none',
+                      minHeight: isSidebarHovered ? '100%' : '92px',
+                      height: isSidebarHovered ? 'auto' : '92px',
+                    }}
                   >
-                    {/* User Avatar/Initials */}
                     <div
-                      className="relative flex-shrink-0 pointer-events-auto"
-                      onMouseEnter={handleAvatarEnter}
-                      onMouseLeave={handleAvatarLeave}
-                    >
-                      {!isSidebarHovered ? (
-                        <div
-                          className={`w-8 h-8 rounded bg-blue-200 text-blue-600 flex items-center justify-center font-semibold text-xs mx-auto avatar-hover-trigger leading-none ${
-                            selectedUser?.id === user.id ? "bg-blue-200 " : ""
-                          }`}
-                          style={{ lineHeight: '1' }}
-                        >
-                          {getUserInitials(user.fullName || "")}
-                        </div>
-                      ) : (
-                        renderUserAvatar(user, 40, "w-10 h-10 rounded-full avatar-hover-trigger", index + 1)
-                      )}
-                    </div>
-
-                    {/* User Details - only visible when expanded */}
-                    <div
-                      className={`flex-1 min-w-0 transition-all duration-300 ${
-                        isSidebarHovered ? "opacity-100" : "opacity-0 w-0"
+                      className={`flex flex-col items-center w-full ${
+                        isSidebarHovered
+                          ? "gap-2 justify-start"
+                          : "justify-start gap-1"
                       }`}
+                      style={!isSidebarHovered ? { paddingTop: '8px' } : {}}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                      {/* User Avatar/Initials */}
+                      <div
+                        className="relative flex-shrink-0"
+                        onMouseEnter={handleAvatarEnter}
+                        onMouseLeave={handleAvatarLeave}
+                      >
+                        {!isSidebarHovered ? (
+                          <div className="flex flex-col items-center gap-1 w-full">
+                            <div
+                              className={`w-9 h-9 rounded-full flex items-center justify-center font-semibold text-xs transition-all flex-shrink-0 ${
+                                isSelected
+                                  ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white ring-1 ring-blue-300"
+                                  : "bg-gradient-to-br from-gray-200 to-gray-300 text-gray-700 hover:from-blue-200 hover:to-blue-300"
+                              }`}
+                            >
+                              {getUserInitials(user.fullName || "")}
+                            </div>
+                            <span
+                              className={`font-medium text-center w-full px-1 truncate whitespace-nowrap ${
+                                isSelected
+                                  ? "text-blue-800 font-semibold"
+                                  : "text-gray-700"
+                              }`}
+                              style={{ fontSize: '10px' }}
+                              title={user.fullName || ""}
+                            >
+                              {user.fullName || ""}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="relative">
+                            {renderUserAvatar(user, 48, "w-12 h-12 rounded-full shadow-sm transition-all", index + 1) || (
+                              <div
+                                className={`w-12 h-12 rounded-full flex items-center justify-center font-semibold text-sm ${
+                                  isSelected
+                                    ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white ring-1 ring-blue-300"
+                                    : "bg-gradient-to-br from-gray-200 to-gray-300 text-gray-700"
+                                }`}
+                              >
+                                {getUserInitials(user.fullName || "")}
+                              </div>
+                            )}
+                            {isSelected && (
+                              <div className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                                <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* User Details - only visible when expanded */}
+                      {isSidebarHovered && (
+                        <div className="flex flex-col items-center gap-1.5 min-w-0 w-full flex-1">
                           <span
-                            className={`font-medium text-sm ${
-                              selectedUser?.id === user.id
-                                ? "text-blue-800 font-semibold"
+                            className={`font-medium text-center w-full truncate whitespace-nowrap ${
+                              isSelected
+                                ? "text-blue-800"
                                 : "text-gray-900"
                             }`}
+                            style={{ fontSize: '10px' }}
+                            title={user.fullName || ""}
                           >
                             {user.fullName}
                           </span>
-                          {/* Progress Summary - percentage only */}
-                          <div className="flex items-center gap-1 flex-shrink-0 pt-2">
-                            {(() => {
-                              const progress = getUserProgress(user);
-                              return (
-                                <span className="text-xs text-gray-500 font-medium">
-                                  {progress.percentage}%
-                                </span>
-                              );
-                            })()}
+                          
+                          {/* Progress Bar */}
+                          <div className="w-full flex items-center gap-1.5">
+                            <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden min-w-0">
+                              <div
+                                className={`h-full rounded-full transition-all duration-500 ${
+                                  progress.percentage === 100
+                                    ? "bg-gradient-to-r from-green-400 to-green-500"
+                                    : progress.percentage >= 50
+                                    ? "bg-gradient-to-r from-blue-400 to-blue-500"
+                                    : "bg-gradient-to-r from-yellow-400 to-yellow-500"
+                                }`}
+                                style={{ width: `${progress.percentage}%` }}
+                              ></div>
+                            </div>
+                            <span className={`text-xs font-semibold whitespace-nowrap flex-shrink-0 ${
+                              isSelected ? "text-blue-700" : "text-gray-600"
+                            }`}>
+                              {progress.percentage}%
+                            </span>
+                          </div>
+                          
+                          {/* Department */}
+                          <div className={`text-xs text-center w-full px-1.5 py-0.5 rounded break-words ${
+                            isSelected
+                              ? "bg-blue-200 text-blue-800"
+                              : "bg-gray-100 text-gray-600"
+                          }`}>
+                            {user.department || "Unknown"}
                           </div>
                         </div>
-                        {selectedUser?.id === user.id && (
-                          <ChevronRight className="w-4 h-4 text-blue-600 flex-shrink-0 ml-2" />
-                        )}
-                      </div>
-                      {/* Additional user info when expanded */}
-                      <div
-                        className={`text-xs text-gray-500 mt-1 transition-all duration-300 ${
-                          isSidebarHovered ? "opacity-100" : "opacity-0"
-                        }`}
-                      >
-                        {user.department || "Unknown Dept"}
-                      </div>
+                      )}
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
           )}
         </div>
 
-        {/* Navigation Arrow - Down */}
-        <div className="px-1 py-2 border-t border-gray-200 mt-2">
+        {/* Navigation Arrow - Right */}
+        <div className="px-2 py-2 border-l border-gray-200 bg-white flex items-center">
           <button
             onClick={handleScrollDown}
             disabled={!canScrollDown || sidebarLoading}
-            className={`w-full py-2 px-2 rounded transition-all duration-200 ${
+            className={`p-1.5 rounded-md transition-all duration-200 ${
               canScrollDown && !sidebarLoading
-                ? "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                ? "bg-blue-50 hover:bg-blue-100 text-blue-600"
                 : "bg-gray-50 text-gray-400 cursor-not-allowed"
             }`}
             title={sidebarLoading ? "Loading..." : "Next page"}
           >
             {sidebarLoading ? (
-              <div className="w-3 h-3 mx-auto animate-spin border-2 border-gray-400 border-t-transparent rounded-full"></div>
+              <div className="w-3.5 h-3.5 animate-spin border-2 border-gray-400 border-t-transparent rounded-full"></div>
             ) : (
-              <ChevronDown className="w-3 h-3 mx-auto" />
+              <ChevronDown className="w-3.5 h-3.5 rotate-[-90deg]" />
             )}
           </button>
         </div>
       </div>
 
       {/* Entitlements Table */}
-      <div className={`flex-1 flex flex-col min-w-0 ${isSidebarHovered ? "ml-72" : "ml-14"}`}>
+      <div className="flex-1 flex flex-col min-w-0 w-full mt-5">
         {selectedUser ? (
           <>
             {/* Selected User Header */}
             {/* User Information Card */}
-            <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-full">
+            <div className="bg-white border border-gray-200 rounded-lg px-2 py-2 shadow-sm w-full">
               {/* Upper section: Name, Status, Buttons */}
               <div className="flex items-center justify-between gap-3 bg-gray-50 p-3 rounded-md">
                 <div className="flex items-center gap-3 min-w-0">
@@ -2425,7 +2513,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
             </div>
 
             {/* Entitlements Grid */}
-            <div className="p-4 pb-0 min-w-0" ref={entitlementsGridContainerRef}>
+            <div className=" min-w-0 w-full" ref={entitlementsGridContainerRef}>
               {loadingEntitlements ? (
                 <div className="flex items-center justify-center h-64">
                   <div className="text-gray-500">
@@ -2564,7 +2652,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
 
             {/* Pagination at bottom of table */}
             {filteredEntitlements.length > 0 && (
-              <div className="px-4 pb-6">
+              <div className="">
                 <div className="flex justify-center [&>div]:rounded-t-none [&>div]:border-t-0">
                   <CustomPagination
                     totalItems={entitlementsTotalItems}
