@@ -155,6 +155,43 @@
   line-height: 1.4 !important;
 }
 
+/* Fix row alignment - ensure rows properly contain multi-line content */
+.ag-theme-quartz .ag-row {
+  min-height: 48px !important;
+  align-items: flex-start !important;
+}
+
+/* Ensure cells with autoHeight are properly contained */
+.ag-theme-quartz .ag-cell[col-id="entitlementName"],
+.ag-theme-quartz .ag-cell[col-id="entitlementName"] .ag-cell-wrapper {
+  overflow: visible !important;
+  height: auto !important;
+  min-height: 48px !important;
+  align-items: flex-start !important;
+}
+
+/* Prevent text overlap between rows */
+.ag-theme-quartz .ag-row .ag-cell {
+  vertical-align: top !important;
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
+}
+
+/* Ensure entitlement column cells have proper spacing and left alignment */
+.ag-theme-quartz .ag-cell[col-id="entitlementName"] {
+  padding: 8px 4px !important;
+  line-height: 1.5 !important;
+  text-align: left !important;
+  justify-content: flex-start !important;
+  align-items: flex-start !important;
+}
+
+/* Ensure entitlement column content starts from the left */
+.ag-theme-quartz .ag-cell[col-id="entitlementName"] .ag-cell-wrapper {
+  justify-content: flex-start !important;
+  text-align: left !important;
+}
+
 /* Responsive header adjustments */
 @media (max-width: 768px) {
   .header-content {

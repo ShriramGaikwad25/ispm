@@ -206,25 +206,6 @@ const Filters = ({
                       {options.find(opt => opt.value === selectedFilter)?.label || selectedFilter}
                     </small>
                   </div>
-                  <div
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      clearFilters(e);
-                    }}
-                    title="Clear Filters"
-                    className="ml-auto flex items-center justify-center w-5 h-5 rounded-full bg-red-500 hover:bg-red-600 transition-colors cursor-pointer"
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        clearFilters(e as any);
-                      }
-                    }}
-                  >
-                    <CircleX color="#fff" size={14} />
-                  </div>
                 </div>
               )
             : () => (

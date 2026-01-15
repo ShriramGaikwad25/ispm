@@ -1070,6 +1070,10 @@ const EntitlementOwnerPageContent = () => {
               const val = e.target.value;
               setSearchText(val);
               gridApi?.setGridOption("quickFilterText", val);
+              // Show all search results from all pages
+              if (gridApi) {
+                gridApi.setGridOption("paginationPageSize", val.trim() ? 100000 : pageSize * 2);
+              }
             }}
             placeholder="Search..."
             className="border border-gray-300 rounded px-3 h-9 text-sm w-64"

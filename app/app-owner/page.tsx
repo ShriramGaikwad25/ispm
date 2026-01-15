@@ -284,7 +284,7 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
 };
 
 function AppOwnerContent() {
-  const { queueAction, isVisible: isActionPanelVisible } = useActionPanel();
+  const { queueAction, isVisible: isActionPanelVisible, registerGridApi, reset } = useActionPanel();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [selected, setSelected] = useState<{ [key: string]: number | null }>(
@@ -1163,6 +1163,13 @@ function AppOwnerContent() {
     () => ({
       flex: 1,
       minWidth: 100,
+      cellStyle: {
+        display: 'flex',
+        alignItems: 'center',
+        padding: '8px',
+        whiteSpace: 'normal',
+        overflow: 'visible',
+      },
     }),
     []
   );
@@ -1180,28 +1187,37 @@ function AppOwnerContent() {
       field: "entitlementName",
       headerName: "Entitlement",
       wrapText: true,
+      autoHeight: true,
       enableRowGroup: true,
+      cellStyle: {
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'flex-start',
+        padding: '8px',
+        whiteSpace: 'normal',
+        wordWrap: 'break-word',
+        overflow: 'visible',
+        textAlign: 'left',
+      },
       cellRenderer: (params: ICellRendererParams) => {
         // Check if this is a group row
         if (params.node.group) {
           return (
-            <div className="flex flex-col">
-              <span className="ag-group-value">{params.value}</span>
+            <div className="flex flex-col gap-1 w-full">
+              <span className="ag-group-value font-bold">{params.value}</span>
               {params.data?.entitlementDescription && (
-                <span className="entitlement-description">
+                <span className="text-sm text-gray-600 break-words">
                   {params.data.entitlementDescription}
                 </span>
               )}
             </div>
           );
         }
-        // Regular row
+        // Regular row - show only entitlement name
         return (
-          <div className="flex flex-col gap-0">
-            <span className="text-gray-800 break-words font-bold">
-              {params.value}
-            </span>
-          </div>
+          <span className="text-gray-800 break-words font-bold">
+            {params.value}
+          </span>
         );
       },
     },
@@ -1439,6 +1455,24 @@ function AppOwnerContent() {
   useEffect(() => {
     setPageNumber(1);
   }, [selectedFilters]);
+
+  // Listen for reset events to clear checkbox selections
+  useEffect(() => {
+    const handleReset = () => {
+      setSelectedRows([]);
+      setIsAllSelected(false);
+      // Clear selections in the grid
+      if (gridApiRef.current) {
+        gridApiRef.current.deselectAll();
+      }
+    };
+
+    window.addEventListener('actionPanelReset', handleReset);
+
+    return () => {
+      window.removeEventListener('actionPanelReset', handleReset);
+    };
+  }, []);
 
   const handleFilterChange = (filter: string) => {
     setCurrentFilter(filter);
@@ -2156,6 +2190,8 @@ function AppOwnerContent() {
                   gridApiRef.current = params.api;
                   params.api.sizeColumnsToFit();
                   setIsGridReady(true);
+                  // Register grid API with ActionPanelContext so it can clear selections
+                  registerGridApi(params.api, detailGridApis);
                   console.log("Grid initialized:", {
                     api: !!params.api,
                     columnApi: !!(params.api as any).columnApi,
@@ -2228,6 +2264,7 @@ function AppOwnerContent() {
                   }
                 }}
                 pagination={true}
+                paginationPageSize={quickFilterText.trim() ? 100000 : pageSize}
                 quickFilterText={quickFilterText}
                 overlayLoadingTemplate={`<span class="ag-overlay-loading-center">⏳ Loading certification data...</span>`}
                 overlayNoRowsTemplate={`<span class="ag-overlay-loading-center">No data to display.</span>`}
@@ -2273,6 +2310,7 @@ function AppOwnerContent() {
               context="entitlement"
               reviewerId={reviewerId}
               certId={certificationId}
+              hideTeamsIcon={true}
             />
           </div>,
           document.body
