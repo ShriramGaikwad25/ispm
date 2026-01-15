@@ -2470,6 +2470,15 @@ const TreeClient: React.FC<TreeClientProps> = ({
                         reviewerId={reviewerId}
                         certId={certId}
                         selectedFilters={selectedFilters}
+                        allFilteredData={filteredEntitlements}
+                        getRowId={(data: any) => {
+                          const baseId = data.lineItemId || data.accountLineItemId || data.taskId || `${data.applicationName}-${data.entitlementName}`;
+                          return data.__isDescRow ? `${baseId}-desc` : baseId;
+                        }}
+                        onRowDataChange={(data: any[]) => {
+                          // This will be handled by the SelectAll component internally
+                        }}
+                        currentRowData={entPaginatedData}
                       />
                     )}
                     <input
@@ -2493,7 +2502,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       actionStates={actionStates}
                     />
                   </div>
-                  <div className="flex items-center gap-2">
+                  {/* <div className="flex items-center gap-2">
                     <ColumnSettings
                       columnDefs={entitlementsColumnDefs}
                       gridApi={entitlementsGridApiRef.current}
@@ -2507,7 +2516,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                         return visibleCols;
                       }}
                     />
-                  </div>
+                  </div> */}
                 </div>
               </div>
             </div>

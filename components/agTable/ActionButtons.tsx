@@ -40,11 +40,17 @@ interface ActionButtonsProps<T> {
   onActionSuccess?: () => void; // Callback to notify parent of success
   userEmail?: string; // User email for Teams link
   selectedFilters?: string[]; // Selected filters to control button visibility
+  hideTeamsIcon?: boolean; // Flag to hide Teams icon (e.g., in floating buttons)
 }
 
 // Module-level storage for pending actions to persist across component re-renders
 // This is necessary because AG Grid cell renderers can be recreated, losing component state
 const pendingActionsStorage = new Map<string, 'Approve' | 'Reject' | 'Pending' | 'Remediate' | 'Delegate'>();
+
+// Export function to clear pending actions storage
+export const clearPendingActionsStorage = () => {
+  pendingActionsStorage.clear();
+};
 
 const ActionButtons = <T extends { status?: string }>({
   api,
@@ -56,8 +62,9 @@ const ActionButtons = <T extends { status?: string }>({
   onActionSuccess,
   userEmail,
   selectedFilters = [],
+  hideTeamsIcon = false,
 }: ActionButtonsProps<T>): JSX.Element => {
-  const { queueAction } = useActionPanel();
+  const { queueAction, reset } = useActionPanel();
   const { openSidebar, closeSidebar } = useRightSidebar();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -205,41 +212,50 @@ const ActionButtons = <T extends { status?: string }>({
       // Prevent double submit but no global loading overlay
       setIsActionLoading(true);
 
-      // Do not send now; queue for submit. Adjust floating count based on button fill state
-      const targetIds =
-        context === "entitlement"
-          ? ((payload.entitlementAction?.[0]?.lineItemIds as string[]) || [])
-          : selectedIds;
+      // Check if we're setting to Pending
       const isTogglingToPending = actionType === 'Pending';
       
-      // Determine if buttons are currently filled (have Approve/Reject actions) or unfilled (Pending)
-      // Filled = has Approve/Reject action queued → should count
-      // Unfilled = Pending state → should not count (remove from count)
-      const currentlyFilledIds = targetIds.filter((id) => {
-        const pendingAction = pendingById[id];
-        return pendingAction === 'Approve' || pendingAction === 'Reject' || 
-               pendingAction === 'Remediate' || pendingAction === 'Delegate';
-      });
-      const currentlyUnfilledIds = targetIds.filter((id) => {
-        const pendingAction = pendingById[id];
-        return !pendingAction || pendingAction === 'Pending';
-      });
-      
-      // Rules based on button fill state:
-      // - Setting to Approve/Reject (fills button) → add to count for items that become filled
-      // - Setting to Pending (unfills button) → remove from count for items that become unfilled
-      let countDelta: number;
-      if (isTogglingToPending) {
-        // Setting to Pending (unfilling buttons) → remove count for items that were filled
-        // If items were already unfilled (Pending), no change needed
-        countDelta = -currentlyFilledIds.length;
-      } else {
-        // Setting to Approve/Reject (filling buttons) → add count for items that become filled
-        // Only count items that are currently unfilled (will become filled)
-        countDelta = currentlyUnfilledIds.length;
+      // In certify or reject filter, Pending actions should always be queued and counted
+      // (they represent undoing approved/rejected actions)
+      // Outside these filters, only queue Pending if there are existing actions to undo
+      if (isTogglingToPending && !isCertifyFilterActive && !isRejectFilterActive) {
+        const hasExistingQueuedActions = selectedIds.some((id) => {
+          const pendingAction = pendingById[id];
+          return pendingAction === 'Approve' || pendingAction === 'Reject' || 
+                 pendingAction === 'Remediate' || pendingAction === 'Delegate';
+        });
+
+        if (!hasExistingQueuedActions) {
+          // No existing queued actions to undo, just update local state and don't queue
+          setPendingById((prev) => {
+            const next = { ...prev } as Record<string, 'Approve' | 'Reject' | 'Pending' | 'Remediate' | 'Delegate'>;
+            selectedIds.forEach((id) => {
+              next[id] = 'Pending';
+              pendingActionsStorage.set(id, 'Pending');
+            });
+            return next;
+          });
+          setLastAction(actionType);
+          setError(null);
+          setTimeout(() => {
+            setIsActionLoading(false);
+          }, 100);
+          return;
+        }
       }
 
-      queueAction({ reviewerId, certId, payload, count: countDelta });
+      // Queue the action - ActionPanelContext will:
+      // 1. Remove any existing actions for the same items (overlap detection)
+      // 2. Add the new action
+      // 3. Recalculate count (including Pending if in certify or reject filter)
+      queueAction({ 
+        reviewerId, 
+        certId, 
+        payload, 
+        count: 0,
+        isCertifyFilter: isCertifyFilterActive,
+        isRejectFilter: isRejectFilterActive
+      });
 
        // Mark local pending state for button visuals (both state and module-level storage)
        setPendingById((prev) => {
@@ -301,6 +317,21 @@ const ActionButtons = <T extends { status?: string }>({
       });
     }
   }, [selectedRows]);
+
+  // Listen for reset events to clear local button states
+  useEffect(() => {
+    const handleStorageClear = () => {
+      // Clear local pendingById state when storage is cleared
+      setPendingById({});
+    };
+
+    // Listen for custom event when reset is called
+    window.addEventListener('actionPanelReset', handleStorageClear);
+    
+    return () => {
+      window.removeEventListener('actionPanelReset', handleStorageClear);
+    };
+  }, []);
 
 
   const handleApprove = async (e: React.MouseEvent) => {
@@ -526,67 +557,69 @@ const ActionButtons = <T extends { status?: string }>({
             />
           </svg>
         </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            const email = userEmail || "Harish.jangada@icallidus.com";
-            
-            // Extract application and entitlement names from selected rows
-            const firstRow = definedRows.length > 0 ? (definedRows[0] as any) : null;
-            const applicationName = firstRow?.applicationName || "Unknown Application";
-            const entitlementName = firstRow?.entitlementName || "Unknown Entitlement";
-            
-            // Create the message with application and entitlement details
-            const message = `Can you please clarify the following access - Application: ${applicationName}, Entitlement: ${entitlementName}`;
-            const teamsUrl = `https://teams.microsoft.com/l/chat/0/0?users=${email}&message=${encodeURIComponent(message)}`;
-            console.log("Opening Teams URL:", teamsUrl);
-            window.open(teamsUrl, '_blank', 'noopener,noreferrer');
-          }}
-          title="Open in Microsoft Teams"
-          aria-label="Open in Microsoft Teams"
-          className="p-1 rounded transition-colors duration-200 hover:bg-gray-100 flex-shrink-0 cursor-pointer"
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        >
-          <svg
-            width="28px"
-            height="28px"
-            viewBox="0 0 16 16"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
+        {!hideTeamsIcon && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              const email = userEmail || "Harish.jangada@icallidus.com";
+              
+              // Extract application and entitlement names from selected rows
+              const firstRow = definedRows.length > 0 ? (definedRows[0] as any) : null;
+              const applicationName = firstRow?.applicationName || "Unknown Application";
+              const entitlementName = firstRow?.entitlementName || "Unknown Entitlement";
+              
+              // Create the message with application and entitlement details
+              const message = `Can you please clarify the following access - Application: ${applicationName}, Entitlement: ${entitlementName}`;
+              const teamsUrl = `https://teams.microsoft.com/l/chat/0/0?users=${email}&message=${encodeURIComponent(message)}`;
+              console.log("Opening Teams URL:", teamsUrl);
+              window.open(teamsUrl, '_blank', 'noopener,noreferrer');
+            }}
+            title="Open in Microsoft Teams"
+            aria-label="Open in Microsoft Teams"
+            className="p-1 rounded transition-colors duration-200 hover:bg-gray-100 flex-shrink-0 cursor-pointer"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
-            <path
-              fill="#5059C9"
-              d="M10.765 6.875h3.616c.342 0 .619.276.619.617v3.288a2.272 2.272 0 01-2.274 2.27h-.01a2.272 2.272 0 01-2.274-2.27V7.199c0-.179.145-.323.323-.323zM13.21 6.225c.808 0 1.464-.655 1.464-1.462 0-.808-.656-1.463-1.465-1.463s-1.465.655-1.465 1.463c0 .807.656 1.462 1.465 1.462z"
-            />
-            <path
-              fill="#7B83EB"
-              d="M8.651 6.225a2.114 2.114 0 002.117-2.112A2.114 2.114 0 008.65 2a2.114 2.114 0 00-2.116 2.112c0 1.167.947 2.113 2.116 2.113zM11.473 6.875h-5.97a.611.611 0 00-.596.625v3.75A3.669 3.669 0 008.488 15a3.669 3.669 0 003.582-3.75V7.5a.611.611 0 00-.597-.625z"
-            />
-            <path
-              fill="url(#microsoft-teams-color-16__paint0_linear_2372_494)"
-              d="M1.597 4.925h5.969c.33 0 .597.267.597.596v5.958a.596.596 0 01-.597.596h-5.97A.596.596 0 011 11.479V5.521c0-.33.267-.596.597-.596z"
-            />
-            <path
-              fill="#ffffff"
-              d="M6.152 7.193H4.959v3.243h-.76V7.193H3.01v-.63h3.141v.63z"
-            />
-            <defs>
-              <linearGradient
-                id="microsoft-teams-color-16__paint0_linear_2372_494"
-                x1="2.244"
-                x2="6.906"
-                y1="4.46"
-                y2="12.548"
-                gradientUnits="userSpaceOnUse"
-              >
-                <stop stopColor="#5A62C3" />
-                <stop offset=".5" stopColor="#4D55BD" />
-                <stop offset="1" stopColor="#3940AB" />
-              </linearGradient>
-            </defs>
-          </svg>
-        </button>
+            <svg
+              width="28px"
+              height="28px"
+              viewBox="0 0 16 16"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+            >
+              <path
+                fill="#5059C9"
+                d="M10.765 6.875h3.616c.342 0 .619.276.619.617v3.288a2.272 2.272 0 01-2.274 2.27h-.01a2.272 2.272 0 01-2.274-2.27V7.199c0-.179.145-.323.323-.323zM13.21 6.225c.808 0 1.464-.655 1.464-1.462 0-.808-.656-1.463-1.465-1.463s-1.465.655-1.465 1.463c0 .807.656 1.462 1.465 1.462z"
+              />
+              <path
+                fill="#7B83EB"
+                d="M8.651 6.225a2.114 2.114 0 002.117-2.112A2.114 2.114 0 008.65 2a2.114 2.114 0 00-2.116 2.112c0 1.167.947 2.113 2.116 2.113zM11.473 6.875h-5.97a.611.611 0 00-.596.625v3.75A3.669 3.669 0 008.488 15a3.669 3.669 0 003.582-3.75V7.5a.611.611 0 00-.597-.625z"
+              />
+              <path
+                fill="url(#microsoft-teams-color-16__paint0_linear_2372_494)"
+                d="M1.597 4.925h5.969c.33 0 .597.267.597.596v5.958a.596.596 0 01-.597.596h-5.97A.596.596 0 011 11.479V5.521c0-.33.267-.596.597-.596z"
+              />
+              <path
+                fill="#ffffff"
+                d="M6.152 7.193H4.959v3.243h-.76V7.193H3.01v-.63h3.141v.63z"
+              />
+              <defs>
+                <linearGradient
+                  id="microsoft-teams-color-16__paint0_linear_2372_494"
+                  x1="2.244"
+                  x2="6.906"
+                  y1="4.46"
+                  y2="12.548"
+                  gradientUnits="userSpaceOnUse"
+                >
+                  <stop stopColor="#5A62C3" />
+                  <stop offset=".5" stopColor="#4D55BD" />
+                  <stop offset="1" stopColor="#3940AB" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </button>
+        )}
       </div>
     );
   }
@@ -617,67 +650,69 @@ const ActionButtons = <T extends { status?: string }>({
             />
           </svg>
         </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            const email = userEmail || "Harish.jangada@icallidus.com";
-            
-            // Extract application and entitlement names from selected rows
-            const firstRow = definedRows.length > 0 ? (definedRows[0] as any) : null;
-            const applicationName = firstRow?.applicationName || "Unknown Application";
-            const entitlementName = firstRow?.entitlementName || "Unknown Entitlement";
-            
-            // Create the message with application and entitlement details
-            const message = `Can you please clarify the following access - Application: ${applicationName}, Entitlement: ${entitlementName}`;
-            const teamsUrl = `https://teams.microsoft.com/l/chat/0/0?users=${email}&message=${encodeURIComponent(message)}`;
-            console.log("Opening Teams URL:", teamsUrl);
-            window.open(teamsUrl, '_blank', 'noopener,noreferrer');
-          }}
-          title="Open in Microsoft Teams"
-          aria-label="Open in Microsoft Teams"
-          className="p-1 rounded transition-colors duration-200 hover:bg-gray-100 flex-shrink-0 cursor-pointer"
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        >
-          <svg
-            width="28px"
-            height="28px"
-            viewBox="0 0 16 16"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
+        {!hideTeamsIcon && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              const email = userEmail || "Harish.jangada@icallidus.com";
+              
+              // Extract application and entitlement names from selected rows
+              const firstRow = definedRows.length > 0 ? (definedRows[0] as any) : null;
+              const applicationName = firstRow?.applicationName || "Unknown Application";
+              const entitlementName = firstRow?.entitlementName || "Unknown Entitlement";
+              
+              // Create the message with application and entitlement details
+              const message = `Can you please clarify the following access - Application: ${applicationName}, Entitlement: ${entitlementName}`;
+              const teamsUrl = `https://teams.microsoft.com/l/chat/0/0?users=${email}&message=${encodeURIComponent(message)}`;
+              console.log("Opening Teams URL:", teamsUrl);
+              window.open(teamsUrl, '_blank', 'noopener,noreferrer');
+            }}
+            title="Open in Microsoft Teams"
+            aria-label="Open in Microsoft Teams"
+            className="p-1 rounded transition-colors duration-200 hover:bg-gray-100 flex-shrink-0 cursor-pointer"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
-            <path
-              fill="#5059C9"
-              d="M10.765 6.875h3.616c.342 0 .619.276.619.617v3.288a2.272 2.272 0 01-2.274 2.27h-.01a2.272 2.272 0 01-2.274-2.27V7.199c0-.179.145-.323.323-.323zM13.21 6.225c.808 0 1.464-.655 1.464-1.462 0-.808-.656-1.463-1.465-1.463s-1.465.655-1.465 1.463c0 .807.656 1.462 1.465 1.462z"
-            />
-            <path
-              fill="#7B83EB"
-              d="M8.651 6.225a2.114 2.114 0 002.117-2.112A2.114 2.114 0 008.65 2a2.114 2.114 0 00-2.116 2.112c0 1.167.947 2.113 2.116 2.113zM11.473 6.875h-5.97a.611.611 0 00-.596.625v3.75A3.669 3.669 0 008.488 15a3.669 3.669 0 003.582-3.75V7.5a.611.611 0 00-.597-.625z"
-            />
-            <path
-              fill="url(#microsoft-teams-color-16__paint0_linear_2372_494)"
-              d="M1.597 4.925h5.969c.33 0 .597.267.597.596v5.958a.596.596 0 01-.597.596h-5.97A.596.596 0 011 11.479V5.521c0-.33.267-.596.597-.596z"
-            />
-            <path
-              fill="#ffffff"
-              d="M6.152 7.193H4.959v3.243h-.76V7.193H3.01v-.63h3.141v.63z"
-            />
-            <defs>
-              <linearGradient
-                id="microsoft-teams-color-16__paint0_linear_2372_494"
-                x1="2.244"
-                x2="6.906"
-                y1="4.46"
-                y2="12.548"
-                gradientUnits="userSpaceOnUse"
-              >
-                <stop stopColor="#5A62C3" />
-                <stop offset=".5" stopColor="#4D55BD" />
-                <stop offset="1" stopColor="#3940AB" />
-              </linearGradient>
-            </defs>
-          </svg>
-        </button>
+            <svg
+              width="28px"
+              height="28px"
+              viewBox="0 0 16 16"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+            >
+              <path
+                fill="#5059C9"
+                d="M10.765 6.875h3.616c.342 0 .619.276.619.617v3.288a2.272 2.272 0 01-2.274 2.27h-.01a2.272 2.272 0 01-2.274-2.27V7.199c0-.179.145-.323.323-.323zM13.21 6.225c.808 0 1.464-.655 1.464-1.462 0-.808-.656-1.463-1.465-1.463s-1.465.655-1.465 1.463c0 .807.656 1.462 1.465 1.462z"
+              />
+              <path
+                fill="#7B83EB"
+                d="M8.651 6.225a2.114 2.114 0 002.117-2.112A2.114 2.114 0 008.65 2a2.114 2.114 0 00-2.116 2.112c0 1.167.947 2.113 2.116 2.113zM11.473 6.875h-5.97a.611.611 0 00-.596.625v3.75A3.669 3.669 0 008.488 15a3.669 3.669 0 003.582-3.75V7.5a.611.611 0 00-.597-.625z"
+              />
+              <path
+                fill="url(#microsoft-teams-color-16__paint0_linear_2372_494)"
+                d="M1.597 4.925h5.969c.33 0 .597.267.597.596v5.958a.596.596 0 01-.597.596h-5.97A.596.596 0 011 11.479V5.521c0-.33.267-.596.597-.596z"
+              />
+              <path
+                fill="#ffffff"
+                d="M6.152 7.193H4.959v3.243h-.76V7.193H3.01v-.63h3.141v.63z"
+              />
+              <defs>
+                <linearGradient
+                  id="microsoft-teams-color-16__paint0_linear_2372_494"
+                  x1="2.244"
+                  x2="6.906"
+                  y1="4.46"
+                  y2="12.548"
+                  gradientUnits="userSpaceOnUse"
+                >
+                  <stop stopColor="#5A62C3" />
+                  <stop offset=".5" stopColor="#4D55BD" />
+                  <stop offset="1" stopColor="#3940AB" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </button>
+        )}
       </div>
     );
   }
@@ -772,28 +807,29 @@ const ActionButtons = <T extends { status?: string }>({
         </svg>
       </button>
 
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          const email = userEmail || "Harish.jangada@icallidus.com";
-          
-          // Extract application and entitlement names from selected rows
-          const firstRow = definedRows.length > 0 ? (definedRows[0] as any) : null;
-          const applicationName = firstRow?.applicationName || "Unknown Application";
-          const entitlementName = firstRow?.entitlementName || "Unknown Entitlement";
-          
-          // Create the message with application and entitlement details
-          const message = `Can you please clarify the following access - Application: ${applicationName}, Entitlement: ${entitlementName}`;
-          const teamsUrl = `https://teams.microsoft.com/l/chat/0/0?users=${email}&message=${encodeURIComponent(message)}`;
-          console.log("Opening Teams URL:", teamsUrl);
-          window.open(teamsUrl, '_blank', 'noopener,noreferrer');
-        }}
-        title="Open in Microsoft Teams"
-        aria-label="Open in Microsoft Teams"
-        className="p-1 rounded transition-colors duration-200 hover:bg-gray-100 flex-shrink-0 cursor-pointer"
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-      >
+      {!hideTeamsIcon && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            const email = userEmail || "Harish.jangada@icallidus.com";
+            
+            // Extract application and entitlement names from selected rows
+            const firstRow = definedRows.length > 0 ? (definedRows[0] as any) : null;
+            const applicationName = firstRow?.applicationName || "Unknown Application";
+            const entitlementName = firstRow?.entitlementName || "Unknown Entitlement";
+            
+            // Create the message with application and entitlement details
+            const message = `Can you please clarify the following access - Application: ${applicationName}, Entitlement: ${entitlementName}`;
+            const teamsUrl = `https://teams.microsoft.com/l/chat/0/0?users=${email}&message=${encodeURIComponent(message)}`;
+            console.log("Opening Teams URL:", teamsUrl);
+            window.open(teamsUrl, '_blank', 'noopener,noreferrer');
+          }}
+          title="Open in Microsoft Teams"
+          aria-label="Open in Microsoft Teams"
+          className="p-1 rounded transition-colors duration-200 hover:bg-gray-100 flex-shrink-0 cursor-pointer"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
           <svg
             width="28px"
             height="28px"
@@ -833,6 +869,7 @@ const ActionButtons = <T extends { status?: string }>({
             </defs>
           </svg>
         </button>
+      )}
 
       {}
 

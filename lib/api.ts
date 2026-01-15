@@ -2,6 +2,7 @@ import { LineItemDetail } from "@/types/lineItem";
 import { PaginatedResponse, CertAnalyticsResponse } from "@/types/api";
 import { string } from "yup";
 import { apiRequestWithAuth, checkTokenExpiredError, getCookie, COOKIE_NAMES } from "./auth";
+import { getOriginalFetch } from "./authFetch";
 
 const BASE_URL = "https://preview.keyforge.ai/certification/api/v1/ACMECOM";
 
@@ -499,14 +500,22 @@ export async function getAllApplications(): Promise<any> {
       throw new Error('No access token available');
     }
     
+    // Use Headers object to ensure accessToken is used (not JWT from global patch)
+    const headers = new Headers();
+    headers.set('Content-Type', 'application/json');
+    headers.set('X-Requested-With', 'XMLHttpRequest');
+    headers.set('Authorization', `Bearer ${accessToken}`);
+    
+    // Use original fetch (before JWT patch) to ensure accessToken is used, not JWT
+    // This bypasses the global fetch patch that adds JWT tokens
+    const fetchFn = typeof window !== 'undefined' ? getOriginalFetch() : fetch;
+    
     // Make request with required headers for registerscimapp endpoints
-    const response = await fetch(endpoint, {
+    // Using original fetch ensures the Authorization header with accessToken is used
+    // and won't be overridden by the global JWT patch
+    const response = await fetchFn(endpoint, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
-        'Authorization': `Bearer ${accessToken}`,
-      },
+      headers: headers,
     });
 
     if (!response.ok) {

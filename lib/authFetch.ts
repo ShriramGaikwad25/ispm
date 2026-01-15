@@ -1,6 +1,26 @@
 import { COOKIE_NAMES, getCookie } from "@/lib/auth";
 
 let fetchPatched = false;
+let originalFetch: typeof window.fetch | null = null;
+
+/**
+ * Gets the original fetch function before it was patched
+ * This is useful for requests that need to bypass the JWT token patch
+ * Captures the original fetch on first call (before patching) or returns stored original
+ */
+export function getOriginalFetch(): typeof window.fetch {
+  if (typeof window === "undefined") {
+    throw new Error("getOriginalFetch can only be called in browser environment");
+  }
+  // If we already have the original fetch stored, return it
+  if (originalFetch) {
+    return originalFetch;
+  }
+  // Capture the original fetch now (before any patching happens)
+  // This ensures we always get the true original, even if called before ensureAuthFetchPatched
+  originalFetch = window.fetch.bind(window);
+  return originalFetch;
+}
 
 /**
  * Ensures that the global fetch function attaches the JWT bearer token (when available)
@@ -12,14 +32,14 @@ export function ensureAuthFetchPatched(): void {
     return;
   }
 
-  const originalFetch = window.fetch.bind(window);
+  originalFetch = window.fetch.bind(window);
 
   window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
     try {
       const jwtToken = getCookie(COOKIE_NAMES.JWT_TOKEN);
 
       if (!jwtToken) {
-        return originalFetch(input, init);
+        return originalFetch!(input, init);
       }
 
       // Handle headers properly - convert to Headers object if needed
@@ -44,11 +64,11 @@ export function ensureAuthFetchPatched(): void {
         headers,
       };
 
-      return originalFetch(input, nextInit);
+      return originalFetch!(input, nextInit);
     } catch (error) {
       // If there's an error in the patch logic, fall back to original fetch
       console.error("Error in auth fetch patch:", error);
-      return originalFetch(input, init);
+      return originalFetch!(input, init);
     }
   }) as typeof window.fetch;
 

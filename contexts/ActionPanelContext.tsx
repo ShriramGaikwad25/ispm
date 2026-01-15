@@ -3,12 +3,16 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { updateAction } from '@/lib/api';
+import { clearPendingActionsStorage } from '@/components/agTable/ActionButtons';
+import { GridApi } from 'ag-grid-community';
 
 type PendingActionPayload = {
   reviewerId: string;
   certId: string;
   payload: any;
   count: number;
+  isCertifyFilter?: boolean; // Flag to indicate if we're in certify filter mode
+  isRejectFilter?: boolean; // Flag to indicate if we're in reject filter mode
 };
 
 interface ActionPanelContextValue {
@@ -17,6 +21,7 @@ interface ActionPanelContextValue {
   queueAction: (params: PendingActionPayload) => void;
   submitAll: () => Promise<void>;
   reset: () => void;
+  registerGridApi: (gridApi: GridApi | null, detailGridApis?: Map<string, GridApi>) => void;
 }
 
 const ActionPanelContext = createContext<ActionPanelContextValue | undefined>(undefined);
@@ -25,6 +30,8 @@ export const ActionPanelProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const pathname = usePathname();
   const [actionCount, setActionCount] = useState(0);
   const [pendingActions, setPendingActions] = useState<PendingActionPayload[]>([]);
+  // Store grid API references to clear selections
+  const [gridApis, setGridApis] = useState<Array<{ gridApi: GridApi | null; detailGridApis?: Map<string, GridApi> }>>([]);
 
   const queueAction = useCallback((params: PendingActionPayload) => {
     setPendingActions((prev) => {
@@ -114,30 +121,41 @@ export const ActionPanelProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const updatedActions = [...filtered, params];
       
       // Recalculate count based on actual queued actions
-      // Count ALL queued actions (including Pending/undo actions) so submit button appears
-      // when there are any pending changes to submit
+      // Only count actions that are NOT 'Pending' (unchecked actions should not be counted)
       // Use a Set to track unique items to avoid double-counting
       const uniqueItemsWithActions = new Set<string>();
       
       updatedActions.forEach((action) => {
-        // Count all actions, including Pending (undo actions need to be submitted too)
-        // Add unique items to the set
+        // Count Pending actions if we're in certify or reject filter mode (they represent undoing approved/rejected actions)
+        // Otherwise, skip counting Pending actions (unchecked actions)
+        const shouldCountPending = action.isCertifyFilter === true || action.isRejectFilter === true;
+        
         if (action.payload.useraction) {
           action.payload.useraction.forEach((ua: any) => {
-            if (ua.userId) uniqueItemsWithActions.add(`user-${ua.userId}`);
+            if (ua.userId && ua.actionType) {
+              if (ua.actionType !== 'Pending' || shouldCountPending) {
+                uniqueItemsWithActions.add(`user-${ua.userId}`);
+              }
+            }
           });
         }
         if (action.payload.accountAction) {
           action.payload.accountAction.forEach((aa: any) => {
-            if (aa.lineItemId) uniqueItemsWithActions.add(`account-${aa.lineItemId}`);
+            if (aa.lineItemId && aa.actionType) {
+              if (aa.actionType !== 'Pending' || shouldCountPending) {
+                uniqueItemsWithActions.add(`account-${aa.lineItemId}`);
+              }
+            }
           });
         }
         if (action.payload.entitlementAction) {
           action.payload.entitlementAction.forEach((ea: any) => {
-            if (ea.lineItemIds && Array.isArray(ea.lineItemIds)) {
-              ea.lineItemIds.forEach((id: string) => {
-                if (id) uniqueItemsWithActions.add(`entitlement-${id}`);
-              });
+            if (ea.lineItemIds && Array.isArray(ea.lineItemIds) && ea.actionType) {
+              if (ea.actionType !== 'Pending' || shouldCountPending) {
+                ea.lineItemIds.forEach((id: string) => {
+                  if (id) uniqueItemsWithActions.add(`entitlement-${id}`);
+                });
+              }
             }
           });
         }
@@ -152,9 +170,44 @@ export const ActionPanelProvider: React.FC<{ children: React.ReactNode }> = ({ c
     });
   }, []);
 
+  const registerGridApi = useCallback((gridApi: GridApi | null, detailGridApis?: Map<string, GridApi>) => {
+    setGridApis((prev) => {
+      // Remove existing entry for this grid API if it exists
+      const filtered = prev.filter((entry) => entry.gridApi !== gridApi);
+      // Add new entry
+      return [...filtered, { gridApi, detailGridApis }];
+    });
+  }, []);
+
   const reset = useCallback(() => {
     setActionCount(0);
     setPendingActions([]);
+    // Clear module-level storage in ActionButtons
+    clearPendingActionsStorage();
+    
+    // Dispatch custom event to notify ActionButtons to clear their state
+    window.dispatchEvent(new CustomEvent('actionPanelReset'));
+    
+    // Clear all grid selections - read current state
+    setGridApis((currentGridApis) => {
+      currentGridApis.forEach(({ gridApi, detailGridApis }) => {
+        if (gridApi) {
+          // Deselect all master rows
+          gridApi.forEachNodeAfterFilter((node: any) => {
+            node.setSelected(false);
+          });
+          // Deselect all detail rows
+          if (detailGridApis) {
+            detailGridApis.forEach((detailApi) => {
+              detailApi.forEachNodeAfterFilter((node: any) => {
+                node.setSelected(false);
+              });
+            });
+          }
+        }
+      });
+      return currentGridApis; // Don't change the state, just use it for side effects
+    });
   }, []);
 
   // Reset pending actions when navigating to a different page
@@ -176,7 +229,8 @@ export const ActionPanelProvider: React.FC<{ children: React.ReactNode }> = ({ c
     queueAction,
     submitAll,
     reset,
-  }), [actionCount, queueAction, submitAll, reset]);
+    registerGridApi,
+  }), [actionCount, queueAction, submitAll, reset, registerGridApi]);
 
   return (
     <ActionPanelContext.Provider value={value}>

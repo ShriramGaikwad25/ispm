@@ -11,6 +11,8 @@ import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 import { Doughnut } from "react-chartjs-2";
 import { formatDateMMDDYY } from "../access-review/page";
 import CustomPagination from "@/components/agTable/CustomPagination";
+import { getCookie, COOKIE_NAMES } from "@/lib/auth";
+import { getOriginalFetch } from "@/lib/authFetch";
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -33,7 +35,15 @@ export default function Application() {
       try {
         const response = await fetch(`https://preview.keyforge.ai/entities/api/v1/ACMECOM/getApplications/430ea9e6-3cff-449c-a24e-59c057f81e3d?page=${currentPage}&page_size=${pageSize}`);
         // Fire parallel background requests alongside getApplications
-        void fetch("https://preview.keyforge.ai/registerscimapp/registerfortenant/ACMECOM/getAllApplications").catch(() => null);
+        const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
+        if (accessToken) {
+          const headers = new Headers();
+          headers.set('Authorization', `Bearer ${accessToken}`);
+          const originalFetch = typeof window !== 'undefined' ? getOriginalFetch() : fetch;
+          void originalFetch("https://preview.keyforge.ai/registerscimapp/registerfortenant/ACMECOM/getAllApplications", {
+            headers: headers,
+          }).catch(() => null);
+        }
         void fetch("https://preview.keyforge.ai/schemamapper/getmappedschema/ACMECOM/16APLDOY").catch(() => null);
         const data = await response.json();
         if (data.executionStatus === "success") {
@@ -212,8 +222,15 @@ export default function Application() {
     // In parallel, resolve ApplicationID from Keyforge getAllApplications and call getApp/{ApplicationID}
     (async () => {
       try {
+        const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
+        if (!accessToken) return;
         const keyforgeAllUrl = "https://preview.keyforge.ai/registerscimapp/registerfortenant/ACMECOM/getAllApplications";
-        const allResp = await fetch(keyforgeAllUrl);
+        const headers = new Headers();
+        headers.set('Authorization', `Bearer ${accessToken}`);
+        const originalFetch = typeof window !== 'undefined' ? getOriginalFetch() : fetch;
+        const allResp = await originalFetch(keyforgeAllUrl, {
+          headers: headers,
+        });
         if (!allResp.ok) return;
         const allJson = await allResp.json();
         const targetName = (event.data.applicationinstancename || "").toString().trim().toLowerCase();

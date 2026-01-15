@@ -38,7 +38,8 @@ import CustomPagination from "@/components/agTable/CustomPagination";
 import EditReassignButtons from "@/components/agTable/EditReassignButtons";
 import ActionButtons from "@/components/agTable/ActionButtons";
 import { getAllRegisteredApps, searchUsers } from "@/lib/api";
-import { getReviewerId } from "@/lib/auth";
+import { getReviewerId, getCookie, COOKIE_NAMES } from "@/lib/auth";
+import { getOriginalFetch } from "@/lib/authFetch";
 import Link from "next/link";
 import Tabs from "@/components/tabs";
 import PolicyRiskDetails from "@/components/PolicyRiskDetails";
@@ -3947,11 +3948,18 @@ export default function ApplicationDetailPage() {
               const keyforgeUrl =
                 "https://preview.keyforge.ai/registerscimapp/registerfortenant/ACMECOM/getAllApplications";
 
+              const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
+              const headers = accessToken ? new Headers() : null;
+              if (headers && accessToken) {
+                headers.set('Authorization', `Bearer ${accessToken}`);
+              }
               const [ownResp, keyforgeResp] = await Promise.all([
                 getAllRegisteredApps(reviewerID),
-                fetch(keyforgeUrl)
+                accessToken && headers ? fetch(keyforgeUrl, {
+                  headers: headers,
+                })
                   .then((r) => (r.ok ? r.json() : null))
-                  .catch(() => null),
+                  .catch(() => null) : Promise.resolve(null),
               ]);
 
               const ownItems =
