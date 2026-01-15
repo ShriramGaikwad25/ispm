@@ -53,15 +53,22 @@ const SelectAll: React.FC<SelectAllProps> = ({
   const selectAllLabelRef = useRef<HTMLLabelElement>(null);
   // Track selected row IDs across all pages
   const selectedRowIdsRef = useRef<Set<string>>(new Set());
+  // Flag to prevent selection listener from interfering during clearing
+  const isClearingRef = useRef(false);
 
   const updateSelectedCount = useCallback(() => {
     if (!gridApi) return;
+    
+    // Skip syncing if we're in the middle of clearing
+    if (isClearingRef.current) {
+      return;
+    }
 
     let totalVisible = 0;
     let totalSelected = 0;
 
     // Sync grid selections with our tracked selection state
-    if (selectedRowIdsRef.current.size > 0 && getRowId) {
+    if (selectedRowIdsRef.current.size > 0 && getRowId && !isClearingRef.current) {
       gridApi.forEachNodeAfterFilter((node) => {
         if (node && node.data && !node.data.__isDescRow) {
           const rowId = getRowId(node.data);
@@ -111,14 +118,44 @@ const SelectAll: React.FC<SelectAllProps> = ({
       ? allFilteredData.length 
       : totalVisible;
     
-    // Count how many are in our selection set
+    // Count how many are in our selection set (for cross-page tracking)
     const totalSelectedFromSet = selectedRowIdsRef.current.size;
-    const actualSelectedCount = Math.max(totalSelected, totalSelectedFromSet);
+    
+    // Use actual grid selections as primary source, but also consider tracked selections
+    // Only count tracked selections if they match actual grid state
+    let actualSelectedCount = totalSelected;
+    
+    // If we have tracked selections but no visible selections, check if tracked items exist
+    if (totalSelected === 0 && totalSelectedFromSet > 0 && allFilteredData) {
+      // Verify tracked selections still exist in filtered data
+      const validTrackedSelections = Array.from(selectedRowIdsRef.current).filter((rowId) => {
+        if (!getRowId) return false;
+        return allFilteredData.some((item) => {
+          if (item.__isDescRow) return false;
+          const itemId = getRowId(item);
+          return itemId === rowId;
+        });
+      });
+      
+      // Only use tracked count if items are valid
+      if (validTrackedSelections.length > 0) {
+        actualSelectedCount = validTrackedSelections.length;
+      } else {
+        // Clean up invalid tracked selections
+        selectedRowIdsRef.current.clear();
+      }
+    } else if (totalSelected > 0) {
+      // If we have actual selections, use that (most reliable)
+      actualSelectedCount = totalSelected;
+    }
 
     setVisibleCount(totalVisible);
     setSelectedCount(actualSelectedCount);
 
-    setIsAllSelected(actualSelectedCount === totalRows && totalRows > 0);
+    // isAllSelected should be true ONLY if actualSelectedCount matches totalRows AND totalRows > 0
+    // Also verify that grid actually has selections
+    const allSelected = actualSelectedCount === totalRows && totalRows > 0 && totalSelected > 0;
+    setIsAllSelected(allSelected);
     setIsIndeterminate(actualSelectedCount > 0 && actualSelectedCount < totalRows);
   }, [gridApi, detailGridApis, allFilteredData, getRowId]);
 
@@ -222,7 +259,61 @@ const SelectAll: React.FC<SelectAllProps> = ({
   const handleSelectAllClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setShowPopup(true);
+    
+    // If items are already selected (checked or indeterminate), clear all selections
+    if (isAllSelected || isIndeterminate || selectedCount > 0) {
+      // Set flag to prevent selection listener from interfering
+      isClearingRef.current = true;
+      
+      // Clear selection tracking FIRST to prevent re-selection
+      selectedRowIdsRef.current.clear();
+      
+      // Clear all selections from grid
+      if (gridApi) {
+        // Manually deselect all nodes (most reliable method)
+        gridApi.forEachNode((node) => {
+          if (node && !node.group && node.isSelected()) {
+            node.setSelected(false);
+          }
+        });
+        
+        // Also clear filtered nodes (visible on current page)
+        gridApi.forEachNodeAfterFilter((node) => {
+          if (node && !node.group && node.isSelected()) {
+            node.setSelected(false);
+          }
+        });
+        
+        // Clear detail grid selections
+        detailGridApis.forEach((detailApi) => {
+          detailApi.forEachNode((node) => {
+            if (node && !node.group && node.isSelected()) {
+              node.setSelected(false);
+            }
+          });
+          detailApi.forEachNodeAfterFilter((node) => {
+            if (node && !node.group && node.isSelected()) {
+              node.setSelected(false);
+            }
+          });
+        });
+      }
+      
+      // Force update the count immediately
+      setSelectedCount(0);
+      setIsAllSelected(false);
+      setIsIndeterminate(false);
+      
+      // Reset flag and update count after a brief delay
+      setTimeout(() => {
+        isClearingRef.current = false;
+        // Force a proper update to ensure state is synchronized
+        updateSelectedCount();
+      }, 150);
+    } else {
+      // If nothing is selected, show popup to select
+      setShowPopup(true);
+    }
   };
 
   // Close popup when clicking outside
@@ -285,6 +376,11 @@ const SelectAll: React.FC<SelectAllProps> = ({
     };
 
     const selectionChangedListener = () => {
+      // Skip if we're in the middle of clearing selections
+      if (isClearingRef.current) {
+        return;
+      }
+      
       // Track individual selections/deselections
       if (getRowId) {
         gridApi.forEachNodeAfterFilter((node) => {
@@ -326,7 +422,12 @@ const SelectAll: React.FC<SelectAllProps> = ({
           <label 
             ref={selectAllLabelRef}
             className="font-medium cursor-pointer pr-4 items-center h-9 flex"
-            onClick={handleSelectAllClick}
+            onClick={(e) => {
+              // Only handle if clicking on label text, not checkbox (checkbox handles its own click)
+              if (e.target === e.currentTarget || (e.target as HTMLElement).tagName !== 'INPUT') {
+                handleSelectAllClick(e);
+              }
+            }}
           >
             <input
               type="checkbox"
@@ -334,10 +435,14 @@ const SelectAll: React.FC<SelectAllProps> = ({
               ref={(el) => {
                 if (el) el.indeterminate = isIndeterminate;
               }}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleSelectAllClick(e);
+              }}
               onChange={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                handleSelectAllClick(e);
+                // onChange is handled by onClick
               }}
               className="mr-2 w-4 h-4 cursor-pointer"
             />
@@ -374,8 +479,8 @@ const SelectAll: React.FC<SelectAllProps> = ({
         )}
       </div>
 
-      {/* Floating ActionButtons when any items are selected (individual or all) */}
-      {selectedCount > 0 && gridApi &&
+      {/* Floating ActionButtons when more than 1 item is selected */}
+      {selectedCount > 1 && gridApi &&
         createPortal(
           <div
             className={`fixed left-1/2 transform -translate-x-1/2 z-50 rounded-lg shadow-2xl px-4 py-3 flex items-center gap-2 transition-all duration-300 ${

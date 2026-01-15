@@ -47,9 +47,13 @@ interface ActionButtonsProps<T> {
 // This is necessary because AG Grid cell renderers can be recreated, losing component state
 const pendingActionsStorage = new Map<string, 'Approve' | 'Reject' | 'Pending' | 'Remediate' | 'Delegate'>();
 
+// Module-level storage for comments/justifications to persist across component re-renders
+const commentsStorage = new Map<string, string>();
+
 // Export function to clear pending actions storage
 export const clearPendingActionsStorage = () => {
   pendingActionsStorage.clear();
+  commentsStorage.clear();
 };
 
 const ActionButtons = <T extends { status?: string }>({
@@ -334,19 +338,35 @@ const ActionButtons = <T extends { status?: string }>({
   }, []);
 
 
+  // Helper function to get justification from saved comments or use default
+  const getJustification = (defaultJustification: string): string => {
+    // Get comment from first selected row (or combine all if multiple)
+    if (selectedIds.length === 0) return defaultJustification;
+    
+    // Try to get comment from any selected row
+    for (const id of selectedIds) {
+      const savedComment = commentsStorage.get(id);
+      if (savedComment && savedComment.trim()) {
+        return savedComment.trim();
+      }
+    }
+    
+    return defaultJustification;
+  };
+
   const handleApprove = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!api || definedRows.length === 0 || isActionLoading) return;
     
     // If currently set to Pending (undone) and button is clicked, restore to Approve
     if (isAllPendingReset || (isPendingReset && !isApprovePending && !isRejectPending)) {
-      await updateActions("Approve", "Approved via UI");
+      await updateActions("Approve", getJustification("Approved via UI"));
     }
     // If already marked approve (pending state) OR underlying state approved, toggle to Pending
     else if (isApprovePending || isApproved || isApproveAction) {
-      await updateActions("Pending", "Reset to pending");
+      await updateActions("Pending", getJustification("Reset to pending"));
     } else {
-      await updateActions("Approve", "Approved via UI");
+      await updateActions("Approve", getJustification("Approved via UI"));
     }
   };
 
@@ -356,13 +376,13 @@ const ActionButtons = <T extends { status?: string }>({
     
     // If currently set to Pending (undone) and button is clicked, restore to Reject
     if (isAllPendingReset || (isPendingReset && !isApprovePending && !isRejectPending)) {
-      await updateActions("Reject", "Revoked via UI");
+      await updateActions("Reject", getJustification("Revoked via UI"));
     }
     // If already marked reject (pending state) OR underlying state rejected, toggle to Pending
     else if (isRejectPending || isRejected || isRejectAction) {
-      await updateActions("Pending", "Reset to pending");
+      await updateActions("Pending", getJustification("Reset to pending"));
     } else {
-      await updateActions("Reject", "Revoked via UI");
+      await updateActions("Reject", getJustification("Revoked via UI"));
     }
   };
 
@@ -372,13 +392,17 @@ const ActionButtons = <T extends { status?: string }>({
   ) => {
     e.stopPropagation();
     if (!api || definedRows.length === 0 || isActionLoading) return;
-    await updateActions("Pending", `Undo ${originalAction}`);
+    await updateActions("Pending", getJustification(`Undo ${originalAction}`));
   };
 
   const handleComment = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (definedRows.length === 0) return;
-    setCommentText(""); // Load existing comment into the textarea
+    
+    // Load existing comment for the selected rows (use first row's comment if multiple selected)
+    const firstRowId = selectedIds[0];
+    const existingComment = firstRowId ? commentsStorage.get(firstRowId) || "" : "";
+    setCommentText(existingComment);
     setCommentCategory(""); // Reset category selection
     setCommentSubcategory(""); // Reset subcategory selection
     setIsCommentDropdownOpen(false); // Reset dropdown state
@@ -388,7 +412,11 @@ const ActionButtons = <T extends { status?: string }>({
   const handleSaveComment = () => {
     if (!commentText.trim()) return;
 
-    // Comment functionality is now handled in RemediateSidebar
+    // Save comment for all selected rows
+    selectedIds.forEach((id) => {
+      commentsStorage.set(id, commentText.trim());
+    });
+
     setIsCommentModalOpen(false);
     setCommentText("");
   };
@@ -982,6 +1010,9 @@ const ActionButtons = <T extends { status?: string }>({
             });
             return next;
           });
+          // Use saved comment as justification for delegate action
+          const justification = getJustification("Delegated via UI");
+          await updateActions("Delegate", justification);
           if (onActionSuccess) {
             onActionSuccess();
           }

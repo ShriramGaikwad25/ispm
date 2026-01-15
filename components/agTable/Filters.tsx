@@ -29,6 +29,7 @@ const Filters = ({
   onFilterChange,
   context = "status",
   initialSelected,
+  value, // Controlled value prop
   actionStates,
 }: {
   gridApi?: any;
@@ -37,13 +38,14 @@ const Filters = ({
   onFilterChange?: (filter: string) => void;
   context?: "status" | "account";
   initialSelected?: string;
+  value?: string; // Controlled value
   actionStates?: {
     certify?: boolean;
     reject?: boolean;
     remediate?: boolean;
   };
 }) => {
-  const [selectedFilter, setSelectedFilter] = useState<string>(initialSelected || "");
+  const [selectedFilter, setSelectedFilter] = useState<string>(value || initialSelected || "");
   const [filterCounts, setFilterCounts] = useState<{ [key: string]: number }>({});
 
   useEffect(() => {
@@ -73,6 +75,23 @@ const Filters = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Sync with external value or initialSelected changes (e.g., when user changes)
+  useEffect(() => {
+    const newValue = value || initialSelected;
+    if (newValue && newValue !== selectedFilter) {
+      setSelectedFilter(newValue);
+      if (appliedFilter) {
+        appliedFilter([newValue]);
+      }
+    } else if (!newValue && selectedFilter) {
+      // Clear selection if value is cleared
+      setSelectedFilter("");
+      if (appliedFilter) {
+        appliedFilter(["All"]);
+      }
+    }
+  }, [value, initialSelected, appliedFilter, selectedFilter]);
 
   const toggleFilter = (filterValue: string) => {
     // If "All" is selected, set it as selected and pass ["All"] to callback

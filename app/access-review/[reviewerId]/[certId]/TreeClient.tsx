@@ -163,6 +163,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const queryClient = useQueryClient();
   const [sidebarLoading, setSidebarLoading] = useState(false);
   const [userSearch, setUserSearch] = useState("");
+  const [entitlementSearch, setEntitlementSearch] = useState("");
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
   const [accountFilter, setAccountFilter] = useState<string>("");
   const [actionStates, setActionStates] = useState<{
@@ -686,7 +687,10 @@ const TreeClient: React.FC<TreeClientProps> = ({
         // Don't update URL when restoring from URL parameters
         selectUser(userToSelect, false);
         setEntitlementsPageNumber(1);
-        loadUserEntitlements(userToSelect, 1);
+        // When user is auto-selected, set status filter to "Pending"
+        setSelectedFilters(["Pending"]);
+        setStatusFilterQuery("action eq Pending");
+        loadUserEntitlements(userToSelect, 1, "action eq Pending");
         if (typeof onRowExpand === "function") {
           onRowExpand();
         }
@@ -1037,8 +1041,11 @@ const TreeClient: React.FC<TreeClientProps> = ({
     setEntitlementsPageNumber(1);
     // Reset resize flag when user changes - loadUserEntitlements will also reset it
     hasInitialResizedRef.current = false;
+    // When user changes, set status filter to "Pending"
+    setSelectedFilters(["Pending"]);
+    setStatusFilterQuery("action eq Pending");
 
-    loadUserEntitlements(user, 1);
+    loadUserEntitlements(user, 1, "action eq Pending");
     if (typeof onRowExpand === "function") {
       onRowExpand();
     }
@@ -1351,10 +1358,10 @@ const TreeClient: React.FC<TreeClientProps> = ({
     setAccountFilter(filter || "");
   }, []);
 
-  // Reset entitlements pagination when filters change
+  // Reset entitlements pagination when filters or search change
   useEffect(() => {
     setEntitlementsPageNumber(1);
-  }, [selectedFilters]);
+  }, [selectedFilters, entitlementSearch, accountFilter]);
 
   // Function to check action states from entitlements data
   const checkActionStates = useCallback(() => {
@@ -1465,6 +1472,27 @@ const TreeClient: React.FC<TreeClientProps> = ({
 
   // Filter entitlements based on selected filters
   const filteredEntitlements = useMemo(() => {
+    // Helper to apply search filter
+    const applySearchFilter = (rows: any[]) => {
+      if (!entitlementSearch || entitlementSearch.trim() === "") return rows;
+      const searchLower = entitlementSearch.toLowerCase().trim();
+      return rows.filter((entitlement) => {
+        const entitlementName = String(entitlement.entitlementName || "").toLowerCase();
+        const applicationName = String(entitlement.applicationName || "").toLowerCase();
+        const entitlementDescription = String(entitlement.entitlementDescription || "").toLowerCase();
+        const accountName = String(entitlement.accountName || "").toLowerCase();
+        const accountType = String(entitlement.accountType || "").toLowerCase();
+        
+        return (
+          entitlementName.includes(searchLower) ||
+          applicationName.includes(searchLower) ||
+          entitlementDescription.includes(searchLower) ||
+          accountName.includes(searchLower) ||
+          accountType.includes(searchLower)
+        );
+      });
+    };
+
     // Helper to apply account filter predicates
     const applyAccountFilter = (rows: any[]) => {
       if (!accountFilter) return rows;
@@ -1500,60 +1528,67 @@ const TreeClient: React.FC<TreeClientProps> = ({
       });
     };
 
-    if (selectedFilters.length === 0) {
-      return applyAccountFilter(entitlementsData);
+    // Start with all entitlements data
+    let result = entitlementsData;
+
+    // Apply search filter first
+    result = applySearchFilter(result);
+
+    // Apply status filters if any
+    if (selectedFilters.length > 0) {
+      const normalizedSelected = selectedFilters.map((f) => f.trim().toLowerCase());
+
+      result = result.filter((entitlement) => {
+        const action = String(entitlement.action || '').trim().toLowerCase();
+        const status = String(entitlement.status || '').trim().toLowerCase();
+        const itemRisk = String(entitlement.itemRisk || '').trim().toLowerCase();
+        const deltaChange = String(entitlement.deltaChange || '').trim();
+        const hasViolation = Array.isArray(entitlement.SoDConflicts) && entitlement.SoDConflicts.length > 0;
+
+        return normalizedSelected.some((filter) => {
+          if (filter === 'pending') {
+            return action === 'pending' || status === 'pending';
+          }
+          if (filter === 'certify') {
+            // Certify maps to Approve/Approved
+            return action === 'approve' || status === 'approved';
+          }
+          if (filter === 'reject') {
+            return action === 'reject' || status === 'revoked' || status === 'rejected';
+          }
+          if (filter === 'delegated') {
+            return action === 'delegate' || status === 'delegated';
+          }
+          if (filter === 'remediated') {
+            return action === 'remediate' || status === 'remediated';
+          }
+          // Handle chip filters shown above the table
+          if (filter === 'dormant access') {
+            // Treat as lastLogin older than a threshold or specific marker; fallback to pending non-use if available
+            // Here we approximate using accessedWithinAMonth === 'Not Accessed' if provided
+            const accessed = String(entitlement.accessedWithinAMonth || '').toLowerCase();
+            return accessed.includes('not accessed') || accessed.includes('no');
+          }
+          if (filter === 'violation') {
+            return hasViolation;
+          }
+          if (filter === 'high risk') {
+            return itemRisk === 'high' || itemRisk === 'critical';
+          }
+          if (filter === 'delta access') {
+            return deltaChange !== '' || entitlement.isNew === true;
+          }
+          // Unknown filter values (e.g., chip filters) are ignored
+          return false;
+        });
+      });
     }
 
-    const normalizedSelected = selectedFilters.map((f) => f.trim().toLowerCase());
-
-    const filtered = entitlementsData.filter((entitlement) => {
-      const action = String(entitlement.action || '').trim().toLowerCase();
-      const status = String(entitlement.status || '').trim().toLowerCase();
-      const itemRisk = String(entitlement.itemRisk || '').trim().toLowerCase();
-      const deltaChange = String(entitlement.deltaChange || '').trim();
-      const hasViolation = Array.isArray(entitlement.SoDConflicts) && entitlement.SoDConflicts.length > 0;
-
-      return normalizedSelected.some((filter) => {
-        if (filter === 'pending') {
-          return action === 'pending' || status === 'pending';
-        }
-        if (filter === 'certify') {
-          // Certify maps to Approve/Approved
-          return action === 'approve' || status === 'approved';
-        }
-        if (filter === 'reject') {
-          return action === 'reject' || status === 'revoked' || status === 'rejected';
-        }
-        if (filter === 'delegated') {
-          return action === 'delegate' || status === 'delegated';
-        }
-        if (filter === 'remediated') {
-          return action === 'remediate' || status === 'remediated';
-        }
-        // Handle chip filters shown above the table
-        if (filter === 'dormant access') {
-          // Treat as lastLogin older than a threshold or specific marker; fallback to pending non-use if available
-          // Here we approximate using accessedWithinAMonth === 'Not Accessed' if provided
-          const accessed = String(entitlement.accessedWithinAMonth || '').toLowerCase();
-          return accessed.includes('not accessed') || accessed.includes('no');
-        }
-        if (filter === 'violation') {
-          return hasViolation;
-        }
-        if (filter === 'high risk') {
-          return itemRisk === 'high' || itemRisk === 'critical';
-        }
-        if (filter === 'delta access') {
-          return deltaChange !== '' || entitlement.isNew === true;
-        }
-        // Unknown filter values (e.g., chip filters) are ignored
-        return false;
-      });
-    });
-
     // Apply account filter on top of status filters
-    return applyAccountFilter(filtered);
-  }, [entitlementsData, selectedFilters, accountFilter, selectedUser]);
+    result = applyAccountFilter(result);
+
+    return result;
+  }, [entitlementsData, selectedFilters, accountFilter, selectedUser, entitlementSearch]);
 
   // Duplicate each entitlement row with a separate description row beneath
   const entRowsWithDesc = useMemo(() => {
@@ -1961,6 +1996,23 @@ const TreeClient: React.FC<TreeClientProps> = ({
           headerName: "Actions",
           width: 250,
           cellRenderer: (params: ICellRendererParams) => {
+          // Check if current row is selected
+          const isCurrentRowSelected = params.node?.isSelected() || false;
+          
+          // Check if any other row is selected
+          let hasOtherSelectedRows = false;
+          if (params.api) {
+            const selectedRows = params.api.getSelectedRows();
+            hasOtherSelectedRows = selectedRows.some((row: any) => {
+              const rowId = row.lineItemId || row.accountLineItemId || row.taskId || `${row.applicationName}-${row.entitlementName}`;
+              const currentRowId = params.data?.lineItemId || params.data?.accountLineItemId || params.data?.taskId || `${params.data?.applicationName}-${params.data?.entitlementName}`;
+              return rowId === currentRowId ? false : !row.__isDescRow;
+            });
+          }
+          
+          // Disable Action column if current row is NOT selected but some other row IS selected
+          const shouldDisable = !isCurrentRowSelected && hasOtherSelectedRows;
+
           // Extract email from user field, selectedUser, or row data
           const userField = params.data?.user || "";
           const emailMatch = userField.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
@@ -1984,17 +2036,19 @@ const TreeClient: React.FC<TreeClientProps> = ({
           }
 
           return (
-            <ActionButtons
-              api={params.api}
-              selectedRows={[params.data]}
-              context="entitlement"
-              reviewerId={reviewerId}
-              certId={certId}
-              userEmail={userEmail}
-              selectedFilters={selectedFilters}
-              // Removed onActionSuccess to prevent table refresh on action button clicks
-              // Table will refresh only when actions are actually submitted via the Submit button
-            />
+            <div className={shouldDisable ? "opacity-50 pointer-events-none" : ""}>
+              <ActionButtons
+                api={params.api}
+                selectedRows={[params.data]}
+                context="entitlement"
+                reviewerId={reviewerId}
+                certId={certId}
+                userEmail={userEmail}
+                selectedFilters={selectedFilters}
+                // Removed onActionSuccess to prevent table refresh on action button clicks
+                // Table will refresh only when actions are actually submitted via the Submit button
+              />
+            </div>
           );
         },
         sortable: false,
@@ -2485,13 +2539,11 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       type="text"
                       placeholder="Search entitlements..."
                       className="border rounded px-3 py-1"
+                      value={entitlementSearch}
                       onChange={(e) => {
-                        if (entitlementsGridApiRef.current) {
-                          entitlementsGridApiRef.current.setGridOption(
-                            "quickFilterText",
-                            e.target.value
-                          );
-                        }
+                        setEntitlementSearch(e.target.value);
+                        // Reset to page 1 when searching
+                        setEntitlementsPageNumber(1);
                       }}
                     />
                     <Filters 
@@ -2499,6 +2551,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       onFilterChange={handleAccountFilterChange}
                       context="status"
                       initialSelected="Pending"
+                      value={selectedFilters.length > 0 ? selectedFilters[0] : undefined}
                       actionStates={actionStates}
                     />
                   </div>
@@ -2578,6 +2631,17 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     return params.data.__isDescRow ? `${baseId}-desc` : baseId;
                   }}
                   getRowClass={(params) => params?.data?.__isDescRow ? "ag-row-custom ag-row-desc" : "ag-row-custom"}
+                  onSelectionChanged={() => {
+                    // Refresh cells to update Action column state when selection changes
+                    if (entitlementsGridApiRef.current) {
+                      // Use requestAnimationFrame to ensure the selection state is updated first
+                      requestAnimationFrame(() => {
+                        if (entitlementsGridApiRef.current) {
+                          entitlementsGridApiRef.current.refreshCells({ force: true });
+                        }
+                      });
+                    }
+                  }}
                   onModelUpdated={(params) => {
                     // AG Grid's onModelUpdated fires when data model changes
                     // We can use this to detect when rendering is complete
