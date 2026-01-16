@@ -402,8 +402,7 @@ function AppOwnerContent() {
       });
 
       let response: PaginatedResponse<any>;
-      const isGroupedEnts = groupByOption === "Entitlements";
-      const isGroupedAccounts = groupByOption === "Accounts";
+      const isGroupedEnts = isGroupedByEntitlementCheckbox || groupByOption === "Entitlements";
 
       // If a chart-based filter is applied, use the filtered certification API
       if (currentFilter) {
@@ -415,6 +414,7 @@ function AppOwnerContent() {
           pageNumber
         );
       } else if (isGroupedEnts) {
+        // When checkbox is checked: Call the API for grouped entitlements
         response = await getGroupedAppOwnerDetails(
           reviewerId,
           certificationId,
@@ -422,129 +422,8 @@ function AppOwnerContent() {
           pageNumber,
           statusFilterQuery
         );
-      } else if (isGroupedAccounts) {
-        // For Accounts grouping, call entities API getAppAccounts
-        // Determine applicationInstanceId: prefer from current state else from first of response of ungrouped data
-        let applicationInstanceId =
-          rowData.find((r) => r.applicationInstanceId)?.applicationInstanceId ||
-          "";
-        const tryExtractFromRawItems = (items: any[]): string | undefined => {
-          for (const item of items || []) {
-            // Top-level variants
-            const top1 =
-              item?.applicationInfo?.applicationInstanceId ||
-              item?.applicationInfo?.applicationinstanceid;
-            if (top1) return top1 as string;
-            const top2 =
-              item?.applicationInstanceId || item?.applicationinstanceid;
-            if (top2) return top2 as string;
-            // Ungrouped entityEntitlements path
-            const entAppId =
-              item?.entityEntitlements?.[0]?.applicationInfo
-                ?.applicationInstanceId ||
-              item?.entityEntitlements?.[0]?.applicationInfo
-                ?.applicationinstanceid;
-            if (entAppId) return entAppId as string;
-            // Grouped structure paths (accounts array)
-            const accounts = Array.isArray(item?.accounts) ? item.accounts : [];
-            for (const acc of accounts) {
-              const accAppId =
-                acc?.applicationInfo?.applicationInstanceId ||
-                acc?.applicationInfo?.applicationinstanceid;
-              if (accAppId) return accAppId as string;
-            }
-          }
-          return undefined;
-        };
-        if (!applicationInstanceId) {
-          const ungResp = await getAppOwnerDetails(
-            reviewerId,
-            certificationId,
-            pageSize,
-            pageNumber
-          );
-          console.log(
-            "Ungrouped response for appId extraction:",
-            JSON.stringify(ungResp, null, 2)
-          );
-
-          // First try fast transform path
-          const transformedUng = transformApiData(ungResp.items || [], false);
-          applicationInstanceId =
-            transformedUng.find((r) => r.applicationInstanceId)
-              ?.applicationInstanceId || "";
-          console.log("Transformed data appId:", applicationInstanceId);
-
-          // Then try raw items exhaustive scan for various shapes/casings
-          if (!applicationInstanceId) {
-            const extracted = tryExtractFromRawItems(ungResp.items || []);
-            if (extracted) applicationInstanceId = extracted;
-            console.log("Raw extraction appId:", extracted);
-          }
-        }
-
-        console.log(
-          "Final applicationInstanceId for accounts:",
-          applicationInstanceId
-        );
-
-        if (!applicationInstanceId) {
-          // Try to get applications list and use the first one as fallback
-          try {
-            console.log("Trying to fetch applications list as fallback...");
-            const appsResponse = await fetch(
-              `https://preview.keyforge.ai/entities/api/v1/ACMECOM/getApplications/${reviewerId}`
-            );
-            const appsData = await appsResponse.json();
-            console.log("Applications fallback response:", appsData);
-
-            if (
-              appsData.executionStatus === "success" &&
-              appsData.items &&
-              appsData.items.length > 0
-            ) {
-              const firstApp = appsData.items[0];
-              applicationInstanceId =
-                firstApp.applicationinstanceid ||
-                firstApp.applicationInstanceId;
-              console.log(
-                "Using first application as fallback:",
-                applicationInstanceId
-              );
-            }
-          } catch (fallbackErr) {
-            console.error("Fallback applications fetch failed:", fallbackErr);
-          }
-        }
-
-        if (!applicationInstanceId) {
-          // Provide user-friendly message instead of throwing hard error
-          setError(
-            "Unable to determine application to load accounts. Open an application first or try 'Group by Entitlements'."
-          );
-          setRowData([]);
-          setLoading(false);
-          return;
-        }
-        const accountsResp: any = await getAppAccounts(
-          reviewerId,
-          applicationInstanceId
-        );
-        console.log("Raw accounts response:", accountsResp);
-
-        // Normalize to PaginatedResponse-like shape for rendering
-        response = (
-          Array.isArray(accountsResp)
-            ? {
-                items: accountsResp,
-                total_pages: 1,
-                total_items: accountsResp.length,
-              }
-            : accountsResp
-        ) as PaginatedResponse<any>;
-
-        console.log("Normalized accounts response:", response);
       } else {
+        // Default: Get ungrouped data (will be grouped by Accounts using AG Grid when groupByOption === "Accounts")
         response = await getAppOwnerDetails(
           reviewerId,
           certificationId,
@@ -567,57 +446,17 @@ function AppOwnerContent() {
         throw new Error("Invalid data format received from API");
       }
 
-      let transformedData: RowData[];
-
-      if (isGroupedAccounts) {
-        // For accounts data, transform differently since it has a different structure
-        console.log("First account item structure:", response.items?.[0]);
-
-        transformedData = (response.items || []).map(
-          (account: any, index: number) => {
-            // Map using the actual field names from the API response
-            const mappedAccount = {
-              accountId: account.accountId || `account-${index}`,
-              accountName: account.accountName || "",
-              userId: account.userId || "",
-              userName: account.userDisplayName || "", // This is the key field for Display Name
-              entitlementName: account.entitlementName || "Account Access",
-              entitlementDescription: account.entitlementDescription || "",
-              entitlementType: account.entitlementType || account.type || "",
-              aiInsights: "",
-              accountSummary: (account.accountName || "").includes("@")
-                ? "Regular Accounts"
-                : "Other",
-              accountActivity: "Active",
-              changeSinceLastReview: "Existing accounts",
-              accountType: account.jobTitle || "", // Use jobTitle for account type
-              userType: account.userType || "Internal",
-              lastLoginDate: account.lastlogindate || "2025-05-25",
-              department: account.userDepartment || "Unknown", // Use userDepartment
-              manager: account.userManager || "Unknown", // Use userManager
-              risk: account.risk || "Low",
-              applicationName: account.applicationName || "",
-              applicationInstanceId: account.applicationInstanceId || "",
-              numOfEntitlements: 1,
-              lineItemId: account.accountId || "",
-              status: account.userStatus || "Pending",
-            };
-
-            console.log(`Mapped account ${index}:`, mappedAccount);
-            return mappedAccount;
-          }
-        );
-      } else {
-        // Use existing transform for other cases (including filtered API response)
-        transformedData = transformApiData(
-          response.items,
-          isGroupedEnts /* grouped shape only for Entitlements path */
-        );
-      }
+      // Transform data - use grouped transform only for Entitlements API, otherwise use ungrouped transform
+      const transformedData = transformApiData(
+        response.items,
+        isGroupedEnts /* grouped shape only for Entitlements path */
+      );
       console.log(
         "Transformed Data:",
         JSON.stringify(transformedData, null, 2)
       );
+      console.log("Transformed data count:", transformedData.length);
+      console.log("Setting rowData with", transformedData.length, "items");
       setRowData(transformedData);
       setTotalPages(response.total_pages || 1);
       setTotalItems(response.total_items || 0);
@@ -659,6 +498,7 @@ function AppOwnerContent() {
     groupByOption,
     currentFilter,
     statusFilterQuery,
+    isGroupedByEntitlementCheckbox,
   ]);
 
   useEffect(() => {
@@ -907,23 +747,7 @@ function AppOwnerContent() {
     }
   };
 
-  // Restore previously selected grouping from localStorage on mount
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem("appOwnerGroupBy");
-      if (stored) {
-        setGroupByOption(stored);
-        const selectedField =
-          stored === "Entitlements"
-            ? "entitlementName"
-            : stored === "Accounts"
-            ? "accountName"
-            : null;
-        setGroupByColumn(selectedField);
-        applyRowGrouping(selectedField);
-      }
-    } catch {}
-  }, []);
+  // No default grouping - only group when checkbox is checked
 
   useEffect(() => {
     fetchAnalyticsData();
@@ -1189,6 +1013,7 @@ function AppOwnerContent() {
       wrapText: true,
       autoHeight: true,
       enableRowGroup: true,
+      hide: isGroupedByEntitlementCheckbox || groupByOption === "Entitlements", // Hide when grouped (group column will show it)
       cellStyle: {
         display: 'flex',
         alignItems: 'flex-start',
@@ -1221,7 +1046,12 @@ function AppOwnerContent() {
         );
       },
     },
-    { field: "entitlementType", headerName: "Type", width: 100 },
+    { 
+      field: "entitlementType", 
+      headerName: "Type", 
+      width: 100,
+      pinned: false, // Ensure it's not pinned, appears right after group column
+    },
     {
       field: "accountName",
       headerName: "Account",
@@ -1480,9 +1310,12 @@ function AppOwnerContent() {
   };
 
   const filteredRowData = useMemo(() => {
-    if (!selectedFilters || selectedFilters.length === 0) return rowData;
+    if (!selectedFilters || selectedFilters.length === 0) {
+      console.log("No filters applied, returning all rowData:", rowData.length);
+      return rowData;
+    }
     const normalized = selectedFilters.map((f) => f.trim().toLowerCase());
-    return rowData.filter((r) => {
+    const filtered = rowData.filter((r) => {
       const action = String((r as any).action || "")
         .trim()
         .toLowerCase();
@@ -1505,6 +1338,12 @@ function AppOwnerContent() {
         return false;
       });
     });
+    console.log("Filtered data:", {
+      originalCount: rowData.length,
+      filteredCount: filtered.length,
+      filters: selectedFilters,
+    });
+    return filtered;
   }, [rowData, selectedFilters]);
 
   // Update ref when filteredRowData changes
@@ -1777,38 +1616,47 @@ function AppOwnerContent() {
     }
   }, [groupByOption, isGroupedByEntitlementCheckbox]);
 
+  // Apply grouping when data or grouping state changes
   useEffect(() => {
-    if (isGridReady && gridApiRef.current) {
-      console.log("Grid API initialized, applying grouping", {
+    if (isGridReady && gridApiRef.current && filteredRowData.length > 0) {
+      console.log("Applying grouping after data load", {
         groupByColumn,
         isGroupedByEntitlementCheckbox,
+        groupByOption,
+        dataCount: filteredRowData.length,
       });
-      // If checkbox is checked, use checkbox grouping; otherwise use dropdown grouping
-      const fieldToGroup = isGroupedByEntitlementCheckbox ? "entitlementName" : groupByColumn;
-      applyRowGrouping(fieldToGroup);
+      // Apply grouping based on current state - only group if checkbox is checked
+      const fieldToGroup = isGroupedByEntitlementCheckbox ? "entitlementName" : (groupByColumn || null);
       
-      // If grouping by entitlement (checkbox), refresh group rows after a delay to show descriptions
-      if (isGroupedByEntitlementCheckbox && fieldToGroup === "entitlementName") {
-        setTimeout(() => {
-          if (gridApiRef.current) {
-            // Refresh all group rows to ensure descriptions are displayed
-            const groupNodes: any[] = [];
-            gridApiRef.current.forEachNode((node: any) => {
-              if (node.group) {
-                groupNodes.push(node);
+      // Use a small delay to ensure data is fully rendered
+      setTimeout(() => {
+        if (gridApiRef.current) {
+          applyRowGrouping(fieldToGroup);
+          
+          // If grouping by entitlement (checkbox), refresh group rows after a delay to show descriptions
+          if (isGroupedByEntitlementCheckbox && fieldToGroup === "entitlementName") {
+            setTimeout(() => {
+              if (gridApiRef.current) {
+                // Refresh all group rows to ensure descriptions are displayed
+                const groupNodes: any[] = [];
+                gridApiRef.current.forEachNode((node: any) => {
+                  if (node.group) {
+                    groupNodes.push(node);
+                  }
+                });
+                if (groupNodes.length > 0) {
+                  gridApiRef.current.refreshCells({
+                    rowNodes: groupNodes,
+                    force: true,
+                  });
+                }
               }
-            });
-            if (groupNodes.length > 0) {
-              gridApiRef.current.refreshCells({
-                rowNodes: groupNodes,
-                force: true,
-              });
-            }
+            }, 300);
           }
-        }, 200);
-      }
+        }
+      }, 100);
     }
-  }, [isGridReady, groupByColumn, rowData, isGroupedByEntitlementCheckbox]);
+  }, [isGridReady, groupByColumn, filteredRowData.length, isGroupedByEntitlementCheckbox, groupByOption]);
 
   // Refresh group cells when filteredRowData changes and grouping is active
   useEffect(() => {
@@ -1872,15 +1720,6 @@ function AppOwnerContent() {
         </Accordion>
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-4 relative z-10 pt-10 gap-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
-            <select
-              value={groupByOption}
-              onChange={handleGroupByOptionChange}
-              className="border border-gray-300 rounded-md px-3 h-8 text-sm w-48"
-            >
-              <option value="None">Group by Accounts</option>
-              <option value="Entitlements">Group by Entitlements</option>
-              {}
-            </select>
             <div className="flex items-center space-x-2">
               <input
                 type="text"
@@ -1903,36 +1742,26 @@ function AppOwnerContent() {
                   onChange={(e) => {
                     const isChecked = e.target.checked;
                     console.log("Checkbox clicked, isChecked:", isChecked);
-                    console.log("Grid API available:", !!gridApiRef.current);
-                    console.log("Is grid ready:", isGridReady);
                     setIsGroupedByEntitlementCheckbox(isChecked);
-                    // Toggle AG Grid's row grouping on entitlementName column
-                    const selectedField = isChecked ? "entitlementName" : null;
-                    console.log("Applying row grouping for field:", selectedField);
-                    applyRowGrouping(selectedField);
                     
-                    // Refresh group rows after grouping is applied to show descriptions
-                    if (isChecked && gridApiRef.current) {
-                      // Multiple refreshes with delays to ensure descriptions appear
-                      [100, 300, 500, 1000].forEach((delay) => {
-                        setTimeout(() => {
-                          if (gridApiRef.current) {
-                            const groupNodes: any[] = [];
-                            gridApiRef.current.forEachNode((node: any) => {
-                              if (node.group) {
-                                groupNodes.push(node);
-                              }
-                            });
-                            if (groupNodes.length > 0) {
-                              gridApiRef.current.refreshCells({
-                                rowNodes: groupNodes,
-                                force: true,
-                              });
-                              console.log(`[Checkbox] Refreshed ${groupNodes.length} group cells at ${delay}ms`);
-                            }
-                          }
-                        }, delay);
-                      });
+                    if (isChecked) {
+                      // When checked: Group by Entitlements - call API and use AG Grid grouping
+                      setGroupByOption("Entitlements");
+                      setGroupByColumn("entitlementName");
+                      setPageNumber(1); // Reset to first page
+                      // Apply grouping immediately if grid is ready
+                      if (isGridReady && gridApiRef.current) {
+                        applyRowGrouping("entitlementName");
+                      }
+                    } else {
+                      // When unchecked: Remove grouping - show flat list
+                      setGroupByOption("None");
+                      setGroupByColumn(null);
+                      setPageNumber(1); // Reset to first page
+                      // Remove grouping immediately if grid is ready
+                      if (isGridReady && gridApiRef.current) {
+                        applyRowGrouping(null);
+                      }
                     }
                   }}
                   className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
@@ -2192,6 +2021,14 @@ function AppOwnerContent() {
                   setIsGridReady(true);
                   // Register grid API with ActionPanelContext so it can clear selections
                   registerGridApi(params.api, detailGridApis);
+                  
+                  // Apply initial grouping only if checkbox is checked
+                  if (isGroupedByEntitlementCheckbox) {
+                    setTimeout(() => {
+                      applyRowGrouping("entitlementName");
+                    }, 100);
+                  }
+                  
                   console.log("Grid initialized:", {
                     api: !!params.api,
                     columnApi: !!(params.api as any).columnApi,

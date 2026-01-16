@@ -317,13 +317,13 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
             <button
               className="flex items-center gap-1 text-sm text-blue-600 hover:underline mt-4"
               onClick={() => {
-                setSelected((prev) => ({ ...prev, left: null }));
+                setSelected({ left: null, right: null });
                 if (onFilterChange) {
                   onFilterChange("");
                 }
               }}
             >
-              {selected.left == null ? (
+              {selected.left == null && selected.right == null ? (
                 <svg
                   className="w-4 h-4"
                   viewBox="0 0 24 24"
@@ -378,34 +378,6 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
                 </div>
               );
             })}
-            <button
-              className="flex items-center gap-1 text-sm text-blue-600 hover:underline mt-4"
-              onClick={() => {
-                setSelected((prev) => ({ ...prev, right: null }));
-                if (onFilterChange) {
-                  onFilterChange("");
-                }
-              }}
-            >
-              {selected.right == null ? (
-                <svg
-                  className="w-4 h-4"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M3 4h18l-7 8v6l-4 2v-8L3 4z" />
-                </svg>
-              ) : (
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M3 4h18l-7 8v6l-4 2v-8L3 4z" />
-                </svg>
-              )}
-              Clear Filters
-            </button>
           </div>
         </div>
       </div>
