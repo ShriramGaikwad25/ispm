@@ -139,7 +139,7 @@ const WizardForm: React.FC<WizardFormProps> = ({ steps, initialFormData, isEditM
   };
 
   const nextStep = () => {
-    if (currentStep < steps.length - 1) {
+    if (currentStep < steps.length - 1 && validationStatus[currentStep]) {
       setCurrentStep((prev) => prev + 1);
     }
   };
@@ -240,7 +240,12 @@ const WizardForm: React.FC<WizardFormProps> = ({ steps, initialFormData, isEditM
               {currentStep < steps.length - 1 && (
                 <button
                   onClick={nextStep}
-                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
+                  disabled={!validationStatus[currentStep]}
+                  className={`flex items-center px-4 py-2 rounded-md text-sm font-medium ${
+                    validationStatus[currentStep]
+                      ? "bg-blue-600 text-white hover:bg-blue-700"
+                      : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                  }`}
                 >
                   Next
                   <ChevronRight className="w-4 h-4 ml-2" />

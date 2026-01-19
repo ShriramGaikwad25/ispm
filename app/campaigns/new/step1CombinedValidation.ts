@@ -2,8 +2,8 @@ import * as yup from "yup";
 
 export const validationSchema = yup.object().shape({
   // Step1 fields
-  certificationTemplate: yup.string(),
-  description: yup.string(),
+  certificationTemplate: yup.string().required("Template Name is required"),
+  description: yup.string().required("Description is required"),
   campaignType: yup.string().required("Campaign Type is required"),
   ownerType: yup.string().required("Owner Type is required"),
   ownerUser: yup.array().when("ownerType", {

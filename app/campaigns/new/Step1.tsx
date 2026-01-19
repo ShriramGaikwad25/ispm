@@ -69,7 +69,7 @@ const Step1: React.FC<StepProps> = ({
     resetField,
     trigger,
     getValues,
-    formState: { errors, isValid },
+    formState: { errors, isValid, touchedFields },
   } = useForm<CombinedStep1FormData>({
     resolver: yupResolver(validationSchema) as unknown as Resolver<CombinedStep1FormData>,
     mode: "onChange",
@@ -213,11 +213,11 @@ const Step1: React.FC<StepProps> = ({
   const certificationTemplate = watch("certificationTemplate");
   const currentInstanceDefaultname = watch("instanceDefaultname");
   useEffect(() => {
-    if (certificationTemplate && !isEditMode && !currentInstanceDefaultname) {
+    if (certificationTemplate && !isEditMode) {
       const defaultInstanceName = `${certificationTemplate} - {{QTR}}_{{MONTH}}_{{DATE}}_{{YEAR}}`;
       setValue("instanceDefaultname", defaultInstanceName, { shouldValidate: false });
     }
-  }, [certificationTemplate, setValue, isEditMode, currentInstanceDefaultname]);
+  }, [certificationTemplate, setValue, isEditMode]);
 
   // Step2 field resets
   const userType = watch("userType");
@@ -295,7 +295,7 @@ const Step1: React.FC<StepProps> = ({
                 aria-describedby={errors.certificationTemplate ? "certificationTemplate-error" : undefined}
                 {...register("certificationTemplate")}
               />
-              {errors.certificationTemplate?.message &&
+              {touchedFields.certificationTemplate && errors.certificationTemplate?.message &&
                 typeof errors.certificationTemplate.message === "string" && (
                   <p id="certificationTemplate-error" className="text-red-500" role="alert" aria-live="polite">
                     {errors.certificationTemplate.message}
@@ -315,7 +315,7 @@ const Step1: React.FC<StepProps> = ({
                 aria-describedby={errors.description ? "description-error" : undefined}
                 {...register("description")}
               ></textarea>
-              {errors.description?.message &&
+              {touchedFields.description && errors.description?.message &&
                 typeof errors.description.message === "string" && (
                   <p id="description-error" className="text-red-500" role="alert" aria-live="polite">
                     {errors.description.message}
@@ -344,8 +344,16 @@ const Step1: React.FC<StepProps> = ({
                 type="text"
                 className="form-input"
                 disabled={isEditMode}
+                aria-invalid={!!errors.campaignType}
+                aria-describedby={errors.campaignType ? "campaignType-error" : undefined}
                 {...register("campaignType")}
               />
+              {touchedFields.campaignType && errors.campaignType?.message &&
+                typeof errors.campaignType.message === "string" && (
+                  <p id="campaignType-error" className="text-red-500" role="alert" aria-live="polite">
+                    {errors.campaignType.message}
+                  </p>
+                )}
             </div>
           </div>
 
@@ -383,7 +391,7 @@ const Step1: React.FC<StepProps> = ({
                     components={{ Option: customOption }}
                     {...register("ownerUser")}
                   />
-                  {errors.ownerUser?.message &&
+                  {touchedFields.ownerUser && errors.ownerUser?.message &&
                     typeof errors.ownerUser.message === "string" && (
                       <p className="text-red-500">{errors.ownerUser.message}</p>
                     )}
@@ -400,7 +408,7 @@ const Step1: React.FC<StepProps> = ({
                     components={{ Option: customOption }}
                     {...register("ownerGroup")}
                   />
-                  {errors.ownerGroup?.message &&
+                  {touchedFields.ownerGroup && errors.ownerGroup?.message &&
                     typeof errors.ownerGroup.message === "string" && (
                       <p className="text-red-500">{errors.ownerGroup.message}</p>
                     )}
@@ -501,7 +509,7 @@ const Step1: React.FC<StepProps> = ({
                         {...register("userGroupList")}
                       />
 
-                      {errors.userGroupList?.message &&
+                      {touchedFields.userGroupList && errors.userGroupList?.message &&
                         typeof errors.userGroupList.message === "string" && (
                           <p className="text-red-500">
                             {errors.userGroupList.message}
@@ -530,7 +538,7 @@ const Step1: React.FC<StepProps> = ({
                   {...register("excludeUsers")}
                 />
 
-                {errors.excludeUsers?.message &&
+                {touchedFields.excludeUsers && errors.excludeUsers?.message &&
                   typeof errors.excludeUsers.message === "string" && (
                     <p className="text-red-500">{errors.excludeUsers.message}</p>
                   )}
@@ -580,7 +588,7 @@ const Step1: React.FC<StepProps> = ({
                       components={{ Option: customOption }}
                       {...register("specificApps")}
                     />
-                    {errors.specificApps?.message &&
+                    {touchedFields.specificApps && errors.specificApps?.message &&
                       typeof errors.specificApps.message === "string" && (
                         <p className="text-red-500">
                           {errors.specificApps.message}
@@ -610,7 +618,7 @@ const Step1: React.FC<StepProps> = ({
                         { label: "Tags", value: "tags" },
                       ]}
                     />
-                    {errors.expressionApps?.message &&
+                    {touchedFields.expressionApps && errors.expressionApps?.message &&
                       typeof errors.expressionApps.message === "string" && (
                         <p className="text-red-500">
                           {errors.expressionApps.message}
@@ -642,7 +650,7 @@ const Step1: React.FC<StepProps> = ({
                       { label: "Tags", value: "tags" },
                     ]}
                   />
-                  {errors.expressionEntitlement?.message &&
+                  {touchedFields.expressionEntitlement && errors.expressionEntitlement?.message &&
                     typeof errors.expressionEntitlement.message === "string" && (
                       <p className="text-red-500">
                         {errors.expressionEntitlement.message}
