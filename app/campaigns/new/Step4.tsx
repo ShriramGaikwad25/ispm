@@ -1,4 +1,4 @@
-import { BookTemplate, InfoIcon } from "lucide-react";
+import { BookTemplate, InfoIcon, Save } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import {
   Control,
@@ -142,6 +142,7 @@ const Step4: React.FC<StepProps> = ({
   const enforComments = watch("enforceComments");
   const showGenericExpression = enforComments === "Custom Fields";
   const { openSidebar, closeSidebar } = useRightSidebar();
+  const [msTeamsSaveStatus, setMsTeamsSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   // Options for dropdowns
   // During campaign options (includes Start Of Campaign)
@@ -568,6 +569,60 @@ const Step4: React.FC<StepProps> = ({
                   />
                   {errors.msTeamsTeamId?.message && (
                     <p className="text-red-500 text-sm mt-1">{errors.msTeamsTeamId.message}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-3 mt-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      // Trigger validation for Microsoft Teams fields
+                      const msTeamsChannelName = watch("msTeamsChannelName");
+                      const msTeamsTeamId = watch("msTeamsTeamId");
+                      
+                      // Check if required fields are filled
+                      if (!msTeamsChannelName || !msTeamsTeamId) {
+                        setMsTeamsSaveStatus("error");
+                        setTimeout(() => setMsTeamsSaveStatus("idle"), 2000);
+                        return;
+                      }
+                      
+                      // Validate using form validation
+                      const isValid = await getValues();
+                      const channelNameError = errors.msTeamsChannelName;
+                      const teamIdError = errors.msTeamsTeamId;
+                      
+                      if (channelNameError || teamIdError) {
+                        setMsTeamsSaveStatus("error");
+                        setTimeout(() => setMsTeamsSaveStatus("idle"), 2000);
+                        return;
+                      }
+                      
+                      // Save the data
+                      setMsTeamsSaveStatus("saving");
+                      
+                      // Simulate save operation (data is already being saved via watch subscription)
+                      setTimeout(() => {
+                        setMsTeamsSaveStatus("saved");
+                        setTimeout(() => setMsTeamsSaveStatus("idle"), 2000);
+                      }, 500);
+                    }}
+                    className="flex gap-2 items-center bg-blue-600 text-white rounded-md px-4 py-2 cursor-pointer hover:bg-blue-700 whitespace-nowrap transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={msTeamsSaveStatus === "saving"}
+                  >
+                    <Save size={16} />
+                    {msTeamsSaveStatus === "saving" 
+                      ? "Saving..." 
+                      : msTeamsSaveStatus === "saved" 
+                      ? "Saved!" 
+                      : msTeamsSaveStatus === "error"
+                      ? "Error"
+                      : "Save"}
+                  </button>
+                  {msTeamsSaveStatus === "saved" && (
+                    <span className="text-sm text-green-600 font-medium">Microsoft Teams settings saved successfully</span>
+                  )}
+                  {msTeamsSaveStatus === "error" && (
+                    <span className="text-sm text-red-600 font-medium">Please fill in all required fields</span>
                   )}
                 </div>
               </div>

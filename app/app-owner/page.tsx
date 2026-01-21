@@ -284,7 +284,7 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
 };
 
 function AppOwnerContent() {
-  const { queueAction, isVisible: isActionPanelVisible, registerGridApi, reset } = useActionPanel();
+  const { queueAction, isVisible: isActionPanelVisible, registerGridApi, reset, recalculateCount } = useActionPanel();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [selected, setSelected] = useState<{ [key: string]: number | null }>(
@@ -1000,159 +1000,184 @@ function AppOwnerContent() {
 
   const detailCellRenderer = useCallback(DetailCellRenderer, []);
 
-  const [columnDefs, setColumnDefs] = useState<ColDef[]>([
-    {
-      field: "status",
-      headerName: "Status",
-      hide: true,
-      filter: true,
-    },
-    {
-      field: "entitlementName",
-      headerName: "Entitlement",
-      wrapText: true,
-      autoHeight: true,
-      enableRowGroup: true,
-      hide: isGroupedByEntitlementCheckbox || groupByOption === "Entitlements", // Hide when grouped (group column will show it)
-      cellStyle: {
-        display: 'flex',
-        alignItems: 'flex-start',
-        justifyContent: 'flex-start',
-        padding: '8px',
-        whiteSpace: 'normal',
-        wordWrap: 'break-word',
-        overflow: 'visible',
-        textAlign: 'left',
+  const columnDefs = useMemo<ColDef[]>(() => {
+    const isGrouped = isGroupedByEntitlementCheckbox || groupByOption === "Entitlements";
+    
+    return [
+      {
+        field: "status",
+        headerName: "Status",
+        hide: true,
+        filter: true,
       },
-      cellRenderer: (params: ICellRendererParams) => {
-        // Check if this is a group row
-        if (params.node.group) {
+      {
+        field: "entitlementName",
+        headerName: "Entitlement",
+        wrapText: true,
+        autoHeight: true,
+        enableRowGroup: true,
+        hide: isGrouped, // Hide when grouped (group column will show it)
+        cellStyle: {
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'flex-start',
+          padding: '8px',
+          whiteSpace: 'normal',
+          wordWrap: 'break-word',
+          overflow: 'visible',
+          textAlign: 'left',
+        },
+        cellRenderer: (params: ICellRendererParams) => {
+          // Check if this is a group row
+          if (params.node.group) {
+            return (
+              <div className="flex flex-col gap-1 w-full">
+                <span className="ag-group-value font-bold">{params.value}</span>
+                {params.data?.entitlementDescription && (
+                  <span className="text-sm text-gray-600 break-words">
+                    {params.data.entitlementDescription}
+                  </span>
+                )}
+              </div>
+            );
+          }
+          // Regular row - show only entitlement name
           return (
-            <div className="flex flex-col gap-1 w-full">
-              <span className="ag-group-value font-bold">{params.value}</span>
-              {params.data?.entitlementDescription && (
-                <span className="text-sm text-gray-600 break-words">
-                  {params.data.entitlementDescription}
-                </span>
-              )}
+            <span className="text-gray-800 break-words font-bold">
+              {params.value}
+            </span>
+          );
+        },
+      },
+      { 
+        field: "entitlementType", 
+        headerName: "Type", 
+        width: isGrouped ? undefined : 100,
+        flex: isGrouped ? 1 : undefined,
+        pinned: false,
+      },
+      {
+        field: "accountName",
+        headerName: "Account",
+        width: isGrouped ? undefined : 150,
+        flex: isGrouped ? 1.5 : undefined,
+        cellRenderer: (params: ICellRendererParams) => {
+          const risk = params.data?.accountName || "Low";
+          const riskColor =
+            risk === "High" ? "red" : risk === "Medium" ? "orange" : "green";
+          return <span style={{ color: riskColor }}>{risk}</span>;
+        },
+      },
+      {
+        field: "risk",
+        headerName: "Risk",
+        width: 100,
+        hide: true,
+        cellRenderer: (params: ICellRendererParams) => {
+          const risk = params.data?.risk || "Low";
+          const riskColor =
+            risk === "High" ? "red" : risk === "Medium" ? "orange" : "green";
+          return <span style={{ color: riskColor }}>{risk}</span>;
+        },
+      },
+      {
+        field: "userName",
+        headerName: "Identity",
+        width: isGrouped ? undefined : 180,
+        flex: isGrouped ? 1.8 : undefined,
+        valueFormatter: (params) => formatDisplayName(params.value),
+      },
+      {
+        field: "lastLoginDate",
+        headerName: "Last Login",
+        enableRowGroup: true,
+        width: isGrouped ? undefined : 130,
+        flex: isGrouped ? 1.3 : undefined,
+        valueFormatter: (params) => formatDateMMDDYY(params.value),
+      },
+      {
+        field: "aiInsights",
+        headerName: "Insights",
+        width: isGrouped ? undefined : 100,
+        flex: isGrouped ? 1 : undefined,
+        cellRenderer: (params: ICellRendererParams) => {
+          const icon =
+            params.value === "thumbs-up" ? (
+              <svg width="21" height="16" viewBox="0 0 21 18" className="m-auto">
+                <path
+                  fill="#34C759"
+                  d="M3.76 7.5V18.76H0V7.5H3.76ZM18.76 6.24C18.9277 6.23138 19.0954 6.25807 19.2522 6.31834C19.409 6.37861 19.5513 6.47112 19.6701 6.58989C19.7889 6.70866 19.8814 6.85103 19.9417 7.00781C20.0019 7.16458 20.0286 7.33226 20.02 7.5V12.16C19.9961 12.3819 19.9353 12.5982 19.84 12.8L17 17.54C16.772 17.9044 16.4571 18.2066 16.0837 18.4195C15.7102 18.6324 15.2898 18.7494 14.86 18.76H7.5C6.83696 18.76 6.20107 18.4966 5.73223 18.0278C5.26339 17.5589 5 16.923 5 16.26V7.12C5.00576 6.55515 5.19531 6.00753 5.54 5.56L10 0C10.3342 0 10.6547 0.13275 10.891 0.369045C11.1273 0.605341 11.26 0.925827 11.26 1.26V6.26L18.76 6.24Z"
+                />
+              </svg>
+            ) : (
+              <svg
+                width="21"
+                height="16"
+                viewBox="0 0 21 18"
+                fill="none"
+                className="m-auto"
+              >
+                <path
+                  fill="#FF2D55"
+                  d="M3.76 11.24V0H0V11.26L3.76 11.24ZM18.76 12.5C18.9277 12.5086 19.0954 12.4819 19.2522 12.4217C19.409 12.3614 19.5513 12.2689 19.6701 12.1501C19.7889 12.0313 19.8814 11.889 19.9417 11.7322C20.0019 11.5754 20.0286 11.4077 20.02 11.24V6.58C19.9961 6.35812 19.9353 6.1418 19.84 5.94L17 1.2C16.7678 0.836499 16.4487 0.53649 16.0717 0.327006C15.6946 0.117522 15.2713 0.00514447 14.84 0H7.5C6.83696 0 6.20107 0.263392 5.73223 0.732233C5.26339 1.20107 5 1.83696 5 2.5V11.62C5 12.1933 5.18 12.7133 5.54 13.18L10 18.74C10.3342 18.74 10.6547 18.6073 10.891 18.371C11.1273 18.1347 11.26 17.8142 11.26 17.48V12.48L18.76 12.5Z"
+                />
+              </svg>
+            );
+          return (
+            <div
+              className="flex flex-col gap-0 mt-2 cursor-pointer hover:bg-gray-100 p-2 rounded transition-colors duration-200 ai-insights-cell"
+              title="Click to view details"
+            >
+              <span className="text-gray-800">{icon}</span>
             </div>
           );
-        }
-        // Regular row - show only entitlement name
-        return (
-          <span className="text-gray-800 break-words font-bold">
-            {params.value}
-          </span>
-        );
+        },
+        onCellClicked: handleOpen,
       },
-    },
-    { 
-      field: "entitlementType", 
-      headerName: "Type", 
-      width: 100,
-      pinned: false, // Ensure it's not pinned, appears right after group column
-    },
-    {
-      field: "accountName",
-      headerName: "Account",
-      width: 150,
-      // cellRenderer: "agGroupCellRenderer",
-      // cellClass: "ag-cell-no-padding",
-      cellRenderer: (params: ICellRendererParams) => {
-        const risk = params.data?.accountName || "Low";
-        const riskColor =
-          risk === "High" ? "red" : risk === "Medium" ? "orange" : "green";
-        return <span style={{ color: riskColor }}>{risk}</span>;
-      },
-    },
-    {
-      field: "risk",
-      headerName: "Risk",
-      width: 100,
-      hide: true,
-      cellRenderer: (params: ICellRendererParams) => {
-        const risk = params.data?.risk || "Low";
-        const riskColor =
-          risk === "High" ? "red" : risk === "Medium" ? "orange" : "green";
-        return <span style={{ color: riskColor }}>{risk}</span>;
-      },
-    },
-    {
-      field: "userName",
-      headerName: "Identity",
-      width: 180,
-      valueFormatter: (params) => formatDisplayName(params.value),
-    },
-    {
-      field: "lastLoginDate",
-      headerName: "Last Login",
-      enableRowGroup: true,
-      width: 130,
-      valueFormatter: (params) => formatDateMMDDYY(params.value),
-      // cellRenderer: (params: ICellRendererParams) => (
-      //   </div>
-      // ),
-    },
-    {
-      field: "aiInsights",
-      headerName: "Insights",
-      width: 100,
-      cellRenderer: (params: ICellRendererParams) => {
-        const icon =
-          params.value === "thumbs-up" ? (
-            <svg width="21" height="16" viewBox="0 0 21 18" className="m-auto">
-              <path
-                fill="#34C759"
-                d="M3.76 7.5V18.76H0V7.5H3.76ZM18.76 6.24C18.9277 6.23138 19.0954 6.25807 19.2522 6.31834C19.409 6.37861 19.5513 6.47112 19.6701 6.58989C19.7889 6.70866 19.8814 6.85103 19.9417 7.00781C20.0019 7.16458 20.0286 7.33226 20.02 7.5V12.16C19.9961 12.3819 19.9353 12.5982 19.84 12.8L17 17.54C16.772 17.9044 16.4571 18.2066 16.0837 18.4195C15.7102 18.6324 15.2898 18.7494 14.86 18.76H7.5C6.83696 18.76 6.20107 18.4966 5.73223 18.0278C5.26339 17.5589 5 16.923 5 16.26V7.12C5.00576 6.55515 5.19531 6.00753 5.54 5.56L10 0C10.3342 0 10.6547 0.13275 10.891 0.369045C11.1273 0.605341 11.26 0.925827 11.26 1.26V6.26L18.76 6.24Z"
+      { field: "userType", headerName: "User Status", flex: 2, hide: true },
+      { field: "department", headerName: "User Dept", flex: 2, hide: true },
+      { field: "manager", headerName: "User Manager", flex: 2, hide: true },
+      {
+        field: "actions",
+        headerName: "Actions",
+        flex: 2,
+        cellRenderer: (params: ICellRendererParams) => {
+          // Check if current row is selected
+          const isCurrentRowSelected = params.node?.isSelected() || false;
+          
+          // Check if any other row is selected
+          let hasOtherSelectedRows = false;
+          if (params.api) {
+            const selectedRows = params.api.getSelectedRows();
+            hasOtherSelectedRows = selectedRows.some((row: any) => {
+              const rowId = row.lineItemId || row.accountLineItemId || row.taskId || `${row.accountId}-${row.entitlementName}`;
+              const currentRowId = params.data?.lineItemId || params.data?.accountLineItemId || params.data?.taskId || `${params.data?.accountId}-${params.data?.entitlementName}`;
+              return rowId === currentRowId ? false : !row.group;
+            });
+          }
+          
+          // Disable Action column if current row is NOT selected but some other row IS selected
+          const shouldDisable = !isCurrentRowSelected && hasOtherSelectedRows;
+
+          return (
+            <div className={shouldDisable ? "opacity-50 pointer-events-none" : ""}>
+              <ActionButtons
+                api={params.api}
+                selectedRows={[params.data]}
+                context="entitlement"
+                reviewerId={reviewerId}
+                certId={certificationId}
+                selectedFilters={selectedFilters}
+                // Removed onActionSuccess to prevent table refresh on action button clicks
+                // Table will refresh only when actions are actually submitted via the Submit button
               />
-            </svg>
-          ) : (
-            <svg
-              width="21"
-              height="16"
-              viewBox="0 0 21 18"
-              fill="none"
-              className="m-auto"
-            >
-              <path
-                fill="#FF2D55"
-                d="M3.76 11.24V0H0V11.26L3.76 11.24ZM18.76 12.5C18.9277 12.5086 19.0954 12.4819 19.2522 12.4217C19.409 12.3614 19.5513 12.2689 19.6701 12.1501C19.7889 12.0313 19.8814 11.889 19.9417 11.7322C20.0019 11.5754 20.0286 11.4077 20.02 11.24V6.58C19.9961 6.35812 19.9353 6.1418 19.84 5.94L17 1.2C16.7678 0.836499 16.4487 0.53649 16.0717 0.327006C15.6946 0.117522 15.2713 0.00514447 14.84 0H7.5C6.83696 0 6.20107 0.263392 5.73223 0.732233C5.26339 1.20107 5 1.83696 5 2.5V11.62C5 12.1933 5.18 12.7133 5.54 13.18L10 18.74C10.3342 18.74 10.6547 18.6073 10.891 18.371C11.1273 18.1347 11.26 17.8142 11.26 17.48V12.48L18.76 12.5Z"
-              />
-            </svg>
+            </div>
           );
-        return (
-          <div
-            className="flex flex-col gap-0 mt-2 cursor-pointer hover:bg-gray-100 p-2 rounded transition-colors duration-200 ai-insights-cell"
-            title="Click to view details"
-          >
-            <span className="text-gray-800">{icon}</span>
-          </div>
-        );
+        },
       },
-      onCellClicked: handleOpen,
-    },
-    { field: "userType", headerName: "User Status", flex: 2, hide: true },
-    { field: "department", headerName: "User Dept", flex: 2, hide: true },
-    { field: "manager", headerName: "User Manager", flex: 2, hide: true },
-    {
-      field: "actions",
-      headerName: "Actions",
-      flex: 2,
-      cellRenderer: (params: ICellRendererParams) => {
-        return (
-          <ActionButtons
-            api={params.api}
-            selectedRows={[params.data]}
-            context="entitlement"
-            reviewerId={reviewerId}
-            certId={certificationId}
-            // Removed onActionSuccess to prevent table refresh on action button clicks
-            // Table will refresh only when actions are actually submitted via the Submit button
-          />
-        );
-      },
-    },
-  ]);
+    ];
+  }, [isGroupedByEntitlementCheckbox, groupByOption, reviewerId, certificationId, selectedFilters]);
+
 
   const groupableColumns = useMemo(() => {
     return columnDefs
@@ -1566,7 +1591,7 @@ function AppOwnerContent() {
       });
       return {
         minWidth: 300,
-        flex: 1,
+        flex: isGroupedByEntitlementCheckbox || groupByOption === "Entitlements" ? 2 : 1,
         autoHeight: true, // Allow row to expand to show description
         wrapText: true,
         cellRendererParams: {
@@ -1637,6 +1662,8 @@ function AppOwnerContent() {
           if (isGroupedByEntitlementCheckbox && fieldToGroup === "entitlementName") {
             setTimeout(() => {
               if (gridApiRef.current) {
+                // Size columns to fit when grouped by entitlement
+                gridApiRef.current.sizeColumnsToFit();
                 // Refresh all group rows to ensure descriptions are displayed
                 const groupNodes: any[] = [];
                 gridApiRef.current.forEachNode((node: any) => {
@@ -1657,6 +1684,18 @@ function AppOwnerContent() {
       }, 100);
     }
   }, [isGridReady, groupByColumn, filteredRowData.length, isGroupedByEntitlementCheckbox, groupByOption]);
+
+  // Size columns to fit when grouping state changes
+  useEffect(() => {
+    if (isGridReady && gridApiRef.current) {
+      // Small delay to ensure columns are updated
+      setTimeout(() => {
+        if (gridApiRef.current) {
+          gridApiRef.current.sizeColumnsToFit();
+        }
+      }, 100);
+    }
+  }, [isGridReady, isGroupedByEntitlementCheckbox, groupByOption]);
 
   // Refresh group cells when filteredRowData changes and grouping is active
   useEffect(() => {
@@ -1702,7 +1741,7 @@ function AppOwnerContent() {
       <div className="mb-4">
         <BackButton text="Back" onClick={() => router.push("/access-review")} />
       </div>
-      <div className="max-w-full">
+      <div className={isGroupedByEntitlementCheckbox || groupByOption === "Entitlements" ? "w-full" : "max-w-full"}>
         {}
         <Accordion
           iconClass="top-1 right-0 rounded-full text-white bg-purple-800"
@@ -1752,6 +1791,12 @@ function AppOwnerContent() {
                       // Apply grouping immediately if grid is ready
                       if (isGridReady && gridApiRef.current) {
                         applyRowGrouping("entitlementName");
+                        // Size columns to fit full width after grouping
+                        setTimeout(() => {
+                          if (gridApiRef.current) {
+                            gridApiRef.current.sizeColumnsToFit();
+                          }
+                        }, 400);
                       }
                     } else {
                       // When unchecked: Remove grouping - show flat list
@@ -1761,6 +1806,12 @@ function AppOwnerContent() {
                       // Remove grouping immediately if grid is ready
                       if (isGridReady && gridApiRef.current) {
                         applyRowGrouping(null);
+                        // Size columns to fit after ungrouping
+                        setTimeout(() => {
+                          if (gridApiRef.current) {
+                            gridApiRef.current.sizeColumnsToFit();
+                          }
+                        }, 200);
                       }
                     }
                   }}
@@ -1872,7 +1923,7 @@ function AppOwnerContent() {
                 color="#e73c3cff"
               />
             </button>
-            <ColumnSettings
+            {/* <ColumnSettings
               columnDefs={columnDefs}
               gridApi={gridApiRef.current}
               visibleColumns={() => {
@@ -1884,7 +1935,7 @@ function AppOwnerContent() {
                 });
                 return visibleCols;
               }}
-            />
+            /> */}
           </div>
         </div>
 
@@ -1907,8 +1958,8 @@ function AppOwnerContent() {
         )}
       </div>
 
-      <div className="flex w-full relative">
-        <div className="flex-1">
+      <div className={`flex w-full relative ${isGroupedByEntitlementCheckbox || groupByOption === "Entitlements" ? "" : ""}`}>
+        <div className={isGroupedByEntitlementCheckbox || groupByOption === "Entitlements" ? "w-full" : "flex-1"}>
           {loading ? (
             <div className="text-center py-4">
               <span className="ag-overlay-loading-center">
@@ -1932,7 +1983,7 @@ function AppOwnerContent() {
               </span>
             </div>
           ) : (
-            <div className="w-full">
+            <div className={`w-full ${isGroupedByEntitlementCheckbox || groupByOption === "Entitlements" ? "max-w-full" : ""}`}>
               <AgGridReact
                 rowData={filteredRowData}
                 getRowId={(params: GetRowIdParams) =>
@@ -2017,6 +2068,7 @@ function AppOwnerContent() {
                     new Date().toISOString()
                   );
                   gridApiRef.current = params.api;
+                  // Size columns to fit - will be called again after grouping if needed
                   params.api.sizeColumnsToFit();
                   setIsGridReady(true);
                   // Register grid API with ActionPanelContext so it can clear selections
@@ -2026,6 +2078,12 @@ function AppOwnerContent() {
                   if (isGroupedByEntitlementCheckbox) {
                     setTimeout(() => {
                       applyRowGrouping("entitlementName");
+                      // Size columns to fit when grouped
+                      setTimeout(() => {
+                        if (gridApiRef.current) {
+                          gridApiRef.current.sizeColumnsToFit();
+                        }
+                      }, 200);
                     }, 100);
                   }
                   
@@ -2098,6 +2156,19 @@ function AppOwnerContent() {
                     });
                     
                     setIsAllSelected(totalSelected === totalVisible && totalVisible > 0);
+                    
+                    // Recalculate action count based on selected rows
+                    // When rows are selected/unselected, update the action count to reflect only selected rows
+                    const selectedItemIds = new Set<string>();
+                    rows.forEach((row: any) => {
+                      const lineItemId = row.lineItemId || row.id;
+                      if (lineItemId) {
+                        selectedItemIds.add(`entitlement-${lineItemId}`);
+                      }
+                    });
+                    // Recalculate count - if rows are selected, only count actions for selected rows
+                    // If no rows selected, show count 0 (all actions removed from queue)
+                    recalculateCount(selectedItemIds);
                   }
                 }}
                 pagination={true}
@@ -2105,8 +2176,8 @@ function AppOwnerContent() {
                 quickFilterText={quickFilterText}
                 overlayLoadingTemplate={`<span class="ag-overlay-loading-center">⏳ Loading certification data...</span>`}
                 overlayNoRowsTemplate={`<span class="ag-overlay-loading-center">No data to display.</span>`}
-                suppressHorizontalScroll={true}
-                className="ag-theme-quartz ag-main"
+                suppressHorizontalScroll={!(isGroupedByEntitlementCheckbox || groupByOption === "Entitlements")}
+                className={`ag-theme-quartz ag-main ${isGroupedByEntitlementCheckbox || groupByOption === "Entitlements" ? "w-full" : ""}`}
               />
               <div className="mt-4">
                 <CustomPagination
@@ -2147,6 +2218,7 @@ function AppOwnerContent() {
               context="entitlement"
               reviewerId={reviewerId}
               certId={certificationId}
+              selectedFilters={selectedFilters}
               hideTeamsIcon={true}
             />
           </div>,

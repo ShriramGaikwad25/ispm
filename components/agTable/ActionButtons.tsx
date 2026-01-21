@@ -161,6 +161,15 @@ const ActionButtons = <T extends { status?: string }>({
   // Check if ANY selected item is explicitly set to Pending (undone) - if so, button should be unfilled
   const approveFilled = isPendingReset ? false : (isApprovePending || (!hasAnyPending && (isApproved || isApproveAction)));
   const rejectFilled = isPendingReset ? false : (isRejectPending || (!hasAnyPending && (isRejected || isRejectAction)));
+  
+  // Disable buttons if any selected row has a pending action (Approve, Reject, Remediate, or Delegate)
+  // This prevents changing actions once they've been set
+  const hasAnyPendingAction = selectedIds.some((id) => {
+    const pendingAction = getPendingAction(id);
+    return pendingAction === 'Approve' || pendingAction === 'Reject' || 
+           pendingAction === 'Remediate' || pendingAction === 'Delegate';
+  });
+  const buttonsDisabled = hasAnyPendingAction || isActionLoading;
 
   // API call to update actions
   const updateActions = async (actionType: string, justification: string) => {
@@ -219,6 +228,15 @@ const ActionButtons = <T extends { status?: string }>({
       // Check if we're setting to Pending
       const isTogglingToPending = actionType === 'Pending';
       
+      console.log('[ActionButtons] updateActions called', {
+        actionType,
+        isTogglingToPending,
+        isCertifyFilterActive,
+        isRejectFilterActive,
+        selectedIds,
+        definedRowsCount: definedRows.length
+      });
+      
       // In certify or reject filter, Pending actions should always be queued and counted
       // (they represent undoing approved/rejected actions)
       // Outside these filters, only queue Pending if there are existing actions to undo
@@ -229,8 +247,78 @@ const ActionButtons = <T extends { status?: string }>({
                  pendingAction === 'Remediate' || pendingAction === 'Delegate';
         });
 
-        if (!hasExistingQueuedActions) {
-          // No existing queued actions to undo, just update local state and don't queue
+        console.log('[ActionButtons] Checking for submitted actions', {
+          hasExistingQueuedActions,
+          selectedIds,
+          pendingById: Object.fromEntries(Object.entries(pendingById).filter(([k]) => selectedIds.includes(k)))
+        });
+
+        // Also check if any selected row has an approved/rejected status (already submitted to server)
+        // This means we need to queue the undo action to revert it
+        const hasSubmittedActions = definedRows.some((row: any) => {
+          const rowStatus = (row.status || "").toString().trim().toLowerCase();
+          const rowAction = (row.action || "").toString().trim().toLowerCase();
+          const rowRecommendation = (row.recommendation || "").toString().trim().toLowerCase();
+          
+          // Check status field
+          const hasApprovedStatus = rowStatus === "approved" || rowStatus === "certified";
+          const hasRejectedStatus = rowStatus === "rejected" || rowStatus === "revoked";
+          
+          // Check action field
+          const hasApproveAction = rowAction === "approve";
+          const hasRejectAction = rowAction === "reject";
+          
+          // Check recommendation field (sometimes action is stored here)
+          const hasApproveRecommendation = rowRecommendation === "approve";
+          const hasRejectRecommendation = rowRecommendation === "reject";
+          
+          const result = hasApprovedStatus || hasRejectedStatus || 
+                        hasApproveAction || hasRejectAction ||
+                        hasApproveRecommendation || hasRejectRecommendation;
+          
+          if (result) {
+            console.log('[ActionButtons] Found submitted action to undo:', {
+              rowStatus,
+              rowAction,
+              rowRecommendation,
+              lineItemId: row.lineItemId || row.id,
+              hasApprovedStatus,
+              hasRejectedStatus,
+              hasApproveAction,
+              hasRejectAction,
+              hasApproveRecommendation,
+              hasRejectRecommendation
+            });
+          }
+          
+          return result;
+        });
+
+        // Compute current button fill state to check if there's something to undo
+        // This is a more reliable check than trying to detect all possible data structures
+        const currentApproveFilled = isPendingReset ? false : (isApprovePending || (!hasAnyPending && (isApproved || isApproveAction)));
+        const currentRejectFilled = isPendingReset ? false : (isRejectPending || (!hasAnyPending && (isRejected || isRejectAction)));
+        const buttonWasFilled = currentApproveFilled || currentRejectFilled;
+        
+        console.log('[ActionButtons] Undo decision', {
+          hasExistingQueuedActions,
+          hasSubmittedActions,
+          buttonWasFilled,
+          currentApproveFilled,
+          currentRejectFilled,
+          isApproved,
+          isRejected,
+          isApproveAction,
+          isRejectAction,
+          isApprovePending,
+          isRejectPending,
+          willQueue: hasExistingQueuedActions || hasSubmittedActions || buttonWasFilled
+        });
+        
+        if (!hasExistingQueuedActions && !hasSubmittedActions && !buttonWasFilled) {
+          // No existing queued actions to undo AND no submitted actions to revert AND button wasn't filled,
+          // just update local state and don't queue
+          console.log('[ActionButtons] No actions to undo, skipping queue');
           setPendingById((prev) => {
             const next = { ...prev } as Record<string, 'Approve' | 'Reject' | 'Pending' | 'Remediate' | 'Delegate'>;
             selectedIds.forEach((id) => {
@@ -246,12 +334,96 @@ const ActionButtons = <T extends { status?: string }>({
           }, 100);
           return;
         }
+        
+        console.log('[ActionButtons] Queuing undo action', {
+          reason: hasExistingQueuedActions ? 'hasExistingQueuedActions' : 
+                  hasSubmittedActions ? 'hasSubmittedActions' : 
+                  'buttonWasFilled'
+        });
+        
+        // When undoing (setting to Pending), we need to count it so the submit button appears
+        // The ActionPanelContext only counts Pending actions if isCertifyFilter or isRejectFilter is true
+        // So we set the appropriate flag based on what was being undone
+        const isUndoingApprove = currentApproveFilled || (hasSubmittedActions && 
+          definedRows.some((row: any) => {
+            const status = (row.status || "").toString().trim().toLowerCase();
+            const action = (row.action || "").toString().trim().toLowerCase();
+            const recommendation = (row.recommendation || "").toString().trim().toLowerCase();
+            return status === "approved" || status === "certified" || 
+                   action === "approve" || recommendation === "approve";
+          }));
+        const isUndoingReject = currentRejectFilled || (hasSubmittedActions && 
+          definedRows.some((row: any) => {
+            const status = (row.status || "").toString().trim().toLowerCase();
+            const action = (row.action || "").toString().trim().toLowerCase();
+            const recommendation = (row.recommendation || "").toString().trim().toLowerCase();
+            return status === "rejected" || status === "revoked" || 
+                   action === "reject" || recommendation === "reject";
+          }));
+        
+        // If buttonWasFilled is true, we're definitely undoing something, so ensure it's counted
+        // Set the filter flag to ensure the action count increases and submit button appears
+        const shouldCountUndo = buttonWasFilled || hasExistingQueuedActions || hasSubmittedActions;
+        
+        // Queue the action with filter flags set to ensure it's counted
+        // This makes the submit button appear when undoing actions
+        console.log('[ActionButtons] Calling queueAction for undo', {
+          actionType,
+          payload,
+          isUndoingApprove,
+          isUndoingReject,
+          buttonWasFilled,
+          shouldCountUndo,
+          willCountAsCertify: (shouldCountUndo && isUndoingApprove) || isCertifyFilterActive,
+          willCountAsReject: (shouldCountUndo && isUndoingReject) || isRejectFilterActive,
+          selectedIds
+        });
+        queueAction({ 
+          reviewerId, 
+          certId, 
+          payload, 
+          count: 0,
+          // Set filter flags to ensure undo actions are counted
+          // If undoing approve, set isCertifyFilter; if undoing reject, set isRejectFilter
+          // If we can't determine or both, default to isCertifyFilter to ensure it's counted
+          isCertifyFilter: (shouldCountUndo && (isUndoingApprove || !isUndoingReject)) || isCertifyFilterActive,
+          isRejectFilter: (shouldCountUndo && isUndoingReject) || isRejectFilterActive
+        });
+        console.log('[ActionButtons] queueAction called successfully for undo');
+        
+        // Mark local pending state for button visuals (both state and module-level storage)
+        setPendingById((prev) => {
+          const next = { ...prev } as Record<string, 'Approve' | 'Reject' | 'Pending' | 'Remediate' | 'Delegate'>;
+          selectedIds.forEach((id) => {
+            next[id] = 'Pending';
+            pendingActionsStorage.set(id, 'Pending');
+          });
+          return next;
+        });
+        
+        setLastAction(actionType);
+        setError(null);
+        
+        // End local loading state quickly (no overlay)
+        setTimeout(() => {
+          setIsActionLoading(false);
+        }, 100);
+        
+        // Counter is managed by queueAction. Do not refresh here; Submit handles it.
+        return;
       }
 
       // Queue the action - ActionPanelContext will:
       // 1. Remove any existing actions for the same items (overlap detection)
       // 2. Add the new action
       // 3. Recalculate count (including Pending if in certify or reject filter)
+      console.log('[ActionButtons] Calling queueAction', {
+        actionType,
+        payload,
+        isCertifyFilter: isCertifyFilterActive,
+        isRejectFilter: isRejectFilterActive,
+        selectedIds
+      });
       queueAction({ 
         reviewerId, 
         certId, 
@@ -260,6 +432,7 @@ const ActionButtons = <T extends { status?: string }>({
         isCertifyFilter: isCertifyFilterActive,
         isRejectFilter: isRejectFilterActive
       });
+      console.log('[ActionButtons] queueAction called successfully');
 
        // Mark local pending state for button visuals (both state and module-level storage)
        setPendingById((prev) => {
@@ -358,14 +531,37 @@ const ActionButtons = <T extends { status?: string }>({
     e.stopPropagation();
     if (!api || definedRows.length === 0 || isActionLoading) return;
     
+    console.log('[ActionButtons] handleApprove called', {
+      isAllPendingReset,
+      isPendingReset,
+      isApprovePending,
+      isRejectPending,
+      isApproved,
+      isApproveAction,
+      selectedIds,
+      rowData: definedRows.map((r: any) => ({
+        lineItemId: r.lineItemId || r.id,
+        status: r.status,
+        action: r.action,
+        recommendation: r.recommendation
+      }))
+    });
+    
     // If currently set to Pending (undone) and button is clicked, restore to Approve
     if (isAllPendingReset || (isPendingReset && !isApprovePending && !isRejectPending)) {
+      console.log('[ActionButtons] Restoring to Approve from Pending state');
       await updateActions("Approve", getJustification("Approved via UI"));
     }
     // If already marked approve (pending state) OR underlying state approved, toggle to Pending
     else if (isApprovePending || isApproved || isApproveAction) {
+      console.log('[ActionButtons] Toggling to Pending (undo)', {
+        isApprovePending,
+        isApproved,
+        isApproveAction
+      });
       await updateActions("Pending", getJustification("Reset to pending"));
     } else {
+      console.log('[ActionButtons] Setting to Approve');
       await updateActions("Approve", getJustification("Approved via UI"));
     }
   };
@@ -374,14 +570,37 @@ const ActionButtons = <T extends { status?: string }>({
     e.stopPropagation();
     if (!api || definedRows.length === 0 || isActionLoading) return;
     
+    console.log('[ActionButtons] handleRevoke called', {
+      isAllPendingReset,
+      isPendingReset,
+      isApprovePending,
+      isRejectPending,
+      isRejected,
+      isRejectAction,
+      selectedIds,
+      rowData: definedRows.map((r: any) => ({
+        lineItemId: r.lineItemId || r.id,
+        status: r.status,
+        action: r.action,
+        recommendation: r.recommendation
+      }))
+    });
+    
     // If currently set to Pending (undone) and button is clicked, restore to Reject
     if (isAllPendingReset || (isPendingReset && !isApprovePending && !isRejectPending)) {
+      console.log('[ActionButtons] Restoring to Reject from Pending state');
       await updateActions("Reject", getJustification("Revoked via UI"));
     }
     // If already marked reject (pending state) OR underlying state rejected, toggle to Pending
     else if (isRejectPending || isRejected || isRejectAction) {
+      console.log('[ActionButtons] Toggling to Pending (undo)', {
+        isRejectPending,
+        isRejected,
+        isRejectAction
+      });
       await updateActions("Pending", getJustification("Reset to pending"));
     } else {
+      console.log('[ActionButtons] Setting to Reject');
       await updateActions("Reject", getJustification("Revoked via UI"));
     }
   };
@@ -753,12 +972,12 @@ const ActionButtons = <T extends { status?: string }>({
           onClick={handleApprove}
           title={approveFilled ? "Undo" : "Approve"}
           aria-label="Approve selected rows"
-          disabled={isActionLoading}
-          className={`p-1 rounded flex items-center justify-center ${isActionLoading ? "opacity-60 cursor-not-allowed" : ""}`}
+          disabled={buttonsDisabled}
+          className={`p-1 rounded flex items-center justify-center ${buttonsDisabled ? "opacity-60 cursor-not-allowed" : ""}`}
         >
           <div className="relative inline-flex items-center justify-center w-8 h-8">
             <CircleCheck
-              className={isActionLoading ? "cursor-not-allowed" : "cursor-pointer"}
+              className={buttonsDisabled ? "cursor-not-allowed" : "cursor-pointer"}
               color="#1c821cff"
               strokeWidth="1"
               size="32"
@@ -787,12 +1006,12 @@ const ActionButtons = <T extends { status?: string }>({
           onClick={handleRevoke}
           title={rejectFilled ? "Undo" : "Revoke"}
           aria-label="Revoke selected rows"
-          disabled={isActionLoading}
-          className={`p-1 rounded flex items-center justify-center ${isActionLoading ? "opacity-60 cursor-not-allowed" : ""}`}
+          disabled={buttonsDisabled}
+          className={`p-1 rounded flex items-center justify-center ${buttonsDisabled ? "opacity-60 cursor-not-allowed" : ""}`}
         >
           <div className="relative inline-flex items-center justify-center w-8 h-8">
             <CircleX
-              className={isActionLoading ? "cursor-not-allowed" : "cursor-pointer"}
+              className={buttonsDisabled ? "cursor-not-allowed" : "cursor-pointer"}
               color="#FF2D55"
               strokeWidth="1"
               size="32"

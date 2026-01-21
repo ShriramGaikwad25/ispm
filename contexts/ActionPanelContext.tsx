@@ -22,6 +22,7 @@ interface ActionPanelContextValue {
   submitAll: () => Promise<void>;
   reset: () => void;
   registerGridApi: (gridApi: GridApi | null, detailGridApis?: Map<string, GridApi>) => void;
+  recalculateCount: (selectedItemIds?: Set<string>) => void;
 }
 
 const ActionPanelContext = createContext<ActionPanelContextValue | undefined>(undefined);
@@ -223,6 +224,128 @@ export const ActionPanelProvider: React.FC<{ children: React.ReactNode }> = ({ c
     reset();
   }, [pendingActions, reset]);
 
+  const recalculateCount = useCallback((selectedItemIds?: Set<string>) => {
+    setPendingActions((currentActions) => {
+      // If selectedItemIds is provided and empty, remove all actions for unselected items
+      // If selectedItemIds is provided and not empty, keep only actions for selected items
+      // If selectedItemIds is undefined, keep all actions (recalculate count for all)
+      let filteredActions = currentActions;
+      
+      if (selectedItemIds !== undefined) {
+        if (selectedItemIds.size === 0) {
+          // No rows selected - remove all actions
+          filteredActions = [];
+        } else {
+          // Filter actions to keep only those for selected items
+          filteredActions = currentActions.map((action) => {
+            const filteredPayload: any = {
+              useraction: [],
+              accountAction: [],
+              entitlementAction: [],
+            };
+            
+            // Filter user actions
+            if (action.payload.useraction) {
+              filteredPayload.useraction = action.payload.useraction.filter((ua: any) => {
+                if (ua.userId) {
+                  return selectedItemIds.has(`user-${ua.userId}`);
+                }
+                return false;
+              });
+            }
+            
+            // Filter account actions
+            if (action.payload.accountAction) {
+              filteredPayload.accountAction = action.payload.accountAction.filter((aa: any) => {
+                if (aa.lineItemId) {
+                  return selectedItemIds.has(`account-${aa.lineItemId}`);
+                }
+                return false;
+              });
+            }
+            
+            // Filter entitlement actions
+            if (action.payload.entitlementAction) {
+              filteredPayload.entitlementAction = action.payload.entitlementAction.map((ea: any) => {
+                if (ea.lineItemIds && Array.isArray(ea.lineItemIds)) {
+                  const filteredLineItemIds = ea.lineItemIds.filter((id: string) => {
+                    return selectedItemIds.has(`entitlement-${id}`);
+                  });
+                  if (filteredLineItemIds.length > 0) {
+                    return {
+                      ...ea,
+                      lineItemIds: filteredLineItemIds
+                    };
+                  }
+                  return null;
+                }
+                return null;
+              }).filter(Boolean);
+            }
+            
+            // Only keep action if it has at least one filtered item
+            const hasItems = 
+              (filteredPayload.useraction && filteredPayload.useraction.length > 0) ||
+              (filteredPayload.accountAction && filteredPayload.accountAction.length > 0) ||
+              (filteredPayload.entitlementAction && filteredPayload.entitlementAction.length > 0);
+            
+            if (hasItems) {
+              return {
+                ...action,
+                payload: filteredPayload
+              };
+            }
+            return null;
+          }).filter(Boolean) as PendingActionPayload[];
+        }
+      }
+      
+      // Recalculate count based on filtered actions
+      const uniqueItemsWithActions = new Set<string>();
+      
+      filteredActions.forEach((action) => {
+        // Count Pending actions if we're in certify or reject filter mode (they represent undoing approved/rejected actions)
+        // Otherwise, skip counting Pending actions (unchecked actions)
+        const shouldCountPending = action.isCertifyFilter === true || action.isRejectFilter === true;
+        
+        if (action.payload.useraction) {
+          action.payload.useraction.forEach((ua: any) => {
+            if (ua.userId && ua.actionType) {
+              if (ua.actionType !== 'Pending' || shouldCountPending) {
+                uniqueItemsWithActions.add(`user-${ua.userId}`);
+              }
+            }
+          });
+        }
+        if (action.payload.accountAction) {
+          action.payload.accountAction.forEach((aa: any) => {
+            if (aa.lineItemId && aa.actionType) {
+              if (aa.actionType !== 'Pending' || shouldCountPending) {
+                uniqueItemsWithActions.add(`account-${aa.lineItemId}`);
+              }
+            }
+          });
+        }
+        if (action.payload.entitlementAction) {
+          action.payload.entitlementAction.forEach((ea: any) => {
+            if (ea.lineItemIds && Array.isArray(ea.lineItemIds) && ea.actionType) {
+              if (ea.actionType !== 'Pending' || shouldCountPending) {
+                ea.lineItemIds.forEach((id: string) => {
+                  if (id) uniqueItemsWithActions.add(`entitlement-${id}`);
+                });
+              }
+            }
+          });
+        }
+      });
+      
+      const actualCount = uniqueItemsWithActions.size;
+      setActionCount(actualCount);
+      
+      return filteredActions; // Return filtered actions
+    });
+  }, []);
+
   const value = useMemo(() => ({
     actionCount,
     isVisible: actionCount > 0,
@@ -230,7 +353,8 @@ export const ActionPanelProvider: React.FC<{ children: React.ReactNode }> = ({ c
     submitAll,
     reset,
     registerGridApi,
-  }), [actionCount, queueAction, submitAll, reset, registerGridApi]);
+    recalculateCount,
+  }), [actionCount, queueAction, submitAll, reset, registerGridApi, recalculateCount]);
 
   return (
     <ActionPanelContext.Provider value={value}>

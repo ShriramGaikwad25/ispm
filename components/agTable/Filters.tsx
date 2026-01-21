@@ -76,22 +76,20 @@ const Filters = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Sync with external value or initialSelected changes (e.g., when user changes)
+  // Sync with external value changes (controlled mode)
+  // Only sync with value prop, not initialSelected (which should only apply on mount)
   useEffect(() => {
-    const newValue = value || initialSelected;
-    if (newValue && newValue !== selectedFilter) {
-      setSelectedFilter(newValue);
-      if (appliedFilter) {
-        appliedFilter([newValue]);
-      }
-    } else if (!newValue && selectedFilter) {
-      // Clear selection if value is cleared
-      setSelectedFilter("");
-      if (appliedFilter) {
-        appliedFilter(["All"]);
+    if (value !== undefined) {
+      // Controlled mode: value prop takes precedence
+      if (value !== selectedFilter) {
+        setSelectedFilter(value);
+        if (appliedFilter) {
+          appliedFilter(value ? [value] : ["All"]);
+        }
       }
     }
-  }, [value, initialSelected, appliedFilter, selectedFilter]);
+    // Note: initialSelected is intentionally NOT in dependencies - it should only apply on mount
+  }, [value, appliedFilter, selectedFilter]);
 
   const toggleFilter = (filterValue: string) => {
     // If "All" is selected, set it as selected and pass ["All"] to callback
