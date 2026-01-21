@@ -1080,7 +1080,7 @@ function AppOwnerContent() {
     {
       field: "userName",
       headerName: "Identity",
-      width: 120,
+      width: 180,
       valueFormatter: (params) => formatDisplayName(params.value),
     },
     {
