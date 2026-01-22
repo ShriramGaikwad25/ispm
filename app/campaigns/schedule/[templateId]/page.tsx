@@ -17,30 +17,16 @@ import { apiRequestWithAuth } from "@/lib/auth";
 
 // Common timezones list
 const COMMON_TIMEZONES = [
-  { value: "UTC", label: "UTC (Coordinated Universal Time)" },
-  { value: "America/New_York", label: "Eastern Time (ET)" },
-  { value: "America/Chicago", label: "Central Time (CT)" },
-  { value: "America/Denver", label: "Mountain Time (MT)" },
-  { value: "America/Los_Angeles", label: "Pacific Time (PT)" },
-  { value: "America/Phoenix", label: "Arizona Time (MST)" },
-  { value: "America/Anchorage", label: "Alaska Time (AKT)" },
-  { value: "Pacific/Honolulu", label: "Hawaii Time (HST)" },
-  { value: "Europe/London", label: "London (GMT/BST)" },
-  { value: "Europe/Paris", label: "Paris (CET/CEST)" },
-  { value: "Europe/Berlin", label: "Berlin (CET/CEST)" },
-  { value: "Europe/Rome", label: "Rome (CET/CEST)" },
-  { value: "Europe/Madrid", label: "Madrid (CET/CEST)" },
-  { value: "Europe/Amsterdam", label: "Amsterdam (CET/CEST)" },
-  { value: "Asia/Dubai", label: "Dubai (GST)" },
-  { value: "Asia/Kolkata", label: "Mumbai/New Delhi (IST)" },
-  { value: "Asia/Singapore", label: "Singapore (SGT)" },
-  { value: "Asia/Hong_Kong", label: "Hong Kong (HKT)" },
-  { value: "Asia/Tokyo", label: "Tokyo (JST)" },
-  { value: "Asia/Shanghai", label: "Shanghai (CST)" },
-  { value: "Asia/Seoul", label: "Seoul (KST)" },
-  { value: "Australia/Sydney", label: "Sydney (AEDT/AEST)" },
-  { value: "Australia/Melbourne", label: "Melbourne (AEDT/AEST)" },
-  { value: "Pacific/Auckland", label: "Auckland (NZDT/NZST)" },
+  { value: "UTC", label: "UTC" },
+  { value: "Asia/Kolkata", label: "India" },
+  { value: "America/New_York", label: "US East" },
+  { value: "America/Chicago", label: "US Central" },
+  { value: "America/Los_Angeles", label: "US West" },
+  { value: "Europe/London", label: "UK" },
+  { value: "Europe/Berlin", label: "Germany" },
+  { value: "Australia/Sydney", label: "Australia" },
+  { value: "Asia/Tokyo", label: "Japan" },
+  { value: "Asia/Shanghai", label: "China" },
 ];
 
 const SchedulePage: React.FC = () => {
@@ -445,24 +431,6 @@ const SchedulePage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Duration */}
-              <div className="grid grid-cols-[200px_1fr] gap-6 items-start">
-                <label className="text-sm font-medium text-gray-700 pt-2">
-                  Duration
-                </label>
-                <div className="w-full max-w-md">
-                  <input
-                    type="text"
-                    readOnly
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 cursor-not-allowed"
-                    {...register("duration")}
-                  />
-                  {errors.duration?.message &&
-                    typeof errors.duration.message === "string" && (
-                      <p className="text-red-500 text-sm mt-1">{errors.duration.message}</p>
-                    )}
-                </div>
-              </div>
             </div>
           </div>
 
@@ -480,13 +448,12 @@ const SchedulePage: React.FC = () => {
                     <DateInput
                       control={control as unknown as Control<FieldValues>}
                       name="startDate"
-                      showTime={true}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
-                  <div className="w-100">
+                  <div className="w-60 max-w-sm">
                     <select
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       {...register("timezone")}
                     >
                       {COMMON_TIMEZONES.map((tz) => (
@@ -537,7 +504,6 @@ const SchedulePage: React.FC = () => {
                         {...register("recurrenceUnit")}
                       >
                         <option value="Days">Days</option>
-                        <option value="Weeks">Weeks</option>
                         <option value="Months">Months</option>
                       </select>
                     </div>
@@ -574,29 +540,6 @@ const SchedulePage: React.FC = () => {
                               endCondition !== "On" ? "opacity-50 cursor-not-allowed bg-gray-100" : ""
                             }`}
                             disabled={endCondition !== "On"}
-                          />
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="radio"
-                            value="After"
-                            {...register("endCondition")}
-                            className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-                          />
-                          <span className="text-sm text-gray-700">After</span>
-                        </label>
-                        <div className="ml-2 w-60">
-                          <input
-                            type="number"
-                            min="1"
-                            {...register("numberOfOccurrences")}
-                            disabled={endCondition !== "After"}
-                            className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                              endCondition !== "After" ? "opacity-50 cursor-not-allowed bg-gray-100" : ""
-                            }`}
-                            placeholder=""
                           />
                         </div>
                       </div>
