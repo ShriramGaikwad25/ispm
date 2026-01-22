@@ -109,7 +109,7 @@ const DateInput: React.FC<DateInputProps> = ({ control, className, name, showTim
         }
 
         return (
-          <div>
+          <div className="w-full">
             <DatePicker
               value={value || ""}
               onChange={(date) => {
@@ -119,6 +119,7 @@ const DateInput: React.FC<DateInputProps> = ({ control, className, name, showTim
               inputClass={className}
               format="MM/DD/YYYY"
               disabled={disabled}
+              containerClassName="w-full"
             />
             {error && <span className="text-red-500">{error.message}</span>}
           </div>

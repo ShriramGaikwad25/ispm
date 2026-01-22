@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useForm, Control, FieldValues } from "react-hook-form";
 import { createPortal } from "react-dom";
-import { Play, X, RotateCcw } from "lucide-react";
+import { Play, X, RotateCcw, Clock, Calendar, Repeat, CheckCircle, AlertCircle, Zap, Infinity } from "lucide-react";
 import MultiSelect from "@/components/MultiSelect";
 import { customOption, loadUsers, loadIspmApps } from "@/components/MsAsyncData";
 import { asterisk, userGroups, excludeUsers, defaultExpression } from "@/utils/utils";
@@ -12,8 +12,8 @@ import ToggleSwitch from "@/components/ToggleSwitch";
 import FileDropzone from "@/components/FileDropzone";
 import { BackButton } from "@/components/BackButton";
 import DateInput from "@/components/DatePicker";
-import { executeQuery } from "@/lib/api";
-import { apiRequestWithAuth } from "@/lib/auth";
+import { executeQuery, scheduleCampaign } from "@/lib/api";
+import { apiRequestWithAuth, getCookie, COOKIE_NAMES } from "@/lib/auth";
 
 // Common timezones list
 const COMMON_TIMEZONES = [
@@ -45,27 +45,80 @@ const SchedulePage: React.FC = () => {
   const [stagingDuration, setStagingDuration] = useState("");
   const [stagingDurationUnit, setStagingDurationUnit] = useState("Days");
   const [isStartingCampaign, setIsStartingCampaign] = useState(false);
+  const [isScheduling, setIsScheduling] = useState(false);
+  // Triggers state
+  const [triggersLoading, setTriggersLoading] = useState(false);
+  const [triggersError, setTriggersError] = useState<string | null>(null);
+  const [triggersData, setTriggersData] = useState<any>(null);
   // Run history state
   const [runHistoryLoading, setRunHistoryLoading] = useState(false);
   const [runHistoryError, setRunHistoryError] = useState<string | null>(null);
   const [runHistoryData, setRunHistoryData] = useState<any[]>([]);
 
-  // Fetch run history
-  const fetchRunHistory = async (groupName: string, jobName: string) => {
+  // Transform template name: replace spaces with underscores and convert to lowercase
+  const transformTemplateName = (name: string): string => {
+    return name.replace(/\s+/g, '_').toLowerCase();
+  };
+
+  // Fetch triggers - calls external API directly
+  const fetchTriggers = async (templateName: string) => {
+    try {
+      setTriggersLoading(true);
+      setTriggersError(null);
+
+      // Transform template name: replace spaces with underscores and convert to lowercase
+      const transformedName = transformTemplateName(templateName);
+
+      // Call external API directly
+      const endpoint = `https://preview.keyforge.ai/kfscheduler/api/v1/ACMECOM/jobs/campaign/${transformedName}`;
+      
+      const data = await apiRequestWithAuth<any>(endpoint, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+          "User-Agent": "ISPM-Scheduler/1.0",
+        },
+      });
+
+      // Check if the response contains an error
+      if (data && typeof data === "object" && (data.message || data.error)) {
+        throw new Error(data.message || data.error);
+      }
+
+      // Set the triggers data
+      setTriggersData(data);
+    } catch (err) {
+      console.error("Error fetching triggers:", err);
+      setTriggersError(
+        err instanceof Error ? err.message : "Failed to fetch triggers"
+      );
+      setTriggersData(null);
+    } finally {
+      setTriggersLoading(false);
+    }
+  };
+
+  // Fetch run history - calls external API directly
+  const fetchRunHistory = async (templateName: string) => {
     try {
       setRunHistoryLoading(true);
       setRunHistoryError(null);
 
-      const response = await fetch(
-        `/api/jobs/history/${encodeURIComponent(groupName)}/${encodeURIComponent(jobName)}`
-      );
+      // Transform template name: replace spaces with underscores and convert to lowercase
+      const transformedName = transformTemplateName(templateName);
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || errorData.error);
-      }
-
-      const data = await response.json();
+      // Call external API directly
+      const endpoint = `https://preview.keyforge.ai/kfscheduler/api/v1/ACMECOM/jobs/history/campaign/${transformedName}`;
+      
+      const data = await apiRequestWithAuth<any>(endpoint, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+          "User-Agent": "ISPM-Scheduler/1.0",
+        },
+      });
 
       // Check if the response contains an error
       if (data && typeof data === "object" && (data.message || data.error)) {
@@ -169,16 +222,36 @@ const SchedulePage: React.FC = () => {
   }, [templateId, templateName]);
 
 
-  // Fetch run history when templateId is available
+  // Fetch triggers and run history when templateId or template name is available
   useEffect(() => {
     if (templateId) {
-      // Use templateId as jobName and default groupName to "CAMPAIGNS"
-      // In production, you might want to fetch the actual groupName from the template data
-      const groupName = "CAMPAIGNS"; // Default group name, can be made configurable
-      const jobName = templateId;
-      fetchRunHistory(groupName, jobName);
+      // For triggers and run history, use template name (from template object or query param)
+      const templateNameToUse = template?.name || templateName;
+      if (templateNameToUse) {
+        fetchTriggers(templateNameToUse);
+        fetchRunHistory(templateNameToUse);
+      }
     }
-  }, [templateId]);
+  }, [templateId, template, templateName]);
+
+  // Ensure DatePicker and timezone select have same width
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      .date-picker-wrapper .rmdp-container,
+      .date-picker-wrapper .rmdp-input {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => {
+      if (document.head.contains(style)) {
+        document.head.removeChild(style);
+      }
+    };
+  }, []);
 
   const {
     register,
@@ -233,6 +306,39 @@ const SchedulePage: React.FC = () => {
     }
   }, [template, setValue]);
 
+  // Populate form fields when triggers data is available
+  useEffect(() => {
+    if (triggersData?.data) {
+      const data = triggersData.data;
+      
+      // Set scheduling fields
+      if (data.startDate) {
+        setValue("startDate", new Date(data.startDate));
+      }
+      if (data.zoneId) {
+        setValue("timezone", data.zoneId);
+      }
+      if (data.runItOnce) {
+        setValue("runOnceOnly", data.runItOnce === "YES");
+      }
+      if (data.neverEnds) {
+        setValue("endCondition", data.neverEnds === "YES" ? "Never" : "On");
+      }
+      if (data.endsOn && data.neverEnds === "NO") {
+        setValue("endDate", new Date(data.endsOn));
+      }
+      if (data.enableStaging) {
+        setValue("enableStaging", data.enableStaging === "YES" ? "Yes" : "No");
+      }
+      
+      // Set recurrence fields
+      if (data.frequency) {
+        setValue("recurrenceNumber", data.frequency.periodValue);
+        setValue("recurrenceUnit", data.frequency.period.charAt(0) + data.frequency.period.slice(1).toLowerCase());
+      }
+    }
+  }, [triggersData, setValue]);
+
   const userType = watch("userType");
   const groupListIsChecked = watch("groupListIsChecked");
   const excludeUsersIsChecked = watch("excludeUsersIsChecked");
@@ -282,17 +388,165 @@ const SchedulePage: React.FC = () => {
     }
   }, [selectData, setValue]);
 
-  const onSubmit = (data: any) => {
-    // Handle schedule submission
-    console.log("Schedule data:", data);
-    // TODO: Call API to schedule the template
-    alert("Campaign scheduled successfully!");
-    router.push("/campaigns");
+  const onSubmit = async (data: any) => {
+    try {
+      setIsScheduling(true);
+      
+      // Get the campaign ID to use (from URL param or template ID)
+      const idToUse = campaignId || templateId;
+      if (!idToUse) {
+        alert("Error: No campaign ID found. Cannot schedule campaign.");
+        setIsScheduling(false);
+        return;
+      }
+
+      // Format start date with time
+      let startDateISO = "";
+      if (data.startDate) {
+        const startDate = new Date(data.startDate);
+        // Format as ISO string: YYYY-MM-DDTHH:mm:ss
+        const year = startDate.getFullYear();
+        const month = String(startDate.getMonth() + 1).padStart(2, '0');
+        const day = String(startDate.getDate()).padStart(2, '0');
+        startDateISO = `${year}-${month}-${day}T00:00:00`;
+      } else {
+        alert("Error: Start date is required.");
+        setIsScheduling(false);
+        return;
+      }
+
+      // Format end date if provided
+      let endsOnISO: string | undefined = undefined;
+      if (data.endCondition === "On" && data.endDate) {
+        const endDate = new Date(data.endDate);
+        const year = endDate.getFullYear();
+        const month = String(endDate.getMonth() + 1).padStart(2, '0');
+        const day = String(endDate.getDate()).padStart(2, '0');
+        endsOnISO = `${year}-${month}-${day}T00:00:00`;
+      }
+
+      // Build the payload - ensure endsOn is present when neverEnds is "NO"
+      const payload: any = {
+        campaignName: data.certificationTemplate || template?.name || "Campaign",
+        campaignId: idToUse,
+        description: data.description || "",
+        startDate: startDateISO,
+        zoneId: data.timezone || "UTC",
+        runItOnce: data.runOnceOnly ? "YES" : "NO",
+        neverEnds: data.endCondition === "Never" ? "YES" : "NO",
+        enableStaging: data.enableStaging === "Yes" ? "YES" : "NO",
+      };
+
+      // Add end date - required when neverEnds is "NO" (endCondition is "On")
+      if (data.endCondition === "On") {
+        if (endsOnISO) {
+          payload.endsOn = endsOnISO;
+        } else {
+          // If end condition is "On" but no end date provided, show error
+          alert("Error: End date is required when end condition is 'On'.");
+          setIsScheduling(false);
+          return;
+        }
+      }
+
+      // Frequency - only include when runItOnce is "NO" (recurring)
+      if (!data.runOnceOnly) {
+        if (data.recurrenceNumber && data.recurrenceUnit) {
+          payload.frequency = {
+            period: data.recurrenceUnit.toUpperCase(),
+            periodValue: data.recurrenceNumber.toString(),
+          };
+        } else {
+          // Default frequency if recurring but no values provided
+          payload.frequency = {
+            period: "DAYS",
+            periodValue: "1",
+          };
+        }
+      }
+      // Note: When runItOnce is "YES", frequency is not included (one-time run)
+
+      // Log the complete payload for debugging
+      console.log("=== SCHEDULE CAMPAIGN PAYLOAD ===");
+      console.log("Form Data:", data);
+      console.log("Template:", template);
+      console.log("Campaign ID:", idToUse);
+      console.log("Final Payload:", JSON.stringify(payload, null, 2));
+
+      // Validate required fields
+      if (!payload.campaignName || !payload.campaignId || !payload.startDate) {
+        alert("Error: Missing required fields. Please check campaign name, ID, and start date.");
+        setIsScheduling(false);
+        return;
+      }
+
+      // Call the API
+      const result = await scheduleCampaign(payload);
+      
+      console.log("Campaign scheduled successfully:", result);
+      alert("Campaign scheduled successfully!");
+      router.push("/campaigns");
+    } catch (error) {
+      console.error("Error scheduling campaign:", error);
+      alert(`Failed to schedule campaign: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsScheduling(false);
+    }
   };
 
-  const handleRunNowClick = () => {
-    setShowRunNowModal(true);
-    setShowStagingForm(false);
+  const handleRunNowClick = async () => {
+    // Get template name and transform it
+    const templateNameToUse = template?.name || templateName;
+    if (!templateNameToUse) {
+      alert("Error: Template name not found. Cannot trigger job.");
+      return;
+    }
+
+    const transformedName = transformTemplateName(templateNameToUse);
+    const endpoint = `https://preview.keyforge.ai/kfscheduler/api/v1/ACMECOM/jobs/campaign/${transformedName}/trigger`;
+
+    setIsStartingCampaign(true);
+
+    try {
+      console.log("Triggering job:", transformedName);
+      console.log("API endpoint:", endpoint);
+
+      // Get JWT token for authentication
+      const jwtToken = getCookie(COOKIE_NAMES.JWT_TOKEN);
+      
+      // Make direct fetch call to handle text response
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+          "User-Agent": "ISPM-Scheduler/1.0",
+          ...(jwtToken ? { "Authorization": `Bearer ${jwtToken}` } : {}),
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to trigger job: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+
+      // Read response as text (API returns plain text like "Triggered ...")
+      const responseText = await response.text();
+      console.log("Job triggered successfully. Response:", responseText);
+      
+      setIsStartingCampaign(false);
+      alert("Job triggered successfully!");
+      
+      // Refresh triggers and run history to show updated status
+      if (templateNameToUse) {
+        fetchTriggers(templateNameToUse);
+        fetchRunHistory(templateNameToUse);
+      }
+    } catch (error) {
+      console.error("Error triggering job:", error);
+      setIsStartingCampaign(false);
+      alert(`Failed to trigger job: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   };
 
   const handleRunNow = async () => {
@@ -372,16 +626,8 @@ const SchedulePage: React.FC = () => {
       </div>
 
       <div className="w-full">
-        <div className="flex items-center justify-between mb-8">
+        <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900">Schedule Template</h1>
-          <button
-            type="button"
-            onClick={handleRunNowClick}
-            className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium shadow-sm"
-          >
-            <Play className="w-4 h-4" />
-            Run Now
-          </button>
         </div>
 
         {/* Two-part layout */}
@@ -389,71 +635,66 @@ const SchedulePage: React.FC = () => {
           {/* Left Part: Schedule Form */}
           <div className="space-y-8">
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
-          {/* Basic Information Section */}
+          {/* Basic Information and Scheduling Section */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-6 pb-3 border-b border-gray-200">Basic Information</h2>
-            <div className="space-y-6">
+            <div className="space-y-6 mb-6">
               {/* Template Name */}
               <div className="grid grid-cols-[200px_1fr] gap-6 items-start">
-                <label className={`text-sm font-medium text-gray-700 pt-2 ${asterisk}`}>
+                <label className="text-sm font-medium text-gray-700 pt-2">
                   Template Name
                 </label>
                 <div className="w-full max-w-md">
-                  <input
-                    type="text"
-                    readOnly
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 cursor-not-allowed"
-                    {...register("certificationTemplate", { required: "Template Name is required" })}
-                  />
-                  {errors.certificationTemplate?.message &&
-                    typeof errors.certificationTemplate.message === "string" && (
-                      <p className="text-red-500 text-sm mt-1">{errors.certificationTemplate.message}</p>
-                    )}
+                  <p className="text-sm text-gray-900 pt-2">
+                    {watch("certificationTemplate") || template?.name || "N/A"}
+                  </p>
                 </div>
               </div>
 
               {/* Description */}
               <div className="grid grid-cols-[200px_1fr] gap-6 items-start">
-                <label className={`text-sm font-medium text-gray-700 pt-2 ${asterisk}`}>
+                <label className="text-sm font-medium text-gray-700 pt-2">
                   Description
                 </label>
                 <div className="w-full max-w-md">
-                  <textarea
-                    readOnly
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 cursor-not-allowed"
-                    rows={3}
-                    {...register("description", { required: "Description is required" })}
-                  />
-                  {errors.description?.message &&
-                    typeof errors.description.message === "string" && (
-                      <p className="text-red-500 text-sm mt-1">{errors.description.message}</p>
-                    )}
+                  <p className="text-sm text-gray-900 pt-2">
+                    {watch("description") || template?.description || "N/A"}
+                  </p>
                 </div>
               </div>
 
+              {/* Duration */}
+              <div className="grid grid-cols-[200px_1fr] gap-6 items-start">
+                <label className="text-sm font-medium text-gray-700 pt-2">
+                  Duration
+                </label>
+                <div className="w-full max-w-md">
+                  <p className="text-sm text-gray-900 pt-2">
+                    {watch("duration") || template?.duration || "N/A"}
+                  </p>
+                </div>
+              </div>
             </div>
-          </div>
 
-          {/* Scheduling Section */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-6 pb-3 border-b border-gray-200">Scheduling</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-6 pb-3 border-t border-gray-200 pt-6">Scheduling</h2>
             <div className="space-y-6">
-              {/* Start Date Section */}
+              {/* Start Date */}
               <div className="grid grid-cols-[200px_1fr] gap-6 items-start">
                 <label className={`text-sm font-medium text-gray-700 pt-2 ${asterisk}`}>
                   Start Date
                 </label>
-                <div className="w-full space-y-3">
-                  <div className="w-full max-w-lg">
+                <div className="w-full max-w-[224px] space-y-3">
+                  <div className="w-full date-picker-wrapper">
                     <DateInput
                       control={control as unknown as Control<FieldValues>}
                       name="startDate"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
-                  <div className="w-60 max-w-sm">
+                  <div className="w-full">
                     <select
-                      className="w-full px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      style={{ width: '100%', boxSizing: 'border-box' }}
                       {...register("timezone")}
                     >
                       {COMMON_TIMEZONES.map((tz) => (
@@ -470,9 +711,11 @@ const SchedulePage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Run Once Only Checkbox */}
+              {/* Run Once Only */}
               <div className="grid grid-cols-[200px_1fr] gap-6 items-center">
-                <div></div>
+                <label className="text-sm font-medium text-gray-700">
+                  Run Once Only
+                </label>
                 <div className="flex items-center gap-2">
                   <input
                     type="checkbox"
@@ -485,16 +728,16 @@ const SchedulePage: React.FC = () => {
 
               {/* Recurrence Section */}
               {!runOnceOnly && (
-                <div className="border-t border-gray-200 pt-6 space-y-6">
-                  <h4 className="text-base font-semibold text-gray-800 mb-2">Recurrence</h4>
-                  
+                <>
+                  <h3 className="text-base font-semibold text-gray-800 mb-4 pt-2 border-t border-gray-200">Recurrence</h3>
+                  {/* Frequency */}
                   <div className="grid grid-cols-[200px_1fr] gap-6 items-center">
                     <label className="text-sm font-medium text-gray-700">Frequency</label>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 w-full max-w-md">
                       <input
                         type="number"
                         min="1"
-                        className="w-60 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         placeholder="Number"
                         {...register("recurrenceNumber")}
                       />
@@ -509,114 +752,80 @@ const SchedulePage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Ends Section */}
+                  {/* Ends */}
                   <div className="grid grid-cols-[200px_1fr] gap-6 items-start">
-                    <label className="text-sm font-medium text-gray-700 pt-2">Ends</label>
-                    <div className="space-y-3">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          value="Never"
-                          {...register("endCondition")}
-                          className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                    <label className={`text-sm font-medium text-gray-700 pt-2 ${asterisk}`}>
+                      Ends
+                    </label>
+                    <div className="w-full max-w-[224px] space-y-3">
+                      <div className="flex items-center gap-3">
+                        <span className={`text-sm text-gray-700 ${endCondition === "Never" ? "text-black" : "text-gray-400"}`}>
+                          Never
+                        </span>
+                        <ToggleSwitch
+                          checked={endCondition === "On"}
+                          onChange={(checked) => setValue("endCondition", checked ? "On" : "Never")}
                         />
-                        <span className="text-sm text-gray-700">Never</span>
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="radio"
-                            value="On"
-                            {...register("endCondition")}
-                            className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-                          />
-                          <span className="text-sm text-gray-700">On</span>
-                        </label>
-                        <div className="ml-5 w-64">
+                        <span className={`text-sm text-gray-700 ${endCondition === "On" ? "text-black" : "text-gray-400"}`}>
+                          On
+                        </span>
+                      </div>
+                      {endCondition === "On" && (
+                        <div className="w-full date-picker-wrapper">
                           <DateInput
                             control={control as unknown as Control<FieldValues>}
                             name="endDate"
-                            className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 ${
-                              endCondition !== "On" ? "opacity-50 cursor-not-allowed bg-gray-100" : ""
-                            }`}
-                            disabled={endCondition !== "On"}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                           />
                         </div>
-                      </div>
+                      )}
                     </div>
                   </div>
-                </div>
+                </>
               )}
 
-              {/* Enable Staging Section */}
-              <div className="border-t border-gray-200 pt-6 space-y-6">
+              {/* Enable Staging */}
+              <div className="grid grid-cols-[200px_1fr] gap-6 items-start">
+                <label className={`text-sm font-medium text-gray-700 pt-2 ${asterisk}`}>
+                  Enable Staging
+                </label>
+                <div className="w-full max-w-[224px] flex items-center gap-8">
+                  <span className={`text-sm text-gray-700 ${enableStaging === "No" ? "text-black" : "text-gray-400"}`}>
+                    No
+                  </span>
+                  <ToggleSwitch
+                    checked={enableStaging === "Yes"}
+                    onChange={(checked) => setValue("enableStaging", checked ? "Yes" : "No")}
+                  />
+                  <span className={`text-sm text-gray-700 ${enableStaging === "Yes" ? "text-black" : "text-gray-400"}`}>
+                    Yes
+                  </span>
+                </div>
+              </div>
+
+              {/* Staging Duration - shown when Enable Staging is Yes */}
+              {enableStaging === "Yes" && (
                 <div className="grid grid-cols-[200px_1fr] gap-6 items-center">
-                  <label className={`text-sm font-medium text-gray-700 ${asterisk}`}>
-                    Enable Staging
-                  </label>
-                  <div className="w-full max-w-md">
+                  <label className="text-sm font-medium text-gray-700">Staging Duration</label>
+                  <div className="flex items-center gap-3 w-full max-w-md">
+                    <input
+                      type="number"
+                      min="1"
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Number"
+                      {...register("stagingDuration")}
+                    />
+                    <span className="text-gray-600 font-medium">—</span>
                     <select
-                      className="w-80 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      {...register("enableStaging")}
+                      className="w-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      {...register("stagingDurationUnit")}
                     >
-                      <option value="No">No</option>
-                      <option value="Yes">Yes</option>
+                      <option value="Days">Days</option>
+                      <option value="Weeks">Weeks</option>
                     </select>
                   </div>
                 </div>
-
-                {enableStaging === "Yes" && (
-                  <div className="ml-[200px] space-y-6 pl-6 border-l-2 border-gray-200">
-                    {/* Staging Timing */}
-                    {/* <div className="space-y-3">
-                      <label className="block text-sm font-medium text-gray-700">Staging Timing</label>
-                      <div className="flex flex-col gap-3">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="radio"
-                            value="Before First Run Only"
-                            {...register("stagingTiming")}
-                            className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-                          />
-                          <span className="text-sm text-gray-700">Before First Run Only</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="radio"
-                            value="Before Each Run"
-                            {...register("stagingTiming")}
-                            className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-                          />
-                          <span className="text-sm text-gray-700">Before Each Run</span>
-                        </label>
-                      </div>
-                    </div> */}
-
-                    {/* Staging Duration */}
-                    <div className="space-y-3">
-                      <label className="block text-sm font-medium text-gray-700">Duration</label>
-                      <div className="flex items-center gap-2">
-                        {/* <label className="text-sm text-gray-600 whitespace-nowrap">Number</label> */}
-                        <input
-                          type="number"
-                          min="1"
-                          className="w-64 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          placeholder="Number"
-                          {...register("stagingDuration")}
-                        />
-                        <span className="text-gray-600 font-medium">—</span>
-                        <select
-                          className="w-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          {...register("stagingDurationUnit")}
-                        >
-                          <option value="Days">Days</option>
-                          <option value="Weeks">Weeks</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+              )}
             </div>
           </div>
 
@@ -632,82 +841,260 @@ const SchedulePage: React.FC = () => {
               </button>
               <button
                 type="submit"
-                className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium shadow-sm"
+                disabled={isScheduling}
+                className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                Schedule
+                {isScheduling ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Scheduling...
+                  </>
+                ) : (
+                  "Schedule"
+                )}
               </button>
             </div>
           </div>
             </form>
           </div>
 
-          {/* Right Part: Run History Section */}
+          {/* Right Part: Triggers and Run History Section */}
           <div className="space-y-8">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 h-full">
+            {/* Triggers Section */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-6 pb-3 border-b border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900">Run History</h2>
+                <h2 className="text-lg font-semibold text-gray-900">Triggers</h2>
+                <button
+                  type="button"
+                  onClick={handleRunNowClick}
+                  disabled={isStartingCampaign}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isStartingCampaign ? (
+                    <RotateCcw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Play className="w-4 h-4" />
+                  )}
+                  {isStartingCampaign ? "Triggering..." : "Run Now"}
+                </button>
+              </div>
+              
+              {triggersLoading ? (
+                <div className="flex items-center gap-3 py-8">
+                  <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></div>
+                  <p className="text-gray-600">Loading triggers...</p>
+                </div>
+              ) : triggersError ? (
+                <div className="py-4 px-4 bg-red-50 border border-red-200 rounded-md">
+                  <p className="text-red-600">Error: {triggersError}</p>
+                </div>
+              ) : !triggersData ? (
+                <div className="text-center py-8 text-gray-500 italic">
+                  <p>No trigger information available</p>
+                  <p className="text-sm mt-2">Schedule the campaign to see trigger details</p>
+                </div>
+              ) : triggersData.triggers && Array.isArray(triggersData.triggers) && triggersData.triggers.length > 0 ? (
+                <div className="space-y-4">
+                  {triggersData.triggers.map((trigger: any, index: number) => {
+                    const triggerState = trigger.triggerState?.toLowerCase() || "unknown";
+                    const isNormal = triggerState === "normal";
+                    const borderColor = isNormal ? "border-green-200" : triggerState === "paused" ? "border-yellow-200" : "border-gray-200";
+                    
+                    return (
+                      <div key={index} className={`border-2 ${borderColor} rounded-lg p-3 bg-gray-100 shadow-sm hover:shadow-md transition-all duration-200`}>
+                        {/* Header with State Badge */}
+                        <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-200">
+                          <div className="flex items-center gap-1.5">
+                            <Zap className={`w-4 h-4 ${isNormal ? 'text-green-600' : triggerState === 'paused' ? 'text-yellow-600' : 'text-gray-600'}`} />
+                            <h3 className="text-sm font-semibold text-gray-800">Trigger Details</h3>
+                          </div>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-full ${
+                            isNormal
+                              ? "bg-green-100 text-green-800 border border-green-200" 
+                              : triggerState === "paused"
+                              ? "bg-yellow-100 text-yellow-800 border border-yellow-200"
+                              : "bg-gray-100 text-gray-800 border border-gray-200"
+                          }`}>
+                            {isNormal && <CheckCircle className="w-3 h-3" />}
+                            {triggerState === "paused" && <AlertCircle className="w-3 h-3" />}
+                            {trigger.triggerState || "N/A"}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+                          {/* Trigger Name */}
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 text-xs font-medium text-gray-600 mb-1">
+                              <Zap className="w-3 h-3" />
+                              Trigger Name
+                            </div>
+                            <div className="text-xs font-medium text-gray-900 break-words bg-white/60 rounded px-2 py-1 border border-gray-200">
+                              {trigger.triggerName || "N/A"}
+                            </div>
+                          </div>
+
+                          {/* Trigger Group */}
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 text-xs font-medium text-gray-600 mb-1">
+                              <Zap className="w-3 h-3" />
+                              Trigger Group
+                            </div>
+                            <div className="text-xs font-medium text-gray-900 break-words bg-white/60 rounded px-2 py-1 border border-gray-200">
+                              {trigger.triggerGroup || "N/A"}
+                            </div>
+                          </div>
+
+                          {/* Type */}
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 text-xs font-medium text-gray-600 mb-1">
+                              <Zap className="w-3 h-3" />
+                              Type
+                            </div>
+                            <div className="text-xs font-medium text-gray-900 bg-white/60 rounded px-2 py-1 border border-gray-200">
+                              {trigger.type || "N/A"}
+                            </div>
+                          </div>
+
+                          {/* Interval */}
+                          {trigger.intervalMs && (
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 text-xs font-medium text-gray-600 mb-1">
+                                <Clock className="w-3 h-3" />
+                                Interval
+                              </div>
+                              <div className="text-xs font-medium text-gray-900 bg-white/60 rounded px-2 py-1 border border-gray-200">
+                                {(() => {
+                                  const ms = trigger.intervalMs;
+                                  const days = ms / (1000 * 60 * 60 * 24);
+                                  if (days >= 1) {
+                                    const daysRounded = Math.round(days * 10) / 10;
+                                    const daysDisplay = daysRounded % 1 === 0 ? daysRounded.toString() : daysRounded.toFixed(1);
+                                    return `${daysDisplay} day${daysRounded !== 1 ? 's' : ''}`;
+                                  } else {
+                                    const hours = ms / (1000 * 60 * 60);
+                                    if (hours >= 1) {
+                                      const hoursRounded = Math.round(hours * 10) / 10;
+                                      const hoursDisplay = hoursRounded % 1 === 0 ? hoursRounded.toString() : hoursRounded.toFixed(1);
+                                      return `${hoursDisplay} hour${hoursRounded !== 1 ? 's' : ''}`;
+                                    } else {
+                                      const minutes = ms / (1000 * 60);
+                                      const minutesRounded = Math.round(minutes * 10) / 10;
+                                      const minutesDisplay = minutesRounded % 1 === 0 ? minutesRounded.toString() : minutesRounded.toFixed(1);
+                                      return `${minutesDisplay} minute${minutesRounded !== 1 ? 's' : ''}`;
+                                    }
+                                  }
+                                })()}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Repeat Count */}
+                          {trigger.repeatCount !== undefined && (
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 text-xs font-medium text-gray-600 mb-1">
+                                <Repeat className="w-3 h-3" />
+                                Repeat Count
+                              </div>
+                              <div className="flex items-center gap-1.5 text-xs font-medium text-gray-900 bg-white/60 rounded px-2 py-1 border border-gray-200">
+                                {trigger.repeatCount === -1 && <Infinity className="w-3 h-3 text-blue-600" />}
+                                {trigger.repeatCount === -1 ? "Infinite" : trigger.repeatCount}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Previous Fire Time */}
+                          {trigger.previousFireTime && (
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 text-xs font-medium text-gray-600 mb-1">
+                                <Calendar className="w-3 h-3" />
+                                Previous Fire Time
+                              </div>
+                              <div className="text-xs font-medium text-gray-700 bg-white/60 rounded px-2 py-1 border border-gray-200">
+                                {new Date(trigger.previousFireTime).toLocaleString()}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Next Fire Time */}
+                          {trigger.nextFireTime && (
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 text-xs font-medium text-gray-600 mb-1">
+                                <Clock className="w-3 h-3 text-blue-600" />
+                                Next Fire Time
+                              </div>
+                              <div className="text-xs font-semibold text-blue-700 bg-blue-50 rounded px-2 py-1 border border-blue-200">
+                                {new Date(trigger.nextFireTime).toLocaleString()}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-4 text-gray-500 italic">
+                  <p>No triggers found</p>
+                </div>
+              )}
+            </div>
+
+            {/* Run History Section */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+              <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-200">
+                <h2 className="text-base font-semibold text-gray-900">Run History</h2>
             <button
               type="button"
               onClick={() => {
-                if (templateId) {
-                  const groupName = "CAMPAIGNS";
-                  const jobName = templateId;
-                  fetchRunHistory(groupName, jobName);
+                const templateNameToUse = template?.name || templateName;
+                if (templateNameToUse) {
+                  fetchRunHistory(templateNameToUse);
                 }
               }}
               disabled={runHistoryLoading}
-              className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               title="Refresh run history"
             >
-              <RotateCcw className={`w-4 h-4 ${runHistoryLoading ? "animate-spin" : ""}`} />
+              <RotateCcw className={`w-3.5 h-3.5 ${runHistoryLoading ? "animate-spin" : ""}`} />
               Refresh
             </button>
           </div>
           
               {runHistoryLoading ? (
-                <div className="flex items-center gap-3 py-8">
-                  <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></div>
-                  <p className="text-gray-600">Loading run history...</p>
+                <div className="flex items-center gap-2 py-4">
+                  <div className="w-3.5 h-3.5 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></div>
+                  <p className="text-xs text-gray-600">Loading run history...</p>
                 </div>
               ) : runHistoryError ? (
-                <div className="py-4 px-4 bg-red-50 border border-red-200 rounded-md">
-                  <p className="text-red-600">Error: {runHistoryError}</p>
+                <div className="py-3 px-3 bg-red-50 border border-red-200 rounded-md">
+                  <p className="text-xs text-red-600">Error: {runHistoryError}</p>
                 </div>
               ) : runHistoryData.length === 0 ? (
-                <div className="text-center py-8 text-gray-500 italic">
-                  <p>No run history available</p>
+                <div className="text-center py-4 text-gray-500 italic">
+                  <p className="text-xs">No run history available</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto border border-gray-200 rounded-md max-h-[calc(100vh-300px)] overflow-y-auto">
-              <table className="w-full border-collapse text-sm min-w-[1200px]">
-                <thead className="bg-gray-50 border-b-2 border-gray-200">
+                <div className="border border-gray-200 rounded-md overflow-hidden">
+              <table className="w-full border-collapse text-xs table-fixed">
+                <colgroup>
+                  <col className="w-20" />
+                  <col className="w-auto" />
+                  <col className="w-40" />
+                  <col className="w-40" />
+                </colgroup>
+                <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200">
-                      Fired At
-                    </th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                    <th className="px-2 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200">
                       Status
                     </th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200">
-                      Job Name
-                    </th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200">
-                      Job Group
-                    </th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200">
-                      Trigger Name
-                    </th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200">
-                      Trigger Group
-                    </th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200">
-                      Finished At
-                    </th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200">
-                      Duration
-                    </th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    <th className="px-2 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200">
                       Message
+                    </th>
+                    <th className="px-2 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-gray-200">
+                      Fired At
+                    </th>
+                    <th className="px-2 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      Finished At
                     </th>
                   </tr>
                 </thead>
@@ -715,19 +1102,13 @@ const SchedulePage: React.FC = () => {
                   {runHistoryData.map((historyItem, index) => {
                     const firedAt = historyItem.firedAt ? new Date(historyItem.firedAt).toLocaleString() : "N/A";
                     const finishedAt = historyItem.finishedAt ? new Date(historyItem.finishedAt).toLocaleString() : "N/A";
-                    const duration = historyItem.firedAt && historyItem.finishedAt
-                      ? `${Math.round((new Date(historyItem.finishedAt).getTime() - new Date(historyItem.firedAt).getTime()) / 1000)}s`
-                      : "N/A";
                     const status = historyItem.status?.toLowerCase() || "unknown";
                     
                     return (
                       <tr key={historyItem.id || index} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-3 py-3 text-xs text-gray-600 whitespace-nowrap border-r border-gray-200">
-                          {firedAt}
-                        </td>
-                        <td className="px-3 py-3 border-r border-gray-200">
+                        <td className="px-2 py-2 border-r border-gray-200">
                           <span
-                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full uppercase ${
+                            className={`inline-flex px-1.5 py-0.5 text-xs font-semibold rounded-full uppercase whitespace-nowrap ${
                               status === "success" || status === "completed"
                                 ? "bg-green-100 text-green-800"
                                 : status === "error" || status === "failure"
@@ -740,26 +1121,14 @@ const SchedulePage: React.FC = () => {
                             {historyItem.status || "UNKNOWN"}
                           </span>
                         </td>
-                        <td className="px-3 py-3 text-xs text-gray-900 font-medium border-r border-gray-200">
-                          {historyItem.jobName || "N/A"}
-                        </td>
-                        <td className="px-3 py-3 text-xs text-gray-900 font-medium border-r border-gray-200">
-                          {historyItem.jobGroup || "N/A"}
-                        </td>
-                        <td className="px-3 py-3 text-xs text-gray-900 font-medium border-r border-gray-200">
-                          {historyItem.triggerName || "N/A"}
-                        </td>
-                        <td className="px-3 py-3 text-xs text-gray-900 font-medium border-r border-gray-200">
-                          {historyItem.triggerGroup || "N/A"}
-                        </td>
-                        <td className="px-3 py-3 text-xs text-gray-600 whitespace-nowrap border-r border-gray-200">
-                          {finishedAt}
-                        </td>
-                        <td className="px-3 py-3 text-xs text-gray-700 font-medium whitespace-nowrap border-r border-gray-200">
-                          {duration}
-                        </td>
-                        <td className="px-3 py-3 text-xs text-gray-700 max-w-xs break-words">
+                        <td className="px-2 py-2 text-xs text-gray-700 border-r border-gray-200 break-words">
                           {historyItem.message || "N/A"}
+                        </td>
+                        <td className="px-2 py-2 text-xs text-gray-600 whitespace-nowrap border-r border-gray-200">
+                          {firedAt}
+                        </td>
+                        <td className="px-2 py-2 text-xs text-gray-600 whitespace-nowrap">
+                          {finishedAt}
                         </td>
                       </tr>
                     );
