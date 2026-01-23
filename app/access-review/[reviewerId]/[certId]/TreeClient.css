@@ -9,9 +9,11 @@
 .scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: #cbd5e1 #f1f5f9;
+  scroll-behavior: smooth;
 }
 
 .scrollbar-thin::-webkit-scrollbar {
+  width: 8px;
   height: 8px;
 }
 
@@ -29,9 +31,14 @@
   background: #94a3b8;
 }
 
-/* Smooth scrolling */
-.scrollbar-thin {
-  scroll-behavior: smooth;
+/* Hide scrollbar but allow scrolling */
+.hide-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
 }
 
 /* Users Sidebar Styles */

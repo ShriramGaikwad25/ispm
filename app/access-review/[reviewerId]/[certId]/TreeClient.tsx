@@ -49,6 +49,7 @@ import DelegateActionModal from "@/components/DelegateActionModal";
 import ProxyActionModal from "@/components/ProxyActionModal";
 import { formatDateMMDDYY as formatDate } from "@/utils/utils";
 import UserDisplayName from "@/components/UserDisplayName";
+import { BackButton } from "@/components/BackButton";
 
 interface UserPopupProps {
   username: string;
@@ -200,8 +201,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const isReadOnly = searchParams.get("readonly") === "true";
 
   const pageSizeSelector = [10, 20, 50, 100];
-  // Separate pagination for users sidebar - fixed at 10 users per page
-  const [usersPageSize, setUsersPageSize] = useState(10);
+  // Separate pagination for users sidebar - show all users by default
+  const [usersPageSize, setUsersPageSize] = useState(1000);
   const [pageNumber, setPageNumber] = useState(() => {
     const pageParam = searchParams.get('page');
     return pageParam ? parseInt(pageParam, 10) : 1;
@@ -2072,50 +2073,40 @@ const TreeClient: React.FC<TreeClientProps> = ({
   );
 
   return (
-    <div className="flex flex-col relative">
+    <div className="flex flex-row relative h-screen">
       {error && (
         <div style={{ color: "red", padding: 10 }}>{String(error)}</div>
       )}
       {/* Right sidebar content is rendered globally via RightSideBarHost */}
 
-      {/* Users List - Top Bar */}
+      {/* Left Sidebar Container - Back Button and User List */}
       <div
-        className={`bg-gradient-to-r from-gray-50 to-white border-b border-gray-200 flex flex-row transition-all duration-300 ease-in-out z-30 shadow-sm ${
+        className={`border-r border-gray-200 flex flex-col transition-all duration-300 ease-in-out z-30 shadow-sm ${
           isSidebarHovered
-            ? "h-32"
-            : "h-28"
+            ? "w-64"
+            : "w-20"
         }`}
-        onMouseEnter={() => setIsSidebarHovered(true)}
-        onMouseLeave={() => setIsSidebarHovered(false)}
+        style={{ height: '100vh' }}
       >
-        {/* Navigation Arrow - Left */}
-        <div className="px-2 py-2 border-r border-gray-200 bg-white flex items-center">
-          <button
-            onClick={handleScrollUp}
-            disabled={!canScrollUp || sidebarLoading}
-            className={`p-1.5 rounded-md transition-all duration-200 ${
-              canScrollUp && !sidebarLoading
-                ? "bg-blue-50 hover:bg-blue-100 text-blue-600"
-                : "bg-gray-50 text-gray-400 cursor-not-allowed"
-            }`}
-            title={sidebarLoading ? "Loading..." : "Previous page"}
-          >
-            {sidebarLoading ? (
-              <div className="w-3.5 h-3.5 animate-spin border-2 border-gray-400 border-t-transparent rounded-full"></div>
-            ) : (
-              <ChevronUp className="w-3.5 h-3.5 rotate-[-90deg]" />
-            )}
-          </button>
+        {/* Back Button */}
+        <div className="py-2 flex items-center border-b border-gray-200">
+          <BackButton className={`${isSidebarHovered ? 'w-full' : 'w-auto'} text-xs py-1.5 px-2 !bg-gray-300 !border-gray-500 !text-gray-800 hover:!bg-gray-200`} text="Back" />
         </div>
 
+        {/* Users List */}
+        <div
+          className="bg-gradient-to-b from-gray-50 to-white flex flex-col flex-1 overflow-hidden"
+          onMouseEnter={() => setIsSidebarHovered(true)}
+          onMouseLeave={() => setIsSidebarHovered(false)}
+        >
         {/* User Search */}
-        <div className="px-2 py-2 border-r border-gray-200 bg-white flex items-center min-w-[160px]">
+        <div className="px-2 py-2 border-b border-gray-200 bg-white flex items-center">
           <div className="relative w-full">
             <input
               type="text"
               value={userSearch}
               onChange={(e) => setUserSearch(e.target.value)}
-              placeholder="Search users..."
+              placeholder={isSidebarHovered ? "Search users..." : ""}
               className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all"
             />
             {userSearch && (
@@ -2129,14 +2120,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
           </div>
         </div>
 
-        {/* Users List - Horizontal Scroll */}
-        <div className={`flex flex-row items-start py-2 px-2 overflow-y-hidden flex-1 w-full gap-1 ${
-          users.filter((user) =>
-            (user.fullName || "")
-              .toLowerCase()
-              .includes(userSearch.trim().toLowerCase())
-          ).length > 10 ? "overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100" : "overflow-x-hidden"
-        }`} style={{ minHeight: isSidebarHovered ? '112px' : '96px' }}>
+        {/* Users List - Vertical Scroll */}
+        <div className="flex flex-col items-start pb-2 pt-0 px-2 overflow-x-hidden flex-1 w-full gap-1 overflow-y-auto hide-scrollbar">
           {sidebarLoading ? (
             <div className="flex items-center justify-center w-full">
               <div className="flex items-center gap-2 text-gray-500 text-xs">
@@ -2154,38 +2139,27 @@ const TreeClient: React.FC<TreeClientProps> = ({
               .map((user, index) => {
                 const progress = getUserProgress(user);
                 const isSelected = selectedUser?.id === user.id;
-                const filteredUsers = users.filter((u) =>
-                  (u.fullName || "")
-                    .toLowerCase()
-                    .includes(userSearch.trim().toLowerCase())
-                );
-                const userCount = filteredUsers.length;
                 return (
                   <div
                     key={user.id}
                     onClick={() => handleUserSelect(user)}
-                    className={`user-item rounded-lg cursor-pointer transition-all duration-200 h-full ${
-                      isSidebarHovered ? "px-2 py-2" : "px-1 py-1"
+                    className={`user-item cursor-pointer transition-all duration-200 w-full ${
+                      isSidebarHovered ? "px-2 pb-2 pt-0 rounded-lg" : "px-1 pb-1 pt-0"
                     } ${
-                      isSelected
-                        ? "bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-500 border-b-4 border-b-blue-500 shadow-sm"
-                        : "bg-white border border-gray-200 hover:border-blue-300 hover:shadow-sm"
+                      isSidebarHovered
+                        ? isSelected
+                          ? "bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-500 shadow-sm"
+                          : "bg-white border border-gray-200 hover:border-blue-300 hover:shadow-sm"
+                        : ""
                     }`}
                     style={{ 
-                      flex: userCount <= 10 ? '1 1 0%' : '0 0 auto',
-                      minWidth: isSidebarHovered ? (userCount <= 10 ? 'auto' : '140px') : 'auto',
-                      maxWidth: isSidebarHovered ? (userCount <= 10 ? 'none' : '200px') : 'none',
-                      minHeight: isSidebarHovered ? '100%' : '92px',
-                      height: isSidebarHovered ? 'auto' : '92px',
+                      minHeight: isSidebarHovered ? 'auto' : '60px',
                     }}
                   >
                     <div
-                      className={`flex flex-col items-center w-full ${
-                        isSidebarHovered
-                          ? "gap-2 justify-start"
-                          : "justify-start gap-1"
-                      }`}
-                      style={!isSidebarHovered ? { paddingTop: '8px' } : {}}
+                      className={`flex ${
+                        isSidebarHovered ? "flex-row items-center gap-2" : "flex-col items-center justify-center gap-1"
+                      } w-full`}
                     >
                       {/* User Avatar/Initials */}
                       <div
@@ -2194,33 +2168,23 @@ const TreeClient: React.FC<TreeClientProps> = ({
                         onMouseLeave={handleAvatarLeave}
                       >
                         {!isSidebarHovered ? (
-                          <div className="flex flex-col items-center gap-1 w-full">
+                          <div className="flex items-center justify-center w-full">
                             <div
                               className={`w-9 h-9 rounded-full flex items-center justify-center font-semibold text-xs transition-all flex-shrink-0 ${
                                 isSelected
                                   ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white ring-1 ring-blue-300"
                                   : "bg-gradient-to-br from-gray-200 to-gray-300 text-gray-700 hover:from-blue-200 hover:to-blue-300"
                               }`}
+                              title={user.fullName || ""}
                             >
                               {getUserInitials(user.fullName || "")}
                             </div>
-                            <span
-                              className={`font-medium text-center w-full px-1 truncate whitespace-nowrap ${
-                                isSelected
-                                  ? "text-blue-800 font-semibold"
-                                  : "text-gray-700"
-                              }`}
-                              style={{ fontSize: '10px' }}
-                              title={user.fullName || ""}
-                            >
-                              {user.fullName || ""}
-                            </span>
                           </div>
                         ) : (
                           <div className="relative">
-                            {renderUserAvatar(user, 48, "w-12 h-12 rounded-full shadow-sm transition-all", index + 1) || (
+                            {renderUserAvatar(user, 48, "w-10 h-10 rounded-full shadow-sm transition-all", index + 1) || (
                               <div
-                                className={`w-12 h-12 rounded-full flex items-center justify-center font-semibold text-sm ${
+                                className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm ${
                                   isSelected
                                     ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white ring-1 ring-blue-300"
                                     : "bg-gradient-to-br from-gray-200 to-gray-300 text-gray-700"
@@ -2240,14 +2204,14 @@ const TreeClient: React.FC<TreeClientProps> = ({
 
                       {/* User Details - only visible when expanded */}
                       {isSidebarHovered && (
-                        <div className="flex flex-col items-center gap-1.5 min-w-0 w-full flex-1">
+                        <div className="flex flex-col items-start gap-1 min-w-0 w-full flex-1">
                           <span
-                            className={`font-medium text-center w-full truncate whitespace-nowrap ${
+                            className={`font-medium w-full truncate whitespace-nowrap ${
                               isSelected
                                 ? "text-blue-800"
                                 : "text-gray-900"
                             }`}
-                            style={{ fontSize: '10px' }}
+                            style={{ fontSize: '11px' }}
                             title={user.fullName || ""}
                           >
                             {user.fullName}
@@ -2273,15 +2237,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
                               {progress.percentage}%
                             </span>
                           </div>
-                          
-                          {/* Department */}
-                          <div className={`text-xs text-center w-full px-1.5 py-0.5 rounded break-words ${
-                            isSelected
-                              ? "bg-blue-200 text-blue-800"
-                              : "bg-gray-100 text-gray-600"
-                          }`}>
-                            {user.department || "Unknown"}
-                          </div>
                         </div>
                       )}
                     </div>
@@ -2290,35 +2245,15 @@ const TreeClient: React.FC<TreeClientProps> = ({
               })
           )}
         </div>
-
-        {/* Navigation Arrow - Right */}
-        <div className="px-2 py-2 border-l border-gray-200 bg-white flex items-center">
-          <button
-            onClick={handleScrollDown}
-            disabled={!canScrollDown || sidebarLoading}
-            className={`p-1.5 rounded-md transition-all duration-200 ${
-              canScrollDown && !sidebarLoading
-                ? "bg-blue-50 hover:bg-blue-100 text-blue-600"
-                : "bg-gray-50 text-gray-400 cursor-not-allowed"
-            }`}
-            title={sidebarLoading ? "Loading..." : "Next page"}
-          >
-            {sidebarLoading ? (
-              <div className="w-3.5 h-3.5 animate-spin border-2 border-gray-400 border-t-transparent rounded-full"></div>
-            ) : (
-              <ChevronDown className="w-3.5 h-3.5 rotate-[-90deg]" />
-            )}
-          </button>
         </div>
       </div>
 
       {/* Entitlements Table */}
-      <div className="flex-1 flex flex-col min-w-0 w-full mt-5">
-        {selectedUser ? (
+      <div className="flex-1 flex flex-col min-w-0 overflow-auto" style={{ marginLeft: 0, padding: '0 1rem 1rem 1rem' }}>
+        {selectedUser && (
           <>
-            {/* Selected User Header */}
             {/* User Information Card */}
-            <div className="bg-white border border-gray-200 rounded-lg px-2 py-2 shadow-sm w-full">
+            <div className="bg-white border border-gray-200 rounded-lg px-2 pb-2 pt-0 shadow-sm w-full mb-4">
               {/* Upper section: Name, Status, Buttons */}
               <div className="flex items-center justify-between gap-3 bg-gray-50 p-3 rounded-md">
                 <div className="flex items-center gap-3 min-w-0">
@@ -2573,7 +2508,11 @@ const TreeClient: React.FC<TreeClientProps> = ({
                 </div>
               </div>
             </div>
+          </>
+        )}
 
+        {selectedUser && (
+          <>
             {/* Entitlements Grid */}
             <div className=" min-w-0 w-full" ref={entitlementsGridContainerRef}>
               {loadingEntitlements ? (
@@ -2743,7 +2682,9 @@ const TreeClient: React.FC<TreeClientProps> = ({
               </div>
             )}
           </>
-        ) : (
+        )}
+        
+        {!selectedUser && (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center text-gray-500">
               <User className="w-16 h-16 mx-auto mb-4 text-gray-300" />

@@ -1577,7 +1577,7 @@ const SchedulePage: React.FC = () => {
                   <div className="mt-6 flex justify-end gap-3">
                     <button
                       onClick={() => setShowStagingForm(false)}
-                      className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors font-medium"
+                      className="px-3 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors font-medium"
                     >
                       Back
                     </button>

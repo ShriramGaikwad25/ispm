@@ -1,9 +1,9 @@
 "use client";
-import { use, useState, useCallback } from "react";
+import { use, useState, useCallback, useEffect } from "react";
 import TreeClient from "./TreeClient";
 import dynamic from "next/dynamic";
 import Accordion from "@/components/Accordion";
-import { BackButton } from "@/components/BackButton";
+import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
 
 const ChartComponent = dynamic(() => import("@/components/ChartComponent"), {
   ssr: false,
@@ -24,6 +24,7 @@ export default function CertificationDetailsPage({
   params: Promise<{ reviewerId: string; certId: string }>;
 }) {
   const { reviewerId, certId } = use(params);
+  const { hideSidebar, showSidebar } = useLeftSidebar();
   const [isAccordionOpen, setAccordionOpen] = useState(true);
   const [progressData, setProgressData] = useState({
     totalItems: 0,
@@ -33,6 +34,15 @@ export default function CertificationDetailsPage({
     delegatedCount: 0,
     remediatedCount: 0,
   });
+
+  // Hide navigation sidebar when component mounts
+  useEffect(() => {
+    hideSidebar();
+    // Show sidebar again when component unmounts
+    return () => {
+      showSidebar();
+    };
+  }, [hideSidebar, showSidebar]);
 
   // Callback to collapse the accordion
   const handleRowExpand = useCallback(() => {
@@ -48,16 +58,11 @@ export default function CertificationDetailsPage({
   }, []);
 
   return (
-    <>
-      <div className="mb-4">
-        <BackButton />
-      </div>
-      <TreeClient
-        reviewerId={reviewerId}
-        certId={certId}
-        onRowExpand={handleRowExpand}
-        onProgressDataChange={handleProgressDataChange}
-      />
-    </>
+    <TreeClient
+      reviewerId={reviewerId}
+      certId={certId}
+      onRowExpand={handleRowExpand}
+      onProgressDataChange={handleProgressDataChange}
+    />
   );
 }
