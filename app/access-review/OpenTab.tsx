@@ -752,7 +752,7 @@ const OpenTab: React.FC = () => {
         reviewerId: reviewerId,
         certificationId: "dummy-cert-id-entitlement-owner",
         campaignId: "dummy-campaign-id",
-        certificationName: "Test Entitlement Owner Review",
+        certificationName: "Entitlement Owner Review",
         certificationType: "Entitlement Owner",
         certificationCreatedOn: new Date().toISOString(),
         certificationExpiration: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
