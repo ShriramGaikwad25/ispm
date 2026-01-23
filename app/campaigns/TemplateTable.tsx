@@ -6,12 +6,13 @@ const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGrid
 type AgGridReactType = any;
 import "@/lib/ag-grid-setup";
 import { ColDef, ICellRendererParams } from "ag-grid-enterprise";
-import { Edit, Calendar } from "lucide-react";
+import { Edit, Calendar, Trash2, Copy } from "lucide-react";
 import { apiRequestWithAuth } from "@/lib/auth";
 
 type TemplateRow = {
   id: string;
   name: string;
+  type: string;
   owner: string;
   createdOn: string;
   lastRun: string | null;
@@ -22,9 +23,11 @@ type TemplateRow = {
 interface TemplateTableProps {
   onEdit: (template: TemplateRow) => void;
   onRunNow: (template: TemplateRow) => void;
+  onDelete?: (template: TemplateRow) => void;
+  onClone?: (template: TemplateRow) => void;
 }
 
-const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow }) => {
+const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow, onDelete, onClone }) => {
   const gridRef = React.useRef<AgGridReactType>(null);
   const [rows, setRows] = useState<TemplateRow[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -65,6 +68,7 @@ const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow }) => {
           return {
             id: campaign.id || campaign.campaignID || campaign.campaignId || String(campaign.id || ""),
             name: campaign.name || campaign.campaignName || campaign.templateName || "Unnamed Campaign",
+            type: campaign.type || campaign.campaignType || campaign.templateType || "Standard",
             owner: ownerName,
             createdOn: campaign.createdOn || campaign.createdDate || campaign.created || new Date().toISOString(),
             lastRun: campaign.lastRun || campaign.lastRunDate || campaign.lastExecutionDate || null,
@@ -93,6 +97,13 @@ const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow }) => {
         headerName: "Name",
         field: "name",
         flex: 2,
+        sortable: true,
+        filter: true,
+      },
+      {
+        headerName: "Type",
+        field: "type",
+        flex: 1,
         sortable: true,
         filter: true,
       },
@@ -139,18 +150,18 @@ const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow }) => {
       {
         field: "actions",
         headerName: "Actions",
-        width: 150,
+        width: 220,
         sortable: false,
         filter: false,
         cellRenderer: (params: ICellRendererParams) => {
           return (
-            <div className="flex items-center gap-3 h-full">
+            <div className="flex items-center gap-2 h-full">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   onEdit(params.data);
                 }}
-                className="p-1.5 rounded-full border-2 border-blue-600 hover:bg-blue-50 text-blue-600 hover:text-blue-800 transition-colors"
+                className="p-1.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 hover:text-blue-900 border border-blue-200 hover:border-blue-300 transition-colors"
                 title="Edit"
                 aria-label="Edit template"
               >
@@ -161,18 +172,44 @@ const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow }) => {
                   e.stopPropagation();
                   onRunNow(params.data);
                 }}
-                className="p-1.5 rounded-full border-2 border-green-600 hover:bg-green-50 text-green-600 hover:text-green-800 transition-colors"
+                className="p-1.5 rounded-md bg-green-50 hover:bg-green-100 text-green-700 hover:text-green-900 border border-green-200 hover:border-green-300 transition-colors"
                 title="Schedule"
                 aria-label="Schedule template"
               >
                 <Calendar className="w-4 h-4" />
               </button>
+              {onClone && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onClone(params.data);
+                  }}
+                  className="p-1.5 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-900 border border-purple-200 hover:border-purple-300 transition-colors"
+                  title="Clone"
+                  aria-label="Clone template"
+                >
+                  <Copy className="w-4 h-4" />
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(params.data);
+                  }}
+                  className="p-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-700 hover:text-red-900 border border-red-200 hover:border-red-300 transition-colors"
+                  title="Delete"
+                  aria-label="Delete template"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
             </div>
           );
         },
       },
     ],
-    [onEdit, onRunNow]
+    [onEdit, onRunNow, onDelete, onClone]
   );
 
   if (isLoading) {

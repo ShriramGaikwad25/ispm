@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useForm, Control, FieldValues } from "react-hook-form";
 import { createPortal } from "react-dom";
-import { Play, X, RotateCcw, Clock, Calendar, Repeat, CheckCircle, AlertCircle, Zap, Infinity } from "lucide-react";
+import { Play, X, RotateCcw, Clock, Calendar, Repeat, CheckCircle, AlertCircle, Zap, Infinity, Edit2, Save } from "lucide-react";
 import MultiSelect from "@/components/MultiSelect";
 import { customOption, loadUsers, loadIspmApps } from "@/components/MsAsyncData";
 import { asterisk, userGroups, excludeUsers, defaultExpression } from "@/utils/utils";
@@ -12,7 +12,7 @@ import ToggleSwitch from "@/components/ToggleSwitch";
 import FileDropzone from "@/components/FileDropzone";
 import { BackButton } from "@/components/BackButton";
 import DateInput from "@/components/DatePicker";
-import { executeQuery, scheduleCampaign } from "@/lib/api";
+import { executeQuery, scheduleCampaign, updateCampaignSchedule } from "@/lib/api";
 import { apiRequestWithAuth, getCookie, COOKIE_NAMES } from "@/lib/auth";
 
 // Common timezones list
@@ -54,6 +54,13 @@ const SchedulePage: React.FC = () => {
   const [runHistoryLoading, setRunHistoryLoading] = useState(false);
   const [runHistoryError, setRunHistoryError] = useState<string | null>(null);
   const [runHistoryData, setRunHistoryData] = useState<any[]>([]);
+  // Edit next fire time state
+  const [editingNextFireTime, setEditingNextFireTime] = useState<number | null>(null);
+  const [editedNextFireTime, setEditedNextFireTime] = useState<Date | null>(null);
+  const [isSavingNextFireTime, setIsSavingNextFireTime] = useState(false);
+  // Edit scheduling state
+  const [isEditingScheduling, setIsEditingScheduling] = useState(false);
+  const [isSavingScheduling, setIsSavingScheduling] = useState(false);
 
   // Transform template name: replace spaces with underscores and convert to lowercase
   const transformTemplateName = (name: string): string => {
@@ -619,6 +626,241 @@ const SchedulePage: React.FC = () => {
     router.push("/campaigns");
   };
 
+  const handleEditNextFireTime = (triggerIndex: number, currentNextFireTime: string) => {
+    setEditingNextFireTime(triggerIndex);
+    setEditedNextFireTime(new Date(currentNextFireTime));
+  };
+
+  const handleCancelEditNextFireTime = () => {
+    setEditingNextFireTime(null);
+    setEditedNextFireTime(null);
+  };
+
+  const handleSaveNextFireTime = async (triggerIndex: number, triggerName: string) => {
+    if (!editedNextFireTime) {
+      return;
+    }
+
+    setIsSavingNextFireTime(true);
+    try {
+      // Get current form data to build update payload
+      const formData = watch();
+      const idToUse = campaignId || templateId;
+      
+      if (!idToUse) {
+        setIsSavingNextFireTime(false);
+        return;
+      }
+
+      // Format the edited next fire time as startDate (YYYY-MM-DD format)
+      const year = editedNextFireTime.getFullYear();
+      const month = String(editedNextFireTime.getMonth() + 1).padStart(2, '0');
+      const day = String(editedNextFireTime.getDate()).padStart(2, '0');
+      const newStartDate = `${year}-${month}-${day}`;
+
+      // Format end date if provided
+      let endsOnDate: string | undefined = undefined;
+      if (formData.endCondition === "On" && formData.endDate) {
+        const endDate = new Date(formData.endDate);
+        const endYear = endDate.getFullYear();
+        const endMonth = String(endDate.getMonth() + 1).padStart(2, '0');
+        const endDay = String(endDate.getDate()).padStart(2, '0');
+        endsOnDate = `${endYear}-${endMonth}-${endDay}`;
+      }
+
+      // Build the update payload
+      const payload: any = {
+        campaignName: formData.certificationTemplate || template?.name || "Campaign",
+        campaignId: idToUse,
+        description: formData.description || "",
+        startDate: newStartDate,
+        zoneId: formData.timezone || "UTC",
+        runItOnce: formData.runOnceOnly ? "YES" : "NO",
+        neverEnds: formData.endCondition === "Never" ? "YES" : "NO",
+        enableStaging: formData.enableStaging === "Yes" ? "YES" : "NO",
+      };
+
+      // Add end date if provided
+      if (formData.endCondition === "On" && endsOnDate) {
+        payload.endsOn = endsOnDate;
+      }
+
+      // Add frequency if recurring
+      if (!formData.runOnceOnly) {
+        if (formData.recurrenceNumber && formData.recurrenceUnit) {
+          payload.frequency = {
+            period: formData.recurrenceUnit.toUpperCase(),
+            periodValue: formData.recurrenceNumber.toString(),
+          };
+        } else {
+          payload.frequency = {
+            period: "DAYS",
+            periodValue: "1",
+          };
+        }
+      }
+
+      console.log("Updating schedule with payload:", JSON.stringify(payload, null, 2));
+
+      // Call the update schedule API
+      const result = await updateCampaignSchedule(payload);
+      
+      console.log("Schedule updated successfully:", result);
+      
+      // Update the triggers data locally
+      if (triggersData?.triggers && triggersData.triggers[triggerIndex]) {
+        const updatedTriggers = [...triggersData.triggers];
+        updatedTriggers[triggerIndex] = {
+          ...updatedTriggers[triggerIndex],
+          nextFireTime: editedNextFireTime.toISOString(),
+        };
+        setTriggersData({
+          ...triggersData,
+          triggers: updatedTriggers,
+        });
+      }
+
+      setEditingNextFireTime(null);
+      setEditedNextFireTime(null);
+      
+      // Refresh triggers to get updated data
+      const templateNameToUse = template?.name || templateName;
+      if (templateNameToUse) {
+        fetchTriggers(templateNameToUse);
+      }
+    } catch (error) {
+      console.error("Error updating schedule:", error);
+    } finally {
+      setIsSavingNextFireTime(false);
+    }
+  };
+
+  const handleSaveScheduling = async () => {
+    setIsSavingScheduling(true);
+    try {
+      const formData = watch();
+      const idToUse = campaignId || templateId;
+      
+      if (!idToUse) {
+        alert("Error: No campaign ID found. Cannot update schedule.");
+        setIsSavingScheduling(false);
+        return;
+      }
+
+      // Format start date (YYYY-MM-DD format)
+      let startDateFormatted = "";
+      if (formData.startDate) {
+        const startDate = new Date(formData.startDate);
+        const year = startDate.getFullYear();
+        const month = String(startDate.getMonth() + 1).padStart(2, '0');
+        const day = String(startDate.getDate()).padStart(2, '0');
+        startDateFormatted = `${year}-${month}-${day}`;
+      } else {
+        alert("Error: Start date is required.");
+        setIsSavingScheduling(false);
+        return;
+      }
+
+      // Format end date if provided
+      let endsOnDate: string | undefined = undefined;
+      if (formData.endCondition === "On" && formData.endDate) {
+        const endDate = new Date(formData.endDate);
+        const endYear = endDate.getFullYear();
+        const endMonth = String(endDate.getMonth() + 1).padStart(2, '0');
+        const endDay = String(endDate.getDate()).padStart(2, '0');
+        endsOnDate = `${endYear}-${endMonth}-${endDay}`;
+      }
+
+      // Build the update payload
+      const payload: any = {
+        campaignName: formData.certificationTemplate || template?.name || "Campaign",
+        campaignId: idToUse,
+        description: formData.description || "",
+        startDate: startDateFormatted,
+        zoneId: formData.timezone || "UTC",
+        runItOnce: formData.runOnceOnly ? "YES" : "NO",
+        neverEnds: formData.endCondition === "Never" ? "YES" : "NO",
+        enableStaging: formData.enableStaging === "Yes" ? "YES" : "NO",
+      };
+
+      // Add end date if provided
+      if (formData.endCondition === "On" && endsOnDate) {
+        payload.endsOn = endsOnDate;
+      }
+
+      // Add frequency if recurring
+      if (!formData.runOnceOnly) {
+        if (formData.recurrenceNumber && formData.recurrenceUnit) {
+          payload.frequency = {
+            period: formData.recurrenceUnit.toUpperCase(),
+            periodValue: formData.recurrenceNumber.toString(),
+          };
+        } else {
+          payload.frequency = {
+            period: "DAYS",
+            periodValue: "1",
+          };
+        }
+      }
+
+      console.log("Updating schedule with payload:", JSON.stringify(payload, null, 2));
+
+      // Call the update schedule API
+      const result = await updateCampaignSchedule(payload);
+      
+      console.log("Schedule updated successfully:", result);
+      
+      setIsEditingScheduling(false);
+      
+      // Refresh triggers to get updated data
+      const templateNameToUse = template?.name || templateName;
+      if (templateNameToUse) {
+        fetchTriggers(templateNameToUse);
+      }
+      
+      alert("Schedule updated successfully!");
+    } catch (error) {
+      console.error("Error updating schedule:", error);
+      alert(`Failed to update schedule: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsSavingScheduling(false);
+    }
+  };
+
+  const handleCancelEditScheduling = () => {
+    // Reset form to original values from triggersData if available
+    if (triggersData?.data) {
+      const data = triggersData.data;
+      
+      if (data.startDate) {
+        setValue("startDate", new Date(data.startDate));
+      }
+      if (data.zoneId) {
+        setValue("timezone", data.zoneId);
+      }
+      if (data.runItOnce) {
+        setValue("runOnceOnly", data.runItOnce === "YES");
+      }
+      if (data.neverEnds) {
+        setValue("endCondition", data.neverEnds === "YES" ? "Never" : "On");
+      }
+      if (data.endsOn && data.neverEnds === "NO") {
+        setValue("endDate", new Date(data.endsOn));
+      }
+      if (data.enableStaging) {
+        setValue("enableStaging", data.enableStaging === "YES" ? "Yes" : "No");
+      }
+      
+      // Set recurrence fields
+      if (data.frequency) {
+        setValue("recurrenceNumber", data.frequency.periodValue);
+        setValue("recurrenceUnit", data.frequency.period.charAt(0) + data.frequency.period.slice(1).toLowerCase());
+      }
+    }
+    
+    setIsEditingScheduling(false);
+  };
+
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
       <div className="mb-6">
@@ -676,7 +918,29 @@ const SchedulePage: React.FC = () => {
               </div>
             </div>
 
-            <h2 className="text-lg font-semibold text-gray-900 mb-6 pb-3 border-t border-gray-200 pt-6">Scheduling</h2>
+            <div className="flex items-center justify-between mb-6 pb-3 border-t border-gray-200 pt-6">
+              <h2 className="text-lg font-semibold text-gray-900">Scheduling</h2>
+              {isEditingScheduling ? (
+                <button
+                  type="button"
+                  onClick={handleCancelEditScheduling}
+                  disabled={isSavingScheduling}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <X className="w-4 h-4" />
+                  Cancel
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsEditingScheduling(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors font-medium"
+                >
+                  <Edit2 className="w-4 h-4" />
+                  Edit
+                </button>
+              )}
+            </div>
             <div className="space-y-6">
               {/* Start Date */}
               <div className="grid grid-cols-[200px_1fr] gap-6 items-start">
@@ -688,13 +952,15 @@ const SchedulePage: React.FC = () => {
                     <DateInput
                       control={control as unknown as Control<FieldValues>}
                       name="startDate"
+                      disabled={!isEditingScheduling}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
                   <div className="w-full">
                     <select
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                       style={{ width: '100%', boxSizing: 'border-box' }}
+                      disabled={!isEditingScheduling}
                       {...register("timezone")}
                     >
                       {COMMON_TIMEZONES.map((tz) => (
@@ -720,7 +986,8 @@ const SchedulePage: React.FC = () => {
                   <input
                     type="checkbox"
                     {...register("runOnceOnly")}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    disabled={!isEditingScheduling}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:cursor-not-allowed"
                   />
                   <label className="text-sm font-medium text-gray-700 cursor-pointer">Run it once only</label>
                 </div>
@@ -737,13 +1004,15 @@ const SchedulePage: React.FC = () => {
                       <input
                         type="number"
                         min="1"
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                         placeholder="Number"
+                        disabled={!isEditingScheduling}
                         {...register("recurrenceNumber")}
                       />
                       <span className="text-gray-600 font-medium">—</span>
                       <select
-                        className="w-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="w-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        disabled={!isEditingScheduling}
                         {...register("recurrenceUnit")}
                       >
                         <option value="Days">Days</option>
@@ -765,6 +1034,7 @@ const SchedulePage: React.FC = () => {
                         <ToggleSwitch
                           checked={endCondition === "On"}
                           onChange={(checked) => setValue("endCondition", checked ? "On" : "Never")}
+                          disabled={!isEditingScheduling}
                         />
                         <span className={`text-sm text-gray-700 ${endCondition === "On" ? "text-black" : "text-gray-400"}`}>
                           On
@@ -775,6 +1045,7 @@ const SchedulePage: React.FC = () => {
                           <DateInput
                             control={control as unknown as Control<FieldValues>}
                             name="endDate"
+                            disabled={!isEditingScheduling}
                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                           />
                         </div>
@@ -796,6 +1067,7 @@ const SchedulePage: React.FC = () => {
                   <ToggleSwitch
                     checked={enableStaging === "Yes"}
                     onChange={(checked) => setValue("enableStaging", checked ? "Yes" : "No")}
+                    disabled={!isEditingScheduling}
                   />
                   <span className={`text-sm text-gray-700 ${enableStaging === "Yes" ? "text-black" : "text-gray-400"}`}>
                     Yes
@@ -831,26 +1103,20 @@ const SchedulePage: React.FC = () => {
 
           {/* Footer with Schedule Button */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="flex justify-end gap-4">
+            <div className="flex justify-end">
               <button
-                type="button"
-                onClick={() => router.back()}
-                className="px-6 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors font-medium text-gray-700"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isScheduling}
+                type={isEditingScheduling ? "button" : "submit"}
+                onClick={isEditingScheduling ? handleSaveScheduling : undefined}
+                disabled={isScheduling || isSavingScheduling}
                 className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                {isScheduling ? (
+                {isScheduling || isSavingScheduling ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Scheduling...
+                    {isEditingScheduling ? "Updating..." : "Scheduling..."}
                   </>
                 ) : (
-                  "Schedule"
+                  isEditingScheduling ? "Update" : "Schedule"
                 )}
               </button>
             </div>
@@ -1018,13 +1284,51 @@ const SchedulePage: React.FC = () => {
                           {/* Next Fire Time */}
                           {trigger.nextFireTime && (
                             <div className="min-w-0">
-                              <div className="flex items-center gap-1.5 text-xs font-medium text-gray-600 mb-1">
-                                <Clock className="w-3 h-3 text-blue-600" />
-                                Next Fire Time
+                              <div className="flex items-center justify-between gap-1.5 text-xs font-medium text-gray-600 mb-1">
+                                <div className="flex items-center gap-1.5">
+                                  <Clock className="w-3 h-3 text-blue-600" />
+                                  Next Fire Time
+                                </div>
+                                {editingNextFireTime === index ? (
+                                  <button
+                                    type="button"
+                                    onClick={handleCancelEditNextFireTime}
+                                    disabled={isSavingNextFireTime}
+                                    className="p-0.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded disabled:opacity-50"
+                                    title="Cancel"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleEditNextFireTime(index, trigger.nextFireTime)}
+                                    className="p-0.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded"
+                                    title="Edit next fire time"
+                                  >
+                                    <Edit2 className="w-3 h-3" />
+                                  </button>
+                                )}
                               </div>
-                              <div className="text-xs font-semibold text-blue-700 bg-blue-50 rounded px-2 py-1 border border-blue-200">
-                                {new Date(trigger.nextFireTime).toLocaleString()}
-                              </div>
+                              {editingNextFireTime === index ? (
+                                <div className="w-full space-y-2">
+                                  <input
+                                    type="datetime-local"
+                                    value={editedNextFireTime ? new Date(editedNextFireTime.getTime() - editedNextFireTime.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
+                                    onChange={(e) => {
+                                      if (e.target.value) {
+                                        setEditedNextFireTime(new Date(e.target.value));
+                                      }
+                                    }}
+                                    className="w-full px-2 py-1 text-xs border border-blue-300 rounded focus:ring-blue-500 focus:border-blue-500"
+                                    disabled={isSavingNextFireTime}
+                                  />
+                                </div>
+                              ) : (
+                                <div className="text-xs font-semibold text-blue-700 bg-blue-50 rounded px-2 py-1 border border-blue-200">
+                                  {new Date(trigger.nextFireTime).toLocaleString()}
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>

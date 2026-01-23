@@ -467,6 +467,38 @@ export async function executeQuery<T>(
   return result;
 }
 
+// Update campaign schedule
+export async function updateCampaignSchedule(payload: {
+  campaignName: string;
+  campaignId: string;
+  description: string;
+  startDate: string;
+  zoneId: string;
+  runItOnce: string;
+  neverEnds: string;
+  endsOn?: string;
+  enableStaging: string;
+  frequency?: {
+    period: string;
+    periodValue: string;
+  };
+}): Promise<any> {
+  const endpoint = "https://preview.keyforge.ai/kfscheduler/api/v1/ACMECOM/jobs/updateschedule/campaign";
+  
+  // apiRequestWithAuth already handles token expiration and refresh internally
+  const result = await apiRequestWithAuth<any>(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Requested-With": "XMLHttpRequest",
+      "User-Agent": "ISPM-Scheduler/1.0",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return result;
+}
+
 // Get all supported application types for registration
 export async function getAllSupportedApplicationTypes(): Promise<any> {
   const endpoint = "https://preview.keyforge.ai/registerscimapp/registerfortenant/ACMECOM/getAllSupportedObjects";
