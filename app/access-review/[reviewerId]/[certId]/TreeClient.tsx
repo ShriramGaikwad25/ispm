@@ -2089,13 +2089,13 @@ const TreeClient: React.FC<TreeClientProps> = ({
         style={{ height: '100vh' }}
       >
         {/* Back Button */}
-        <div className="py-2 flex items-center border-b border-gray-200">
-          <BackButton className={`${isSidebarHovered ? 'w-full' : 'w-auto'} text-xs py-1.5 px-2 !bg-gray-300 !border-gray-500 !text-gray-800 hover:!bg-gray-200`} text="Back" />
+        <div className="flex items-center border-b border-gray-300">
+          <BackButton className={`${isSidebarHovered ? 'w-full' : 'w-auto'} text-sm py-1.5 px-2 !bg-gray-300 !border-gray-400 !text-gray-800 hover:!bg-gray-200`} text="Back" />
         </div>
 
         {/* Users List */}
         <div
-          className="bg-gradient-to-b from-gray-50 to-white flex flex-col flex-1 overflow-hidden"
+          className="bg-gradient-to-b from-gray-50 to-white flex flex-col flex-1 overflow-hidden mt-2"
           onMouseEnter={() => setIsSidebarHovered(true)}
           onMouseLeave={() => setIsSidebarHovered(false)}
         >
