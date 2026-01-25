@@ -353,14 +353,19 @@ export async function refreshJWTToken(): Promise<boolean> {
   }
 }
 
-// Enhanced API request with automatic token refresh
+// Enhanced API request with automatic token refresh:
+// - On 401/403 or response body "Token Expired" -> try refresh JWT using access token
+// - On refresh success -> retry request once
+// - On refresh failure (access token expired) -> forceLogout
 export async function apiRequestWithAuth<T>(
   url: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  internalRetry = false
 ): Promise<T> {
   const jwtToken = getCookie(COOKIE_NAMES.JWT_TOKEN);
   
   if (!jwtToken) {
+    forceLogout('No JWT token available');
     throw new Error('No JWT token available');
   }
 
@@ -487,9 +492,19 @@ export async function apiRequestWithAuth<T>(
     try {
       const data = JSON.parse(responseText);
       
-      // Check for token expired error first (before other checks)
-      if (await checkTokenExpiredError(data)) {
-        throw new Error('Token Expired');
+      // Check for token expired in response body: refresh JWT using access token, then retry once; if refresh fails, logout
+      if (data && typeof data === 'object') {
+        const status = data.status || data.Status || data.STATUS;
+        const errorMessage = data.errorMessage || data.error_message || data.ErrorMessage;
+        const isTokenExpiredInBody = status === 'error' && errorMessage &&
+          (String(errorMessage).trim() === 'Token Expired' || String(errorMessage).trim().toLowerCase() === 'token expired');
+        if (isTokenExpiredInBody) {
+          const refreshFailed = await checkTokenExpiredError(data);
+          if (refreshFailed) throw new Error('Token Expired');
+          if (!internalRetry) return apiRequestWithAuth<T>(url, options, true);
+          forceLogout('Token Expired after retry');
+          throw new Error('Token Expired');
+        }
       }
       
       // Log the response for debugging

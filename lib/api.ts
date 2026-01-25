@@ -8,6 +8,7 @@ const BASE_URL = "https://preview.keyforge.ai/certification/api/v1/ACMECOM";
 
 const BASE_URL2 = "https://preview.keyforge.ai/entities/api/v1/ACMECOM";
 
+// Uses apiRequestWithAuth so JWT expire -> refresh via access token -> retry once; access token expire -> logout
 export async function fetchApi<T>(
   endpoint: string,
   pageSize?: number,
@@ -25,38 +26,15 @@ export async function fetchApi<T>(
       url.searchParams.append("pageNumber", pageNumber.toString());
     }
 
-    const headers = {
+    const headers: Record<string, string> = {
       "Content-Type": "application/json",
       "X-Requested-With": "XMLHttpRequest",
-      ...options.headers,
+      ...(options.headers as Record<string, string>),
     };
 
-    const res = await fetch(url.toString(), { ...options, headers });
-
-    if (!res.ok) {
-      const errorBody = await res.text();
-      // Check if error body contains token expired error
-      try {
-        const errorData = JSON.parse(errorBody);
-        if (await checkTokenExpiredError(errorData)) {
-          throw new Error('Token Expired');
-        }
-      } catch (e) {
-        // If parsing fails, continue with original error
-      }
-      throw new Error(
-        `Fetch failed: ${res.status} ${res.statusText}\n${errorBody}`
-      );
-    }
-
-    const result = await res.json();
-    // Check for token expired error in successful responses
-    if (await checkTokenExpiredError(result)) {
-      throw new Error('Token Expired');
-    }
-    return result;
+    return apiRequestWithAuth<T>(url.toString(), { ...options, headers });
   } catch (error) {
-    throw new Error(`API request failed: ${error.message}`);
+    throw new Error(`API request failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -80,7 +58,7 @@ export async function fetchApiWithAuth<T>(
 
     return apiRequestWithAuth<T>(url.toString(), options);
   } catch (error) {
-    throw new Error(`Authenticated API request failed: ${error.message}`);
+    throw new Error(`Authenticated API request failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -219,8 +197,7 @@ export async function getGroupedAppOwnerDetails<T>(
   /**
    * Optional filter expression, e.g. "action eq Pending" | "action eq Approve" | "action eq Reject"
    */
-  filter?: string,
-  retryCount: number = 0
+  filter?: string
 ): Promise<PaginatedResponse<T>> {
   const baseEndpoint = `${BASE_URL}/getAPPOGroupByEntsCertDetails/${reviewerId}/${certId}`;
   const url = new URL(baseEndpoint);
@@ -240,63 +217,7 @@ export async function getGroupedAppOwnerDetails<T>(
     "X-Requested-With": "XMLHttpRequest",
   };
 
-  const res = await fetch(url.toString(), { headers });
-
-  if (!res.ok) {
-    const errorBody = await res.text();
-    // Check if error body contains token expired error
-    try {
-      const errorData = JSON.parse(errorBody);
-      // Check if this is a token expired error
-      const status = errorData.status || errorData.Status || errorData.STATUS;
-      const errorMessage = errorData.errorMessage || errorData.error_message || errorData.ErrorMessage;
-      const isTokenError = status === 'error' && errorMessage && 
-        (String(errorMessage).trim() === 'Token Expired' || String(errorMessage).trim().toLowerCase() === 'token expired');
-      
-      if (isTokenError) {
-        // Token expired - checkTokenExpiredError will handle refresh
-        const isTokenExpired = await checkTokenExpiredError(errorData);
-        if (isTokenExpired) {
-          // Refresh failed, user will be logged out
-          throw new Error('Token Expired');
-        }
-        // Token was refreshed successfully, retry the request once
-        if (retryCount === 0) {
-          return getGroupedAppOwnerDetails(reviewerId, certId, pageSize, pageNumber, filter, 1);
-        }
-      }
-    } catch (e) {
-      // If it's a token expired error, rethrow it
-      if (e instanceof Error && e.message === 'Token Expired') {
-        throw e;
-      }
-      // If parsing fails, continue with original error
-    }
-    throw new Error(
-      `Fetch failed: ${res.status} ${res.statusText}\n${errorBody}`
-    );
-  }
-
-  const result = await res.json();
-  // Check for token expired error in successful responses
-  const status = result.status || result.Status || result.STATUS;
-  const errorMessage = result.errorMessage || result.error_message || result.ErrorMessage;
-  const isTokenError = status === 'error' && errorMessage && 
-    (String(errorMessage).trim() === 'Token Expired' || String(errorMessage).trim().toLowerCase() === 'token expired');
-  
-  if (isTokenError) {
-    const isTokenExpired = await checkTokenExpiredError(result);
-    if (isTokenExpired) {
-      // Refresh failed, user will be logged out
-      throw new Error('Token Expired');
-    }
-    // Token was refreshed successfully, retry the request once
-    if (retryCount === 0) {
-      return getGroupedAppOwnerDetails(reviewerId, certId, pageSize, pageNumber, filter, 1);
-    }
-  }
-  
-  return result;
+  return apiRequestWithAuth<PaginatedResponse<T>>(url.toString(), { headers });
 }
 
 export async function getAppAccounts(
@@ -326,8 +247,7 @@ export async function searchUsers(
   payload: { filter: string; applicationId: string; scimurl: string; applicationName: string }
 ): Promise<any> {
   const endpoint = `https://preview.keyforge.ai/entities/api/v1/ACMECOM/search/user`;
-  
-  const response = await fetch(endpoint, {
+  return apiRequestWithAuth<any>(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -335,27 +255,6 @@ export async function searchUsers(
     },
     body: JSON.stringify(payload),
   });
-
-  if (!response.ok) {
-    const errorBody = await response.text();
-    // Check if error body contains token expired error
-    try {
-      const errorData = JSON.parse(errorBody);
-      if (await checkTokenExpiredError(errorData)) {
-        throw new Error('Token Expired');
-      }
-    } catch (e) {
-      // If parsing fails, continue with original error
-    }
-    throw new Error(`Search API failed: ${response.status} ${response.statusText}\n${errorBody}`);
-  }
-
-  const result = await response.json();
-  // Check for token expired error in successful responses
-  if (await checkTokenExpiredError(result)) {
-    throw new Error('Token Expired');
-  }
-  return result;
 }
 
 export async function getAPPOCertificationDetailsWithFilter<T>(
@@ -381,30 +280,7 @@ export async function getAPPOCertificationDetailsWithFilter<T>(
     "X-Requested-With": "XMLHttpRequest",
   };
 
-  const res = await fetch(url.toString(), { headers });
-
-  if (!res.ok) {
-    const errorBody = await res.text();
-    // Check if error body contains token expired error
-    try {
-      const errorData = JSON.parse(errorBody);
-      if (await checkTokenExpiredError(errorData)) {
-        throw new Error('Token Expired');
-      }
-    } catch (e) {
-      // If parsing fails, continue with original error
-    }
-    throw new Error(
-      `Fetch failed: ${res.status} ${res.statusText}\n${errorBody}`
-    );
-  }
-
-  const result = await res.json();
-  // Check for token expired error in successful responses
-  if (await checkTokenExpiredError(result)) {
-    throw new Error('Token Expired');
-  }
-  return result;
+  return apiRequestWithAuth<PaginatedResponse<T>>(url.toString(), { headers });
 }
 
 export async function getEntitlementDetails(

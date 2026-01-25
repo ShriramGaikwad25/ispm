@@ -1,11 +1,12 @@
 import { LineItemDetail } from "@/types/lineItem";
 import { PaginatedResponse, CertAnalyticsResponse } from "@/types/api";
 import { getCertifications } from "@/lib/api";
-import { checkTokenExpiredError } from "./auth";
+import { apiRequestWithAuth } from "./auth";
 
 const BASE_URL = "https://preview.keyforge.ai/certification/api/v1/ACMECOM";
 const BASE_URL2 = "https://preview.keyforge.ai/entities/api/v1/ACMECOM";
 
+// Uses apiRequestWithAuth: JWT expire -> refresh via access token -> retry once; access token expire -> logout
 export async function fetchApiWithLoading<T>(
   endpoint: string,
   pageSize?: number,
@@ -15,7 +16,7 @@ export async function fetchApiWithLoading<T>(
 ): Promise<T> {
   try {
     onLoadingChange?.(true, 'Loading data...');
-    
+
     const url = new URL(endpoint);
 
     if (pageSize !== undefined) {
@@ -26,38 +27,15 @@ export async function fetchApiWithLoading<T>(
       url.searchParams.append("pageNumber", pageNumber.toString());
     }
 
-    const headers = {
+    const headers: Record<string, string> = {
       "Content-Type": "application/json",
       "X-Requested-With": "XMLHttpRequest",
-      ...options.headers,
+      ...(options.headers as Record<string, string>),
     };
 
-    const res = await fetch(url.toString(), { ...options, headers });
-
-    if (!res.ok) {
-      const errorBody = await res.text();
-      // Check if error body contains token expired error
-      try {
-        const errorData = JSON.parse(errorBody);
-        if (await checkTokenExpiredError(errorData)) {
-          throw new Error('Token Expired');
-        }
-      } catch (e) {
-        // If parsing fails, continue with original error
-      }
-      throw new Error(
-        `Fetch failed: ${res.status} ${res.statusText}\n${errorBody}`
-      );
-    }
-
-    const result = await res.json();
-    // Check for token expired error in successful responses
-    if (await checkTokenExpiredError(result)) {
-      throw new Error('Token Expired');
-    }
-    return result;
+    return await apiRequestWithAuth<T>(url.toString(), { ...options, headers });
   } catch (error) {
-    throw new Error(`API request failed: ${error.message}`);
+    throw new Error(`API request failed: ${error instanceof Error ? error.message : String(error)}`);
   } finally {
     onLoadingChange?.(false);
   }
