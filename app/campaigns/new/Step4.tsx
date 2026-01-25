@@ -1,5 +1,5 @@
 import { BookTemplate, InfoIcon, Save } from "lucide-react";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import {
   Control,
   FieldValues,
@@ -21,6 +21,7 @@ import {
   beforeReminders,
   optionsData,
   selectAttribute,
+  markUndecidedAccessOptions,
 } from "@/utils/utils";
 import { customOption, loadUsers } from "@/components/MsAsyncData";
 import ExpressionBuilder from "@/components/ExpressionBuilder";
@@ -143,6 +144,47 @@ const Step4: React.FC<StepProps> = ({
   const showGenericExpression = enforComments === "Custom Fields";
   const { openSidebar, closeSidebar } = useRightSidebar();
   const [msTeamsSaveStatus, setMsTeamsSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+
+  // Check if this is an Entitlement Owner template (only in edit mode)
+  // We determine edit mode by checking if formData has existing campaign type or reviewers
+  const isEntitlementOwnerTemplate = useMemo(() => {
+    const campaignType = formData.step1?.campaignType || "";
+    const reviewers = formData.step3?.stages || [];
+    
+    // Only apply Entitlement Owner restrictions if we have existing data (edit mode)
+    const isEditMode = !!(campaignType || (reviewers && reviewers.length > 0 && reviewers[0]?.reviewer));
+    
+    if (!isEditMode) {
+      return false;
+    }
+    
+    // Check if campaign type is EntitlementOwnerReview
+    if (campaignType === "EntitlementOwnerReview") {
+      return true;
+    }
+    
+    // Check if any reviewer is Entitlement Owner
+    const hasEntitlementOwner = reviewers.some((stage: any) => {
+      const reviewer = stage?.reviewer || "";
+      return reviewer === "entitlement-owner" || reviewer === "EntitlementOwner" || reviewer === "Entitlement Owner";
+    });
+    
+    return hasEntitlementOwner;
+  }, [formData.step1?.campaignType, formData.step3?.stages]);
+
+  // For Entitlement Owner templates, use different enforceComments options
+  const enforceCommentsOptions = useMemo(() => {
+    if (isEntitlementOwnerTemplate) {
+      return [
+        { value: "Approve", label: "Approve" },
+        { value: "Reassign", label: "Reassign" },
+        { value: "Lock", label: "Lock" },
+        { value: "Decommission", label: "Decommission" },
+        { value: "Custom Fields", label: "Custom Fields" },
+      ];
+    }
+    return enforceComments;
+  }, [isEntitlementOwnerTemplate]);
 
   // Options for dropdowns
   // During campaign options (includes Start Of Campaign)
@@ -646,26 +688,39 @@ const Step4: React.FC<StepProps> = ({
       <h2 className="font-medium">Campaign Management</h2>
       <dl className="px-4 py-8 border-b border-gray-300 space-y-4 mb-8 grid grid-cols-2 text-sm">
         <dt> Mark undecided access as</dt>
-        <dd className="flex gap-2 items-center">
-          <span
-            className={`flex items-center ${
-              !watch("markUndecidedRevoke") ? ` text-black` : "text-black/50"
-            }`}
-          >
-            {" "}
-            Revoke
-          </span>
-          <ToggleSwitch
-            checked={watch("markUndecidedRevoke")}
-            onChange={(checked) => setValue("markUndecidedRevoke", checked)}
-          />
-          <span
-            className={`flex items-center ${
-              watch("markUndecidedRevoke") ? ` text-black` : "text-black/50"
-            }`}
-          >
-            Certify{" "}
-          </span>
+        <dd>
+          {isEntitlementOwnerTemplate ? (
+            <MultiSelect
+              isSearchable={false}
+              isMulti={false}
+              control={control as unknown as Control<FieldValues>}
+              options={markUndecidedAccessOptions}
+              placeholder="Select action"
+              {...register("markUndecidedAccess")}
+            />
+          ) : (
+            <div className="flex gap-2 items-center">
+              <span
+                className={`flex items-center ${
+                  !watch("markUndecidedRevoke") ? ` text-black` : "text-black/50"
+                }`}
+              >
+                {" "}
+                Revoke
+              </span>
+              <ToggleSwitch
+                checked={watch("markUndecidedRevoke")}
+                onChange={(checked) => setValue("markUndecidedRevoke", checked)}
+              />
+              <span
+                className={`flex items-center ${
+                  watch("markUndecidedRevoke") ? ` text-black` : "text-black/50"
+                }`}
+              >
+                Certify{" "}
+              </span>
+            </div>
+          )}
         </dd>
         <dt> Disable Bulk Action</dt>
         <dd className="flex gap-2 items-center">
@@ -683,7 +738,7 @@ const Step4: React.FC<StepProps> = ({
             isSearchable={false}
             isMulti={false}
             control={control as unknown as Control<FieldValues>}
-            options={enforceComments}
+            options={enforceCommentsOptions}
             {...register("enforceComments")}
           />
           {errors.enforceComments?.message &&

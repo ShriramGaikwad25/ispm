@@ -124,7 +124,19 @@ export const enforceComments = [
   { value: "All Actions", label: "All Actions" },
   { value: "Approve", label: "Approve" },
   { value: "Revoke", label: "Revoke" },
+  { value: "Reassign", label: "Reassign" },
+  { value: "Lock", label: "Lock" },
+  { value: "Decommission", label: "Decommission" },
   { value: "Custom Fields", label: "Custom Fields" },
+];
+
+// Options for "Mark undecided access as" dropdown (for Entitlement Owner templates)
+export const markUndecidedAccessOptions = [
+  { value: "Approved", label: "Approved" },
+  { value: "Reassign to App Owner", label: "Reassign to App Owner" },
+  { value: "Reassign to IAM Admin", label: "Reassign to IAM Admin" },
+  { value: "Lock Entitlement", label: "Lock Entitlement" },
+  { value: "Decommission Entitlement", label: "Decommission Entitlement" },
 ];
 export const template = [
   { value: "Template 1", label: "Template 1" },

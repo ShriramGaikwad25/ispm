@@ -123,6 +123,7 @@ export interface Step4FormData {
   msTeamsTeamId?: string;
   allowDownloadUploadCropNetwork: boolean;
   markUndecidedRevoke: boolean;
+  markUndecidedAccess?: string; // For Entitlement Owner templates
   disableBulkAction: boolean;
   enforceComments: string;
   genericExpression?: GenericExpression[];

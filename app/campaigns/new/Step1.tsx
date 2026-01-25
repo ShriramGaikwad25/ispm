@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { Control, FieldValues, Resolver, useForm, UseFormSetValue, UseFormWatch } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
@@ -272,6 +272,25 @@ const Step1: React.FC<StepProps> = ({
     }
   }, [selectData, setValue]);
 
+  // Check if this is an Entitlement Owner template
+  const isEntitlementOwnerTemplate = useMemo(() => {
+    const campaignType = watch("campaignType");
+    const reviewers = formData.step3?.stages || [];
+    
+    // Check if campaign type is EntitlementOwnerReview
+    if (campaignType === "EntitlementOwnerReview") {
+      return true;
+    }
+    
+    // Check if any reviewer is Entitlement Owner
+    const hasEntitlementOwner = reviewers.some((stage: any) => {
+      const reviewer = stage?.reviewer || "";
+      return reviewer === "entitlement-owner" || reviewer === "EntitlementOwner" || reviewer === "Entitlement Owner";
+    });
+    
+    return hasEntitlementOwner;
+  }, [watch("campaignType"), formData.step3?.stages]);
+
   return (
     <div className="w-full flex flex-col items-center">
       <h2 className="text-xl font-bold text-blue-950 text-center mb-2">
@@ -336,26 +355,29 @@ const Step1: React.FC<StepProps> = ({
             </div>
           </div>
 
-          <div className={`grid grid-cols-[280px_1.5fr] gap-2`}>
-            <label htmlFor="campaignType" className={`pl-2 ${asterisk}`}>Campaign Type</label>
-            <div className="max-w-md">
-              <input
-                id="campaignType"
-                type="text"
-                className="form-input"
-                disabled={isEditMode}
-                aria-invalid={!!errors.campaignType}
-                aria-describedby={errors.campaignType ? "campaignType-error" : undefined}
-                {...register("campaignType")}
-              />
-              {touchedFields.campaignType && errors.campaignType?.message &&
-                typeof errors.campaignType.message === "string" && (
-                  <p id="campaignType-error" className="text-red-500" role="alert" aria-live="polite">
-                    {errors.campaignType.message}
-                  </p>
-                )}
+          {/* Hide Campaign Type for Entitlement Owner templates in edit mode */}
+          {!(isEditMode && isEntitlementOwnerTemplate) && (
+            <div className={`grid grid-cols-[280px_1.5fr] gap-2`}>
+              <label htmlFor="campaignType" className={`pl-2 ${asterisk}`}>Campaign Type</label>
+              <div className="max-w-md">
+                <input
+                  id="campaignType"
+                  type="text"
+                  className="form-input"
+                  disabled={isEditMode}
+                  aria-invalid={!!errors.campaignType}
+                  aria-describedby={errors.campaignType ? "campaignType-error" : undefined}
+                  {...register("campaignType")}
+                />
+                {touchedFields.campaignType && errors.campaignType?.message &&
+                  typeof errors.campaignType.message === "string" && (
+                    <p id="campaignType-error" className="text-red-500" role="alert" aria-live="polite">
+                      {errors.campaignType.message}
+                    </p>
+                  )}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className={`grid grid-cols-[280px_1.5fr] gap-2`}>
             <label className={`pl-2 ${asterisk}`}>Owners</label>
@@ -421,130 +443,133 @@ const Step1: React.FC<StepProps> = ({
           <div className="border border-gray-200 rounded-lg p-6 bg-gray-50">
             <h3 className="text-lg font-semibold text-gray-900 mb-6">Campaign Scope</h3>
             <div className="space-y-6">
-              <div className={`grid grid-cols-[280px_1.5fr] gap-2`}>
-                <label className={`pl-2 ${asterisk}`}>Select Users</label>
-            <div>
-              {["All users", "Specific users", "Custom User Group"].map(
-                (option, index, array) => (
-                  <button
-                    key={option}
-                    type="button"
-                    className={`px-4 relative py-2 mb-3 min-w-16 rounded-md border border-gray-300 ${
-                      watch("userType") === option && index > 0 && downArrow
-                    } ${
-                      watch("userType") === option
-                        ? "bg-[#15274E] text-white"
-                        : ""
-                    } ${index === 0 && "rounded-r-none"} ${
-                      array.length > 2 &&
-                      index === 1 &&
-                      "rounded-none border-r-0  border-l-0 "
-                    } ${index === array.length - 1 && "rounded-l-none"}`}
-                    onClick={() =>
-                      setValue("userType", option, { shouldValidate: true })
-                    }
-                  >
-                    {option}
-                  </button>
-                )
-              )}
-
-              {watch("userType") === "Specific users" && (
-                <ExpressionBuilder
-                  title="Build Expression"
-                  control={control as unknown as Control<FieldValues>}
-                  setValue={setValue as unknown as UseFormSetValue<FieldValues>}
-                  watch={watch as unknown as UseFormWatch<FieldValues>}
-                  fieldName="specificUserExpression"
-                />
-              )}
-
-              {watch("userType") === "Custom User Group" && (
-                <>
-                  <div className="flex items-center gap-1 mb-2">
-                    <span
-                      className={`flex items-center ${
-                        !watch("groupListIsChecked")
-                          ? `${asterisk} !pr-0 text-black`
-                          : "text-black/50"
-                      }`}
+              {/* Hide Select Users section for Entitlement Owner templates in edit mode */}
+              {!(isEditMode && isEntitlementOwnerTemplate) && (
+                <div className={`grid grid-cols-[280px_1.5fr] gap-2`}>
+                  <label className={`pl-2 ${asterisk}`}>Select Users</label>
+              <div>
+                {["All users", "Specific users", "Custom User Group"].map(
+                  (option, index, array) => (
+                    <button
+                      key={option}
+                      type="button"
+                      className={`px-4 relative py-2 mb-3 min-w-16 rounded-md border border-gray-300 ${
+                        watch("userType") === option && index > 0 && downArrow
+                      } ${
+                        watch("userType") === option
+                          ? "bg-[#15274E] text-white"
+                          : ""
+                      } ${index === 0 && "rounded-r-none"} ${
+                        array.length > 2 &&
+                        index === 1 &&
+                        "rounded-none border-r-0  border-l-0 "
+                      } ${index === array.length - 1 && "rounded-l-none"}`}
+                      onClick={() =>
+                        setValue("userType", option, { shouldValidate: true })
+                      }
                     >
-                      Select from List
-                    </span>
-                    <ToggleSwitch
-                      checked={watch("groupListIsChecked")}
-                      onChange={(checked) => {
-                        setValue("groupListIsChecked", checked, {
-                          shouldValidate: true,
-                        });
-                      }}
-                      className="scale-80"
-                    />
+                      {option}
+                    </button>
+                  )
+                )}
+
+                {watch("userType") === "Specific users" && (
+                  <ExpressionBuilder
+                    title="Build Expression"
+                    control={control as unknown as Control<FieldValues>}
+                    setValue={setValue as unknown as UseFormSetValue<FieldValues>}
+                    watch={watch as unknown as UseFormWatch<FieldValues>}
+                    fieldName="specificUserExpression"
+                  />
+                )}
+
+                {watch("userType") === "Custom User Group" && (
+                  <>
+                    <div className="flex items-center gap-1 mb-2">
+                      <span
+                        className={`flex items-center ${
+                          !watch("groupListIsChecked")
+                            ? `${asterisk} !pr-0 text-black`
+                            : "text-black/50"
+                        }`}
+                      >
+                        Select from List
+                      </span>
+                      <ToggleSwitch
+                        checked={watch("groupListIsChecked")}
+                        onChange={(checked) => {
+                          setValue("groupListIsChecked", checked, {
+                            shouldValidate: true,
+                          });
+                        }}
+                        className="scale-80"
+                      />
+                      <span
+                        className={`flex items-center ${
+                          watch("groupListIsChecked")
+                            ? `${asterisk} !pr-0 text-black`
+                            : "text-black/50"
+                        }`}
+                      >
+                        Import New User Group
+                      </span>
+                    </div>
+
+                    {watch("groupListIsChecked") && (
+                      <div className="w-[450px]">
+                        <FileDropzone
+                          name="importNewUserGroup"
+                          control={control as unknown as Control<FieldValues>}
+                        />
+                      </div>
+                    )}
+                    {!watch("groupListIsChecked") && (
+                      <>
+                        <MultiSelect
+                          className="max-w-[420px]"
+                          isMulti={true}
+                          control={control as unknown as Control<FieldValues>}
+                          options={userGroups}
+                          {...register("userGroupList")}
+                        />
+
+                        {touchedFields.userGroupList && errors.userGroupList?.message &&
+                          typeof errors.userGroupList.message === "string" && (
+                            <p className="text-red-500">
+                              {errors.userGroupList.message}
+                            </p>
+                          )}
+                      </>
+                    )}
+                  </>
+                )}
+                <div className="">
+                  <div className="flex items-center gap-1 py-2">
+                    <input type="checkbox" {...register("excludeUsersIsChecked")} />{" "}
                     <span
-                      className={`flex items-center ${
-                        watch("groupListIsChecked")
-                          ? `${asterisk} !pr-0 text-black`
-                          : "text-black/50"
-                      }`}
+                      className={` ${watch("excludeUsersIsChecked") && asterisk}`}
                     >
-                      Import New User Group
+                      exclude users from the certification campaign
                     </span>
                   </div>
 
-                  {watch("groupListIsChecked") && (
-                    <div className="w-[450px]">
-                      <FileDropzone
-                        name="importNewUserGroup"
-                        control={control as unknown as Control<FieldValues>}
-                      />
-                    </div>
-                  )}
-                  {!watch("groupListIsChecked") && (
-                    <>
-                      <MultiSelect
-                        className="max-w-[420px]"
-                        isMulti={true}
-                        control={control as unknown as Control<FieldValues>}
-                        options={userGroups}
-                        {...register("userGroupList")}
-                      />
+                  <MultiSelect
+                    isDisabled={!watch("excludeUsersIsChecked")}
+                    className="max-w-[420px]"
+                    isMulti={true}
+                    control={control as unknown as Control<FieldValues>}
+                    options={excludeUsers}
+                    {...register("excludeUsers")}
+                  />
 
-                      {touchedFields.userGroupList && errors.userGroupList?.message &&
-                        typeof errors.userGroupList.message === "string" && (
-                          <p className="text-red-500">
-                            {errors.userGroupList.message}
-                          </p>
-                        )}
-                    </>
-                  )}
-                </>
-              )}
-              <div className="">
-                <div className="flex items-center gap-1 py-2">
-                  <input type="checkbox" {...register("excludeUsersIsChecked")} />{" "}
-                  <span
-                    className={` ${watch("excludeUsersIsChecked") && asterisk}`}
-                  >
-                    exclude users from the certification campaign
-                  </span>
+                  {touchedFields.excludeUsers && errors.excludeUsers?.message &&
+                    typeof errors.excludeUsers.message === "string" && (
+                      <p className="text-red-500">{errors.excludeUsers.message}</p>
+                    )}
                 </div>
-
-                <MultiSelect
-                  isDisabled={!watch("excludeUsersIsChecked")}
-                  className="max-w-[420px]"
-                  isMulti={true}
-                  control={control as unknown as Control<FieldValues>}
-                  options={excludeUsers}
-                  {...register("excludeUsers")}
-                />
-
-                {touchedFields.excludeUsers && errors.excludeUsers?.message &&
-                  typeof errors.excludeUsers.message === "string" && (
-                    <p className="text-red-500">{errors.excludeUsers.message}</p>
-                  )}
               </div>
-            </div>
-          </div>
+              </div>
+              )}
 
           <div className={`grid grid-cols-[280px_1.5fr] gap-2`}>
             <label className={`pl-2 ${asterisk}`}>Select Data</label>
