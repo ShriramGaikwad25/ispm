@@ -7,9 +7,10 @@ interface DropdownProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   name?: string;
   menuWidth?: number;
   className?: string;
+  onCloseMenu?: (closeFunc: () => void) => void;
 }
 
-const Dropdown = ({ Icon, children, name, className, menuWidth = 160, ...props }: DropdownProps) => {
+const Dropdown = ({ Icon, children, name, className, menuWidth = 160, onCloseMenu, ...props }: DropdownProps) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -43,6 +44,13 @@ const Dropdown = ({ Icon, children, name, className, menuWidth = 160, ...props }
     e.stopPropagation();
     setIsMenuOpen((prev) => !prev);
   };
+
+  useEffect(() => {
+    // Expose the close function to parent components
+    if (onCloseMenu) {
+      onCloseMenu(() => setIsMenuOpen(false));
+    }
+  }, [onCloseMenu]);
 
   useEffect(() => {
     if (isMenuOpen) {

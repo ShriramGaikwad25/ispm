@@ -316,136 +316,116 @@ const HeaderContent = () => {
     lastSync: string;
   } | null>(null);
 
-  // Avatar mapping and fallbacks (reuse logic from TreeClient)
+
   const [avatarErrorIndexByKey, setAvatarErrorIndexByKey] = useState<Record<string, number>>({});
-  const [avatarMap, setAvatarMap] = useState<Record<string, string>>({});
-  const [availableRandomSvgs, setAvailableRandomSvgs] = useState<string[]>([]);
-  const [maleNames, setMaleNames] = useState<Set<string>>(new Set());
-  const [femaleNames, setFemaleNames] = useState<Set<string>>(new Set());
 
   const getHeaderUserKey = (u: any): string => {
     if (!u) return "";
     return String(u.userId || u.username || u.email || u.id || u.username || "");
   };
 
-  const getFirstName = (u: any): string => {
-    const full = String(u?.username || "").trim();
-    if (!full) return "";
-    return full.split(/\s+/)[0].toLowerCase();
-  };
-
-  const isLikelyMale = (u: any): boolean => {
-    const gender = String(u?.gender || u?.sex || "").toLowerCase();
-    if (gender === 'male' || gender === 'm') return true;
-    if (gender === 'female' || gender === 'f') return false;
-    const first = getFirstName(u);
-    if (!first) return false;
-    if (maleNames.size > 0 && maleNames.has(first)) return true;
-    if (femaleNames.size > 0 && femaleNames.has(first)) return false;
-    return false;
-  };
-
   const getAvatarCandidates = (u: any): string[] => {
-    const candidates: string[] = [];
-    // Prefer a global header image if present
-    candidates.push(
-      "/pictures/user_image2.jpg",
-      "/pictures/user_image2.png",
-      "/pictures/user_image2.webp",
-      "/pictures/user_image2.jpeg",
-    );
-    if (u) {
-      if (isLikelyMale(u)) {
-        candidates.push(
-          "/pictures/user_male.svg",
-          "/pictures/user_male.png",
-          "/pictures/user_male.jpg",
-          "/pictures/user_male.webp",
-          "/pictures/user_male.jpeg",
-        );
-      } else {
-        candidates.push(
-          "/pictures/user_female.svg",
-          "/pictures/user_female.png",
-          "/pictures/user_female.jpg",
-          "/pictures/user_female.webp",
-          "/pictures/user_female.jpeg",
-        );
-      }
+    // Available pictures in public/pictures folder
+    const availablePictures = [
+      "/pictures/user_image1.avif",
+      "/pictures/user_image4.avif",
+      "/pictures/user_image7.avif",
+      "/pictures/user_image8.avif",
+    ];
+    
+    // If user has a photoFilename, try that first
+    const photoFilename = String(u?.photoFilename || "").trim();
+    if (photoFilename) {
+      return [`/pictures/${photoFilename}`, ...availablePictures];
     }
-    // Deterministic random SVG per user if provided
-    if (u && Array.isArray(availableRandomSvgs) && availableRandomSvgs.length > 0) {
-      const key = getHeaderUserKey(u);
-      let hash = 0;
-      for (let i = 0; i < key.length; i++) {
-        hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
-      }
-      const filename = availableRandomSvgs[hash % availableRandomSvgs.length];
-      if (filename) {
-        const normalized = filename.startsWith('/') ? filename : `/pictures/${filename}`;
-        candidates.push(normalized);
-      }
+    
+    // Assign picture based on user key for consistency
+    const userKey = getHeaderUserKey(u);
+    let hash = 0;
+    for (let i = 0; i < userKey.length; i++) {
+      hash = (hash * 31 + userKey.charCodeAt(i)) >>> 0;
     }
-    if (u) {
-      const mapKeyCandidates = [
-        String(u.userId || "").trim(),
-        String(u.username || "").trim(),
-        String(u.email || "").trim(),
-        String(u.id || "").trim(),
-      ].filter(Boolean);
-      for (const k of mapKeyCandidates) {
-        const mapped = avatarMap[k];
-        if (mapped) {
-          const normalized = mapped.startsWith("/") ? mapped : `/pictures/${mapped}`;
-          candidates.push(normalized);
-          break;
-        }
-      }
-      const rawParts = [
-        String(u.photoFilename || "").trim(),
-        String(u.userId || "").trim(),
-        String(u.username || "").trim(),
-        String(u.email || "").trim(),
-        String(u.id || "").trim(),
-        String(u.username || "").trim(),
-        String(u.username || "").trim().replace(/\s+/g, "_")
-      ].filter(Boolean);
-      const exts = [".jpg", ".jpeg", ".png", ".webp", ".svg"];
-      for (const part of rawParts) {
-        for (const ext of exts) {
-          candidates.push(`/pictures/${part}${ext}`);
-        }
-      }
-    }
-    candidates.push("/User.jpg");
-    return Array.from(new Set(candidates));
+    
+    // Use hash to assign a consistent picture per user
+    const pictureIndex = hash % availablePictures.length;
+    
+    // Return the assigned picture first, then others as fallbacks
+    const assignedPicture = availablePictures[pictureIndex];
+    return [
+      assignedPicture,
+      ...availablePictures.filter(p => p !== assignedPicture)
+    ];
   };
 
   const renderUserAvatar = (u: any, size: number, roundedClass: string) => {
+    if (!u) return null;
+    
     const userKey = getHeaderUserKey(u);
     const candidates = getAvatarCandidates(u);
+    
+    // Generate initials as fallback
+    const userName = u?.username || u?.userName || u?.fullName || u?.displayName || u?.email || u?.userId || 'User';
+    const initials = userName
+      .split(" ")
+      .map((n: string) => n[0])
+      .join("")
+      .toUpperCase()
+      .substring(0, 2);
+    const bgColor = `hsl(${(userKey.charCodeAt(0) * 137.508) % 360}, 70%, 50%)`;
+    
+    // If no candidates or all candidates tried, show initials
+    if (!candidates || candidates.length === 0) {
+      return (
+        <div
+          className={`${roundedClass} flex items-center justify-center text-white font-semibold`}
+          style={{ width: size, height: size, backgroundColor: bgColor, fontSize: size * 0.4 }}
+        >
+          {initials}
+        </div>
+      );
+    }
+    
     const index = Math.max(0, avatarErrorIndexByKey[userKey] ?? 0);
     const src = candidates[Math.min(index, candidates.length - 1)];
     
-    // Generate descriptive alt text
-    const userName = u?.username || u?.userName || u?.fullName || u?.displayName || u?.email || u?.userId || 'User';
-    const altText = `Profile picture of ${userName}`;
+    // If we've tried all candidates, show initials
+    if (index >= candidates.length - 1 || !src) {
+      return (
+        <div
+          className={`${roundedClass} flex items-center justify-center text-white font-semibold`}
+          style={{ width: size, height: size, backgroundColor: bgColor, fontSize: size * 0.4 }}
+        >
+          {initials}
+        </div>
+      );
+    }
     
     return (
-      <Image
-        src={src}
-        alt={altText}
-        width={size}
-        height={size}
-        className={`${roundedClass}`}
-        onError={() => {
-          setAvatarErrorIndexByKey((prev) => {
-            const next = { ...prev } as Record<string, number>;
-            next[userKey] = Math.min((prev[userKey] ?? 0) + 1, candidates.length - 1);
-            return next;
-          });
-        }}
-      />
+      <div className="relative" style={{ width: size, height: size }}>
+        <Image
+          src={src}
+          alt={`Profile picture of ${userName}`}
+          width={size}
+          height={size}
+          className={`${roundedClass}`}
+          unoptimized={true}
+          loading="lazy"
+          onError={(e) => {
+            try {
+              setAvatarErrorIndexByKey((prev) => {
+                const next = { ...prev } as Record<string, number>;
+                const currentIndex = prev[userKey] ?? 0;
+                const nextIndex = Math.min(currentIndex + 1, candidates.length - 1);
+                next[userKey] = nextIndex;
+                return next;
+              });
+            } catch (error) {
+              // Silently handle error state update failures
+              console.debug('Avatar error handling failed:', error);
+            }
+          }}
+        />
+      </div>
     );
   };
 
@@ -642,24 +622,6 @@ const HeaderContent = () => {
     };
   }, []);
 
-  useEffect(() => {
-    const controller1 = new AbortController();
-    const controller2 = new AbortController();
-    fetch('/pictures/male_names.json', { signal: controller1.signal })
-      .then((res) => res.ok ? res.json() : null)
-      .then((data) => {
-        if (Array.isArray(data)) setMaleNames(new Set(data.map((s: any) => String(s).toLowerCase())));
-      })
-      .catch(() => {});
-    fetch('/pictures/female_names.json', { signal: controller2.signal })
-      .then((res) => res.ok ? res.json() : null)
-      .then((data) => {
-        if (Array.isArray(data)) setFemaleNames(new Set(data.map((s: any) => String(s).toLowerCase())));
-      })
-      .catch(() => {});
-    return () => { controller1.abort(); controller2.abort(); };
-  }, []);
-
   // Effect to handle application details
   useEffect(() => {
     const handleApplicationDataChange = (event: CustomEvent) => {
@@ -692,34 +654,6 @@ const HeaderContent = () => {
     };
   }, []);
 
-  // Load optional avatars mapping shared with TreeClient
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch('/pictures/avatars.json', { signal: controller.signal })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const data = await res.json().catch(() => null);
-        if (data && typeof data === 'object') {
-          setAvatarMap(data as Record<string, string>);
-        }
-      })
-      .catch(() => {})
-    return () => controller.abort();
-  }, []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch('/pictures/random_svgs.json', { signal: controller.signal })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const data = await res.json().catch(() => null);
-        if (Array.isArray(data)) {
-          setAvailableRandomSvgs(data.filter((s: any) => typeof s === 'string'));
-        }
-      })
-      .catch(() => {})
-    return () => controller.abort();
-  }, []);
 
   // Debug logging
   useEffect(() => {

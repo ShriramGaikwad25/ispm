@@ -620,8 +620,85 @@ const ActionButtons = <T extends { status?: string }>({
     
     // Load existing comment for the selected rows (use first row's comment if multiple selected)
     const firstRowId = selectedIds[0];
-    const existingComment = firstRowId ? commentsStorage.get(firstRowId) || "" : "";
-    setCommentText(existingComment);
+    const firstRow = definedRows[0] as any;
+    
+    // Check if row has been certified or rejected
+    const isCertified = isApproved || isApproveAction;
+    const isRejectedRow = isRejected || isRejectAction;
+    
+    // Check for newComment in various possible field names (case-insensitive search)
+    let hasNewComment: string | null = null;
+    if (firstRow) {
+      // Try all possible field name variations
+      const possibleFields = [
+        'newComment', 'new_comment', 'newcomment', 'NewComment', 'NEW_COMMENT',
+        'comment', 'Comment', 'COMMENT',
+        'justification', 'Justification', 'JUSTIFICATION',
+        'newJustification', 'new_justification', 'newjustification',
+        'reviewComment', 'review_comment', 'reviewcomment',
+        'actionComment', 'action_comment', 'actioncomment'
+      ];
+      
+      for (const field of possibleFields) {
+        if (firstRow[field] !== undefined && firstRow[field] !== null && firstRow[field] !== '') {
+          hasNewComment = String(firstRow[field]);
+          console.log('[ActionButtons] Found comment in field:', field, 'value:', hasNewComment);
+          break;
+        }
+      }
+      
+      // Also check all keys case-insensitively
+      if (!hasNewComment) {
+        const rowKeys = Object.keys(firstRow);
+        const commentKey = rowKeys.find(key => 
+          key.toLowerCase().includes('comment') || 
+          key.toLowerCase().includes('justification')
+        );
+        if (commentKey && firstRow[commentKey]) {
+          hasNewComment = String(firstRow[commentKey]);
+          console.log('[ActionButtons] Found comment in case-insensitive key:', commentKey, 'value:', hasNewComment);
+        }
+      }
+    }
+    
+    // Debug logging
+    console.log('[ActionButtons] handleComment', {
+      firstRowId,
+      isCertified,
+      isRejectedRow,
+      hasNewComment,
+      rowData: firstRow ? Object.keys(firstRow) : [],
+      status: firstRow?.status,
+      action: firstRow?.action,
+      storedComment: firstRowId ? commentsStorage.get(firstRowId) : null
+    });
+    
+    // Priority: newComment from row data (if certified/rejected) > stored comment > empty
+    let commentToShow = "";
+    const storedComment = firstRowId ? commentsStorage.get(firstRowId) || "" : "";
+    
+    // If row is certified/rejected, prioritize newComment from API response
+    if ((isCertified || isRejectedRow)) {
+      if (hasNewComment) {
+        commentToShow = hasNewComment;
+      } else if (storedComment) {
+        // If no newComment but row is certified/rejected, show stored comment
+        commentToShow = storedComment;
+      }
+    } 
+    // Otherwise, show stored comment if available
+    else if (storedComment) {
+      commentToShow = storedComment;
+    }
+    
+    console.log('[ActionButtons] Final comment to show:', commentToShow, {
+      isCertified,
+      isRejectedRow,
+      hasNewComment,
+      storedComment
+    });
+    
+    setCommentText(commentToShow);
     setCommentCategory(""); // Reset category selection
     setCommentSubcategory(""); // Reset subcategory selection
     setIsCommentDropdownOpen(false); // Reset dropdown state

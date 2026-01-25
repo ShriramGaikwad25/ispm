@@ -51,9 +51,11 @@
   border-right: 1px solid #bbf7d0;
   display: flex;
   flex-direction: column;
-  transition: all 0.3s ease-in-out;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 30;
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+  will-change: width;
 }
 
 .users-sidebar.collapsed {
@@ -76,7 +78,11 @@
   margin: 0.125rem 0;
   border-bottom: 1px solid #f3f4f6;
   cursor: pointer;
-  transition: all 0.3s ease-in-out;
+  transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              padding 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   flex: 0 0 auto; /* Changed from flex: 1 to prevent stretching */
   min-height: 48px; /* Consistent height for both states */
@@ -85,6 +91,7 @@
   height: 48px; /* Fixed height for consistency */
   max-height: 48px; /* Same as height for consistency */
   border-radius: 0.25rem; /* Added subtle border radius */
+  will-change: background-color, border-color, box-shadow, padding;
 }
 
 .user-item:hover {
@@ -94,6 +101,7 @@
 /* Hover background only when hovering avatar/initials circle */
 .user-item:has(.avatar-hover-trigger:hover) {
   background-color: #dcfce7;
+  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .user-item.selected {
@@ -436,6 +444,18 @@
   white-space: normal;
   width: 100%;
   max-width: 100%;
+}
+
+/* Smooth fade-in animation for user details */
+@keyframes fadeInSlide {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 /* Hide selection checkbox on description rows */

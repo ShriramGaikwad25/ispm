@@ -178,14 +178,9 @@ const TreeClient: React.FC<TreeClientProps> = ({
   });
   const { openSidebar } = useRightSidebar();
   const [selectedRowForPanel, setSelectedRowForPanel] = useState<any | null>(null);
-  const [avatarErrorIndexByKey, setAvatarErrorIndexByKey] = useState<Record<string, number>>({});
-  const [avatarMap, setAvatarMap] = useState<Record<string, string>>({});
   const [certAnalytics, setCertAnalytics] = useState<CertAnalytics | null>(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
-  const [availableRandomSvgs, setAvailableRandomSvgs] = useState<string[]>([]);
-  const [maleNames, setMaleNames] = useState<Set<string>>(new Set());
-  const [femaleNames, setFemaleNames] = useState<Set<string>>(new Set());
-  const [indexImageBases, setIndexImageBases] = useState<string[]>([]);
+  const [avatarErrorIndexByKey, setAvatarErrorIndexByKey] = useState<Record<string, number>>({});
   const menuButtonRef = useRef<HTMLButtonElement>(null);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
       const [menuPosition, setMenuPosition] = useState<{
@@ -267,222 +262,112 @@ const TreeClient: React.FC<TreeClientProps> = ({
     setIsMenuOpen(false);
   };
 
-  const getFirstName = useCallback((u: any): string => {
-    const full = String(u?.fullName || u?.username || "").trim();
-    if (!full) return "";
-    return full.split(/\s+/)[0].toLowerCase();
-  }, []);
-
-  const isLikelyMale = useCallback((u: any): boolean => {
-    const gender = String(u?.gender || u?.sex || "").toLowerCase();
-    if (gender === 'male' || gender === 'm') return true;
-    if (gender === 'female' || gender === 'f') return false;
-    const first = getFirstName(u);
-    if (!first) return false;
-    if (maleNames.size > 0 && maleNames.has(first)) return true;
-    if (femaleNames.size > 0 && femaleNames.has(first)) return false;
-    return false;
-  }, [femaleNames, maleNames, getFirstName]);
-
   const getAvatarCandidates = useCallback((u: any, indexHint?: number): string[] => {
-    const candidates: string[] = [];
+    // Available pictures in public/pictures folder
+    const availablePictures = [
+      "/pictures/user_image1.avif",
+      "/pictures/user_image4.avif",
+      "/pictures/user_image7.avif",
+      "/pictures/user_image8.avif",
+    ];
     
-    // Add a deterministic random SVG per user if a list is provided (prioritize this for uniqueness)
-    if (u && Array.isArray(availableRandomSvgs) && availableRandomSvgs.length > 0) {
-      const key = getUserStableKey(u);
-      let hash = 0;
-      for (let i = 0; i < key.length; i++) {
-        hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
-      }
-      const filename = availableRandomSvgs[hash % availableRandomSvgs.length];
-      if (filename) {
-        const normalized = filename.startsWith('/') ? filename : `/pictures/${filename}`;
-        candidates.push(normalized);
-      }
+    // If user has a photoFilename, try that first
+    const photoFilename = String(u?.photoFilename || "").trim();
+    if (photoFilename) {
+      return [`/pictures/${photoFilename}`, ...availablePictures];
     }
     
-    // Index-based mapping if provided (1-based index)
-    if (indexHint && indexImageBases.length > 0) {
-      const base = indexImageBases[(indexHint - 1) % indexImageBases.length];
-      if (base) {
-        candidates.push(
-          `/pictures/${base}.svg`,
-          `/pictures/${base}.png`,
-          `/pictures/${base}.jpg`,
-          `/pictures/${base}.webp`,
-          `/pictures/${base}.jpeg`,
-        );
-      }
+    // Assign picture based on user key or index for consistency
+    const userKey = getUserStableKey(u);
+    let hash = 0;
+    for (let i = 0; i < userKey.length; i++) {
+      hash = (hash * 31 + userKey.charCodeAt(i)) >>> 0;
     }
     
-    // Use index-based unique images if availableRandomSvgs is not available
-    if (indexHint && (!availableRandomSvgs || availableRandomSvgs.length === 0)) {
-      // Create unique image paths based on index to ensure different users get different pictures
-      const imageIndex = ((indexHint - 1) % 20) + 1; // Cycle through 20 different images
-      candidates.push(
-        `/pictures/user_${imageIndex}.svg`,
-        `/pictures/user_${imageIndex}.png`,
-        `/pictures/user_${imageIndex}.jpg`,
-        `/pictures/user_${imageIndex}.webp`,
-        `/pictures/user_${imageIndex}.jpeg`,
-        `/pictures/avatar_${imageIndex}.svg`,
-        `/pictures/avatar_${imageIndex}.png`,
-        `/pictures/avatar_${imageIndex}.jpg`,
-      );
-    }
+    // Use indexHint if provided, otherwise use hash
+    const pictureIndex = indexHint 
+      ? ((indexHint - 1) % availablePictures.length)
+      : (hash % availablePictures.length);
     
-    // Prefer a global user image if present (lower priority)
-    candidates.push(
-      "/pictures/user_image2.jpg",
-      "/pictures/user_image2.png",
-      "/pictures/user_image2.webp",
-      "/pictures/user_image2.svg",
-      "/pictures/user_image2.jpeg",
-    );
-    // Gender-specific overrides if available
-    if (u) {
-      if (isLikelyMale(u)) {
-        candidates.push(
-          "/pictures/user_male.svg",
-          "/pictures/user_male.png",
-          "/pictures/user_male.jpg",
-          "/pictures/user_male.webp",
-          "/pictures/user_male.jpeg",
-        );
-      } else {
-        candidates.push(
-          "/pictures/user_female.svg",
-          "/pictures/user_female.png",
-          "/pictures/user_female.jpg",
-          "/pictures/user_female.webp",
-          "/pictures/user_female.jpeg",
-        );
-      }
-    }
-    // If a mapping exists, prioritize it
-    const mapKeyCandidates = [
-      String(u?.userId || "").trim(),
-      String(u?.username || "").trim(),
-      String(u?.email || "").trim(),
-      String(u?.id || "").trim(),
-    ].filter(Boolean);
-    for (const k of mapKeyCandidates) {
-      const mapped = avatarMap[k];
-      if (mapped) {
-        // If mapping already includes extension/path, use as-is under /pictures
-        const normalized = mapped.startsWith("/") ? mapped : `/pictures/${mapped}`;
-        candidates.push(normalized);
-        break; // First mapping hit wins
-      }
-    }
-    const rawParts = [
-      String(u?.photoFilename || "").trim(),
-      String(u?.userId || "").trim(),
-      String(u?.username || "").trim(),
-      String(u?.email || "").trim(),
-      String(u?.id || "").trim(),
-      String(u?.fullName || "").trim().replace(/\s+/g, "_")
-    ].filter(Boolean);
-
-    const exts = [".jpg", ".jpeg", ".png", ".webp", ".svg"];
-    for (const part of rawParts) {
-      for (const ext of exts) {
-        candidates.push(`/pictures/${part}${ext}`);
-      }
-    }
-    // Default fallback
-    candidates.push("/User.jpg");
-    // Ensure uniqueness while preserving order
-    return Array.from(new Set(candidates));
-  }, [avatarMap, availableRandomSvgs, getUserStableKey, indexImageBases, isLikelyMale]);
+    // Return the assigned picture first, then others as fallbacks
+    const assignedPicture = availablePictures[pictureIndex];
+    return [
+      assignedPicture,
+      ...availablePictures.filter(p => p !== assignedPicture)
+    ];
+  }, [getUserStableKey]);
 
   const renderUserAvatar = useCallback((u: any, size: number, roundedClass: string, indexHint?: number) => {
     if (!u) return null;
     const userKey = getUserStableKey(u);
     const candidates = getAvatarCandidates(u, indexHint);
+    
+    // Generate initials as fallback
+    const userName = u.fullName || u.username || u.email || "U";
+    const initials = userName
+      .split(" ")
+      .map((n: string) => n[0])
+      .join("")
+      .toUpperCase()
+      .substring(0, 2);
+    const bgColor = `hsl(${(userKey.charCodeAt(0) * 137.508) % 360}, 70%, 50%)`;
+    
+    // If no candidates or all candidates tried, show initials
+    if (!candidates || candidates.length === 0) {
+      return (
+        <div
+          className={`${roundedClass} flex items-center justify-center text-white font-semibold`}
+          style={{ width: size, height: size, backgroundColor: bgColor, fontSize: size * 0.4 }}
+        >
+          {initials}
+        </div>
+      );
+    }
+    
     const index = Math.max(0, avatarErrorIndexByKey[userKey] ?? 0);
     const src = candidates[Math.min(index, candidates.length - 1)];
+    
+    // If we've tried all candidates, show initials
+    if (index >= candidates.length - 1 || !src) {
+      return (
+        <div
+          className={`${roundedClass} flex items-center justify-center text-white font-semibold`}
+          style={{ width: size, height: size, backgroundColor: bgColor, fontSize: size * 0.4 }}
+        >
+          {initials}
+        </div>
+      );
+    }
+    
     return (
-      <Image
-        src={src}
-        alt="User Avatar"
-        width={size}
-        height={size}
-        className={`${roundedClass} object-cover`}
-        onError={() => {
-          setAvatarErrorIndexByKey((prev) => {
-            const next = { ...prev } as Record<string, number>;
-            next[userKey] = Math.min((prev[userKey] ?? 0) + 1, candidates.length - 1);
-            return next;
-          });
-        }}
-      />
+      <div className="relative" style={{ width: size, height: size }}>
+        <Image
+          src={src}
+          alt="User Avatar"
+          width={size}
+          height={size}
+          className={`${roundedClass} object-cover`}
+          unoptimized={true}
+          loading="lazy"
+          onError={(e) => {
+            try {
+              setAvatarErrorIndexByKey((prev) => {
+                const next = { ...prev } as Record<string, number>;
+                const currentIndex = prev[userKey] ?? 0;
+                const nextIndex = Math.min(currentIndex + 1, candidates.length - 1);
+                next[userKey] = nextIndex;
+                return next;
+              });
+            } catch (error) {
+              // Silently handle error state update failures
+              console.debug('Avatar error handling failed:', error);
+            }
+          }}
+        />
+      </div>
     );
   }, [avatarErrorIndexByKey, getAvatarCandidates, getUserStableKey]);
 
-  useEffect(() => {
-    // Try to load optional avatar mapping file
-    const controller = new AbortController();
-    fetch('/pictures/avatars.json', { signal: controller.signal })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const data = await res.json().catch(() => null);
-        if (data && typeof data === 'object') {
-          setAvatarMap(data as Record<string, string>);
-        }
-      })
-      .catch(() => {})
-    return () => controller.abort();
-  }, []);
-
-  useEffect(() => {
-    // Load optional list of random SVG filenames
-    const controller = new AbortController();
-    fetch('/pictures/random_svgs.json', { signal: controller.signal })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const data = await res.json().catch(() => null);
-        if (Array.isArray(data)) {
-          setAvailableRandomSvgs(data.filter((s: any) => typeof s === 'string'));
-        }
-      })
-      .catch(() => {})
-    return () => controller.abort();
-  }, []);
-
-  useEffect(() => {
-    // Optional: load index-based image base names array
-    const controller = new AbortController();
-    fetch('/pictures/index_image_map.json', { signal: controller.signal })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const data = await res.json().catch(() => null);
-        if (Array.isArray(data)) {
-          setIndexImageBases(data.filter((s: any) => typeof s === 'string'));
-        }
-      })
-      .catch(() => {})
-    return () => controller.abort();
-  }, []);
-
-  useEffect(() => {
-    // Optional: load male and female first-name lists to improve detection
-    const controller1 = new AbortController();
-    const controller2 = new AbortController();
-    fetch('/pictures/male_names.json', { signal: controller1.signal })
-      .then((res) => res.ok ? res.json() : null)
-      .then((data) => {
-        if (Array.isArray(data)) setMaleNames(new Set(data.map((s: any) => String(s).toLowerCase())));
-      })
-      .catch(() => {});
-    fetch('/pictures/female_names.json', { signal: controller2.signal })
-      .then((res) => res.ok ? res.json() : null)
-      .then((data) => {
-        if (Array.isArray(data)) setFemaleNames(new Set(data.map((s: any) => String(s).toLowerCase())));
-      })
-      .catch(() => {});
-    return () => { controller1.abort(); controller2.abort(); };
-  }, []);
 
   // Fetch cert analytics using executeQuery with two SQL queries
   useEffect(() => {
@@ -887,6 +772,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
             return '';
           })();
           const normalizedItemRisk = nestedEntityEntitlement.itemRisk || item.itemRisk || item.entityEntitlements?.itemRisk || account.itemRisk || "";
+          // Extract newComment from nested structure
+          const newComment = nestedEntityEntitlement.newComment || item.newComment || account.newComment || "";
 
           return ({
           ...account,
@@ -917,6 +804,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
             // Use entitlement-level lineItem ID for actions, retain account line item for reference
           lineItemId: entitlementLineItemId,
           accountLineItemId: lineItemId,
+          newComment: newComment, // Add newComment to row data
           });
         });
       });
@@ -944,42 +832,45 @@ const TreeClient: React.FC<TreeClientProps> = ({
         const entitlementName = item.entitlementName || entitlementInfo.entitlementName || item.name || item.entitlement_name || "";
         const entitlementDescription = item.entitlementDescription || entitlementInfo.entitlementDescription || item.description || item.entitlement_description || "";
         const entitlementType = item.entitlementType || entitlementInfo.entitlementType || item.type || "";
-        const nestedEntityEntitlement = item.entityEntitlement || {};
-        const normalizedAction = nestedEntityEntitlement.action || item.action || account.action || "";
-        const normalizedStatus = (() => {
-          const a = String(normalizedAction).trim().toLowerCase();
-          if (a === 'approve') return 'approved';
-          if (a === 'pending') return 'pending';
-          if (a === 'reject') return 'revoked';
-          if (a === 'delegate') return 'delegated';
-          if (a === 'remediate') return 'remediated';
-          return '';
-        })();
-        const normalizedItemRisk = nestedEntityEntitlement.itemRisk || item.itemRisk || item.entityEntitlements?.itemRisk || account.itemRisk || "";
+          const nestedEntityEntitlement = item.entityEntitlement || {};
+          const normalizedAction = nestedEntityEntitlement.action || item.action || account.action || "";
+          const normalizedStatus = (() => {
+            const a = String(normalizedAction).trim().toLowerCase();
+            if (a === 'approve') return 'approved';
+            if (a === 'pending') return 'pending';
+            if (a === 'reject') return 'revoked';
+            if (a === 'delegate') return 'delegated';
+            if (a === 'remediate') return 'remediated';
+            return '';
+          })();
+          const normalizedItemRisk = nestedEntityEntitlement.itemRisk || item.itemRisk || item.entityEntitlements?.itemRisk || account.itemRisk || "";
+          // Extract newComment from nested structure
+          const newComment = nestedEntityEntitlement.newComment || item.newComment || account.newComment || "";
 
-        return {
-          ...account,
-          entitlementName,
-          entitlementDescription,
-          entitlementType,
-          recommendation: item.aiassist?.Recommendation ?? "",
-          accessedWithinAMonth: item.aiassist?.accessedWithinAMonth ?? "",
-          itemRisk: normalizedItemRisk,
-          percAccessInSameDept: item.aiassist?.percAccessInSameDept ?? "",
-          percAccessWithSameJobtitle: item.aiassist?.percAccessWithSameJobtitle ?? "",
-          percAccessWithSameManager: item.aiassist?.percAccessWithSameManager ?? "",
-          actionInLastReview: item.aiassist?.Recommendation ?? "",
-          isNew: user.addedEntitlements?.includes(item.entitlementInfo?.entitlementName) ?? false,
-          appTag: item.appTag || account.appTag || "",
-          appRisk: item.appRisk || account.appRisk || "",
-          appType: item.appType || account.appType || "",
-          complianceViolation: item.complianceViolation || "",
-          deltaChange: item.deltaChange || "",
-          action: normalizedAction,
-          status: normalizedStatus,
-          lineItemId: entitlementLineItemId,
-          accountLineItemId: account.lineItemId,
-        };
+          return {
+            ...account,
+            entitlementName,
+            entitlementDescription,
+            entitlementType,
+            recommendation: item.aiassist?.Recommendation ?? "",
+            accessedWithinAMonth: item.aiassist?.accessedWithinAMonth ?? "",
+            itemRisk: normalizedItemRisk,
+            percAccessInSameDept: item.aiassist?.percAccessInSameDept ?? "",
+            percAccessWithSameJobtitle: item.aiassist?.percAccessWithSameJobtitle ?? "",
+            percAccessWithSameManager: item.aiassist?.percAccessWithSameManager ?? "",
+            actionInLastReview: item.aiassist?.Recommendation ?? "",
+            isNew: user.addedEntitlements?.includes(item.entitlementInfo?.entitlementName) ?? false,
+            appTag: item.appTag || account.appTag || "",
+            appRisk: item.appRisk || account.appRisk || "",
+            appType: item.appType || account.appType || "",
+            complianceViolation: item.complianceViolation || "",
+            deltaChange: item.deltaChange || "",
+            action: normalizedAction,
+            status: normalizedStatus,
+            lineItemId: entitlementLineItemId,
+            accountLineItemId: account.lineItemId,
+            newComment: newComment, // Add newComment to row data
+          };
       };
 
       // Process unfiltered entitlements - wait for all promises and map to accounts
@@ -1180,17 +1071,61 @@ const TreeClient: React.FC<TreeClientProps> = ({
 
   // Helper function to process accounts and entitlements
   const processFilteredEntitlements = useCallback(async (accounts: any[], user: UserRowData) => {
+    const effectiveStatusFilter = statusFilterQuery;
+    const isAllSelected = effectiveStatusFilter === "ALL_ACTIONS";
+    
     const entitlementPromises = accounts.map(async (account: any) => {
       const lineItemId = account.lineItemId;
       if (!lineItemId) return [];
       
-      // Fetch entitlements for this account
-      const entitlements = await getLineItemDetails(
-        reviewerId,
-        certId,
-        user.taskId,
-        lineItemId
-      );
+      let entitlements: any[] = [];
+      
+      // If "All" is selected, make separate API calls for each action
+      if (isAllSelected) {
+        const [pendingEntitlements, approveEntitlements, rejectEntitlements] = await Promise.all([
+          getLineItemDetails(
+            reviewerId,
+            certId,
+            user.taskId,
+            lineItemId,
+            undefined,
+            undefined,
+            "action eq Pending"
+          ),
+          getLineItemDetails(
+            reviewerId,
+            certId,
+            user.taskId,
+            lineItemId,
+            undefined,
+            undefined,
+            "action eq Approve"
+          ),
+          getLineItemDetails(
+            reviewerId,
+            certId,
+            user.taskId,
+            lineItemId,
+            undefined,
+            undefined,
+            "action eq Reject"
+          )
+        ]);
+        
+        // Combine all results
+        entitlements = [...pendingEntitlements, ...approveEntitlements, ...rejectEntitlements];
+      } else {
+        // Single API call with the specific filter, or no filter if undefined
+        entitlements = await getLineItemDetails(
+          reviewerId,
+          certId,
+          user.taskId,
+          lineItemId,
+          undefined,
+          undefined,
+          effectiveStatusFilter
+        );
+      }
       
       return entitlements.map((item: any) => {
         const entitlementLineItemId =
@@ -1224,6 +1159,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
           return '';
         })();
         const normalizedItemRisk = nestedEntityEntitlement.itemRisk || item.itemRisk || item.entityEntitlements?.itemRisk || account.itemRisk || "";
+        // Extract newComment from nested structure
+        const newComment = nestedEntityEntitlement.newComment || item.newComment || account.newComment || "";
 
         return {
           ...account,
@@ -1247,6 +1184,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
           status: normalizedStatus,
           lineItemId: entitlementLineItemId,
           accountLineItemId: lineItemId,
+          newComment: newComment, // Add newComment to row data
         };
       });
     });
@@ -1258,7 +1196,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
     // Update progress data
     const progress = calculateProgressData(allRows);
     setProgressData(progress);
-  }, [reviewerId, certId]);
+  }, [reviewerId, certId, statusFilterQuery]);
 
   // Handle filter selection
   const handleFilterToggle = useCallback(async (filterName: string) => {
@@ -1565,10 +1503,42 @@ const TreeClient: React.FC<TreeClientProps> = ({
           }
           // Handle chip filters shown above the table
           if (filter === 'dormant access') {
-            // Treat as lastLogin older than a threshold or specific marker; fallback to pending non-use if available
-            // Here we approximate using accessedWithinAMonth === 'Not Accessed' if provided
+            // Check multiple indicators for dormant access
             const accessed = String(entitlement.accessedWithinAMonth || '').toLowerCase();
-            return accessed.includes('not accessed') || accessed.includes('no');
+            const lastLogin = entitlement.lastLogin;
+            // Check if account is marked as dormant (from server-side filter)
+            const isDormantAccount = String(entitlement.isDormant || entitlement.isdormant || '').toUpperCase() === 'Y';
+            
+            // If account is marked as dormant (from server-side filter), include all entitlements
+            if (isDormantAccount) {
+              return true;
+            }
+            
+            // If accessedWithinAMonth indicates not accessed, include it
+            if (accessed.includes('not accessed') || accessed.includes('no')) {
+              return true;
+            }
+            
+            // If lastLogin exists and is older than 30 days, consider it dormant
+            if (lastLogin) {
+              const loginDate = new Date(lastLogin);
+              if (!isNaN(loginDate.getTime())) {
+                const diffDays = (Date.now() - loginDate.getTime()) / (1000 * 60 * 60 * 24);
+                if (diffDays > 30) {
+                  return true;
+                }
+              }
+            }
+            
+            // If accessedWithinAMonth field is empty or not set, and we're filtering for dormant access,
+            // we should still include it if it came from a dormant account (which is handled server-side)
+            // For now, if the field is empty, we'll be lenient and include it
+            // This handles cases where the field might not be populated but the account is dormant
+            if (!accessed || accessed.trim() === '') {
+              return true;
+            }
+            
+            return false;
           }
           if (filter === 'violation') {
             return hasViolation;
@@ -2095,7 +2065,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
 
         {/* Users List */}
         <div
-          className="bg-gradient-to-b from-gray-50 to-white flex flex-col flex-1 overflow-hidden mt-2"
+          className="bg-gradient-to-b from-gray-50 to-white flex flex-col flex-1 overflow-hidden mt-2 transition-all duration-300 ease-in-out"
           onMouseEnter={() => setIsSidebarHovered(true)}
           onMouseLeave={() => setIsSidebarHovered(false)}
         >
@@ -2143,7 +2113,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                   <div
                     key={user.id}
                     onClick={() => handleUserSelect(user)}
-                    className={`user-item cursor-pointer transition-all duration-200 w-full ${
+                    className={`user-item cursor-pointer w-full ${
                       isSidebarHovered ? "px-2 pb-2 pt-0 rounded-lg" : "px-1 pb-1 pt-0"
                     } ${
                       isSidebarHovered
@@ -2154,12 +2124,13 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     }`}
                     style={{ 
                       minHeight: isSidebarHovered ? 'auto' : '60px',
+                      transition: 'background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     }}
                   >
                     <div
                       className={`flex ${
                         isSidebarHovered ? "flex-row items-center gap-2" : "flex-col items-center justify-center gap-1"
-                      } w-full`}
+                      } w-full transition-all duration-300 ease-in-out`}
                     >
                       {/* User Avatar/Initials */}
                       <div
@@ -2170,11 +2141,14 @@ const TreeClient: React.FC<TreeClientProps> = ({
                         {!isSidebarHovered ? (
                           <div className="flex items-center justify-center w-full">
                             <div
-                              className={`w-9 h-9 rounded-full flex items-center justify-center font-semibold text-xs transition-all flex-shrink-0 ${
+                              className={`w-9 h-9 rounded-full flex items-center justify-center font-semibold text-xs flex-shrink-0 ${
                                 isSelected
                                   ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white ring-1 ring-blue-300"
                                   : "bg-gradient-to-br from-gray-200 to-gray-300 text-gray-700 hover:from-blue-200 hover:to-blue-300"
                               }`}
+                              style={{
+                                transition: 'background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                              }}
                               title={user.fullName || ""}
                             >
                               {getUserInitials(user.fullName || "")}
@@ -2182,13 +2156,16 @@ const TreeClient: React.FC<TreeClientProps> = ({
                           </div>
                         ) : (
                           <div className="relative">
-                            {renderUserAvatar(user, 48, "w-10 h-10 rounded-full shadow-sm transition-all", index + 1) || (
+                            {renderUserAvatar(user, 48, "w-10 h-10 rounded-full shadow-sm", index + 1) || (
                               <div
                                 className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm ${
                                   isSelected
                                     ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white ring-1 ring-blue-300"
                                     : "bg-gradient-to-br from-gray-200 to-gray-300 text-gray-700"
                                 }`}
+                                style={{
+                                  transition: 'background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                                }}
                               >
                                 {getUserInitials(user.fullName || "")}
                               </div>
@@ -2204,7 +2181,12 @@ const TreeClient: React.FC<TreeClientProps> = ({
 
                       {/* User Details - only visible when expanded */}
                       {isSidebarHovered && (
-                        <div className="flex flex-col items-start gap-1 min-w-0 w-full flex-1">
+                        <div 
+                          className="flex flex-col items-start gap-1 min-w-0 w-full flex-1"
+                          style={{
+                            animation: 'fadeInSlide 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                          }}
+                        >
                           <span
                             className={`font-medium w-full truncate whitespace-nowrap ${
                               isSelected

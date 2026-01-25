@@ -278,6 +278,7 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
         lineItemId: entitlement.lineItemId || "",
         status: normalizedStatus,
         action: normalizedAction,
+        newComment: entityEnt.newComment || entitlement.newComment || "", // Add newComment to row data
       };
     });
   });

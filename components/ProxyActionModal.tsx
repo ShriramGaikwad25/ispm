@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
+import { executeQuery } from "@/lib/api";
 
 type Attribute = {
   value: string;
@@ -47,234 +48,117 @@ const ProxyActionModal: React.FC<ProxyActionModalProps> = ({
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [isLoadingGroups, setIsLoadingGroups] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
-  const [isWaitingForApi, setIsWaitingForApi] = useState(false);
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const hasFetchedUsersRef = useRef<boolean>(false);
   const hasFetchedGroupsRef = useRef<boolean>(false);
-  const isApiCallInProgressRef = useRef<boolean>(false);
+  const isUsersFetchInProgressRef = useRef<boolean>(false);
+  const isGroupsFetchInProgressRef = useRef<boolean>(false);
 
-  // Fetch all users from API once when user starts typing (with debounce)
+  // Fetch users and groups when modal opens
   useEffect(() => {
-    // Clear any existing timer
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-      debounceTimerRef.current = null;
-    }
-
-    // Only fetch if User type is selected, search has value, and we haven't successfully fetched yet
-    if (ownerType === "User" && searchValue.trim() !== "" && !hasFetchedUsersRef.current && !isApiCallInProgressRef.current) {
-      setIsWaitingForApi(true);
-      
-      // Set flag to indicate API call is in progress (prevents multiple simultaneous calls)
-      isApiCallInProgressRef.current = true;
-      
-      // Debounce the API call - wait 500ms after user stops typing
-      debounceTimerRef.current = setTimeout(async () => {
-        setIsLoadingUsers(true);
-        setIsWaitingForApi(false);
-        setApiError(null);
-        try {
-          // Fetch all users (no filter in query, we'll filter client-side)
-          const query = `SELECT username, email FROM usr`;
-
-          console.log("Calling API to fetch users (only once)...");
-          const response = await fetch(
-            "https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery",
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                query: query,
-                parameters: [],
-              }),
-            }
-          );
-
-          if (!response.ok) {
-            throw new Error(`API request failed: ${response.statusText}`);
-          }
-
-          const data = await response.json();
-          
-          // Log the response for debugging
-          console.log("API Response:", data);
-          
-          // Handle the response format - data is in resultSet
-          let usersData: User[] = [];
-          if (data?.resultSet && Array.isArray(data.resultSet)) {
-            // Normalize the email field from different formats
-            usersData = data.resultSet.map((user: any) => {
-              let emailValue = "";
-              
-              // Handle email field - can be object, array, or missing
-              if (user.email) {
-                if (typeof user.email === "string") {
-                  emailValue = user.email;
-                } else if (user.email.work) {
-                  // Format: { "work": "email@example.com" }
-                  emailValue = user.email.work;
-                } else if (Array.isArray(user.email) && user.email.length > 0) {
-                  // Format: [{ "type": "work", "value": "email@example.com", "primary": true }]
-                  // Find primary email or first email
-                  const primaryEmail = user.email.find((e: any) => e.primary) || user.email[0];
-                  emailValue = primaryEmail?.value || "";
-                }
-              }
-              
-              return {
-                username: user.username || "",
-                email: emailValue,
-              };
-            });
-          } else if (Array.isArray(data)) {
-            usersData = data;
-          } else if (data?.results && Array.isArray(data.results)) {
-            usersData = data.results;
-          } else if (data?.data && Array.isArray(data.data)) {
-            usersData = data.data;
-          } else if (data?.items && Array.isArray(data.items)) {
-            usersData = data.items;
-          } else if (data?.rows && Array.isArray(data.rows)) {
-            usersData = data.rows;
-          } else if (data?.records && Array.isArray(data.records)) {
-            usersData = data.records;
-          }
-
-          console.log("Parsed users data:", usersData, "Total users:", usersData.length);
-          setApiUsers(usersData);
-          // Mark as fetched only on success
-          hasFetchedUsersRef.current = true;
-        } catch (error) {
-          console.error("Error fetching users from API:", error);
-          setApiError(error instanceof Error ? error.message : "Failed to fetch users");
-          setApiUsers([]);
-          // Don't set hasFetchedUsersRef on error so user can retry
-        } finally {
-          setIsLoadingUsers(false);
-          isApiCallInProgressRef.current = false;
-        }
-      }, 500); // 500ms debounce
-    } else if (searchValue.trim() === "" && ownerType === "User") {
-      // Reset when search is cleared - allow fetching again
+    if (!isModalOpen) {
+      // Reset flags when modal closes
       hasFetchedUsersRef.current = false;
-      isApiCallInProgressRef.current = false;
-      setApiUsers([]);
-      setIsWaitingForApi(false);
-    }
-
-    // Cleanup timer on unmount or dependency change
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-        debounceTimerRef.current = null;
-      }
-    };
-  }, [searchValue, ownerType]); // Depend on both, but flag prevents multiple calls
-
-  // Fetch groups from API when Group type is selected and user searches
-  useEffect(() => {
-    // Clear any existing timer
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-      debounceTimerRef.current = null;
-    }
-
-    // Only fetch if Group type is selected, search has value, and we haven't successfully fetched yet
-    if (ownerType === "Group" && searchValue.trim() !== "" && !hasFetchedGroupsRef.current && !isApiCallInProgressRef.current) {
-      setIsWaitingForApi(true);
-      
-      // Set flag to indicate API call is in progress (prevents multiple simultaneous calls)
-      isApiCallInProgressRef.current = true;
-      
-      // Debounce the API call - wait 500ms after user stops typing
-      debounceTimerRef.current = setTimeout(async () => {
-        setIsLoadingGroups(true);
-        setIsWaitingForApi(false);
-        setApiError(null);
-        try {
-          const query = `select * from kf_groups where group_id = ?::uuid`;
-
-          console.log("Calling API to fetch groups...");
-          const response = await fetch(
-            "https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery",
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                query: query,
-                parameters: ["126c4e68-6f51-4c10-847e-07505169e234"],
-              }),
-            }
-          );
-
-          if (!response.ok) {
-            throw new Error(`API request failed: ${response.statusText}`);
-          }
-
-          const data = await response.json();
-          
-          // Log the response for debugging
-          console.log("API Response for groups:", data);
-          
-          // Handle the response format - data is in resultSet
-          let groupsData: Group[] = [];
-          if (data?.resultSet && Array.isArray(data.resultSet)) {
-            groupsData = data.resultSet.map((group: any) => {
-              // Map the group data to the expected format
-              return {
-                ...group,
-                id: group.group_id || group.id || "",
-                name: group.group_name || group.name || "",
-              };
-            });
-          } else if (Array.isArray(data)) {
-            groupsData = data;
-          } else if (data?.results && Array.isArray(data.results)) {
-            groupsData = data.results;
-          } else if (data?.data && Array.isArray(data.data)) {
-            groupsData = data.data;
-          } else if (data?.items && Array.isArray(data.items)) {
-            groupsData = data.items;
-          } else if (data?.rows && Array.isArray(data.rows)) {
-            groupsData = data.rows;
-          } else if (data?.records && Array.isArray(data.records)) {
-            groupsData = data.records;
-          }
-
-          console.log("Parsed groups data:", groupsData, "Total groups:", groupsData.length);
-          setApiGroups(groupsData);
-          // Mark as fetched only on success
-          hasFetchedGroupsRef.current = true;
-        } catch (error) {
-          console.error("Error fetching groups from API:", error);
-          setApiError(error instanceof Error ? error.message : "Failed to fetch groups");
-          setApiGroups([]);
-          // Don't set hasFetchedGroupsRef on error so user can retry
-        } finally {
-          setIsLoadingGroups(false);
-          isApiCallInProgressRef.current = false;
-        }
-      }, 500); // 500ms debounce
-    } else if (searchValue.trim() === "" && ownerType === "Group") {
-      // Reset when search is cleared - allow fetching again
       hasFetchedGroupsRef.current = false;
-      isApiCallInProgressRef.current = false;
-      setApiGroups([]);
-      setIsWaitingForApi(false);
+      isUsersFetchInProgressRef.current = false;
+      isGroupsFetchInProgressRef.current = false;
+      return;
     }
 
-    // Cleanup timer on unmount or dependency change
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-        debounceTimerRef.current = null;
+    // Fetch users immediately when modal opens
+    const fetchUsersOnOpen = async () => {
+      if (hasFetchedUsersRef.current || isUsersFetchInProgressRef.current) {
+        return;
+      }
+
+      setIsLoadingUsers(true);
+      setApiError(null);
+      isUsersFetchInProgressRef.current = true;
+
+      try {
+        const query = `SELECT username, email FROM usr`;
+        console.log("Fetching users when modal opens...");
+        
+        const response = await executeQuery<any>(query, []);
+        
+        let usersData: User[] = [];
+        if (response?.resultSet && Array.isArray(response.resultSet)) {
+          usersData = response.resultSet.map((user: any) => {
+            let emailValue = "";
+            
+            if (user.email) {
+              if (typeof user.email === "string") {
+                emailValue = user.email;
+              } else if (user.email.work) {
+                emailValue = user.email.work;
+              } else if (Array.isArray(user.email) && user.email.length > 0) {
+                const primaryEmail = user.email.find((e: any) => e.primary) || user.email[0];
+                emailValue = primaryEmail?.value || "";
+              }
+            }
+            
+            return {
+              username: user.username || "",
+              email: emailValue,
+            };
+          });
+        }
+
+        console.log("Fetched users on modal open:", usersData.length);
+        setApiUsers(usersData);
+        hasFetchedUsersRef.current = true;
+      } catch (error) {
+        console.error("Error fetching users when modal opens:", error);
+        setApiError(error instanceof Error ? error.message : "Failed to fetch users");
+      } finally {
+        setIsLoadingUsers(false);
+        isUsersFetchInProgressRef.current = false;
       }
     };
-  }, [searchValue, ownerType]); // Depend on both, but flag prevents multiple calls
+
+    // Fetch groups immediately when modal opens
+    const fetchGroupsOnOpen = async () => {
+      if (hasFetchedGroupsRef.current || isGroupsFetchInProgressRef.current) {
+        return;
+      }
+
+      setIsLoadingGroups(true);
+      isGroupsFetchInProgressRef.current = true;
+
+      try {
+        const query = `SELECT * FROM kf_groups`;
+        console.log("Fetching groups when modal opens...");
+        
+        const response = await executeQuery<any>(query, []);
+        
+        let groupsData: Group[] = [];
+        if (response?.resultSet && Array.isArray(response.resultSet)) {
+          groupsData = response.resultSet.map((group: any) => {
+            return {
+              ...group,
+              id: group.group_id || group.id || "",
+              name: group.group_name || group.name || "",
+            };
+          });
+        }
+
+        console.log("Fetched groups on modal open:", groupsData.length);
+        setApiGroups(groupsData);
+        hasFetchedGroupsRef.current = true;
+      } catch (error) {
+        console.error("Error fetching groups when modal opens:", error);
+        setApiError(error instanceof Error ? error.message : "Failed to fetch groups");
+      } finally {
+        setIsLoadingGroups(false);
+        isGroupsFetchInProgressRef.current = false;
+      }
+    };
+
+    // Fetch both users and groups in parallel when modal opens
+    Promise.all([fetchUsersOnOpen(), fetchGroupsOnOpen()]).catch((error) => {
+      console.error("Error in parallel fetch:", error);
+    });
+  }, [isModalOpen]);
+
 
   const sourceData = ownerType === "User" 
     ? apiUsers 
@@ -353,14 +237,10 @@ const ProxyActionModal: React.FC<ProxyActionModalProps> = ({
     setApiError(null);
     setIsLoadingUsers(false);
     setIsLoadingGroups(false);
-    setIsWaitingForApi(false);
     hasFetchedUsersRef.current = false;
     hasFetchedGroupsRef.current = false;
-    isApiCallInProgressRef.current = false;
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-      debounceTimerRef.current = null;
-    }
+    isUsersFetchInProgressRef.current = false;
+    isGroupsFetchInProgressRef.current = false;
   };
 
   useEffect(() => {
@@ -369,19 +249,9 @@ const ProxyActionModal: React.FC<ProxyActionModalProps> = ({
 
   // Reset API users/groups when switching between User and Group
   useEffect(() => {
-    setApiUsers([]);
-    setApiGroups([]);
+    // Don't reset if data was already fetched on modal open
+    // Only reset the search-related state
     setApiError(null);
-    setIsLoadingUsers(false);
-    setIsLoadingGroups(false);
-    setIsWaitingForApi(false);
-    hasFetchedUsersRef.current = false;
-    hasFetchedGroupsRef.current = false;
-    isApiCallInProgressRef.current = false;
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-      debounceTimerRef.current = null;
-    }
   }, [ownerType]);
   if (!isModalOpen) {
     return null;
@@ -508,7 +378,7 @@ const ProxyActionModal: React.FC<ProxyActionModalProps> = ({
       {/* Filtered List */}
       {searchValue.trim() !== "" && (
         <div className="max-h-36 overflow-auto border rounded p-2 mb-3 text-sm bg-gray-50">
-          {((isLoadingUsers || isWaitingForApi) && ownerType === "User") || ((isLoadingGroups || isWaitingForApi) && ownerType === "Group") ? (
+          {(isLoadingUsers && ownerType === "User") || (isLoadingGroups && ownerType === "Group") ? (
             <div className="flex items-center justify-center py-4">
               <div className="flex items-center gap-2 text-gray-500">
                 <svg

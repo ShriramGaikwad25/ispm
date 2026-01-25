@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Dropdown from "../Dropdown";
 import { CircleX, Filter, FilterX, Check } from "lucide-react";
 
@@ -47,6 +47,8 @@ const Filters = ({
 }) => {
   const [selectedFilter, setSelectedFilter] = useState<string>(value || initialSelected || "");
   const [filterCounts, setFilterCounts] = useState<{ [key: string]: number }>({});
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const closeMenuRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     // Apply default selected filter on mount
@@ -118,6 +120,10 @@ const Filters = ({
           onFilterChange("");
         }
       }
+      // Close the menu after selection
+      if (closeMenuRef.current) {
+        closeMenuRef.current();
+      }
       return;
     }
     
@@ -152,6 +158,10 @@ const Filters = ({
         // For account filters, use API filter
         onFilterChange(selectedFilter === filterValue ? "" : filterValue);
       }
+    }
+    // Close the menu after selection
+    if (closeMenuRef.current) {
+      closeMenuRef.current();
     }
   };
 
@@ -233,6 +243,9 @@ const Filters = ({
               )
         }
         className={`h-8 inline-flex items-center justify-center ${isActive ? "bg-[#6D6E73]/20" : ""}`}
+        onCloseMenu={(closeFunc) => {
+          closeMenuRef.current = closeFunc;
+        }}
       >
         <li className="px-4 pb-2 border-b border-b-gray-300 font-semibold mb-2">
           {context === "account" ? "Filters" : "Filter by Status"}
