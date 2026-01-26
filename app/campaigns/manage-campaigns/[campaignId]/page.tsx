@@ -16,7 +16,6 @@ import VerticalBarChart from "@/components/VerticalBarChart";
 import ChampaignActionButton from "@/components/agTable/ChampaignActionButton";
 import AuditorsCorner from "../AuditorsCorner";
 import Revocations from "./Revocations";
-import TemplateTab from "../../TemplateTab";
 import { BackButton } from "@/components/BackButton";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 
@@ -560,12 +559,6 @@ export default function ManageCampaigns() {
       icon: ChevronDown,
       iconOff: ChevronRight,
       component: () => <Revocations />,
-    },
-    {
-      label: "Template",
-      icon: ChevronDown,
-      iconOff: ChevronRight,
-      component: () => <TemplateTab campaignId={campaignId} />,
     },
   ];
 

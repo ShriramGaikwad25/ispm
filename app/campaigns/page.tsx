@@ -722,6 +722,12 @@ export default function Campaigns() {
     };
   }, [isLeftSidebarVisible, isRightSidebarOpen, isLoading]);
 
+  // Completed campaigns only (same shape as rows, filtered by status)
+  const completedRows = useMemo(
+    () => rows.filter((r) => String(r.status ?? "").toLowerCase() === "completed"),
+    [rows]
+  );
+
   // Memoize the grid component render function to prevent unnecessary re-renders
   const renderGridComponent = useCallback(() => {
     if (isLoading) return <div>Loading...</div>;
@@ -777,6 +783,57 @@ export default function Campaigns() {
     );
   }, [isLoading, error, rows, columnDefs, defaultColDef, onFirstDataRendered]);
 
+  // Same table as Active tab, same columns, filtered to completed campaigns
+  const renderCompletedGridComponent = useCallback(() => {
+    if (isLoading) return <div>Loading...</div>;
+    if (error) return <div className="text-red-600">{error}</div>;
+    return (
+      <div 
+        ref={gridContainerRef} 
+        className="campaigns-table w-full"
+        style={{ width: '100%', minWidth: 0 }}
+      >
+        <AgGridReact
+          ref={gridRef}
+          rowData={completedRows}
+          columnDefs={columnDefs}
+          rowSelection="multiple"
+          context={{ gridRef }}
+          rowModelType="clientSide"
+          animateRows={true}
+          domLayout="autoHeight"
+          defaultColDef={defaultColDef}
+          masterDetail={true}
+          detailCellRenderer={DetailCellRenderer}
+          detailRowAutoHeight={true}
+          detailRowHeight={80}
+          overlayNoRowsTemplate='<span class="ag-overlay-no-rows-center">No completed campaigns.</span>'
+          onGridReady={(params) => {
+            setGridApi(params.api);
+            params.api.sizeColumnsToFit();
+            const handleResize = () => {
+              try {
+                params.api.sizeColumnsToFit();
+              } catch {}
+            };
+            window.addEventListener("resize", handleResize);
+            params.api.addEventListener('gridPreDestroyed', () => {
+              window.removeEventListener("resize", handleResize);
+            });
+          }}
+          onGridSizeChanged={(params) => {
+            try {
+              params.api.sizeColumnsToFit();
+            } catch (e) {}
+          }}
+          onFirstDataRendered={onFirstDataRendered}
+          suppressColumnVirtualisation={false}
+          suppressRowVirtualisation={false}
+        />
+      </div>
+    );
+  }, [isLoading, error, completedRows, columnDefs, defaultColDef, onFirstDataRendered]);
+
   const tabsData = useMemo(() => [
     {
       label: "Active",
@@ -788,7 +845,7 @@ export default function Campaigns() {
       label: "Completed",
       icon: ChevronDown,
       iconOff: ChevronUp,
-      component: () => <p>Coming Soon...</p>,
+      component: renderCompletedGridComponent,
     },
     {
       label: "Template",
@@ -796,7 +853,7 @@ export default function Campaigns() {
       iconOff: ChevronUp,
       component: () => <TemplateTab />,
     },
-  ], [renderGridComponent]);
+  ], [renderGridComponent, renderCompletedGridComponent]);
 
   // Get active tab from URL parameter
   const tabParam = searchParams.get("tab");
