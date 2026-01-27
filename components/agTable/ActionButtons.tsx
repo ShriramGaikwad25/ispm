@@ -673,21 +673,15 @@ const ActionButtons = <T extends { status?: string }>({
       storedComment: firstRowId ? commentsStorage.get(firstRowId) : null
     });
     
-    // Priority: newComment from row data (if certified/rejected) > stored comment > empty
+    // Priority: newComment from row data (any status, including Pending) > stored comment > empty
     let commentToShow = "";
     const storedComment = firstRowId ? commentsStorage.get(firstRowId) || "" : "";
     
-    // If row is certified/rejected, prioritize newComment from API response
-    if ((isCertified || isRejectedRow)) {
-      if (hasNewComment) {
-        commentToShow = hasNewComment;
-      } else if (storedComment) {
-        // If no newComment but row is certified/rejected, show stored comment
-        commentToShow = storedComment;
-      }
-    } 
-    // Otherwise, show stored comment if available
-    else if (storedComment) {
+    // Always prefer latest comment coming from API/row data (hasNewComment)
+    if (hasNewComment) {
+      commentToShow = hasNewComment;
+    } else if (storedComment) {
+      // Fallback to locally stored comment if API did not send one
       commentToShow = storedComment;
     }
     
@@ -705,13 +699,64 @@ const ActionButtons = <T extends { status?: string }>({
     setIsCommentModalOpen(true);
   };
 
-  const handleSaveComment = () => {
-    if (!commentText.trim()) return;
+  const handleSaveComment = async () => {
+    const trimmedComment = commentText.trim();
+    if (!trimmedComment) return;
 
-    // Save comment for all selected rows
+    // Save comment for all selected rows (used later as default justification)
     selectedIds.forEach((id) => {
-      commentsStorage.set(id, commentText.trim());
+      commentsStorage.set(id, trimmedComment);
     });
+
+    // For TreeClient / AppOwner entitlement grids:
+    // Call updateAction API immediately using the current status filter,
+    // but DO NOT queue anything in the ActionPanel (no floating submit button).
+    if (selectedIds.length > 0 && reviewerId && certId && context === "entitlement") {
+      // Map current status-filter to an action type:
+      // - Certify  -> Approve
+      // - Reject   -> Reject
+      // - Pending / anything else -> Pending (no status change)
+      let actionTypeForComment: "Approve" | "Reject" | "Pending" = "Pending";
+      if (isCertifyFilterActive) {
+        actionTypeForComment = "Approve";
+      } else if (isRejectFilterActive) {
+        actionTypeForComment = "Reject";
+      }
+
+      // Build entitlement payload directly for updateAction
+      const uniqueLineItemIds = Array.from(
+        new Set(
+          definedRows
+            .map(
+              (row: any) => row.lineItemId || (row as any)?.accountLineItemId
+            )
+            .filter((id: any) => Boolean(id) && id !== "undefined" && id !== "null")
+        )
+      );
+
+      if (uniqueLineItemIds.length > 0) {
+        const payload: any = {
+          useraction: [],
+          accountAction: [],
+          entitlementAction: [
+            {
+              actionType: actionTypeForComment,
+              lineItemIds: uniqueLineItemIds,
+              justification: trimmedComment,
+            },
+          ],
+        };
+
+        try {
+          await updateAction(reviewerId, certId, payload);
+          // Refresh page after successful comment save
+          window.location.reload();
+        } catch (err) {
+          console.error("Failed to save comment via updateAction:", err);
+          // Don't block closing the modal on API error; user can retry.
+        }
+      }
+    }
 
     setIsCommentModalOpen(false);
     setCommentText("");

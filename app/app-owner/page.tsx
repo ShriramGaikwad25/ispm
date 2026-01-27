@@ -220,6 +220,8 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
           lineItemId: entityEntitlement.lineItemId || "",
           recommendation,
           status: normalizedStatus,
+          action: normalizedAction,
+          newComment: entityEntitlement.newComment || account.newComment || "", // Add newComment to row data for grouped data
         };
       });
     });
