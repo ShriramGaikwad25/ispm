@@ -1,15 +1,15 @@
 "use client";
 
-import React, { useMemo, useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import dynamic from "next/dynamic";
 const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
 import "@/lib/ag-grid-setup";
 import { ColDef } from "ag-grid-enterprise";
-import { Pencil, Upload, Download, Search, Plus, Sparkles } from "lucide-react";
+import { Pencil, Upload, Download, Search, Plus, Sparkles, Eye, X, Copy, RefreshCw } from "lucide-react";
 import Filters from "@/components/agTable/Filters";
 import CustomPagination from "@/components/agTable/CustomPagination";
 import { useRouter } from "next/navigation";
-import { getAllApplications, getAllAppsForUserWithAI, type Application } from "@/lib/api";
+import { getAllApplications, getAllAppsForUserWithAI, regenerateApiToken, type Application } from "@/lib/api";
 import { getCookie, COOKIE_NAMES, getCurrentUser } from "@/lib/auth";
 import HorizontalTabs from "@/components/HorizontalTabs";
 
@@ -20,6 +20,7 @@ interface AppInventoryItem {
   category: string;
   riskLevel: string;
   serviceUrl: string;
+  apiToken?: string;
   createdOn: string;
 }
 
@@ -38,6 +39,17 @@ export default function AppInventoryPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [valueModal, setValueModal] = useState<{ open: boolean; title: string; value: string; appId?: string }>({
+    open: false,
+    title: "",
+    value: "",
+    appId: undefined,
+  });
+  const [regenerating, setRegenerating] = useState(false);
+  const openValueModal = (title: string, value: string, appId?: string) => {
+    setValueModal({ open: true, title, value: value ?? "", appId });
+  };
+  const closeValueModal = () => setValueModal((p) => ({ ...p, open: false }));
 
   // Convert API Application to AppInventoryItem - handle any format
   const convertApplicationToItem = (app: any): AppInventoryItem => {
@@ -47,6 +59,7 @@ export default function AppInventoryPage() {
     const applicationType = app.ApplicationType || app.applicationType || app.type || app.Type || '';
     const tenantId = app.TenantID || app.tenantID || app.tenantId || app.tenant || '';
     const scimUrl = app.SCIMURL || app.scimURL || app.scimUrl || app.url || app.Url || '';
+    const apiToken = app.APIToken || app.apiToken || app.api_token || app.token || '';
     
     return {
       id: String(applicationId),
@@ -55,6 +68,7 @@ export default function AppInventoryPage() {
       category: String(applicationType),
       riskLevel: "Medium", // Default risk level
       serviceUrl: String(scimUrl),
+      apiToken: String(apiToken || ''),
       createdOn: new Date().toISOString().split('T')[0], // Current date as placeholder
     };
   };
@@ -150,6 +164,7 @@ export default function AppInventoryPage() {
           const applicationType = app.applicationType || app.type || '';
           const description = app.applicationDescription || app.comments || '';
           const scimOrConnUrl = app.connectionDetails?.connectionURL || app.url || '';
+          const apiToken = app.apiToken || app.api_token || app.APIToken || app.token || '';
           const id = app.requestId || app.id || applicationName || '';
 
           return {
@@ -159,6 +174,7 @@ export default function AppInventoryPage() {
             category: String(applicationType || 'Unknown'),
             riskLevel: 'Medium',
             serviceUrl: String(scimOrConnUrl),
+            apiToken: String(apiToken || ''),
             createdOn: new Date().toISOString().split('T')[0],
           } as AppInventoryItem;
         });
@@ -182,15 +198,17 @@ export default function AppInventoryPage() {
       category: "Identity Management",
       riskLevel: "Low",
       serviceUrl: "https://intranet.example.com/ad",
+      apiToken: "",
       createdOn: "2023-08-05"
     },
     {
-      id: "2", 
+      id: "2",
       name: "SAP ERP System",
       description: "Enterprise resource planning system managing financial, HR, and operational processes",
       category: "Business Applications",
       riskLevel: "Medium",
       serviceUrl: "https://sap.example.com",
+      apiToken: "",
       createdOn: "2022-11-20"
     },
     {
@@ -200,6 +218,7 @@ export default function AppInventoryPage() {
       category: "HR Systems",
       riskLevel: "Low",
       serviceUrl: "https://workday.example.com",
+      apiToken: "",
       createdOn: "2023-02-14"
     },
     {
@@ -209,6 +228,7 @@ export default function AppInventoryPage() {
       category: "Database Systems",
       riskLevel: "High",
       serviceUrl: "https://db-admin.example.com/oracle",
+      apiToken: "",
       createdOn: "2021-06-30"
     },
     {
@@ -218,6 +238,7 @@ export default function AppInventoryPage() {
       category: "Business Applications",
       riskLevel: "Medium",
       serviceUrl: "https://acme.my.salesforce.com",
+      apiToken: "",
       createdOn: "2023-09-10"
     },
     {
@@ -227,6 +248,7 @@ export default function AppInventoryPage() {
       category: "Productivity Tools",
       riskLevel: "Low",
       serviceUrl: "https://portal.office.com",
+      apiToken: "",
       createdOn: "2020-12-01"
     },
     {
@@ -236,6 +258,7 @@ export default function AppInventoryPage() {
       category: "IT Management",
       riskLevel: "Medium",
       serviceUrl: "https://servicenow.example.com",
+      apiToken: "",
       createdOn: "2022-05-18"
     },
     {
@@ -245,6 +268,7 @@ export default function AppInventoryPage() {
       category: "Collaboration Tools",
       riskLevel: "Low",
       serviceUrl: "https://confluence.example.com",
+      apiToken: "",
       createdOn: "2021-03-22"
     }
   ];
@@ -275,24 +299,36 @@ const filteredData = useMemo(() => {
       item.name.toLowerCase().includes(q) ||
       item.description.toLowerCase().includes(q) ||
       item.category.toLowerCase().includes(q) ||
-      item.serviceUrl.toLowerCase().includes(q);
+      item.serviceUrl.toLowerCase().includes(q) ||
+      (item.apiToken ?? "").toLowerCase().includes(q);
     const matchesCategory = !selectedCategory || item.category === selectedCategory;
     const matchesRisk = !selectedRisk || item.riskLevel === selectedRisk;
     return matchesQuery && matchesCategory && matchesRisk;
   });
 }, [searchQuery, selectedCategory, selectedRisk, applicationsData, aiApplicationsData, activeTabIndex]);
 
+// Interleave each item with a full-width description row
+const rowsWithDesc = useMemo(() => {
+  if (!filteredData.length) return [];
+  const rows: (AppInventoryItem & { __isDescRow?: boolean })[] = [];
+  for (const item of filteredData) {
+    rows.push(item);
+    rows.push({ ...item, __isDescRow: true });
+  }
+  return rows;
+}, [filteredData]);
+
 useEffect(() => {
   const total = filteredData.length;
   const isAll = pageSize === "all";
   const numericPageSize = isAll ? total || 1 : (pageSize as number);
-  const startIndex = (currentPage - 1) * numericPageSize;
-  const endIndex = isAll ? total : startIndex + numericPageSize;
-  const paginatedData = filteredData.slice(startIndex, endIndex);
-  setRowData(paginatedData);
+  const startIndex = (currentPage - 1) * numericPageSize * 2;
+  const endIndex = isAll ? rowsWithDesc.length : startIndex + numericPageSize * 2;
+  const paginatedRows = rowsWithDesc.slice(startIndex, endIndex);
+  setRowData(paginatedRows);
   setTotalItems(total);
   setTotalPages(Math.max(1, isAll ? 1 : Math.ceil(total / numericPageSize)));
-  }, [filteredData, currentPage, pageSize]);
+}, [filteredData, rowsWithDesc, currentPage, pageSize]);
 
 useEffect(() => {
   setCurrentPage(1);
@@ -303,90 +339,180 @@ useEffect(() => {
       {
         headerName: "Name",
         field: "name",
-        width: 250,
+        flex: 2,
+        minWidth: 100,
+        wrapText: true,
+        autoHeight: true,
+        colSpan: (params: any) => {
+          if (!params.data?.__isDescRow) return 1;
+          try {
+            const center = params.api?.getDisplayedCenterColumns?.() || [];
+            const left = params.api?.getDisplayedLeftColumns?.() || [];
+            const right = params.api?.getDisplayedRightColumns?.() || [];
+            const total = center.length + left.length + right.length;
+            if (total > 0) return total;
+          } catch {
+            // ignore
+          }
+          return 1;
+        },
         cellRenderer: (params: any) => {
-          const name = params.data.name;
+          if (params.data?.__isDescRow) {
+            return (
+              <div className="text-gray-600 text-sm w-full break-words whitespace-pre-wrap py-1 pr-4">
+                {params.data?.description ?? "—"}
+              </div>
+            );
+          }
           return (
-            <div className="flex items-center gap-2 py-2">
-              <span className="font-semibold text-gray-900">
-                {name}
-              </span>
+            <div className="flex items-center gap-2 py-1">
+              <span className="font-semibold text-gray-900">{params.data?.name ?? ""}</span>
             </div>
           );
         },
       },
       {
-        headerName: "Description",
-        field: "description",
-        width: 450,
-        wrapText: true,
-        autoHeight: true,
-        cellRenderer: (params: any) => (
-          <div className="py-2">
-            <span className="text-sm text-gray-600 leading-relaxed">
-              {params.value}
-            </span>
-          </div>
-        ),
-      },
-      {
         headerName: "Application Type",
         field: "category",
-        width: 200,
-        cellRenderer: (params: any) => (
-          <span className="text-sm text-gray-700">{params.value}</span>
-        ),
+        flex: 1,
+        minWidth: 80,
+        cellRenderer: (params: any) => {
+          if (params.data?.__isDescRow) return null;
+          return <span className="text-sm text-gray-700">{params.value}</span>;
+        },
       },
       {
         headerName: "SCIM URL",
         field: "serviceUrl",
-        width: 300,
-        cellRenderer: (params: any) => (
-          <a
-            href={params.value}
-            target="_blank"
-            rel="noreferrer"
-            className="text-blue-600 hover:text-blue-800 underline decoration-blue-300 underline-offset-2 text-sm"
-            title={params.value}
-          >
-            {params.value.length > 50 ? `${params.value.substring(0, 50)}...` : params.value}
-          </a>
-        ),
+        flex: 0.6,
+        minWidth: 56,
+        cellRenderer: (params: any) => {
+          if (params.data?.__isDescRow) return null;
+          const url = params.value ?? "";
+          return (
+            <div className="flex items-center justify-center w-full h-full min-h-[42px]">
+              <button
+                type="button"
+                className="rounded-full p-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors"
+                onClick={(e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  openValueModal("SCIM URL", url);
+                }}
+                aria-label="View SCIM URL"
+                title="View SCIM URL"
+              >
+                <Eye className="w-4 h-4" />
+              </button>
+            </div>
+          );
+        },
+      },
+      {
+        headerName: "API Token",
+        field: "apiToken",
+        flex: 0.6,
+        minWidth: 56,
+        cellRenderer: (params: any) => {
+          if (params.data?.__isDescRow) return null;
+          const token = params.data?.apiToken ?? params.value ?? "";
+          if (!token) return <div className="flex items-center justify-center w-full h-full min-h-[42px]"><span className="text-sm text-gray-400">—</span></div>;
+          return (
+            <div className="flex items-center justify-center w-full h-full min-h-[42px]">
+              <button
+                type="button"
+                className="rounded-full p-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors"
+                onClick={(e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  const appId = params.data?.id ?? "";
+                  openValueModal("API Token", token, appId);
+                }}
+                aria-label="View API Token"
+                title="View API Token"
+              >
+                <Eye className="w-4 h-4" />
+              </button>
+            </div>
+          );
+        },
       },
       {
         headerName: "Created On",
         field: "createdOn",
-        width: 150,
-        cellRenderer: (params: any) => (
-          <span className="text-sm text-gray-600">
-            {new Date(params.value).toLocaleDateString()}
-          </span>
-        ),
+        flex: 1,
+        minWidth: 88,
+        cellRenderer: (params: any) => {
+          if (params.data?.__isDescRow) return null;
+          return (
+            <span className="text-sm text-gray-600">
+              {params.value ? new Date(params.value).toLocaleDateString() : ""}
+            </span>
+          );
+        },
       },
       {
         headerName: "Actions",
         field: "actions",
-        width: 120,
+        flex: 0.4,
+        minWidth: 52,
         sortable: false,
         filter: false,
         suppressMenu: true,
-        cellRenderer: (params: any) => (
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="p-1.5 rounded hover:bg-gray-100 text-gray-600 hover:text-gray-900"
-              onClick={() => handleEdit(params.data)}
-              aria-label="Edit"
-              title="Edit"
-            >
-              <Pencil className="w-4 h-4" />
-            </button>
-          </div>
-        ),
+        cellRenderer: (params: any) => {
+          if (params.data?.__isDescRow) return null;
+          return (
+            <div className="flex items-center justify-center w-full h-full min-h-[42px]">
+              <button
+                type="button"
+                className="rounded-full p-1.5 bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors"
+                onClick={() => handleEdit(params.data)}
+                aria-label="Edit"
+                title="Edit"
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+            </div>
+          );
+        },
       },
     ],
     []
   );
+
+  // Must be before any conditional return so hook order is stable (Rules of Hooks)
+  const getRowHeight = useCallback(
+    (params: any) => (params?.data?.__isDescRow ? 52 : 42),
+    []
+  );
+
+  const tabsData = useMemo(() => {
+    const gridProps = {
+      rowData,
+      columnDefs,
+      getRowHeight,
+      headerHeight: 44,
+      suppressRowClickSelection: true,
+      suppressCellFocus: true,
+      defaultColDef: {
+        resizable: true,
+        sortable: true,
+        filter: true,
+      },
+    };
+    const GridTab = () => (
+      <div className="w-full">
+        <AgGridReact
+          pagination={false}
+          domLayout="autoHeight"
+          style={{ width: "100%" }}
+          {...gridProps}
+        />
+      </div>
+    );
+    return [
+      { label: "Without AI Assist", component: GridTab },
+      { label: "With AI Assist", component: GridTab },
+    ];
+  }, [rowData, columnDefs, getRowHeight]);
 
   const handleEdit = (item: AppInventoryItem) => {
     // Replace with your edit flow (drawer/modal/navigation)
@@ -404,6 +530,7 @@ useEffect(() => {
       "Category",
       "Risk",
       "Service URL",
+      "API Token",
       "Created On",
     ];
     const rows = data.map((d) => [
@@ -412,6 +539,7 @@ useEffect(() => {
       escapeCsv(d.category),
       escapeCsv(d.riskLevel),
       escapeCsv(d.serviceUrl),
+      escapeCsv(d.apiToken ?? ""),
       escapeCsv(d.createdOn),
     ].join(","));
     const csv = [headers.join(","), ...rows].join("\n");
@@ -468,60 +596,6 @@ useEffect(() => {
     );
   }
 
-  // Tab components
-  const WithoutAIAssistTab = () => (
-    <div className="w-full">
-      <AgGridReact
-        rowData={rowData}
-        columnDefs={columnDefs}
-        pagination={false}
-        domLayout="autoHeight"
-        rowHeight={80}
-        headerHeight={50}
-        suppressRowClickSelection={true}
-        suppressCellFocus={true}
-        defaultColDef={{
-          resizable: true,
-          sortable: true,
-          filter: true,
-        }}
-        style={{ width: "100%" }}
-      />
-    </div>
-  );
-
-  const WithAIAssistTab = () => (
-    <div className="w-full">
-      <AgGridReact
-        rowData={rowData}
-        columnDefs={columnDefs}
-        pagination={false}
-        domLayout="autoHeight"
-        rowHeight={80}
-        headerHeight={50}
-        suppressRowClickSelection={true}
-        suppressCellFocus={true}
-        defaultColDef={{
-          resizable: true,
-          sortable: true,
-          filter: true,
-        }}
-        style={{ width: "100%" }}
-      />
-    </div>
-  );
-
-  const tabsData = [
-    {
-      label: "Without AI Assist",
-      component: WithoutAIAssistTab,
-    },
-    {
-      label: "With AI Assist",
-      component: WithAIAssistTab,
-    },
-  ];
-
   return (
     <div className="h-screen flex flex-col w-full">
       {/* Header */}
@@ -574,7 +648,7 @@ useEffect(() => {
               />
               <button
                 type="button"
-                className="p-2 border border-gray-300 rounded hover:bg-gray-50"
+                className="rounded-full p-2 bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
                 onClick={() => fileInputRef.current?.click()}
                 title="Upload"
                 aria-label="Upload"
@@ -585,7 +659,7 @@ useEffect(() => {
               {/* Download */}
               <button
                 type="button"
-                className="p-2 border border-gray-300 rounded hover:bg-gray-50"
+                className="rounded-full p-2 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors"
                 onClick={() => handleDownload(filteredData)}
                 title="Download"
                 aria-label="Download"
@@ -596,7 +670,7 @@ useEffect(() => {
               {/* AI Assist App */}
               <button
                 type="button"
-                className="flex items-center gap-2 px-3 py-2 border border-blue-300 rounded hover:bg-blue-50 text-sm font-medium text-blue-700 bg-blue-50"
+                className="flex items-center gap-2 rounded-full px-4 py-2 bg-violet-100 text-violet-700 hover:bg-violet-200 text-sm font-medium transition-colors"
                 onClick={() => router.push("/settings/app-inventory/ai-assist-app")}
                 title="AI Assist App"
                 aria-label="AI Assist App"
@@ -608,7 +682,7 @@ useEffect(() => {
               {/* Add Application */}
               <button
                 type="button"
-                className="flex items-center gap-2 px-3 py-2 border border-blue-300 rounded hover:bg-blue-50 text-sm font-medium text-blue-700 bg-blue-50"
+                className="flex items-center gap-2 rounded-full px-4 py-2 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 text-sm font-medium transition-colors"
                 onClick={handleAddApplication}
                 title="Add Application"
                 aria-label="Add Application"
@@ -657,6 +731,91 @@ useEffect(() => {
           />
         </div>
       </div>
+
+      {/* Value view popup (SCIM URL / API Token) */}
+      {valueModal.open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="value-modal-title"
+          onClick={closeValueModal}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 py-3 border-b border-gray-200">
+              <h2 id="value-modal-title" className="text-lg font-semibold text-gray-900">
+                {valueModal.title}
+              </h2>
+            </div>
+            <div className="p-4 overflow-auto flex-1 min-h-0">
+              <pre className="text-sm text-gray-700 whitespace-pre-wrap break-all font-sans bg-gray-50 p-3 rounded border border-gray-200">
+                {valueModal.value || "—"}
+              </pre>
+            </div>
+            <div className="flex justify-end gap-2 px-4 py-3 border-t border-gray-200">
+              {valueModal.title === "API Token" && (
+                <button
+                  type="button"
+                  className="flex items-center gap-2 rounded-full px-4 py-2 bg-violet-100 text-violet-700 hover:bg-violet-200 transition-colors text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+                  disabled={regenerating || !valueModal.value || !valueModal.appId}
+                  onClick={async () => {
+                    const oldToken = valueModal.value?.trim() || "";
+                    const appId = valueModal.appId?.trim();
+                    if (!oldToken || !appId) return;
+                    setRegenerating(true);
+                    try {
+                      const res = await regenerateApiToken(oldToken, appId);
+                      const newToken =
+                        res?.APIToken ?? res?.NewAPIToken ?? res?.apiToken ?? res?.token ?? res?.newToken;
+                      if (newToken != null && typeof newToken === "string") {
+                        setValueModal((p) => ({ ...p, value: newToken }));
+                      }
+                      closeValueModal();
+                    } catch (err) {
+                      console.error("Regenerate token failed:", err);
+                      alert(err instanceof Error ? err.message : "Failed to regenerate token");
+                    } finally {
+                      setRegenerating(false);
+                    }
+                  }}
+                  aria-label="Generate Token"
+                  title="Generate new API token"
+                >
+                  <RefreshCw className={`w-4 h-4 ${regenerating ? "animate-spin" : ""}`} />
+                  {regenerating ? "Regenerating…" : "Generate Token"}
+                </button>
+              )}
+              <button
+                type="button"
+                className="flex items-center gap-2 rounded-full px-4 py-2 bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors text-sm font-medium"
+                onClick={() => {
+                  const text = valueModal.value || "";
+                  if (text && navigator.clipboard?.writeText) {
+                    navigator.clipboard.writeText(text);
+                  }
+                }}
+                aria-label="Copy"
+                title="Copy to clipboard"
+              >
+                <Copy className="w-4 h-4" />
+                Copy
+              </button>
+              <button
+                type="button"
+                className="flex items-center gap-2 rounded-full px-4 py-2 bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900 transition-colors text-sm font-medium"
+                onClick={closeValueModal}
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
