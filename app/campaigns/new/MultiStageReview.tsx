@@ -9,6 +9,13 @@ import {
 } from "react-hook-form";
 import { CircleMinus } from "lucide-react";
 import { asterisk, reviewersOptions } from "@/utils/utils";
+
+// Filtered reviewer options for Entitlement Owner templates
+const entitlementOwnerReviewerOptions = [
+  { value: "sys-admin", label: "SysAdmin" },
+  { value: "entitlement-owner", label: "Entitlement Owner" },
+  { value: "app-owner", label: "Application Owner" },
+];
 import ToggleSwitch from "@/components/ToggleSwitch";
 import FileDropzone from "@/components/FileDropzone";
 import ExpressionBuilder from "@/components/ExpressionBuilder";
@@ -29,6 +36,7 @@ const MultiStageReview: React.FC<MultiStageReviewProps> = ({
   resetField,
   unregister,
   children,
+  isEntitlementOwnerTemplate = false,
 }) => {
   const base = `stages.${index}`;
   const reviewer = `${base}.reviewer`;
@@ -65,6 +73,7 @@ const MultiStageReview: React.FC<MultiStageReviewProps> = ({
         setValue={setValue}
         resetField={resetField}
         unregister={unregister}
+        isEntitlementOwnerTemplate={isEntitlementOwnerTemplate}
       >
         {children}
       </MultiStageReviewForm>
@@ -87,6 +96,7 @@ const MultiStageReviewForm: React.FC<MultiStageReviewFormProps> = ({
   resetField,
   unregister,
   children,
+  isEntitlementOwnerTemplate = false,
 }) => {
   const base = `stages.${index}` as const;
   const genericExp = `${base}.genericExpression` as const;
@@ -149,13 +159,14 @@ const MultiStageReviewForm: React.FC<MultiStageReviewFormProps> = ({
             isMulti={false}
             placeholder="Select Reviewer(s)"
             control={control as unknown as Control<FieldValues>}
-            options={reviewersOptions}
+            options={isEntitlementOwnerTemplate ? entitlementOwnerReviewerOptions : reviewersOptions}
           />
           {errors?.reviewer?.message && (
             <p className="text-red-500">{String(errors.reviewer.message)}</p>
           )}
 
-          {selectedReviewer === "custom-reviewer" && (
+          {/* Hide custom reviewer options for Entitlement Owner templates */}
+          {selectedReviewer === "custom-reviewer" && !isEntitlementOwnerTemplate && (
             <>
               <div className="flex items-center gap-1 my-2">
                 <span
@@ -228,11 +239,11 @@ const MultiStageReviewForm: React.FC<MultiStageReviewFormProps> = ({
         </div>
       </div>
 
-      {/* Duration Input - Hidden for initial reviewer (index === 0) */}
-      {index > 0 && (
+      {/* Duration Input - Show for all reviewers when Entitlement Owner template, otherwise only for stages after first */}
+      {isEntitlementOwnerTemplate ? (
         <div className="grid grid-cols-[280px_1.5fr] items-start gap-2">
           <label className={`h-10 items-center flex ${asterisk}`}>
-            Stage {index} Duration (days)
+            Duration (days)
           </label>
           <div>
             <input
@@ -246,16 +257,38 @@ const MultiStageReviewForm: React.FC<MultiStageReviewFormProps> = ({
             {children}
           </div>
         </div>
-      )}
-      
-      {/* Show children for initial reviewer without duration field */}
-      {index === 0 && (
-        <div className="grid grid-cols-[280px_1.5fr] items-start gap-2">
-          <div></div>
-          <div>
-            {children}
-          </div>
-        </div>
+      ) : (
+        <>
+          {/* Duration Input - Only for stages after first */}
+          {index > 0 && (
+            <div className="grid grid-cols-[280px_1.5fr] items-start gap-2">
+              <label className={`h-10 items-center flex ${asterisk}`}>
+                Stage {index} Duration (days)
+              </label>
+              <div>
+                <input
+                  type="text"
+                  className="form-input bg-white"
+                  {...register(duration as Path<Step3FormData>)}
+                />
+                {errors?.duration?.message && (
+                  <p className="text-red-500">{String(errors.duration.message)}</p>
+                )}
+                {children}
+              </div>
+            </div>
+          )}
+          
+          {/* Show children for initial reviewer when no duration field */}
+          {index === 0 && (
+            <div className="grid grid-cols-[280px_1.5fr] items-start gap-2">
+              <div></div>
+              <div>
+                {children}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

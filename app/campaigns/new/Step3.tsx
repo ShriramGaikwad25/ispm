@@ -1,5 +1,5 @@
 import { CirclePlus, InfoIcon } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import { useFieldArray, useForm, Resolver } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 
@@ -101,6 +101,25 @@ const Step3: React.FC<StepProps> = ({
   }, [watch, setFormData, formData]);
 
   const multiStageReviewEnabled = watch("multiStageReview");
+
+  // Check if this is an Entitlement Owner template
+  const isEntitlementOwnerTemplate = useMemo(() => {
+    const campaignType = formData.step1?.campaignType || "";
+    const reviewers = formData.step3?.stages || [];
+    
+    // Check if campaign type is EntitlementOwnerReview
+    if (campaignType === "EntitlementOwnerReview") {
+      return true;
+    }
+    
+    // Check if any reviewer is Entitlement Owner
+    const hasEntitlementOwner = reviewers.some((stage: any) => {
+      const reviewer = stage?.reviewer || "";
+      return reviewer === "entitlement-owner" || reviewer === "EntitlementOwner" || reviewer === "Entitlement Owner";
+    });
+    
+    return hasEntitlementOwner;
+  }, [formData.step1?.campaignType, formData.step3?.stages]);
   
   useEffect(() => {
     // Don't auto-append if we just reset from template data
@@ -177,6 +196,7 @@ const Step3: React.FC<StepProps> = ({
                 setValue={setValue}
                 resetField={resetField}
                 unregister={unregister}
+                isEntitlementOwnerTemplate={isEntitlementOwnerTemplate}
               >
                 {index < fields.length - 1 && (
                   <div className="my-2 flex items-center gap-2 px-1">

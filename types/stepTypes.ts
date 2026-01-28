@@ -84,6 +84,7 @@ export interface MultiStageReviewProps {
   resetField: UseFormResetField<Step3FormData>;
   unregister: UseFormUnregister<Step3FormData>;
   children?: React.ReactNode;
+  isEntitlementOwnerTemplate?: boolean;
 }
 // -----------------------------------------------
 // Nested Component: MultiStageReviewForm
@@ -102,6 +103,7 @@ export interface MultiStageReviewFormProps {
   reviewer: string;
   duration: string;
   children?: React.ReactNode;
+  isEntitlementOwnerTemplate?: boolean;
 }
 
 /***End of Step3 */

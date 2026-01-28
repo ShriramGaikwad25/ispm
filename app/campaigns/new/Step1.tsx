@@ -293,12 +293,11 @@ const Step1: React.FC<StepProps> = ({
 
   return (
     <div className="w-full flex flex-col items-center">
-      <h2 className="text-xl font-bold text-blue-950 text-center mb-2">
-        Create an access review campaign
+      <h2 className="text-xl font-bold text-blue-950 text-center mb-8">
+        {isEntitlementOwnerTemplate
+          ? "Entitlement Owner Access Review"
+          : "Create an access review campaign"}
       </h2>
-      <small className="block mb-6 text-blue-950 text-center">
-        Name your new campaign and set its ownership and rules.
-      </small>
 
         <div className="text-sm space-y-6 w-full max-w-4xl">
           {/* Step1 Fields */}

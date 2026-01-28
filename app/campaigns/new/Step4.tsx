@@ -807,21 +807,62 @@ const Step4: React.FC<StepProps> = ({
               </p>
             )}
         </dd>
-        <dt>
-          Open ticket for Conditional Approval tasks with future termination
-          date
-        </dt>
-        <dd className="flex gap-2 items-center">
-          {" "}
-          No
-          <ToggleSwitch
-            checked={watch("ticketConditionalApproval")}
-            onChange={(checked) =>
-              setValue("ticketConditionalApproval", checked)
-            }
-          />
-          Yes{" "}
-        </dd>
+
+        {/* Hide these advanced options when editing/cloning Entitlement Owner templates */}
+        {!isEntitlementOwnerTemplate && (
+          <>
+            <dt>
+              Open ticket for Conditional Approval tasks with future termination
+              date
+            </dt>
+            <dd className="flex gap-2 items-center">
+              {" "}
+              No
+              <ToggleSwitch
+                checked={watch("ticketConditionalApproval")}
+                onChange={(checked) =>
+                  setValue("ticketConditionalApproval", checked)
+                }
+              />
+              Yes{" "}
+            </dd>
+
+            <dt>Application Scope </dt>
+            <dd className="flex gap-2 items-center">
+              <span
+                className={`flex items-center ${
+                  !watch("applicationScope") ? ` text-black` : "text-black/50"
+                }`}
+              >
+                {" "}
+                All Active Accounts
+              </span>
+              <ToggleSwitch
+                checked={watch("applicationScope")}
+                onChange={(checked) => setValue("applicationScope", checked)}
+              />
+              <span
+                className={`flex items-center ${
+                  watch("applicationScope") ? ` text-black` : "text-black/50"
+                }`}
+              >
+                All User Accounts
+              </span>
+            </dd>
+
+            <dt>Do you want to allow pre-delegate to sign off</dt>
+            <dd className="flex gap-2 items-center">
+              {" "}
+              No
+              <ToggleSwitch
+                checked={watch("preDelegate")}
+                onChange={(checked) => setValue("preDelegate", checked)}
+              />
+              Yes{" "}
+            </dd>
+          </>
+        )}
+
         <dt>Enable additional Authentication for certification sign off(Password)</dt>
         <dd>
           <div className="flex gap-2 items-center">
@@ -850,39 +891,6 @@ const Step4: React.FC<StepProps> = ({
               {}
             </div>
           )} */}
-        </dd>
-        <dt>Application Scope </dt>
-        <dd className="flex gap-2 items-center">
-          <span
-            className={`flex items-center ${
-              !watch("applicationScope") ? ` text-black` : "text-black/50"
-            }`}
-          >
-            {" "}
-            All Active Accounts
-          </span>
-          <ToggleSwitch
-            checked={watch("applicationScope")}
-            onChange={(checked) => setValue("applicationScope", checked)}
-          />
-          <span
-            className={`flex items-center ${
-              watch("applicationScope") ? ` text-black` : "text-black/50"
-            }`}
-          >
-            All User Accounts
-          </span>
-        </dd>
-
-        <dt>Do you want to allow pre-delegate to sign off</dt>
-        <dd className="flex gap-2 items-center">
-          {" "}
-          No
-          <ToggleSwitch
-            checked={watch("preDelegate")}
-            onChange={(checked) => setValue("preDelegate", checked)}
-          />
-          Yes{" "}
         </dd>
       </dl>
     </div>
