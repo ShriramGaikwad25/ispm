@@ -5,11 +5,11 @@ import dynamic from "next/dynamic";
 const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
 import "@/lib/ag-grid-setup";
 import { ColDef } from "ag-grid-enterprise";
-import { Pencil, Upload, Download, Search, Plus, Sparkles, Eye, X, Copy, RefreshCw } from "lucide-react";
+import { Pencil, Upload, Download, Search, Plus, Sparkles, Eye, X, Copy, RefreshCw, Settings, Network } from "lucide-react";
 import Filters from "@/components/agTable/Filters";
 import CustomPagination from "@/components/agTable/CustomPagination";
 import { useRouter } from "next/navigation";
-import { getAllApplications, getAllAppsForUserWithAI, regenerateApiToken, type Application } from "@/lib/api";
+import { getAllApplications, getAllAppsForUserWithAI, regenerateApiToken, getApplicationDetails, type Application } from "@/lib/api";
 import { getCookie, COOKIE_NAMES, getCurrentUser } from "@/lib/auth";
 import HorizontalTabs from "@/components/HorizontalTabs";
 
@@ -364,9 +364,26 @@ useEffect(() => {
               </div>
             );
           }
+          const appId = params.data?.id ?? "";
+          const appName = params.data?.name ?? "";
           return (
             <div className="flex items-center gap-2 py-1">
-              <span className="font-semibold text-gray-900">{params.data?.name ?? ""}</span>
+              <button
+                type="button"
+                onClick={(e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  if (appId) {
+                    const apiToken = params.data?.apiToken ?? "";
+                    if (typeof window !== "undefined") {
+                      sessionStorage.setItem(`app-inventory-token-${appId}`, apiToken);
+                    }
+                    router.push(`/settings/app-inventory/${appId}`);
+                  }
+                }}
+                className="font-semibold text-gray-900 hover:text-blue-600 hover:underline cursor-pointer text-left"
+              >
+                {appName}
+              </button>
             </div>
           );
         },
@@ -452,23 +469,50 @@ useEffect(() => {
       {
         headerName: "Actions",
         field: "actions",
-        flex: 0.4,
-        minWidth: 52,
+        flex: 0.6,
+        minWidth: 140,
         sortable: false,
         filter: false,
         suppressMenu: true,
         cellRenderer: (params: any) => {
           if (params.data?.__isDescRow) return null;
           return (
-            <div className="flex items-center justify-center w-full h-full min-h-[42px]">
+            <div className="flex items-center justify-center gap-2 w-full h-full min-h-[42px]">
               <button
                 type="button"
                 className="rounded-full p-1.5 bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors"
-                onClick={() => handleEdit(params.data)}
+                onClick={(e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  handleEdit(params.data);
+                }}
                 aria-label="Edit"
                 title="Edit"
               >
                 <Pencil className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                className="rounded-full p-1.5 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors"
+                onClick={(e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  handleSchemaMapping(params.data);
+                }}
+                aria-label="Schema Mapping"
+                title="Schema Mapping"
+              >
+                <Network className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                className="rounded-full p-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
+                onClick={(e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  handleSettings(params.data);
+                }}
+                aria-label="Settings"
+                title="Settings"
+              >
+                <Settings className="w-4 h-4" />
               </button>
             </div>
           );
@@ -515,8 +559,23 @@ useEffect(() => {
   }, [rowData, columnDefs, getRowHeight]);
 
   const handleEdit = (item: AppInventoryItem) => {
-    // Replace with your edit flow (drawer/modal/navigation)
-    console.log("Edit clicked for:", item);
+    const appId = item?.id ?? "";
+    if (!appId) return;
+    const apiToken = item?.apiToken ?? "";
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem(`app-inventory-token-${appId}`, apiToken);
+    }
+    router.push(`/settings/app-inventory/${appId}?edit=true`);
+  };
+
+  const handleSchemaMapping = (item: AppInventoryItem) => {
+    // Navigate to schema mapping page for this application
+    router.push(`/settings/app-inventory/${item.id}/schema-mapping`);
+  };
+
+  const handleSettings = (item: AppInventoryItem) => {
+    // Navigate to settings page for this application
+    router.push(`/settings/app-inventory/${item.id}/settings`);
   };
 
   const handleAddApplication = () => {

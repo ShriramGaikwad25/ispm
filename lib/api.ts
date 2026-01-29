@@ -494,6 +494,46 @@ export async function regenerateApiToken(oldApiToken: string, applicationId: str
   return data;
 }
 
+export async function getApplicationDetails(applicationId: string, apiToken: string): Promise<any> {
+  const endpoint = `https://preview.keyforge.ai/registerscimapp/registerfortenant/ACMECOM/getApp/${applicationId}`;
+
+  const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
+  if (!accessToken) {
+    throw new Error("No access token available");
+  }
+
+  const headers = new Headers();
+  headers.set("Content-Type", "application/json");
+  headers.set("X-Requested-With", "XMLHttpRequest");
+  headers.set("Authorization", `Bearer ${accessToken}`);
+
+  const fetchFn = typeof window !== "undefined" ? getOriginalFetch() : fetch;
+  const response = await fetchFn(endpoint, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ APIToken: apiToken || "" }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    try {
+      const errorData = JSON.parse(errorText);
+      if (await checkTokenExpiredError(errorData)) {
+        throw new Error("Token Expired");
+      }
+    } catch (e) {
+      // ignore parse errors
+    }
+    throw new Error(`Get application details failed: ${response.status} ${response.statusText} - ${errorText}`);
+  }
+
+  const data = await response.json();
+  if (await checkTokenExpiredError(data)) {
+    throw new Error("Token Expired");
+  }
+  return data;
+}
+
 // Get all applications for a user (AI Assist) - requires JWT in Authorization header
 export async function getAllAppsForUserWithAI(loginId: string): Promise<any> {
   const encoded = encodeURIComponent(loginId);
