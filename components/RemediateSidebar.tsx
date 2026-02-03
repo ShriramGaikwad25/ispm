@@ -6,7 +6,7 @@ import { optionsForRemidiate } from "@/utils/utils";
 import Select from "react-select";
 import { Edit2Icon } from "lucide-react";
 import UserDisplayName from "./UserDisplayName";
-import { executeQuery } from "@/lib/api";
+import { executeQuery, modifyAccess, immediateRevoke } from "@/lib/api";
 
 interface RemediateSidebarProps {
   selectedRows: any[];
@@ -16,6 +16,10 @@ interface RemediateSidebarProps {
   onConditionalAccess?: (endDate: string, justification: string) => Promise<void>;
   onModifyAccess?: (newAccess: string, justification: string) => Promise<void>;
   isActionLoading: boolean;
+  /** Required to call modifyAccess API (User Manager / App Owner certification flow) */
+  reviewerId?: string;
+  certId?: string;
+  reviewerName?: string;
 }
 
 const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
@@ -26,6 +30,9 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
   onConditionalAccess,
   onModifyAccess,
   isActionLoading,
+  reviewerId,
+  certId,
+  reviewerName = "",
 }) => {
   const [lockAccountChecked, setLockAccountChecked] = useState(false);
   const [modifyAccessChecked, setModifyAccessChecked] = useState(false);
@@ -45,8 +52,22 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
   const [modifyAccessOptions, setModifyAccessOptions] = useState<any[]>([]);
   const [isLoadingOptions, setIsLoadingOptions] = useState(false);
   const [optionsError, setOptionsError] = useState<string | null>(null);
+  const [isModifyAccessLoading, setIsModifyAccessLoading] = useState(false);
+  const [modifyAccessError, setModifyAccessError] = useState<string | null>(null);
+  const [isImmediateRevokeLoading, setIsImmediateRevokeLoading] = useState(false);
+  const [immediateRevokeError, setImmediateRevokeError] = useState<string | null>(null);
+  const [isConditionalAccessLoading, setIsConditionalAccessLoading] = useState(false);
+  const [conditionalAccessError, setConditionalAccessError] = useState<string | null>(null);
 
   const definedRows = selectedRows.filter((row) => row && Object.keys(row).length > 0);
+
+  /** Format date from input (YYYY-MM-DD) to API format MM-DD-YYYY */
+  const formatEndDateForApi = (dateStr: string): string => {
+    if (!dateStr) return "";
+    const [y, m, d] = dateStr.split("-");
+    if (m && d && y) return `${m}-${d}-${y}`;
+    return dateStr;
+  };
 
   // Get campaign expiry date from various sources
   const getCampaignExpiryDate = (): string | null => {
@@ -148,13 +169,31 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
           }
         }
 
-        // Transform entitlements into dropdown options
+        // Collect entitlement names already assigned to the user from selected rows
+        // (User Manager and App Owner row data use entitlementName / entitlement_name / name etc.)
+        const assignedEntitlementNames = new Set<string>(
+          definedRows
+            .map((row: any) =>
+              row?.entitlementName ??
+              row?.entitlementname ??
+              row?.entitlement_name ??
+              row?.name
+            )
+            .filter((name: unknown): name is string => typeof name === "string" && name.trim() !== "")
+            .map((name: string) => name.trim())
+        );
+
+        // Transform entitlements into dropdown options and exclude already-assigned entitlements
         const options = entitlements
           .filter((item: any) => item && item.name) // Filter out invalid items
           .map((item: any) => ({
             value: item.name,
             label: item.name
-          }));
+          }))
+          .filter(
+            (opt: { value: string; label: string }) =>
+              !assignedEntitlementNames.has(opt.value.trim())
+          );
 
         setModifyAccessOptions(options);
         
@@ -349,40 +388,131 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
               <button
                 onClick={async (e) => {
                   e.stopPropagation();
-                  if (!onConditionalAccess) return;
-                  
                   const justification =
                     conditionalJustification.trim() || "Conditional access";
+                  const endDateFormatted = formatEndDateForApi(conditionalEndDate);
 
-                  await onConditionalAccess(conditionalEndDate, justification);
+                  const canCallModifyAccess =
+                    reviewerId &&
+                    certId &&
+                    definedRows.length > 0 &&
+                    endDateFormatted;
 
-                  // reset local state
-                  setConditionalAccessChecked(false);
-                  setConditionalEndDate("");
-                  setConditionalJustification("");
-                  setDateValidationError("");
+                  if (canCallModifyAccess) {
+                    setIsConditionalAccessLoading(true);
+                    setConditionalAccessError(null);
+                    try {
+                      const taskId =
+                        (definedRows[0] as any)?.taskId ??
+                        (definedRows[0] as any)?.taskid ??
+                        "";
+                      if (!taskId) {
+                        setConditionalAccessError("Task ID not found in selected row");
+                        return;
+                      }
+                      for (const row of definedRows) {
+                        const rowTaskId =
+                          (row as any).taskId ??
+                          (row as any).taskid ??
+                          taskId;
+                        const lineItemId =
+                          (row as any).lineItemId ??
+                          (row as any).lineitemid ??
+                          "";
+                        const accountLineItemId =
+                          (row as any).accountLineItemId ??
+                          (row as any).parentLineItemId ??
+                          (row as any).lineItemId ??
+                          lineItemId;
+                        const accountId =
+                          (row as any).accountId ?? (row as any).accountid ?? "";
+                        const applicationName =
+                          (row as any).applicationName ??
+                          (row as any).application ??
+                          (row as any).appName ??
+                          (row as any).application_name ??
+                          "";
+                        const name =
+                          (row as any).entitlementName ??
+                          (row as any).entitlementname ??
+                          (row as any).entitlement_name ??
+                          (row as any).name ??
+                          "";
+                        if (!rowTaskId || !lineItemId) continue;
+                        await modifyAccess(
+                          reviewerId,
+                          certId,
+                          rowTaskId,
+                          lineItemId,
+                          {
+                            reviewerName: reviewerName || "Reviewer",
+                            reviewerId,
+                            certificationId: certId,
+                            taskId: rowTaskId,
+                            removeAccess: [
+                              {
+                                parentLineItemId: accountLineItemId,
+                                lineItemId,
+                                name,
+                                accountId,
+                                applicationName,
+                                justification,
+                                endDate: endDateFormatted,
+                              },
+                            ],
+                            addAccess: [],
+                          }
+                        );
+                      }
+                      setConditionalAccessChecked(false);
+                      setConditionalEndDate("");
+                      setConditionalJustification("");
+                      setDateValidationError("");
+                      if (onConditionalAccess) {
+                        await onConditionalAccess(conditionalEndDate, justification);
+                      }
+                      onClose();
+                    } catch (err) {
+                      setConditionalAccessError(
+                        err instanceof Error ? err.message : "Conditional access request failed"
+                      );
+                    } finally {
+                      setIsConditionalAccessLoading(false);
+                    }
+                  } else if (onConditionalAccess) {
+                    await onConditionalAccess(conditionalEndDate, justification);
+                    setConditionalAccessChecked(false);
+                    setConditionalEndDate("");
+                    setConditionalJustification("");
+                    setDateValidationError("");
+                  }
                 }}
                 disabled={
                   isActionLoading ||
+                  isConditionalAccessLoading ||
                   !isDateValid ||
                   !conditionalJustification.trim() ||
-                  !onConditionalAccess
+                  ((!reviewerId || !certId) && !onConditionalAccess)
                 }
                 className={`rounded-sm p-2 pointer-events-auto ${
                   isActionLoading ||
+                  isConditionalAccessLoading ||
                   !isDateValid ||
                   !conditionalJustification.trim() ||
-                  !onConditionalAccess
+                  ((!reviewerId || !certId) && !onConditionalAccess)
                     ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                     : "bg-[#15274E] text-white hover:bg-blue-900"
                 }`}
               >
-                {isActionLoading ? "Processing..." : "Apply"}
+                {isActionLoading || isConditionalAccessLoading ? "Processing..." : "Apply"}
               </button>
             )}
           </div>
           {conditionalAccessChecked && (
             <div className="mt-3 space-y-3 pointer-events-auto" onClick={(e) => e.stopPropagation()}>
+              {conditionalAccessError && (
+                <p className="text-sm text-red-600">{conditionalAccessError}</p>
+              )}
               <div>
                 <span className="flex items-center mb-1">End date</span>
                 <input
@@ -525,6 +655,9 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
                   <p className="text-base font-medium text-gray-800">
                     Are you sure you want to modify access?
                   </p>
+                  {modifyAccessError && (
+                    <p className="text-sm text-red-600">{modifyAccessError}</p>
+                  )}
                   <div className="flex justify-end space-x-2">
                     <button
                       onClick={(e) => {
@@ -538,25 +671,111 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
                     <button
                       onClick={async (e) => {
                         e.stopPropagation();
-                        if (!onModifyAccess) return;
-                        
-                        const newAccess = modifyAccessSelectedOption?.value || modifyAccessSelectedOption?.label || "";
-                        await onModifyAccess(
-                          newAccess,
-                          comment || "Modified access"
-                        );
-                        setShowConfirmation(false);
-                        setModifyAccessSelectedOption(null);
-                        setComment("");
+                        const newAccessName = modifyAccessSelectedOption?.value || modifyAccessSelectedOption?.label || "";
+                        const justification = comment?.trim() || "Modified access";
+                        if (!newAccessName) return;
+
+                        const canCallApi = reviewerId && certId && definedRows.length > 0;
+
+                        if (canCallApi) {
+                          setIsModifyAccessLoading(true);
+                          setModifyAccessError(null);
+                          try {
+                            for (const row of definedRows) {
+                              const taskId =
+                                row.taskId ??
+                                row.taskid ??
+                                (definedRows[0] as any)?.taskId ??
+                                "";
+                              const lineItemId =
+                                row.lineItemId ??
+                                row.lineitemid ??
+                                row.accountLineItemId ??
+                                "";
+                              const accountId = row.accountId ?? row.accountid ?? "";
+                              const applicationName =
+                                row.applicationName ??
+                                row.application ??
+                                row.appName ??
+                                row.application_name ??
+                                row.applicationDisplayName ??
+                                row.app ??
+                                "";
+                              const currentEntitlementName =
+                                row.entitlementName ??
+                                row.entitlementname ??
+                                row.entitlement_name ??
+                                row.name ??
+                                "";
+                              const parentLineItemId =
+                                row.parentLineItemId ??
+                                row.accountLineItemId ??
+                                row.lineItemId ??
+                                lineItemId;
+
+                              if (!taskId || !lineItemId) continue;
+
+                              await modifyAccess(
+                                reviewerId,
+                                certId,
+                                taskId,
+                                lineItemId,
+                                {
+                                  reviewerName: reviewerName || "Reviewer",
+                                  reviewerId,
+                                  certificationId: certId,
+                                  taskId,
+                                  removeAccess: [
+                                    {
+                                      parentLineItemId,
+                                      lineItemId,
+                                      name: currentEntitlementName,
+                                      accountId,
+                                      applicationName,
+                                      justification,
+                                    },
+                                  ],
+                                  addAccess: [
+                                    {
+                                      parentLineItemId,
+                                      name: newAccessName,
+                                      accountId,
+                                      applicationName,
+                                      justification,
+                                    },
+                                  ],
+                                }
+                              );
+                            }
+                            setShowConfirmation(false);
+                            setModifyAccessSelectedOption(null);
+                            setComment("");
+                            if (onModifyAccess) {
+                              await onModifyAccess(newAccessName, justification);
+                            }
+                            window.location.reload();
+                          } catch (err) {
+                            setModifyAccessError(
+                              err instanceof Error ? err.message : "Failed to modify access"
+                            );
+                          } finally {
+                            setIsModifyAccessLoading(false);
+                          }
+                        } else if (onModifyAccess) {
+                          await onModifyAccess(newAccessName, justification);
+                          setShowConfirmation(false);
+                          setModifyAccessSelectedOption(null);
+                          setComment("");
+                        }
                       }}
-                      disabled={!onModifyAccess}
+                      disabled={!modifyAccessSelectedOption || isModifyAccessLoading}
                       className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                        !onModifyAccess
+                        !modifyAccessSelectedOption || isModifyAccessLoading
                           ? "bg-gray-400 text-gray-100 cursor-not-allowed"
                           : "bg-blue-600 text-white hover:bg-blue-700"
                       }`}
                     >
-                      Confirm
+                      {isModifyAccessLoading ? "Processing..." : "Confirm"}
                     </button>
                   </div>
                 </div>
@@ -566,7 +785,7 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
         </div>
 
         {/* Lock Account */}
-        <div 
+        {/* <div 
           className="items-center space-x-4 p-2 bg-gray-50 rounded-md cursor-pointer"
           onClick={(e) => {
             // Don't toggle if clicking on input fields or buttons
@@ -600,7 +819,7 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
               <h2 className="font-semibold">Lock Account</h2>
             </label>
           </div>
-        </div>
+        </div> */}
 
         {/* Immediate Revoke */}
         <div
@@ -709,6 +928,9 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
                 <p className="text-base font-medium text-gray-800">
                   Are you sure you want to revoke access immediately?
                 </p>
+                {immediateRevokeError && (
+                  <p className="text-sm text-red-600">{immediateRevokeError}</p>
+                )}
                 <div>
                   <span className="flex items-center mb-1">Justification</span>
                   <textarea
@@ -729,6 +951,7 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
                       setShowRevokeConfirmation(false);
                       setImmediateRevokeChecked(false);
                       setRevokeJustification("");
+                      setImmediateRevokeError(null);
                     }}
                     className="px-4 py-2 text-sm font-medium bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
                   >
@@ -737,22 +960,111 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
                   <button
                     onClick={async (e) => {
                       e.stopPropagation();
-                      if (!onRevokeAccess) return;
-                      
                       const justification = revokeJustification.trim() || "Immediate revoke";
-                      await onRevokeAccess(justification);
-                      setShowRevokeConfirmation(false);
-                      setImmediateRevokeChecked(false);
-                      setRevokeJustification("");
+                      if (!justification) return;
+
+                      const canCallApi = reviewerId && certId && definedRows.length > 0;
+
+                      if (canCallApi) {
+                        setIsImmediateRevokeLoading(true);
+                        setImmediateRevokeError(null);
+                        try {
+                          for (const row of definedRows) {
+                            const taskId =
+                              row.taskId ??
+                              row.taskid ??
+                              (definedRows[0] as any)?.taskId ??
+                              "";
+                            const lineItemId =
+                              row.lineItemId ??
+                              row.lineitemid ??
+                              row.accountLineItemId ??
+                              "";
+                            const accountId = row.accountId ?? row.accountid ?? "";
+                            const applicationName =
+                              row.applicationName ??
+                              row.application ??
+                              row.appName ??
+                              row.application_name ??
+                              row.applicationDisplayName ??
+                              row.app ??
+                              "";
+                            const entitlementName =
+                              row.entitlementName ??
+                              row.entitlementname ??
+                              row.entitlement_name ??
+                              row.name ??
+                              "";
+                            const parentLineItemId =
+                              row.parentLineItemId ??
+                              row.accountLineItemId ??
+                              row.lineItemId ??
+                              lineItemId;
+
+                            if (!taskId || !lineItemId) continue;
+
+                            await immediateRevoke(
+                              reviewerId,
+                              certId,
+                              taskId,
+                              lineItemId,
+                              {
+                                reviewerName: reviewerName || "Reviewer",
+                                reviewerId,
+                                certificationId: certId,
+                                taskId,
+                                revokeEntityType: "entitlement",
+                                removeAccounts: [],
+                                removeEntitlements: [
+                                  {
+                                    parentLineItemId,
+                                    lineItemId,
+                                    name: entitlementName,
+                                    accountId,
+                                    applicationName,
+                                    justification,
+                                  },
+                                ],
+                              }
+                            );
+                          }
+                          setShowRevokeConfirmation(false);
+                          setImmediateRevokeChecked(false);
+                          setRevokeJustification("");
+                          if (onRevokeAccess) {
+                            await onRevokeAccess(justification);
+                          }
+                          window.location.reload();
+                        } catch (err) {
+                          setImmediateRevokeError(
+                            err instanceof Error ? err.message : "Failed to revoke access"
+                          );
+                        } finally {
+                          setIsImmediateRevokeLoading(false);
+                        }
+                      } else if (onRevokeAccess) {
+                        await onRevokeAccess(justification);
+                        setShowRevokeConfirmation(false);
+                        setImmediateRevokeChecked(false);
+                        setRevokeJustification("");
+                      }
                     }}
-                    disabled={isActionLoading || !revokeJustification.trim() || !onRevokeAccess}
+                    disabled={
+                      isActionLoading ||
+                      isImmediateRevokeLoading ||
+                      !revokeJustification.trim() ||
+                      (!(reviewerId && certId && definedRows.length > 0) && !onRevokeAccess)
+                    }
                     className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                      isActionLoading || !revokeJustification.trim() || !onRevokeAccess
+                      isActionLoading ||
+                      isImmediateRevokeLoading ||
+                      !revokeJustification.trim() ||
+                      (!(reviewerId && certId && definedRows.length > 0) && !onRevokeAccess)
                         ? "bg-gray-400 text-gray-100 cursor-not-allowed"
                         : "bg-blue-600 text-white hover:bg-blue-700"
                     }`}
                   >
-                    {isActionLoading ? "Processing..." : "Confirm"}
+                    {isImmediateRevokeLoading ? "Processing..." : "Confirm"}
                   </button>
                 </div>
               </div>

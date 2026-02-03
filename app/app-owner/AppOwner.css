@@ -1,3 +1,11 @@
+/* When grouping by entitlement: show checkbox ONLY on entitlement (group) rows, not on account (leaf) rows */
+.app-owner-page .ag-row:not(.ag-row-group) .ag-checkbox-input-wrapper,
+.app-owner-page .ag-row:not(.ag-row-group) .ag-selection-checkbox-input-wrapper,
+.app-owner-page .ag-row:not(.ag-row-group) [class*="ag-selection"],
+.app-owner-page .ag-row:not(.ag-row-group) .ag-selection-checkbox,
+.app-owner-page .ag-row:not(.ag-row-group) input[type="checkbox"] {
+  display: none !important;
+}
 
 /* Hide expand icons in the AppOwner page */
 .app-owner-page .ag-group-expanded,
@@ -125,6 +133,20 @@
 
 .header-content > div {
   flex-shrink: 0;
+}
+
+/* Space between checkbox and entitlement name when grouped by entitlement */
+.app-owner-page .ag-row-group .ag-cell:first-child {
+  padding-right: 20px !important;
+}
+.app-owner-page .ag-row-group .ag-cell:nth-child(2) {
+  padding-left: 20px !important;
+}
+.app-owner-page .ag-row-group .ag-cell[col-id="entitlementSelect"] {
+  padding-left: 20px !important;
+}
+.app-owner-page .ag-row-group .entitlement-checkbox-cell {
+  margin-left: 8px !important;
 }
 
 /* Group header styling for entitlement grouping */

@@ -24,7 +24,7 @@ import ColumnSettings from "@/components/agTable/ColumnSettings";
 import Filters from "@/components/agTable/Filters";
 import ActionButtons from "@/components/agTable/ActionButtons";
 import { useCertificationDetails, fetchAccessDetails } from "@/hooks/useApi";
-import { getLineItemDetails, executeQuery } from "@/lib/api";
+import { getLineItemDetails, getAccessDetails, executeQuery } from "@/lib/api";
 import { CertAnalytics } from "@/types/api";
 import { EntitlementInfo } from "@/types/lineItem";
 import { UserRowData } from "@/types/certification";
@@ -174,7 +174,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
   }>({
     certify: false,
     reject: false,
-    remediate: true, // Temporarily set to true to show dummy badge
+    remediate: false,
   });
   const { openSidebar } = useRightSidebar();
   const [selectedRowForPanel, setSelectedRowForPanel] = useState<any | null>(null);
@@ -625,6 +625,100 @@ const TreeClient: React.FC<TreeClientProps> = ({
     lastResizedDataSignatureRef.current = ""; // Reset signature for new data
     setLoadingEntitlements(true);
     try {
+      // Prefer raw getAccessDetails response so we get entityEntitlements.items with isRemediated
+      const rawResponse = await getAccessDetails<any>(
+        reviewerId,
+        certId,
+        user.taskId,
+        undefined,
+        entitlementsPageSize,
+        page
+      );
+      const rawItems = rawResponse?.items ?? [];
+      const hasNestedEntitlements = rawItems.length > 0 && Array.isArray(rawItems[0]?.entityEntitlements?.items);
+
+      if (hasNestedEntitlements) {
+        const buildRowFromRaw = (accountItem: any, ent: any) => {
+          const appInstance = accountItem.entityAppinstance || {};
+          const applicationInfo = accountItem.applicationInfo || {};
+          const lineItemId = appInstance.lineItemId || "";
+          const entitlementLineItemId =
+            ent?.entityEntitlement?.lineItemId ?? ent?.lineItemId ?? ent?.ID ?? ent?.id ?? "";
+          const nestedEntityEntitlement = ent.entityEntitlement || {};
+          const entitlementInfo = ent.entitlementInfo || {};
+          const entitlementName = entitlementInfo.entitlementName ?? ent.entitlementName ?? ent.name ?? "";
+          const entitlementDescription = entitlementInfo.entitlementDescription ?? ent.entitlementDescription ?? "";
+          const entitlementType = entitlementInfo.entitlementType ?? ent.entitlementType ?? "";
+          const normalizedAction = nestedEntityEntitlement.action ?? ent.action ?? appInstance.action ?? "";
+          const normalizedStatus = (() => {
+            const a = String(normalizedAction).trim().toLowerCase();
+            if (a === "approve") return "approved";
+            if (a === "pending") return "pending";
+            if (a === "reject") return "revoked";
+            if (a === "delegate") return "delegated";
+            if (a === "remediate") return "remediated";
+            return "";
+          })();
+          const isRemediated = nestedEntityEntitlement.isRemediated === true || String(nestedEntityEntitlement.isRemediated || "").toUpperCase() === "Y";
+          return {
+            ...applicationInfo,
+            ...appInstance,
+            taskId: accountItem.taskId,
+            applicationName: applicationInfo.applicationName ?? appInstance.itemName ?? "",
+            accountName: applicationInfo.accountName ?? applicationInfo.username ?? "",
+            lastLogin: applicationInfo.lastLogin,
+            lineItemId: entitlementLineItemId,
+            accountLineItemId: lineItemId,
+            entitlementName,
+            entitlementDescription,
+            entitlementType,
+            recommendation: ent.aiassist?.Recommendation ?? "",
+            accessedWithinAMonth: ent.aiassist?.accessedWithinAMonth ?? "",
+            itemRisk: nestedEntityEntitlement.itemRisk ?? appInstance.itemRisk ?? "",
+            action: normalizedAction,
+            status: normalizedStatus,
+            newComment: nestedEntityEntitlement.newComment ?? ent.newComment ?? "",
+            isRemediated,
+            remediateAction: nestedEntityEntitlement.remediateAction ?? ent.remediateAction ?? "",
+            accountId: applicationInfo.applicationEntityId ?? appInstance.accountId,
+          };
+        };
+        const allRowsFromRaw = rawItems.flatMap((accountItem: any) =>
+          (accountItem.entityEntitlements?.items ?? []).map((ent: any) => buildRowFromRaw(accountItem, ent))
+        );
+        setEntitlementsData(allRowsFromRaw);
+        setUnfilteredEntitlementsData(allRowsFromRaw);
+        const progress = calculateProgressData(allRowsFromRaw);
+        setProgressData(progress);
+        setSelectedUser((prev) => {
+          if (!prev || prev.id !== user.id) return prev;
+          return {
+            ...prev,
+            numOfEntitlements: progress.totalItems,
+            numOfEntitlementsCertified: progress.approvedCount,
+            numOfEntitlementsRejected: progress.rejectedCount,
+            numOfEntitlementsRevoked: progress.revokedCount,
+          } as UserRowData;
+        });
+        setUsers((prev) =>
+          prev.map((u) =>
+            u.id === user.id
+              ? {
+                  ...u,
+                  numOfEntitlements: progress.totalItems,
+                  numOfEntitlementsCertified: progress.approvedCount,
+                  numOfEntitlementsRejected: progress.rejectedCount,
+                  numOfEntitlementsRevoked: progress.revokedCount,
+                }
+              : u
+          )
+        );
+        onProgressDataChange?.(progress);
+        setLoadingEntitlements(false);
+        return;
+      }
+
+      // Fallback: use fetchAccessDetails (flattened) + getLineItemDetails per account
       const accounts = await fetchAccessDetails(
         reviewerId,
         certId,
@@ -670,8 +764,11 @@ const TreeClient: React.FC<TreeClientProps> = ({
           )
         ]);
         
-        // Combine all results for unfiltered data
-        return [...pendingEntitlements, ...approveEntitlements, ...rejectEntitlements];
+        // Combine all results for unfiltered data; normalize account-wrapped (entityEntitlements.items) to flat entitlement items
+        const combined = [...pendingEntitlements, ...approveEntitlements, ...rejectEntitlements];
+        return combined.flatMap((it: any) =>
+          Array.isArray(it.entityEntitlements?.items) ? it.entityEntitlements.items : [it]
+        );
       });
 
       const entitlementPromises = accounts.map(async (account: any) => {
@@ -726,8 +823,11 @@ const TreeClient: React.FC<TreeClientProps> = ({
             effectiveStatusFilter
           );
         }
-        
-        return entitlements.map((item: any, index: number) => {
+        // Normalize: API may return account-wrapped items (entityEntitlements.items) or flat entitlement items
+        const entitlementItems = entitlements.flatMap((it: any) =>
+          Array.isArray(it.entityEntitlements?.items) ? it.entityEntitlements.items : [it]
+        );
+        return entitlementItems.map((item: any, index: number) => {
           const entitlementLineItemId =
             item?.ID ||
             item?.Id ||
@@ -805,6 +905,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
           lineItemId: entitlementLineItemId,
           accountLineItemId: lineItemId,
           newComment: newComment, // Add newComment to row data
+          isRemediated: nestedEntityEntitlement.isRemediated ?? item.isRemediated ?? false,
+          remediateAction: nestedEntityEntitlement.remediateAction ?? item.remediateAction ?? "",
           });
         });
       });
@@ -870,6 +972,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
             lineItemId: entitlementLineItemId,
             accountLineItemId: account.lineItemId,
             newComment: newComment, // Add newComment to row data
+            isRemediated: nestedEntityEntitlement.isRemediated ?? item.isRemediated ?? false,
+            remediateAction: nestedEntityEntitlement.remediateAction ?? item.remediateAction ?? "",
           };
       };
 
@@ -1007,6 +1111,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
     entitlements.forEach((entitlement) => {
       const action = entitlement.action || "";
       const status = entitlement.status?.toLowerCase() || "";
+      const isRemediated = entitlement.isRemediated === true || String(entitlement.isRemediated || "").toUpperCase() === "Y";
 
       if (action === "Approve" || status === "approved") {
         approvedCount++;
@@ -1016,7 +1121,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
         revokedCount++;
       } else if (action === "Delegate" || status === "delegated") {
         delegatedCount++;
-      } else if (action === "Remediate" || status === "remediated") {
+      } else if (isRemediated || action === "Remediate" || status === "remediated") {
         remediatedCount++;
       } else {
         pendingCount++;
@@ -1126,8 +1231,11 @@ const TreeClient: React.FC<TreeClientProps> = ({
           effectiveStatusFilter
         );
       }
-      
-      return entitlements.map((item: any) => {
+      // Normalize: API may return account-wrapped items (entityEntitlements.items) or flat entitlement items
+      const entitlementItems = entitlements.flatMap((it: any) =>
+        Array.isArray(it.entityEntitlements?.items) ? it.entityEntitlements.items : [it]
+      );
+      return entitlementItems.map((item: any) => {
         const entitlementLineItemId =
           item?.ID ||
           item?.Id ||
@@ -1185,6 +1293,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
           lineItemId: entitlementLineItemId,
           accountLineItemId: lineItemId,
           newComment: newComment, // Add newComment to row data
+          isRemediated: nestedEntityEntitlement.isRemediated ?? item.isRemediated ?? false,
+          remediateAction: nestedEntityEntitlement.remediateAction ?? item.remediateAction ?? "",
         };
       });
     });
@@ -1211,11 +1321,19 @@ const TreeClient: React.FC<TreeClientProps> = ({
     
     const apiFilter = filterMap[filterName];
     
+    // Remediated is filtered client-side by isRemediated; need all entitlements loaded
+    if (filterName === "Remediated" && selectedUser) {
+      if (!isCurrentlySelected) {
+        await loadUserEntitlements(selectedUser, 1, "ALL_ACTIONS");
+      } else {
+        await loadUserEntitlements(selectedUser, entitlementsPageNumber);
+      }
+    }
+    
     // If clicking a filter that requires API call and it's being selected
     if (apiFilter && !isCurrentlySelected && selectedUser) {
       setLoadingEntitlements(true);
       try {
-        // Call API with the appropriate filter
         const accounts = await fetchAccessDetails(
           reviewerId,
           certId,
@@ -1227,8 +1345,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
           undefined,
           apiFilter
         );
-
-        // Process the accounts and get entitlements for each
         await processFilteredEntitlements(accounts, selectedUser);
       } catch (error) {
         console.error(`Error loading ${filterName}:`, error);
@@ -1236,7 +1352,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
         setLoadingEntitlements(false);
       }
     } else if (apiFilter && isCurrentlySelected) {
-      // If deselecting, reload entitlements without filter
       if (selectedUser) {
         await loadUserEntitlements(selectedUser, entitlementsPageNumber);
       }
@@ -1259,9 +1374,11 @@ const TreeClient: React.FC<TreeClientProps> = ({
 
       // Map UI status to API filter query
       // Use a special marker for "All" so we can detect it in loadUserEntitlements
+      // Remediated and Delegated are filtered client-side by isRemediated / action, so fetch all
       let nextStatusFilterQuery: string | undefined;
       if (selected === "All" || !selected) {
-        // When "All" is selected, use a special marker that will trigger separate API calls
+        nextStatusFilterQuery = "ALL_ACTIONS";
+      } else if (selected === "Remediated" || selected === "Delegated") {
         nextStatusFilterQuery = "ALL_ACTIONS";
       } else if (selected === "Pending") {
         nextStatusFilterQuery = "action eq Pending";
@@ -1327,7 +1444,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
       if (action === 'reject' || status === 'rejected' || status === 'revoked') {
         hasReject = true;
       }
-      if (action === 'remediate' || status === 'remediated') {
+      if (entitlement.isRemediated === true || String(entitlement.isRemediated || '').toUpperCase() === 'Y') {
         hasRemediate = true;
       }
 
@@ -1349,65 +1466,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
     checkActionStates();
   }, [checkActionStates]);
 
-  // Add dummy remediate record for testing (remove this in production)
-  useEffect(() => {
-    if (entitlementsData.length > 0 && !entitlementsData.some((e: any) => 
-      String(e.action || '').toLowerCase() === 'remediate' || 
-      String(e.status || '').toLowerCase() === 'remediated'
-    )) {
-      const dummyRemediateRecord = {
-        lineItemId: 'dummy-remediate-' + Date.now(),
-        entitlementName: 'Dummy Remediate Entitlement',
-        entitlementDescription: 'This is a dummy record to test the remediate filter badge',
-        entitlementType: 'Test',
-        action: 'Remediate',
-        status: 'Remediated',
-        user: selectedUser?.fullName || 'Test User',
-        applicationName: 'Test Application',
-        lastLogin: new Date().toISOString(),
-        itemRisk: 'Medium',
-        accessedWithinAMonth: 'Accessed',
-        recommendation: 'Remediate',
-        isNew: false,
-        appTag: 'Test',
-        SoDConflicts: [],
-        deltaChange: '',
-        accountType: '',
-        userStatus: 'Active',
-      };
-      setEntitlementsData((prev: any[]) => [...prev, dummyRemediateRecord]);
-    }
-  }, [entitlementsData, selectedUser]);
-
-  // Add dummy delegate record for testing (remove this in production)
-  useEffect(() => {
-    if (entitlementsData.length > 0 && !entitlementsData.some((e: any) => 
-      String(e.action || '').toLowerCase() === 'delegate' || 
-      String(e.status || '').toLowerCase() === 'delegated'
-    )) {
-      const dummyDelegateRecord = {
-        lineItemId: 'dummy-delegate-' + Date.now(),
-        entitlementName: 'Dummy Delegate Entitlement',
-        entitlementDescription: 'This is a dummy record to test the delegate filter badge',
-        entitlementType: 'Test',
-        action: 'Delegate',
-        status: 'Delegated',
-        user: selectedUser?.fullName || 'Test User',
-        applicationName: 'Test Application',
-        lastLogin: new Date().toISOString(),
-        itemRisk: 'Medium',
-        accessedWithinAMonth: 'Accessed',
-        recommendation: 'Delegate',
-        isNew: false,
-        appTag: 'Test',
-        SoDConflicts: [],
-        deltaChange: '',
-        accountType: '',
-        userStatus: 'Active',
-      };
-      setEntitlementsData((prev: any[]) => [...prev, dummyDelegateRecord]);
-    }
-  }, [entitlementsData, selectedUser]);
+  // Previously, dummy remediate and delegate records were added here for testing
+  // They have been removed for production use so that only real entitlements are shown.
 
   // Filter entitlements based on selected filters
   const filteredEntitlements = useMemo(() => {
@@ -1499,7 +1559,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
             return action === 'delegate' || status === 'delegated';
           }
           if (filter === 'remediated') {
-            return action === 'remediate' || status === 'remediated';
+            return entitlement.isRemediated === true || String(entitlement.isRemediated || '').toUpperCase() === 'Y';
           }
           // Handle chip filters shown above the table
           if (filter === 'dormant access') {

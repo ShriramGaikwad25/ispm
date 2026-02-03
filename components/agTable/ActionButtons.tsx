@@ -147,9 +147,12 @@ const ActionButtons = <T extends { status?: string }>({
   const statusLower = (statusRaw ? String(statusRaw) : "").trim().toLowerCase();
   const isApproveAction = context === "entitlement" && actionLower === "approve";
   const isRejectAction = context === "entitlement" && actionLower === "reject";
+  const isRemediatedFromRow = context === "entitlement" && definedRows.some(
+    (row: any) => row.isRemediated === true || String(row.isRemediated || "").toUpperCase() === "Y"
+  );
   const isRemediateAction = context === "entitlement" && (actionLower === "remediate" || statusLower === "remediated");
   const isDelegateAction = context === "entitlement" && (actionLower === "delegate" || statusLower === "delegated");
-  const hasRemediateStatus = hasRemediateAction || isRemediateAction || 
+  const hasRemediateStatus = hasRemediateAction || isRemediateAction || isRemediatedFromRow ||
     selectedIds.some((id) => getPendingAction(id) === 'Remediate');
   const hasDelegateStatus = isDelegateAction || 
     selectedIds.some((id) => getPendingAction(id) === 'Delegate');
@@ -885,6 +888,9 @@ const ActionButtons = <T extends { status?: string }>({
   };
 
   const openRemediateSidebar = () => {
+    const firstRow = definedRows[0] as any;
+    const reviewerNameFromRow =
+      firstRow?.userName ?? firstRow?.reviewerName ?? firstRow?.fullName ?? "";
     const remediateContent = (
       <RemediateSidebar
         selectedRows={selectedRows}
@@ -894,6 +900,9 @@ const ActionButtons = <T extends { status?: string }>({
         onConditionalAccess={handleConditionalAccess}
         onModifyAccess={handleModifyAccess}
         isActionLoading={isActionLoading}
+        reviewerId={reviewerId}
+        certId={certId}
+        reviewerName={reviewerNameFromRow}
       />
     );
     openSidebar(remediateContent, { widthPx: 500, title: "Remediate action" });

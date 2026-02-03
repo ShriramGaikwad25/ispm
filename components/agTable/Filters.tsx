@@ -12,6 +12,12 @@ const statusOptions = [
   "Remediated",
 ];
 
+const appInventoryStatusOptions = [
+  "All",
+  "Integrated",
+  "In Progress",
+];
+
 const accountFilterOptions = [
   { label: "Elevated Accounts", value: "iselevated eq Y", count: 0 },
   { label: "Orphan Accounts", value: "isorphan eq Y", count: 0 },
@@ -36,7 +42,7 @@ const Filters = ({
   columns?: string[];
   appliedFilter?: (filters: string[]) => void;
   onFilterChange?: (filter: string) => void;
-  context?: "status" | "account";
+  context?: "status" | "account" | "app-inventory-status";
   initialSelected?: string;
   value?: string; // Controlled value
   actionStates?: {
@@ -58,8 +64,8 @@ const Filters = ({
         appliedFilter([initialSelected]);
       }
       if (onFilterChange) {
-        if (context === "status") {
-          if (gridApi && gridApi.current) {
+        if (context === "status" || context === "app-inventory-status") {
+          if (context === "status" && gridApi && gridApi.current) {
             const filterInstance = gridApi.current.getFilterInstance('status');
             if (filterInstance) {
               filterInstance.setModel({
@@ -134,7 +140,7 @@ const Filters = ({
     }
     if (onFilterChange) {
       // For status filters, we don't need to call the API filter
-      // Status filters are handled by the grid's built-in filtering
+      // Status filters are handled by the grid's built-in filtering (status context only)
       if (context === "status") {
         // Apply grid filter instead of API filter
         if (gridApi && gridApi.current) {
@@ -154,7 +160,7 @@ const Filters = ({
             gridApi.current.onFilterChanged();
           }
         }
-      } else {
+      } else if (context !== "app-inventory-status") {
         // For account filters, use API filter
         onFilterChange(selectedFilter === filterValue ? "" : filterValue);
       }
@@ -170,7 +176,7 @@ const Filters = ({
     setSelectedFilter("");
     // Call the callback when clearing filters - for status context, pass ["All"] to fetch all actions
     if (appliedFilter) {
-      if (context === "status") {
+      if (context === "status" || context === "app-inventory-status") {
         appliedFilter(["All"]);
       } else {
         appliedFilter([]);
@@ -186,7 +192,7 @@ const Filters = ({
             gridApi.current.onFilterChanged();
           }
         }
-      } else {
+      } else if (context !== "app-inventory-status") {
         // Clear API filter
         onFilterChange("");
       }
@@ -197,6 +203,8 @@ const Filters = ({
 
   const options = context === "account"
     ? accountFilterOptions
+    : context === "app-inventory-status"
+    ? appInventoryStatusOptions.map(opt => ({ label: opt, value: opt } as any))
     : statusOptions.map(opt => ({ label: opt, value: opt } as any));
 
   return (
@@ -248,7 +256,7 @@ const Filters = ({
         }}
       >
         <li className="px-4 pb-2 border-b border-b-gray-300 font-semibold mb-2">
-          {context === "account" ? "Filters" : "Filter by Status"}
+          {context === "account" ? "Filters" : context === "app-inventory-status" ? "Filter by Status" : "Filter by Status"}
         </li>
         {options.map((option) => {
           // For "All", show as selected when no filter is selected

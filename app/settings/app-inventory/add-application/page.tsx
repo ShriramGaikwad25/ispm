@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { ChevronLeft, ChevronRight, Check, ChevronDown, Edit, Trash2, Info } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { getAllSupportedApplicationTypesViaProxy } from "@/lib/api";
+import { useRouter, useSearchParams } from "next/navigation";
+import { getAllSupportedApplicationTypesViaProxy, executeQuery, submitItAssetRequest, getInProgressApplications, getItAssetApp, saveAppDetails, onboardApp, updateAppConfig } from "@/lib/api";
+import AdvanceSettingTab, { type AdvanceSettingTabRef } from "../[id]/components/AdvanceSettingTab";
 
 interface FormData {
   step1: {
@@ -17,6 +18,8 @@ interface FormData {
     trustedSource: boolean;
     technicalOwner: string;
     businessOwner: string;
+    technicalOwnerEmail: string;
+    businessOwnerEmail: string;
   };
   step3: {
     // Dynamic fields based on application type
@@ -49,19 +52,178 @@ interface FormData {
 
 export default function AddApplicationPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isCompleteIntegration = searchParams.get("completeIntegration") === "1";
   const [currentStep, setCurrentStep] = useState(1);
+
+  const appIdFromUrl = searchParams.get("appId") ?? "";
+  const appNameFromUrl = searchParams.get("appName") ?? "";
+  const appTypeFromUrl = searchParams.get("appType") ?? "";
+
+  // Attribute mapping state (declared early so getallapp effect can call setAttributeMappingData)
+  type AttributeMapping = { id: string; source: string; target: string; defaultValue?: string; type: string; keyfieldMapping?: boolean };
+  const [attributeMappingData, setAttributeMappingData] = useState<AttributeMapping[]>([]);
+
+  // Ref to step 5 AdvanceSettingTab so we can read hooks + threshold config on submit / OnBoard
+  const advanceSettingRef = useRef<AdvanceSettingTabRef | null>(null);
+
+  // Edit mode: application details from IT Asset getapp (shown in card at top)
+  const [appDetails, setAppDetails] = useState<Record<string, unknown> | null>(null);
+  const [appDetailsLoading, setAppDetailsLoading] = useState(false);
+
+  // When opening from Settings for a non-integrated app, start at step 3 (Integration Setting)
+  useEffect(() => {
+    if (isCompleteIntegration) setCurrentStep(3);
+  }, [isCompleteIntegration]);
+
+  // Edit mode: fetch application details from IT Asset getapp when we have appId
+  useEffect(() => {
+    if (!isCompleteIntegration || !appIdFromUrl?.trim() || typeof window === "undefined") return;
+    setAppDetailsLoading(true);
+    setAppDetails(null);
+    getItAssetApp(appIdFromUrl.trim())
+      .then((data) => {
+        if (data != null && typeof data === "object") {
+          setAppDetails(data as Record<string, unknown>);
+          const desc = (data as Record<string, unknown>).description ?? (data as Record<string, unknown>).Description;
+          if (desc != null && String(desc).trim() !== "") {
+            setFormData((prev) => ({ ...prev, step2: { ...prev.step2, description: String(desc).trim() } }));
+          }
+        } else {
+          setAppDetails(null);
+        }
+      })
+      .catch(() => setAppDetails(null))
+      .finally(() => setAppDetailsLoading(false));
+  }, [isCompleteIntegration, appIdFromUrl]);
+
+  // Prefill from URL params (app name/type from app-inventory row) so step 3 never shows "No Application Selected"
+  useEffect(() => {
+    if (!isCompleteIntegration || (!appNameFromUrl && !appTypeFromUrl)) return;
+    setFormData((prev) => ({
+      ...prev,
+      step1: {
+        ...prev.step1,
+        type: appTypeFromUrl || prev.step1.type,
+      },
+      step2: {
+        ...prev.step2,
+        applicationName: appNameFromUrl || prev.step2.applicationName,
+      },
+    }));
+  }, [isCompleteIntegration, appNameFromUrl, appTypeFromUrl]);
+
+  // Fetch and map application data from getallapp (getInProgressApplications) when in complete-integration mode
+  useEffect(() => {
+    if (!isCompleteIntegration || !appIdFromUrl || typeof window === "undefined") return;
+    getInProgressApplications()
+      .then((res: any) => {
+        if (!res || typeof res !== "object") return;
+        const idKeys = [
+          "ApplicationID", "applicationID", "ApplicationId", "applicationId",
+          "id", "Id", "appId", "AppId", "appid", "application_id",
+        ];
+        const getItemId = (item: any): string =>
+          String(
+            idKeys.reduce((acc: string | null, k) => acc ?? (item?.[k] != null && item[k] !== "" ? String(item[k]).trim() : null), null) ?? ""
+          );
+        const getItemName = (item: any): string =>
+          String(item?.name ?? item?.ApplicationName ?? item?.applicationName ?? item?.Name ?? item?.appName ?? item?.application_name ?? item?.title ?? "").trim();
+        // getallapp can return root array or { applications, ... }; category = application type
+        const list: any[] = Array.isArray(res)
+          ? res
+          : (() => {
+              const direct = res.applications ?? res.Applications ?? res.apps ?? res.data ?? res.result ?? res.list ?? res.content ?? res.items ?? res.value ?? res.body ?? res.getallapp ?? res.appList;
+              if (Array.isArray(direct)) return direct;
+              if (direct && typeof direct === "object" && Array.isArray((direct as any).items)) return (direct as any).items;
+              if (direct && typeof direct === "object" && Array.isArray((direct as any).data)) return (direct as any).data;
+              if (res.data && Array.isArray(res.data)) return res.data;
+              if (res.data && res.data.applications && Array.isArray(res.data.applications)) return res.data.applications;
+              return [];
+            })();
+        const appIdNorm = appIdFromUrl.trim().toLowerCase();
+        // Find app by id (appid, etc.) or by name when appid is empty; match case-insensitive and trimmed
+        const app = list.find((item: any) => {
+          const id = getItemId(item).trim().toLowerCase();
+          const name = getItemName(item).toLowerCase();
+          return id === appIdNorm || name === appIdNorm || (appIdNorm && (id.includes(appIdNorm) || name.includes(appIdNorm)));
+        });
+        if (!app || typeof app !== "object") return;
+        const conn = app.connectionDetails ?? app.ConnectionDetails ?? app.connection ?? {};
+        const owner = app.owner ?? app.Owner;
+        const ownerValue = typeof owner === "string" ? owner : owner?.value ?? owner?.email ?? "";
+        const ownerDisplay = typeof owner === "object" && owner?.value ? owner.value : ownerValue;
+        const str = (v: unknown) => (v != null && v !== "" ? String(v) : "");
+        // Map connectionDetails into step3 with both camelCase and snake_case so Integration Setting step (dynamic fields) get values
+        const step3FromConn: Record<string, string> = {};
+        Object.entries(conn).forEach(([k, v]) => {
+          step3FromConn[k] = str(v);
+          const camel = k.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+          if (camel !== k) step3FromConn[camel] = str(v);
+        });
+        setFormData((prev) => {
+          const step3Mapped = {
+            ...prev.step3,
+            ...step3FromConn,
+            hostname: str(conn.hostname ?? conn.Hostname ?? prev.step3.hostname),
+            port: str(conn.port ?? conn.Port ?? prev.step3.port),
+            username: str(conn.username ?? conn.Username ?? prev.step3.username),
+            password: str(conn.password ?? conn.Password ?? prev.step3.password),
+            userSearchBase: str(conn.userSearchBase ?? conn.user_searchBase ?? conn.UserSearchBase ?? prev.step3.userSearchBase),
+            groupSearchBase: str(conn.groupSearchBase ?? conn.group_searchBase ?? conn.GroupSearchBase ?? prev.step3.groupSearchBase),
+            user_searchBase: str(conn.userSearchBase ?? conn.user_searchBase ?? conn.UserSearchBase ?? prev.step3.userSearchBase),
+            group_searchBase: str(conn.groupSearchBase ?? conn.group_searchBase ?? conn.GroupSearchBase ?? prev.step3.groupSearchBase),
+          };
+          return {
+          ...prev,
+          step1: {
+            ...prev.step1,
+            // category = application type in getallapp response
+            type: app.category ?? app.ApplicationType ?? app.applicationType ?? app.type ?? app.Type ?? prev.step1.type,
+            oauthType: app.OAuthType ?? app.oauthType ?? prev.step1.oauthType,
+          },
+          step2: {
+            ...prev.step2,
+            applicationName: app.ApplicationName ?? app.applicationName ?? app.name ?? app.Name ?? app.appName ?? app.application_name ?? app.title ?? prev.step2.applicationName,
+            description: app.description ?? app.Description ?? prev.step2.description,
+            technicalOwner: ownerDisplay || prev.step2.technicalOwner,
+            technicalOwnerEmail: ownerValue || prev.step2.technicalOwnerEmail,
+            businessOwner: prev.step2.businessOwner,
+            businessOwnerEmail: prev.step2.businessOwnerEmail,
+          },
+          step3: step3Mapped,
+          };
+        });
+
+        // Map only provisioningAttrMap to attributeMappingData (Schema Mapping step); payload may have schemaMappingDetails null
+        const schema = app.schemaMappingDetails ?? app.SchemaMappingDetails ?? app.schemaMapping ?? null;
+        const provisioning =
+          schema && typeof schema === "object"
+            ? (schema.provisioningAttrMap ?? schema.ProvisioningAttrMap ?? schema.provisioning_attr_map ?? {})
+            : {};
+        const getVariable = (val: unknown): string => {
+          if (val == null) return "";
+          if (typeof val === "string") return val.trim();
+          if (typeof val !== "object") return "";
+          const o = val as Record<string, unknown>;
+          const v = o.variable ?? o.Variable ?? (o.value && typeof o.value === "object" ? (o.value as Record<string, unknown>).variable : null);
+          return (v != null && v !== "" ? String(v) : "").trim();
+        };
+        const mapped: AttributeMapping[] = [];
+        let idx = 0;
+        if (provisioning && typeof provisioning === "object" && !Array.isArray(provisioning)) {
+          Object.entries(provisioning).forEach(([targetAttr, val]) => {
+            const variable = getVariable(val);
+            if (variable || targetAttr.trim()) mapped.push({ id: `p-${idx++}`, source: variable || "", target: targetAttr.trim(), defaultValue: "", type: "provisioning" });
+          });
+        }
+        if (mapped.length > 0) setAttributeMappingData(mapped);
+      })
+      .catch((err) => {
+        console.error("Error fetching getallapp data for mapping:", err);
+      });
+  }, [isCompleteIntegration, appIdFromUrl]);
   const [searchQuery, setSearchQuery] = useState("");
-  
-  // Attribute mapping state
-  type AttributeMapping = { source: string; target: string; defaultValue?: string; type: string; keyfieldMapping?: boolean };
-  const [attributeMappingData, setAttributeMappingData] = useState<AttributeMapping[]>([
-    {
-      source: "user.name",
-      target: "displayName", 
-      defaultValue: "",
-      type: "provisioning"
-    }
-  ]);
   const [attributeMappingPage, setAttributeMappingPage] = useState(1);
   const [isEditingAttribute, setIsEditingAttribute] = useState(false);
   const [editingAttribute, setEditingAttribute] = useState<any>(null);
@@ -75,6 +237,10 @@ export default function AddApplicationPage() {
   const [isEditDropdownOpen, setIsEditDropdownOpen] = useState(false);
   const [sourceAttributeValue, setSourceAttributeValue] = useState("");
   const [editSourceAttributeValue, setEditSourceAttributeValue] = useState("");
+  const [targetAttributeValue, setTargetAttributeValue] = useState("");
+  const [defaultAttributeValue, setDefaultAttributeValue] = useState("");
+  const [keyfieldChecked, setKeyfieldChecked] = useState(false);
+  const [mappingType, setMappingType] = useState<string>("direct");
   const [filteredAttributes, setFilteredAttributes] = useState<string[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const editDropdownRef = useRef<HTMLDivElement>(null);
@@ -86,6 +252,19 @@ export default function AddApplicationPage() {
   // Field definitions from API
   const [applicationTypeFields, setApplicationTypeFields] = useState<Record<string, string[]>>({});
   const [oauthTypeFields, setOauthTypeFields] = useState<Record<string, string[]>>({});
+  // User search (Add Details step - Technical Owner / Business Owner)
+  type OwnerField = "technicalOwner" | "businessOwner";
+  type UserSearchHit = { id: string; name: string; email: string; username: string; department?: string; jobTitle?: string; employeeId?: string };
+  const [userSearchAllUsers, setUserSearchAllUsers] = useState<UserSearchHit[]>([]);
+  const [userSearchField, setUserSearchField] = useState<OwnerField | null>(null);
+  const [userSearchLoading, setUserSearchLoading] = useState(false);
+  const [userSearchError, setUserSearchError] = useState<string | null>(null);
+  const [submitRequestLoading, setSubmitRequestLoading] = useState(false);
+  const [submitRequestError, setSubmitRequestError] = useState<string | null>(null);
+  const [onboardLoading, setOnboardLoading] = useState(false);
+  const step2UserFetchedRef = useRef(false);
+  const technicalOwnerDropdownRef = useRef<HTMLDivElement>(null);
+  const businessOwnerDropdownRef = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState<FormData>({
     step1: {
       applicationName: "",
@@ -97,7 +276,9 @@ export default function AddApplicationPage() {
       description: "",
       trustedSource: false,
       technicalOwner: "",
-      businessOwner: ""
+      businessOwner: "",
+      technicalOwnerEmail: "",
+      businessOwnerEmail: ""
     },
     step3: {
       // Dynamic fields will be populated based on application type
@@ -120,30 +301,141 @@ export default function AddApplicationPage() {
   });
 
   const handleInputChange = (step: keyof FormData, field: string, value: any) => {
-    setFormData(prev => ({
-      ...prev,
-      [step]: {
-        ...prev[step],
-        [field]: value
+    setFormData(prev => {
+      const nextStep = { ...prev[step], [field]: value };
+      if (step === "step3") {
+        if (field === "userSearchBase") nextStep.user_searchBase = value;
+        else if (field === "groupSearchBase") nextStep.group_searchBase = value;
+        else if (field === "user_searchBase") nextStep.userSearchBase = value;
+        else if (field === "group_searchBase") nextStep.groupSearchBase = value;
       }
-    }));
+      return { ...prev, [step]: nextStep };
+    });
   };
 
-  const handleNext = () => {
-    if (currentStep < 5) {
+  const handleNext = async () => {
+    if (currentStep >= 5) return;
+    if (currentStep === 2) {
+      setSubmitRequestError(null);
+      setSubmitRequestLoading(true);
+      try {
+        const ownerEmail = formData.step2.technicalOwnerEmail || formData.step2.businessOwnerEmail || "";
+        const step3 = formData.step3 || {};
+        const payload = {
+          name: formData.step2.applicationName || "",
+          description: formData.step2.description || "",
+          category: formData.step1.type || "",
+          iga: false,
+          sso: false,
+          lcm: false,
+          owner: { type: "User", value: ownerEmail },
+          connectionDetails: {
+            hostname: step3.hostname ?? "",
+            port: step3.port ?? "",
+            username: step3.username ?? "",
+            password: step3.password ?? "",
+            user_searchBase: step3.userSearchBase ?? step3.user_searchBase ?? "",
+            group_searchBase: step3.groupSearchBase ?? step3.group_searchBase ?? "",
+          },
+        };
+        await submitItAssetRequest(payload);
+        setCurrentStep(currentStep + 1);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to submit request";
+        setSubmitRequestError(message);
+      } finally {
+        setSubmitRequestLoading(false);
+      }
+    } else if (isCompleteIntegration && (currentStep === 3 || currentStep === 4)) {
+      setSubmitRequestError(null);
+      setSubmitRequestLoading(true);
+      try {
+        const ownerEmail = formData.step2.technicalOwnerEmail || formData.step2.businessOwnerEmail || "";
+        const step3 = formData.step3 || {};
+        // Build provisioningAttrMap from Schema Mapping step: { [target]: { variable: source } }
+        const provisioningAttrMap: Record<string, { variable: string }> = {};
+        attributeMappingData.forEach((mapping) => {
+          if (mapping.target?.trim()) {
+            provisioningAttrMap[mapping.target.trim()] = { variable: mapping.source?.trim() ?? "" };
+          }
+        });
+        const userSearchBaseVal = String(step3.userSearchBase ?? step3.user_searchBase ?? "").trim();
+        const groupSearchBaseVal = String(step3.groupSearchBase ?? step3.group_searchBase ?? "").trim();
+        const { userSearchBase: _u, groupSearchBase: _g, user_searchBase: _ub, group_searchBase: _gb, ...step3Rest } = step3 as Record<string, unknown>;
+        const connectionDetails: Record<string, unknown> = {
+          ...step3Rest,
+          hostname: step3.hostname ?? "",
+          port: step3.port ?? "",
+          username: step3.username ?? "",
+          password: step3.password ?? "",
+          user_searchBase: userSearchBaseVal,
+          group_searchBase: groupSearchBaseVal,
+        };
+        const savePayload = {
+          tenantId: "ACMECOM",
+          appid: appIdFromUrl || "",
+          serviceURL: "",
+          name: formData.step2.applicationName || "",
+          description: formData.step2.description || "",
+          category: formData.step1.type || "",
+          owner: { type: "User", value: ownerEmail },
+          status: "InProgress",
+          connectionDetails,
+          dicoveredOn: null,
+          integratedOn: null,
+          schemaMappingDetails: {
+            provisioningAttrMap,
+            reconcilliationAttrMap: {},
+          },
+          applicationConfigurationDetails: null,
+          iga: false,
+          lcm: false,
+          sso: false,
+          ...(appIdFromUrl && !Number.isNaN(Number(appIdFromUrl)) ? { key: Number(appIdFromUrl) } : {}),
+        };
+        await saveAppDetails(savePayload);
+        setCurrentStep(currentStep + 1);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to save application details";
+        setSubmitRequestError(message);
+      } finally {
+        setSubmitRequestLoading(false);
+      }
+    } else {
       setCurrentStep(currentStep + 1);
     }
   };
 
   const handlePrevious = () => {
     if (currentStep > 1) {
+      setSubmitRequestError(null);
+      if (isCompleteIntegration && currentStep === 3) {
+        router.push("/settings/app-inventory");
+        return;
+      }
       setCurrentStep(currentStep - 1);
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    // If we're on step 5, include Advanced settings (hooks + threshold) and optionally update app config
+    if (currentStep === 5 && advanceSettingRef.current) {
+      const config = advanceSettingRef.current.getConfig();
+      const appId = appIdFromUrl?.trim();
+      const token =
+        typeof window !== "undefined" && appId
+          ? sessionStorage.getItem(`app-inventory-token-${appId}`) ?? ""
+          : "";
+      if (appId && token) {
+        try {
+          await updateAppConfig(appId, token, config);
+        } catch (err) {
+          console.error("Failed to save advanced settings:", err);
+          alert("Application submitted but advanced settings could not be saved: " + (err instanceof Error ? err.message : "Unknown error"));
+        }
+      }
+    }
     console.log("Form submitted:", formData);
-    // Here you would typically submit to your API
     alert("Application added successfully!");
     router.push("/settings/app-inventory");
   };
@@ -222,6 +514,27 @@ export default function AddApplicationPage() {
   useEffect(() => {
     fetchApplicationTypes();
   }, []);
+
+  // When in complete-integration mode, ensure step1.type matches a loaded application type so step 3 shows correct fields
+  useEffect(() => {
+    if (!isCompleteIntegration || !formData.step1.type || applicationTypes.length === 0) return;
+    const currentType = formData.step1.type.trim();
+    const hasExactMatch = applicationTypeFields[currentType] !== undefined;
+    if (hasExactMatch) return;
+    const matched = applicationTypes.find(
+      (t) =>
+        t.id === currentType ||
+        t.title === currentType ||
+        t.id.toLowerCase() === currentType.toLowerCase() ||
+        t.title.toLowerCase() === currentType.toLowerCase()
+    );
+    if (matched) {
+      setFormData((prev) => ({
+        ...prev,
+        step1: { ...prev.step1, type: matched.id },
+      }));
+    }
+  }, [isCompleteIntegration, formData.step1.type, applicationTypes, applicationTypeFields]);
 
   // Fetch SCIM attributes from API
   const fetchScimAttributes = async () => {
@@ -319,6 +632,18 @@ export default function AddApplicationPage() {
       ) {
         setIsEditDropdownOpen(false);
       }
+      if (
+        technicalOwnerDropdownRef.current &&
+        !technicalOwnerDropdownRef.current.contains(event.target as Node)
+      ) {
+        setUserSearchField((f) => (f === "technicalOwner" ? null : f));
+      }
+      if (
+        businessOwnerDropdownRef.current &&
+        !businessOwnerDropdownRef.current.contains(event.target as Node)
+      ) {
+        setUserSearchField((f) => (f === "businessOwner" ? null : f));
+      }
     };
 
     document.addEventListener("mousedown", handleClickOutside);
@@ -327,6 +652,80 @@ export default function AddApplicationPage() {
     };
   }, []);
 
+  // Fetch users once when Add Details step loads
+  useEffect(() => {
+    if (currentStep !== 2 || step2UserFetchedRef.current) return;
+    step2UserFetchedRef.current = true;
+    setUserSearchLoading(true);
+    setUserSearchError(null);
+    const query = `SELECT firstname, lastname, email, username, employeeid, department, title FROM usr`;
+    executeQuery<{ resultSet?: any[] }>(query, [])
+      .then((data) => {
+        let usersData: UserSearchHit[] = [];
+        if (data?.resultSet && Array.isArray(data.resultSet)) {
+          usersData = data.resultSet.map((user: any, index: number) => {
+            let emailValue = "";
+            if (user.email) {
+              if (typeof user.email === "string") emailValue = user.email;
+              else if (user.email.work) emailValue = user.email.work;
+              else if (Array.isArray(user.email) && user.email.length > 0) {
+                const primary = user.email.find((e: any) => e.primary) || user.email[0];
+                emailValue = primary?.value || "";
+              }
+            }
+            const nameValue =
+              [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username || "";
+            return {
+              id: `user-${index}-${user.username || user.email || index}`,
+              name: nameValue,
+              email: emailValue,
+              username: user.username || "",
+              department: user.department || "",
+              jobTitle: user.title || "",
+              employeeId: (user.employeeid != null && user.employeeid !== "") ? String(user.employeeid) : undefined,
+            };
+          });
+        }
+        setUserSearchAllUsers(usersData);
+      })
+      .catch((err) => {
+        console.error("User search failed:", err);
+        setUserSearchError(err instanceof Error ? err.message : "Failed to load users");
+        setUserSearchAllUsers([]);
+      })
+      .finally(() => setUserSearchLoading(false));
+  }, [currentStep]);
+
+  // Filter loaded users by current input (client-side only)
+  const getFilteredOwnerUsers = (field: OwnerField): UserSearchHit[] => {
+    const term = (field === "technicalOwner" ? formData.step2.technicalOwner : formData.step2.businessOwner)
+      .trim().toLowerCase();
+    if (!term) return userSearchAllUsers;
+    return userSearchAllUsers.filter(
+      (u) =>
+        u.name?.toLowerCase().includes(term) ||
+        u.username?.toLowerCase().includes(term) ||
+        u.email?.toLowerCase().includes(term) ||
+        (u.department && u.department.toLowerCase().includes(term)) ||
+        (u.jobTitle && u.jobTitle.toLowerCase().includes(term)) ||
+        (u.employeeId && u.employeeId.toLowerCase().includes(term))
+    );
+  };
+
+  const handleOwnerInputChange = (field: OwnerField, value: string) => {
+    handleInputChange("step2", field, value);
+    setUserSearchError(null);
+    if (value.trim()) setUserSearchField(field);
+    else setUserSearchField(null);
+  };
+
+  const handleOwnerSelect = (field: OwnerField, user: UserSearchHit) => {
+    const display = user.name ? (user.email ? `${user.name} (${user.email})` : user.name) : user.email || user.username;
+    handleInputChange("step2", field, display);
+    handleInputChange("step2", field === "technicalOwner" ? "technicalOwnerEmail" : "businessOwnerEmail", user.email || "");
+    setUserSearchField(null);
+  };
+
   // Initialize edit source attribute value when editing starts
   useEffect(() => {
     if (isEditingAttribute && editingAttribute) {
@@ -334,53 +733,88 @@ export default function AddApplicationPage() {
     }
   }, [isEditingAttribute, editingAttribute]);
 
+  // Schema Mapping: Add new row (same behavior as SchemaMappingTab)
+  const handleAddMapping = () => {
+    const source = sourceAttributeValue.trim();
+    const target = targetAttributeValue.trim();
+    if (!source || !target) return;
+    setAttributeMappingData((prev) => [
+      ...prev,
+      {
+        id: `new-${Date.now()}`,
+        source,
+        target,
+        defaultValue: defaultAttributeValue?.trim() ?? "",
+        type: mappingType || "direct",
+        keyfieldMapping: keyfieldChecked,
+      },
+    ]);
+    setSourceAttributeValue("");
+    setTargetAttributeValue("");
+    setDefaultAttributeValue("");
+    setKeyfieldChecked(false);
+    setMappingType("direct");
+    setIsDropdownOpen(false);
+  };
+
+  // Schema Mapping: Update existing row (same behavior as SchemaMappingTab)
+  const saveEdit = () => {
+    if (!editingAttribute?.id) return;
+    const source = (editSourceAttributeValue || editingAttribute.source || "").trim();
+    setAttributeMappingData((prev) =>
+      prev.map((m) =>
+        m.id === editingAttribute.id
+          ? {
+              ...m,
+              source,
+              target: (editingAttribute.target || "").trim(),
+              defaultValue: editingAttribute.defaultValue ?? "",
+              type: editingAttribute.type || "direct",
+              keyfieldMapping: editingAttribute.keyfieldMapping ?? false,
+            }
+          : m
+      )
+    );
+    setIsEditingAttribute(false);
+    setEditingAttribute(null);
+    setEditSourceAttributeValue("");
+    setIsEditDropdownOpen(false);
+  };
+
+  // Schema Mapping: Delete row (same behavior as SchemaMappingTab)
+  const handleDeleteMapping = (id: string) => {
+    if (!id) return;
+    setAttributeMappingData((prev) => prev.filter((m) => m.id !== id));
+    if (editingAttribute?.id === id) {
+      setIsEditingAttribute(false);
+      setEditingAttribute(null);
+      setEditSourceAttributeValue("");
+      setIsEditDropdownOpen(false);
+    }
+  };
+
   const renderStepContent = () => {
     switch (currentStep) {
       case 1:
         return (
           <div className="space-y-6">
-             <div className="flex items-center gap-3">
-               <div className="flex-1 relative">
-                 <input
-                   type="text"
-                   value={searchQuery}
-                   onChange={(e) => setSearchQuery(e.target.value)}
-                   onFocus={() => setIsSearchFocused(true)}
-                   onBlur={() => setIsSearchFocused(false)}
-                   className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
-                   placeholder=" "
-                 />
-                 <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                   searchQuery || isSearchFocused
-                     ? 'top-0.5 text-xs text-blue-600' 
-                     : 'top-3.5 text-sm text-gray-500'
-                 }`}>
-                   Search *
-                 </label>
-               </div>
-               <div className="flex-1 relative">
-                 <select
-                   value={formData.step1.oauthType}
-                   onChange={(e) => handleInputChange("step1", "oauthType", e.target.value)}
-                   className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
-                   required
-                   disabled={isLoadingAppTypes}
-                 >
-                   <option value=""></option>
-                   {oauthTypes.map((oauthType) => (
-                     <option key={oauthType} value={oauthType}>
-                       {oauthType}
-                     </option>
-                   ))}
-                 </select>
-                 <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                   formData.step1.oauthType 
-                     ? 'top-0.5 text-xs text-blue-600' 
-                     : 'top-3.5 text-sm text-gray-500'
-                 }`}>
-                   OAuth Type *
-                 </label>
-               </div>
+             <div className="relative">
+               <input
+                 type="text"
+                 value={searchQuery}
+                 onChange={(e) => setSearchQuery(e.target.value)}
+                 onFocus={() => setIsSearchFocused(true)}
+                 onBlur={() => setIsSearchFocused(false)}
+                 className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                 placeholder=" "
+               />
+               <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                 searchQuery || isSearchFocused
+                   ? 'top-0.5 text-xs text-blue-600' 
+                   : 'top-3.5 text-sm text-gray-500'
+               }`}>
+                 Search *
+               </label>
              </div>
              <div>
                <label className="block text-sm font-medium text-gray-700 mb-4">
@@ -449,10 +883,6 @@ export default function AddApplicationPage() {
                   <span className="font-medium">Selected System:</span>{' '}
                   <span>{formData.step1.type || "Not selected"}</span>
                 </div>
-                <div>
-                  <span className="font-medium">OAuth Type:</span>{' '}
-                  <span>{formData.step1.oauthType || "Not selected"}</span>
-                </div>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -502,11 +932,12 @@ export default function AddApplicationPage() {
               </label>
             </div>
             <div className="flex items-center gap-3">
-              <div className="flex-1 relative">
+              <div className="flex-1 relative" ref={technicalOwnerDropdownRef}>
                 <input
                   type="text"
                   value={formData.step2.technicalOwner}
-                  onChange={(e) => handleInputChange("step2", "technicalOwner", e.target.value)}
+                  onChange={(e) => handleOwnerInputChange("technicalOwner", e.target.value)}
+                  onFocus={() => setUserSearchField("technicalOwner")}
                   className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
                   placeholder=" "
                 />
@@ -517,12 +948,36 @@ export default function AddApplicationPage() {
                 }`}>
                   Technical Owner *
                 </label>
+                {userSearchField === "technicalOwner" && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                    {userSearchLoading && (
+                      <div className="px-4 py-3 text-sm text-gray-500">Loading users...</div>
+                    )}
+                    {!userSearchLoading && userSearchError && (
+                      <div className="px-4 py-3 text-sm text-red-600">{userSearchError}</div>
+                    )}
+                    {!userSearchLoading && !userSearchError && getFilteredOwnerUsers("technicalOwner").length === 0 && (
+                      <div className="px-4 py-3 text-sm text-gray-500">No users found</div>
+                    )}
+                    {!userSearchLoading && getFilteredOwnerUsers("technicalOwner").map((user) => (
+                      <div
+                        key={user.id}
+                        onClick={() => handleOwnerSelect("technicalOwner", user)}
+                        className="px-4 py-2 cursor-pointer hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                      >
+                        <div className="font-medium text-gray-900 text-sm">{user.name || user.username}</div>
+                        {user.email && <div className="text-xs text-gray-500">{user.email}</div>}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              <div className="flex-1 relative">
+              <div className="flex-1 relative" ref={businessOwnerDropdownRef}>
                 <input
                   type="text"
                   value={formData.step2.businessOwner}
-                  onChange={(e) => handleInputChange("step2", "businessOwner", e.target.value)}
+                  onChange={(e) => handleOwnerInputChange("businessOwner", e.target.value)}
+                  onFocus={() => setUserSearchField("businessOwner")}
                   className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
                   placeholder=" "
                 />
@@ -533,6 +988,29 @@ export default function AddApplicationPage() {
                 }`}>
                   Business Owner *
                 </label>
+                {userSearchField === "businessOwner" && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                    {userSearchLoading && (
+                      <div className="px-4 py-3 text-sm text-gray-500">Loading users...</div>
+                    )}
+                    {!userSearchLoading && userSearchError && (
+                      <div className="px-4 py-3 text-sm text-red-600">{userSearchError}</div>
+                    )}
+                    {!userSearchLoading && !userSearchError && getFilteredOwnerUsers("businessOwner").length === 0 && (
+                      <div className="px-4 py-3 text-sm text-gray-500">No users found</div>
+                    )}
+                    {!userSearchLoading && getFilteredOwnerUsers("businessOwner").map((user) => (
+                      <div
+                        key={user.id}
+                        onClick={() => handleOwnerSelect("businessOwner", user)}
+                        className="px-4 py-2 cursor-pointer hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                      >
+                        <div className="font-medium text-gray-900 text-sm">{user.name || user.username}</div>
+                        {user.email && <div className="text-xs text-gray-500">{user.email}</div>}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -553,14 +1031,16 @@ export default function AddApplicationPage() {
                 .replace(/_/g, ' ')
                 .replace(/\b\w/g, (c) => c.toUpperCase());
               const value = (formData.step3 as any)[fieldKey] ?? "";
+              const isPasswordLike = /password|secret|token|passphrase/i.test(fieldKey);
               return (
                 <div className="flex-1 relative" key={fieldKey}>
                   <input
-                    type="text"
+                    type={isPasswordLike ? "password" : "text"}
                     value={value}
                     onChange={(e) => handleInputChange("step3", fieldKey, e.target.value)}
                     className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
                     placeholder=" "
+                    autoComplete={isPasswordLike ? "off" : undefined}
                   />
                   <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
                     value
@@ -5775,10 +6255,14 @@ export default function AddApplicationPage() {
             <div className="flex-1 space-y-6">
               <div className="mb-4">
                 <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  Integration Settings for: {selectedAppType || "No Application Selected"}
+                  Integration Settings for: {isCompleteIntegration && formData.step2.applicationName
+                    ? `${formData.step2.applicationName} (${selectedAppType || "—"})`
+                    : selectedAppType || "No Application Selected"}
                 </h3>
                 <p className="text-sm text-gray-600">
-                  Configure the integration settings for your selected application type.
+                  {isCompleteIntegration
+                    ? "Configure the integration settings for this application."
+                    : "Configure the integration settings for your selected application type."}
                 </p>
               </div>
               {renderIntegrationFields()}
@@ -5826,9 +6310,6 @@ export default function AddApplicationPage() {
                           Default Value
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Lifecycle
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Action
                         </th>
                       </tr>
@@ -5836,13 +6317,13 @@ export default function AddApplicationPage() {
                     <tbody className="bg-white divide-y divide-gray-200">
                       {getCurrentPageData().length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="px-4 py-6 text-center text-sm text-gray-500">
+                          <td colSpan={4} className="px-4 py-6 text-center text-sm text-gray-500">
                             No attribute mappings configured.
                           </td>
                         </tr>
                       ) : (
                         getCurrentPageData().map((mapping, index) => (
-                        <tr key={index}>
+                        <tr key={mapping.id ?? `row-${index}`}>
                           <td className="px-4 py-3 text-sm text-gray-900 whitespace-pre-wrap break-words break-all align-top" style={{ position: "static", whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "anywhere" }}>
                             {mapping.source}
                           </td>
@@ -5852,25 +6333,12 @@ export default function AddApplicationPage() {
                           <td className="px-4 py-3 text-sm text-gray-500">
                             {mapping.defaultValue || ""}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-900">
-                            <select 
-                              className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                              value={mapping.type || "provisioning"}
-                              onChange={(e) => {
-                                const updatedData = [...attributeMappingData];
-                                updatedData[index] = { ...mapping, type: e.target.value };
-                                setAttributeMappingData(updatedData);
-                              }}
-                            >
-                              <option value="provisioning">Provisioning</option>
-                              <option value="reconciliation">Reconciliation</option>
-                              <option value="both">Both</option>
-                            </select>
-                          </td>
                           <td className="px-4 py-3 text-sm text-gray-500">
                             <div className="flex space-x-2">
                               <button
-                                className="text-blue-600 hover:text-blue-800"
+                                type="button"
+                                className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                                aria-label="Edit"
                                 onClick={() => {
                                   setEditingAttribute(mapping);
                                   setIsEditingAttribute(true);
@@ -5878,7 +6346,12 @@ export default function AddApplicationPage() {
                               >
                                 <Edit className="w-4 h-4" />
                               </button>
-                              <button className="text-red-600 hover:text-red-800">
+                              <button
+                                type="button"
+                                className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                                aria-label="Delete"
+                                onClick={() => handleDeleteMapping(mapping.id)}
+                              >
                                 <Trash2 className="w-4 h-4" />
                               </button>
                             </div>
@@ -5913,12 +6386,74 @@ export default function AddApplicationPage() {
                   </div>
                 </div>
 
-                {/* Action Buttons */}
+                {/* Action Buttons - Save calls saveappdetails API */}
                 <div className="flex space-x-3">
-                  <button className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700">
-                    Save
+                  <button
+                    type="button"
+                    className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                    disabled={submitRequestLoading}
+                    onClick={async () => {
+                      setSubmitRequestError(null);
+                      setSubmitRequestLoading(true);
+                      try {
+                        const ownerEmail = formData.step2.technicalOwnerEmail || formData.step2.businessOwnerEmail || "";
+                        const step3 = formData.step3 || {};
+                        const provisioningAttrMap: Record<string, { variable: string }> = {};
+                        attributeMappingData.forEach((mapping) => {
+                          if (mapping.target?.trim()) {
+                            provisioningAttrMap[mapping.target.trim()] = { variable: mapping.source?.trim() ?? "" };
+                          }
+                        });
+                        const userSearchBaseVal = String(step3.userSearchBase ?? step3.user_searchBase ?? "").trim();
+                        const groupSearchBaseVal = String(step3.groupSearchBase ?? step3.group_searchBase ?? "").trim();
+                        const { userSearchBase: _u2, groupSearchBase: _g2, user_searchBase: _ub2, group_searchBase: _gb2, ...step3Rest } = step3 as Record<string, unknown>;
+                        const connectionDetails: Record<string, unknown> = {
+                          ...step3Rest,
+                          hostname: step3.hostname ?? "",
+                          port: step3.port ?? "",
+                          username: step3.username ?? "",
+                          password: step3.password ?? "",
+                          user_searchBase: userSearchBaseVal,
+                          group_searchBase: groupSearchBaseVal,
+                        };
+                        const savePayload = {
+                          tenantId: "ACMECOM",
+                          appid: appIdFromUrl || "",
+                          serviceURL: "",
+                          name: formData.step2.applicationName || "",
+                          description: formData.step2.description || "",
+                          category: formData.step1.type || "",
+                          owner: { type: "User", value: ownerEmail },
+                          status: "InProgress",
+                          connectionDetails,
+                          dicoveredOn: null,
+                          integratedOn: null,
+                          schemaMappingDetails: {
+                            provisioningAttrMap,
+                            reconcilliationAttrMap: {},
+                          },
+                          applicationConfigurationDetails: null,
+                          iga: false,
+                          lcm: false,
+                          sso: false,
+                          ...(appIdFromUrl && !Number.isNaN(Number(appIdFromUrl)) ? { key: Number(appIdFromUrl) } : {}),
+                        };
+                        await saveAppDetails(savePayload);
+                      } catch (err) {
+                        const message = err instanceof Error ? err.message : "Failed to save application details";
+                        setSubmitRequestError(message);
+                      } finally {
+                        setSubmitRequestLoading(false);
+                      }
+                    }}
+                  >
+                    {submitRequestLoading ? "Saving…" : "Save"}
                   </button>
-                  <button className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50">
+                  <button
+                    type="button"
+                    className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50"
+                    onClick={() => router.push("/settings/app-inventory")}
+                  >
                     Cancel
                   </button>
                 </div>
@@ -5935,7 +6470,8 @@ export default function AddApplicationPage() {
                         </label>
                         <select
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          defaultValue="direct"
+                          value={editingAttribute?.type ?? "direct"}
+                          onChange={(e) => setEditingAttribute((prev) => (prev ? { ...prev, type: e.target.value } : null))}
                         >
                           <option value="direct">Direct</option>
                           <option value="expression">Expression</option>
@@ -5951,16 +6487,18 @@ export default function AddApplicationPage() {
                         <input
                           type="text"
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          defaultValue={editingAttribute?.target || ""}
+                          value={editingAttribute?.target ?? ""}
+                          onChange={(e) => setEditingAttribute((prev) => (prev ? { ...prev, target: e.target.value } : null))}
                         />
                         <div className="mt-2 flex justify-end">
                           <label className="flex items-center">
                             <input
                               type="checkbox"
                               className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                              defaultChecked={editingAttribute?.keyfieldMapping || false}
+                              checked={editingAttribute?.keyfieldMapping ?? false}
+                              onChange={(e) => setEditingAttribute((prev) => (prev ? { ...prev, keyfieldMapping: e.target.checked } : null))}
                             />
-                            <span className="ml-2 text-sm text-gray-700">Keyfield Mapping</span>
+                            <span className="ml-2 text-sm text-gray-700">Keyfield</span>
                           </label>
                         </div>
                       </div>
@@ -6025,22 +6563,28 @@ export default function AddApplicationPage() {
                         <input
                           type="text"
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          defaultValue={
-                            editingAttribute?.defaultValue || ""
-                          }
+                          placeholder="Enter default value"
+                          value={editingAttribute?.defaultValue ?? ""}
+                          onChange={(e) => setEditingAttribute((prev) => (prev ? { ...prev, defaultValue: e.target.value } : null))}
                         />
                       </div>
                     </div>
 
                     {/* Edit Form Action Buttons */}
                     <div className="flex space-x-3 pt-4">
-                      <button className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700">
+                      <button
+                        type="button"
+                        className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700"
+                        onClick={saveEdit}
+                      >
                         Update
                       </button>
                       <button
+                        type="button"
                         className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50"
                         onClick={() => {
                           setIsEditingAttribute(false);
+                          setEditingAttribute(null);
                           setEditSourceAttributeValue("");
                           setIsEditDropdownOpen(false);
                         }}
@@ -6056,7 +6600,11 @@ export default function AddApplicationPage() {
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Mapping Type
                         </label>
-                        <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <select
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          value={mappingType ?? "direct"}
+                          onChange={(e) => setMappingType(e.target.value)}
+                        >
                           <option value="direct">Direct</option>
                           <option value="expression">Expression</option>
                           <option value="constant">Constant</option>
@@ -6075,7 +6623,7 @@ export default function AddApplicationPage() {
                           <input
                             type="text"
                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            value={sourceAttributeValue}
+                            value={sourceAttributeValue ?? ""}
                             onChange={(e) => {
                               filterAttributes(e.target.value, false);
                             }}
@@ -6126,6 +6674,8 @@ export default function AddApplicationPage() {
                             type="text"
                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                             placeholder="Enter target attribute"
+                            value={targetAttributeValue ?? ""}
+                            onChange={(e) => setTargetAttributeValue(e.target.value)}
                           />
                           <button className="absolute right-2 top-2 text-gray-400">
                             <ChevronDown className="w-4 h-4" />
@@ -6136,8 +6686,10 @@ export default function AddApplicationPage() {
                             <input
                               type="checkbox"
                               className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                              checked={keyfieldChecked}
+                              onChange={(e) => setKeyfieldChecked(e.target.checked)}
                             />
-                            <span className="ml-2 text-sm text-gray-700">Keyfield Mapping</span>
+                            <span className="ml-2 text-sm text-gray-700">Keyfield</span>
                           </label>
                         </div>
                       </div>
@@ -6150,19 +6702,31 @@ export default function AddApplicationPage() {
                           type="text"
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                           placeholder="Enter default value"
+                          value={defaultAttributeValue ?? ""}
+                          onChange={(e) => setDefaultAttributeValue(e.target.value)}
                         />
                       </div>
                     </div>
 
                     {/* Add Form Action Buttons */}
                     <div className="flex space-x-3 pt-4">
-                      <button className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50">
+                      <button
+                        type="button"
+                        className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                        disabled={!sourceAttributeValue.trim() || !targetAttributeValue.trim()}
+                        onClick={handleAddMapping}
+                      >
                         Add
                       </button>
                       <button
+                        type="button"
                         className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50"
                         onClick={() => {
                           setSourceAttributeValue("");
+                          setTargetAttributeValue("");
+                          setDefaultAttributeValue("");
+                          setKeyfieldChecked(false);
+                          setMappingType("direct");
                           setIsDropdownOpen(false);
                         }}
                       >
@@ -6179,7 +6743,8 @@ export default function AddApplicationPage() {
       case 5:
         return (
           <div className="space-y-6">
-            <p className="text-gray-500 text-center py-8">Finish Up fields will be added later</p>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Advanced settings</h2>
+            <AdvanceSettingTab ref={advanceSettingRef} applicationId="wizard" wizardMode />
           </div>
         );
 
@@ -6202,63 +6767,206 @@ export default function AddApplicationPage() {
           </button>
         </div>
 
-         {/* Progress Steps */}
+        {/* Edit mode: app summary card from IT Asset getapp */}
+        {isCompleteIntegration && (
+          <div className="mb-6 bg-white rounded-xl border border-gray-200 shadow-md overflow-hidden flex">
+            <div className="w-1.5 shrink-0 bg-gradient-to-b from-blue-500 to-indigo-600 rounded-l-xl" aria-hidden />
+            <div className="flex-1 p-6">
+              {appDetailsLoading ? (
+                <div className="flex items-center gap-3 text-gray-500">
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-200 border-t-blue-500" />
+                  <span className="text-sm font-medium">Loading…</span>
+                </div>
+              ) : appDetails ? (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-3 sm:gap-y-0">
+                    {[
+                      { label: "Application Name", keys: ["applicationName", "ApplicationName", "name", "Name"] },
+                      { label: "Category", keys: ["category", "Category", "applicationType", "ApplicationType"] },
+                      { label: "Owner", keys: ["owner", "Owner"] },
+                    ].map(({ label, keys }, i) => {
+                      let val = keys.reduce<unknown>((acc, k) => acc != null && acc !== "" ? acc : appDetails[k], null);
+                      if (label === "Owner" && typeof val === "object" && val !== null && "value" in val) {
+                        val = (val as { value?: unknown }).value;
+                      }
+                      const display = typeof val === "object" && val !== null ? JSON.stringify(val) : val != null && val !== "" ? String(val) : "—";
+                      return (
+                        <div
+                          key={label}
+                          className={`flex items-baseline gap-2 min-w-0 ${i < 2 ? "sm:border-r sm:border-gray-200 sm:pr-6" : ""}`}
+                        >
+                          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider shrink-0">{label}:</span>
+                          <span className="text-[15px] font-semibold text-gray-900 leading-snug break-words min-w-0" title={display}>
+                            {display}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="pt-3 border-t border-gray-100">
+                    <label htmlFor="edit-mode-description" className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+                      Description
+                    </label>
+                    <textarea
+                      id="edit-mode-description"
+                      rows={2}
+                      className="w-full px-3 py-2 text-[15px] font-medium text-gray-900 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y min-h-[60px]"
+                      placeholder="Enter description"
+                      value={formData.step2.description ?? ""}
+                      onChange={(e) => handleInputChange("step2", "description", e.target.value)}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 font-medium">Could not load details.</p>
+              )}
+            </div>
+          </div>
+        )}
+
+         {/* Progress Steps - clickable in edit mode to move between steps without Save and Next */}
          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
            <div className="flex items-center justify-between">
-             {steps.map((step, index) => (
-               <div key={step.id} className="flex items-center">
+             {(isCompleteIntegration ? steps.filter((s) => s.id >= 3 && s.id <= 5) : steps).map((step, index) => {
+               const stepsShown = isCompleteIntegration ? steps.filter((s) => s.id >= 3 && s.id <= 5) : steps;
+               const isClickable = isCompleteIntegration || step.id > 1;
+               const displayNumber = isCompleteIntegration ? index + 1 : step.id;
+               return (
                  <div
-                   className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                     currentStep >= step.id
-                       ? "bg-blue-600 text-white"
-                       : "bg-gray-200 text-gray-600"
-                   }`}
+                   key={step.id}
+                   className={`flex items-center ${isClickable ? "cursor-pointer" : ""}`}
+                   onClick={isClickable ? () => setCurrentStep(step.id) : undefined}
+                   onKeyDown={isClickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setCurrentStep(step.id); } } : undefined}
+                   role={isClickable ? "button" : undefined}
+                   tabIndex={isClickable ? 0 : undefined}
+                   aria-label={isClickable ? `Go to step ${displayNumber}: ${step.title}` : undefined}
                  >
-                   {currentStep > step.id ? <Check className="w-4 h-4" /> : step.id}
+                   <div
+                     className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                       currentStep >= step.id
+                         ? "bg-blue-600 text-white"
+                         : "bg-gray-200 text-gray-600"
+                     } ${isClickable ? "hover:ring-2 hover:ring-blue-400" : ""}`}
+                   >
+                     {currentStep > step.id ? <Check className="w-4 h-4" /> : displayNumber}
+                   </div>
+                   <div className="ml-3">
+                     <p className="text-sm font-medium text-gray-900">{step.title}</p>
+                   </div>
+                   {index < stepsShown.length - 1 && (
+                     <div className="flex-1 h-0.5 bg-gray-200 mx-4" />
+                   )}
                  </div>
-                 <div className="ml-3">
-                   <p className="text-sm font-medium text-gray-900">{step.title}</p>
-                 </div>
-                 {index < steps.length - 1 && (
-                   <div className="flex-1 h-0.5 bg-gray-200 mx-4" />
-                 )}
-               </div>
-             ))}
+               );
+             })}
            </div>
          </div>
 
         {/* Navigation Buttons - moved to top */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-          <div className="flex justify-between">
+          {submitRequestError && (
+            <div className="mb-4 px-4 py-3 bg-red-50 text-red-700 text-sm rounded-md">
+              {submitRequestError}
+            </div>
+          )}
+          <div className="flex justify-between items-center">
             <button
               onClick={handlePrevious}
-              disabled={currentStep === 1}
+              disabled={(!isCompleteIntegration && currentStep === 1) || submitRequestLoading}
               className={`flex items-center px-4 py-2 rounded-md text-sm font-medium ${
-                currentStep === 1
+                ((!isCompleteIntegration && currentStep === 1) || submitRequestLoading)
                   ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                   : "bg-gray-200 text-gray-700 hover:bg-gray-300"
               }`}
             >
               <ChevronLeft className="w-4 h-4 mr-2" />
-              Previous
+              {isCompleteIntegration && currentStep === 3 ? "Back to Inventory" : "Previous"}
             </button>
 
-            <div className="flex gap-3">
+            <div className="flex gap-3 ml-auto">
               {currentStep < 5 ? (
                 <button
                   onClick={handleNext}
-                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
+                  disabled={submitRequestLoading}
+                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Next
+                  {submitRequestLoading ? "Submitting…" : currentStep === 1 ? "Next" : "Save and Next"}
                   <ChevronRight className="w-4 h-4 ml-2" />
                 </button>
-              ) : (
+              ) : !isCompleteIntegration ? (
                 <button
                   onClick={handleSubmit}
                   className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium"
                 >
                   <Check className="w-4 h-4 mr-2" />
                   Submit Application
+                </button>
+              ) : null}
+              {isCompleteIntegration && currentStep === 5 && (
+                <button
+                  type="button"
+                  className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+                  disabled={onboardLoading || submitRequestLoading}
+                  onClick={async () => {
+                    if (onboardLoading || submitRequestLoading) return;
+                    setSubmitRequestError(null);
+                    setOnboardLoading(true);
+                    try {
+                      const ownerEmail = formData.step2.technicalOwnerEmail || formData.step2.businessOwnerEmail || "";
+                      const step3 = formData.step3 || {};
+                      const provisioningAttrMap: Record<string, { variable: string }> = {};
+                      attributeMappingData.forEach((mapping) => {
+                        if (mapping.target?.trim()) {
+                          provisioningAttrMap[mapping.target.trim()] = { variable: mapping.source?.trim() ?? "" };
+                        }
+                      });
+                      const userSearchBaseVal = String(step3.userSearchBase ?? step3.user_searchBase ?? "").trim();
+                      const groupSearchBaseVal = String(step3.groupSearchBase ?? step3.group_searchBase ?? "").trim();
+                      const { userSearchBase: _uo, groupSearchBase: _go, user_searchBase: _ubo, group_searchBase: _gbo, ...step3Rest } = step3 as Record<string, unknown>;
+                      const connectionDetails: Record<string, unknown> = {
+                        ...step3Rest,
+                        hostname: step3.hostname ?? "",
+                        port: step3.port ?? "",
+                        username: step3.username ?? "",
+                        password: step3.password ?? "",
+                        user_searchBase: userSearchBaseVal,
+                        group_searchBase: groupSearchBaseVal,
+                      };
+                      const applicationConfigurationDetails =
+                        (currentStep === 5 && advanceSettingRef.current?.getConfig?.()) ?? null;
+                      const onboardPayload = {
+                        tenantId: "ACMECOM",
+                        appid: appIdFromUrl || "",
+                        serviceURL: "",
+                        name: formData.step2.applicationName || "",
+                        description: formData.step2.description || "",
+                        category: formData.step1.type || "",
+                        owner: { type: "User", value: ownerEmail },
+                        status: "InProgress",
+                        connectionDetails,
+                        dicoveredOn: null,
+                        integratedOn: null,
+                        schemaMappingDetails: {
+                          provisioningAttrMap,
+                          reconcilliationAttrMap: {},
+                        },
+                        applicationConfigurationDetails,
+                        iga: false,
+                        lcm: false,
+                        sso: false,
+                        ...(appIdFromUrl && !Number.isNaN(Number(appIdFromUrl)) ? { key: Number(appIdFromUrl) } : {}),
+                      };
+                      await onboardApp(onboardPayload);
+                      router.push("/settings/app-inventory");
+                    } catch (err) {
+                      const message = err instanceof Error ? err.message : "Failed to onboard application";
+                      setSubmitRequestError(message);
+                    } finally {
+                      setOnboardLoading(false);
+                    }
+                  }}
+                >
+                  {onboardLoading ? "Onboarding…" : "OnBoard"}
                 </button>
               )}
             </div>

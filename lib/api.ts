@@ -172,6 +172,91 @@ export async function updateAction(
   });
 }
 
+export interface ModifyAccessRemoveItem {
+  parentLineItemId: string;
+  lineItemId: string;
+  name: string;
+  accountId: string;
+  applicationName: string;
+  justification: string;
+  /** Optional end date for conditional access (format MM-DD-YYYY) */
+  endDate?: string;
+}
+
+export interface ModifyAccessAddItem {
+  parentLineItemId: string;
+  name: string;
+  accountId: string;
+  applicationName: string;
+  justification: string;
+}
+
+export interface ModifyAccessPayload {
+  reviewerName: string;
+  reviewerId: string;
+  certificationId: string;
+  taskId: string;
+  removeAccess: ModifyAccessRemoveItem[];
+  addAccess: ModifyAccessAddItem[];
+}
+
+/** Uses same-origin proxy to avoid CORS when calling KeyForge certification API */
+function getCertificationProxyUrl(path: string): string {
+  if (typeof window !== "undefined") {
+    return `${window.location.origin}/api/certification/${path}`;
+  }
+  return `${BASE_URL}/${path}`;
+}
+
+export async function modifyAccess(
+  reviewerId: string,
+  certId: string,
+  taskId: string,
+  lineItemId: string,
+  payload: ModifyAccessPayload
+): Promise<void> {
+  const path = `modifyAccess/${reviewerId}/${certId}/${taskId}/${lineItemId}`;
+  const endpoint = getCertificationProxyUrl(path);
+  await apiRequestWithAuth<void>(endpoint, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export interface ImmediateRevokeRemoveEntitlement {
+  parentLineItemId: string;
+  lineItemId: string;
+  name: string;
+  accountId: string;
+  applicationName: string;
+  justification: string;
+}
+
+export interface ImmediateRevokePayload {
+  reviewerName: string;
+  reviewerId: string;
+  certificationId: string;
+  taskId: string;
+  revokeEntityType: "entitlement";
+  removeAccounts: unknown[];
+  removeEntitlements: ImmediateRevokeRemoveEntitlement[];
+}
+
+export async function immediateRevoke(
+  reviewerId: string,
+  certId: string,
+  taskId: string,
+  lineItemId: string,
+  payload: ImmediateRevokePayload
+): Promise<void> {
+  const path = `immediateRevoke/${reviewerId}/${certId}/${taskId}`;
+  const endpoint = getCertificationProxyUrl(path);
+  await apiRequestWithAuth<void>(endpoint, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function getAppOwnerDetails<T>(
   reviewerId: string,
   certId: string,
@@ -454,6 +539,248 @@ export async function getAllApplications(): Promise<any> {
   }
 }
 
+/** Submits an application request to the IT Asset API (Add Details step). */
+export async function submitItAssetRequest(payload: {
+  name: string;
+  description: string;
+  category: string;
+  iga?: boolean;
+  sso?: boolean;
+  lcm?: boolean;
+  owner?: { type: string; value: string };
+  connectionDetails?: Record<string, string>;
+}): Promise<any> {
+  const endpoint = "https://preview.keyforge.ai/itasset/ACMECOM/submitrequest";
+
+  const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
+  if (!accessToken) {
+    throw new Error("No access token available");
+  }
+
+  const headers = new Headers();
+  headers.set("Content-Type", "application/json");
+  headers.set("X-Requested-With", "XMLHttpRequest");
+  headers.set("Authorization", `Bearer ${accessToken}`);
+
+  const fetchFn = typeof window !== "undefined" ? getOriginalFetch() : fetch;
+  const response = await fetchFn(endpoint, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    try {
+      const errorData = JSON.parse(errorText);
+      if (await checkTokenExpiredError(errorData)) {
+        throw new Error("Token Expired");
+      }
+    } catch (e) {
+      if (e instanceof Error && e.message === "Token Expired") throw e;
+    }
+    throw new Error(`submitrequest failed: ${response.status} - ${errorText}`);
+  }
+
+  const data = await response.json();
+  if (await checkTokenExpiredError(data)) {
+    throw new Error("Token Expired");
+  }
+  return data;
+}
+
+/** Fetches applications that are In Progress from the IT Asset API. Returns null on failure so the main app list still loads. */
+export async function getInProgressApplications(loginremote_user: string = "ACMEADMIN"): Promise<any> {
+  const endpoint = "https://preview.keyforge.ai/itasset/ACMECOM/getallapp";
+
+  try {
+    const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
+    if (!accessToken) {
+      return null;
+    }
+
+    const headers = new Headers();
+    headers.set("Content-Type", "application/json");
+    headers.set("X-Requested-With", "XMLHttpRequest");
+    headers.set("Authorization", `Bearer ${accessToken}`);
+    headers.set("loginremote_user", loginremote_user);
+
+    const fetchFn = typeof window !== "undefined" ? getOriginalFetch() : fetch;
+    const response = await fetchFn(endpoint, {
+      method: "GET",
+      headers,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      try {
+        const errorData = JSON.parse(errorText);
+        if (await checkTokenExpiredError(errorData)) {
+          throw new Error("Token Expired");
+        }
+      } catch (e) {
+        if (e instanceof Error && e.message === "Token Expired") throw e;
+      }
+      // 500 / 4xx from itasset API: log warning and return null so app inventory still loads
+      console.warn("In-progress applications API unavailable:", response.status, errorText);
+      return null;
+    }
+
+    const data = await response.json();
+    if (await checkTokenExpiredError(data)) {
+      throw new Error("Token Expired");
+    }
+    return data;
+  } catch (error) {
+    if (error instanceof Error && error.message === "Token Expired") {
+      throw error;
+    }
+    console.warn("In-progress applications API failed:", error);
+    return null;
+  }
+}
+
+/** Fetches a single application by id/name from IT Asset getapp. Used in Edit mode to show application details. */
+export async function getItAssetApp(appIdOrName: string, loginremote_user: string = "ACMEADMIN"): Promise<any> {
+  const encoded = encodeURIComponent(appIdOrName);
+  const endpoint = `https://preview.keyforge.ai/itasset/ACMECOM/getapp/${encoded}`;
+
+  try {
+    const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
+    if (!accessToken) {
+      return null;
+    }
+
+    const headers = new Headers();
+    headers.set("Content-Type", "application/json");
+    headers.set("X-Requested-With", "XMLHttpRequest");
+    headers.set("Authorization", `Bearer ${accessToken}`);
+    headers.set("loginremote_user", loginremote_user);
+
+    const fetchFn = typeof window !== "undefined" ? getOriginalFetch() : fetch;
+    const response = await fetchFn(endpoint, { method: "GET", headers });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      try {
+        const errorData = JSON.parse(errorText);
+        if (await checkTokenExpiredError(errorData)) {
+          throw new Error("Token Expired");
+        }
+      } catch (e) {
+        if (e instanceof Error && e.message === "Token Expired") throw e;
+      }
+      console.warn("getapp API unavailable:", response.status, errorText);
+      return null;
+    }
+
+    const data = await response.json();
+    if (await checkTokenExpiredError(data)) {
+      throw new Error("Token Expired");
+    }
+    return data;
+  } catch (error) {
+    if (error instanceof Error && error.message === "Token Expired") {
+      throw error;
+    }
+    console.warn("getapp failed:", error);
+    return null;
+  }
+}
+
+/** Saves application details (edit mode) - IT Asset saveappdetails. */
+export async function saveAppDetails(payload: {
+  tenantId?: string;
+  appid?: string;
+  name: string;
+  description?: string;
+  category: string;
+  owner?: { type: string; value: string };
+  connectionDetails?: Record<string, unknown>;
+  [key: string]: unknown;
+}): Promise<any> {
+  const endpoint = "https://preview.keyforge.ai/itasset/ACMECOM/saveappdetails";
+
+  const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
+  if (!accessToken) {
+    throw new Error("No access token available");
+  }
+
+  const headers = new Headers();
+  headers.set("Content-Type", "application/json");
+  headers.set("X-Requested-With", "XMLHttpRequest");
+  headers.set("Authorization", `Bearer ${accessToken}`);
+  headers.set("loginremote_user", "ACMEADMIN");
+
+  const fetchFn = typeof window !== "undefined" ? getOriginalFetch() : fetch;
+  const response = await fetchFn(endpoint, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    try {
+      const errorData = JSON.parse(errorText);
+      if (await checkTokenExpiredError(errorData)) {
+        throw new Error("Token Expired");
+      }
+    } catch (e) {
+      if (e instanceof Error && e.message === "Token Expired") throw e;
+    }
+    throw new Error(`saveappdetails failed: ${response.status} - ${errorText}`);
+  }
+
+  const data = await response.json();
+  if (await checkTokenExpiredError(data)) {
+    throw new Error("Token Expired");
+  }
+  return data;
+}
+
+/** Onboards application (edit mode) - IT Asset onboardapp. */
+export async function onboardApp(payload: { tenantId?: string; appid?: string; [key: string]: unknown }): Promise<any> {
+  const endpoint = "https://preview.keyforge.ai/itasset/ACMECOM/onboardapp";
+
+  const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
+  if (!accessToken) {
+    throw new Error("No access token available");
+  }
+
+  const headers = new Headers();
+  headers.set("Content-Type", "application/json");
+  headers.set("X-Requested-With", "XMLHttpRequest");
+  headers.set("Authorization", `Bearer ${accessToken}`);
+  headers.set("loginremote_user", "ACMEADMIN");
+
+  const fetchFn = typeof window !== "undefined" ? getOriginalFetch() : fetch;
+  const response = await fetchFn(endpoint, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    try {
+      const errorData = JSON.parse(errorText);
+      if (await checkTokenExpiredError(errorData)) {
+        throw new Error("Token Expired");
+      }
+    } catch (e) {
+      if (e instanceof Error && e.message === "Token Expired") throw e;
+    }
+    throw new Error(`onboardapp failed: ${response.status} - ${errorText}`);
+  }
+
+  const data = await response.json();
+  if (await checkTokenExpiredError(data)) {
+    throw new Error("Token Expired");
+  }
+  return data;
+}
+
 export async function regenerateApiToken(oldApiToken: string, applicationId: string): Promise<any> {
   const endpoint = `https://preview.keyforge.ai/registerscimapp/registerfortenant/ACMECOM/regenerateToken/${applicationId}`;
 
@@ -494,7 +821,11 @@ export async function regenerateApiToken(oldApiToken: string, applicationId: str
   return data;
 }
 
-export async function getApplicationDetails(applicationId: string, apiToken: string): Promise<any> {
+export async function getApplicationDetails(
+  applicationId: string,
+  apiToken: string,
+  applicationName?: string
+): Promise<any> {
   const endpoint = `https://preview.keyforge.ai/registerscimapp/registerfortenant/ACMECOM/getApp/${applicationId}`;
 
   const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
@@ -507,11 +838,16 @@ export async function getApplicationDetails(applicationId: string, apiToken: str
   headers.set("X-Requested-With", "XMLHttpRequest");
   headers.set("Authorization", `Bearer ${accessToken}`);
 
+  const body: { APIToken: string; ApplicationName: string } = {
+    APIToken: apiToken || "",
+    ApplicationName: typeof applicationName === "string" ? applicationName : "",
+  };
+
   const fetchFn = typeof window !== "undefined" ? getOriginalFetch() : fetch;
   const response = await fetchFn(endpoint, {
     method: "POST",
     headers,
-    body: JSON.stringify({ APIToken: apiToken || "" }),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {
@@ -528,6 +864,56 @@ export async function getApplicationDetails(applicationId: string, apiToken: str
   }
 
   const data = await response.json();
+  if (await checkTokenExpiredError(data)) {
+    throw new Error("Token Expired");
+  }
+  return data;
+}
+
+/** PUT updateApp: update application config (hooks, threshold, etc.) for a tenant app */
+export async function updateAppConfig(
+  applicationId: string,
+  oldApiToken: string,
+  applicationConfig: Record<string, unknown>
+): Promise<any> {
+  const endpoint = `https://preview.keyforge.ai/registerscimapp/registerfortenant/ACMECOM/updateApp/${applicationId}`;
+
+  const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
+  if (!accessToken) {
+    throw new Error("No access token available");
+  }
+
+  const headers = new Headers();
+  headers.set("Content-Type", "application/json");
+  headers.set("X-Requested-With", "XMLHttpRequest");
+  headers.set("Authorization", `Bearer ${accessToken}`);
+
+  const body = JSON.stringify({
+    OldAPIToken: oldApiToken,
+    ApplicationConfig: applicationConfig,
+  });
+
+  const fetchFn = typeof window !== "undefined" ? getOriginalFetch() : fetch;
+  const response = await fetchFn(endpoint, {
+    method: "PUT",
+    headers,
+    body,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    try {
+      const errorData = JSON.parse(errorText);
+      if (await checkTokenExpiredError(errorData)) {
+        throw new Error("Token Expired");
+      }
+    } catch (e) {
+      // ignore parse errors
+    }
+    throw new Error(`Update app config failed: ${response.status} ${response.statusText} - ${errorText}`);
+  }
+
+  const data = await response.json().catch(() => ({}));
   if (await checkTokenExpiredError(data)) {
     throw new Error("Token Expired");
   }

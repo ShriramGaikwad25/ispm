@@ -5,11 +5,11 @@ import dynamic from "next/dynamic";
 const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
 import "@/lib/ag-grid-setup";
 import { ColDef } from "ag-grid-enterprise";
-import { Pencil, Upload, Download, Search, Plus, Sparkles, Eye, X, Copy, RefreshCw, Settings, Network } from "lucide-react";
+import { Upload, Download, Search, Plus, Sparkles, Eye, X, Copy, RefreshCw, Settings, Pencil } from "lucide-react";
 import Filters from "@/components/agTable/Filters";
 import CustomPagination from "@/components/agTable/CustomPagination";
 import { useRouter } from "next/navigation";
-import { getAllApplications, getAllAppsForUserWithAI, regenerateApiToken, getApplicationDetails, type Application } from "@/lib/api";
+import { getAllApplications, getInProgressApplications, getAllAppsForUserWithAI, regenerateApiToken, getApplicationDetails, type Application } from "@/lib/api";
 import { getCookie, COOKIE_NAMES, getCurrentUser } from "@/lib/auth";
 import HorizontalTabs from "@/components/HorizontalTabs";
 
@@ -22,6 +22,7 @@ interface AppInventoryItem {
   serviceUrl: string;
   apiToken?: string;
   createdOn: string;
+  status?: string; // Integrated | In Progress (for Filter by Status)
 }
 
 export default function AppInventoryPage() {
@@ -36,6 +37,7 @@ export default function AppInventoryPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [selectedRisk, setSelectedRisk] = useState<string>("");
+  const [selectedStatus, setSelectedStatus] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -61,6 +63,11 @@ export default function AppInventoryPage() {
     const scimUrl = app.SCIMURL || app.scimURL || app.scimUrl || app.url || app.Url || '';
     const apiToken = app.APIToken || app.apiToken || app.api_token || app.token || '';
     
+    const rawStatus = app.Status ?? app.status ?? app.integrationStatus ?? "";
+    const statusNormalized =
+      String(rawStatus) === "In Progress" || String(rawStatus).toLowerCase() === "in progress"
+        ? "In Progress"
+        : "Integrated";
     return {
       id: String(applicationId),
       name: String(applicationName),
@@ -70,58 +77,152 @@ export default function AppInventoryPage() {
       serviceUrl: String(scimUrl),
       apiToken: String(apiToken || ''),
       createdOn: new Date().toISOString().split('T')[0], // Current date as placeholder
+      status: statusNormalized,
     };
   };
 
   const [applicationsData, setApplicationsData] = useState<AppInventoryItem[]>([]);
   const [aiApplicationsData, setAiApplicationsData] = useState<AppInventoryItem[]>([]);
 
-  // Fetch applications from API
+  // Fetch applications from API (all apps + in-progress apps to set status)
   useEffect(() => {
     const fetchApplications = async () => {
       setIsLoading(true);
       setError(null);
       try {
-        // Use any type to avoid strict type checking issues
-        const response: any = await getAllApplications();
-        console.log('API Response received:', response);
-        console.log('Response type:', typeof response);
-        console.log('Response Applications:', response?.Applications);
-        console.log('Response status:', response?.status, typeof response?.status);
-        
-        // Handle different possible response formats - be very flexible
-        if (response && response.Applications) {
-          // Ensure Applications is an array
-          const applications = Array.isArray(response.Applications) 
-            ? response.Applications 
-            : [];
-          
-          if (applications.length === 0) {
-            console.warn('Applications array is empty');
-          }
-          
-          // Check status only if it exists and indicates an error
-          const status = response.status;
-          if (status !== undefined && status !== null) {
-            const statusStr = String(status).toLowerCase();
-            if (statusStr === 'error' || statusStr === 'failed') {
-              const message = response.message || 'Failed to fetch applications';
-              throw new Error(message);
+        const [response, inProgressResponse]: [any, any] = await Promise.all([
+          getAllApplications(),
+          getInProgressApplications(),
+        ]);
+
+        // Parse in-progress apps from itasset/ACMECOM/getallapp (flexible response shape)
+        const idKeys = [
+          "ApplicationID", "applicationID", "ApplicationId", "applicationId",
+          "id", "Id", "appId", "AppId", "appid", "application_id",
+        ];
+        const getIdsFromItem = (item: any): string[] => {
+          if (!item || typeof item !== "object") return [];
+          const ids: string[] = [];
+          for (const key of idKeys) {
+            const val = item[key];
+            if (val != null && val !== "") {
+              const s = String(val).trim();
+              if (s && !ids.includes(s)) ids.push(s);
             }
           }
-          
-          const convertedData = applications.map(convertApplicationToItem);
-          setApplicationsData(convertedData);
+          return ids;
+        };
+
+        const hasIdLikeKey = (obj: any): boolean => {
+          if (!obj || typeof obj !== "object") return false;
+          return idKeys.some((k) => obj[k] != null && obj[k] !== "");
+        };
+
+        const extractInProgressList = (res: any): any[] => {
+          if (Array.isArray(res)) return res.filter((x) => hasIdLikeKey(x) || (x && typeof x === "object"));
+          if (!res || typeof res !== "object") return [];
+          const direct = res.applications ?? res.Applications ?? res.apps ?? res.data ?? res.result ?? res.list ?? res.content ?? res.items ?? res.value ?? res.body ?? res.getallapp ?? res.appList;
+          if (Array.isArray(direct)) return direct;
+          if (direct && typeof direct === "object" && Array.isArray(direct.items)) return direct.items;
+          if (direct && typeof direct === "object" && Array.isArray(direct.data)) return direct.data;
+          const values = Object.values(res);
+          for (const v of values) {
+            if (Array.isArray(v) && v.length > 0 && (hasIdLikeKey(v[0]) || (v[0] && typeof v[0] === "object"))) return v;
+          }
+          return [];
+        };
+
+        const rawInProgressList = extractInProgressList(inProgressResponse);
+        // Only use getallapp items that have status = In Progress (or InProgress)
+        const statusKeys = ["Status", "status", "integrationStatus", "IntegrationStatus"];
+        const isInProgressStatus = (item: any): boolean => {
+          if (!item || typeof item !== "object") return false;
+          for (const key of statusKeys) {
+            const val = item[key];
+            if (val == null) continue;
+            const s = String(val).trim();
+            if (s === "In Progress" || s.toLowerCase() === "in progress" || s === "InProgress" || s.toLowerCase() === "inprogress") return true;
+          }
+          return false;
+        };
+        const inProgressList = rawInProgressList.filter((item: any) => isInProgressStatus(item));
+
+        const inProgressIds = new Set<string>();
+        for (const item of inProgressList) {
+          for (const id of getIdsFromItem(item)) inProgressIds.add(id);
+        }
+
+        // Convert getallapp item to AppInventoryItem (for apps not in main list)
+        const inProgressItemToRow = (app: any, index: number): AppInventoryItem => {
+          const applicationId =
+            app.ApplicationID ?? app.applicationID ?? app.id ?? app.Id ?? app.appId ?? app.appid ?? app.application_id ?? "";
+          const applicationName =
+            app.ApplicationName ?? app.applicationName ?? app.name ?? app.Name ?? app.appName ?? app.application_name ?? app.title ?? "";
+          const applicationType =
+            app.ApplicationType ?? app.applicationType ?? app.type ?? app.Type ?? app.category ?? app.applicationType ?? "";
+          const scimUrl = app.SCIMURL ?? app.scimUrl ?? app.serviceURL ?? app.serviceUrl ?? app.url ?? app.Url ?? app.connectionURL ?? "";
+          const apiToken = app.APIToken ?? app.apiToken ?? app.api_token ?? app.token ?? "";
+          const id = String(applicationId || applicationName || `inprogress-${index}`);
+          return {
+            id,
+            name: String(applicationName || "In Progress Application"),
+            description: String(applicationType ? `${applicationType} application` : "In progress application"),
+            category: String(applicationType || "Unknown"),
+            riskLevel: "Medium",
+            serviceUrl: String(scimUrl || ""),
+            apiToken: String(apiToken || ""),
+            createdOn: (app.createdOn ?? app.created_on ?? app.createdAt ?? new Date().toISOString().split("T")[0]) || new Date().toISOString().split("T")[0],
+            status: "In Progress",
+          };
+        };
+
+        if (response && response.Applications) {
+          const applications = Array.isArray(response.Applications)
+            ? response.Applications
+            : [];
+
+          const statusNormalized = (app: any) => {
+            const appId = app?.ApplicationID ?? app?.applicationID ?? app?.id ?? app?.Id ?? app?.appid ?? "";
+            return inProgressIds.has(String(appId)) ? "In Progress" : "Integrated";
+          };
+
+          const convertedFromMain = applications.map((app) => {
+            const item = convertApplicationToItem(app);
+            item.status = statusNormalized(app);
+            return item;
+          });
+
+          // Deduplicate main list by id (in case API returns duplicates)
+          const seenIds = new Set<string>();
+          const dedupedMain = convertedFromMain.filter((r) => {
+            const id = String(r.id).trim();
+            if (seenIds.has(id)) return false;
+            seenIds.add(id);
+            return true;
+          });
+
+          const mainIds = new Set(dedupedMain.map((r) => String(r.id).trim()));
+          const inProgressOnlyRows = inProgressList
+            .map((app: any, index: number) => inProgressItemToRow(app, index))
+            .filter((row: AppInventoryItem) => row.id && !mainIds.has(String(row.id).trim()));
+
+          // Deduplicate in-progress-only list by id
+          const fromInProgressOnly: AppInventoryItem[] = [];
+          for (const row of inProgressOnlyRows) {
+            const id = String(row.id).trim();
+            if (seenIds.has(id)) continue;
+            seenIds.add(id);
+            fromInProgressOnly.push(row);
+          }
+
+          const merged = [...dedupedMain, ...fromInProgressOnly];
+          setApplicationsData(merged);
         } else {
-          throw new Error(response?.message || 'Invalid response format: Applications array not found');
+          throw new Error(response?.message || "Invalid response format: Applications array not found");
         }
       } catch (err) {
-        console.error('Error fetching applications:', err);
-        console.error('Error details:', {
-          message: err instanceof Error ? err.message : String(err),
-          stack: err instanceof Error ? err.stack : undefined
-        });
-        setError(err instanceof Error ? err.message : 'Failed to fetch applications');
+        console.error("Error fetching applications:", err);
+        setError(err instanceof Error ? err.message : "Failed to fetch applications");
       } finally {
         setIsLoading(false);
       }
@@ -176,6 +277,7 @@ export default function AppInventoryPage() {
             serviceUrl: String(scimOrConnUrl),
             apiToken: String(apiToken || ''),
             createdOn: new Date().toISOString().split('T')[0],
+            status: 'Integrated',
           } as AppInventoryItem;
         });
         setAiApplicationsData(converted);
@@ -199,7 +301,8 @@ export default function AppInventoryPage() {
       riskLevel: "Low",
       serviceUrl: "https://intranet.example.com/ad",
       apiToken: "",
-      createdOn: "2023-08-05"
+      createdOn: "2023-08-05",
+      status: "Integrated"
     },
     {
       id: "2",
@@ -209,7 +312,8 @@ export default function AppInventoryPage() {
       riskLevel: "Medium",
       serviceUrl: "https://sap.example.com",
       apiToken: "",
-      createdOn: "2022-11-20"
+      createdOn: "2022-11-20",
+      status: "In Progress"
     },
     {
       id: "3",
@@ -219,7 +323,8 @@ export default function AppInventoryPage() {
       riskLevel: "Low",
       serviceUrl: "https://workday.example.com",
       apiToken: "",
-      createdOn: "2023-02-14"
+      createdOn: "2023-02-14",
+      status: "Integrated"
     },
     {
       id: "4",
@@ -229,7 +334,8 @@ export default function AppInventoryPage() {
       riskLevel: "High",
       serviceUrl: "https://db-admin.example.com/oracle",
       apiToken: "",
-      createdOn: "2021-06-30"
+      createdOn: "2021-06-30",
+      status: "In Progress"
     },
     {
       id: "5",
@@ -239,7 +345,8 @@ export default function AppInventoryPage() {
       riskLevel: "Medium",
       serviceUrl: "https://acme.my.salesforce.com",
       apiToken: "",
-      createdOn: "2023-09-10"
+      createdOn: "2023-09-10",
+      status: "Integrated"
     },
     {
       id: "6",
@@ -249,7 +356,8 @@ export default function AppInventoryPage() {
       riskLevel: "Low",
       serviceUrl: "https://portal.office.com",
       apiToken: "",
-      createdOn: "2020-12-01"
+      createdOn: "2020-12-01",
+      status: "Integrated"
     },
     {
       id: "7",
@@ -259,7 +367,8 @@ export default function AppInventoryPage() {
       riskLevel: "Medium",
       serviceUrl: "https://servicenow.example.com",
       apiToken: "",
-      createdOn: "2022-05-18"
+      createdOn: "2022-05-18",
+      status: "In Progress"
     },
     {
       id: "8",
@@ -269,7 +378,8 @@ export default function AppInventoryPage() {
       riskLevel: "Low",
       serviceUrl: "https://confluence.example.com",
       apiToken: "",
-      createdOn: "2021-03-22"
+      createdOn: "2021-03-22",
+      status: "Integrated"
     }
   ];
 
@@ -303,9 +413,10 @@ const filteredData = useMemo(() => {
       (item.apiToken ?? "").toLowerCase().includes(q);
     const matchesCategory = !selectedCategory || item.category === selectedCategory;
     const matchesRisk = !selectedRisk || item.riskLevel === selectedRisk;
-    return matchesQuery && matchesCategory && matchesRisk;
+    const matchesStatus = !selectedStatus || item.status === selectedStatus;
+    return matchesQuery && matchesCategory && matchesRisk && matchesStatus;
   });
-}, [searchQuery, selectedCategory, selectedRisk, applicationsData, aiApplicationsData, activeTabIndex]);
+}, [searchQuery, selectedCategory, selectedRisk, selectedStatus, applicationsData, aiApplicationsData, activeTabIndex]);
 
 // Interleave each item with a full-width description row
 const rowsWithDesc = useMemo(() => {
@@ -332,7 +443,7 @@ useEffect(() => {
 
 useEffect(() => {
   setCurrentPage(1);
-}, [searchQuery, selectedCategory, selectedRisk]);
+}, [searchQuery, selectedCategory, selectedRisk, selectedStatus]);
 
   const columnDefs = useMemo<ColDef[]>(
     () => [
@@ -396,6 +507,29 @@ useEffect(() => {
         cellRenderer: (params: any) => {
           if (params.data?.__isDescRow) return null;
           return <span className="text-sm text-gray-700">{params.value}</span>;
+        },
+      },
+      {
+        headerName: "Status",
+        field: "status",
+        flex: 0.8,
+        minWidth: 100,
+        cellRenderer: (params: any) => {
+          if (params.data?.__isDescRow) return null;
+          const status = params.value ?? params.data?.status ?? "";
+          if (!status) return <span className="text-sm text-gray-400">—</span>;
+          const isInProgress = status === "In Progress";
+          const isIntegrated = status === "Integrated";
+          const pillClass = isInProgress
+            ? "bg-amber-100 text-amber-800"
+            : isIntegrated
+            ? "bg-emerald-100 text-emerald-800"
+            : "bg-gray-100 text-gray-800";
+          return (
+            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${pillClass}`}>
+              {status}
+            </span>
+          );
         },
       },
       {
@@ -470,50 +604,42 @@ useEffect(() => {
         headerName: "Actions",
         field: "actions",
         flex: 0.6,
-        minWidth: 140,
+        minWidth: 100,
         sortable: false,
         filter: false,
         suppressMenu: true,
         cellRenderer: (params: any) => {
           if (params.data?.__isDescRow) return null;
+          const isInProgress = params.data?.status === "In Progress";
           return (
             <div className="flex items-center justify-center gap-2 w-full h-full min-h-[42px]">
-              <button
-                type="button"
-                className="rounded-full p-1.5 bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors"
-                onClick={(e: React.MouseEvent) => {
-                  e.stopPropagation();
-                  handleEdit(params.data);
-                }}
-                aria-label="Edit"
-                title="Edit"
-              >
-                <Pencil className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                className="rounded-full p-1.5 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors"
-                onClick={(e: React.MouseEvent) => {
-                  e.stopPropagation();
-                  handleSchemaMapping(params.data);
-                }}
-                aria-label="Schema Mapping"
-                title="Schema Mapping"
-              >
-                <Network className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                className="rounded-full p-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
-                onClick={(e: React.MouseEvent) => {
-                  e.stopPropagation();
-                  handleSettings(params.data);
-                }}
-                aria-label="Settings"
-                title="Settings"
-              >
-                <Settings className="w-4 h-4" />
-              </button>
+              {isInProgress ? (
+                <button
+                  type="button"
+                  className="rounded-full p-1.5 bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+                  onClick={(e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    handleSettings(params.data);
+                  }}
+                  aria-label="Edit"
+                  title="Edit"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="rounded-full p-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
+                  onClick={(e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    handleSettings(params.data);
+                  }}
+                  aria-label="Settings"
+                  title="Settings"
+                >
+                  <Settings className="w-4 h-4" />
+                </button>
+              )}
             </div>
           );
         },
@@ -558,24 +684,24 @@ useEffect(() => {
     ];
   }, [rowData, columnDefs, getRowHeight]);
 
-  const handleEdit = (item: AppInventoryItem) => {
+  const handleSettings = (item: AppInventoryItem) => {
     const appId = item?.id ?? "";
     if (!appId) return;
     const apiToken = item?.apiToken ?? "";
     if (typeof window !== "undefined") {
       sessionStorage.setItem(`app-inventory-token-${appId}`, apiToken);
     }
-    router.push(`/settings/app-inventory/${appId}?edit=true`);
-  };
-
-  const handleSchemaMapping = (item: AppInventoryItem) => {
-    // Navigate to schema mapping page for this application
-    router.push(`/settings/app-inventory/${item.id}/schema-mapping`);
-  };
-
-  const handleSettings = (item: AppInventoryItem) => {
-    // Navigate to settings page for this application
-    router.push(`/settings/app-inventory/${item.id}/settings`);
+    const isIntegrated = item?.status === "Integrated";
+    if (!isIntegrated) {
+      const appName = item?.name ?? "";
+      const appType = item?.category ?? "";
+      const params = new URLSearchParams({ completeIntegration: "1", appId });
+      if (appName) params.set("appName", appName);
+      if (appType) params.set("appType", appType);
+      router.push(`/settings/app-inventory/add-application?${params.toString()}`);
+      return;
+    }
+    router.push(`/settings/app-inventory/${appId}/settings`);
   };
 
   const handleAddApplication = () => {
@@ -679,20 +805,19 @@ useEffect(() => {
               />
             </div>
 
-            {/* Filters (TreeClient-style) */}
+            {/* Filter by Status: All, Integrated, In Progress */}
             <Filters
+              value={selectedStatus}
               appliedFilter={(filters) => {
                 const f = (filters && filters[0]) || "";
-                if (f === "High" || f === "Medium" || f === "Low") {
-                  setSelectedRisk(f);
-                } else if (!f) {
-                  setSelectedRisk("");
+                if (f === "Integrated" || f === "In Progress") {
+                  setSelectedStatus(f);
+                } else {
+                  setSelectedStatus("");
                 }
               }}
-              onFilterChange={(filter) => {
-                if (!filter) return;
-              }}
-              context="status"
+              onFilterChange={() => {}}
+              context="app-inventory-status"
               initialSelected=""
             />
 

@@ -28,6 +28,8 @@ import {
   AlertTriangle,
   CheckCircle,
   CheckCircleIcon,
+  ChevronDown,
+  ChevronRight,
   MailIcon,
 } from "lucide-react";
 import RightSidebar from "@/components/RightSideBar";
@@ -123,6 +125,39 @@ const DetailCellRenderer = (props: IDetailCellRendererParams) => {
         <span className="text-gray-800">{data.entitlementDescription}</span>
       </div>
     </div>
+  );
+};
+
+// Checkbox for entitlement (group) row only; syncs indeterminate state
+const EntitlementGroupCheckbox = ({
+  checked,
+  indeterminate,
+  onChange,
+  onClick,
+  ariaLabel,
+}: {
+  checked: boolean;
+  indeterminate: boolean;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onClick: (e: React.MouseEvent<HTMLInputElement>) => void;
+  ariaLabel: string;
+}) => {
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  React.useEffect(() => {
+    if (inputRef.current) {
+      (inputRef.current as HTMLInputElement & { indeterminate: boolean }).indeterminate = indeterminate;
+    }
+  }, [indeterminate]);
+  return (
+    <input
+      ref={inputRef}
+      type="checkbox"
+      checked={checked}
+      onChange={onChange}
+      onClick={onClick}
+      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer shrink-0"
+      aria-label={ariaLabel}
+    />
   );
 };
 
@@ -324,7 +359,8 @@ function AppOwnerContent() {
   const rowDataRef = useRef<RowData[]>([]);
   // Ref to store entitlement description map for fast lookup
   const entitlementDescriptionMapRef = useRef<Map<string, string>>(new Map());
-
+  // Track which entitlement groups were selected in the previous tick so we can detect groups just unchecked
+  const previousSelectedGroupKeysRef = useRef<Set<string>>(new Set());
   // State for header info and user progress
   const [headerInfo, setHeaderInfo] = useState({
     campaignName: "",
@@ -1005,8 +1041,53 @@ function AppOwnerContent() {
 
   const columnDefs = useMemo<ColDef[]>(() => {
     const isGrouped = isGroupedByEntitlementCheckbox || groupByOption === "Entitlements";
+
+    // When grouped: first column is checkbox-only so all checkboxes align in one vertical line
+    const checkboxCol: ColDef | null = isGrouped
+      ? {
+          colId: "entitlementSelect",
+          headerName: "",
+          width: 40,
+          minWidth: 40,
+          maxWidth: 40,
+          resizable: false,
+          suppressMenu: true,
+          cellClass: "ag-checkbox-align-cell ",
+          cellRenderer: (params: ICellRendererParams) => {
+            if (!params.node?.group) return null;
+            const node: any = params.node;
+            const leafChildren = (node?.allLeafChildren || []).filter((c: any) => c && !c.group);
+            const leafCount = leafChildren.length;
+            const selectedCount = leafCount > 0 ? leafChildren.filter((c: any) => c.isSelected()).length : 0;
+            const allSelected = leafCount > 0 && selectedCount === leafCount;
+            const someSelected = selectedCount > 0 && selectedCount < leafCount;
+            const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+              const checked = e.target.checked;
+              node.setSelected(checked);
+              leafChildren.forEach((child: any) => child.setSelected(checked));
+              if (params.api) {
+                const groupNodes: any[] = [];
+                params.api.forEachNode((n: any) => { if (n.group) groupNodes.push(n); });
+                if (groupNodes.length > 0) params.api.refreshCells({ rowNodes: groupNodes, force: true });
+              }
+            };
+            return (
+              <div className="flex items-center entitlement-checkbox-cell" style={{ marginLeft: 16 }}>
+                <EntitlementGroupCheckbox
+                  checked={allSelected}
+                  indeterminate={someSelected}
+                  onChange={handleChange}
+                  onClick={(e) => e.stopPropagation()}
+                  ariaLabel="Select all accounts in this entitlement"
+                />
+              </div>
+            );
+          },
+        }
+      : null;
     
     return [
+      ...(checkboxCol ? [checkboxCol] : []),
       {
         field: "status",
         headerName: "Status",
@@ -1541,19 +1622,30 @@ function AppOwnerContent() {
       return <span className="ag-group-value">{props.value}</span>;
     }
 
-    // Always show description if available
+    // Checkbox is in dedicated column; here only expand arrow then name/description (arrow to the left)
+    const expanded = node.expanded === true;
+    const toggleExpand = () => node.setExpanded(!expanded);
     const shouldShowDescription = description && description.trim().length > 0;
     
     return (
       <div 
         className="flex flex-col gap-1 py-2 w-full" 
-        style={{ 
-          minHeight: 'auto', 
-          width: '100%',
-        }}
+        style={{ minHeight: 'auto', width: '100%' }}
       >
-        <div className="flex items-center gap-2">
-          <span className="ag-group-value font-semibold text-base" style={{ fontWeight: 600 }}>{groupKey}</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); toggleExpand(); }}
+            className="p-0.5 rounded hover:bg-gray-200 flex items-center justify-center shrink-0"
+            aria-label={expanded ? "Collapse" : "Expand"}
+          >
+            {expanded ? (
+              <ChevronDown className="w-5 h-5 text-gray-600" />
+            ) : (
+              <ChevronRight className="w-5 h-5 text-gray-600" />
+            )}
+          </button>
+          <span className="ag-group-value font-semibold text-base entitlement-name-spacer" style={{ fontWeight: 600 }}>{groupKey}</span>
         </div>
         {shouldShowDescription ? (
           <div 
@@ -1597,8 +1689,10 @@ function AppOwnerContent() {
         flex: isGroupedByEntitlementCheckbox || groupByOption === "Entitlements" ? 2 : 1,
         autoHeight: true, // Allow row to expand to show description
         wrapText: true,
+        // No grid checkbox: we render [checkbox][arrow][name] in GroupCellRenderer for alignment; no checkbox for account rows
+        checkboxSelection: () => false,
         cellRendererParams: {
-          suppressExpand: true,
+          suppressExpand: true, // we render our own expand icon after the checkbox
         },
         cellRenderer: GroupCellRenderer,
         cellStyle: {
@@ -2002,6 +2096,8 @@ function AppOwnerContent() {
                 rowSelection={{
                   mode: "multiRow",
                   masterSelects: "detail",
+                  // Render checkboxes only in auto group column; autoGroupColumnDef.checkboxSelection restricts to group rows only
+                  checkboxLocation: "autoGroupColumn",
                 }}
                 masterDetail={groupByOption !== "Entitlements" && !isGroupedByEntitlementCheckbox}
                 detailCellRenderer={detailCellRenderer}
@@ -2064,6 +2160,17 @@ function AppOwnerContent() {
                   
                   console.log('[getGroupRowAgg] Returning:', description ? description.substring(0, 50) : 'EMPTY');
                   return { entitlementDescription: description };
+                }}
+                onRowClicked={(params: any) => {
+                  // When grouped by entitlement: clicking a leaf row (account row) toggles single-row selection
+                  if ((groupByOption === "Entitlements" || isGroupedByEntitlementCheckbox) && params.node && !params.node.group) {
+                    params.node.setSelected(!params.node.isSelected());
+                    if (gridApiRef.current) {
+                      const groupNodes: any[] = [];
+                      gridApiRef.current.forEachNode((n: any) => { if (n.group) groupNodes.push(n); });
+                      if (groupNodes.length > 0) gridApiRef.current.refreshCells({ rowNodes: groupNodes, force: true });
+                    }
+                  }
                 }}
                 onGridReady={(params: any) => {
                   console.log(
@@ -2140,39 +2247,107 @@ function AppOwnerContent() {
                   }
                 }}
                 onSelectionChanged={() => {
-                  if (gridApiRef.current) {
-                    const rows =
-                      gridApiRef.current.getSelectedRows() as RowData[];
-                    setSelectedRows(rows || []);
-                    
-                    // Check if all visible rows are selected
-                    let totalVisible = 0;
-                    let totalSelected = 0;
-                    gridApiRef.current.forEachNodeAfterFilter((node) => {
-                      // Only count non-group rows
+                  if (!gridApiRef.current) return;
+                  const api = gridApiRef.current;
+
+                  const isGroupedMode =
+                    groupByOption === "Entitlements" || isGroupedByEntitlementCheckbox;
+
+                  let rows: RowData[] = [];
+                  let totalVisible = 0;
+                  let totalSelected = 0;
+
+                  if (isGroupedMode) {
+                    // GROUPED BY ENTITLEMENT: keep existing behavior (work across all pages)
+                    const allSelectedNodes = api.getSelectedNodes() || [];
+                    const groupNodesSelected = allSelectedNodes.filter((n: any) => n && n.group);
+
+                    // When user checks an entitlement row: select all account (leaf) rows
+                    groupNodesSelected.forEach((node: any) => {
+                      const leaves = (node.allLeafChildren || []).filter(
+                        (c: any) => c && !c.group
+                      );
+                      leaves.forEach((c: any) => c.setSelected(true));
+                    });
+
+                    // Determine which groups were just unchecked (selected before, not selected now)
+                    const currentSelectedGroupKeys = new Set<string>();
+                    groupNodesSelected.forEach((node: any) => {
+                      const key = String(node.key);
+                      currentSelectedGroupKeys.add(key);
+                    });
+
+                    const prevGroupKeys = previousSelectedGroupKeysRef.current;
+                    const groupsJustUnselected = new Set<string>(
+                      Array.from(prevGroupKeys).filter(
+                        (key) => !currentSelectedGroupKeys.has(key)
+                      )
+                    );
+
+                    // For groups just unchecked, deselect all their leaf rows
+                    if (groupsJustUnselected.size > 0) {
+                      api.forEachNode((node: any) => {
+                        if (node.group && groupsJustUnselected.has(String(node.key))) {
+                          const leaves = (node.allLeafChildren || []).filter(
+                            (c: any) => c && !c.group
+                          );
+                          leaves.forEach((c: any) => c.setSelected(false));
+                        }
+                      });
+                    }
+
+                    // Update previous group selection snapshot
+                    previousSelectedGroupKeysRef.current = currentSelectedGroupKeys;
+
+                    // Build rows from all selected leaf nodes (can span multiple pages)
+                    const allSelectedLeafNodes = allSelectedNodes.filter(
+                      (n: any) => n && !n.group
+                    );
+                    rows = allSelectedLeafNodes
+                      .map((n: any) => n.data)
+                      .filter(Boolean) as RowData[];
+
+                    // For grouped mode, "all selected" check is across all visible rows
+                    api.forEachNodeAfterFilter((node) => {
                       if (!node.group) {
+                        totalVisible++;
+                        if (node.isSelected()) totalSelected++;
+                      }
+                    });
+                  } else {
+                    // NORMAL (UNGROUPED) MODE:
+                    // Count and queue actions ONLY for rows on the CURRENT PAGE.
+                    const currentPage = api.paginationGetCurrentPage?.() ?? 0;
+                    const pageSize = api.paginationGetPageSize?.() ?? pageSizeSelector[0];
+
+                    api.forEachNodeAfterFilterAndSort((node: any) => {
+                      if (node.group) return;
+                      const rowIndex = node.rowIndex ?? 0;
+                      const pageIndex = Math.floor(rowIndex / pageSize);
+
+                      if (pageIndex === currentPage) {
                         totalVisible++;
                         if (node.isSelected()) {
                           totalSelected++;
+                          if (node.data) {
+                            rows.push(node.data as RowData);
+                          }
                         }
                       }
                     });
-                    
-                    setIsAllSelected(totalSelected === totalVisible && totalVisible > 0);
-                    
-                    // Recalculate action count based on selected rows
-                    // When rows are selected/unselected, update the action count to reflect only selected rows
-                    const selectedItemIds = new Set<string>();
-                    rows.forEach((row: any) => {
-                      const lineItemId = row.lineItemId || row.id;
-                      if (lineItemId) {
-                        selectedItemIds.add(`entitlement-${lineItemId}`);
-                      }
-                    });
-                    // Recalculate count - if rows are selected, only count actions for selected rows
-                    // If no rows selected, show count 0 (all actions removed from queue)
-                    recalculateCount(selectedItemIds);
                   }
+
+                  // Update selection state used by floating ActionButtons
+                  setSelectedRows(rows);
+                  setIsAllSelected(totalSelected === totalVisible && totalVisible > 0);
+
+                  // Recalculate global pending-action count based on the selected rows
+                  const selectedItemIds = new Set<string>();
+                  rows.forEach((row: any) => {
+                    const lineItemId = row.lineItemId || row.id;
+                    if (lineItemId) selectedItemIds.add(`entitlement-${lineItemId}`);
+                  });
+                  recalculateCount(selectedItemIds);
                 }}
                 pagination={true}
                 paginationPageSize={quickFilterText.trim() ? 100000 : pageSize}
