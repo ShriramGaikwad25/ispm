@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { ChevronLeft, ChevronRight, Check, ChevronDown, Edit, Trash2, Info } from "lucide-react";
+import { ChevronLeft, ChevronRight, Check, ChevronDown, Edit, Trash2, Info, X, GripVertical } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getAllSupportedApplicationTypesViaProxy, executeQuery, submitItAssetRequest, getInProgressApplications, getItAssetApp, saveAppDetails, onboardApp, updateAppConfig } from "@/lib/api";
+import { getAllSupportedApplicationTypesViaProxy, executeQuery, submitItAssetRequest, getInProgressApplications, getItAssetApp, getFlatfileAppMetadataUsers, saveAppDetails, onboardApp, updateAppConfig } from "@/lib/api";
 import AdvanceSettingTab, { type AdvanceSettingTabRef } from "../[id]/components/AdvanceSettingTab";
 
 interface FormData {
@@ -66,6 +66,17 @@ export default function AddApplicationPage() {
 
   // Ref to step 5 AdvanceSettingTab so we can read hooks + threshold config on submit / OnBoard
   const advanceSettingRef = useRef<AdvanceSettingTabRef | null>(null);
+  // Flatfile step 3: file input element and selected file
+  const flatfileFileInputRef = useRef<HTMLInputElement>(null);
+  const flatfileFileRef = useRef<File | null>(null);
+  const flatfilePerFieldFileInputRef = useRef<HTMLInputElement>(null);
+  const flatfileUploadForFieldRef = useRef<string | null>(null);
+  const [flatfileMetadataUsers, setFlatfileMetadataUsers] = useState<any>(null);
+  const [flatfilePreviewPage, setFlatfilePreviewPage] = useState(1);
+  const [flatfilePreviewCollapsed, setFlatfilePreviewCollapsed] = useState(false);
+  const [flatfilePerFieldPreviewCollapsed, setFlatfilePerFieldPreviewCollapsed] = useState<Record<string, boolean>>({});
+  const [flatfilePerFieldExpanded, setFlatfilePerFieldExpanded] = useState<Record<string, boolean>>({});
+  const FLATFILE_PREVIEW_PAGE_SIZE = 10;
 
   // Edit mode: application details from IT Asset getapp (shown in card at top)
   const [appDetails, setAppDetails] = useState<Record<string, unknown> | null>(null);
@@ -299,6 +310,16 @@ export default function AddApplicationPage() {
       goLiveDate: ""
     }
   });
+
+  // When we land on step 3 with Flatfile type, call getappmetadata/ACME_FlatfileLoad/users
+  useEffect(() => {
+    if (currentStep !== 3 || formData.step1.type !== "Flatfile" || typeof window === "undefined") return;
+    setFlatfileMetadataUsers(null);
+    setFlatfilePreviewPage(1);
+    getFlatfileAppMetadataUsers()
+      .then((data) => setFlatfileMetadataUsers(data))
+      .catch(() => setFlatfileMetadataUsers(null));
+  }, [currentStep, formData.step1.type]);
 
   const handleInputChange = (step: keyof FormData, field: string, value: any) => {
     setFormData(prev => {
@@ -1020,6 +1041,461 @@ export default function AddApplicationPage() {
         const selectedAppType = formData.step1.type;
         
         const renderIntegrationFields = () => {
+          // Flatfile: step 3 is File Upload (upload button, file name, field/multivalue delimiters + Uid/Status/DateFormat/Multivalued + drag-drop fields)
+          if (selectedAppType === "Flatfile") {
+            const flatfileFieldsFromApi = (() => {
+              const data = flatfileMetadataUsers as any;
+              if (!data) return [];
+              const fromParent = data?.parentFieldDefinition?.fields;
+              if (Array.isArray(fromParent) && fromParent.length > 0) return fromParent;
+              const preview = data?.preview;
+              if (Array.isArray(preview) && preview[0] && typeof preview[0] === "object") return Object.keys(preview[0]);
+              if (Array.isArray(data) && data[0] && typeof data[0] === "object") return Object.keys(data[0]);
+              return [];
+            })();
+            const flatfileAttrOptions = flatfileFieldsFromApi.length > 0
+              ? flatfileFieldsFromApi
+              : ["UserID", "Username", "Email", "Status", "RoleName", "LastLogin", "DateFormat"];
+            const fieldOrder: string[] = Array.isArray(formData.step3.fieldOrder) && formData.step3.fieldOrder.length > 0
+              ? formData.step3.fieldOrder
+              : flatfileFieldsFromApi.length > 0 ? flatfileFieldsFromApi : [];
+            const multivaluedFieldList: string[] = Array.isArray(formData.step3.multivaluedField) ? formData.step3.multivaluedField : (formData.step3.multivaluedField ? [String(formData.step3.multivaluedField)] : []);
+
+            const FIELD_DRAG_TYPE = "application/x-flatfile-field-index";
+            const handleFieldDragStart = (e: React.DragEvent, index: number) => {
+              e.dataTransfer.effectAllowed = "all";
+              const fieldName = fieldOrder[index] ?? "";
+              e.dataTransfer.setData("text/plain", fieldName);
+              e.dataTransfer.setData(FIELD_DRAG_TYPE, String(index));
+              e.dataTransfer.setData("text", fieldName);
+            };
+            const handleFieldDragOver = (e: React.DragEvent) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+            };
+            const handleFieldDragEnter = (e: React.DragEvent) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+            };
+            const handleFieldDropOnList = (e: React.DragEvent, dropIndex: number) => {
+              e.preventDefault();
+              const fromIndexStr = e.dataTransfer.getData(FIELD_DRAG_TYPE);
+              if (fromIndexStr === "") return;
+              const fromIndex = parseInt(fromIndexStr, 10);
+              if (Number.isNaN(fromIndex) || fromIndex === dropIndex || fromIndex < 0 || fromIndex >= fieldOrder.length || dropIndex < 0 || dropIndex >= fieldOrder.length) return;
+              const next = [...fieldOrder];
+              const [removed] = next.splice(fromIndex, 1);
+              next.splice(dropIndex, 0, removed);
+              handleInputChange("step3", "fieldOrder", next);
+            };
+            const handleFieldDropOnInput = (e: React.DragEvent, step3Key: string) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const fieldName = (e.dataTransfer.getData("text/plain") || e.dataTransfer.getData("text") || "").trim();
+              if (fieldName && (fieldOrder.includes(fieldName) || flatfileAttrOptions.includes(fieldName))) {
+                handleInputChange("step3", step3Key, fieldName);
+              }
+            };
+            const inputDragOver = (e: React.DragEvent) => {
+              e.preventDefault();
+              e.stopPropagation();
+              e.dataTransfer.dropEffect = "copy";
+            };
+            const inputDragEnter = (e: React.DragEvent) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "copy";
+            };
+
+            return (
+              <div className="space-y-6">
+                <input
+                  type="file"
+                  ref={flatfileFileInputRef}
+                  className="hidden"
+                  accept=".csv,.txt,text/csv,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      flatfileFileRef.current = file;
+                      handleInputChange("step3", "uploadedFileName", file.name);
+                    }
+                    e.target.value = "";
+                  }}
+                />
+                <input
+                  type="file"
+                  ref={flatfilePerFieldFileInputRef}
+                  className="hidden"
+                  accept=".csv,.txt,text/csv,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    const forField = flatfileUploadForFieldRef.current;
+                    if (file && forField) {
+                      handleInputChange("step3", `uploadedFileName_${forField}`, file.name);
+                      flatfileUploadForFieldRef.current = null;
+                    }
+                    e.target.value = "";
+                  }}
+                />
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => flatfileFileInputRef.current?.click()}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
+                  >
+                    Upload
+                  </button>
+                  <div className="flex-1 relative">
+                    <input
+                      type="text"
+                      readOnly
+                      value={formData.step3.uploadedFileName || ""}
+                      className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md bg-gray-50 no-underline"
+                      placeholder=" "
+                    />
+                    <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                      formData.step3.uploadedFileName
+                        ? "top-0.5 text-xs text-blue-600"
+                        : "top-3.5 text-sm text-gray-500"
+                    }`}>
+                      File name
+                    </label>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 relative">
+                    <input
+                      type="text"
+                      value={formData.step3.fieldDelimiter ?? ","}
+                      onChange={(e) => handleInputChange("step3", "fieldDelimiter", e.target.value)}
+                      className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                      placeholder=" "
+                    />
+                    <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                      (formData.step3.fieldDelimiter ?? ",")
+                        ? "top-0.5 text-xs text-blue-600"
+                        : "top-3.5 text-sm text-gray-500"
+                    }`}>
+                      Field Delimiter
+                    </label>
+                  </div>
+                  <div className="flex-1 relative">
+                    <input
+                      type="text"
+                      value={formData.step3.multivalueDelimiter ?? "#"}
+                      onChange={(e) => handleInputChange("step3", "multivalueDelimiter", e.target.value)}
+                      className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                      placeholder=" "
+                    />
+                    <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                      (formData.step3.multivalueDelimiter ?? "#")
+                        ? "top-0.5 text-xs text-blue-600"
+                        : "top-3.5 text-sm text-gray-500"
+                    }`}>
+                      Multivalue Delimiter
+                    </label>
+                  </div>
+                </div>
+                {/* Box: Fields + Uid / Status / Date Format / Multivalued */}
+                <div className="border border-gray-300 rounded-lg bg-white p-5 shadow-sm">
+                  <div className="space-y-5">
+                    {/* Fields: drag-and-drop list in rows */}
+                    {fieldOrder.length > 0 && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Fields</label>
+                        <div className="flex flex-wrap gap-2 border border-gray-200 rounded-md p-3 bg-gray-50/50">
+                          {fieldOrder.map((fieldName, index) => (
+                            <div
+                              key={`field-${index}-${fieldName}`}
+                              draggable
+                              onDragStart={(e) => handleFieldDragStart(e, index)}
+                              onDragOver={handleFieldDragOver}
+                              onDragEnter={handleFieldDragEnter}
+                              onDrop={(e) => handleFieldDropOnList(e, index)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-white border border-gray-200 hover:bg-gray-50 cursor-grab active:cursor-grabbing text-sm text-gray-900"
+                            >
+                              <GripVertical className="w-4 h-4 text-gray-400 shrink-0" aria-hidden />
+                              <span>{fieldName}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {/* Row 1: Uid Attribute * | Status Field */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="relative rounded-md border-2 border-dashed border-transparent transition-colors hover:border-gray-200">
+                        <input
+                          type="text"
+                          readOnly
+                          value={formData.step3.uidAttribute ?? ""}
+                          onDragOver={inputDragOver}
+                          onDragEnter={inputDragEnter}
+                          onDrop={(e) => handleFieldDropOnInput(e, "uidAttribute")}
+                          className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline bg-gray-50"
+                          placeholder=" "
+                        />
+                        <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                          (formData.step3.uidAttribute ?? "")
+                            ? "top-0.5 text-xs text-blue-600"
+                            : "top-3.5 text-sm text-gray-500"
+                        }`}>
+                          Uid Attribute *
+                        </label>
+                        {fieldOrder.length > 0 && !(formData.step3.uidAttribute ?? "") && (
+                          <span className="absolute right-3 top-3.5 text-xs text-gray-400 pointer-events-none">Drop field here</span>
+                        )}
+                      </div>
+                      <div className="relative rounded-md border-2 border-dashed border-transparent transition-colors hover:border-gray-200">
+                        <input
+                          type="text"
+                          readOnly
+                          value={formData.step3.statusField ?? ""}
+                          onDragOver={inputDragOver}
+                          onDragEnter={inputDragEnter}
+                          onDrop={(e) => handleFieldDropOnInput(e, "statusField")}
+                          className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline bg-gray-50"
+                          placeholder=" "
+                        />
+                        <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                          (formData.step3.statusField ?? "")
+                            ? "top-0.5 text-xs text-blue-600"
+                            : "top-3.5 text-sm text-gray-500"
+                        }`}>
+                          Status Field
+                        </label>
+                        {fieldOrder.length > 0 && !(formData.step3.statusField ?? "") && (
+                          <span className="absolute right-3 top-3.5 text-xs text-gray-400 pointer-events-none">Drop field here</span>
+                        )}
+                      </div>
+                    </div>
+                    {/* Row 2: Date Format | Multivalued Field */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={formData.step3.dateFormat ?? ""}
+                          onChange={(e) => handleInputChange("step3", "dateFormat", e.target.value)}
+                          className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                          placeholder=" "
+                        />
+                        <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                          (formData.step3.dateFormat ?? "")
+                            ? "top-0.5 text-xs text-blue-600"
+                            : "top-3.5 text-sm text-gray-500"
+                        }`}>
+                          Date Format
+                        </label>
+                      </div>
+                      <div className="relative rounded-md border-2 border-dashed border-transparent transition-colors hover:border-gray-200">
+                        <div
+                          className="flex flex-wrap gap-2 min-h-[52px] pl-4 pt-5 pb-1.5 pr-9 border border-gray-300 rounded-md focus-within:ring-2 focus-within:ring-blue-500 bg-white"
+                          onDragOver={inputDragOver}
+                          onDragEnter={inputDragEnter}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const fieldName = (e.dataTransfer.getData("text/plain") || e.dataTransfer.getData("text") || "").trim();
+                            if (fieldName && (fieldOrder.includes(fieldName) || flatfileAttrOptions.includes(fieldName)) && !multivaluedFieldList.includes(fieldName) && multivaluedFieldList.length < 3) {
+                              handleInputChange("step3", "multivaluedField", [...multivaluedFieldList, fieldName]);
+                            }
+                          }}
+                        >
+                          <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                            multivaluedFieldList.length > 0
+                              ? "top-0.5 text-xs text-blue-600"
+                              : "top-3.5 text-sm text-gray-500"
+                          }`}>
+                            Multivalued Field
+                          </label>
+                          <span title="Please select that attribute for which multiple values are assigned to a user" className="absolute right-3 top-3.5 text-gray-500 cursor-help pointer-events-auto">
+                            <Info className="w-4 h-4" />
+                          </span>
+                          {multivaluedFieldList.map((item) => (
+                            <span
+                              key={item}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-100 text-blue-800 text-sm"
+                            >
+                              {item}
+                              <button
+                                type="button"
+                                onClick={() => handleInputChange("step3", "multivaluedField", multivaluedFieldList.filter((x) => x !== item))}
+                                className="p-0.5 rounded hover:bg-blue-200"
+                                aria-label={`Remove ${item}`}
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </span>
+                          ))}
+                          {fieldOrder.length > 0 && multivaluedFieldList.length === 0 && (
+                            <span className="text-xs text-gray-400 self-center">Drop fields here (max 3)</span>
+                          )}
+                          {multivaluedFieldList.length >= 3 && (
+                            <span className="text-xs text-gray-400 self-center">Maximum 3 fields</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Per–Field Name: collapsible sections (Upload, File Name, Delimiters, Field, Primary Attribute, Entitlement Type, Preview) */}
+                  {multivaluedFieldList.length > 0 && (
+                    <div className="pt-5 mt-5 border-t border-gray-200 space-y-3">
+                      {multivaluedFieldList.map((fieldName) => {
+                        const step3 = formData.step3 as Record<string, string>;
+                        const isExpanded = flatfilePerFieldExpanded[fieldName] ?? false;
+                        const toggleExpanded = () => setFlatfilePerFieldExpanded((prev) => ({ ...prev, [fieldName]: !prev[fieldName] }));
+                        const fieldLabel = fieldName.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase()).trim() + " Entity";
+                        const currentValue = step3[`entitlementType_${fieldName}`] ?? "";
+                        const selectedByOtherFields = multivaluedFieldList
+                          .filter((f) => f !== fieldName)
+                          .map((f) => step3[`entitlementType_${f}`])
+                          .filter(Boolean);
+                        const entitlementOptions = [
+                          { value: "", label: "Select type..." },
+                          { value: "Groups", label: "Groups" },
+                          { value: "Roles", label: "Roles" },
+                          { value: "Entitlement", label: "Entitlement" },
+                        ].filter((opt) => !opt.value || opt.value === currentValue || !selectedByOtherFields.includes(opt.value));
+                        const previewCollapsed = flatfilePerFieldPreviewCollapsed[fieldName] ?? true;
+                        const togglePreview = () => setFlatfilePerFieldPreviewCollapsed((prev) => ({ ...prev, [fieldName]: !prev[fieldName] }));
+                        return (
+                          <div key={fieldName} className="border border-gray-200 rounded-lg bg-gray-50/50 overflow-hidden">
+                            <button
+                              type="button"
+                              onClick={toggleExpanded}
+                              className="flex items-center gap-2 w-full px-4 py-3 text-left hover:bg-gray-100/80 transition-colors"
+                              aria-expanded={isExpanded}
+                            >
+                              {isExpanded ? (
+                                <ChevronDown className="w-5 h-5 text-blue-600 shrink-0" aria-hidden />
+                              ) : (
+                                <ChevronRight className="w-5 h-5 text-blue-600 shrink-0" aria-hidden />
+                              )}
+                              <span className="text-blue-600 font-medium">{fieldLabel}</span>
+                            </button>
+                            {isExpanded && (
+                              <div className="px-4 pb-4 pt-1 border-t border-gray-200 space-y-4">
+                                <div className="flex items-center gap-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      flatfileUploadForFieldRef.current = fieldName;
+                                      flatfilePerFieldFileInputRef.current?.click();
+                                    }}
+                                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium shrink-0"
+                                  >
+                                    Upload
+                                  </button>
+                                  <div className="flex-1 relative min-w-0">
+                                    <input
+                                      type="text"
+                                      readOnly
+                                      value={step3[`uploadedFileName_${fieldName}`] ?? ""}
+                                      className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md bg-gray-50 no-underline"
+                                      placeholder=" "
+                                    />
+                                    <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${step3[`uploadedFileName_${fieldName}`] ? "top-0.5 text-xs text-blue-600" : "top-3.5 text-sm text-gray-500"}`}>
+                                      File Name
+                                    </label>
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div className="relative">
+                                    <input
+                                      type="text"
+                                      value={step3[`fieldDelimiter_${fieldName}`] ?? ","}
+                                      onChange={(e) => handleInputChange("step3", `fieldDelimiter_${fieldName}`, e.target.value)}
+                                      className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                      placeholder=" "
+                                    />
+                                    <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${(step3[`fieldDelimiter_${fieldName}`] ?? ",") ? "top-0.5 text-xs text-blue-600" : "top-3.5 text-sm text-gray-500"}`}>
+                                      Field Delimiter
+                                    </label>
+                                  </div>
+                                  <div className="relative">
+                                    <input
+                                      type="text"
+                                      value={step3[`multivalueDelimiter_${fieldName}`] ?? "#"}
+                                      onChange={(e) => handleInputChange("step3", `multivalueDelimiter_${fieldName}`, e.target.value)}
+                                      className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                      placeholder=" "
+                                    />
+                                    <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${(step3[`multivalueDelimiter_${fieldName}`] ?? "#") ? "top-0.5 text-xs text-blue-600" : "top-3.5 text-sm text-gray-500"}`}>
+                                      Multivalue Delimiter
+                                    </label>
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div className="relative">
+                                    <input
+                                      type="text"
+                                      readOnly
+                                      value={fieldName}
+                                      className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md bg-gray-50 no-underline"
+                                      tabIndex={-1}
+                                      aria-readonly
+                                    />
+                                    <label className="absolute left-4 top-0.5 text-xs text-blue-600 pointer-events-none">Field</label>
+                                  </div>
+                                  <div className="relative rounded-md border-2 border-dashed border-transparent transition-colors hover:border-gray-200">
+                                    <input
+                                      type="text"
+                                      readOnly
+                                      value={step3[`primaryAttribute_${fieldName}`] ?? ""}
+                                      onDragOver={inputDragOver}
+                                      onDragEnter={inputDragEnter}
+                                      onDrop={(e) => handleFieldDropOnInput(e, `primaryAttribute_${fieldName}`)}
+                                      className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline bg-gray-50"
+                                      placeholder=" "
+                                    />
+                                    <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${(step3[`primaryAttribute_${fieldName}`] ?? "") ? "top-0.5 text-xs text-blue-600" : "top-3.5 text-sm text-gray-500"}`}>
+                                      Primary Attribute *
+                                    </label>
+                                    {fieldOrder.length > 0 && !(step3[`primaryAttribute_${fieldName}`] ?? "") && (
+                                      <span className="absolute right-3 top-3.5 text-xs text-gray-400 pointer-events-none">Drop field here</span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="relative">
+                                  <select
+                                    value={currentValue}
+                                    onChange={(e) => handleInputChange("step3", `entitlementType_${fieldName}`, e.target.value)}
+                                    className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline appearance-none bg-white text-gray-900"
+                                  >
+                                    {entitlementOptions.map((opt) => (
+                                      <option key={opt.value || "empty"} value={opt.value}>{opt.label}</option>
+                                    ))}
+                                  </select>
+                                  <label className="absolute left-4 top-0.5 text-xs text-blue-600 pointer-events-none">Entitlement Type</label>
+                                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" aria-hidden />
+                                </div>
+                                <div className="border border-gray-200 rounded-lg bg-white overflow-hidden">
+                                  <button
+                                    type="button"
+                                    onClick={togglePreview}
+                                    className="flex items-center gap-2 px-4 py-3 w-full text-left border-b border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors"
+                                    aria-expanded={!previewCollapsed}
+                                  >
+                                    <ChevronDown className={`w-5 h-5 text-blue-600 shrink-0 transition-transform ${previewCollapsed ? "" : "rotate-180"}`} aria-hidden />
+                                    <span className="text-blue-600 font-medium">Preview</span>
+                                  </button>
+                                  {!previewCollapsed && (
+                                    <div className="p-4 text-sm text-gray-500">
+                                      {step3[`uploadedFileName_${fieldName}`] ? "Preview will appear here when supported." : "Upload a file to see preview."}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                </div>
+            );
+          }
+
           // Dynamic rendering based on API-provided fields
           const typeFields = applicationTypeFields[selectedAppType] || [];
           const selectedOauth = formData.step1.oauthType;
@@ -2384,46 +2860,6 @@ export default function AddApplicationPage() {
                           : 'top-3.5 text-sm text-gray-500'
                       }`}>
                         Password *
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              );
-
-            case "Flatfile":
-              return (
-                <div className="space-y-6">
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 relative">
-                      <input
-                        type="text"
-                        value={formData.step3.owner || ""}
-                        onChange={(e) => handleInputChange("step3", "owner", e.target.value)}
-                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
-                        placeholder=" "
-                      />
-                      <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                        formData.step3.owner
-                          ? 'top-0.5 text-xs text-blue-600' 
-                          : 'top-3.5 text-sm text-gray-500'
-                      }`}>
-                        Owner *
-                      </label>
-                    </div>
-                    <div className="flex-1 relative">
-                      <input
-                        type="text"
-                        value={formData.step3.enableIntegrationWithIV || ""}
-                        onChange={(e) => handleInputChange("step3", "enableIntegrationWithIV", e.target.value)}
-                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
-                        placeholder=" "
-                      />
-                      <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                        formData.step3.enableIntegrationWithIV
-                          ? 'top-0.5 text-xs text-blue-600' 
-                          : 'top-3.5 text-sm text-gray-500'
-                      }`}>
-                        Enable Integration With IV *
                       </label>
                     </div>
                   </div>
@@ -5978,8 +6414,16 @@ export default function AddApplicationPage() {
               };
             case "Flatfile":
               return {
-                owner: "Owner of the flatfile application",
-                enableIntegrationWithIV: "Enable integration with Identity Verification system"
+                uploadedFileName: "Name of the uploaded flat file",
+                fieldDelimiter: "Character used to separate fields (e.g. comma)",
+                multivalueDelimiter: "Character used to separate multiple values within a field (e.g. #)",
+                uidAttribute: "Required attribute that uniquely identifies each user (e.g. UserID)",
+                statusField: "Attribute that indicates user or account status",
+                dateFormat: "Format string for date fields in the file (e.g. yyyy-MM-dd)",
+                multivaluedField: "Attributes that can contain multiple values (e.g. roles, groups)",
+                fieldOrder: "Order of fields from the file; drag and drop to reorder",
+                flatfileFieldName: "Name of the multivalued field being configured",
+                entitlementType: "Type of entitlement: Groups, Roles, or Entitlement"
               };
             case "LDAP":
               return {
@@ -6249,42 +6693,138 @@ export default function AddApplicationPage() {
         };
 
         const fieldDescriptions = getFieldDescriptions();
+        const previewList: Record<string, unknown>[] = selectedAppType === "Flatfile" && Array.isArray((flatfileMetadataUsers as any)?.preview) ? (flatfileMetadataUsers as any).preview : [];
+        const previewColumns = previewList.length > 0 && typeof previewList[0] === "object" && previewList[0] !== null ? Object.keys(previewList[0]) : [];
+        const totalPreviewPages = Math.max(1, Math.ceil(previewList.length / FLATFILE_PREVIEW_PAGE_SIZE));
+        const previewStartIdx = (flatfilePreviewPage - 1) * FLATFILE_PREVIEW_PAGE_SIZE;
+        const previewPageRows = previewList.slice(previewStartIdx, previewStartIdx + FLATFILE_PREVIEW_PAGE_SIZE);
+        const formatPreviewHeader = (key: string) => key.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase()).trim();
 
         return (
-          <div className="flex gap-6">
-            <div className="flex-1 space-y-6">
-              <div className="mb-4">
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  Integration Settings for: {isCompleteIntegration && formData.step2.applicationName
-                    ? `${formData.step2.applicationName} (${selectedAppType || "—"})`
-                    : selectedAppType || "No Application Selected"}
-                </h3>
-                <p className="text-sm text-gray-600">
-                  {isCompleteIntegration
-                    ? "Configure the integration settings for this application."
-                    : "Configure the integration settings for your selected application type."}
-                </p>
-              </div>
-              {renderIntegrationFields()}
-            </div>
-            
-            <div className="w-96 bg-gray-50 rounded-lg p-6">
-              <div className="space-y-4">
-                {Object.entries(fieldDescriptions).map(([field, description]) => (
-                  <div key={field} className="border-b border-gray-200 pb-3 last:border-b-0">
-                    <h5 className="text-sm font-medium text-gray-700 capitalize mb-1">
-                      {field.replace(/([A-Z])/g, ' $1').trim()}
-                    </h5>
-                    <p className="text-xs text-gray-600">{description}</p>
-                  </div>
-                ))}
-                {Object.keys(fieldDescriptions).length === 0 && (
-                  <p className="text-sm text-gray-500">
-                    Select an application type to see field descriptions.
+          <div className="space-y-6 w-full">
+            <div className="flex flex-wrap gap-6 items-start w-full min-w-0 overflow-x-auto">
+              <div className="flex-1 space-y-6 min-w-0">
+                <div className="mb-4">
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    {selectedAppType === "Flatfile"
+                      ? "File Upload"
+                      : `Integration Settings for: ${isCompleteIntegration && formData.step2.applicationName
+                        ? `${formData.step2.applicationName} (${selectedAppType || "—"})`
+                        : selectedAppType || "No Application Selected"}`}
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    {selectedAppType === "Flatfile"
+                      ? "Upload your flat file and set field and multivalue delimiters."
+                      : isCompleteIntegration
+                        ? "Configure the integration settings for this application."
+                        : "Configure the integration settings for your selected application type."}
                   </p>
+                </div>
+                {renderIntegrationFields()}
+              </div>
+              
+              <div className="w-96 shrink-0 max-w-full bg-gray-50 rounded-lg p-6">
+                <div className="space-y-4">
+                  {Object.entries(fieldDescriptions).map(([field, description]) => (
+                    <div key={field} className="border-b border-gray-200 pb-3 last:border-b-0">
+                      <h5 className="text-sm font-medium text-gray-700 capitalize mb-1">
+                        {field.replace(/([A-Z])/g, ' $1').trim()}
+                      </h5>
+                      <p className="text-xs text-gray-600">{description}</p>
+                    </div>
+                  ))}
+                  {Object.keys(fieldDescriptions).length === 0 && (
+                    <p className="text-sm text-gray-500">
+                      Select an application type to see field descriptions.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+            {/* Preview table - full width below the two columns (Flatfile only), collapsible */}
+            {selectedAppType === "Flatfile" && previewList.length > 0 && (
+              <div className="border border-gray-300 rounded-lg bg-white overflow-hidden w-full">
+                <button
+                  type="button"
+                  onClick={() => setFlatfilePreviewCollapsed((c) => !c)}
+                  className="flex items-center gap-2 px-4 py-3 w-full text-left border-b border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors"
+                  aria-expanded={!flatfilePreviewCollapsed}
+                >
+                  <ChevronDown className={`w-5 h-5 text-blue-600 shrink-0 transition-transform ${flatfilePreviewCollapsed ? "" : "rotate-180"}`} aria-hidden />
+                  <span className="text-blue-600 font-medium">Preview</span>
+                </button>
+                {!flatfilePreviewCollapsed && (
+                <>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs table-fixed border-collapse">
+                    <colgroup>
+                      {previewColumns.map((col) => {
+                        const isEmail = col === "Email";
+                        const isRootPlan = col === "RootPlan";
+                        const width = isEmail ? "14%" : isRootPlan ? "18%" : undefined;
+                        return <col key={col} style={width ? { width } : undefined} />;
+                      })}
+                    </colgroup>
+                    <thead>
+                      <tr className="bg-gray-100 border-b border-gray-200">
+                        {previewColumns.map((col) => (
+                          <th key={col} className="px-2 py-2.5 font-semibold text-gray-700 align-top whitespace-normal break-words">
+                            {formatPreviewHeader(col)}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {previewPageRows.map((row, rowIdx) => (
+                        <tr key={previewStartIdx + rowIdx} className="bg-white hover:bg-gray-50">
+                          {previewColumns.map((col) => (
+                            <td key={col} className="px-2 py-2 text-gray-900 whitespace-normal break-words align-top leading-snug">
+                              {String((row as Record<string, unknown>)[col] ?? "")}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex items-center justify-end gap-1 px-4 py-3 border-t border-gray-200 bg-gray-50">
+                  <button
+                    type="button"
+                    onClick={() => setFlatfilePreviewPage((p) => Math.max(1, p - 1))}
+                    disabled={flatfilePreviewPage <= 1}
+                    className="p-2 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="Previous page"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  {Array.from({ length: totalPreviewPages }, (_, i) => i + 1)
+                    .slice(0, 10)
+                    .map((pageNum) => (
+                      <button
+                        key={pageNum}
+                        type="button"
+                        onClick={() => setFlatfilePreviewPage(pageNum)}
+                        className={`min-w-[2rem] py-1.5 px-2 rounded text-sm font-medium ${
+                          flatfilePreviewPage === pageNum ? "bg-blue-600 text-white" : "hover:bg-gray-200 text-gray-700"
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    ))}
+                  <button
+                    type="button"
+                    onClick={() => setFlatfilePreviewPage((p) => Math.min(totalPreviewPages, p + 1))}
+                    disabled={flatfilePreviewPage >= totalPreviewPages}
+                    className="p-2 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="Next page"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+                </>
                 )}
               </div>
-            </div>
+            )}
           </div>
         );
 
@@ -6850,9 +7390,11 @@ export default function AddApplicationPage() {
                    >
                      {currentStep > step.id ? <Check className="w-4 h-4" /> : displayNumber}
                    </div>
-                   <div className="ml-3">
-                     <p className="text-sm font-medium text-gray-900">{step.title}</p>
-                   </div>
+                  <div className="ml-3">
+                     <p className="text-sm font-medium text-gray-900">
+                       {step.id === 3 && formData.step1.type === "Flatfile" ? "File Upload" : step.title}
+                     </p>
+                  </div>
                    {index < stepsShown.length - 1 && (
                      <div className="flex-1 h-0.5 bg-gray-200 mx-4" />
                    )}

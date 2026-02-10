@@ -186,21 +186,25 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
 
   if (isGrouped) {
     // Handle grouped data from getGroupedAppOwnerDetails
+    // For this API, description is always at: entitlementInfo.description
     return items.flatMap((group) => {
       const groupEntitlement = group.entitlementInfo || {};
       const groupEntitlementName =
         groupEntitlement.entitlementName || "Unknown Entitlement";
-      // Try multiple possible field names for description
-      const groupEntitlementDescription = 
-        groupEntitlement.description ||
-        groupEntitlement.entitlementDescription ||
-        groupEntitlement.entitlement_description ||
-        groupEntitlement.details ||
-        groupEntitlement.summary ||
-        group.description ||
-        group.entitlementDescription ||
-        "";
       const accounts = Array.isArray(group.accounts) ? group.accounts : [];
+      const groupEntitlementDescription =
+        typeof groupEntitlement.description === "string"
+          ? groupEntitlement.description
+          : "";
+
+      // For grouped view, we want the group header text itself to contain both
+      // the entitlement name and description so that wherever AG Grid renders
+      // the group key (e.g. \"ZNEW_BILL_REVENUE_ACC (4)\"), the description is
+      // visually \"with\" the entitlement name.
+      const entitlementNameWithDescription =
+        groupEntitlementDescription && groupEntitlementDescription.trim().length > 0
+          ? `${groupEntitlementName} — ${groupEntitlementDescription}`
+          : groupEntitlementName;
 
       return accounts.map((account: any, index: number) => {
         const accountInfo = account.accountInfo || {};
@@ -223,7 +227,9 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
           accountId: accountInfo.accountId || `grouped-${index}`,
           accountName: accountInfo.accountName || "",
           userId: userInfo.UserID || "",
-          entitlementName: groupEntitlementName,
+          // Use combined name+description string for grouped rows so the group
+          // header shows both together.
+          entitlementName: entitlementNameWithDescription,
           entitlementDescription: groupEntitlementDescription,
           entitlementType:
             groupEntitlement.entitlementType ||
@@ -319,6 +325,29 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
       };
     });
   });
+};
+
+// Helper to size columns in a way that avoids every column ending up the same width.
+// - When grouped by entitlement: auto-size based on content so important columns (Type, Account, Identity)
+//   get more space naturally.
+// - Otherwise: fall back to sizeColumnsToFit for classic behaviour.
+const resizeColumns = (api: any, isGroupedByEntitlements: boolean) => {
+  if (!api) return;
+
+  const columnApi = api.columnApi;
+
+  if (isGroupedByEntitlements && columnApi?.autoSizeAllColumns) {
+    const allColumns = columnApi.getAllColumns?.() || [];
+    if (allColumns.length > 0) {
+      columnApi.autoSizeColumns(allColumns.map((c: any) => c.getColId()));
+      return;
+    }
+  }
+
+  // Fallback behaviour
+  if (typeof api.sizeColumnsToFit === "function") {
+    api.sizeColumnsToFit();
+  }
 };
 
 function AppOwnerContent() {
@@ -1100,7 +1129,7 @@ function AppOwnerContent() {
         wrapText: true,
         autoHeight: true,
         enableRowGroup: true,
-        hide: isGrouped, // Hide when grouped (group column will show it)
+        hide: isGrouped, // Hidden in grouped mode; description shown in separate column
         cellStyle: {
           display: 'flex',
           alignItems: 'flex-start',
@@ -1118,7 +1147,7 @@ function AppOwnerContent() {
               <div className="flex flex-col gap-1 w-full">
                 <span className="ag-group-value font-bold">{params.value}</span>
                 {params.data?.entitlementDescription && (
-                  <span className="text-sm text-gray-600 break-words">
+                  <span className="text-sm text-gray-900 break-words">
                     {params.data.entitlementDescription}
                   </span>
                 )}
@@ -1133,17 +1162,118 @@ function AppOwnerContent() {
           );
         },
       },
+      {
+        field: "entitlementDescription",
+        headerName: "Description",
+        flex: 2,
+        minWidth: 250,
+        hide: !isGrouped, // Show only when grouped by entitlement
+        wrapText: true,
+        autoHeight: true,
+        cellRenderer: (params: ICellRendererParams) => {
+          if (params.node.group) {
+            let desc = "";
+            const node: any = params.node;
+            const leaves = (node.allLeafChildren || []).filter(
+              (c: any) => c && !c.group && c.data
+            );
+            if (leaves.length > 0) {
+              const first = leaves[0];
+              desc =
+                first.data.entitlementDescription ||
+                first.data.description ||
+                first.data.entitlement_description ||
+                "";
+            }
+            if (!desc && params.node.key) {
+              const row = rowDataRef.current.find(
+                (r: any) =>
+                  String(r?.entitlementName || "").trim().toLowerCase() ===
+                  String(params.node.key || "").trim().toLowerCase()
+              );
+              desc = row?.entitlementDescription || (row as any)?.description || "";
+            }
+            return (
+              <span className="text-gray-600 text-sm break-words">
+                {desc}
+              </span>
+            );
+          }
+          // For leaf rows under a grouped entitlement, do not repeat the
+          // description here – it should only appear with the group header.
+          return null;
+        },
+      },
       { 
         field: "entitlementType", 
         headerName: "Type", 
-        width: isGrouped ? undefined : 100,
+        width: isGrouped ? 100 : 100,
         flex: isGrouped ? 1 : undefined,
         pinned: false,
+        cellRenderer: (params: ICellRendererParams) => {
+          // When grouped by entitlement, group header rows appear in this column
+          // (e.g. "ZNEW_BILL_REVENUE_ACC (4)"). Show the description ONLY on those
+          // group header rows, next to the entitlement name.
+          if (params.node && params.node.group) {
+            const key = String(params.node.key ?? params.value ?? "").trim();
+
+            // Try to get description from the first leaf child
+            let description = "";
+            const node: any = params.node;
+            const leaves = (node.allLeafChildren || []).filter(
+              (c: any) => c && !c.group && c.data
+            );
+            if (leaves.length > 0) {
+              const first = leaves[0];
+              description =
+                first.data.entitlementDescription ||
+                first.data.description ||
+                first.data.entitlement_description ||
+                "";
+            }
+
+            // Fallback: look up in rowDataRef by entitlementName
+            if (!description && key && rowDataRef.current.length > 0) {
+              const keyNorm = key.toLowerCase();
+              const row = rowDataRef.current.find(
+                (r: any) =>
+                  String(r?.entitlementName || "")
+                    .trim()
+                    .toLowerCase() === keyNorm
+              );
+              description =
+                row?.entitlementDescription ||
+                (row as any)?.description ||
+                (row as any)?.entitlement_description ||
+                "";
+            }
+
+            return (
+              <div className="flex flex-col gap-0.5 w-full py-1">
+                <span className="font-semibold text-gray-900">
+                  {key}
+                </span>
+                {description && (
+                  <span className="text-gray-600 text-sm break-words">
+                    {description}
+                  </span>
+                )}
+              </div>
+            );
+          }
+
+          // Non-group rows: keep original simple type rendering
+          return (
+            <span className="text-gray-800">
+              {params.value ?? ""}
+            </span>
+          );
+        },
       },
       {
         field: "accountName",
         headerName: "Account",
-        width: isGrouped ? undefined : 150,
+        width: isGrouped ? 150 : 150,
         flex: isGrouped ? 1.5 : undefined,
         cellRenderer: (params: ICellRendererParams) => {
           const risk = params.data?.accountName || "Low";
@@ -1167,7 +1297,7 @@ function AppOwnerContent() {
       {
         field: "userName",
         headerName: "Identity",
-        width: isGrouped ? undefined : 180,
+        width: isGrouped ? 150 : 180,
         flex: isGrouped ? 1.8 : undefined,
         valueFormatter: (params) => formatDisplayName(params.value),
       },
@@ -1175,14 +1305,14 @@ function AppOwnerContent() {
         field: "lastLoginDate",
         headerName: "Last Login",
         enableRowGroup: true,
-        width: isGrouped ? undefined : 130,
+        width: isGrouped ? 130 : 130,
         flex: isGrouped ? 1.3 : undefined,
         valueFormatter: (params) => formatDateMMDDYY(params.value),
       },
       {
         field: "aiInsights",
         headerName: "Insights",
-        width: isGrouped ? undefined : 100,
+        width: isGrouped ? 100 : 100,
         flex: isGrouped ? 1 : undefined,
         cellRenderer: (params: ICellRendererParams) => {
           const icon =
@@ -1553,129 +1683,83 @@ function AppOwnerContent() {
   const GroupCellRenderer = useCallback((props: ICellRendererParams) => {
     const groupKey = props.value;
     const node: any = props.node;
-    const isEntitlementGrouping = groupByOption === "Entitlements" || isGroupedByEntitlementCheckbox;
-    
-    // Always compute description fresh from refs - no memoization to ensure we get latest data
-    let description = "";
-    
-    if (groupKey && isEntitlementGrouping && props.node.group) {
-      const normalizedKey = String(groupKey).trim().toLowerCase();
-      
-      // PRIORITY 1: Direct lookup from the map (most reliable)
-      description = entitlementDescriptionMapRef.current.get(normalizedKey) || "";
-      
-      // PRIORITY 2: From first leaf child node
-      if (!description && node?.allLeafChildren?.length > 0) {
-        for (const child of node.allLeafChildren) {
-          if (child?.data && !child.group) {
-            const childDesc = 
-              child.data.entitlementDescription ||
-              child.data.description ||
-              child.data.entitlement_description ||
-              "";
-            if (childDesc && childDesc.trim()) {
-              description = childDesc;
-              break;
-            }
-          }
-        }
-      }
-      
-      // PRIORITY 3: From aggregated group data
-      if (!description) {
-        const aggData = props.data?.aggData || props.aggData || (props as any).aggData;
-        description = 
-          aggData?.entitlementDescription ||
-          props.data?.entitlementDescription ||
-          props.data?.description ||
-          "";
-      }
-      
-      // PRIORITY 4: Search in rowDataRef directly
-      if (!description && rowDataRef.current.length > 0) {
-        const matchingRow = rowDataRef.current.find((row: any) => {
-          const rowEntitlementName = String(row.entitlementName || "").trim().toLowerCase();
-          return rowEntitlementName === normalizedKey;
-        });
-        if (matchingRow) {
-          description = 
-            matchingRow.entitlementDescription ||
-            matchingRow.description ||
-            matchingRow.entitlement_description ||
-            "";
-        }
-      }
-      
-      // Debug logging
-      console.log(`[GroupCellRenderer] "${groupKey}"`, {
-        foundDescription: !!description,
-        descriptionLength: description.length,
-        descriptionPreview: description ? description.substring(0, 50) : 'EMPTY',
-        mapHasKey: entitlementDescriptionMapRef.current.has(normalizedKey),
-        mapValue: entitlementDescriptionMapRef.current.get(normalizedKey) || 'NOT IN MAP',
-        leafChildrenCount: node?.allLeafChildren?.length || 0,
-        rowDataRefSize: rowDataRef.current.length,
-      });
-    }
 
-    if (!props.node.group || !isEntitlementGrouping) {
+    // For non-group rows, just render the plain value
+    if (!props.node.group) {
       return <span className="ag-group-value">{props.value}</span>;
     }
 
-    // Checkbox is in dedicated column; here only expand arrow then name/description (arrow to the left)
+    // Derive description: first from leaf children, then from rowDataRef by group key.
+    let description = "";
+    const leaves = (node.allLeafChildren || []).filter(
+      (c: any) => c && !c.group && c.data
+    );
+    if (leaves.length > 0) {
+      const first = leaves[0];
+      description =
+        first.data.entitlementDescription ||
+        first.data.description ||
+        first.data.entitlement_description ||
+        "";
+    }
+    if (!description && groupKey && rowDataRef.current.length > 0) {
+      const key = String(groupKey).trim().toLowerCase();
+      const row = rowDataRef.current.find(
+        (r: any) => String(r?.entitlementName || "").trim().toLowerCase() === key
+      );
+      description =
+        row?.entitlementDescription || (row as any)?.description || (row as any)?.entitlement_description || "";
+    }
+
+    // Checkbox is in dedicated column; here only expand arrow then name + description (on the same line)
     const expanded = node.expanded === true;
     const toggleExpand = () => node.setExpanded(!expanded);
     const shouldShowDescription = description && description.trim().length > 0;
     
     return (
       <div 
-        className="flex flex-col gap-1 py-2 w-full" 
+        className="flex items-center gap-2 py-2 w-full flex-wrap" 
         style={{ minHeight: 'auto', width: '100%' }}
       >
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); toggleExpand(); }}
-            className="p-0.5 rounded hover:bg-gray-200 flex items-center justify-center shrink-0"
-            aria-label={expanded ? "Collapse" : "Expand"}
-          >
-            {expanded ? (
-              <ChevronDown className="w-5 h-5 text-gray-600" />
-            ) : (
-              <ChevronRight className="w-5 h-5 text-gray-600" />
-            )}
-          </button>
-          <span className="ag-group-value font-semibold text-base entitlement-name-spacer" style={{ fontWeight: 600 }}>{groupKey}</span>
-        </div>
-        {shouldShowDescription ? (
-          <div 
-            className="text-gray-600 text-sm break-words whitespace-pre-wrap leading-relaxed w-full mt-1" 
-            style={{ 
-              display: 'block',
-              color: '#4b5563',
-              fontSize: '13px',
-              lineHeight: '1.6',
-              wordBreak: 'break-word',
-              fontWeight: 400,
-              paddingLeft: '0px',
+        {/* Expand/collapse icon */}
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); toggleExpand(); }}
+          className="p-0.5 rounded hover:bg-gray-200 flex items-center justify-center shrink-0"
+          aria-label={expanded ? "Collapse" : "Expand"}
+        >
+          {expanded ? (
+            <ChevronDown className="w-5 h-5 text-gray-600" />
+          ) : (
+            <ChevronRight className="w-5 h-5 text-gray-600" />
+          )}
+        </button>
+        {/* Entitlement name */}
+        <strong
+          className="ag-group-value text-base entitlement-name-spacer"
+          style={{ fontWeight: 900 }}
+        >
+          {groupKey}
+        </strong>
+
+        {/* Description rendered inline, right next to the entitlement name */}
+        {shouldShowDescription && (
+          <span
+            className="text-gray-600 text-sm break-words whitespace-pre-wrap leading-relaxed"
+            style={{
+              color: "#4b5563",
+              fontSize: "12px",
+              lineHeight: "1.4",
+              wordBreak: "break-word",
             }}
           >
+            {" — "}
             {description}
-          </div>
-        ) : (
-          <div 
-            className="text-gray-400 text-xs italic w-full mt-1" 
-            style={{ 
-              display: 'block',
-              paddingLeft: '0px',
-            }}
-          >
-            (No description available)
-          </div>
+          </span>
         )}
       </div>
     );
-  }, [groupByOption, isGroupedByEntitlementCheckbox]);
+  }, []);
 
   const autoGroupColumnDef = useMemo<ColDef>(
     () => {
@@ -1759,8 +1843,8 @@ function AppOwnerContent() {
           if (isGroupedByEntitlementCheckbox && fieldToGroup === "entitlementName") {
             setTimeout(() => {
               if (gridApiRef.current) {
-                // Size columns to fit when grouped by entitlement
-                gridApiRef.current.sizeColumnsToFit();
+                // Size columns appropriately when grouped by entitlement
+                resizeColumns(gridApiRef.current, true);
                 // Refresh all group rows to ensure descriptions are displayed
                 const groupNodes: any[] = [];
                 gridApiRef.current.forEachNode((node: any) => {
@@ -1788,7 +1872,10 @@ function AppOwnerContent() {
       // Small delay to ensure columns are updated
       setTimeout(() => {
         if (gridApiRef.current) {
-          gridApiRef.current.sizeColumnsToFit();
+          resizeColumns(
+            gridApiRef.current,
+            isGroupedByEntitlementCheckbox || groupByOption === "Entitlements"
+          );
         }
       }, 100);
     }
@@ -1888,10 +1975,10 @@ function AppOwnerContent() {
                       // Apply grouping immediately if grid is ready
                       if (isGridReady && gridApiRef.current) {
                         applyRowGrouping("entitlementName");
-                        // Size columns to fit full width after grouping
+                        // Size columns after grouping
                         setTimeout(() => {
                           if (gridApiRef.current) {
-                            gridApiRef.current.sizeColumnsToFit();
+                            resizeColumns(gridApiRef.current, true);
                           }
                         }, 400);
                       }
@@ -1903,10 +1990,10 @@ function AppOwnerContent() {
                       // Remove grouping immediately if grid is ready
                       if (isGridReady && gridApiRef.current) {
                         applyRowGrouping(null);
-                        // Size columns to fit after ungrouping
+                        // Size columns after ungrouping
                         setTimeout(() => {
                           if (gridApiRef.current) {
-                            gridApiRef.current.sizeColumnsToFit();
+                            resizeColumns(gridApiRef.current, false);
                           }
                         }, 200);
                       }
@@ -2093,6 +2180,9 @@ function AppOwnerContent() {
                 autoGroupColumnDef={autoGroupColumnDef}
                 rowGroupPanelShow={"never"}
                 domLayout="autoHeight"
+                getRowHeight={(params) =>
+                  params.node.group ? 60 : 40
+                }
                 rowSelection={{
                   mode: "multiRow",
                   masterSelects: "detail",
@@ -2178,8 +2268,11 @@ function AppOwnerContent() {
                     new Date().toISOString()
                   );
                   gridApiRef.current = params.api;
-                  // Size columns to fit - will be called again after grouping if needed
-                  params.api.sizeColumnsToFit();
+                  // Initial column sizing
+                  resizeColumns(
+                    params.api,
+                    isGroupedByEntitlementCheckbox || groupByOption === "Entitlements"
+                  );
                   setIsGridReady(true);
                   // Register grid API with ActionPanelContext so it can clear selections
                   registerGridApi(params.api, detailGridApis);
@@ -2188,10 +2281,13 @@ function AppOwnerContent() {
                   if (isGroupedByEntitlementCheckbox) {
                     setTimeout(() => {
                       applyRowGrouping("entitlementName");
-                      // Size columns to fit when grouped
+                      // Size columns when grouped
                       setTimeout(() => {
                         if (gridApiRef.current) {
-                          gridApiRef.current.sizeColumnsToFit();
+                          resizeColumns(
+                            gridApiRef.current,
+                            true
+                          );
                         }
                       }, 200);
                     }, 100);
@@ -2376,6 +2472,13 @@ function AppOwnerContent() {
         </div>
         {/* Right sidebar content is rendered globally via RightSideBarHost */}
       </div>
+
+      {/* Ensure group-by-entitlement header names are strongly bold, but keep description normal */}
+      <style jsx global>{`
+        .entitlement-name-spacer {
+          font-weight: 800 !important;
+        }
+      `}</style>
 
       {/* Floating ActionButtons when any rows are selected (individual or all) */}
       {selectedRows.length > 0 && gridApiRef.current &&

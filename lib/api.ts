@@ -640,6 +640,53 @@ export async function getInProgressApplications(loginremote_user: string = "ACME
   }
 }
 
+/** Fetches flatfile app metadata users - getappmetadata/ACME_FlatfileLoad/users. Used on Flatfile File Upload step. */
+export async function getFlatfileAppMetadataUsers(loginremote_user: string = "ACMEADMIN"): Promise<any> {
+  const endpoint = "https://preview.keyforge.ai/itasset/ACMECOM/getappmetadata/ACME_FlatfileLoad/users";
+
+  try {
+    const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
+    if (!accessToken) {
+      return null;
+    }
+
+    const headers = new Headers();
+    headers.set("Content-Type", "application/json");
+    headers.set("X-Requested-With", "XMLHttpRequest");
+    headers.set("Authorization", `Bearer ${accessToken}`);
+    headers.set("loginremote_user", loginremote_user);
+
+    const fetchFn = typeof window !== "undefined" ? getOriginalFetch() : fetch;
+    const response = await fetchFn(endpoint, { method: "GET", headers });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      try {
+        const errorData = JSON.parse(errorText);
+        if (await checkTokenExpiredError(errorData)) {
+          throw new Error("Token Expired");
+        }
+      } catch (e) {
+        if (e instanceof Error && e.message === "Token Expired") throw e;
+      }
+      console.warn("getappmetadata/users API unavailable:", response.status, errorText);
+      return null;
+    }
+
+    const data = await response.json();
+    if (await checkTokenExpiredError(data)) {
+      throw new Error("Token Expired");
+    }
+    return data;
+  } catch (error) {
+    if (error instanceof Error && error.message === "Token Expired") {
+      throw error;
+    }
+    console.warn("getFlatfileAppMetadataUsers failed:", error);
+    return null;
+  }
+}
+
 /** Fetches a single application by id/name from IT Asset getapp. Used in Edit mode to show application details. */
 export async function getItAssetApp(appIdOrName: string, loginremote_user: string = "ACMEADMIN"): Promise<any> {
   const encoded = encodeURIComponent(appIdOrName);
