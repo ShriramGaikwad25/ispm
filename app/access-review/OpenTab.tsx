@@ -66,13 +66,13 @@ const HorizontalProgressRenderer = (props: any) => {
   );
 };
 
-// Detail Cell Renderer for Description
+// Detail Cell Renderer for Description (separate row, like Manage Campaigns)
 const DetailCellRenderer = (props: IDetailCellRendererParams) => {
   const description = props.data?.description || "No description available";
   return (
-    <div className="flex p-3 bg-gray-50 border-t border-gray-200 w-full">
-      <div className="flex flex-col w-full">
-        <span className="text-gray-800 text-sm break-words whitespace-pre-wrap">
+    <div className="flex p-2 bg-gray-50 border-t border-gray-200">
+      <div className="flex flex-row items-center gap-2">
+        <span className="text-gray-800 ml-3 text-sm whitespace-pre-wrap break-words">
           {description}
         </span>
       </div>
@@ -134,27 +134,43 @@ const OpenTab: React.FC = () => {
       width: 400,
       wrapText: true,
       autoHeight: true,
-      cellStyle: { fontWeight: 'bold' },
-      onCellClicked: handleRowClick,
+      cellStyle: { fontWeight: "bold" },
+      cellRenderer: (params: any) => {
+        const onClick = () =>
+          handleRowClick({
+            data: params.data,
+          } as RowClickedEvent<CertificationRow>);
+
+        return (
+          <button
+            type="button"
+            className="text-left text-blue-600 hover:underline font-semibold"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onClick();
+            }}
+          >
+            {params.value}
+          </button>
+        );
+      },
     },
     { 
       headerName: "Type", 
       field: "certificationType", 
       width: 150,
-      onCellClicked: handleRowClick,
     },
     { 
       headerName: "Owner", 
       field: "certificateOwner", 
       width: 140,
-      onCellClicked: handleRowClick,
     },
     {
       headerName: "Progress",
       field: "progress",
       width: 180,
       cellRenderer: HorizontalProgressRenderer,
-      onCellClicked: handleRowClick,
     },
     { headerName: "Due On", field: "certificationExpiration", width: 140,valueFormatter: (params) => formatDateMMDDYY(params.value), },
     {
@@ -786,8 +802,12 @@ const OpenTab: React.FC = () => {
   useEffect(() => {
     let filtered = rowData;
     
-    // Filter by status - only show Active/Open items
-    filtered = filtered.filter((row) => row.status === "Active");
+    // Filter by status - only show truly "open" items
+    // - backend often leaves status as "Active" even after sign-off
+    // - we treat rows with certificationSignedOff === true as "completed"
+    filtered = filtered.filter(
+      (row) => row.status === "Active" && row.certificationSignedOff !== true
+    );
     
     // Filter by search term
     if (searchTerm.trim()) {
@@ -1042,11 +1062,10 @@ const OpenTab: React.FC = () => {
           columnDefs={activeColumnDefs}
           defaultColDef={defaultColDef}
           domLayout="autoHeight"
-          detailRowAutoHeight={true}
           masterDetail={true}
           detailCellRenderer={DetailCellRenderer}
+          detailRowAutoHeight={true}
           detailRowHeight={80}
-          groupDefaultExpanded={-1} // Expand all groups by default
           onGridReady={(params) => {
             console.log("Grid initialized:", {
               api: !!params.api,

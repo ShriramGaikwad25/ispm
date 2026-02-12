@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { ChevronLeft, ChevronRight, Check, ChevronDown, Edit, Trash2, Info, X, GripVertical } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getAllSupportedApplicationTypesViaProxy, executeQuery, submitItAssetRequest, getInProgressApplications, getItAssetApp, getFlatfileAppMetadataUsers, saveAppDetails, onboardApp, updateAppConfig } from "@/lib/api";
+import { getAllSupportedApplicationTypesViaProxy, executeQuery, submitItAssetRequest, getInProgressApplications, getItAssetApp, getFlatfileAppMetadataUsers, getAppMetadataUsers, uploadAndGetSchemaUsers, uploadAndGetSchemaForField, saveBaseMetadataUsers, saveBaseMetadataForField, saveAppDetails, onboardApp, updateAppConfig } from "@/lib/api";
 import AdvanceSettingTab, { type AdvanceSettingTabRef } from "../[id]/components/AdvanceSettingTab";
 
 interface FormData {
@@ -46,8 +46,9 @@ interface FormData {
     { id: 1, title: "Select System", description: "" },
     { id: 2, title: "Add Details", description: "" },
     { id: 3, title: "Integration Setting", description: "" },
-    { id: 4, title: "Schema Mapping", description: "" },
-    { id: 5, title: "Finish Up", description: "" }
+    { id: 4, title: "File Upload", description: "" },
+    { id: 5, title: "Schema Mapping", description: "" },
+    { id: 6, title: "Finish Up", description: "" }
   ];
 
 export default function AddApplicationPage() {
@@ -77,6 +78,19 @@ export default function AddApplicationPage() {
   const [flatfilePerFieldPreviewCollapsed, setFlatfilePerFieldPreviewCollapsed] = useState<Record<string, boolean>>({});
   const [flatfilePerFieldExpanded, setFlatfilePerFieldExpanded] = useState<Record<string, boolean>>({});
   const FLATFILE_PREVIEW_PAGE_SIZE = 10;
+  // Disconnected app: metadata users loaded on File Upload step
+  const [disconnectedMetadataUsers, setDisconnectedMetadataUsers] = useState<any | null>(null);
+  const [disconnectedFile, setDisconnectedFile] = useState<File | null>(null);
+  const [disconnectedUploadLoading, setDisconnectedUploadLoading] = useState(false);
+  const [disconnectedPerFieldExpanded, setDisconnectedPerFieldExpanded] =
+    useState<Record<string, boolean>>({});
+  const [disconnectedMetadataSaved, setDisconnectedMetadataSaved] = useState(false);
+  const [disconnectedPerFieldPreview, setDisconnectedPerFieldPreview] = useState<
+    Record<string, any[]>
+  >({});
+  const [disconnectedPerFieldFile, setDisconnectedPerFieldFile] = useState<
+    Record<string, File | null>
+  >({});
 
   // Edit mode: application details from IT Asset getapp (shown in card at top)
   const [appDetails, setAppDetails] = useState<Record<string, unknown> | null>(null);
@@ -234,6 +248,7 @@ export default function AddApplicationPage() {
         console.error("Error fetching getallapp data for mapping:", err);
       });
   }, [isCompleteIntegration, appIdFromUrl]);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [attributeMappingPage, setAttributeMappingPage] = useState(1);
   const [isEditingAttribute, setIsEditingAttribute] = useState(false);
@@ -311,6 +326,109 @@ export default function AddApplicationPage() {
     }
   });
 
+  // When entering File Upload step for Disconnected Application, clear previous metadata users
+  useEffect(() => {
+    if (currentStep === 4 && formData.step1.type === "Disconnected Application") {
+      setDisconnectedMetadataUsers(null);
+      setDisconnectedFile(null);
+      setDisconnectedMetadataSaved(false);
+    }
+  }, [currentStep, formData.step1.type]);
+
+  // When entering File Upload step for Disconnected Application, call getappmetadata/<applicationname>/users
+  useEffect(() => {
+    if (currentStep !== 4 || formData.step1.type !== "Disconnected Application") return;
+    const appName = formData.step2.applicationName?.trim();
+    if (!appName) return;
+    let cancelled = false;
+    getAppMetadataUsers(appName)
+      .then((data) => {
+        if (!cancelled && data) {
+          const anyData = data as any;
+          const preview =
+            (anyData && Array.isArray(anyData.preview) && anyData.preview) ||
+            (Array.isArray(anyData) ? anyData : []);
+
+          // If upload schema has not yet been loaded, seed from getappmetadata preview if available
+          if (!disconnectedMetadataUsers && Array.isArray(preview)) {
+            setDisconnectedMetadataUsers(data);
+          }
+
+          // Map parentFieldDefinition + multivaluedFieldDefinition into formData.step3
+          const parent = anyData.parentFieldDefinition ?? {};
+          const mvDef = Array.isArray(anyData.multivaluedFieldDefinition)
+            ? anyData.multivaluedFieldDefinition
+            : [];
+
+          setFormData((prev) => {
+            const prevStep3 = prev.step3 || {};
+            const baseMv = parent.multivaluedField;
+            const mvList = Array.isArray(baseMv)
+              ? baseMv
+              : baseMv
+              ? [String(baseMv)]
+              : Array.isArray(prevStep3.multivaluedField)
+              ? (prevStep3.multivaluedField as string[])
+              : prevStep3.multivaluedField
+              ? [String(prevStep3.multivaluedField)]
+              : [];
+
+            const existingTypes =
+              (prevStep3.multivaluedFieldEntitlementType as Record<
+                string,
+                string
+              >) || {};
+            const mappedTypes: Record<string, string> = { ...existingTypes };
+            mvDef.forEach((entry: any) => {
+              const fname = String(entry?.fieldName ?? "").trim();
+              const etype = String(entry?.entitlementType ?? "").trim();
+              if (fname && etype) mappedTypes[fname] = etype;
+            });
+
+            return {
+              ...prev,
+              step3: {
+                ...prevStep3,
+                uidAttribute:
+                  parent.uidAttribute ??
+                  prevStep3.uidAttribute ??
+                  "",
+                statusField:
+                  parent.statusField ?? prevStep3.statusField ?? "",
+                dateFormat:
+                  parent.dateFormat ?? prevStep3.dateFormat ?? "",
+                multivaluedField: mvList,
+                fieldDelimiter:
+                  anyData.fieldDelimiter ??
+                  prevStep3.fieldDelimiter ??
+                  ",",
+                multivalueDelimiter:
+                  anyData.multivalueDelimiter ??
+                  prevStep3.multivalueDelimiter ??
+                  "#",
+                multivaluedFieldEntitlementType: mappedTypes,
+              },
+            };
+          });
+
+          // If metadata already exists, show multivalued entity section
+          if (parent && preview && Array.isArray(preview)) {
+            setDisconnectedMetadataSaved(true);
+          }
+
+          console.debug("getappmetadata/<app>/users response:", data);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.error("Failed to fetch app metadata users for disconnected app:", err);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentStep, formData.step1.type, formData.step2.applicationName, disconnectedMetadataUsers]);
+
   // When we land on step 3 with Flatfile type, call getappmetadata/ACME_FlatfileLoad/users
   useEffect(() => {
     if (currentStep !== 3 || formData.step1.type !== "Flatfile" || typeof window === "undefined") return;
@@ -335,13 +453,30 @@ export default function AddApplicationPage() {
   };
 
   const handleNext = async () => {
-    if (currentStep >= 5) return;
+    const isDisconnectedApp = formData.step1.type === "Disconnected Application";
+    const maxStep = isDisconnectedApp ? 6 : 5;
+    if (currentStep >= maxStep) return;
     if (currentStep === 2) {
       setSubmitRequestError(null);
       setSubmitRequestLoading(true);
       try {
         const ownerEmail = formData.step2.technicalOwnerEmail || formData.step2.businessOwnerEmail || "";
         const step3 = formData.step3 || {};
+        // Build connectionDetails dynamically from step3 so payload reflects selected application type fields
+        const connectionDetails: Record<string, string> = {};
+        Object.entries(step3).forEach(([k, v]) => {
+          if (v === undefined || v === null) return;
+          connectionDetails[k] = String(v);
+        });
+        // Normalize LDAP-style search base keys if present
+        const userSearchBaseVal = step3.userSearchBase ?? step3.user_searchBase;
+        const groupSearchBaseVal = step3.groupSearchBase ?? step3.group_searchBase;
+        if (userSearchBaseVal != null) {
+          connectionDetails.user_searchBase = String(userSearchBaseVal);
+        }
+        if (groupSearchBaseVal != null) {
+          connectionDetails.group_searchBase = String(groupSearchBaseVal);
+        }
         const payload = {
           name: formData.step2.applicationName || "",
           description: formData.step2.description || "",
@@ -350,19 +485,181 @@ export default function AddApplicationPage() {
           sso: false,
           lcm: false,
           owner: { type: "User", value: ownerEmail },
-          connectionDetails: {
-            hostname: step3.hostname ?? "",
-            port: step3.port ?? "",
-            username: step3.username ?? "",
-            password: step3.password ?? "",
-            user_searchBase: step3.userSearchBase ?? step3.user_searchBase ?? "",
-            group_searchBase: step3.groupSearchBase ?? step3.group_searchBase ?? "",
-          },
+          connectionDetails,
         };
         await submitItAssetRequest(payload);
         setCurrentStep(currentStep + 1);
       } catch (err) {
         const message = err instanceof Error ? err.message : "Failed to submit request";
+        setSubmitRequestError(message);
+      } finally {
+        setSubmitRequestLoading(false);
+      }
+    } else if (!isCompleteIntegration && currentStep === 3 && isDisconnectedApp) {
+      // Integration Settings: Disconnected Application - save app details via saveappdetails
+      setSubmitRequestError(null);
+      setSubmitRequestLoading(true);
+      try {
+        const ownerValue = formData.step2.technicalOwnerEmail || formData.step2.businessOwnerEmail || "";
+        const step3 = formData.step3 || {};
+        // Build connectionDetails exactly as disconnected app expects
+        const connectionDetails: Record<string, unknown> = {
+          owner: step3.owner ?? "",
+          oimAppId: step3.oimAppId ?? "",
+          ticketingAppId: step3.ticketingAppId ?? "",
+          oimAPIToken: step3.oimAPIToken ?? "",
+          ticketingSystem: step3.ticketingSystem ?? "",
+          ticketingAPIToken: step3.ticketingAPIToken ?? "",
+          isIntegratedWithOIM: step3.isIntegratedWithOIM ?? false,
+          manuallyFulfill: step3.manuallyFulfill ?? true,
+          assignTo: step3.assignTo ?? "",
+          raiseTicket: step3.raiseTicket ?? "",
+          applicationName: step3.applicationName ?? "",
+        };
+
+        // Build provisioning/reconcilliation maps from Schema Mapping state; if none, apply disconnected defaults
+        let provisioningAttrMap: Record<string, { variable: string }> = {};
+        let reconcilliationAttrMap: Record<string, { variable: string }> = {};
+
+        attributeMappingData.forEach((mapping) => {
+          if (mapping.target?.trim()) {
+            provisioningAttrMap[mapping.target.trim()] = { variable: mapping.source?.trim() ?? "" };
+          }
+        });
+
+        if (Object.keys(provisioningAttrMap).length === 0) {
+          provisioningAttrMap = {
+            id: { variable: "id" },
+            userName: { variable: "userName" },
+            userid: { variable: "externalId" },
+          };
+          reconcilliationAttrMap = {
+            externalId: { variable: "userid" },
+            id: { variable: "id" },
+            userName: { variable: "userName" },
+          };
+        }
+
+        const today = new Date();
+        const dd = String(today.getDate()).padStart(2, "0");
+        const mm = String(today.getMonth() + 1).padStart(2, "0");
+        const yyyy = today.getFullYear();
+        const discoveredOn = `${dd}/${mm}/${yyyy}`;
+
+        const savePayload = {
+          tenantId: "ACMECOM",
+          appid: "",
+          serviceURL: "",
+          name: formData.step2.applicationName || "",
+          description: formData.step2.description || "",
+          category: formData.step1.type || "",
+          owner: { type: "User", value: ownerValue },
+          status: "New",
+          connectionDetails,
+          dicoveredOn: discoveredOn,
+          integratedOn: "",
+          schemaMappingDetails: {
+            provisioningAttrMap,
+            reconcilliationAttrMap,
+          },
+          // Default empty applicationConfigurationDetails structure expected by disconnected app
+          applicationConfigurationDetails: {
+            hook: {
+              name: "",
+              postProcessEvent: [
+                {
+                  authorization: "",
+                  endpoint: "",
+                  isEnabled: false,
+                  type: "service",
+                  priority: -1,
+                  operation: "",
+                  customHeaders: {},
+                },
+                {
+                  agentId: "",
+                  isEnabled: false,
+                  implementationClass: "",
+                  type: "sdk",
+                  priority: -1,
+                  operation: "",
+                },
+              ],
+              preProcessEvent: [
+                {
+                  authorization: "",
+                  endpoint: "",
+                  isEnabled: false,
+                  type: "service",
+                  priority: -1,
+                  operation: "",
+                  customHeaders: {},
+                },
+                {
+                  agentId: "",
+                  isEnabled: false,
+                  implementationClass: "",
+                  type: "sdk",
+                  priority: -1,
+                  operation: "",
+                },
+              ],
+            },
+            threshold: [
+              {
+                exceptionalCases: {
+                  peakDays: [{ endData: "", startDate: "" }],
+                  peakTime: [{ startTime: "", endTime: "" }],
+                },
+                cutOff: {
+                  maximumAllowed: -1,
+                  stopFurtherOperations: false,
+                  sendAlertTo: "",
+                  durationInMinutes: 0,
+                },
+                operation: "Disable",
+              },
+              {
+                exceptionalCases: {
+                  peakDays: [{ endData: "", startDate: "" }],
+                  peakTime: [{ startTime: "", endTime: "" }],
+                },
+                cutOff: {
+                  maximumAllowed: -1,
+                  stopFurtherOperations: false,
+                  sendAlertTo: "",
+                  durationInMinutes: 0,
+                },
+                operation: "Create",
+              },
+              {
+                exceptionalCases: {
+                  peakDays: [{ endData: "", startDate: "" }],
+                  peakTime: [{ startTime: "", endTime: "" }],
+                },
+                cutOff: {
+                  maximumAllowed: -1,
+                  stopFurtherOperations: false,
+                  sendAlertTo: "",
+                  durationInMinutes: 0,
+                },
+                operation: "Delete",
+              },
+            ],
+            autoRetry: {
+              isEnabled: false,
+              interval: -1,
+              maximumRetry: 0,
+            },
+          },
+          iga: false,
+          lcm: false,
+          sso: false,
+        };
+        await saveAppDetails(savePayload);
+        setCurrentStep(currentStep + 1);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to save application details";
         setSubmitRequestError(message);
       } finally {
         setSubmitRequestLoading(false);
@@ -439,8 +736,9 @@ export default function AddApplicationPage() {
   };
 
   const handleSubmit = async () => {
-    // If we're on step 5, include Advanced settings (hooks + threshold) and optionally update app config
-    if (currentStep === 5 && advanceSettingRef.current) {
+    const isDisconnectedApp = formData.step1.type === "Disconnected Application";
+    // If we're on the last step for Disconnected Application (step 6), include Advanced settings
+    if (isDisconnectedApp && currentStep === 6 && advanceSettingRef.current) {
       const config = advanceSettingRef.current.getConfig();
       const appId = appIdFromUrl?.trim();
       const token =
@@ -743,7 +1041,8 @@ export default function AddApplicationPage() {
   const handleOwnerSelect = (field: OwnerField, user: UserSearchHit) => {
     const display = user.name ? (user.email ? `${user.name} (${user.email})` : user.name) : user.email || user.username;
     handleInputChange("step2", field, display);
-    handleInputChange("step2", field === "technicalOwner" ? "technicalOwnerEmail" : "businessOwnerEmail", user.email || "");
+    // Store username instead of email for payload owner.value
+    handleInputChange("step2", field === "technicalOwner" ? "technicalOwnerEmail" : "businessOwnerEmail", user.username || "");
     setUserSearchField(null);
   };
 
@@ -813,6 +1112,667 @@ export default function AddApplicationPage() {
       setIsEditDropdownOpen(false);
     }
   };
+
+  // Shared UI for Disconnected Application integration fields
+  const renderDisconnectedApplicationFields = () => {
+    const manuallyFulfillChecked =
+      formData.step3.manuallyFulfill === undefined ||
+      formData.step3.manuallyFulfill === null ||
+      formData.step3.manuallyFulfill === true;
+
+                return (
+                  <div className="space-y-6">
+        {/* Manually Fulfill toggle */}
+        <div className="flex items-center gap-3">
+          <label className="inline-flex items-center cursor-pointer select-none">
+            <input
+              type="checkbox"
+              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+              checked={manuallyFulfillChecked}
+              onChange={(e) =>
+                handleInputChange("step3", "manuallyFulfill", e.target.checked)
+              }
+            />
+            <span className="ml-2 text-sm text-gray-700">
+              Manually fulfill all access requests
+            </span>
+          </label>
+        </div>
+
+        {/* Remaining Integration Settings – only when NOT manually fulfilled */}
+        {!manuallyFulfillChecked && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="relative">
+              <input
+                type="text"
+                value={formData.step3.raiseTicket || ""}
+                onChange={(e) => handleInputChange("step3", "raiseTicket", e.target.value)}
+                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                placeholder=" "
+              />
+              <label
+                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                  formData.step3.raiseTicket
+                    ? "top-0.5 text-xs text-blue-600"
+                    : "top-3.5 text-sm text-gray-500"
+                }`}
+              >
+                Raise Ticket *
+              </label>
+            </div>
+            <div className="relative">
+              <input
+                type="text"
+                value={formData.step3.ticketingSystem || ""}
+                onChange={(e) =>
+                  handleInputChange("step3", "ticketingSystem", e.target.value)
+                }
+                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                placeholder=" "
+              />
+              <label
+                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                  formData.step3.ticketingSystem
+                    ? "top-0.5 text-xs text-blue-600"
+                    : "top-3.5 text-sm text-gray-500"
+                }`}
+              >
+                Ticketing System *
+              </label>
+            </div>
+            <div className="relative">
+              <input
+                type="text"
+                value={formData.step3.ticketingAppId || ""}
+                onChange={(e) =>
+                  handleInputChange("step3", "ticketingAppId", e.target.value)
+                }
+                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                placeholder=" "
+              />
+              <label
+                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                  formData.step3.ticketingAppId
+                    ? "top-0.5 text-xs text-blue-600"
+                    : "top-3.5 text-sm text-gray-500"
+                }`}
+              >
+                Ticketing App ID *
+              </label>
+            </div>
+            <div className="relative">
+              <input
+                type="password"
+                value={formData.step3.ticketingAPIToken || ""}
+                onChange={(e) =>
+                  handleInputChange("step3", "ticketingAPIToken", e.target.value)
+                }
+                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                placeholder=" "
+              />
+              <label
+                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                  formData.step3.ticketingAPIToken
+                    ? "top-0.5 text-xs text-blue-600"
+                    : "top-3.5 text-sm text-gray-500"
+                }`}
+              >
+                Ticketing API Token *
+              </label>
+            </div>
+            <div className="relative">
+              <input
+                type="text"
+                value={formData.step3.assignTo || ""}
+                onChange={(e) => handleInputChange("step3", "assignTo", e.target.value)}
+                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                placeholder=" "
+              />
+              <label
+                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                  formData.step3.assignTo
+                    ? "top-0.5 text-xs text-blue-600"
+                    : "top-3.5 text-sm text-gray-500"
+                }`}
+              >
+                Assign To *
+              </label>
+            </div>
+            <div className="relative">
+              <input
+                type="password"
+                value={formData.step3.oimAPIToken || ""}
+                onChange={(e) => handleInputChange("step3", "oimAPIToken", e.target.value)}
+                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                placeholder=" "
+              />
+              <label
+                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                  formData.step3.oimAPIToken
+                    ? "top-0.5 text-xs text-blue-600"
+                    : "top-3.5 text-sm text-gray-500"
+                }`}
+              >
+                OIM API Token *
+              </label>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Shared Schema Mapping step content (used for both normal and disconnected flows)
+  const renderSchemaMappingStep = () => (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Existing Mappings Table */}
+        <div className="space-y-4">
+          <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <table className="w-full table-auto">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Source Attribute
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Target Attribute
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Default Value
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Action
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {getCurrentPageData().length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-6 text-center text-sm text-gray-500">
+                      No attribute mappings configured.
+                    </td>
+                  </tr>
+                ) : (
+                  getCurrentPageData().map((mapping, index) => (
+                    <tr key={mapping.id ?? `row-${index}`}>
+                      <td
+                        className="px-4 py-3 text-sm text-gray-900 whitespace-pre-wrap break-words break-all align-top"
+                        style={{
+                          position: "static",
+                          whiteSpace: "pre-wrap",
+                          wordBreak: "break-word",
+                          overflowWrap: "anywhere",
+                        }}
+                      >
+                        {mapping.source}
+                      </td>
+                      <td
+                        className="px-4 py-3 text-sm text-gray-900 whitespace-pre-wrap break-words break-all align-top"
+                        style={{
+                          position: "static",
+                          whiteSpace: "pre-wrap",
+                          wordBreak: "break-word",
+                          overflowWrap: "anywhere",
+                        }}
+                      >
+                        {mapping.target}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-500">
+                        {mapping.defaultValue || ""}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-500">
+                        <div className="flex space-x-2">
+                          <button
+                            type="button"
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                            aria-label="Edit"
+                            onClick={() => {
+                              setEditingAttribute(mapping);
+                              setIsEditingAttribute(true);
+                            }}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                            aria-label="Delete"
+                            onClick={() => handleDeleteMapping(mapping.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <button
+                className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50"
+                onClick={() => setAttributeMappingPage(Math.max(1, attributeMappingPage - 1))}
+                disabled={attributeMappingPage === 1}
+              >
+                &lt;
+              </button>
+              <span className="text-sm text-gray-700">
+                Page {attributeMappingPage} of {getAttributeMappingTotalPages()}
+              </span>
+              <button
+                className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50"
+                onClick={() =>
+                  setAttributeMappingPage(
+                    Math.min(getAttributeMappingTotalPages(), attributeMappingPage + 1)
+                  )
+                }
+                disabled={attributeMappingPage === getAttributeMappingTotalPages()}
+              >
+                &gt;
+              </button>
+            </div>
+          </div>
+
+          {/* Action Buttons - Save calls saveappdetails API in edit mode */}
+          <div className="flex space-x-3">
+            <button
+              type="button"
+              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+              disabled={submitRequestLoading}
+              onClick={async () => {
+                setSubmitRequestError(null);
+                setSubmitRequestLoading(true);
+                try {
+                  const ownerEmail =
+                    formData.step2.technicalOwnerEmail || formData.step2.businessOwnerEmail || "";
+                  const step3 = formData.step3 || {};
+                  const provisioningAttrMap: Record<string, { variable: string }> = {};
+                  attributeMappingData.forEach((mapping) => {
+                    if (mapping.target?.trim()) {
+                      provisioningAttrMap[mapping.target.trim()] = {
+                        variable: mapping.source?.trim() ?? "",
+                      };
+                    }
+                  });
+                  const userSearchBaseVal = String(
+                    step3.userSearchBase ?? step3.user_searchBase ?? ""
+                  ).trim();
+                  const groupSearchBaseVal = String(
+                    step3.groupSearchBase ?? step3.group_searchBase ?? ""
+                  ).trim();
+                  const {
+                    userSearchBase: _u2,
+                    groupSearchBase: _g2,
+                    user_searchBase: _ub2,
+                    group_searchBase: _gb2,
+                    ...step3Rest
+                  } = step3 as Record<string, unknown>;
+                  const connectionDetails: Record<string, unknown> = {
+                    ...step3Rest,
+                    hostname: step3.hostname ?? "",
+                    port: step3.port ?? "",
+                    username: step3.username ?? "",
+                    password: step3.password ?? "",
+                    user_searchBase: userSearchBaseVal,
+                    group_searchBase: groupSearchBaseVal,
+                  };
+                  const savePayload = {
+                    tenantId: "ACMECOM",
+                    appid: appIdFromUrl || "",
+                    serviceURL: "",
+                    name: formData.step2.applicationName || "",
+                    description: formData.step2.description || "",
+                    category: formData.step1.type || "",
+                    owner: { type: "User", value: ownerEmail },
+                    status: "InProgress",
+                    connectionDetails,
+                    dicoveredOn: null,
+                    integratedOn: null,
+                    schemaMappingDetails: {
+                      provisioningAttrMap,
+                      reconcilliationAttrMap: {},
+                    },
+                    applicationConfigurationDetails: null,
+                    iga: false,
+                    lcm: false,
+                    sso: false,
+                    ...(appIdFromUrl && !Number.isNaN(Number(appIdFromUrl))
+                      ? { key: Number(appIdFromUrl) }
+                      : {}),
+                  };
+                  await saveAppDetails(savePayload);
+                } catch (err) {
+                  const message =
+                    err instanceof Error ? err.message : "Failed to save application details";
+                  setSubmitRequestError(message);
+                } finally {
+                  setSubmitRequestLoading(false);
+                }
+              }}
+            >
+              {submitRequestLoading ? "Saving…" : "Save"}
+            </button>
+            <button
+              type="button"
+              className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50"
+              onClick={() => router.push("/settings/app-inventory")}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+
+        {/* Add New Attribute Form or Edit Attribute Form */}
+        <div className="space-y-4">
+          {isEditingAttribute ? (
+            <>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Mapping Type
+                  </label>
+                  <select
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={editingAttribute?.type ?? "direct"}
+                    onChange={(e) =>
+                      setEditingAttribute((prev) =>
+                        prev ? { ...prev, type: e.target.value } : null
+                      )
+                    }
+                  >
+                    <option value="direct">Direct</option>
+                    <option value="expression">Expression</option>
+                    <option value="constant">Constant</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Target Attribute
+                    <Info className="w-4 h-4 inline ml-1 text-gray-400" />
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={editingAttribute?.target ?? ""}
+                    onChange={(e) =>
+                      setEditingAttribute((prev) =>
+                        prev ? { ...prev, target: e.target.value } : null
+                      )
+                    }
+                  />
+                  <div className="mt-2 flex justify-end">
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        checked={editingAttribute?.keyfieldMapping ?? false}
+                        onChange={(e) =>
+                          setEditingAttribute((prev) =>
+                            prev ? { ...prev, keyfieldMapping: e.target.checked } : null
+                          )
+                        }
+                      />
+                      <span className="ml-2 text-sm text-gray-700">Keyfield</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Source Attribute
+                    <Info className="w-4 h-4 inline ml-1 text-gray-400" />
+                    <span className="text-xs text-gray-500 ml-1">Help</span>
+                  </label>
+                  <div className="relative" ref={editDropdownRef}>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={editSourceAttributeValue || editingAttribute?.source || ""}
+                      onChange={(e) => {
+                        filterAttributes(e.target.value, true);
+                      }}
+                      onFocus={() => {
+                        if (scimAttributes.length === 0 && !isLoadingAttributes) {
+                          fetchScimAttributes();
+                        }
+                        setIsEditDropdownOpen(true);
+                      }}
+                      placeholder="Select or enter source attribute"
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-2 top-2 text-gray-400 hover:text-gray-600"
+                      onClick={handleEditDropdownToggle}
+                    >
+                      <ChevronDown
+                        className={`w-4 h-4 transition-transform ${
+                          isEditDropdownOpen ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+                    {isEditDropdownOpen && (
+                      <div
+                        className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100"
+                        style={{ scrollBehavior: "smooth" }}
+                      >
+                        {isLoadingAttributes ? (
+                          <div className="px-4 py-2 text-sm text-gray-500">Loading attributes...</div>
+                        ) : filteredAttributes.length > 0 ? (
+                          filteredAttributes.map((attr, index) => (
+                            <div
+                              key={index}
+                              className="px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                              onClick={() => selectAttribute(attr, true)}
+                            >
+                              {attr}
+                            </div>
+                          ))
+                        ) : (
+                          <div className="px-4 py-2 text-sm text-gray-500">No attributes found</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Default value (optional)
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter default value"
+                    value={editingAttribute?.defaultValue ?? ""}
+                    onChange={(e) =>
+                      setEditingAttribute((prev) =>
+                        prev ? { ...prev, defaultValue: e.target.value } : null
+                      )
+                    }
+                  />
+                </div>
+              </div>
+
+              {/* Edit Form Action Buttons */}
+              <div className="flex space-x-3 pt-4">
+                <button
+                  type="button"
+                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700"
+                  onClick={saveEdit}
+                >
+                  Update
+                </button>
+                <button
+                  type="button"
+                  className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50"
+                  onClick={() => {
+                    setIsEditingAttribute(false);
+                    setEditingAttribute(null);
+                    setEditSourceAttributeValue("");
+                    setIsEditDropdownOpen(false);
+                  }}
+                >
+                  Discard
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Mapping Type
+                  </label>
+                  <select
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={mappingType ?? "direct"}
+                    onChange={(e) => setMappingType(e.target.value)}
+                  >
+                    <option value="direct">Direct</option>
+                    <option value="expression">Expression</option>
+                    <option value="constant">Constant</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Source Attribute
+                    <Info className="w-4 h-4 inline ml-1 text-gray-400" />
+                    <span className="text-xs text-gray-500 ml-1">Help</span>
+                  </label>
+                  <div className="relative" ref={dropdownRef}>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={sourceAttributeValue ?? ""}
+                      onChange={(e) => {
+                        filterAttributes(e.target.value, false);
+                      }}
+                      onFocus={() => {
+                        if (scimAttributes.length === 0 && !isLoadingAttributes) {
+                          fetchScimAttributes();
+                        }
+                        setIsDropdownOpen(true);
+                      }}
+                      placeholder="Select or enter source attribute"
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-2 top-2 text-gray-400 hover:text-gray-600"
+                      onClick={handleDropdownToggle}
+                    >
+                      <ChevronDown
+                        className={`w-4 h-4 transition-transform ${
+                          isDropdownOpen ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+                    {isDropdownOpen && (
+                      <div
+                        className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-height-60 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100"
+                        style={{ scrollBehavior: "smooth", maxHeight: "15rem" }}
+                      >
+                        {isLoadingAttributes ? (
+                          <div className="px-4 py-2 text-sm text-gray-500">Loading attributes...</div>
+                        ) : filteredAttributes.length > 0 ? (
+                          filteredAttributes.map((attr, index) => (
+                            <div
+                              key={index}
+                              className="px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                              onClick={() => selectAttribute(attr, false)}
+                            >
+                              {attr}
+                            </div>
+                          ))
+                        ) : (
+                          <div className="px-4 py-2 text-sm text-gray-500">No attributes found</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Target Attribute
+                    <Info className="w-4 h-4 inline ml-1 text-gray-400" />
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter target attribute"
+                      value={targetAttributeValue ?? ""}
+                      onChange={(e) => setTargetAttributeValue(e.target.value)}
+                    />
+                    <button className="absolute right-2 top-2 text-gray-400">
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="mt-2 flex justify-end">
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        checked={keyfieldChecked}
+                        onChange={(e) => setKeyfieldChecked(e.target.checked)}
+                      />
+                      <span className="ml-2 text-sm text-gray-700">Keyfield</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Default value (optional)
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter default value"
+                    value={defaultAttributeValue ?? ""}
+                    onChange={(e) => setDefaultAttributeValue(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Add Form Action Buttons */}
+              <div className="flex space-x-3 pt-4">
+                <button
+                  type="button"
+                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                  disabled={!sourceAttributeValue.trim() || !targetAttributeValue.trim()}
+                  onClick={handleAddMapping}
+                >
+                  Add
+                </button>
+                <button
+                  type="button"
+                  className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50"
+                  onClick={() => {
+                    setSourceAttributeValue("");
+                    setTargetAttributeValue("");
+                    setDefaultAttributeValue("");
+                    setKeyfieldChecked(false);
+                    setMappingType("direct");
+                    setIsDropdownOpen(false);
+                  }}
+                >
+                  Discard
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 
   const renderStepContent = () => {
     switch (currentStep) {
@@ -1039,7 +1999,19 @@ export default function AddApplicationPage() {
 
       case 3:
         const selectedAppType = formData.step1.type;
-        
+
+        // For Disconnected Application (both create and edit), step 3 = Integration Settings
+        if (selectedAppType === "Disconnected Application") {
+          return (
+            <div className="space-y-6">
+              <h3 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-3">
+                Integration Settings
+              </h3>
+              {renderDisconnectedApplicationFields()}
+            </div>
+          );
+        }
+
         const renderIntegrationFields = () => {
           // Flatfile: step 3 is File Upload (upload button, file name, field/multivalue delimiters + Uid/Status/DateFormat/Multivalued + drag-drop fields)
           if (selectedAppType === "Flatfile") {
@@ -1145,57 +2117,49 @@ export default function AddApplicationPage() {
                   >
                     Upload
                   </button>
-                  <div className="flex-1 relative">
-                    <input
-                      type="text"
-                      readOnly
-                      value={formData.step3.uploadedFileName || ""}
-                      className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md bg-gray-50 no-underline"
-                      placeholder=" "
-                    />
-                    <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                      formData.step3.uploadedFileName
-                        ? "top-0.5 text-xs text-blue-600"
-                        : "top-3.5 text-sm text-gray-500"
-                    }`}>
-                      File name
-                    </label>
-                  </div>
+                  {flatfileMetadataUsers && formData.step3.uploadedFileName && (
+                    <div className="flex-1 relative">
+                      <input
+                        type="text"
+                        readOnly
+                        value={formData.step3.uploadedFileName}
+                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md bg-gray-50 no-underline"
+                        placeholder=" "
+                      />
+                      <label className="absolute left-4 top-0.5 text-xs text-blue-600 pointer-events-none">
+                        File name
+                      </label>
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 relative">
-                    <input
-                      type="text"
-                      value={formData.step3.fieldDelimiter ?? ","}
-                      onChange={(e) => handleInputChange("step3", "fieldDelimiter", e.target.value)}
-                      className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
-                      placeholder=" "
-                    />
-                    <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                      (formData.step3.fieldDelimiter ?? ",")
-                        ? "top-0.5 text-xs text-blue-600"
-                        : "top-3.5 text-sm text-gray-500"
-                    }`}>
-                      Field Delimiter
-                    </label>
+                {flatfileMetadataUsers && formData.step3.uploadedFileName && (
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 relative">
+                      <input
+                        type="text"
+                        value={formData.step3.fieldDelimiter ?? ","}
+                        onChange={(e) => handleInputChange("step3", "fieldDelimiter", e.target.value)}
+                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                        placeholder=" "
+                      />
+                      <label className="absolute left-4 top-0.5 text-xs text-blue-600 pointer-events-none">
+                        Field Delimiter
+                      </label>
+                    </div>
+                    <div className="flex-1 relative">
+                      <input
+                        type="text"
+                        value={formData.step3.multivalueDelimiter ?? "#"}
+                        onChange={(e) => handleInputChange("step3", "multivalueDelimiter", e.target.value)}
+                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                        placeholder=" "
+                      />
+                      <label className="absolute left-4 top-0.5 text-xs text-blue-600 pointer-events-none">
+                        Multivalue Delimiter
+                      </label>
+                    </div>
                   </div>
-                  <div className="flex-1 relative">
-                    <input
-                      type="text"
-                      value={formData.step3.multivalueDelimiter ?? "#"}
-                      onChange={(e) => handleInputChange("step3", "multivalueDelimiter", e.target.value)}
-                      className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
-                      placeholder=" "
-                    />
-                    <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                      (formData.step3.multivalueDelimiter ?? "#")
-                        ? "top-0.5 text-xs text-blue-600"
-                        : "top-3.5 text-sm text-gray-500"
-                    }`}>
-                      Multivalue Delimiter
-                    </label>
-                  </div>
-                </div>
+                )}
                 {/* Box: Fields + Uid / Status / Date Format / Multivalued */}
                 <div className="border border-gray-300 rounded-lg bg-white p-5 shadow-sm">
                   <div className="space-y-5">
@@ -2540,196 +3504,10 @@ export default function AddApplicationPage() {
 
             case "Disconnected Application":
               return (
-                <div className="space-y-6">
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 relative">
-                      <input
-                        type="text"
-                        value={formData.step3.applicationName || ""}
-                        onChange={(e) => handleInputChange("step3", "applicationName", e.target.value)}
-                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
-                        placeholder=" "
-                      />
-                      <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                        formData.step3.applicationName
-                          ? 'top-0.5 text-xs text-blue-600' 
-                          : 'top-3.5 text-sm text-gray-500'
-                      }`}>
-                        Application Name *
-                      </label>
-                    </div>
-                    <div className="flex-1 relative">
-                      <input
-                        type="text"
-                        value={formData.step3.owner || ""}
-                        onChange={(e) => handleInputChange("step3", "owner", e.target.value)}
-                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
-                        placeholder=" "
-                      />
-                      <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                        formData.step3.owner
-                          ? 'top-0.5 text-xs text-blue-600' 
-                          : 'top-3.5 text-sm text-gray-500'
-                      }`}>
-                        Owner *
-                      </label>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 relative">
-                      <input
-                        type="text"
-                        value={formData.step3.manuallyFulfill || ""}
-                        onChange={(e) => handleInputChange("step3", "manuallyFulfill", e.target.value)}
-                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
-                        placeholder=" "
-                      />
-                      <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                        formData.step3.manuallyFulfill
-                          ? 'top-0.5 text-xs text-blue-600' 
-                          : 'top-3.5 text-sm text-gray-500'
-                      }`}>
-                        Manually Fulfill *
-                      </label>
-                    </div>
-                    <div className="flex-1 relative">
-                      <input
-                        type="text"
-                        value={formData.step3.isIntegratedWithOIM || ""}
-                        onChange={(e) => handleInputChange("step3", "isIntegratedWithOIM", e.target.value)}
-                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
-                        placeholder=" "
-                      />
-                      <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                        formData.step3.isIntegratedWithOIM
-                          ? 'top-0.5 text-xs text-blue-600' 
-                          : 'top-3.5 text-sm text-gray-500'
-                      }`}>
-                        Is Integrated With OIM *
-                      </label>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 relative">
-                      <input
-                        type="text"
-                        value={formData.step3.raiseTicket || ""}
-                        onChange={(e) => handleInputChange("step3", "raiseTicket", e.target.value)}
-                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
-                        placeholder=" "
-                      />
-                      <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                        formData.step3.raiseTicket
-                          ? 'top-0.5 text-xs text-blue-600' 
-                          : 'top-3.5 text-sm text-gray-500'
-                      }`}>
-                        Raise Ticket *
-                      </label>
-                    </div>
-                    <div className="flex-1 relative">
-                      <input
-                        type="text"
-                        value={formData.step3.ticketingSystem || ""}
-                        onChange={(e) => handleInputChange("step3", "ticketingSystem", e.target.value)}
-                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
-                        placeholder=" "
-                      />
-                      <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                        formData.step3.ticketingSystem
-                          ? 'top-0.5 text-xs text-blue-600' 
-                          : 'top-3.5 text-sm text-gray-500'
-                      }`}>
-                        Ticketing System *
-                      </label>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 relative">
-                      <input
-                        type="text"
-                        value={formData.step3.ticketingAppId || ""}
-                        onChange={(e) => handleInputChange("step3", "ticketingAppId", e.target.value)}
-                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
-                        placeholder=" "
-                      />
-                      <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                        formData.step3.ticketingAppId
-                          ? 'top-0.5 text-xs text-blue-600' 
-                          : 'top-3.5 text-sm text-gray-500'
-                      }`}>
-                        Ticketing App ID *
-                      </label>
-                    </div>
-                    <div className="flex-1 relative">
-                      <input
-                        type="password"
-                        value={formData.step3.ticketingAPIToken || ""}
-                        onChange={(e) => handleInputChange("step3", "ticketingAPIToken", e.target.value)}
-                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
-                        placeholder=" "
-                      />
-                      <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                        formData.step3.ticketingAPIToken
-                          ? 'top-0.5 text-xs text-blue-600' 
-                          : 'top-3.5 text-sm text-gray-500'
-                      }`}>
-                        Ticketing API Token *
-                      </label>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 relative">
-                      <input
-                        type="text"
-                        value={formData.step3.assignTo || ""}
-                        onChange={(e) => handleInputChange("step3", "assignTo", e.target.value)}
-                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
-                        placeholder=" "
-                      />
-                      <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                        formData.step3.assignTo
-                          ? 'top-0.5 text-xs text-blue-600' 
-                          : 'top-3.5 text-sm text-gray-500'
-                      }`}>
-                        Assign To *
-                      </label>
-                    </div>
-                    <div className="flex-1 relative">
-                      <input
-                        type="text"
-                        value={formData.step3.oimAppId || ""}
-                        onChange={(e) => handleInputChange("step3", "oimAppId", e.target.value)}
-                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
-                        placeholder=" "
-                      />
-                      <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                        formData.step3.oimAppId
-                          ? 'top-0.5 text-xs text-blue-600' 
-                          : 'top-3.5 text-sm text-gray-500'
-                      }`}>
-                        OIM App ID *
-                      </label>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 relative">
-                      <input
-                        type="password"
-                        value={formData.step3.oimAPIToken || ""}
-                        onChange={(e) => handleInputChange("step3", "oimAPIToken", e.target.value)}
-                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
-                        placeholder=" "
-                      />
-                      <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                        formData.step3.oimAPIToken
-                          ? 'top-0.5 text-xs text-blue-600' 
-                          : 'top-3.5 text-sm text-gray-500'
-                      }`}>
-                        OIM API Token *
-                      </label>
-                    </div>
-                    <div className="flex-1"></div>
-                  </div>
+                <div className="text-sm text-gray-600">
+                  Integration settings for disconnected applications are configured in the
+                  &nbsp;
+                  <span className="font-medium">Add Details</span> step.
                 </div>
               );
 
@@ -6396,7 +7174,6 @@ export default function AddApplicationPage() {
                 ticketingAppId: "Application ID in the ticketing system",
                 ticketingAPIToken: "API token for ticketing system authentication",
                 assignTo: "Default assignee for tickets",
-                oimAppId: "Application ID in OIM system",
                 oimAPIToken: "API token for OIM system authentication"
               };
             case "E2EMigration Client":
@@ -6829,6 +7606,1053 @@ export default function AddApplicationPage() {
         );
 
       case 4:
+        // For Disconnected Application (create + edit), step 4 is File Upload + preview (like Flatfile)
+        if (formData.step1.type === "Disconnected Application") {
+          const disconnectedPreviewList: Record<string, unknown>[] =
+            disconnectedMetadataUsers && Array.isArray((disconnectedMetadataUsers as any).preview)
+              ? (disconnectedMetadataUsers as any).preview
+              : Array.isArray(disconnectedMetadataUsers)
+                ? (disconnectedMetadataUsers as any)
+                : [];
+          const disconnectedPreviewColumns =
+            disconnectedPreviewList.length > 0 && typeof disconnectedPreviewList[0] === "object"
+              ? Object.keys(disconnectedPreviewList[0] as Record<string, unknown>)
+              : [];
+          const disconnectedTotalPreviewPages = Math.max(
+            1,
+            Math.ceil(disconnectedPreviewList.length / FLATFILE_PREVIEW_PAGE_SIZE)
+          );
+          const disconnectedPreviewStartIdx =
+            (flatfilePreviewPage - 1) * FLATFILE_PREVIEW_PAGE_SIZE;
+          const disconnectedPreviewPageRows = disconnectedPreviewList.slice(
+            disconnectedPreviewStartIdx,
+            disconnectedPreviewStartIdx + FLATFILE_PREVIEW_PAGE_SIZE
+          );
+
+          return (
+            <div className="space-y-6">
+              {!isCompleteIntegration && (
+                <>
+                  <h3 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-3">
+                    File Upload
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    Upload any reference or supporting file for this disconnected application.
+                  </p>
+                </>
+              )}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                <input
+                  type="file"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] ?? null;
+                    setDisconnectedFile(file);
+                  }}
+                  className="flex-1 text-sm text-gray-700 file:mr-3 file:px-4 file:py-2 file:rounded-md file:border-0 file:bg-blue-50 file:text-blue-700 file:text-sm file:font-medium hover:file:bg-blue-100 border border-gray-300 rounded-md px-3 py-2"
+                />
+                <button
+                  type="button"
+                  disabled={disconnectedUploadLoading || !disconnectedFile}
+                  onClick={async () => {
+                    const file = disconnectedFile;
+                    if (!file) return;
+                    const appName =
+                      formData.step2.applicationName?.trim() ||
+                      formData.step1.applicationName?.trim() ||
+                      "";
+                    if (!appName) {
+                      alert("Please enter Application Name before uploading.");
+                      return;
+                    }
+                    setDisconnectedUploadLoading(true);
+                    try {
+                      const basicDefinition = {
+                        tenantId: "ACMECOM",
+                        applicationName: appName,
+                        fieldDelimiter: formData.step3.fieldDelimiter ?? ",",
+                        multivalueDelimiter: formData.step3.multivalueDelimiter ?? "#",
+                      };
+                      const data = await uploadAndGetSchemaUsers(file, basicDefinition);
+                      setDisconnectedMetadataUsers(data);
+                      console.debug("uploadandgetschema/users response:", data);
+                    } catch (err) {
+                      console.error("uploadandgetschema/users failed:", err);
+                      alert(
+                        err instanceof Error
+                          ? err.message
+                          : "Failed to upload file and fetch schema. Please try again."
+                      );
+                    } finally {
+                      setDisconnectedUploadLoading(false);
+                    }
+                  }}
+                  className={`px-4 py-2 rounded-md text-sm font-medium whitespace-nowrap ${
+                    disconnectedUploadLoading || !disconnectedFile
+                      ? "bg-gray-300 text-gray-600 cursor-not-allowed"
+                      : "bg-blue-600 text-white hover:bg-blue-700"
+                  }`}
+                >
+                  {disconnectedUploadLoading ? "Uploading…" : "Upload"}
+                </button>
+              </div>
+
+              {/* File name + delimiters, show File Name after file selection, delimiters always editable */}
+              {disconnectedFile && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      readOnly
+                      value={disconnectedFile?.name || ""}
+                      className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md bg-gray-50 no-underline"
+                      placeholder=" "
+                    />
+                    <label
+                      className="absolute left-4 top-0.5 text-xs text-blue-600 pointer-events-none"
+                    >
+                      File Name
+                    </label>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={formData.step3.fieldDelimiter ?? ","}
+                      onChange={(e) =>
+                        handleInputChange("step3", "fieldDelimiter", e.target.value)
+                      }
+                      className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                      placeholder=" "
+                    />
+                    <label
+                      className="absolute left-4 top-0.5 text-xs text-blue-600 pointer-events-none"
+                    >
+                      Field Delimiter
+                    </label>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={formData.step3.multivalueDelimiter ?? "#"}
+                      onChange={(e) =>
+                        handleInputChange("step3", "multivalueDelimiter", e.target.value)
+                      }
+                      className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                      placeholder=" "
+                    />
+                    <label className="absolute left-4 top-0.5 text-xs text-blue-600 pointer-events-none">
+                      Multivalue Delimiter
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {/* Fields / Uid / Status / Date Format / Multivalued Field (drag & drop from Fields) */}
+              {disconnectedPreviewColumns.length > 0 && (
+                <div className="border border-gray-300 rounded-lg bg-white p-5 shadow-sm space-y-5">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Fields
+                    </label>
+                    <div className="flex flex-wrap gap-2 border border-gray-200 rounded-md p-3 bg-gray-50/50">
+                      {disconnectedPreviewColumns.map((fieldName) => (
+                        <div
+                          key={fieldName}
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.effectAllowed = "copy";
+                            e.dataTransfer.setData("text/plain", fieldName);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-white border border-gray-200 hover:bg-gray-50 cursor-grab active:cursor-grabbing text-sm text-gray-900"
+                        >
+                          <span>{fieldName}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="relative rounded-md border-2 border-dashed border-transparent transition-colors hover:border-gray-200">
+                      <input
+                        type="text"
+                        value={formData.step3.uidAttribute ?? ""}
+                        readOnly
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = "copy";
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const fieldName =
+                            (e.dataTransfer.getData("text/plain") ||
+                              e.dataTransfer.getData("text") ||
+                              "").trim();
+                          if (fieldName) {
+                            handleInputChange("step3", "uidAttribute", fieldName);
+                          }
+                        }}
+                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline bg-gray-50"
+                        placeholder=" "
+                      />
+                      {formData.step3.uidAttribute && (
+                        <button
+                          type="button"
+                          className="absolute right-2 top-2 text-gray-400 hover:text-gray-600"
+                          onClick={() => handleInputChange("step3", "uidAttribute", "")}
+                          aria-label="Clear Uid Attribute"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                      <label
+                        className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                          formData.step3.uidAttribute
+                            ? "top-0.5 text-xs text-blue-600"
+                            : "top-3.5 text-sm text-gray-500"
+                        }`}
+                      >
+                        Uid Attribute *
+                      </label>
+                    </div>
+                    <div className="relative rounded-md border-2 border-dashed border-transparent transition-colors hover:border-gray-200">
+                      <input
+                        type="text"
+                        value={formData.step3.statusField ?? ""}
+                        readOnly
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = "copy";
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const fieldName =
+                            (e.dataTransfer.getData("text/plain") ||
+                              e.dataTransfer.getData("text") ||
+                              "").trim();
+                          if (fieldName) {
+                            handleInputChange("step3", "statusField", fieldName);
+                          }
+                        }}
+                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline bg-gray-50"
+                        placeholder=" "
+                      />
+                      {formData.step3.statusField && (
+                        <button
+                          type="button"
+                          className="absolute right-2 top-2 text-gray-400 hover:text-gray-600"
+                          onClick={() => handleInputChange("step3", "statusField", "")}
+                          aria-label="Clear Status Field"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                      <label
+                        className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                          formData.step3.statusField
+                            ? "top-0.5 text-xs text-blue-600"
+                            : "top-3.5 text-sm text-gray-500"
+                        }`}
+                      >
+                        Status Field
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={formData.step3.dateFormat ?? ""}
+                        onChange={(e) =>
+                          handleInputChange("step3", "dateFormat", e.target.value)
+                        }
+                        onDragOver={(e) => {
+                          // Do not allow drag-and-drop into Date Format
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = "none";
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }}
+                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                        placeholder=" "
+                      />
+                      <label
+                        className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                          formData.step3.dateFormat
+                            ? "top-0.5 text-xs text-blue-600"
+                            : "top-3.5 text-sm text-gray-500"
+                        }`}
+                      >
+                        Date Format
+                      </label>
+                    </div>
+                    <div
+                      className="relative rounded-md border-2 border-dashed border-transparent transition-colors hover:border-gray-200"
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = "copy";
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const fieldName =
+                          (e.dataTransfer.getData("text/plain") ||
+                            e.dataTransfer.getData("text") ||
+                            "").trim();
+                        if (!fieldName) return;
+                        const current = Array.isArray(formData.step3.multivaluedField)
+                          ? (formData.step3.multivaluedField as string[])
+                          : formData.step3.multivaluedField
+                          ? [String(formData.step3.multivaluedField)]
+                          : [];
+                        if (!current.includes(fieldName)) {
+                          handleInputChange("step3", "multivaluedField", [
+                            ...current,
+                            fieldName,
+                          ]);
+                        }
+                      }}
+                    >
+                      <label className="absolute left-4 top-0.5 text-xs text-blue-600 pointer-events-none">
+                        Multivalued Field
+                      </label>
+                      <div className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md bg-gray-50 min-h-[40px] flex flex-wrap items-center gap-2">
+                        {Array.isArray(formData.step3.multivaluedField) &&
+                          (formData.step3.multivaluedField as string[]).length > 0 &&
+                          (formData.step3.multivaluedField as string[]).map((val) => (
+                            <span
+                              key={val}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-50 text-blue-700 text-xs border border-blue-200"
+                            >
+                              <span>{val}</span>
+                              <button
+                                type="button"
+                                className="text-blue-400 hover:text-blue-700"
+                                onClick={() => {
+                                  const current =
+                                    formData.step3.multivaluedField as string[];
+                                  const updated = current.filter((v) => v !== val);
+                                  const currentTypes =
+                                    (formData.step3
+                                      .multivaluedFieldEntitlementType as Record<
+                                      string,
+                                      string
+                                    >) || {};
+                                  const { [val]: _removed, ...restTypes } = currentTypes;
+                                  handleInputChange("step3", "multivaluedField", updated);
+                                  handleInputChange(
+                                    "step3",
+                                    "multivaluedFieldEntitlementType",
+                                    restTypes
+                                  );
+                                }}
+                                aria-label={`Remove ${val}`}
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </span>
+                          ))}
+                        {!Array.isArray(formData.step3.multivaluedField) &&
+                          formData.step3.multivaluedField && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-50 text-blue-700 text-xs border border-blue-200">
+                              <span>{String(formData.step3.multivaluedField)}</span>
+                              <button
+                                type="button"
+                                className="text-blue-400 hover:text-blue-700"
+                                onClick={() => {
+                                  const key = String(formData.step3.multivaluedField);
+                                  const currentTypes =
+                                    (formData.step3
+                                      .multivaluedFieldEntitlementType as Record<
+                                      string,
+                                      string
+                                    >) || {};
+                                  const { [key]: _removed, ...restTypes } = currentTypes;
+                                  handleInputChange("step3", "multivaluedField", []);
+                                  handleInputChange(
+                                    "step3",
+                                    "multivaluedFieldEntitlementType",
+                                    restTypes
+                                  );
+                                }}
+                                aria-label="Remove value"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </span>
+                          )}
+                        {!formData.step3.multivaluedField && (
+                          <span className="text-xs text-gray-400">
+                            Drag fields here to add
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Entitlement type dropdowns shown below all 4 fields */}
+                  {formData.step3.multivaluedField && (
+                    <div className="mt-5 space-y-3">
+                      <div className="text-sm font-medium text-gray-700">
+                        Entitlement Type (for each multivalued field)
+                      </div>
+                            <div className="space-y-2">
+                        {(
+                          Array.isArray(formData.step3.multivaluedField)
+                            ? (formData.step3.multivaluedField as string[])
+                            : [String(formData.step3.multivaluedField)]
+                        ).map((val) => {
+                          const allTypes = ["Groups", "Roles", "Entitlement"];
+                          const currentTypes =
+                            (formData.step3
+                              .multivaluedFieldEntitlementType as Record<string, string>) ||
+                            {};
+                          const currentValue = currentTypes[val] || "";
+                          const selectedForOthers = new Set(
+                            Object.entries(currentTypes)
+                              .filter(([key]) => key !== val)
+                              .map(([, v]) => v)
+                          );
+                          const availableOptions = allTypes.filter(
+                            (t) => !selectedForOthers.has(t) || t === currentValue
+                          );
+                          return (
+                            <div
+                              key={val}
+                              className="grid grid-cols-[minmax(0,1.4fr)_minmax(180px,0.8fr)] items-center gap-3 text-sm"
+                            >
+                              <span className="truncate text-gray-800">
+                                {val}
+                              </span>
+                              <select
+                                className="bg-white border border-gray-300 rounded px-3 py-2 text-sm text-gray-700 w-full"
+                                value={currentValue}
+                                onChange={(e) => {
+                                  const updatedTypes = {
+                                    ...currentTypes,
+                                    [val]: e.target.value,
+                                  };
+                                  handleInputChange(
+                                    "step3",
+                                    "multivaluedFieldEntitlementType",
+                                    updatedTypes
+                                  );
+                                }}
+                              >
+                                <option value="">Select Entitlement Type</option>
+                                {availableOptions.map((opt) => (
+                                  <option key={opt} value={opt}>
+                                    {opt}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Save button before Preview (calls savebasemetadata/users; enabled only when Uid Attribute + Entitlement Type are set as required) */}
+                  <div className="flex justify-end">
+                    {(() => {
+                      const mv = formData.step3.multivaluedField;
+                      const mvList = Array.isArray(mv)
+                        ? (mv as string[])
+                        : mv
+                        ? [String(mv)]
+                        : [];
+                      const types =
+                        (formData.step3
+                          .multivaluedFieldEntitlementType as Record<string, string>) ||
+                        {};
+                      const hasAllEntitlementTypes =
+                        mvList.length === 0 ||
+                        mvList.every((name) => !!types[name]);
+                      const canSave =
+                        !!formData.step3.uidAttribute &&
+                        hasAllEntitlementTypes &&
+                        !!disconnectedFile;
+                      return (
+                    <button
+                      type="button"
+                          disabled={!canSave}
+                      className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                      onClick={() => {
+                            if (!canSave) return;
+                            if (!disconnectedFile) return;
+                            (async () => {
+                              try {
+                                const appName =
+                                  formData.step2.applicationName?.trim() ||
+                                  formData.step1.applicationName?.trim() ||
+                                  "";
+                                const mvField = formData.step3
+                                  .multivaluedField;
+                                const mvList = Array.isArray(mvField)
+                                  ? (mvField as string[])
+                                  : mvField
+                                  ? [String(mvField)]
+                                  : [];
+                                const types =
+                                  (formData.step3
+                                    .multivaluedFieldEntitlementType as Record<
+                                    string,
+                                    string
+                                  >) || {};
+                                const parentFieldDefinition = {
+                                  fieldNames: disconnectedPreviewColumns.join(
+                                    ","
+                                  ),
+                                  fields: disconnectedPreviewColumns,
+                                  uidAttribute:
+                                    formData.step3.uidAttribute ?? "",
+                                  statusField:
+                                    formData.step3.statusField ?? "",
+                                  dateFormat:
+                                    formData.step3.dateFormat ?? "",
+                                  multivaluedField: mvList,
+                                };
+                                const multivaluedFieldDefinition = mvList.map(
+                                  (fieldName) => ({
+                                    fieldName,
+                                    uidAttribute: fieldName,
+                                    entitlementName: "",
+                                    entitlementType: types[fieldName] || "",
+                                    entitlement: false,
+                                  })
+                                );
+                                const payload = {
+                                  tenantId: "ACMECOM",
+                                  appId: "BASEREPO",
+                                  applicationName: appName,
+                                  appType: "users",
+                                  fileName: disconnectedFile.name,
+                                  parentFieldDefinition,
+                                  multivaluedFieldDefinition,
+                                  preview: disconnectedPreviewList,
+                                  fieldDelimiter:
+                                    formData.step3.fieldDelimiter ?? ",",
+                                  multivalueDelimiter:
+                                    formData.step3.multivalueDelimiter ?? "#",
+                                };
+                                const resp = await saveBaseMetadataUsers(
+                                  payload
+                                );
+                                console.debug(
+                                  "savebasemetadata/users success",
+                                  resp
+                                );
+                                setDisconnectedMetadataSaved(true);
+                              } catch (err) {
+                                console.error(
+                                  "savebasemetadata/users failed",
+                                  err
+                                );
+                                alert(
+                                  err instanceof Error
+                                    ? err.message
+                                    : "Failed to save base metadata. Please try again."
+                                );
+                              }
+                            })();
+                      }}
+                    >
+                      Save
+                    </button>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
+
+              {disconnectedPreviewList.length > 0 && (
+                <div className="border border-gray-300 rounded-lg bg-white overflow-hidden w-full">
+                  <button
+                    type="button"
+                    onClick={() => setFlatfilePreviewCollapsed((c) => !c)}
+                    className="flex items-center gap-2 px-4 py-3 w-full text-left border-b border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors"
+                    aria-expanded={!flatfilePreviewCollapsed}
+                  >
+                    <ChevronDown
+                      className={`w-5 h-5 text-blue-600 shrink-0 transition-transform ${
+                        flatfilePreviewCollapsed ? "" : "rotate-180"
+                      }`}
+                      aria-hidden
+                    />
+                    <span className="text-blue-600 font-medium">Preview</span>
+                  </button>
+                  {!flatfilePreviewCollapsed && (
+                    <>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs table-fixed border-collapse">
+                          <thead>
+                            <tr className="bg-gray-100 border-b border-gray-200">
+                              {disconnectedPreviewColumns.map((col) => (
+                                <th
+                                  key={col}
+                                  className="px-2 py-2.5 font-semibold text-gray-700 align-top whitespace-normal break-words"
+                                >
+                                  {col}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200">
+                            {disconnectedPreviewPageRows.map((row, rowIdx) => (
+                              <tr
+                                key={disconnectedPreviewStartIdx + rowIdx}
+                                className="bg-white hover:bg-gray-50"
+                              >
+                                {disconnectedPreviewColumns.map((col) => (
+                                  <td
+                                    key={col}
+                                    className="px-2 py-2 text-gray-900 whitespace-normal break-words align-top leading-snug"
+                                  >
+                                    {String((row as Record<string, unknown>)[col] ?? "")}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="flex items-center justify-end gap-1 px-4 py-3 border-t border-gray-200 bg-gray-50">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setFlatfilePreviewPage((p) => Math.max(1, p - 1))
+                          }
+                          disabled={flatfilePreviewPage <= 1}
+                          className="p-2 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                          aria-label="Previous page"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        {Array.from(
+                          { length: disconnectedTotalPreviewPages },
+                          (_, i) => i + 1
+                        )
+                          .slice(0, 10)
+                          .map((pageNum) => (
+                            <button
+                              key={pageNum}
+                              type="button"
+                              onClick={() => setFlatfilePreviewPage(pageNum)}
+                              className={`min-w-[2rem] py-1.5 px-2 rounded text-sm font-medium ${
+                                flatfilePreviewPage === pageNum
+                                  ? "bg-blue-600 text-white"
+                                  : "hover:bg-gray-200 text-gray-700"
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          ))}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setFlatfilePreviewPage((p) =>
+                              Math.min(disconnectedTotalPreviewPages, p + 1)
+                            )
+                          }
+                          disabled={flatfilePreviewPage >= disconnectedTotalPreviewPages}
+                          className="p-2 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                          aria-label="Next page"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Per-field accordion for each Multivalued Field shown below Preview (only after base metadata save) */}
+              {disconnectedMetadataSaved &&
+                Array.isArray(formData.step3.multivaluedField) &&
+                formData.step3.multivaluedField.length > 0 &&
+                disconnectedPreviewList.length > 0 && (
+                  <div className="mt-6 border border-gray-200 rounded-lg bg-white">
+                    <div className="border-b border-gray-200 px-4 pt-3 pb-2">
+                      <div className="text-sm font-medium text-gray-800">
+                        Field Name
+                      </div>
+                    </div>
+                    <div className="divide-y divide-gray-200">
+                      {(formData.step3.multivaluedField as string[]).map(
+                        (fieldName) => {
+                          const step3 = formData.step3 as Record<string, any>;
+                          const isExpanded =
+                            disconnectedPerFieldExpanded[fieldName] ?? false;
+                          const toggleExpanded = () =>
+                            setDisconnectedPerFieldExpanded((prev) => ({
+                              ...prev,
+                              [fieldName]: !prev[fieldName],
+                            }));
+
+                          // For per‑multivalued field config, only show preview after a file is uploaded for that field
+                          const fileName =
+                            (step3[`mv_fileName_${fieldName}`] as string) || "";
+                          const fieldDelimiterValue =
+                            (step3[`mv_fieldDelimiter_${fieldName}`] as string) ??
+                            (formData.step3.fieldDelimiter as string) ??
+                            ",";
+                          const multivalueDelimiterValue =
+                            (step3[`mv_multivalueDelimiter_${fieldName}`] as string) ??
+                            (formData.step3.multivalueDelimiter as string) ??
+                            "#";
+                          const selectedField =
+                            (step3[`mv_field_${fieldName}`] as string) ||
+                            fieldName;
+                          const multivaluedList = Array.isArray(
+                            formData.step3.multivaluedField
+                          )
+                            ? (formData.step3.multivaluedField as string[])
+                            : [];
+                          const primaryAttribute =
+                            (step3.primaryAttribute as string) || "";
+
+                          const fieldLabel =
+                            fieldName
+                              .replace(/([A-Z])/g, " $1")
+                              .replace(/^./, (s) => s.toUpperCase())
+                              .trim() + " Entity";
+
+                          return (
+                            <div key={fieldName} className="bg-white">
+                              <button
+                                type="button"
+                                onClick={toggleExpanded}
+                                className="flex items-center gap-2 w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                                aria-expanded={isExpanded}
+                              >
+                                {isExpanded ? (
+                                  <ChevronDown
+                                    className="w-4 h-4 text-blue-600 shrink-0"
+                                    aria-hidden
+                                  />
+                                ) : (
+                                  <ChevronRight
+                                    className="w-4 h-4 text-blue-600 shrink-0"
+                                    aria-hidden
+                                  />
+                                )}
+                                <span className="text-blue-600 font-medium">
+                                  {fieldLabel}
+                                </span>
+                              </button>
+                              {isExpanded && (
+                                <div className="px-4 pb-4 pt-1 space-y-4 border-t border-gray-200">
+                                  {/* File Upload + config for this multivalued field */}
+                                  <div className="space-y-4">
+                                    <div className="space-y-2">
+                                      <div className="text-xs font-medium text-gray-700">
+                                        File Upload
+                                      </div>
+                                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                                        <input
+                                          type="file"
+                                          onChange={(e) => {
+                                            const file = e.target.files?.[0] ?? null;
+                                            handleInputChange(
+                                              "step3",
+                                              `mv_fileName_${fieldName}`,
+                                              file ? file.name : ""
+                                            );
+                                            setDisconnectedPerFieldFile((prev) => ({
+                                              ...prev,
+                                              [fieldName]: file,
+                                            }));
+                                            if (!file) {
+                                              setDisconnectedPerFieldPreview((prev) => ({
+                                                ...prev,
+                                                [fieldName]: [],
+                                              }));
+                                            }
+                                          }}
+                                          className="flex-1 text-sm text-gray-700 file:mr-3 file:px-4 file:py-2 file:rounded-md file:border-0 file:bg-blue-50 file:text-blue-700 file:text-sm file:font-medium hover:file:bg-blue-100 border border-gray-300 rounded-md px-3 py-2"
+                                        />
+                                        <button
+                                          type="button"
+                                          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-xs font-medium whitespace-nowrap"
+                                          onClick={async () => {
+                                            const file = disconnectedPerFieldFile[fieldName];
+                                            if (!file) {
+                                              alert("Please choose a file for this field first.");
+                                              return;
+                                            }
+                                            const appName =
+                                              formData.step2.applicationName?.trim() ||
+                                              formData.step1.applicationName?.trim() ||
+                                              "";
+                                            if (!appName) {
+                                              alert(
+                                                "Please enter Application Name before uploading."
+                                              );
+                                              return;
+                                            }
+                                            try {
+                                              const basicDefinition = {
+                                                tenantId: "ACMECOM",
+                                                applicationName: appName,
+                                                fieldDelimiter: fieldDelimiterValue,
+                                                multivalueDelimiter: multivalueDelimiterValue,
+                                              };
+                                              const data = await uploadAndGetSchemaForField(
+                                                fieldName,
+                                                file,
+                                                basicDefinition
+                                              );
+                                              const anyData = data as any;
+                                              const preview =
+                                                (anyData &&
+                                                  Array.isArray(anyData.preview) &&
+                                                  anyData.preview) ||
+                                                (Array.isArray(anyData) ? anyData : []);
+                                              setDisconnectedPerFieldPreview((prev) => ({
+                                                ...prev,
+                                                [fieldName]: preview,
+                                              }));
+                                              console.debug(
+                                                "uploadandgetschema/field response",
+                                                fieldName,
+                                                data
+                                              );
+                                            } catch (err) {
+                                              console.error(
+                                                "uploadandgetschema/field failed",
+                                                fieldName,
+                                                err
+                                              );
+                                              alert(
+                                                err instanceof Error
+                                                  ? err.message
+                                                  : "Failed to upload file and fetch multivalued field schema. Please try again."
+                                              );
+                                            }
+                                          }}
+                                        >
+                                          Upload
+                                        </button>
+                                      </div>
+                                      {fileName && (
+                                        <div className="mt-1 text-xs text-gray-600">
+                                          File Name:{" "}
+                                          <span className="font-medium text-gray-800">
+                                            {fileName}
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {disconnectedPerFieldPreview[fieldName] &&
+                                      (disconnectedPerFieldPreview[fieldName] as any[]).length >
+                                        0 && (
+                                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                                        <div className="relative">
+                                          <input
+                                            type="text"
+                                            value={fieldDelimiterValue}
+                                            onChange={(e) =>
+                                              handleInputChange(
+                                                "step3",
+                                                `mv_fieldDelimiter_${fieldName}`,
+                                                e.target.value
+                                              )
+                                            }
+                                            className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                            placeholder=" "
+                                          />
+                                          <label className="absolute left-4 top-0.5 text-xs text-blue-600 pointer-events-none">
+                                            Field Delimiter
+                                          </label>
+                                        </div>
+                                        <div className="relative">
+                                          <input
+                                            type="text"
+                                            value={multivalueDelimiterValue}
+                                            onChange={(e) =>
+                                              handleInputChange(
+                                                "step3",
+                                                `mv_multivalueDelimiter_${fieldName}`,
+                                                e.target.value
+                                              )
+                                            }
+                                            className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                            placeholder=" "
+                                          />
+                                          <label className="absolute left-4 top-0.5 text-xs text-blue-600 pointer-events-none">
+                                            Multivalue Delimiter
+                                          </label>
+                                        </div>
+                                        <div className="flex flex-col max-w-xs">
+                                          <span className="text-xs text-gray-500 mb-1">
+                                            Primary Attribute
+                                          </span>
+                                          <select
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-700"
+                                            value={primaryAttribute}
+                                            onChange={(e) =>
+                                              handleInputChange(
+                                                "step3",
+                                                "primaryAttribute",
+                                                e.target.value
+                                              )
+                                            }
+                                          >
+                                            <option value="">Select</option>
+                                            {multivaluedList.map((mv) => (
+                                              <option key={mv} value={mv}>
+                                                {mv}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Per-field preview for this multivalued attribute */}
+                                  {fileName ? (
+                                    <div className="overflow-x-auto border border-gray-200 rounded-md">
+                                      <table className="w-full text-left text-xs table-fixed border-collapse">
+                                        <thead>
+                                          <tr className="bg-gray-100 border-b border-gray-200">
+                                            <th className="px-2 py-2.5 font-semibold text-gray-700 align-top whitespace-normal break-words">
+                                              {fieldName}
+                                            </th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-200">
+                                          {(() => {
+                                            const fromPerField =
+                                              (disconnectedPerFieldPreview[fieldName] as any[]) ||
+                                              [];
+                                            const rows =
+                                              fromPerField.length > 0
+                                                ? fromPerField
+                                                : disconnectedPreviewList.map((row) => ({
+                                                    [fieldName]: (row as any)[fieldName],
+                                                  }));
+                                            return rows.map((row, rowIdx) => (
+                                              <tr
+                                                key={`mv-${rowIdx}`}
+                                                className="bg-white hover:bg-gray-50"
+                                              >
+                                                <td className="px-2 py-2 text-gray-900 whitespace-normal break-words align-top leading-snug">
+                                                  {String(
+                                                    (row as Record<string, unknown>)[fieldName] ??
+                                                      ""
+                                                  )}
+                                                </td>
+                                              </tr>
+                                            ));
+                                          })()}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  ) : (
+                                    <div className="border border-dashed border-gray-300 rounded-md px-4 py-6 text-xs text-gray-500 text-center">
+                                      Upload a file for this field to see preview rows.
+                                    </div>
+                                  )}
+
+                                  {fileName && (
+                                    <div className="flex justify-end pt-3">
+                                      <button
+                                        type="button"
+                                        disabled={
+                                          !primaryAttribute ||
+                                          (() => {
+                                            const fromPerField =
+                                              (disconnectedPerFieldPreview[fieldName] as any[]) ||
+                                              [];
+                                            const rows =
+                                              fromPerField.length > 0
+                                                ? fromPerField
+                                                : disconnectedPreviewList.map((row) => ({
+                                                    [fieldName]: (row as any)[fieldName],
+                                                  }));
+                                            return rows.length === 0;
+                                          })()
+                                        }
+                                        className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                                        onClick={async () => {
+                                          const fromPerField =
+                                            (disconnectedPerFieldPreview[fieldName] as any[]) || [];
+                                          const previewForField =
+                                            fromPerField.length > 0
+                                              ? fromPerField
+                                              : disconnectedPreviewList.map((row) => ({
+                                                  [fieldName]: (row as any)[fieldName],
+                                                }));
+                                          if (!primaryAttribute || previewForField.length === 0) {
+                                            return;
+                                          }
+                                          try {
+                                            const appName =
+                                              formData.step2.applicationName?.trim() ||
+                                              formData.step1.applicationName?.trim() ||
+                                              "";
+                                            const payload = {
+                                              tenantId: "ACMECOM",
+                                              appId: "BASEREPO",
+                                              applicationName: appName,
+                                              appType: fieldName,
+                                              fileName,
+                                              parentFieldDefinition: {
+                                                fieldNames: fieldName,
+                                                fields: [fieldName],
+                                                uidAttribute: primaryAttribute,
+                                                statusField: null,
+                                                dateFormat: null,
+                                                multivaluedField: [],
+                                              },
+                                              multivaluedFieldDefinition: [],
+                                              preview: previewForField,
+                                              fieldDelimiter: fieldDelimiterValue,
+                                              multivalueDelimiter: multivalueDelimiterValue,
+                                            };
+                                            const resp = await saveBaseMetadataForField(
+                                              fieldName,
+                                              payload
+                                            );
+                                            console.debug(
+                                              "savebasemetadata/field success",
+                                              fieldName,
+                                              resp
+                                            );
+                                          } catch (err) {
+                                            console.error(
+                                              "savebasemetadata/field failed",
+                                              fieldName,
+                                              err
+                                            );
+                                            alert(
+                                              err instanceof Error
+                                                ? err.message
+                                                : "Failed to save multivalued field metadata. Please try again."
+                                            );
+                                          }
+                                        }}
+                                      >
+                                        Save
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        }
+                      )}
+                    </div>
+                  </div>
+                )}
+            </div>
+          );
+        }
+
         return (
           <div className="space-y-6">
 
@@ -7281,6 +9105,21 @@ export default function AddApplicationPage() {
         );
 
       case 5:
+        // For Disconnected Application (create + edit), step 5 should be Schema Mapping
+        if (formData.step1.type === "Disconnected Application") {
+          return renderSchemaMappingStep();
+        }
+
+        // For all other flows, step 5 is Advanced settings / Finish Up
+        return (
+          <div className="space-y-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Advanced settings</h2>
+            <AdvanceSettingTab ref={advanceSettingRef} applicationId="wizard" wizardMode />
+          </div>
+        );
+
+      case 6:
+        // Step 6 is only reachable for new Disconnected apps; show Advanced settings (Hooks & Threshold)
         return (
           <div className="space-y-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Advanced settings</h2>
@@ -7364,45 +9203,77 @@ export default function AddApplicationPage() {
           </div>
         )}
 
-         {/* Progress Steps - clickable in edit mode to move between steps without Save and Next */}
-         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-           <div className="flex items-center justify-between">
-             {(isCompleteIntegration ? steps.filter((s) => s.id >= 3 && s.id <= 5) : steps).map((step, index) => {
-               const stepsShown = isCompleteIntegration ? steps.filter((s) => s.id >= 3 && s.id <= 5) : steps;
-               const isClickable = isCompleteIntegration || step.id > 1;
-               const displayNumber = isCompleteIntegration ? index + 1 : step.id;
-               return (
-                 <div
-                   key={step.id}
-                   className={`flex items-center ${isClickable ? "cursor-pointer" : ""}`}
-                   onClick={isClickable ? () => setCurrentStep(step.id) : undefined}
-                   onKeyDown={isClickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setCurrentStep(step.id); } } : undefined}
-                   role={isClickable ? "button" : undefined}
-                   tabIndex={isClickable ? 0 : undefined}
-                   aria-label={isClickable ? `Go to step ${displayNumber}: ${step.title}` : undefined}
-                 >
-                   <div
-                     className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                       currentStep >= step.id
-                         ? "bg-blue-600 text-white"
-                         : "bg-gray-200 text-gray-600"
-                     } ${isClickable ? "hover:ring-2 hover:ring-blue-400" : ""}`}
-                   >
-                     {currentStep > step.id ? <Check className="w-4 h-4" /> : displayNumber}
-                   </div>
-                  <div className="ml-3">
-                     <p className="text-sm font-medium text-gray-900">
-                       {step.id === 3 && formData.step1.type === "Flatfile" ? "File Upload" : step.title}
-                     </p>
+        {/* Progress Steps - clickable in edit mode to move between steps without Save and Next */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+          <div className="flex items-center justify-between">
+            {(() => {
+              const isDisconnected = formData.step1.type === "Disconnected Application";
+              const stepsShown = isCompleteIntegration
+                ? (isDisconnected
+                    ? steps.filter((s) => s.id >= 3 && s.id <= 6)
+                    : steps.filter((s) => s.id >= 3 && s.id <= 5))
+                : isDisconnected
+                  ? steps
+                  : steps.filter((s) => s.id <= 5);
+              return stepsShown.map((step, index) => {
+                const isClickable = isCompleteIntegration || step.id > 1;
+                const displayNumber = isCompleteIntegration ? index + 1 : step.id;
+                return (
+                  <div
+                    key={step.id}
+                    className={`flex items-center ${isClickable ? "cursor-pointer" : ""}`}
+                    onClick={isClickable ? () => setCurrentStep(step.id) : undefined}
+                    onKeyDown={
+                      isClickable
+                        ? (e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setCurrentStep(step.id);
+                            }
+                          }
+                        : undefined
+                    }
+                    role={isClickable ? "button" : undefined}
+                    tabIndex={isClickable ? 0 : undefined}
+                    aria-label={
+                      isClickable ? `Go to step ${displayNumber}: ${step.title}` : undefined
+                    }
+                  >
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                        currentStep >= step.id
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-200 text-gray-600"
+                      } ${isClickable ? "hover:ring-2 hover:ring-blue-400" : ""}`}
+                    >
+                      {currentStep > step.id ? <Check className="w-4 h-4" /> : displayNumber}
+                    </div>
+                    <div className="ml-3">
+                      <p className="text-sm font-medium text-gray-900">
+                        {(() => {
+                          const type = formData.step1.type;
+                          if (type === "Flatfile" && step.id === 3) return "File Upload";
+                          if (type === "Disconnected Application") {
+                            if (step.id === 4) return "File Upload";
+                            if (step.id === 5) return "Schema Mapping";
+                            if (step.id === 6) return "Finish Up";
+                          } else {
+                            if (step.id === 4) return "Schema Mapping";
+                            if (step.id === 5) return "Finish Up";
+                          }
+                          return step.title;
+                        })()}
+                      </p>
+                    </div>
+                    {index < stepsShown.length - 1 && (
+                      <div className="flex-1 h-0.5 bg-gray-200 mx-4" />
+                    )}
                   </div>
-                   {index < stepsShown.length - 1 && (
-                     <div className="flex-1 h-0.5 bg-gray-200 mx-4" />
-                   )}
-                 </div>
-               );
-             })}
-           </div>
-         </div>
+                );
+              });
+            })()}
+          </div>
+        </div>
 
         {/* Navigation Buttons - moved to top */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
@@ -7426,7 +9297,7 @@ export default function AddApplicationPage() {
             </button>
 
             <div className="flex gap-3 ml-auto">
-              {currentStep < 5 ? (
+              {currentStep < (!isCompleteIntegration && formData.step1.type === "Disconnected Application" ? 6 : 5) ? (
                 <button
                   onClick={handleNext}
                   disabled={submitRequestLoading}
@@ -7444,7 +9315,7 @@ export default function AddApplicationPage() {
                   Submit Application
                 </button>
               ) : null}
-              {isCompleteIntegration && currentStep === 5 && (
+              {isCompleteIntegration && formData.step1.type === "Disconnected Application" && currentStep === 6 && (
                 <button
                   type="button"
                   className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
@@ -7475,7 +9346,7 @@ export default function AddApplicationPage() {
                         group_searchBase: groupSearchBaseVal,
                       };
                       const applicationConfigurationDetails =
-                        (currentStep === 5 && advanceSettingRef.current?.getConfig?.()) ?? null;
+                        (formData.step1.type === "Disconnected Application" && currentStep === 6 && advanceSettingRef.current?.getConfig?.()) ?? null;
                       const onboardPayload = {
                         tenantId: "ACMECOM",
                         appid: appIdFromUrl || "",

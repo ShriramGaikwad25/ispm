@@ -390,6 +390,8 @@ function AppOwnerContent() {
   const entitlementDescriptionMapRef = useRef<Map<string, string>>(new Map());
   // Track which entitlement groups were selected in the previous tick so we can detect groups just unchecked
   const previousSelectedGroupKeysRef = useRef<Set<string>>(new Set());
+  // Raw API items for status counts from access block (getAPPOCertificationDetails / getGroupedAppOwnerDetails)
+  const [rawDetailsItems, setRawDetailsItems] = useState<any[]>([]);
   // State for header info and user progress
   const [headerInfo, setHeaderInfo] = useState({
     campaignName: "",
@@ -528,6 +530,7 @@ function AppOwnerContent() {
       setRowData(transformedData);
       setTotalPages(response.total_pages || 1);
       setTotalItems(response.total_items || 0);
+      setRawDetailsItems(response.items || []);
 
       // Store header data in localStorage for header component
       // Only update if we don't have existing campaign data from access review
@@ -572,6 +575,60 @@ function AppOwnerContent() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Aggregate status counts from getAPPOCertificationDetails / grouped API (access block) for status filter labels
+  const statusCountsFromAccess = useMemo(() => {
+    const items = rawDetailsItems ?? [];
+    const isGroupedEnts = isGroupedByEntitlementCheckbox || groupByOption === "Entitlements";
+    let pending = 0;
+    let certify = 0;
+    let reject = 0;
+    let remediated = 0;
+    let delegated = 0;
+
+    if (isGroupedEnts) {
+      for (const group of items) {
+        const accounts = Array.isArray(group?.accounts) ? group.accounts : [];
+        for (const account of accounts) {
+          const access = account?.access || {};
+          pending += access.numOfPendingEntitlements ?? 0;
+          certify +=
+            (access.numOfEntitlementsCertified ?? 0) +
+            (access.numOfApplicationsCertified ?? 0) +
+            (access.numOfRolesCertified ?? 0);
+          reject +=
+            (access.numOfEntitlementsRevoked ?? 0) +
+            (access.numOfApplicationsRevoked ?? 0) +
+            (access.numOfRolesRevoked ?? 0);
+          remediated += access.numOfRemediations ?? 0;
+        }
+      }
+    } else {
+      for (const item of items) {
+        const access = item?.access || {};
+        pending += access.numOfPendingEntitlements ?? 0;
+        certify +=
+          (access.numOfEntitlementsCertified ?? 0) +
+          (access.numOfApplicationsCertified ?? 0) +
+          (access.numOfRolesCertified ?? 0);
+        reject +=
+          (access.numOfEntitlementsRevoked ?? 0) +
+          (access.numOfApplicationsRevoked ?? 0) +
+          (access.numOfRolesRevoked ?? 0);
+        remediated += access.numOfRemediations ?? 0;
+      }
+    }
+
+    const all = pending + certify + reject + remediated + delegated;
+    return {
+      All: all,
+      Pending: pending,
+      Certify: certify,
+      Reject: reject,
+      Remediated: remediated,
+      Delegated: delegated,
+    };
+  }, [rawDetailsItems, isGroupedByEntitlementCheckbox, groupByOption]);
 
   const handleDownloadExcel = async (certificationId: string) => {
     console.log("=== handleDownloadExcel START ===");
@@ -1957,6 +2014,8 @@ function AppOwnerContent() {
                 context="status"
                 appliedFilter={handleAppliedFilter}
                 initialSelected="Pending"
+                value={selectedFilters.length > 0 ? selectedFilters[0] : undefined}
+                statusCounts={statusCountsFromAccess}
               />
               <label className="flex items-center gap-2 cursor-pointer ml-2">
                 <input

@@ -687,6 +687,211 @@ export async function getFlatfileAppMetadataUsers(loginremote_user: string = "AC
   }
 }
 
+/** Fetches app metadata users for a given disconnected application name. */
+export async function getAppMetadataUsers(
+  applicationName: string,
+  loginremote_user: string = "ACMEADMIN"
+): Promise<any> {
+  const encodedApp = encodeURIComponent(applicationName);
+  const endpoint = `https://preview.keyforge.ai/itasset/ACMECOM/getappmetadata/${encodedApp}/users`;
+
+  try {
+    const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
+    if (!accessToken) {
+      return null;
+    }
+
+    const headers = new Headers();
+    headers.set("Content-Type", "application/json");
+    headers.set("X-Requested-With", "XMLHttpRequest");
+    headers.set("Authorization", `Bearer ${accessToken}`);
+    headers.set("loginremote_user", loginremote_user);
+
+    const fetchFn = typeof window !== "undefined" ? getOriginalFetch() : fetch;
+    const response = await fetchFn(endpoint, { method: "GET", headers });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      try {
+        const errorData = JSON.parse(errorText);
+        if (await checkTokenExpiredError(errorData)) {
+          throw new Error("Token Expired");
+        }
+      } catch (e) {
+        if (e instanceof Error && e.message === "Token Expired") throw e;
+      }
+      console.warn("getappmetadata/<app>/users API unavailable:", response.status, errorText);
+      return null;
+    }
+
+    const data = await response.json();
+    if (await checkTokenExpiredError(data)) {
+      throw new Error("Token Expired");
+    }
+    return data;
+  } catch (error) {
+    if (error instanceof Error && error.message === "Token Expired") {
+      throw error;
+    }
+    console.warn("getAppMetadataUsers failed:", error);
+    return null;
+  }
+}
+
+/** Uploads a CSV file and returns schema for users - uploadandgetschema/users. */
+export async function uploadAndGetSchemaUsers(
+  csvfile: File,
+  basicDefinition: { tenantId: string; applicationName: string; fieldDelimiter: string; multivalueDelimiter: string },
+  loginremote_user: string = "ACMEADMIN"
+): Promise<any> {
+  const endpoint = "https://preview.keyforge.ai/itasset/ACMECOM/uploadandgetschema/users";
+
+  try {
+    const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
+    if (!accessToken) {
+      throw new Error("No access token available");
+    }
+
+    const headers = new Headers();
+    // Let browser set multipart boundary; do not set Content-Type explicitly
+    headers.set("X-Requested-With", "XMLHttpRequest");
+    headers.set("Authorization", `Bearer ${accessToken}`);
+    headers.set("loginremote_user", loginremote_user);
+
+    const formData = new FormData();
+    formData.append("csvfile", csvfile);
+    formData.append("basicDefinition", JSON.stringify(basicDefinition));
+
+    const fetchFn = typeof window !== "undefined" ? getOriginalFetch() : fetch;
+    const response = await fetchFn(endpoint, { method: "POST", headers, body: formData });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      try {
+        const errorData = JSON.parse(errorText);
+        if (await checkTokenExpiredError(errorData)) {
+          throw new Error("Token Expired");
+        }
+      } catch (e) {
+        if (e instanceof Error && e.message === "Token Expired") throw e;
+      }
+      throw new Error(`uploadandgetschema/users failed: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    if (await checkTokenExpiredError(data)) {
+      throw new Error("Token Expired");
+    }
+    return data;
+  } catch (error) {
+    if (error instanceof Error && error.message === "Token Expired") {
+      throw error;
+    }
+    console.warn("uploadAndGetSchemaUsers failed:", error);
+    throw error;
+  }
+}
+
+/** Uploads a CSV file and returns schema for a multivalued field - uploadandgetschema/{fieldName}. */
+export async function uploadAndGetSchemaForField(
+  fieldName: string,
+  csvfile: File,
+  basicDefinition: { tenantId: string; applicationName: string; fieldDelimiter: string; multivalueDelimiter: string },
+  loginremote_user: string = "ACMEADMIN"
+): Promise<any> {
+  const encodedField = encodeURIComponent(fieldName);
+  const endpoint = `https://preview.keyforge.ai/itasset/ACMECOM/uploadandgetschema/${encodedField}`;
+
+  try {
+    const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
+    if (!accessToken) {
+      throw new Error("No access token available");
+    }
+
+    const headers = new Headers();
+    headers.set("X-Requested-With", "XMLHttpRequest");
+    headers.set("Authorization", `Bearer ${accessToken}`);
+    headers.set("loginremote_user", loginremote_user);
+
+    const formData = new FormData();
+    formData.append("csvfile", csvfile);
+    formData.append("basicDefinition", JSON.stringify(basicDefinition));
+
+    const fetchFn = typeof window !== "undefined" ? getOriginalFetch() : fetch;
+    const response = await fetchFn(endpoint, { method: "POST", headers, body: formData });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      try {
+        const errorData = JSON.parse(errorText);
+        if (await checkTokenExpiredError(errorData)) {
+          throw new Error("Token Expired");
+        }
+      } catch (e) {
+        if (e instanceof Error && e.message === "Token Expired") throw e;
+      }
+      throw new Error(`uploadandgetschema/${fieldName} failed: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    if (await checkTokenExpiredError(data)) {
+      throw new Error("Token Expired");
+    }
+    return data;
+  } catch (error) {
+    if (error instanceof Error && error.message === "Token Expired") {
+      throw error;
+    }
+    console.warn("uploadAndGetSchemaForField failed:", error);
+    throw error;
+  }
+}
+
+/** Saves base metadata for disconnected users file - savebasemetadata/users. */
+export async function saveBaseMetadataUsers(
+  payload: any,
+  loginremote_user: string = "ACMEADMIN"
+): Promise<any> {
+  const endpoint = "https://preview.keyforge.ai/itasset/ACMECOM/savebasemetadata/users";
+
+  const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
+  if (!accessToken) {
+    throw new Error("No access token available");
+  }
+
+  const headers = new Headers();
+  headers.set("Content-Type", "application/json");
+  headers.set("X-Requested-With", "XMLHttpRequest");
+  headers.set("Authorization", `Bearer ${accessToken}`);
+  headers.set("loginremote_user", loginremote_user);
+
+  const fetchFn = typeof window !== "undefined" ? getOriginalFetch() : fetch;
+  const response = await fetchFn(endpoint, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    try {
+      const errorData = JSON.parse(errorText);
+      if (await checkTokenExpiredError(errorData)) {
+        throw new Error("Token Expired");
+      }
+    } catch (e) {
+      if (e instanceof Error && e.message === "Token Expired") throw e;
+    }
+    throw new Error(`savebasemetadata/users failed: ${response.status} - ${errorText}`);
+  }
+
+  const data = await response.json();
+  if (await checkTokenExpiredError(data)) {
+    throw new Error("Token Expired");
+  }
+  return data;
+}
+
 /** Fetches a single application by id/name from IT Asset getapp. Used in Edit mode to show application details. */
 export async function getItAssetApp(appIdOrName: string, loginremote_user: string = "ACMEADMIN"): Promise<any> {
   const encoded = encodeURIComponent(appIdOrName);
@@ -733,6 +938,53 @@ export async function getItAssetApp(appIdOrName: string, loginremote_user: strin
     console.warn("getapp failed:", error);
     return null;
   }
+}
+
+/** Saves base metadata for a multivalued field file - savebasemetadata/{fieldName}. */
+export async function saveBaseMetadataForField(
+  fieldName: string,
+  payload: any,
+  loginremote_user: string = "ACMEADMIN"
+): Promise<any> {
+  const encodedField = encodeURIComponent(fieldName);
+  const endpoint = `https://preview.keyforge.ai/itasset/ACMECOM/savebasemetadata/${encodedField}`;
+
+  const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
+  if (!accessToken) {
+    throw new Error("No access token available");
+  }
+
+  const headers = new Headers();
+  headers.set("Content-Type", "application/json");
+  headers.set("X-Requested-With", "XMLHttpRequest");
+  headers.set("Authorization", `Bearer ${accessToken}`);
+  headers.set("loginremote_user", loginremote_user);
+
+  const fetchFn = typeof window !== "undefined" ? getOriginalFetch() : fetch;
+  const response = await fetchFn(endpoint, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    try {
+      const errorData = JSON.parse(errorText);
+      if (await checkTokenExpiredError(errorData)) {
+        throw new Error("Token Expired");
+      }
+    } catch (e) {
+      if (e instanceof Error && e.message === "Token Expired") throw e;
+    }
+    throw new Error(`savebasemetadata/${fieldName} failed: ${response.status} - ${errorText}`);
+  }
+
+  const data = await response.json();
+  if (await checkTokenExpiredError(data)) {
+    throw new Error("Token Expired");
+  }
+  return data;
 }
 
 /** Saves application details (edit mode) - IT Asset saveappdetails. */

@@ -37,6 +37,7 @@ const Filters = ({
   initialSelected,
   value, // Controlled value prop
   actionStates,
+  statusCounts, // Counts from certification details access block (Pending, Certify, Reject, etc.)
 }: {
   gridApi?: any;
   columns?: string[];
@@ -50,6 +51,7 @@ const Filters = ({
     reject?: boolean;
     remediate?: boolean;
   };
+  statusCounts?: Record<string, number>;
 }) => {
   const [selectedFilter, setSelectedFilter] = useState<string>(value || initialSelected || "");
   const [filterCounts, setFilterCounts] = useState<{ [key: string]: number }>({});
@@ -263,7 +265,10 @@ const Filters = ({
           const isSelected = option.value === "All" 
             ? !selectedFilter 
             : selectedFilter === option.value;
-          const count = filterCounts[option.value] || (option as any).count;
+          const count = context === "status" && statusCounts
+            ? statusCounts[option.value]
+            : filterCounts[option.value] || (option as any).count;
+          const showCount = context === "account" || (context === "status" && statusCounts != null);
           return (
             <li
               key={option.value}
@@ -292,7 +297,7 @@ const Filters = ({
                   {option.label}
                 </span>
               </div>
-              {context === "account" && (
+              {showCount && (
                 <span className={`text-xs px-2 py-1 rounded ${
                   isSelected ? "bg-blue-100 text-blue-600" : "bg-gray-100 text-gray-600"
                 }`}>

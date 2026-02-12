@@ -59,13 +59,13 @@ const HorizontalProgressRenderer = (props: any) => {
   );
 };
 
-// Detail Cell Renderer for Description
+// Detail Cell Renderer for Description (separate row, like Manage Campaigns)
 const DetailCellRenderer = (props: IDetailCellRendererParams) => {
   const description = props.data?.description || "No description available";
   return (
-    <div className="flex p-3 bg-gray-50 border-t border-gray-200 w-full">
-      <div className="flex flex-col w-full">
-        <span className="text-gray-800 text-sm break-words whitespace-pre-wrap">
+    <div className="flex p-2 bg-gray-50 border-t border-gray-200">
+      <div className="flex flex-row items-center gap-2">
+        <span className="text-gray-800 ml-3 text-sm whitespace-pre-wrap break-words">
           {description}
         </span>
       </div>
@@ -119,27 +119,43 @@ const CompleteTab: React.FC = () => {
       width: 300,
       wrapText: true,
       autoHeight: true,
-      cellStyle: { fontWeight: 'bold' },
-      onCellClicked: handleRowClick,
+      cellStyle: { fontWeight: "bold" },
+      cellRenderer: (params: any) => {
+        const onClick = () =>
+          handleRowClick({
+            data: params.data,
+          } as RowClickedEvent<CertificationRow>);
+
+        return (
+          <button
+            type="button"
+            className="text-left text-blue-600 hover:underline font-semibold"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onClick();
+            }}
+          >
+            {params.value}
+          </button>
+        );
+      },
     },
     { 
       headerName: "Type", 
       field: "certificationType", 
       width: 150,
-      onCellClicked: handleRowClick,
     },
     { 
       headerName: "Owner", 
       field: "certificateRequester", 
       width: 140,
-      onCellClicked: handleRowClick,
     },
     {
       headerName: "Assigned On",
       field: "certificationCreatedOn",
       width: 150,
       valueFormatter: (params) => formatDateMMDDYY(params.value),
-      onCellClicked: handleRowClick,
     },
     {
       headerName: "Completed On",
@@ -166,6 +182,27 @@ const CompleteTab: React.FC = () => {
       setAuthChecked(true);
     }
   }, [router]);
+
+  // Expand all detail rows once data is rendered (like campaigns page)
+  const onFirstDataRendered = useCallback(
+    (params: FirstDataRenderedEvent) => {
+      try {
+        params.api.forEachNode((node) => {
+          if (node.master) {
+            node.setExpanded(true);
+          }
+        });
+        setTimeout(() => {
+          try {
+            params.api.sizeColumnsToFit();
+          } catch {}
+        }, 50);
+      } catch (e) {
+        console.error("Error expanding detail rows:", e);
+      }
+    },
+    []
+  );
 
   const toggleFilterMenu = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -514,11 +551,10 @@ const CompleteTab: React.FC = () => {
           columnDefs={completedColumnDefs}
           defaultColDef={defaultColDef}
           domLayout="autoHeight"
-          detailRowAutoHeight={true}
           masterDetail={true}
           detailCellRenderer={DetailCellRenderer}
+          detailRowAutoHeight={true}
           detailRowHeight={80}
-          groupDefaultExpanded={-1} // Expand all groups by default
           onGridReady={(params) => {
             console.log("Grid initialized:", {
               api: !!params.api,

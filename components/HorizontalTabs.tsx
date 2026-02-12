@@ -104,7 +104,8 @@ const HorizontalTabs: React.FC<TabsProps> = ({
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
-            onClick={() => {
+            onClick={(event) => {
+              event.stopPropagation();
               handleTabClick(index);
             }}
             onKeyDown={(e) => handleKeyDown(e, index)}

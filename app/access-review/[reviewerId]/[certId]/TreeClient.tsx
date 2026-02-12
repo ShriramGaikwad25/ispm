@@ -522,6 +522,46 @@ const TreeClient: React.FC<TreeClientProps> = ({
     }
   }, [certificationDetailsData, mapUsersFromDetails]);
 
+  // Aggregate status counts from certification details API (access block) for the **selected user**
+  const statusCountsFromAccess = useMemo(() => {
+    if (!certificationDetailsData || !selectedUser) return undefined;
+
+    const items = certificationDetailsData.items ?? [];
+    const matchingTask = items.find((task: any) => {
+      try {
+        return String(task.taskId) === String((selectedUser as any).taskId);
+      } catch {
+        return false;
+      }
+    });
+
+    if (!matchingTask) return undefined;
+
+    const access = matchingTask.access || {};
+    const pending = access.numOfPendingEntitlements ?? 0;
+    const certify =
+      (access.numOfEntitlementsCertified ?? 0) +
+      (access.numOfApplicationsCertified ?? 0) +
+      (access.numOfRolesCertified ?? 0);
+    const reject =
+      (access.numOfEntitlementsRevoked ?? 0) +
+      (access.numOfApplicationsRevoked ?? 0) +
+      (access.numOfRolesRevoked ?? 0);
+    const remediated = access.numOfRemediations ?? 0;
+    // API access block has no delegated count; treat as 0 for now
+    const delegated = 0;
+    const all = pending + certify + reject + remediated + delegated;
+
+    return {
+      All: all,
+      Pending: pending,
+      Certify: certify,
+      Reject: reject,
+      Remediated: remediated,
+      Delegated: delegated,
+    };
+  }, [certificationDetailsData, selectedUser]);
+
   const refreshUsersAndEntitlements = useCallback(async () => {
     try {
       suppressAutoSelectRef.current = true;
@@ -2530,6 +2570,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       initialSelected="Pending"
                       value={selectedFilters.length > 0 ? selectedFilters[0] : undefined}
                       actionStates={actionStates}
+                      statusCounts={statusCountsFromAccess}
                     />
                   </div>
                   {/* <div className="flex items-center gap-2">
