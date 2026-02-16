@@ -1,14 +1,20 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { Search, ShoppingCart, Info, Calendar, Users, Check, User } from "lucide-react";
+import { Search, ShoppingCart, Users, Check, User } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import HorizontalTabs from "@/components/HorizontalTabs";
+import CustomPagination from "@/components/agTable/CustomPagination";
+import { useRightSidebar } from "@/contexts/RightSidebarContext";
+import { getInProgressApplications, getItAssetApp } from "@/lib/api";
 
 interface Role {
   id: string;
   name: string;
   risk: "Low" | "Medium" | "High";
   description: string;
+  type?: string;
+  /** Full catalog API row (resultSet item) for mapping and formcustomfields */
+  catalogRow?: Record<string, unknown>;
 }
 
 interface User {
@@ -22,10 +28,29 @@ interface User {
 
 interface SelectAccessTabProps {
   onApply?: () => void;
+  rolesFromApi?: Role[];
+  apiCurrentPage?: number;
+  onApiPageChange?: (page: number) => void;
+  applicationInstances?: Array<{ id: string; name: string }>;
+  selectedAppInstanceId?: string | null;
+  onAppInstanceChange?: (id: string | null) => void;
+  showApplicationInstancesOnly?: boolean;
+  onShowApplicationInstancesOnlyChange?: (checked: boolean) => void;
 }
 
-const SelectAccessTab: React.FC<SelectAccessTabProps> = ({ onApply }) => {
+const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
+  onApply,
+  rolesFromApi,
+  apiCurrentPage = 1,
+  onApiPageChange,
+  applicationInstances = [],
+  selectedAppInstanceId = null,
+  onAppInstanceChange,
+  showApplicationInstancesOnly = false,
+  onShowApplicationInstancesOnlyChange,
+}) => {
   const { addToCart, removeFromCart, isInCart, cartCount } = useCart();
+  const { openSidebar, closeSidebar } = useRightSidebar();
   
   // Mirror Access state - moved to parent to persist across tab switches
   const [mirrorAccessState, setMirrorAccessState] = useState<{
@@ -101,39 +126,11 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({ onApply }) => {
     }
   }, [mirrorAccessState]);
   
-  // Sample roles data with risk and description
-  const roles: Role[] = [
-    {
-      id: "1",
-      name: "ApprvoalRole",
-      risk: "Medium",
-      description: "Role for managing approval workflows and processes",
-    },
-    {
-      id: "2",
-      name: "Customer Database Role",
-      risk: "High",
-      description: "Access to customer database with read and write permissions",
-    },
-    {
-      id: "3",
-      name: "Developer Role",
-      risk: "Low",
-      description: "Standard developer access to development environments",
-    },
-    {
-      id: "4",
-      name: "Finance and Administration_HCM_Approver",
-      risk: "High",
-      description: "Human Capital Management approver role for finance and administration",
-    },
-    {
-      id: "5",
-      name: "IT Security Group",
-      risk: "High",
-      description: "IT security group with elevated permissions for security management",
-    },
-  ];
+  // Roles data: populated from API-driven catalog (passed from parent)
+  const roles: Role[] = rolesFromApi || [];
+
+  // Catalog search state (filter state for Application Instances checkbox is in parent so catalog refetches with correct query)
+  const [catalogSearchQuery, setCatalogSearchQuery] = useState("");
 
   const getRiskColor = (risk: string) => {
     switch (risk) {
@@ -148,14 +145,317 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({ onApply }) => {
     }
   };
 
-  // All Tab Component
-  const AllTab: React.FC = () => {
-    const [searchQuery, setSearchQuery] = useState("");
-    const [selectedRole, setSelectedRole] = useState<string>("");
+  // Sidebar content: header + Form custom fields only
+  const AddDetailsSidebarContent: React.FC<{
+    role: Role;
+    riskClass: string;
+    onAddToCart: () => void;
+    onValidate: () => void;
+  }> = ({ role, riskClass, onAddToCart, onValidate }) => {
+    const isApplicationInstance =
+      (role.type ?? (role.catalogRow?.type as string) ?? "").toString().toLowerCase() === "applicationinstance";
 
-    const filteredRoles = roles.filter((role) =>
-      role.name.toLowerCase().includes(searchQuery.toLowerCase())
+    const formcustomfields = (role.catalogRow?.formcustomfields as unknown[] | undefined) ?? [];
+    const hasFormCustomFields = Array.isArray(formcustomfields) && formcustomfields.length > 0;
+
+    const [fieldValues, setFieldValues] = useState<Record<number, string>>(() => {
+      const initial: Record<number, string> = {};
+      formcustomfields.forEach((item: unknown, idx: number) => {
+        if (item != null && typeof item === "object" && !Array.isArray(item)) {
+          const obj = item as Record<string, unknown>;
+          initial[idx] = String(obj.value ?? obj.fieldValue ?? obj.val ?? "");
+        }
+      });
+      return initial;
+    });
+
+    useEffect(() => {
+      const initial: Record<number, string> = {};
+      formcustomfields.forEach((item: unknown, idx: number) => {
+        if (item != null && typeof item === "object" && !Array.isArray(item)) {
+          const obj = item as Record<string, unknown>;
+          initial[idx] = String(obj.value ?? obj.fieldValue ?? obj.val ?? "");
+        }
+      });
+      setFieldValues(initial);
+    }, [role.id]);
+
+    const updateField = (idx: number, value: string) => {
+      setFieldValues((prev) => ({ ...prev, [idx]: value }));
+    };
+
+    // Application Instance: fetch getallapp and show provisioningAttrMap as inputs (no variable value in inputs)
+    type ProvisioningField = { target: string };
+    const [provisioningLoading, setProvisioningLoading] = useState(false);
+    const [provisioningError, setProvisioningError] = useState<string | null>(null);
+    const [provisioningFields, setProvisioningFields] = useState<ProvisioningField[]>([]);
+    const [provisioningValues, setProvisioningValues] = useState<Record<string, string>>({});
+
+    useEffect(() => {
+      if (!isApplicationInstance || !role.id) {
+        setProvisioningFields([]);
+        setProvisioningValues({});
+        setProvisioningError(null);
+        return;
+      }
+      const appInstanceId = String(role.catalogRow?.appinstanceid ?? role.catalogRow?.appInstanceId ?? role.id).trim();
+      if (!appInstanceId) {
+        setProvisioningFields([]);
+        setProvisioningValues({});
+        return;
+      }
+      setProvisioningLoading(true);
+      setProvisioningError(null);
+
+      const extractProvisioningFields = (app: any): void => {
+        if (!app || typeof app !== "object") {
+          setProvisioningFields([]);
+          setProvisioningValues({});
+          return;
+        }
+        const schema = app.schemaMappingDetails ?? app.SchemaMappingDetails ?? app.schemaMapping ?? null;
+        const provisioning =
+          schema && typeof schema === "object"
+            ? (schema.provisioningAttrMap ?? schema.ProvisioningAttrMap ?? schema.provisioning_attr_map ?? {})
+            : {};
+        const fields: ProvisioningField[] = [];
+        if (provisioning && typeof provisioning === "object" && !Array.isArray(provisioning)) {
+          Object.entries(provisioning).forEach(([target]) => {
+            if (target.trim()) fields.push({ target: target.trim() });
+          });
+        }
+        setProvisioningFields(fields);
+        setProvisioningValues({});
+      };
+
+      // 1) Try getapp by id first so we get provisioningAttrMap for any application (not only in getallapp list)
+      getItAssetApp(appInstanceId)
+        .then((app: any) => {
+          if (app && typeof app === "object") {
+            extractProvisioningFields(app);
+            return;
+          }
+          // 2) Fallback: find app in getallapp list (e.g. in-progress apps)
+          return getInProgressApplications().then((res: any) => {
+            if (!res || typeof res !== "object") {
+              setProvisioningFields([]);
+              setProvisioningValues({});
+              return;
+            }
+            const idKeys = [
+              "ApplicationID", "applicationID", "ApplicationId", "applicationId",
+              "id", "Id", "appId", "AppId", "appinstanceid", "appInstanceId",
+            ];
+            const getItemId = (item: any): string =>
+              String(
+                idKeys.reduce((acc: string | null, k) => acc ?? (item?.[k] != null && item[k] !== "" ? String(item[k]).trim() : null), null) ?? ""
+              );
+            const getItemName = (item: any): string =>
+              String(item?.name ?? item?.ApplicationName ?? item?.applicationName ?? item?.Name ?? item?.appName ?? "").trim();
+            const listArr: any[] = Array.isArray(res)
+              ? res
+              : (() => {
+                  const direct = res.applications ?? res.Applications ?? res.apps ?? res.data ?? res.result ?? res.list ?? res.content ?? res.items ?? res.value ?? res.body ?? res.getallapp ?? res.appList;
+                  if (Array.isArray(direct)) return direct;
+                  if (direct && typeof direct === "object" && Array.isArray((direct as any).items)) return (direct as any).items;
+                  if (direct && typeof direct === "object" && Array.isArray((direct as any).data)) return (direct as any).data;
+                  return [];
+                })();
+            const roleIdNorm = String(role.id).trim().toLowerCase();
+            const appInstanceIdNorm = appInstanceId.toLowerCase();
+            const nameNorm = (role.name ?? "").toLowerCase();
+            const app = listArr.find((item: any) => {
+              const id = getItemId(item).trim().toLowerCase();
+              const name = getItemName(item).toLowerCase();
+              return id === roleIdNorm || id === appInstanceIdNorm || name === nameNorm || id.includes(roleIdNorm) || name.includes(nameNorm);
+            });
+            extractProvisioningFields(app);
+          });
+        })
+        .catch((err) => {
+          setProvisioningError(err instanceof Error ? err.message : "Failed to load application");
+          setProvisioningFields([]);
+          setProvisioningValues({});
+        })
+        .finally(() => setProvisioningLoading(false));
+    }, [isApplicationInstance, role.id, role.name, role.catalogRow?.appinstanceid, role.catalogRow?.appInstanceId]);
+
+    const updateProvisioningValue = (target: string, value: string) => {
+      setProvisioningValues((prev) => ({ ...prev, [target]: value }));
+    };
+
+    return (
+      <div className="flex flex-col h-full">
+        <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+          <div className="p-3 border-b bg-gray-50 space-y-2">
+            <div className="rounded-md border border-gray-200 bg-white px-2.5 py-1.5">
+              <span className="text-[11px] uppercase text-gray-500 font-medium">Entitlement Name</span>
+              <div className="flex items-start justify-between gap-2 mt-0.5">
+                <span className="text-xs font-medium break-words break-all whitespace-normal max-w-full flex-1">
+                  {role.name}
+                </span>
+                <span className={`shrink-0 px-1.5 py-0.5 rounded text-[11px] font-medium border ${riskClass}`}>
+                  {role.risk} Risk
+                </span>
+              </div>
+            </div>
+            <div className="rounded-md border border-gray-200 bg-white px-2.5 py-1.5">
+              <span className="text-[11px] uppercase text-gray-500 font-medium">Description</span>
+              <p className="text-xs text-gray-700 break-words break-all whitespace-pre-wrap max-w-full mt-0.5 leading-snug">
+                {role.description || "—"}
+              </p>
+            </div>
+            <div className="rounded-md border border-gray-200 bg-white px-2.5 py-1.5">
+              <span className="text-[11px] uppercase text-gray-500 font-medium">Entitlement Type</span>
+              <p className="text-xs text-gray-700 break-words max-w-full mt-0.5">
+                {(role.catalogRow?.entitlementtype ?? role.type ?? "—") as string}
+              </p>
+            </div>
+          </div>
+          <div className="p-4">
+            <div className="space-y-3 text-sm">
+              {/* Application Instance: show provisioningAttrMap inputs from getallapp */}
+              {isApplicationInstance && (
+                <>
+                  {provisioningLoading && (
+                    <p className="text-gray-500">Loading application mapping…</p>
+                  )}
+                  {provisioningError && (
+                    <p className="text-red-600">{provisioningError}</p>
+                  )}
+                  {!provisioningLoading && !provisioningError && provisioningFields.length > 0 && (
+                    provisioningFields.map(({ target }) => {
+                      const value = provisioningValues[target] ?? "";
+                      const hasValue = value.length > 0;
+                      const isPasswordLike = /password|secret|token|passphrase/i.test(target);
+                      return (
+                        <div key={target} className="relative">
+                          <input
+                            type={isPasswordLike ? "password" : "text"}
+                            value={value}
+                            onChange={(e) => updateProvisioningValue(target, e.target.value)}
+                            className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 no-underline"
+                            placeholder=" "
+                            autoComplete={isPasswordLike ? "off" : undefined}
+                          />
+                          <label
+                            className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                              hasValue ? "top-0.5 text-xs text-blue-600" : "top-3.5 text-sm text-gray-500"
+                            }`}
+                          >
+                            {target.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase())}
+                          </label>
+                        </div>
+                      );
+                    })
+                  )}
+                  {!provisioningLoading && !provisioningError && provisioningFields.length === 0 && (
+                    <p className="text-gray-500">No provisioning mapping for this application.</p>
+                  )}
+                </>
+              )}
+              {/* Form custom fields: show for both Application Instance and Entitlement */}
+              {hasFormCustomFields ? (
+                formcustomfields.map((item: unknown, idx: number) => {
+                  if (item != null && typeof item === "object" && !Array.isArray(item)) {
+                    const obj = item as Record<string, unknown>;
+                    const label = (obj.label ?? obj.name ?? obj.fieldName ?? obj.key ?? "Field") as string;
+                    const value = fieldValues[idx] ?? String(obj.value ?? obj.fieldValue ?? obj.val ?? "");
+                    const isPasswordLike = /password|secret|token|passphrase/i.test(String(label));
+                    const hasValue = value.length > 0;
+                    return (
+                      <div key={idx} className="relative">
+                        <input
+                          type={isPasswordLike ? "password" : "text"}
+                          value={value}
+                          onChange={(e) => updateField(idx, e.target.value)}
+                          className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 no-underline"
+                          placeholder=" "
+                          autoComplete={isPasswordLike ? "off" : undefined}
+                        />
+                        <label
+                          className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                            hasValue ? "top-0.5 text-xs text-blue-600" : "top-3.5 text-sm text-gray-500"
+                          }`}
+                        >
+                          {String(label)}
+                        </label>
+                      </div>
+                    );
+                  }
+                  const value = fieldValues[idx] ?? "";
+                  const hasValue = value.length > 0;
+                  return (
+                    <div key={idx} className="relative">
+                      <input
+                        type="text"
+                        value={value}
+                        onChange={(e) => updateField(idx, e.target.value)}
+                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 no-underline"
+                        placeholder=" "
+                      />
+                      <label
+                        className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                          hasValue ? "top-0.5 text-xs text-blue-600" : "top-3.5 text-sm text-gray-500"
+                        }`}
+                      >
+                        Field
+                      </label>
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="text-gray-500">No custom fields.</p>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="shrink-0 p-4 border-t border-gray-200 bg-gray-50 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={onAddToCart}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium bg-blue-600 hover:bg-blue-700 text-white text-sm transition-colors"
+          >
+            <ShoppingCart className="w-4 h-4" />
+            Add to cart
+          </button>
+          <button
+            type="button"
+            onClick={onValidate}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-600 text-sm transition-colors"
+          >
+            Validate
+          </button>
+        </div>
+      </div>
     );
+  };
+
+  // All Tab Component (uses apiCurrentPage from parent so fetch offset increases correctly)
+  const AllTab: React.FC = () => {
+    const isInitialMount = React.useRef(true);
+    const pageSize = 100;
+    const currentPage = apiCurrentPage;
+
+    const filteredRoles = roles.filter((role) => {
+      const matchesSearch = role.name.toLowerCase().includes(catalogSearchQuery.toLowerCase());
+      const matchesType =
+        !showApplicationInstancesOnly ? true : (role.type || "").toLowerCase() === "applicationinstance";
+      return matchesSearch && matchesType;
+    });
+
+    // Server-side pagination (100 rows per API page) – show all roles from current API page
+    const isLastServerPage = filteredRoles.length < pageSize;
+    const totalPages = isLastServerPage ? currentPage : currentPage + 1;
+
+    useEffect(() => {
+      if (isInitialMount.current) {
+        isInitialMount.current = false;
+        return;
+      }
+      // Reset to first page only when user actually changes search or dropdown (not on mount/remount)
+      if (onApiPageChange) onApiPageChange(1);
+    }, [catalogSearchQuery, showApplicationInstancesOnly]);
 
     const handleAddToCart = (role: Role) => {
       if (isInCart(role.id)) {
@@ -169,55 +469,58 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({ onApply }) => {
       console.log("Reviewing cart items:", cartCount);
     };
 
+    const handlePageChange = (page: number) => {
+      if (onApiPageChange) onApiPageChange(page);
+    };
+
     return (
       <div className="w-full">
         {/* Search and Filter Section */}
-        <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-1 gap-4">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+        <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between md:gap-4">
+          <div className="flex flex-1 flex-wrap items-center gap-3 md:gap-4">
+            <div className="relative flex-1 min-w-[200px] max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
               <input
                 type="text"
                 placeholder="Search Catalog"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={catalogSearchQuery}
+                onChange={(e) => setCatalogSearchQuery(e.target.value)}
+                className="h-10 w-full pl-10 pr-4 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
               />
             </div>
-            <div className="relative">
+            <div className="relative flex-shrink-0">
               <select
-                value={selectedRole}
-                onChange={(e) => setSelectedRole(e.target.value)}
-                className="appearance-none bg-white border border-gray-300 rounded-md px-4 py-2 pr-8 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[150px]"
+                value={selectedAppInstanceId ?? ""}
+                onChange={(e) => onAppInstanceChange?.(e.target.value ? e.target.value : null)}
+                className="h-10 appearance-none bg-white border border-gray-300 rounded-md pl-4 pr-8 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[260px] text-sm"
               >
-                <option value="">Role</option>
-                <option value="all">All Roles</option>
-                {roles.map((role) => (
-                  <option key={role.id} value={role.id}>
-                    {role.name}
+                <option value="">All</option>
+                {applicationInstances.map((app) => (
+                  <option key={app.id} value={app.id}>
+                    {app.name}
                   </option>
                 ))}
               </select>
-              <div className="absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                <svg
-                  className="w-4 h-4 text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
-                  />
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </div>
             </div>
+            <label className="inline-flex h-10 cursor-pointer items-center gap-2 text-base text-gray-700">
+              <input
+                type="checkbox"
+                className="h-4 w-4 shrink-0 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                checked={showApplicationInstancesOnly}
+                onChange={(e) => onShowApplicationInstancesOnlyChange?.(e.target.checked)}
+              />
+              <span>Application Instances</span>
+            </label>
           </div>
-          <button 
+          <button
+            type="button"
             onClick={handleReview}
-            className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-md font-medium transition-colors relative"
+            className="h-10 shrink-0 inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white px-4 rounded-md font-medium transition-colors relative"
           >
             <ShoppingCart className="w-5 h-5" />
             {cartCount > 0 && (
@@ -228,7 +531,21 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({ onApply }) => {
           </button>
         </div>
 
-        {/* Roles List */}
+        {/* Pagination at top */}
+        {filteredRoles.length > 0 && (
+          <div className="mb-4">
+            <CustomPagination
+              totalItems={(currentPage - 1) * pageSize + filteredRoles.length}
+              currentPage={currentPage}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              onPageChange={handlePageChange}
+              pageSizeOptions={[100]}
+            />
+          </div>
+        )}
+
+        {/* Roles List (all roles from current API page) */}
         <div className="space-y-3">
           {filteredRoles.map((role) => (
             <div
@@ -254,22 +571,39 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({ onApply }) => {
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <button className="p-2 hover:bg-gray-300 rounded-full transition-colors">
-                  <Info className="w-5 h-5 text-gray-600" />
+                <button
+                  onClick={() => {
+                    const addToCartForRole = () => {
+                      if (!isInCart(role.id)) addToCart({ id: role.id, name: role.name, risk: role.risk });
+                      closeSidebar();
+                    };
+                    const onValidate = () => {
+                      // Validate action – can be wired to validation API or flow later
+                      closeSidebar();
+                    };
+                    openSidebar(
+                      <AddDetailsSidebarContent
+                        role={role}
+                        riskClass={getRiskColor(role.risk)}
+                        onAddToCart={addToCartForRole}
+                        onValidate={onValidate}
+                      />,
+                      { widthPx: 500, title: "Add Details" }
+                    );
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-md font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors text-sm"
+                >
+                  Add Details
                 </button>
                 <button
                   onClick={() => handleAddToCart(role)}
-                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
+                  className={`inline-flex items-center justify-center px-3 py-2 rounded-md font-medium transition-colors ${
                     isInCart(role.id)
                       ? "bg-red-600 hover:bg-red-700 text-white"
                       : "bg-blue-600 hover:bg-blue-700 text-white"
                   }`}
                 >
                   <ShoppingCart className="w-4 h-4" />
-                  {isInCart(role.id) ? "Remove" : "Add To Cart"}
-                </button>
-                <button className="p-2 hover:bg-gray-300 rounded-full transition-colors">
-                  <Calendar className="w-5 h-5 text-gray-600" />
                 </button>
               </div>
             </div>
@@ -279,6 +613,19 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({ onApply }) => {
         {filteredRoles.length === 0 && (
           <div className="text-center py-12 text-gray-500">
             No roles found matching your search.
+          </div>
+        )}
+        {/* Pagination Controls (project-wide CustomPagination) */}
+        {filteredRoles.length > 0 && (
+          <div className="mt-4">
+            <CustomPagination
+              totalItems={(currentPage - 1) * pageSize + filteredRoles.length}
+              currentPage={currentPage}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              onPageChange={handlePageChange}
+              pageSizeOptions={[100]}
+            />
           </div>
         )}
       </div>

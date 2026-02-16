@@ -179,12 +179,16 @@ export default function AddApplicationPage() {
         const ownerValue = typeof owner === "string" ? owner : owner?.value ?? owner?.email ?? "";
         const ownerDisplay = typeof owner === "object" && owner?.value ? owner.value : ownerValue;
         const str = (v: unknown) => (v != null && v !== "" ? String(v) : "");
-        // Map connectionDetails into step3 with both camelCase and snake_case so Integration Setting step (dynamic fields) get values
+        const toSnake = (s: string) => s.replace(/([A-Z])/g, (_, c: string) => `_${c.toLowerCase()}`);
+        // Map connectionDetails into step3 with camelCase and snake_case so API-driven and custom fields get values
         const step3FromConn: Record<string, string> = {};
         Object.entries(conn).forEach(([k, v]) => {
-          step3FromConn[k] = str(v);
-          const camel = k.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
-          if (camel !== k) step3FromConn[camel] = str(v);
+          const val = str(v);
+          step3FromConn[k] = val;
+          const camel = k.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
+          if (camel !== k) step3FromConn[camel] = val;
+          const snake = toSnake(k);
+          if (snake !== k) step3FromConn[snake] = val;
         });
         setFormData((prev) => {
           const step3Mapped = {
@@ -2460,15 +2464,19 @@ export default function AddApplicationPage() {
             );
           }
 
-          // Dynamic rendering based on API-provided fields
+          // Dynamic rendering based on API-provided fields + custom fields from step3/connectionDetails
           const typeFields = applicationTypeFields[selectedAppType] || [];
           const selectedOauth = formData.step1.oauthType;
           const oauthFieldsForType = oauthTypeFields[selectedOauth] || [];
+          const allKnownFields = new Set<string>([...typeFields, ...oauthFieldsForType]);
+          const customFieldKeys = Object.keys(formData.step3 || {}).filter(
+            (k) => typeof k === "string" && k.trim() !== "" && !allKnownFields.has(k)
+          );
 
-          if (typeFields.length > 0 || oauthFieldsForType.length > 0) {
+          if (typeFields.length > 0 || oauthFieldsForType.length > 0 || customFieldKeys.length > 0) {
             const renderField = (fieldKey: string) => {
               const label = fieldKey
-                .replace(/_/g, ' ')
+                .replace(/_/g, " ")
                 .replace(/\b\w/g, (c) => c.toUpperCase());
               const value = (formData.step3 as any)[fieldKey] ?? "";
               const isPasswordLike = /password|secret|token|passphrase/i.test(fieldKey);
@@ -2483,9 +2491,7 @@ export default function AddApplicationPage() {
                     autoComplete={isPasswordLike ? "off" : undefined}
                   />
                   <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                    value
-                      ? 'top-0.5 text-xs text-blue-600' 
-                      : 'top-3.5 text-sm text-gray-500'
+                    value ? "top-0.5 text-xs text-blue-600" : "top-3.5 text-sm text-gray-500"
                   }`}>
                     {label}
                   </label>
@@ -2499,9 +2505,9 @@ export default function AddApplicationPage() {
                   <div>
                     <div className="text-sm font-medium text-gray-700 mb-3">{selectedAppType} Settings</div>
                     <div className="flex flex-col gap-3">
-                      {/* Render in rows of two inputs */}
                       {typeFields.reduce<string[][]>((rows, field, idx) => {
-                        if (idx % 2 === 0) rows.push([field]); else rows[rows.length - 1].push(field);
+                        if (idx % 2 === 0) rows.push([field]);
+                        else rows[rows.length - 1].push(field);
                         return rows;
                       }, []).map((row, i) => (
                         <div className="flex items-center gap-3" key={`type-row-${i}`}>
@@ -2517,10 +2523,28 @@ export default function AddApplicationPage() {
                     <div className="text-sm font-medium text-gray-700 mb-3">{selectedOauth} OAuth Settings</div>
                     <div className="flex flex-col gap-3">
                       {oauthFieldsForType.reduce<string[][]>((rows, field, idx) => {
-                        if (idx % 2 === 0) rows.push([field]); else rows[rows.length - 1].push(field);
+                        if (idx % 2 === 0) rows.push([field]);
+                        else rows[rows.length - 1].push(field);
                         return rows;
                       }, []).map((row, i) => (
                         <div className="flex items-center gap-3" key={`oauth-row-${i}`}>
+                          {row.map((f) => renderField(f))}
+                          {row.length === 1 && <div className="flex-1" />}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {customFieldKeys.length > 0 && (
+                  <div>
+                    <div className="text-sm font-medium text-gray-700 mb-3">Custom fields</div>
+                    <div className="flex flex-col gap-3">
+                      {customFieldKeys.reduce<string[][]>((rows, field, idx) => {
+                        if (idx % 2 === 0) rows.push([field]);
+                        else rows[rows.length - 1].push(field);
+                        return rows;
+                      }, []).map((row, i) => (
+                        <div className="flex items-center gap-3" key={`custom-row-${i}`}>
                           {row.map((f) => renderField(f))}
                           {row.length === 1 && <div className="flex-1" />}
                         </div>

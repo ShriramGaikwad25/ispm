@@ -24,6 +24,7 @@ const DetailsTab: React.FC = () => {
     setGlobalSettings, 
   } = useItemDetails();
   const [itemDates, setItemDates] = useState<ItemDates>({});
+  const [requestType, setRequestType] = useState<"Regular" | "Urgent">("Regular");
   const initializedItemsRef = React.useRef<Set<string>>(new Set());
   const prevGlobalSettingsRef = React.useRef(globalSettings);
 
@@ -213,41 +214,76 @@ const DetailsTab: React.FC = () => {
         <h3 className="text-base font-semibold text-gray-900 mb-4">Access Duration & Comments</h3>
         
         <div className="space-y-4">
-          {/* Access Type Toggle */}
-          <div className="relative">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Access Type
-            </label>
-            <div className="p-3 bg-white rounded-lg border border-gray-200">
-              <div className="flex items-center gap-2">
-                <span 
-                  className={`text-sm font-medium cursor-pointer ${
-                    globalIsIndefinite ? "text-blue-600 font-semibold" : "text-gray-600"
-                  }`}
-                  onClick={() => handleGlobalAccessTypeChange("indefinite")}
-                >
-                  Indefinite
-                </span>
-                
-                <label className="relative inline-block w-12 h-6 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="sr-only peer"
-                    checked={!globalIsIndefinite}
-                    onChange={(e) => handleGlobalAccessTypeChange(e.target.checked ? "duration" : "indefinite")}
-                  />
-                  <div className="absolute w-full h-full bg-gray-300 rounded-full peer-checked:bg-blue-600 transition-all"></div>
-                  <div className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all peer-checked:translate-x-6"></div>
-                </label>
-                
-                <span 
-                  className={`text-sm font-medium cursor-pointer ${
-                    !globalIsIndefinite ? "text-blue-600 font-semibold" : "text-gray-600"
-                  }`}
-                  onClick={() => handleGlobalAccessTypeChange("duration")}
-                >
-                  Duration
-                </span>
+          {/* Access Type and Request Type - side by side */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="relative">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Access Type
+              </label>
+              <div className="p-3 bg-white rounded-lg border border-gray-200">
+                <div className="flex items-center gap-2">
+                  <span 
+                    className={`text-sm font-medium cursor-pointer ${
+                      globalIsIndefinite ? "text-blue-600 font-semibold" : "text-gray-600"
+                    }`}
+                    onClick={() => handleGlobalAccessTypeChange("indefinite")}
+                  >
+                    Indefinite
+                  </span>
+                  <label className="relative inline-block w-12 h-6 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={!globalIsIndefinite}
+                      onChange={(e) => handleGlobalAccessTypeChange(e.target.checked ? "duration" : "indefinite")}
+                    />
+                    <div className="absolute w-full h-full bg-gray-300 rounded-full peer-checked:bg-blue-600 transition-all"></div>
+                    <div className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all peer-checked:translate-x-6"></div>
+                  </label>
+                  <span 
+                    className={`text-sm font-medium cursor-pointer ${
+                      !globalIsIndefinite ? "text-blue-600 font-semibold" : "text-gray-600"
+                    }`}
+                    onClick={() => handleGlobalAccessTypeChange("duration")}
+                  >
+                    Duration
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="relative">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Request Type
+              </label>
+              <div className="p-3 bg-white rounded-lg border border-gray-200">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`text-sm font-medium cursor-pointer ${
+                      requestType === "Regular" ? "text-blue-600 font-semibold" : "text-gray-600"
+                    }`}
+                    onClick={() => setRequestType("Regular")}
+                  >
+                    Regular
+                  </span>
+                  <label className="relative inline-block w-12 h-6 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={requestType === "Urgent"}
+                      onChange={(e) => setRequestType(e.target.checked ? "Urgent" : "Regular")}
+                    />
+                    <div className="absolute w-full h-full bg-gray-300 rounded-full peer-checked:bg-blue-600 transition-all" />
+                    <div className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all peer-checked:translate-x-6" />
+                  </label>
+                  <span
+                    className={`text-sm font-medium cursor-pointer ${
+                      requestType === "Urgent" ? "text-blue-600 font-semibold" : "text-gray-600"
+                    }`}
+                    onClick={() => setRequestType("Urgent")}
+                  >
+                    Urgent
+                  </span>
+                </div>
               </div>
             </div>
           </div>
