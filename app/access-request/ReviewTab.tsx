@@ -3,12 +3,19 @@ import React from "react";
 import { useCart } from "@/contexts/CartContext";
 import { useSelectedUsers } from "@/contexts/SelectedUsersContext";
 import { useItemDetails } from "@/contexts/ItemDetailsContext";
-import { Calendar, Users, User, FileText } from "lucide-react";
+import { useRightSidebar } from "@/contexts/RightSidebarContext";
+import { Calendar, Users, User, FileText, ChevronRight } from "lucide-react";
+import AddDetailsSidebarContent, { getRiskColor, type Role } from "./AddDetailsSidebarContent";
 
-const ReviewTab: React.FC = () => {
+interface ReviewTabProps {
+  catalogRoles?: Role[];
+}
+
+const ReviewTab: React.FC<ReviewTabProps> = ({ catalogRoles = [] }) => {
   const { items } = useCart();
   const { selectedUsers } = useSelectedUsers();
   const { getItemDetail, globalAccessType } = useItemDetails();
+  const { openSidebar, closeSidebar } = useRightSidebar();
 
   const formatDate = (dateString: string) => {
     if (!dateString) return "Not set";
@@ -80,12 +87,20 @@ const ReviewTab: React.FC = () => {
               const detail = getItemDetail(item.id);
               const isIndefinite = detail?.isIndefinite ?? (globalAccessType === "indefinite");
 
+              const fullRole = catalogRoles.find((r) => r.id === item.id) ?? ({
+                id: item.id,
+                name: item.name,
+                risk: (item.risk ?? "Low") as "Low" | "Medium" | "High",
+                description: "",
+                catalogRow: undefined,
+              } as Role);
+
               return (
                 <div
                   key={item.id}
-                  className="p-3 border border-gray-200 rounded-md bg-gray-50 hover:bg-gray-100 transition-colors"
+                  className="p-3 border border-gray-200 rounded-md bg-gray-50 hover:bg-gray-100 transition-colors flex items-center justify-between gap-3"
                 >
-                  <div className="mb-3">
+                  <div className="flex-1 min-w-0 py-1">
                     <h4 className="text-sm font-semibold text-gray-900 mb-2">{item.name}</h4>
                     
                     {/* Access Type */}
@@ -137,6 +152,26 @@ const ReviewTab: React.FC = () => {
                       </div>
                     )}
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      openSidebar(
+                        <AddDetailsSidebarContent
+                          role={fullRole}
+                          riskClass={getRiskColor(fullRole.risk)}
+                          onAddToCart={closeSidebar}
+                          onValidate={closeSidebar}
+                          showActions={false}
+                        />,
+                        { widthPx: 500, title: "Add Details" }
+                      );
+                    }}
+                    className="shrink-0 p-2 rounded-md text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-colors"
+                    title="View details"
+                    aria-label="View entitlement details"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
                 </div>
               );
             })}

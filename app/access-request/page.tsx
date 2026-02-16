@@ -179,13 +179,9 @@ const AccessRequest: React.FC = () => {
       .catch(() => setApplicationInstances([]));
   }, [currentStep]);
 
-  // Load catalog in Step 2. When an Application Instance is selected, fetch Entitlements for that instance.
+  // Load catalog in Step 2. Keep catalog data when leaving step 2 so step 4 can show full role details in sidebar.
   React.useEffect(() => {
-    if (currentStep !== 2) {
-      setCatalogData([]);
-      catalogFetchKeyRef.current = null;
-      return;
-    }
+    if (currentStep !== 2) return;
 
     const fetchKey = `2-${catalogPage}-${selectedAppInstanceId ?? "all"}-${showApplicationInstancesOnly}`;
     if (catalogFetchKeyRef.current === fetchKey) return;
@@ -452,7 +448,7 @@ const AccessRequest: React.FC = () => {
       {/* Step 4 Content - Review and Submit */}
       {currentStep === 4 && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-          <ReviewTab />
+          <ReviewTab catalogRoles={apiRoles} />
         </div>
       )}
     </div>
