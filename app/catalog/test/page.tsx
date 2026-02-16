@@ -48,9 +48,9 @@ export default function CatalogTestPage() {
           <p className="text-gray-600 mb-2">
             The component calls this API endpoint:
           </p>
-          <code className="bg-gray-100 p-2 rounded text-sm block">
+          {/* <code className="bg-gray-100 p-2 rounded text-sm block">
             https://preview.keyforge.ai/catalog/api/v1/ACMECOM/app/b73ac8d7-f4cd-486f-93c7-3589ab5c5296/entitlement?filter=appownerid eq ec527a50-0944-4b31-b239-05518c87a743
-          </code>
+          </code> */}
         </div>
         
         <div className="p-4 border rounded-lg">

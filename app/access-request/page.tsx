@@ -2,7 +2,6 @@
 import React, { useState } from "react";
 import { Check, ChevronLeft, ChevronRight, X } from "lucide-react";
 import HorizontalTabs from "@/components/HorizontalTabs";
-import UserConditionTab from "./UserConditionTab";
 import UserSearchTab from "./UserSearchTab";
 import UserGroupTab from "./UserGroupTab";
 import SelectAccessTab from "./SelectAccessTab";
@@ -36,10 +35,6 @@ const AccessRequest: React.FC = () => {
   };
 
   const userTabs = [
-    {
-      label: "User Condition",
-      component: UserConditionTab,
-    },
     {
       label: "User Search",
       component: UserSearchTab,

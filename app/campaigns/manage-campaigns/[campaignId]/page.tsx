@@ -228,6 +228,39 @@ export default function ManageCampaigns() {
         
         if (selectedCampaign && selectedCampaign.campaignReviewers) {
           // Transform campaignReviewers data to match the table structure
+          // Prefer using the raw API string for lastUpdateOn so that
+          // values like "01/29/2026 11:11:44" display correctly without
+          // relying on browser Date parsing, which can be inconsistent.
+          const getLastUpdateDisplay = (r: CampaignReviewer): string => {
+            const raw =
+              (r as any).lastUpdateOn ??
+              (r as any).lastUpdatedOn ??
+              (r as any).updatedOn ??
+              (r as any).last_update_on ??
+              (r as any).modifiedOn ??
+              r.certifications?.[0]?.lastUpdateOn ??
+              r.certifications?.[0]?.lastUpdatedOn;
+
+            if (raw == null) return "N/A";
+
+            if (typeof raw === "string") {
+              const trimmed = raw.trim();
+              if (!trimmed) return "N/A";
+
+              // Most API values are in "MM/DD/YYYY HH:mm:ss" format.
+              // Show just the date portion before the first space.
+              const [datePart] = trimmed.split(" ");
+              return datePart || trimmed;
+            }
+
+            // Fallback for non-string values (e.g. numeric timestamps)
+            try {
+              const d = new Date(raw as any);
+              return isNaN(d.getTime()) ? "N/A" : d.toLocaleDateString();
+            } catch {
+              return "N/A";
+            }
+          };
           const transformedRows: ReviewerRow[] = selectedCampaign.campaignReviewers.map((reviewer: CampaignReviewer) => {
             const primaryCertification = reviewer.certifications?.[0];
             return {
@@ -238,7 +271,7 @@ export default function ManageCampaigns() {
               department: "IT Governance", // Default department since not in API
               progress: `${reviewer.percentageOfCompletedAction}%`,
               riskScore: reviewer.numOfPendingActions > 0 ? "High" : "Low", // Risk based on pending actions
-              lastUpdate: reviewer.lastUpdateOn ? new Date(reviewer.lastUpdateOn).toLocaleDateString() : "N/A",
+              lastUpdate: getLastUpdateDisplay(reviewer),
               totalNumOfAccess: reviewer.totalNumOfAccess,
               totalNumOfUsers: reviewer.totalNumOfUsers,
               numOfPendingActions: reviewer.numOfPendingActions,
@@ -311,7 +344,7 @@ export default function ManageCampaigns() {
           );
         },
       },
-      { headerName: "Last Update", field: "lastUpdate", flex: 1 },
+      { headerName: "Last Update", field: "lastUpdate", flex: 1, minWidth: 120 },
       {
         field: "actions",
         headerName: "Actions",
