@@ -1,14 +1,14 @@
 // components/RightSidebar.jsx
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface RightSidebarProps {
   isOpen: boolean;
   widthPx?: number; // default will be 600
   onClose: () => void;
   children?: React.ReactNode;
-  topOffsetPx?: number; // space below fixed header; default 60
+  topOffsetPx?: number; // space below fixed header when navbar visible; default 60
   title?: string; // optional title for the sidebar header
 }
 
@@ -17,6 +17,35 @@ const DEFAULT_TOP_OFFSET = 60;
 
 const RightSidebar = ({ isOpen, widthPx = DEFAULT_WIDTH, onClose, children, topOffsetPx = DEFAULT_TOP_OFFSET, title }: RightSidebarProps) => {
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const scrollableMainRef = useRef<Element | null>(null);
+  const [effectiveTop, setEffectiveTop] = useState(topOffsetPx);
+
+  // When navbar scrolls out of view, sidebar comes from top (0); otherwise respect navbar space.
+  // Listen to both viewport scroll and the main content area scroll (layout uses main.overflow-auto).
+  useEffect(() => {
+    const updateTop = () => {
+      const mainScroll = scrollableMainRef.current?.scrollTop ?? 0;
+      const windowScroll = typeof window !== "undefined" ? window.scrollY : 0;
+      const scrollY = Math.max(mainScroll, windowScroll);
+      setEffectiveTop(scrollY >= topOffsetPx ? 0 : topOffsetPx);
+    };
+    const scrollableMain =
+      document.querySelector("main.flex-1.overflow-auto") ?? document.querySelector("main");
+    if (scrollableMain) {
+      scrollableMainRef.current = scrollableMain;
+      scrollableMain.addEventListener("scroll", updateTop, { passive: true });
+    }
+    window.addEventListener("scroll", updateTop, { passive: true });
+    updateTop();
+    return () => {
+      window.removeEventListener("scroll", updateTop);
+      const m = scrollableMainRef.current;
+      if (m) {
+        m.removeEventListener("scroll", updateTop);
+        scrollableMainRef.current = null;
+      }
+    };
+  }, [topOffsetPx]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -42,7 +71,12 @@ const RightSidebar = ({ isOpen, widthPx = DEFAULT_WIDTH, onClose, children, topO
         className={`fixed right-0 bg-white shadow-lg z-50 border-l border-gray-200 transition-transform duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
-        style={{ width: widthPx, top: topOffsetPx, height: `calc(100vh - ${topOffsetPx}px)` }}
+        style={{
+          width: widthPx,
+          top: effectiveTop,
+          height: `calc(100vh - ${effectiveTop}px)`,
+          transition: 'top 0.2s ease-out, height 0.2s ease-out',
+        }}
       >
         <div className="flex justify-between items-center p-4 border-b">
           {title && <h2 className="text-xl font-semibold text-gray-800">{title}</h2>}

@@ -3,12 +3,19 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
+const GET_ALL_SIGNATURE_URL = "https://preview.keyforge.ai/reports/api/v1/ACMECOM/getallsignature";
+
 export default function ReportsPage() {
   const router = useRouter();
   const [selectedReportType, setSelectedReportType] = useState<string>("");
   const [reportTypeSearch, setReportTypeSearch] = useState<string>("");
   const [isReportTypeDropdownOpen, setIsReportTypeDropdownOpen] = useState(false);
   const reportTypeDropdownRef = useRef<HTMLDivElement>(null);
+
+  // All Signatures data from getallsignature API
+  const [signatureData, setSignatureData] = useState<any[] | null>(null);
+  const [signatureLoading, setSignatureLoading] = useState(true);
+  const [signatureError, setSignatureError] = useState<string | null>(null);
 
   // Report types from Auditor's Corner
   const reportTypes = [
@@ -63,6 +70,31 @@ export default function ReportsPage() {
     reportType.id.toLowerCase().includes(reportTypeSearch.toLowerCase())
   );
 
+  // Fetch getallsignature API on mount
+  useEffect(() => {
+    let cancelled = false;
+    setSignatureLoading(true);
+    setSignatureError(null);
+    fetch(GET_ALL_SIGNATURE_URL, { credentials: "include" })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((data: unknown) => {
+        if (cancelled) return;
+        const list = Array.isArray(data) ? data : (data && typeof data === "object" && "data" in (data as object) ? (data as { data: unknown }).data : data);
+        setSignatureData(Array.isArray(list) ? list : list != null ? [list] : []);
+      })
+      .catch((err) => {
+        if (!cancelled) setSignatureError(err?.message || "Failed to load signatures");
+        setSignatureData(null);
+      })
+      .finally(() => {
+        if (!cancelled) setSignatureLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -102,6 +134,65 @@ export default function ReportsPage() {
             <p className="text-gray-600">
               View and generate reports for your organization's identity and access management.
             </p>
+
+            {/* All Signatures from getallsignature API */}
+            <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+              <h2 className="text-lg font-medium text-gray-900 px-4 py-3 border-b border-gray-200 bg-gray-50">
+                All Signatures
+              </h2>
+              <div className="p-4">
+                {signatureLoading && (
+                  <p className="text-sm text-gray-500">Loading signatures…</p>
+                )}
+                {signatureError && (
+                  <p className="text-sm text-red-600">{signatureError}</p>
+                )}
+                {!signatureLoading && !signatureError && signatureData && (
+                  signatureData.length === 0 ? (
+                    <p className="text-sm text-gray-500">No signature data.</p>
+                  ) : (() => {
+                    const first = signatureData[0];
+                    const isObj = typeof first === "object" && first !== null;
+                    const keys = isObj ? Object.keys(first as Record<string, unknown>) : ["Value"];
+                    return (
+                      <div className="overflow-x-auto -mx-4 sm:mx-0">
+                        <table className="min-w-full divide-y divide-gray-200 text-sm">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              {keys.map((key) => (
+                                <th key={key} className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  {key}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {signatureData.map((row, idx) =>
+                              typeof row === "object" && row !== null ? (
+                                <tr key={idx}>
+                                  {keys.map((key) => {
+                                    const val = (row as Record<string, unknown>)[key];
+                                    return (
+                                      <td key={key} className="px-4 py-2 text-gray-900 whitespace-pre-wrap break-words">
+                                        {val == null ? "" : typeof val === "object" ? JSON.stringify(val) : String(val)}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ) : (
+                                <tr key={idx}>
+                                  <td className="px-4 py-2 text-gray-900">{String(row)}</td>
+                                </tr>
+                              )
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()
+                )}
+              </div>
+            </div>
 
             {/* Search Boxes */}
             <div className="grid grid-cols-1 gap-6 max-w-md">

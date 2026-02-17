@@ -214,13 +214,13 @@ const DetailsTab: React.FC = () => {
         <h3 className="text-base font-semibold text-gray-900 mb-4">Access Duration & Comments</h3>
         
         <div className="space-y-4">
-          {/* Access Type and Request Type - side by side */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="relative">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+          {/* Access Type, Request Type, Start Date, End Date - all in one row, same height */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
+            <div className="relative flex flex-col min-h-[72px]">
+              <label className="block text-sm font-medium text-gray-700 mb-2 shrink-0">
                 Access Type
               </label>
-              <div className="p-3 bg-white rounded-lg border border-gray-200">
+              <div className="flex-1 min-h-[42px] flex items-center p-3 bg-white rounded-lg border border-gray-200">
                 <div className="flex items-center gap-2">
                   <span 
                     className={`text-sm font-medium cursor-pointer ${
@@ -251,11 +251,11 @@ const DetailsTab: React.FC = () => {
                 </div>
               </div>
             </div>
-            <div className="relative">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+            <div className="relative flex flex-col min-h-[72px]">
+              <label className="block text-sm font-medium text-gray-700 mb-2 shrink-0">
                 Request Type
               </label>
-              <div className="p-3 bg-white rounded-lg border border-gray-200">
+              <div className="flex-1 min-h-[42px] flex items-center p-3 bg-white rounded-lg border border-gray-200">
                 <div className="flex items-center gap-2">
                   <span
                     className={`text-sm font-medium cursor-pointer ${
@@ -286,43 +286,42 @@ const DetailsTab: React.FC = () => {
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* Start Date and End Date - Only show when Duration */}
-          {!globalIsIndefinite && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="relative">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Start Date
-                </label>
-                <div className="relative">
+            <div className="relative flex flex-col min-h-[72px]">
+              <label className="block text-sm font-medium text-gray-700 mb-2 shrink-0">
+                Start Date
+              </label>
+              <div className="flex-1 min-h-[42px] flex items-center">
+                <div className="relative w-full">
                   <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
                   <input
                     type="date"
                     value={globalSettings.startDate}
                     onChange={(e) => handleGlobalDateChange("startDate", e.target.value)}
-                    className="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    disabled={globalIsIndefinite}
+                    className={`w-full h-[42px] pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white ${globalIsIndefinite ? "opacity-60 cursor-not-allowed" : ""}`}
                   />
                 </div>
               </div>
-
-              <div className="relative">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  End Date
-                </label>
-                <div className="relative">
+            </div>
+            <div className="relative flex flex-col min-h-[72px]">
+              <label className="block text-sm font-medium text-gray-700 mb-2 shrink-0">
+                End Date
+              </label>
+              <div className="flex-1 min-h-[42px] flex items-center">
+                <div className="relative w-full">
                   <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
                   <input
                     type="date"
                     value={globalSettings.endDate}
                     onChange={(e) => handleGlobalDateChange("endDate", e.target.value)}
                     min={globalSettings.startDate}
-                    className="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    disabled={globalIsIndefinite}
+                    className={`w-full h-[42px] pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white ${globalIsIndefinite ? "opacity-60 cursor-not-allowed" : ""}`}
                   />
                 </div>
               </div>
             </div>
-          )}
+          </div>
 
           {/* Global Comment */}
           <div>

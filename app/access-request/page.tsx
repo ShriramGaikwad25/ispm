@@ -258,55 +258,57 @@ const AccessRequest: React.FC = () => {
       </h1>
 
       {/* Steps + Navigation in one panel: Previous | Steps | Next */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 px-6 py-3.5 mb-5">
-        <div className="flex items-center justify-between gap-8">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 px-3 sm:px-6 py-2.5 sm:py-3.5 mb-5">
+        <div className="flex items-center gap-2 sm:gap-8 min-w-0">
           <button
             onClick={handlePrevious}
             disabled={currentStep === 1}
-            className={`flex items-center px-5 py-2 rounded-lg text-sm font-medium shrink-0 ${
+            className={`flex items-center px-2 sm:px-5 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium shrink-0 ${
               currentStep === 1
                 ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                 : "bg-gray-200 text-gray-700 hover:bg-gray-300"
             }`}
           >
-            <ChevronLeft className="w-4 h-4 mr-2.5" />
+            <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-2.5" />
             Previous
           </button>
-          <div className="flex items-center justify-center flex-1 min-w-0">
-            {steps.map((step, index) => (
-              <div key={step.id} className="flex items-center">
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium shrink-0 ${
-                    currentStep >= step.id
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-200 text-gray-600"
-                  }`}
-                >
-                  {currentStep > step.id ? <Check className="w-4 h-4" /> : step.id}
+          <div className="flex-1 min-w-0 flex items-center justify-center">
+            <div className="flex items-center justify-center gap-0.5 sm:gap-1 min-w-0 w-full">
+              {steps.map((step, index) => (
+                <div key={step.id} className="flex items-center min-w-0 flex-1 sm:flex-initial">
+                  <div
+                    className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium shrink-0 ${
+                      currentStep >= step.id
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-200 text-gray-600"
+                    }`}
+                  >
+                    {currentStep > step.id ? <Check className="w-3 h-3 sm:w-4 sm:h-4" /> : step.id}
+                  </div>
+                  <div className="ml-1.5 sm:ml-3 min-w-0 overflow-hidden flex-1">
+                    <p className="text-xs sm:text-sm font-medium text-gray-900 truncate" title={step.title}>{step.title}</p>
+                  </div>
+                  {index < steps.length - 1 && (
+                    <div className="flex-1 sm:flex-initial w-2 sm:w-14 md:w-20 h-0.5 bg-gray-200 mx-0.5 sm:mx-5 shrink-0 max-w-2 sm:max-w-none" />
+                  )}
                 </div>
-                <div className="ml-3 shrink-0">
-                  <p className="text-sm font-medium text-gray-900 whitespace-nowrap">{step.title}</p>
-                </div>
-                {index < steps.length - 1 && (
-                  <div className="w-14 sm:w-20 h-0.5 bg-gray-200 mx-5 sm:mx-6 shrink-0" />
-                )}
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-          <div className="flex gap-4 shrink-0">
+          <div className="flex gap-1 sm:gap-4 shrink-0">
             {currentStep < steps.length ? (
               <button
                 onClick={handleNext}
-                className="flex items-center px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+                className="flex items-center px-2 sm:px-5 py-1.5 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs sm:text-sm font-medium"
               >
                 Next
-                <ChevronRight className="w-4 h-4 ml-2.5" />
+                <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 ml-1 sm:ml-2.5" />
               </button>
             ) : (
               <button
-                className="flex items-center px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
+                className="flex items-center px-2 sm:px-5 py-1.5 sm:py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs sm:text-sm font-medium"
               >
-                <Check className="w-4 h-4 mr-2.5" />
+                <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-2.5" />
                 Submit
               </button>
             )}
@@ -374,19 +376,11 @@ const AccessRequest: React.FC = () => {
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
               <h3 className="text-lg font-semibold mb-4 text-gray-900">Selected Users</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                {selectedUsers.map((user, index) => {
-                  const cardColors = [
-                    "from-emerald-50 via-green-50 to-lime-50",
-                    "from-green-50 via-emerald-50 to-teal-50",
-                    "from-lime-50 via-green-50 to-emerald-50",
-                    "from-teal-50 via-emerald-50 to-green-50",
-                  ];
-                  const colorClass = cardColors[index % cardColors.length];
-
+                {selectedUsers.map((user) => {
                   return (
                     <div
                       key={user.id}
-                      className={`relative p-3 rounded-lg border border-emerald-300 bg-gradient-to-br ${colorClass} shadow-sm hover:shadow-md transition-all`}
+                      className="relative p-3 rounded-lg border-2 border-emerald-400 bg-white shadow-sm hover:shadow-md transition-all"
                     >
                       <button
                         onClick={() => removeUser(user.id)}
@@ -397,7 +391,7 @@ const AccessRequest: React.FC = () => {
                       </button>
                       <div className="pr-6">
                         <p className="font-semibold text-sm text-gray-900 truncate">{user.name}</p>
-                        <p className="text-xs text-gray-700 truncate mt-1">{user.username}</p>
+                        {/* <p className="text-xs text-gray-700 truncate mt-1">{user.username}</p> */}
                         <p className="text-xs text-gray-700 truncate mt-1">{user.email}</p>
                         <div className="flex items-center gap-2 mt-2 text-xs text-gray-700">
                           <span className="truncate">{user.department}</span>

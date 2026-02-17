@@ -48,7 +48,7 @@ const ReviewTab: React.FC<ReviewTabProps> = ({ catalogRoles = [] }) => {
             {selectedUsers.map((user) => (
               <div
                 key={user.id}
-                className="p-3 border border-gray-200 rounded-md bg-gray-50 hover:bg-gray-100 transition-colors"
+                className="p-3 border-2 border-green-400 rounded-md bg-white hover:bg-green-50 transition-colors"
               >
                 <div className="flex items-center gap-2 mb-1">
                   <User className="w-4 h-4 text-gray-500" />
@@ -163,7 +163,7 @@ const ReviewTab: React.FC<ReviewTabProps> = ({ catalogRoles = [] }) => {
                           onValidate={closeSidebar}
                           showActions={false}
                         />,
-                        { widthPx: 500, title: "Add Details" }
+                        { widthPx: 500, title: "View Details" }
                       );
                     }}
                     className="shrink-0 p-2 rounded-md text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-colors"

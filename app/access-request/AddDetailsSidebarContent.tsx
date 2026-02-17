@@ -250,29 +250,23 @@ const AddDetailsSidebarContent: React.FC<{
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
         <div className="p-3 border-b bg-gray-50 space-y-2">
-          <div className="rounded-md border border-gray-200 bg-white px-2.5 py-1.5">
-            <span className="text-[11px] uppercase text-gray-500 font-medium">Entitlement Name</span>
-            <div className="flex items-start justify-between gap-2 mt-0.5">
-              <span className="text-xs font-medium break-words break-all whitespace-normal max-w-full flex-1">
-                {role.name}
-              </span>
-              <span className={`shrink-0 px-1.5 py-0.5 rounded text-[11px] font-medium border ${riskClass}`}>
-                {role.risk} Risk
-              </span>
-            </div>
+          <div className="flex items-start justify-between gap-2">
+            <span className="text-sm font-medium break-words break-all whitespace-normal max-w-full flex-1">
+              {role.name}
+            </span>
+            <span className={`shrink-0 px-1.5 py-0.5 rounded text-xs font-medium border ${riskClass}`}>
+              {role.risk} Risk
+            </span>
           </div>
-          <div className="rounded-md border border-gray-200 bg-white px-2.5 py-1.5">
-            <span className="text-[11px] uppercase text-gray-500 font-medium">Description</span>
-            <p className="text-xs text-gray-700 break-words break-all whitespace-pre-wrap max-w-full mt-0.5 leading-snug">
+          <div>
+            <span className="text-xs font-medium text-gray-500">Description</span>
+            <p className="text-sm text-gray-700 break-words break-all whitespace-pre-wrap max-w-full leading-snug mt-0.5">
               {role.description || "—"}
             </p>
           </div>
-          <div className="rounded-md border border-gray-200 bg-white px-2.5 py-1.5">
-            <span className="text-[11px] uppercase text-gray-500 font-medium">Entitlement Type</span>
-            <p className="text-xs text-gray-700 break-words max-w-full mt-0.5">
-              {(role.catalogRow?.entitlementtype ?? role.type ?? "—") as string}
-            </p>
-          </div>
+          <p className="text-sm font-semibold text-gray-700 break-words max-w-full">
+            {(role.catalogRow?.entitlementtype ?? role.type ?? "—") as string}
+          </p>
         </div>
         <div className="p-4">
           <div className="space-y-3 text-sm">
