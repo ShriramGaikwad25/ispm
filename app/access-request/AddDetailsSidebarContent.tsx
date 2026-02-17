@@ -41,26 +41,57 @@ const AddDetailsSidebarContent: React.FC<{
   const formcustomfields = (role.catalogRow?.formcustomfields as unknown[] | undefined) ?? [];
   const hasFormCustomFields = Array.isArray(formcustomfields) && formcustomfields.length > 0;
 
+  type SavedRoleDetails = {
+    fieldValues?: Record<number, string>;
+    provisioningValues?: Record<string, string>;
+    provisioningTargets?: string[];
+  };
+
+  const getStorageKey = (roleId: string) => `accessRoleDetails:${roleId}`;
+
+  const loadSavedDetails = (roleId: string): SavedRoleDetails | null => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = window.localStorage.getItem(getStorageKey(roleId));
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as SavedRoleDetails;
+      return parsed || null;
+    } catch {
+      return null;
+    }
+  };
+
   const [fieldValues, setFieldValues] = useState<Record<number, string>>(() => {
-    const initial: Record<number, string> = {};
+    const initialFromRole: Record<number, string> = {};
     formcustomfields.forEach((item: unknown, idx: number) => {
       if (item != null && typeof item === "object" && !Array.isArray(item)) {
         const obj = item as Record<string, unknown>;
-        initial[idx] = String(obj.value ?? obj.fieldValue ?? obj.val ?? "");
+        initialFromRole[idx] = String(obj.value ?? obj.fieldValue ?? obj.val ?? "");
       }
     });
-    return initial;
+
+    const saved = loadSavedDetails(role.id);
+    if (saved?.fieldValues) {
+      return { ...initialFromRole, ...saved.fieldValues };
+    }
+    return initialFromRole;
   });
 
   useEffect(() => {
-    const initial: Record<number, string> = {};
+    const initialFromRole: Record<number, string> = {};
     formcustomfields.forEach((item: unknown, idx: number) => {
       if (item != null && typeof item === "object" && !Array.isArray(item)) {
         const obj = item as Record<string, unknown>;
-        initial[idx] = String(obj.value ?? obj.fieldValue ?? obj.val ?? "");
+        initialFromRole[idx] = String(obj.value ?? obj.fieldValue ?? obj.val ?? "");
       }
     });
-    setFieldValues(initial);
+
+    const saved = loadSavedDetails(role.id);
+    if (saved?.fieldValues) {
+      setFieldValues({ ...initialFromRole, ...saved.fieldValues });
+    } else {
+      setFieldValues(initialFromRole);
+    }
   }, [role.id]);
 
   const updateField = (idx: number, value: string) => {
@@ -79,12 +110,34 @@ const AddDetailsSidebarContent: React.FC<{
       setProvisioningError(null);
       return;
     }
+
     const appInstanceId = String(role.catalogRow?.appinstanceid ?? role.catalogRow?.appInstanceId ?? role.id).trim();
     if (!appInstanceId) {
       setProvisioningFields([]);
       setProvisioningValues({});
       return;
     }
+
+    // If we are in the Review step (showActions === false), try to use
+    // previously saved provisioning fields/values first and avoid an API call.
+    const saved = loadSavedDetails(role.id);
+    if (!showActions && saved?.provisioningTargets && saved.provisioningTargets.length > 0) {
+      const fieldsFromSaved: ProvisioningField[] = saved.provisioningTargets.map((target) => ({ target }));
+      setProvisioningFields(fieldsFromSaved);
+
+      const initialProv: Record<string, string> = {};
+      fieldsFromSaved.forEach(({ target }) => {
+        const savedVal = saved.provisioningValues?.[target];
+        if (savedVal !== undefined) {
+          initialProv[target] = savedVal;
+        }
+      });
+      setProvisioningValues(initialProv);
+      setProvisioningLoading(false);
+      setProvisioningError(null);
+      return;
+    }
+
     setProvisioningLoading(true);
     setProvisioningError(null);
 
@@ -106,7 +159,21 @@ const AddDetailsSidebarContent: React.FC<{
         });
       }
       setProvisioningFields(fields);
-      setProvisioningValues({});
+
+      // Load any previously saved provisioning values for this role and apply them
+      const savedForProvisioning = loadSavedDetails(role.id);
+      if (savedForProvisioning?.provisioningValues) {
+        const initialProv: Record<string, string> = {};
+        fields.forEach(({ target }) => {
+          const savedVal = savedForProvisioning.provisioningValues?.[target];
+          if (savedVal !== undefined) {
+            initialProv[target] = savedVal;
+          }
+        });
+        setProvisioningValues(initialProv);
+      } else {
+        setProvisioningValues({});
+      }
     };
 
     getItAssetApp(appInstanceId)
@@ -162,6 +229,22 @@ const AddDetailsSidebarContent: React.FC<{
   const updateProvisioningValue = (target: string, value: string) => {
     setProvisioningValues((prev) => ({ ...prev, [target]: value }));
   };
+
+  // Persist sidebar field values (custom fields + provisioning) per role so they
+  // are available again when opening the sidebar from the Review step.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const payload: SavedRoleDetails = {
+        fieldValues,
+        provisioningValues,
+        provisioningTargets: provisioningFields.map((f) => f.target),
+      };
+      window.localStorage.setItem(getStorageKey(role.id), JSON.stringify(payload));
+    } catch {
+      // Ignore persistence errors
+    }
+  }, [fieldValues, provisioningValues, provisioningFields, role.id]);
 
   return (
     <div className="flex flex-col h-full">

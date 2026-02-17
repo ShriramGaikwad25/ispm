@@ -257,61 +257,56 @@ const AccessRequest: React.FC = () => {
         Access Request
       </h1>
 
-      {/* Progress Steps */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-        <div className="flex items-center justify-between">
-          {steps.map((step, index) => (
-            <div key={step.id} className="flex items-center">
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  currentStep >= step.id
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-200 text-gray-600"
-                }`}
-              >
-                {currentStep > step.id ? <Check className="w-4 h-4" /> : step.id}
-              </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium text-gray-900">{step.title}</p>
-              </div>
-              {index < steps.length - 1 && (
-                <div className="flex-1 h-0.5 bg-gray-200 mx-4" />
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Navigation Buttons */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-        <div className="flex justify-between">
+      {/* Steps + Navigation in one panel: Previous | Steps | Next */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 px-6 py-3.5 mb-5">
+        <div className="flex items-center justify-between gap-8">
           <button
             onClick={handlePrevious}
             disabled={currentStep === 1}
-            className={`flex items-center px-4 py-2 rounded-md text-sm font-medium ${
+            className={`flex items-center px-5 py-2 rounded-lg text-sm font-medium shrink-0 ${
               currentStep === 1
                 ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                 : "bg-gray-200 text-gray-700 hover:bg-gray-300"
             }`}
           >
-            <ChevronLeft className="w-4 h-4 mr-2" />
+            <ChevronLeft className="w-4 h-4 mr-2.5" />
             Previous
           </button>
-
-          <div className="flex gap-3">
+          <div className="flex items-center justify-center flex-1 min-w-0">
+            {steps.map((step, index) => (
+              <div key={step.id} className="flex items-center">
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium shrink-0 ${
+                    currentStep >= step.id
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-200 text-gray-600"
+                  }`}
+                >
+                  {currentStep > step.id ? <Check className="w-4 h-4" /> : step.id}
+                </div>
+                <div className="ml-3 shrink-0">
+                  <p className="text-sm font-medium text-gray-900 whitespace-nowrap">{step.title}</p>
+                </div>
+                {index < steps.length - 1 && (
+                  <div className="w-14 sm:w-20 h-0.5 bg-gray-200 mx-5 sm:mx-6 shrink-0" />
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-4 shrink-0">
             {currentStep < steps.length ? (
               <button
                 onClick={handleNext}
-                className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
+                className="flex items-center px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
               >
                 Next
-                <ChevronRight className="w-4 h-4 ml-2" />
+                <ChevronRight className="w-4 h-4 ml-2.5" />
               </button>
             ) : (
               <button
-                className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium"
+                className="flex items-center px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
               >
-                <Check className="w-4 h-4 mr-2" />
+                <Check className="w-4 h-4 mr-2.5" />
                 Submit
               </button>
             )}
