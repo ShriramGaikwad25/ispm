@@ -1,5 +1,6 @@
 "use client";
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Check, ChevronLeft, ChevronRight, X, ShoppingCart } from "lucide-react";
 import HorizontalTabs from "@/components/HorizontalTabs";
 import UserSearchTab from "./UserSearchTab";
@@ -9,10 +10,35 @@ import DetailsTab from "./DetailsTab";
 import ReviewTab from "./ReviewTab";
 import { useSelectedUsers } from "@/contexts/SelectedUsersContext";
 import { useCart } from "@/contexts/CartContext";
+import { useItemDetails } from "@/contexts/ItemDetailsContext";
+
+function clearAccessRequestSelections(
+  clearCart: () => void,
+  clearUsers: () => void,
+  clearItemDetails: () => void
+) {
+  clearCart();
+  clearUsers();
+  clearItemDetails();
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.removeItem("mirrorAccessState");
+      localStorage.removeItem("selectAccessActiveTab");
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key?.startsWith("accessRoleDetails:")) keysToRemove.push(key);
+      }
+      keysToRemove.forEach((k) => localStorage.removeItem(k));
+    } catch (_) {}
+  }
+}
 
 const AccessRequest: React.FC = () => {
-  const { selectedUsers, removeUser } = useSelectedUsers();
-  const { addToCart, removeFromCart, isInCart } = useCart();
+  const router = useRouter();
+  const { selectedUsers, removeUser, clearUsers } = useSelectedUsers();
+  const { addToCart, removeFromCart, isInCart, clearCart } = useCart();
+  const { clearItemDetails } = useItemDetails();
   const [selectedOption, setSelectedOption] = useState<"self" | "others">("self");
   const [currentStep, setCurrentStep] = useState(1);
   const [activeTab, setActiveTab] = useState(0);
@@ -25,6 +51,44 @@ const AccessRequest: React.FC = () => {
   const [applicationInstances, setApplicationInstances] = useState<Array<{ id: string; name: string }>>([]);
   const catalogFetchKeyRef = useRef<string | null>(null);
   const catalogPageRef = useRef(catalogPage);
+
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const pendingNavigateUrlRef = useRef<string | null>(null);
+
+  // Browser leave (refresh, close tab, external link): show native confirm
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
+
+  // In-app navigation: intercept link clicks and show custom modal
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      const anchor = (e.target as HTMLElement).closest("a");
+      if (!anchor || !anchor.href) return;
+      const href = anchor.getAttribute("href");
+      if (!href || href === "#" || href.startsWith("javascript:")) return;
+      const isInternal = href.startsWith("/");
+      const isLeavingAccessRequest = isInternal && !href.startsWith("/access-request");
+      if (!isLeavingAccessRequest) return;
+      e.preventDefault();
+      e.stopPropagation();
+      pendingNavigateUrlRef.current = href;
+      setShowLeaveConfirm(true);
+    };
+    document.addEventListener("click", handleClick, true);
+    return () => document.removeEventListener("click", handleClick, true);
+  }, []);
+
+  // Clear all selections when leaving the Access Request page (e.g. unmount)
+  useEffect(() => {
+    return () => {
+      clearAccessRequestSelections(clearCart, clearUsers, clearItemDetails);
+    };
+  }, [clearCart, clearUsers, clearItemDetails]);
 
   const steps = [
     { id: 1, title: "Select User" },
@@ -124,7 +188,7 @@ const AccessRequest: React.FC = () => {
           idx;
 
         return {
-          id: String(idValue),
+          id: String(idValue).trim(),
           name: rawName || "Unnamed access",
           risk: normalizeRisk(rawRisk),
           description: rawDesc,
@@ -253,10 +317,6 @@ const AccessRequest: React.FC = () => {
 
   return (
     <div>
-      <h1 className="text-xl font-bold mb-3 border-b border-gray-300 pb-2 text-blue-950">
-        Access Request
-      </h1>
-
       {/* Steps + Navigation in one panel: Previous | Steps | Next */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 px-3 sm:px-6 py-2.5 sm:py-3.5 mb-5">
         <div className="flex items-center gap-2 sm:gap-8 min-w-0">
@@ -438,6 +498,43 @@ const AccessRequest: React.FC = () => {
       {currentStep === 4 && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
           <ReviewTab catalogRoles={apiRoles} />
+        </div>
+      )}
+
+      {/* Leave confirmation modal */}
+      {showLeaveConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50" role="dialog" aria-modal="true" aria-labelledby="leave-confirm-title">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h2 id="leave-confirm-title" className="text-lg font-semibold text-gray-900 mb-2">Leave Access Request?</h2>
+            <p className="text-sm text-gray-600 mb-6">
+              All data will be lost. Do you still want to leave?
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowLeaveConfirm(false);
+                  pendingNavigateUrlRef.current = null;
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Stay
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const url = pendingNavigateUrlRef.current;
+                  setShowLeaveConfirm(false);
+                  pendingNavigateUrlRef.current = null;
+                  clearAccessRequestSelections(clearCart, clearUsers, clearItemDetails);
+                  if (url) router.push(url);
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+              >
+                Leave
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

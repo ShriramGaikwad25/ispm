@@ -667,7 +667,7 @@ const HeaderContent = () => {
   return (
     <div className="flex h-[60px] w-full items-center justify-between text-sm pl-0 pr-4" style={{ backgroundColor: '#27B973' }}>
       {/* Left Section */}
-      <div className="flex items-center h-full -ml-3">
+      <div className="flex items-center h-full -ml-3 flex-1">
         {/* Hamburger Menu Button */}
         <button
           onClick={toggleSidebar}
@@ -830,8 +830,10 @@ const HeaderContent = () => {
             </div>
           </div>
         ) : (
-          <div className="flex items-center px-4">
-            {}
+          <div className="flex items-center justify-center flex-1 px-4">
+            {pathname?.startsWith('/access-request') && (
+              <p className="text-lg font-semibold text-white">Access Request</p>
+            )}
           </div>
         )}
       </div>

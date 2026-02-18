@@ -182,12 +182,12 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
   const [avatarErrorIndexByKey, setAvatarErrorIndexByKey] = useState<Record<string, number>>({});
   const menuButtonRef = useRef<HTMLButtonElement>(null);
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
-      const [menuPosition, setMenuPosition] = useState<{
-        top: number;
-        left: number;
-      }>({ top: 0, left: 0 });
-    const menuRef = useRef<HTMLDivElement>(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{
+    top: number;
+    left: number;
+  }>({ top: 0, left: 0 });
+  const menuRef = useRef<HTMLDivElement>(null);
   const [isDelegateModalOpen, setIsDelegateModalOpen] = useState(false);
   const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);
   const hoverTimerRef = useRef<number | null>(null);
@@ -239,7 +239,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
     }
   }, []);
 
-    const toggleMenu = (e: React.MouseEvent) => {
+  // Handle opening/closing of the 3-dots menu (More actions)
+  const toggleMenu = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsMenuOpen((prev) => !prev);
 
@@ -251,6 +252,31 @@ const TreeClient: React.FC<TreeClientProps> = ({
       });
     }
   };
+
+  // Close the menu when clicking anywhere outside of it or the trigger button
+  useEffect(() => {
+    if (!isMenuOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+
+      if (
+        !target ||
+        menuRef.current?.contains(target) ||
+        menuButtonRef.current?.contains(target)
+      ) {
+        return;
+      }
+
+      setIsMenuOpen(false);
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isMenuOpen]);
 
   const openDelegateModal = () => {
     setIsDelegateModalOpen(true);

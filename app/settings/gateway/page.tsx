@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from 'next/navigation';
 import { useState, useMemo } from 'react';
-import { Settings, FileText, Users, Shield, Mail, ShieldCheck, Clock, Lock, Search, Workflow } from 'lucide-react';
+import { Settings, FileText, Users, Shield, Mail, ShieldCheck, Clock, Lock, Search, Workflow, GraduationCap } from 'lucide-react';
 
 export default function GatewaySettings() {
   const router = useRouter();
@@ -71,6 +71,13 @@ export default function GatewaySettings() {
       subtitle: 'Design and configure approval workflows with AI-assisted policies.',
       href: '/settings/gateway/workflow-builder',
       icon: <Workflow className="w-5 h-5 text-gray-600" />,
+    },
+    {
+      id: 'training-lms',
+      title: 'Setup Training/LMS System(s)',
+      subtitle: 'Configure integration with training and learning management systems.',
+      href: '/settings/gateway/training-lms',
+      icon: <GraduationCap className="w-5 h-5 text-gray-600" />,
     },
     {
       id: 'entitlement-management',

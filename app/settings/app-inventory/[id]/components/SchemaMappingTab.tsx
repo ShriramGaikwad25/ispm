@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Edit, Trash2, Info, ChevronDown, X, Search } from "lucide-react";
+import { Edit, Trash2, Info, ChevronDown, X, Search, Key } from "lucide-react";
 import CustomPagination from "@/components/agTable/CustomPagination";
+import { executeQuery } from "@/lib/api";
 
 type MappingRow = {
   id: string;
@@ -52,6 +53,9 @@ export default function SchemaMappingTab({ applicationId, onCancel }: SchemaMapp
   const [editDefaultValue, setEditDefaultValue] = useState("");
   const [editKeyfield, setEditKeyfield] = useState(false);
 
+  /** Attribute names from applicationinstance.configuration (matchUserAttribute, identityMatchingAttribute, etc.) – show key icon next to these */
+  const [configurationAttributes, setConfigurationAttributes] = useState<Set<string>>(new Set());
+
   const buildMappingsFromApi = useCallback((json: any): MappingRow[] => {
     const rows: MappingRow[] = [];
     const seen = new Set<string>();
@@ -98,13 +102,17 @@ export default function SchemaMappingTab({ applicationId, onCancel }: SchemaMapp
     setError(null);
     (async () => {
       try {
-        const [scimRes, mappedRes] = await Promise.all([
+        const [scimRes, mappedRes, configRes] = await Promise.all([
           fetch("https://preview.keyforge.ai/schemamapper/getscim/ACMECOM", {
             method: "GET",
             headers: { "Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest" },
           }),
           fetch(
             `https://preview.keyforge.ai/schemamapper/getmappedschema/ACMECOM/${encodeURIComponent(applicationId)}`
+          ),
+          executeQuery<{ errorMessage?: string; resultSet?: Array<{ configuration?: Record<string, string> }> }>(
+            "select configuration from applicationinstance where appid = ?",
+            [applicationId]
           ),
         ]);
 
@@ -129,6 +137,18 @@ export default function SchemaMappingTab({ applicationId, onCancel }: SchemaMapp
           const mappedData = await mappedRes.json();
           setMappings(buildMappingsFromApi(mappedData));
         }
+
+        const configAttrs = new Set<string>();
+        const resultSet = configRes?.resultSet;
+        if (Array.isArray(resultSet) && resultSet.length > 0) {
+          const configuration = resultSet[0]?.configuration;
+          if (configuration && typeof configuration === "object") {
+            for (const value of Object.values(configuration)) {
+              if (typeof value === "string" && value.trim()) configAttrs.add(value.trim());
+            }
+          }
+        }
+        if (!cancelled) setConfigurationAttributes(configAttrs);
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : "Failed to load schema");
@@ -372,10 +392,20 @@ export default function SchemaMappingTab({ applicationId, onCancel }: SchemaMapp
                   pageMappings.map((m) => (
                     <tr key={m.id}>
                       <td className="px-4 py-3 text-sm text-gray-900 align-top whitespace-pre-wrap break-words" style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}>
-                        {m.source}
+                        <span className="inline-flex items-center gap-1">
+                          {m.source}
+                          {configurationAttributes.has(m.source?.trim() ?? "") && (
+                            <Key className="w-3.5 h-3.5 text-amber-500 shrink-0" aria-label="Configuration attribute" />
+                          )}
+                        </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900 align-top whitespace-pre-wrap break-words" style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}>
-                        {m.target}
+                        <span className="inline-flex items-center gap-1">
+                          {m.target}
+                          {configurationAttributes.has(m.target?.trim() ?? "") && (
+                            <Key className="w-3.5 h-3.5 text-amber-500 shrink-0" aria-label="Configuration attribute" />
+                          )}
+                        </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-500 align-top whitespace-pre-wrap break-words" style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}>
                         {m.defaultValue || "—"}

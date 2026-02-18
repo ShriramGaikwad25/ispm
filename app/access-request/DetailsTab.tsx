@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { useCart } from "@/contexts/CartContext";
 import { useItemDetails } from "@/contexts/ItemDetailsContext";
-import { Calendar, Edit, Save, X } from "lucide-react";
+import { Calendar, Edit, Save, X, Paperclip, Check } from "lucide-react";
 
 interface ItemDates {
   [itemId: string]: {
@@ -21,10 +21,18 @@ const DetailsTab: React.FC = () => {
     setItemDetail, 
     getItemDetail, 
     globalSettings, 
-    setGlobalSettings, 
+    setGlobalSettings,
+    attachmentEmailByItem,
+    attachmentFileByItem,
+    setAttachmentEmail,
+    setAttachmentFile,
+    requestType,
+    setRequestType,
   } = useItemDetails();
   const [itemDates, setItemDates] = useState<ItemDates>({});
-  const [requestType, setRequestType] = useState<"Regular" | "Urgent">("Regular");
+  const [attachmentMenuForItemId, setAttachmentMenuForItemId] = useState<string | null>(null);
+  const [attachmentPanel, setAttachmentPanel] = useState<{ itemId: string; type: "email" | "excel" | "csv" } | null>(null);
+  const fileInputRefs = React.useRef<Record<string, HTMLInputElement | null>>({});
   const initializedItemsRef = React.useRef<Set<string>>(new Set());
   const prevGlobalSettingsRef = React.useRef(globalSettings);
 
@@ -538,7 +546,7 @@ const DetailsTab: React.FC = () => {
                 </div>
               </div>
 
-              {/* Comment Box */}
+              {/* Comment & Attachments */}
               <div className="mt-3">
                 <label className="block text-xs font-medium text-gray-700 mb-1">
                   Comment
@@ -549,8 +557,8 @@ const DetailsTab: React.FC = () => {
                       value={dates.comment}
                       onChange={(e) => handleCommentChange(e.target.value)}
                       placeholder="Enter comment..."
-                      rows={2}
-                      className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                      rows={3}
+                      className="w-full max-w-md px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none min-h-[80px]"
                     />
                     <div className="flex items-center gap-2">
                       <button
@@ -570,21 +578,164 @@ const DetailsTab: React.FC = () => {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex items-start gap-2">
-                    <div className="flex-1 min-h-[40px] px-3 py-1.5 text-sm border border-gray-300 rounded-md bg-gray-50">
-                      {dates.comment ? (
-                        <p className="text-xs text-gray-700 whitespace-pre-wrap">{dates.comment}</p>
-                      ) : (
-                        <p className="text-xs text-gray-400 italic">No comment added</p>
+                  <div className="grid grid-cols-2 gap-4 w-full min-w-0">
+                    {/* Half row: Comment */}
+                    <div className="min-w-0 flex items-center gap-2">
+                      <div className="flex-1 min-w-0 min-h-[52px] px-3 py-2 text-sm border border-gray-300 rounded-md bg-gray-50">
+                        {dates.comment ? (
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap break-words">{dates.comment}</p>
+                        ) : (
+                          <p className="text-sm text-gray-400 italic">No comment added</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={handleEdit}
+                        className="inline-flex items-center gap-1 px-2 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md font-medium transition-colors text-xs shrink-0"
+                      >
+                        <Edit className="w-3 h-3" />
+                        Edit
+                      </button>
+                    </div>
+                    {/* Half row: Attachment */}
+                    <div className="min-w-0 flex flex-wrap items-center gap-2">
+                      <div className="relative shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setAttachmentMenuForItemId(attachmentMenuForItemId === item.id ? null : item.id)}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md bg-indigo-100 text-indigo-700 border border-indigo-200 hover:bg-indigo-200 hover:text-indigo-800 hover:border-indigo-300 transition-colors text-sm font-medium"
+                          title="Attach"
+                          aria-label="Attach"
+                        >
+                          <Paperclip className="w-4 h-4" />
+                          <span>Attachment</span>
+                        </button>
+                        {attachmentMenuForItemId === item.id && (
+                          <>
+                            <div
+                              className="fixed inset-0 z-10"
+                              aria-hidden
+                              onClick={() => setAttachmentMenuForItemId(null)}
+                            />
+                            <div className="absolute right-0 top-full mt-1 z-20 py-1 min-w-[100px] bg-white border border-gray-200 rounded-md shadow-lg">
+                              <button
+                                type="button"
+                                className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-100"
+                                onClick={() => {
+                                  setAttachmentPanel({ itemId: item.id, type: "email" });
+                                  setAttachmentMenuForItemId(null);
+                                }}
+                              >
+                                Email
+                              </button>
+                              <button
+                                type="button"
+                                className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-100"
+                                onClick={() => {
+                                  const input = fileInputRefs.current[item.id];
+                                  if (input) {
+                                    input.accept = ".xlsx,.xls";
+                                    input.value = "";
+                                    input.click();
+                                  }
+                                  setAttachmentMenuForItemId(null);
+                                }}
+                              >
+                                Excel
+                              </button>
+                              <button
+                                type="button"
+                                className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-100"
+                                onClick={() => {
+                                  const input = fileInputRefs.current[item.id];
+                                  if (input) {
+                                    input.accept = ".csv";
+                                    input.value = "";
+                                    input.click();
+                                  }
+                                  setAttachmentMenuForItemId(null);
+                                }}
+                              >
+                                CSV
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                      <input
+                        type="file"
+                        ref={(el) => {
+                          if (el) fileInputRefs.current[item.id] = el;
+                        }}
+                        className="hidden"
+                        accept=".xlsx,.xls,.csv"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) setAttachmentFile(item.id, file.name);
+                        }}
+                      />
+                      {attachmentPanel?.itemId === item.id && attachmentPanel.type === "email" && (
+                        <>
+                          <input
+                            type="email"
+                            placeholder="Enter email address"
+                            value={attachmentEmailByItem[item.id] ?? ""}
+                            onChange={(e) => setAttachmentEmail(item.id, e.target.value)}
+                            className="min-w-[280px] max-w-[380px] px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 shrink-0"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setAttachmentPanel(null)}
+                            className="p-2 rounded-md text-green-600 hover:bg-green-100 shrink-0"
+                            aria-label="Confirm"
+                            title="Confirm"
+                          >
+                            <Check className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAttachmentPanel(null)}
+                            className="p-2 rounded-md text-gray-500 hover:bg-gray-200 shrink-0"
+                            aria-label="Close"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
+                      {(attachmentEmailByItem[item.id] || attachmentFileByItem[item.id]) && (
+                        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                          {attachmentEmailByItem[item.id] && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-50 text-blue-800 border border-blue-200 rounded-md max-w-full min-w-0">
+                              <span className="truncate" title={attachmentEmailByItem[item.id]}>
+                                Email: {attachmentEmailByItem[item.id]}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setAttachmentEmail(item.id, "")}
+                                className="p-0.5 rounded hover:bg-blue-100 text-blue-600 shrink-0"
+                                aria-label="Remove email"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </span>
+                          )}
+                          {attachmentFileByItem[item.id] && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-md max-w-full min-w-0">
+                              <span className="truncate" title={attachmentFileByItem[item.id]}>
+                                File: {attachmentFileByItem[item.id]}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setAttachmentFile(item.id, "")}
+                                className="p-0.5 rounded hover:bg-emerald-100 text-emerald-600 shrink-0"
+                                aria-label="Remove file"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
-                    <button
-                      onClick={handleEdit}
-                      className="inline-flex items-center gap-1 px-2 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md font-medium transition-colors text-xs"
-                    >
-                      <Edit className="w-3 h-3" />
-                      Edit
-                    </button>
                   </div>
                 )}
               </div>

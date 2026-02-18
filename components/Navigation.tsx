@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { ChevronDown, ChevronRight, ChevronLeft } from 'lucide-react';
+import { ChevronDown, ChevronRight, ChevronLeft, Search } from 'lucide-react';
 import {navLinks as navigation, NavItem} from './Navi';
 import { useLeftSidebar } from '@/contexts/LeftSidebarContext';
 
@@ -11,6 +11,7 @@ export function Navigation() {
   const pathname = usePathname();
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const [searchTerm, setSearchTerm] = useState('');
   const { isVisible } = useLeftSidebar();
 
   const handleLinkClick = () => {
@@ -45,6 +46,17 @@ export function Navigation() {
     return pathname === subItem.href;
   };
 
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const filteredNavigation = normalizedSearch
+    ? navigation.filter((item) => {
+        const matchesHeader = item.name.toLowerCase().includes(normalizedSearch);
+        const matchesSubItem = item.subItems?.some((subItem) =>
+          subItem.name.toLowerCase().includes(normalizedSearch)
+        );
+        return matchesHeader || matchesSubItem;
+      })
+    : navigation;
+
   // Don't render if sidebar is hidden
   if (!isVisible) {
     return null;
@@ -67,11 +79,47 @@ export function Navigation() {
         role="navigation"
         aria-label="Primary navigation"
       >
-        {navigation.map((item) => {
+        <div className="w-full mb-3">
+          {isSidebarExpanded ? (
+            <div className="relative">
+              <span className="absolute inset-y-0 left-2 flex items-center">
+                <Search className="h-4 w-4 text-gray-400" aria-hidden="true" />
+              </span>
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search menu..."
+                className="w-full pl-8 pr-2 py-1.5 text-xs rounded-md border border-gray-200 bg-gray-50 text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                aria-label="Search main menu"
+              />
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsSidebarExpanded(true)}
+              className="flex items-center justify-center w-10 h-8 rounded-md border border-gray-200 bg-gray-50 hover:bg-gray-100"
+              aria-label="Expand sidebar to search menu"
+            >
+              <Search className="h-4 w-4 text-gray-500" aria-hidden="true" />
+            </button>
+          )}
+        </div>
+
+        {filteredNavigation.map((item) => {
           const Icon = item.icon;
           const isActive = isItemActive(item);
-          const isExpanded = expandedItems.has(item.name);
           const hasSubItems = item.subItems && item.subItems.length > 0;
+          const visibleSubItems = hasSubItems
+            ? (normalizedSearch
+                ? item.subItems!.filter((subItem) =>
+                    subItem.name.toLowerCase().includes(normalizedSearch)
+                  )
+                : item.subItems)
+            : undefined;
+          const hasVisibleSubItems = !!visibleSubItems && visibleSubItems.length > 0;
+          const isExpandedBySearch = normalizedSearch && hasVisibleSubItems;
+          const isExpanded = expandedItems.has(item.name) || !!isExpandedBySearch;
 
           return (
             <div key={item.name} className="w-full">
@@ -163,13 +211,13 @@ export function Navigation() {
               </div>
 
               {/* Sub Items */}
-              {hasSubItems && expandedItems.has(item.name) && isSidebarExpanded && (
+              {hasVisibleSubItems && isExpanded && isSidebarExpanded && (
                 <ul 
                   id={`submenu-${item.name}`}
                   className="ml-4 mt-1 space-y-1"
                   role="menu"
                 >
-                  {item.subItems!.map((subItem) => {
+                  {visibleSubItems!.map((subItem) => {
                     const SubIcon = subItem.icon;
                     const isSubActive = isSubItemActive(subItem);
                     

@@ -47,7 +47,7 @@ export const navLinks: NavItem[] = [
     subItems: [
       { name: 'Access Review', href: '/access-review', icon: ListTodo },
       { name: 'Manage Campaign', href: '/campaigns', icon: ListTree },
-      { name: 'Continuous Compliance', href: '/campaigns', icon: CheckCircle }
+      { name: 'Continuous Compliance', href: '/campaigns/continuous-compliance', icon: CheckCircle }
     ]
   },
   {
@@ -57,7 +57,7 @@ export const navLinks: NavItem[] = [
     subItems: [
       { name: 'Access Request', href: '/access-request', icon: ClipboardList },
       { name: 'Track Request', href: '/track-request', icon: Search },
-      { name: 'Pending Approvals', href: '/access-request', icon: AlertCircle }
+      { name: 'Pending Approvals', href: '/access-request/pending-approvals', icon: AlertCircle }
     ]
   },
   {
@@ -79,8 +79,8 @@ export const navLinks: NavItem[] = [
     subItems: [
       { name: 'Reporting', href: '/reports', icon: FileText },
       { name: 'Profiles', href: '/profiles', icon: UserCircle2Icon },
-      { name: 'SoD Audit', href: '/reports', icon: AlertCircle },
-      { name: 'Control Mapping', href: '/reports', icon: FolderTree }
+      { name: 'SoD Audit', href: '/reports/sod-audit', icon: AlertCircle },
+      { name: 'Control Mapping', href: '/reports/control-mapping', icon: FolderTree }
     ]
   },
   {

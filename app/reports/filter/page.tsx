@@ -13,6 +13,9 @@ import "@/lib/ag-grid-setup";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
 
+// Proxied report signatures API
+const GET_ALL_SIGNATURE_URL = "/api/reports/getallsignature";
+
 export default function ReportFilterPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -28,14 +31,76 @@ export default function ReportFilterPage() {
     },
   });
 
-  // Report filter attributes
-  const filterAttributes = [
-    { label: "User", value: "user" },
-    { label: "User Status", value: "user_status" },
-    { label: "Application", value: "app" },
-    { label: "Entitlement", value: "entitlement" },
-    { label: "Department", value: "department" },
-  ];
+  // Default / fallback report filter attributes
+  const DEFAULT_FILTER_ATTRIBUTES = useMemo(
+    () => [
+      { label: "User", value: "user" },
+      { label: "User Status", value: "user_status" },
+      { label: "Application", value: "app" },
+      { label: "Entitlement", value: "entitlement" },
+      { label: "Department", value: "department" },
+    ],
+    []
+  );
+
+  // Attributes shown in "Select Attribute" – by default use static list,
+  // but override with searchAttributes from the selected report (getallsignature API)
+  const [filterAttributes, setFilterAttributes] = useState<
+    { label: string; value: string }[]
+  >(DEFAULT_FILTER_ATTRIBUTES);
+
+  // Load searchAttributes for the selected reportType
+  useEffect(() => {
+    let cancelled = false;
+    if (!reportType) return;
+
+    const loadAttributes = async () => {
+      try {
+        const res = await fetch(GET_ALL_SIGNATURE_URL, { credentials: "include" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        const obj =
+          data && typeof data === "object" && data !== null
+            ? (data as { signatures?: unknown })
+            : null;
+        const sigs = Array.isArray(obj?.signatures) ? obj.signatures : [];
+
+        type Signature = {
+          reportName?: string;
+          viewName?: string;
+          searchAttributes?: { name?: string; display?: string }[];
+        };
+
+        const match = (sigs as Signature[]).find(
+          (s) => (s.reportName || "").toLowerCase() === reportType.toLowerCase()
+        );
+
+        if (!match || !Array.isArray(match.searchAttributes)) {
+          return;
+        }
+
+        const attrs = match.searchAttributes
+          .filter((a) => a && (a.name || a.display))
+          .map((a) => ({
+            label: (a.display || a.name || "").toString(),
+            value: (a.name || a.display || "").toString(),
+          }));
+
+        if (!cancelled && attrs.length > 0) {
+          setFilterAttributes(attrs);
+        }
+      } catch {
+        // On error, keep existing/default attributes
+      }
+    };
+
+    loadAttributes();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [reportType, DEFAULT_FILTER_ATTRIBUTES]);
 
   const handleBack = () => {
     router.push("/reports");

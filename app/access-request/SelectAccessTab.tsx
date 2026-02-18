@@ -1,11 +1,24 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { Search, ShoppingCart, Users, Check, User } from "lucide-react";
+import { Search, ShoppingCart, Users, Check, User, Info, Calendar } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import HorizontalTabs from "@/components/HorizontalTabs";
 import CustomPagination from "@/components/agTable/CustomPagination";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import AddDetailsSidebarContent, { getRiskColor, type Role } from "./AddDetailsSidebarContent";
+
+function getApplicationName(role: Role): string {
+  const row = role.catalogRow;
+  if (!row || typeof row !== "object") return "";
+  const v =
+    (row.applicationname as string) ??
+    (row.applicationName as string) ??
+    (row.application_name as string) ??
+    (row.appname as string) ??
+    (row.appName as string) ??
+    "";
+  return typeof v === "string" ? v.trim() : "";
+}
 
 interface User {
   id: string;
@@ -122,17 +135,62 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
   // Catalog search state (filter state for Application Instances checkbox is in parent so catalog refetches with correct query)
   const [catalogSearchQuery, setCatalogSearchQuery] = useState("");
 
+  const catalogTypeOptions = [
+    { value: "All", label: "All" },
+    { value: "Applications", label: "Applications" },
+    { value: "Entitlement", label: "Entitlement" },
+    { value: "Roles", label: "Roles" },
+    { value: "App Specific Entitlement", label: "App Specific Entitlement" },
+  ] as const;
+  type CatalogTypeValue = (typeof catalogTypeOptions)[number]["value"];
+  const [catalogTypeFilter, setCatalogTypeFilter] = useState<CatalogTypeValue>("All");
+
+  // Sync dropdown "Applications" with Application Instances checkbox: same API query and results
+  useEffect(() => {
+    if (showApplicationInstancesOnly) {
+      setCatalogTypeFilter("Applications");
+    } else if (catalogTypeFilter === "Applications") {
+      setCatalogTypeFilter("All");
+    }
+  }, [showApplicationInstancesOnly]);
+
+  const handleCatalogTypeChange = (value: CatalogTypeValue) => {
+    setCatalogTypeFilter(value);
+    if (value === "Applications") {
+      onShowApplicationInstancesOnlyChange?.(true);
+    } else {
+      onShowApplicationInstancesOnlyChange?.(false);
+    }
+  };
+
   // All Tab Component (uses apiCurrentPage from parent so fetch offset increases correctly)
   const AllTab: React.FC = () => {
     const isInitialMount = React.useRef(true);
     const pageSize = 100;
     const currentPage = apiCurrentPage;
 
+    const roleType = (role: Role) =>
+      (role.type ?? (role.catalogRow?.type as string) ?? "").toString().trim().toLowerCase();
+
+    const matchesCatalogTypeFilter = (role: Role): boolean => {
+      if (catalogTypeFilter === "All") return true;
+      const t = roleType(role);
+      if (catalogTypeFilter === "Applications") return t === "applicationinstance";
+      if (catalogTypeFilter === "Entitlement") return t === "entitlement";
+      if (catalogTypeFilter === "Roles") return t === "role" || t === "roles";
+      if (catalogTypeFilter === "App Specific Entitlement") {
+        if (selectedAppInstanceId) return true;
+        return t === "app specific entitlement" || t === "appspecificentitlement" || t.includes("app specific");
+      }
+      return true;
+    };
+
     const filteredRoles = roles.filter((role) => {
       const matchesSearch = role.name.toLowerCase().includes(catalogSearchQuery.toLowerCase());
-      const matchesType =
-        !showApplicationInstancesOnly ? true : (role.type || "").toLowerCase() === "applicationinstance";
-      return matchesSearch && matchesType;
+      const matchesAppInstance =
+        !showApplicationInstancesOnly ? true : roleType(role) === "applicationinstance";
+      const matchesType = matchesCatalogTypeFilter(role);
+      return matchesSearch && matchesAppInstance && matchesType;
     });
 
     // Server-side pagination (100 rows per API page) – show all roles from current API page
@@ -146,7 +204,7 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
       }
       // Reset to first page only when user actually changes search or dropdown (not on mount/remount)
       if (onApiPageChange) onApiPageChange(1);
-    }, [catalogSearchQuery, showApplicationInstancesOnly]);
+    }, [catalogSearchQuery, showApplicationInstancesOnly, catalogTypeFilter]);
 
     const handleAddToCart = (role: Role) => {
       if (isInCart(role.id)) {
@@ -169,7 +227,7 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
         {/* Search and Filter Section */}
         <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between md:gap-4">
           <div className="flex flex-1 flex-wrap items-center gap-3 md:gap-4">
-            <div className="relative flex-1 min-w-[200px] max-w-md">
+            <div className="relative w-[320px] flex-shrink-0">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
               <input
                 type="text"
@@ -179,16 +237,15 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
                 className="h-10 w-full pl-10 pr-4 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
               />
             </div>
-            <div className="relative flex-shrink-0">
+            <div className="relative w-[320px] flex-shrink-0">
               <select
-                value={selectedAppInstanceId ?? ""}
-                onChange={(e) => onAppInstanceChange?.(e.target.value ? e.target.value : null)}
-                className="h-10 appearance-none bg-white border border-gray-300 rounded-md pl-4 pr-8 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[260px] text-sm"
+                value={catalogTypeFilter}
+                onChange={(e) => handleCatalogTypeChange(e.target.value as CatalogTypeValue)}
+                className="h-10 w-full appearance-none bg-white border border-gray-300 rounded-md pl-4 pr-8 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
               >
-                <option value="">All</option>
-                {applicationInstances.map((app) => (
-                  <option key={app.id} value={app.id}>
-                    {app.name}
+                {catalogTypeOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
                   </option>
                 ))}
               </select>
@@ -198,15 +255,27 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
                 </svg>
               </div>
             </div>
-            <label className="inline-flex h-10 cursor-pointer items-center gap-2 text-base text-gray-700">
-              <input
-                type="checkbox"
-                className="h-4 w-4 shrink-0 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                checked={showApplicationInstancesOnly}
-                onChange={(e) => onShowApplicationInstancesOnlyChange?.(e.target.checked)}
-              />
-              <span>Application Instances</span>
-            </label>
+            {catalogTypeFilter === "App Specific Entitlement" && (
+              <div className="relative w-[320px] flex-shrink-0">
+                <select
+                  value={selectedAppInstanceId ?? ""}
+                  onChange={(e) => onAppInstanceChange?.(e.target.value ? e.target.value : null)}
+                  className="h-10 w-full appearance-none bg-white border border-gray-300 rounded-md pl-4 pr-8 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                >
+                  <option value="">Select application</option>
+                  {applicationInstances.map((app) => (
+                    <option key={app.id} value={app.id}>
+                      {app.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
+            )}
           </div>
           <button
             type="button"
@@ -248,7 +317,7 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
                   <Users className="w-6 h-6 text-gray-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 mb-2">
+                  <div className="flex items-center gap-3 mb-2 flex-wrap">
                     <span className="text-gray-800 font-medium">{role.name}</span>
                     <span
                       className={`px-2 py-1 rounded text-xs font-medium border ${getRiskColor(
@@ -257,6 +326,11 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
                     >
                       {role.risk} Risk
                     </span>
+                    {getApplicationName(role) && (
+                      <span className="px-2 py-1 rounded text-xs font-medium border text-blue-700 bg-blue-50 border-blue-200">
+                        {getApplicationName(role)}
+                      </span>
+                    )}
                   </div>
                   <p className="text-sm text-gray-600">{role.description}</p>
                 </div>
@@ -369,7 +443,7 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
                   <Users className="w-6 h-6 text-gray-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 mb-2">
+                  <div className="flex items-center gap-3 mb-2 flex-wrap">
                     <span className="text-gray-800 font-medium">{role.name}</span>
                     <span
                       className={`px-2 py-1 rounded text-xs font-medium border ${getRiskColor(
@@ -378,6 +452,11 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
                     >
                       {role.risk} Risk
                     </span>
+                    {getApplicationName(role) && (
+                      <span className="px-2 py-1 rounded text-xs font-medium border text-blue-700 bg-blue-50 border-blue-200">
+                        {getApplicationName(role)}
+                      </span>
+                    )}
                   </div>
                   <p className="text-sm text-gray-600">{role.description}</p>
                 </div>
@@ -440,6 +519,24 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
         ...prev,
         selectedAccessIds: typeof ids === 'function' ? ids(prev.selectedAccessIds) : ids
       }));
+    };
+
+    const handleAddSelectedToCart = () => {
+      if (!userAccess.length || !selectedAccessIds.size) return;
+      userAccess.forEach((access) => {
+        if (selectedAccessIds.has(access.id) && !isInCart(access.id)) {
+          addToCart({ id: access.id, name: access.name, risk: access.risk });
+        }
+      });
+    };
+
+    const handleRemoveSelectedFromCart = () => {
+      if (!userAccess.length || !selectedAccessIds.size) return;
+      userAccess.forEach((access) => {
+        if (selectedAccessIds.has(access.id) && isInCart(access.id)) {
+          removeFromCart(access.id);
+        }
+      });
     };
 
     // Mock function to retrieve user access
@@ -832,7 +929,7 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
                         <Users className="w-6 h-6 text-gray-600" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 mb-2">
+                        <div className="flex items-center gap-3 mb-2 flex-wrap">
                           <span className="text-gray-800 font-medium">{access.name}</span>
                           <span
                             className={`px-2 py-1 rounded text-xs font-medium border ${getRiskColor(
@@ -841,6 +938,11 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
                           >
                             {access.risk} Risk
                           </span>
+                          {getApplicationName(access) && (
+                            <span className="px-2 py-1 rounded text-xs font-medium border text-blue-700 bg-blue-50 border-blue-200">
+                              {getApplicationName(access)}
+                            </span>
+                          )}
                         </div>
                         <p className="text-sm text-gray-600">{access.description}</p>
                       </div>
@@ -882,6 +984,50 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
             </button>
           </div>
         )}
+
+        {/* Floating Add to Cart when Select All is active */}
+        {userAccess.length > 0 &&
+          selectedAccessIds.size === userAccess.length &&
+          selectedAccessIds.size > 0 && (() => {
+            const hasSelectedNotInCart = userAccess.some(
+              (access) => selectedAccessIds.has(access.id) && !isInCart(access.id)
+            );
+            const hasSelectedInCart = userAccess.some(
+              (access) => selectedAccessIds.has(access.id) && isInCart(access.id)
+            );
+
+            if (hasSelectedNotInCart) {
+              // There are selected items not yet in cart → show Add button only
+              return (
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40">
+                  <button
+                    onClick={handleAddSelectedToCart}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full shadow-lg bg-blue-600 hover:bg-blue-700 text-white font-medium"
+                  >
+                    <ShoppingCart className="w-4 h-4" />
+                    Add Selected to Cart
+                  </button>
+                </div>
+              );
+            }
+
+            if (hasSelectedInCart) {
+              // All selected items are already in cart → show Remove button only
+              return (
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40">
+                  <button
+                    onClick={handleRemoveSelectedFromCart}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full shadow-lg bg-red-600 hover:bg-red-700 text-white font-medium"
+                  >
+                    <ShoppingCart className="w-4 h-4" />
+                    Remove Selected from Cart
+                  </button>
+                </div>
+              );
+            }
+
+            return null;
+          })()}
       </div>
     );
   };

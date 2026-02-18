@@ -28,6 +28,13 @@ interface ItemDetailsContextType {
   globalSettings: GlobalSettings;
   setGlobalSettings: (settings: Partial<GlobalSettings>) => void;
   applyGlobalToAll: () => void;
+  clearItemDetails: () => void;
+  attachmentEmailByItem: Record<string, string>;
+  attachmentFileByItem: Record<string, string>;
+  setAttachmentEmail: (itemId: string, email: string) => void;
+  setAttachmentFile: (itemId: string, fileName: string) => void;
+  requestType: 'Regular' | 'Urgent';
+  setRequestType: (type: 'Regular' | 'Urgent') => void;
 }
 
 const ItemDetailsContext = createContext<ItemDetailsContextType | undefined>(undefined);
@@ -42,7 +49,10 @@ const getDefaultDates = () => {
 
 export function ItemDetailsProvider({ children }: { children: ReactNode }) {
   const [itemDetails, setItemDetails] = useState<Record<string, ItemDetail>>({});
+  const [attachmentEmailByItem, setAttachmentEmailByItemState] = useState<Record<string, string>>({});
+  const [attachmentFileByItem, setAttachmentFileByItemState] = useState<Record<string, string>>({});
   const [globalAccessType, setGlobalAccessTypeState] = useState<'indefinite' | 'duration'>('duration');
+  const [requestType, setRequestTypeState] = useState<'Regular' | 'Urgent'>('Regular');
   
   const { today, defaultEndDate } = getDefaultDates();
   
@@ -126,6 +136,25 @@ export function ItemDetailsProvider({ children }: { children: ReactNode }) {
     return itemDetails[itemId];
   }, [itemDetails]);
 
+  const clearItemDetails = useCallback(() => {
+    setItemDetails({});
+    setAttachmentEmailByItemState({});
+    setAttachmentFileByItemState({});
+    setRequestTypeState('Regular');
+  }, []);
+
+  const setRequestType = useCallback((type: 'Regular' | 'Urgent') => {
+    setRequestTypeState(type);
+  }, []);
+
+  const setAttachmentEmail = useCallback((itemId: string, email: string) => {
+    setAttachmentEmailByItemState((prev) => ({ ...prev, [itemId]: email }));
+  }, []);
+
+  const setAttachmentFile = useCallback((itemId: string, fileName: string) => {
+    setAttachmentFileByItemState((prev) => ({ ...prev, [itemId]: fileName }));
+  }, []);
+
   const value = {
     itemDetails,
     setItemDetail,
@@ -135,6 +164,13 @@ export function ItemDetailsProvider({ children }: { children: ReactNode }) {
     globalSettings,
     setGlobalSettings,
     applyGlobalToAll,
+    clearItemDetails,
+    attachmentEmailByItem,
+    attachmentFileByItem,
+    setAttachmentEmail,
+    setAttachmentFile,
+    requestType,
+    setRequestType,
   };
 
   return <ItemDetailsContext.Provider value={value}>{children}</ItemDetailsContext.Provider>;

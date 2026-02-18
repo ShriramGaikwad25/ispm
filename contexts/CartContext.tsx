@@ -22,18 +22,21 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
 
+  const normId = (x: unknown) => String(x ?? "").trim();
+
   const addToCart = useCallback((item: CartItem) => {
     setItems((prev) => {
-      // Check if item already exists in cart
-      if (prev.some((i) => i.id === item.id)) {
+      const itemIdNorm = normId(item.id);
+      if (prev.some((i) => normId(i.id) === itemIdNorm)) {
         return prev;
       }
-      return [...prev, item];
+      return [...prev, { ...item, id: itemIdNorm || item.id }];
     });
   }, []);
 
   const removeFromCart = useCallback((itemId: string) => {
-    setItems((prev) => prev.filter((item) => item.id !== itemId));
+    const idNorm = normId(itemId);
+    setItems((prev) => prev.filter((item) => normId(item.id) !== idNorm));
   }, []);
 
   const clearCart = useCallback(() => {
@@ -41,7 +44,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const isInCart = useCallback((itemId: string) => {
-    return items.some((item) => item.id === itemId);
+    const idNorm = normId(itemId);
+    return items.some((item) => normId(item.id) === idNorm);
   }, [items]);
 
   const value = {

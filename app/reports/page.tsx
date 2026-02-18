@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
-const GET_ALL_SIGNATURE_URL = "https://preview.keyforge.ai/reports/api/v1/ACMECOM/getallsignature";
+// Proxied via API route to avoid CORS (browser -> same-origin API -> external API)
+const GET_ALL_SIGNATURE_URL = "/api/reports/getallsignature";
 
 export default function ReportsPage() {
   const router = useRouter();
@@ -12,62 +13,16 @@ export default function ReportsPage() {
   const [isReportTypeDropdownOpen, setIsReportTypeDropdownOpen] = useState(false);
   const reportTypeDropdownRef = useRef<HTMLDivElement>(null);
 
-  // All Signatures data from getallsignature API
-  const [signatureData, setSignatureData] = useState<any[] | null>(null);
+  // Reports from getallsignature API: { reportName, viewName }[]
+  const [reports, setReports] = useState<{ reportName: string; viewName: string }[]>([]);
   const [signatureLoading, setSignatureLoading] = useState(true);
   const [signatureError, setSignatureError] = useState<string | null>(null);
 
-  // Report types from Auditor's Corner
-  const reportTypes = [
-    {
-      id: "high-risk-users",
-      title: "High Risk Users",
-      subtitle: "Identify and monitor users with elevated risk profiles",
-      icon: "⚠️"
-    },
-    {
-      id: "inactive-accounts",
-      title: "Inactive Accounts",
-      subtitle: "Find accounts that have been inactive for extended periods",
-      icon: "💤"
-    },
-    {
-      id: "sod-violations",
-      title: "SOD Violations",
-      subtitle: "Detect Segregation of Duties violations and conflicts",
-      icon: "🚫"
-    },
-    {
-      id: "privileged-accounts",
-      title: "Privileged Accounts",
-      subtitle: "Track and manage accounts with privileged access",
-      icon: "🔐"
-    },
-    {
-      id: "orphan-accounts",
-      title: "Orphan Accounts",
-      subtitle: "Identify accounts without active owners or assignments",
-      icon: "👻"
-    },
-    {
-      id: "certification-report",
-      title: "Certification Report",
-      subtitle: "Download full report filtered by reviewer, decision, delta, etc.",
-      icon: "📋"
-    },
-    {
-      id: "detailed-revocation-report",
-      title: "Detailed Revocation Report",
-      subtitle: "Download per-application revocation report",
-      icon: "📄"
-    },
-  ];
-
-  // Filter report types based on search
-  const filteredReportTypes = reportTypes.filter((reportType) =>
-    reportType.title.toLowerCase().includes(reportTypeSearch.toLowerCase()) ||
-    reportType.subtitle.toLowerCase().includes(reportTypeSearch.toLowerCase()) ||
-    reportType.id.toLowerCase().includes(reportTypeSearch.toLowerCase())
+  // Filter reports based on search
+  const filteredReports = reports.filter(
+    (r) =>
+      r.reportName.toLowerCase().includes(reportTypeSearch.toLowerCase()) ||
+      r.viewName.toLowerCase().includes(reportTypeSearch.toLowerCase())
   );
 
   // Fetch getallsignature API on mount
@@ -82,12 +37,19 @@ export default function ReportsPage() {
       })
       .then((data: unknown) => {
         if (cancelled) return;
-        const list = Array.isArray(data) ? data : (data && typeof data === "object" && "data" in (data as object) ? (data as { data: unknown }).data : data);
-        setSignatureData(Array.isArray(list) ? list : list != null ? [list] : []);
+        const obj = data && typeof data === "object" && data !== null ? (data as { signatures?: unknown }) : null;
+        const sigs = Array.isArray(obj?.signatures) ? obj.signatures : [];
+        const list = sigs
+          .filter((s: unknown) => s && typeof s === "object" && "reportName" in (s as object))
+          .map((s: { reportName: string; viewName?: string }) => ({
+            reportName: String((s as { reportName: unknown }).reportName),
+            viewName: String((s as { viewName?: unknown }).viewName ?? ""),
+          }));
+        setReports(list);
       })
       .catch((err) => {
         if (!cancelled) setSignatureError(err?.message || "Failed to load signatures");
-        setSignatureData(null);
+        setReports([]);
       })
       .finally(() => {
         if (!cancelled) setSignatureLoading(false);
@@ -112,11 +74,9 @@ export default function ReportsPage() {
     };
   }, []);
 
-  const handleReportTypeSelect = (reportTypeId: string) => {
-    const reportType = reportTypes.find(rt => rt.id === reportTypeId);
-    if (reportType) {
-      setSelectedReportType(reportType.id);
-      // Do not show the selected value in the search box; keep it blank
+  const handleReportTypeSelect = (viewName: string) => {
+    if (reports.some((r) => r.viewName === viewName)) {
+      setSelectedReportType(viewName);
       setReportTypeSearch("");
       setIsReportTypeDropdownOpen(false);
     }
@@ -134,65 +94,6 @@ export default function ReportsPage() {
             <p className="text-gray-600">
               View and generate reports for your organization's identity and access management.
             </p>
-
-            {/* All Signatures from getallsignature API */}
-            <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
-              <h2 className="text-lg font-medium text-gray-900 px-4 py-3 border-b border-gray-200 bg-gray-50">
-                All Signatures
-              </h2>
-              <div className="p-4">
-                {signatureLoading && (
-                  <p className="text-sm text-gray-500">Loading signatures…</p>
-                )}
-                {signatureError && (
-                  <p className="text-sm text-red-600">{signatureError}</p>
-                )}
-                {!signatureLoading && !signatureError && signatureData && (
-                  signatureData.length === 0 ? (
-                    <p className="text-sm text-gray-500">No signature data.</p>
-                  ) : (() => {
-                    const first = signatureData[0];
-                    const isObj = typeof first === "object" && first !== null;
-                    const keys = isObj ? Object.keys(first as Record<string, unknown>) : ["Value"];
-                    return (
-                      <div className="overflow-x-auto -mx-4 sm:mx-0">
-                        <table className="min-w-full divide-y divide-gray-200 text-sm">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              {keys.map((key) => (
-                                <th key={key} className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                  {key}
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y divide-gray-200">
-                            {signatureData.map((row, idx) =>
-                              typeof row === "object" && row !== null ? (
-                                <tr key={idx}>
-                                  {keys.map((key) => {
-                                    const val = (row as Record<string, unknown>)[key];
-                                    return (
-                                      <td key={key} className="px-4 py-2 text-gray-900 whitespace-pre-wrap break-words">
-                                        {val == null ? "" : typeof val === "object" ? JSON.stringify(val) : String(val)}
-                                      </td>
-                                    );
-                                  })}
-                                </tr>
-                              ) : (
-                                <tr key={idx}>
-                                  <td className="px-4 py-2 text-gray-900">{String(row)}</td>
-                                </tr>
-                              )
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    );
-                  })()
-                )}
-              </div>
-            </div>
 
             {/* Search Boxes */}
             <div className="grid grid-cols-1 gap-6 max-w-md">
@@ -236,52 +137,56 @@ export default function ReportsPage() {
               </div>
             </div>
 
-            {/* Report Type Boxes */}
+            {/* Report cards from getallsignature API */}
             <div className="mt-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredReportTypes.map((reportType) => (
-                  <div
-                    key={reportType.id}
-                    onClick={() => handleReportTypeSelect(reportType.id)}
-                    className={`p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 hover:shadow-md ${
-                      selectedReportType === reportType.id
-                        ? "border-blue-500 bg-blue-50"
-                        : "border-gray-200 bg-white hover:border-gray-300"
-                    }`}
-                  >
-                    <div className="flex items-center mb-2">
-                      <div className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-lg mr-3">
-                        {reportType.icon}
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-medium text-gray-900 text-sm">{reportType.title}</h3>
-                        <p className="text-xs text-gray-500">{reportType.subtitle}</p>
-                      </div>
-                      {selectedReportType === reportType.id && (
-                        <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
-                          <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
+              {signatureLoading && (
+                <p className="text-sm text-gray-500">Loading reports…</p>
+              )}
+              {signatureError && (
+                <p className="text-sm text-red-600">{signatureError}</p>
+              )}
+              {!signatureLoading && !signatureError && reports.length === 0 && (
+                <p className="text-sm text-gray-500">No reports available.</p>
+              )}
+              {!signatureLoading && !signatureError && reports.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredReports.map((report) => (
+                    <div
+                      key={report.viewName}
+                      onClick={() => handleReportTypeSelect(report.viewName)}
+                      className={`p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 hover:shadow-md ${
+                        selectedReportType === report.viewName
+                          ? "border-blue-500 bg-blue-50"
+                          : "border-gray-200 bg-white hover:border-gray-300"
+                      }`}
+                    >
+                      <div className="flex items-center">
+                        <div className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-lg mr-3 flex-shrink-0">
+                          📋
                         </div>
-                      )}
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-medium text-gray-900 text-sm">{report.reportName}</h3>
+                        </div>
+                        {selectedReportType === report.viewName && (
+                          <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 ml-2">
+                            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Selected Values Display (Optional) */}
+            {/* Selected report */}
             {selectedReportType && (
               <div className="mt-4 p-4 bg-gray-50 rounded-md border border-gray-200">
-                <h3 className="text-sm font-medium text-gray-700 mb-2">
-                  Selected Options:
-                </h3>
-                <div className="space-y-1 text-sm text-gray-600">
-                  {selectedReportType && (
-                    <div>
-                      <span className="font-medium">Report Type:</span> {reportTypes.find(rt => rt.id === selectedReportType)?.title || selectedReportType}
-                    </div>
-                  )}
+                <h3 className="text-sm font-medium text-gray-700 mb-2">Selected report</h3>
+                <div className="text-sm text-gray-600">
+                  {reports.find((r) => r.viewName === selectedReportType)?.reportName ?? selectedReportType}
                 </div>
               </div>
             )}
@@ -291,8 +196,8 @@ export default function ReportsPage() {
               <div className="mt-6 flex justify-end">
                 <button
                   onClick={() => {
-                    const reportTypeTitle = reportTypes.find(rt => rt.id === selectedReportType)?.title || selectedReportType;
-                    router.push(`/reports/filter?reportType=${encodeURIComponent(reportTypeTitle)}`);
+                    const reportName = reports.find((r) => r.viewName === selectedReportType)?.reportName ?? selectedReportType;
+                    router.push(`/reports/filter?reportType=${encodeURIComponent(reportName)}`);
                   }}
                   className="px-6 py-2.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors font-medium"
                 >
