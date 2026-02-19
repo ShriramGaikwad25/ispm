@@ -52,6 +52,9 @@ const AccessRequest: React.FC = () => {
   const catalogFetchKeyRef = useRef<string | null>(null);
   const catalogPageRef = useRef(catalogPage);
 
+  const [catalogTypeFilter, setCatalogTypeFilter] = useState<string>("All");
+  const [tagFilter, setTagFilter] = useState<string>("");
+
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const pendingNavigateUrlRef = useRef<string | null>(null);
 
@@ -247,7 +250,7 @@ const AccessRequest: React.FC = () => {
   React.useEffect(() => {
     if (currentStep !== 2) return;
 
-    const fetchKey = `2-${catalogPage}-${selectedAppInstanceId ?? "all"}-${showApplicationInstancesOnly}`;
+    const fetchKey = `2-${catalogPage}-${selectedAppInstanceId ?? "all"}-${showApplicationInstancesOnly}-${catalogTypeFilter}-${tagFilter || "all"}`;
     if (catalogFetchKeyRef.current === fetchKey) return;
     catalogFetchKeyRef.current = fetchKey;
 
@@ -259,22 +262,34 @@ const AccessRequest: React.FC = () => {
     const offset = (catalogPage - 1) * limit;
 
     const isFilteredByAppInstance = !!selectedAppInstanceId?.trim() && !showApplicationInstancesOnly;
+    const trimmedTag = tagFilter.trim();
 
-    const body = showApplicationInstancesOnly
-      ? {
-          query: "SELECT * FROM vw_catalog WHERE type = 'ApplicationInstance' ORDER BY appinstanceid LIMIT ? OFFSET ?",
-          parameters: [limit, offset],
-        }
-      : isFilteredByAppInstance
+    const body =
+      showApplicationInstancesOnly
         ? {
             query:
-              "SELECT * FROM vw_catalog WHERE type = 'Entitlement' AND appinstanceid = ?::uuid ORDER BY appinstanceid LIMIT ? OFFSET ?",
-            parameters: [selectedAppInstanceId!.trim(), limit, offset],
-          }
-        : {
-            query: "SELECT * FROM vw_catalog ORDER BY appinstanceid LIMIT ? OFFSET ?",
+              "SELECT * FROM vw_catalog WHERE type = 'ApplicationInstance' ORDER BY appinstanceid LIMIT ? OFFSET ?",
             parameters: [limit, offset],
-          };
+          }
+        : catalogTypeFilter === "Tags"
+          ? {
+              // Entitlements filtered by tag text (inline filter on tags column only)
+              query:
+                trimmedTag
+                  ? `SELECT * FROM vw_catalog WHERE type = 'Entitlement' AND tags ILIKE '%${trimmedTag}%' ORDER BY appinstanceid LIMIT ? OFFSET ?`
+                  : "SELECT * FROM vw_catalog WHERE type = 'Entitlement' ORDER BY appinstanceid LIMIT ? OFFSET ?",
+              parameters: [limit, offset],
+            }
+          : isFilteredByAppInstance
+            ? {
+                query:
+                  "SELECT * FROM vw_catalog WHERE type = 'Entitlement' AND appinstanceid = ?::uuid ORDER BY appinstanceid LIMIT ? OFFSET ?",
+                parameters: [selectedAppInstanceId!.trim(), limit, offset],
+              }
+            : {
+                query: "SELECT * FROM vw_catalog ORDER BY appinstanceid LIMIT ? OFFSET ?",
+                parameters: [limit, offset],
+              };
 
     fetch("https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery", {
       method: "POST",
@@ -302,7 +317,7 @@ const AccessRequest: React.FC = () => {
         if (catalogPageRef.current === pageRequested) setCatalogLoading(false);
         catalogFetchKeyRef.current = null;
       });
-  }, [currentStep, catalogPage, selectedAppInstanceId, showApplicationInstancesOnly]);
+  }, [currentStep, catalogPage, selectedAppInstanceId, showApplicationInstancesOnly, catalogTypeFilter, tagFilter]);
 
   const userTabs = [
     {
@@ -480,6 +495,14 @@ const AccessRequest: React.FC = () => {
               showApplicationInstancesOnly={showApplicationInstancesOnly}
               onShowApplicationInstancesOnlyChange={(checked) => {
                 setShowApplicationInstancesOnly(checked);
+                setCatalogPage(1);
+              }}
+              onCatalogTypeChange={(value) => {
+                setCatalogTypeFilter(value);
+                setCatalogPage(1);
+              }}
+              onTagSearch={(tag) => {
+                setTagFilter(tag);
                 setCatalogPage(1);
               }}
             />

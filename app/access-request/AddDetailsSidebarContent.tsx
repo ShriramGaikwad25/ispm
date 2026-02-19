@@ -258,6 +258,38 @@ const AddDetailsSidebarContent: React.FC<{
               {role.risk} Risk
             </span>
           </div>
+          {(() => {
+            const jit =
+              (role.catalogRow?.jit_access as string | undefined) ??
+              (role.catalogRow?.jitAccess as string | undefined) ??
+              (role.catalogRow?.JIT_ACCESS as string | undefined);
+            return typeof jit === "string" && jit.toLowerCase() === "yes";
+          })() && (
+            <p className="text-xs text-purple-700 bg-purple-50 border border-purple-200 rounded px-2 py-1">
+              This item will be marked for Just In Time Access post approval.
+            </p>
+          )}
+          {(() => {
+            const raw = role.catalogRow?.training_code as unknown;
+            const arr = Array.isArray(raw) ? raw : [];
+            if (arr.length === 0) return null;
+            const first = arr[0] as Record<string, unknown>;
+            const code = String(first.code ?? "").trim();
+            const grace =
+              first.gracePeriodInDays != null
+                ? Number(first.gracePeriodInDays)
+                : undefined;
+            if (!code) return null;
+            return (
+              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                This item requires pre-requisite training{" "}
+                <span className="font-medium">{code}</span>
+                {Number.isFinite(grace) && grace! > 0
+                  ? ` (grace period ${grace} day${grace === 1 ? "" : "s"})`
+                  : ""}
+              </p>
+            );
+          })()}
           <div>
             <span className="text-xs font-medium text-gray-500">Description</span>
             <p className="text-sm text-gray-700 break-words break-all whitespace-pre-wrap max-w-full leading-snug mt-0.5">

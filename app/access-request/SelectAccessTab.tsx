@@ -1,6 +1,6 @@
 "use client";
-import React, { useState, useEffect } from "react";
-import { Search, ShoppingCart, Users, Check, User, Info, Calendar } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Search, ShoppingCart, Users, Check, User, Info, Calendar, ChevronDown, X } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import HorizontalTabs from "@/components/HorizontalTabs";
 import CustomPagination from "@/components/agTable/CustomPagination";
@@ -18,6 +18,18 @@ function getApplicationName(role: Role): string {
     (row.appName as string) ??
     "";
   return typeof v === "string" ? v.trim() : "";
+}
+
+function getApplicationId(role: Role): string | undefined {
+  const row = role.catalogRow;
+  if (!row || typeof row !== "object") return undefined;
+  const v =
+    (row.appinstanceid as string) ??
+    (row.appInstanceId as string) ??
+    (row.app_instance_id as string) ??
+    "";
+  const s = typeof v === "string" ? v.trim() : "";
+  return s || undefined;
 }
 
 interface User {
@@ -39,6 +51,8 @@ interface SelectAccessTabProps {
   onAppInstanceChange?: (id: string | null) => void;
   showApplicationInstancesOnly?: boolean;
   onShowApplicationInstancesOnlyChange?: (checked: boolean) => void;
+  onCatalogTypeChange?: (value: string) => void;
+  onTagSearch?: (tag: string) => void;
 }
 
 const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
@@ -51,6 +65,8 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
   onAppInstanceChange,
   showApplicationInstancesOnly = false,
   onShowApplicationInstancesOnlyChange,
+  onCatalogTypeChange,
+  onTagSearch,
 }) => {
   const { addToCart, removeFromCart, isInCart, cartCount } = useCart();
   const { openSidebar, closeSidebar } = useRightSidebar();
@@ -140,10 +156,30 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
     { value: "Applications", label: "Applications" },
     { value: "Entitlement", label: "Entitlement" },
     { value: "Roles", label: "Roles" },
-    { value: "App Specific Entitlement", label: "App Specific Entitlement" },
+    { value: "Tags", label: "Tags" },
   ] as const;
   type CatalogTypeValue = (typeof catalogTypeOptions)[number]["value"];
   const [catalogTypeFilter, setCatalogTypeFilter] = useState<CatalogTypeValue>("All");
+
+  // Free–form tag filter when catalogTypeFilter === "Tags" (applied on Search click to avoid remount/focus loss)
+  const [tagFilter, setTagFilter] = useState("");
+  const tagInputRef = useRef<HTMLInputElement>(null);
+
+  // When Entitlement is selected: filter by these app instance ids; empty = "All Apps"
+  const [entitlementSelectedAppIds, setEntitlementSelectedAppIds] = useState<string[]>([]);
+  const [entitlementAppsDropdownOpen, setEntitlementAppsDropdownOpen] = useState(false);
+  const entitlementAppsDropdownRef = useRef<HTMLDivElement>(null);
+  const [entitlementAppSearch, setEntitlementAppSearch] = useState("");
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (entitlementAppsDropdownRef.current && !entitlementAppsDropdownRef.current.contains(e.target as Node)) {
+        setEntitlementAppsDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Sync dropdown "Applications" with Application Instances checkbox: same API query and results
   useEffect(() => {
@@ -156,6 +192,7 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
 
   const handleCatalogTypeChange = (value: CatalogTypeValue) => {
     setCatalogTypeFilter(value);
+    onCatalogTypeChange?.(value);
     if (value === "Applications") {
       onShowApplicationInstancesOnlyChange?.(true);
     } else {
@@ -173,15 +210,11 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
       (role.type ?? (role.catalogRow?.type as string) ?? "").toString().trim().toLowerCase();
 
     const matchesCatalogTypeFilter = (role: Role): boolean => {
-      if (catalogTypeFilter === "All") return true;
+      if (catalogTypeFilter === "All" || catalogTypeFilter === "Tags") return true;
       const t = roleType(role);
       if (catalogTypeFilter === "Applications") return t === "applicationinstance";
       if (catalogTypeFilter === "Entitlement") return t === "entitlement";
       if (catalogTypeFilter === "Roles") return t === "role" || t === "roles";
-      if (catalogTypeFilter === "App Specific Entitlement") {
-        if (selectedAppInstanceId) return true;
-        return t === "app specific entitlement" || t === "appspecificentitlement" || t.includes("app specific");
-      }
       return true;
     };
 
@@ -190,7 +223,20 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
       const matchesAppInstance =
         !showApplicationInstancesOnly ? true : roleType(role) === "applicationinstance";
       const matchesType = matchesCatalogTypeFilter(role);
-      return matchesSearch && matchesAppInstance && matchesType;
+      const matchesEntitlementApps =
+        catalogTypeFilter !== "Entitlement" ||
+        entitlementSelectedAppIds.length === 0 ||
+        (() => {
+          const appId = getApplicationId(role);
+          return appId && entitlementSelectedAppIds.includes(appId);
+        })();
+      const lowerTagFilter = tagFilter.trim().toLowerCase();
+      const matchesTags =
+        catalogTypeFilter !== "Tags" ||
+        lowerTagFilter === "" ||
+        role.name.toLowerCase().includes(lowerTagFilter) ||
+        role.description.toLowerCase().includes(lowerTagFilter);
+      return matchesSearch && matchesAppInstance && matchesType && matchesEntitlementApps && matchesTags;
     });
 
     // Server-side pagination (100 rows per API page) – show all roles from current API page
@@ -204,7 +250,7 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
       }
       // Reset to first page only when user actually changes search or dropdown (not on mount/remount)
       if (onApiPageChange) onApiPageChange(1);
-    }, [catalogSearchQuery, showApplicationInstancesOnly, catalogTypeFilter]);
+    }, [catalogSearchQuery, showApplicationInstancesOnly, catalogTypeFilter, entitlementSelectedAppIds]);
 
     const handleAddToCart = (role: Role) => {
       if (isInCart(role.id)) {
@@ -255,25 +301,100 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
                 </svg>
               </div>
             </div>
-            {catalogTypeFilter === "App Specific Entitlement" && (
-              <div className="relative w-[320px] flex-shrink-0">
-                <select
-                  value={selectedAppInstanceId ?? ""}
-                  onChange={(e) => onAppInstanceChange?.(e.target.value ? e.target.value : null)}
-                  className="h-10 w-full appearance-none bg-white border border-gray-300 rounded-md pl-4 pr-8 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            {catalogTypeFilter === "Tags" && (
+              <div className="w-[360px] flex-shrink-0 flex items-center gap-2">
+                <input
+                  ref={tagInputRef}
+                  type="text"
+                  placeholder="Enter tag"
+                  defaultValue={tagFilter}
+                  className="h-10 w-full flex-1 bg-white border border-gray-300 rounded-md px-4 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const value = tagInputRef.current?.value?.trim() ?? "";
+                    setTagFilter(value);
+                    onTagSearch?.(value);
+                  }}
+                  className="h-10 px-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md whitespace-nowrap"
                 >
-                  <option value="">Select application</option>
-                  {applicationInstances.map((app) => (
-                    <option key={app.id} value={app.id}>
-                      {app.name}
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
-                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </div>
+                  Search
+                </button>
+              </div>
+            )}
+            {catalogTypeFilter === "Entitlement" && (
+              <div className="relative w-[320px] flex-shrink-0" ref={entitlementAppsDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setEntitlementAppsDropdownOpen((o) => !o)}
+                  className="h-10 w-full flex items-center justify-between gap-2 bg-white border border-gray-300 rounded-md pl-4 pr-8 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-left"
+                >
+                  <span className="truncate">
+                    {entitlementSelectedAppIds.length === 0
+                      ? "All Apps"
+                      : entitlementSelectedAppIds.length === 1
+                        ? applicationInstances.find((a) => a.id === entitlementSelectedAppIds[0])?.name ?? "1 application"
+                        : `${entitlementSelectedAppIds.length} applications selected`}
+                  </span>
+                  <ChevronDown className="w-4 h-4 text-gray-400 shrink-0 absolute right-2 top-1/2 -translate-y-1/2" />
+                </button>
+                {entitlementAppsDropdownOpen && (
+                  <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-72 flex flex-col">
+                    <div className="p-2 border-b border-gray-100">
+                      <input
+                        type="text"
+                        placeholder="Search applications..."
+                        value={entitlementAppSearch}
+                        onChange={(e) => setEntitlementAppSearch(e.target.value)}
+                        className="w-full h-9 px-3 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div className="overflow-y-auto flex-1 min-h-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEntitlementSelectedAppIds([]);
+                        }}
+                        className={`w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 flex items-center gap-2 ${entitlementSelectedAppIds.length === 0 ? "bg-blue-50 text-blue-700 font-medium" : ""}`}
+                      >
+                        <span className={entitlementSelectedAppIds.length === 0 ? "font-medium" : ""}>All Apps</span>
+                        {entitlementSelectedAppIds.length === 0 && <Check className="w-4 h-4 shrink-0" />}
+                      </button>
+                      {applicationInstances
+                        .filter(
+                          (app) =>
+                            !entitlementAppSearch.trim() ||
+                            app.name.toLowerCase().includes(entitlementAppSearch.toLowerCase())
+                        )
+                        .map((app) => {
+                          const isSelected = entitlementSelectedAppIds.includes(app.id);
+                          return (
+                            <button
+                              key={app.id}
+                              type="button"
+                              onClick={() => {
+                                setEntitlementSelectedAppIds((prev) =>
+                                  prev.includes(app.id) ? prev.filter((id) => id !== app.id) : [...prev, app.id]
+                                );
+                              }}
+                              className={`w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 flex items-center gap-2 ${isSelected ? "bg-blue-50 text-blue-700" : ""}`}
+                            >
+                              <span className="truncate">{app.name}</span>
+                              {isSelected && <Check className="w-4 h-4 shrink-0 ml-auto" />}
+                            </button>
+                          );
+                        })}
+                      {applicationInstances.filter(
+                        (app) =>
+                          !entitlementAppSearch.trim() ||
+                          app.name.toLowerCase().includes(entitlementAppSearch.toLowerCase())
+                      ).length === 0 && entitlementAppSearch.trim() && (
+                        <div className="px-4 py-3 text-sm text-gray-500">No applications match your search.</div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -331,6 +452,30 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
                         {getApplicationName(role)}
                       </span>
                     )}
+                    {(() => {
+                      const jit =
+                        (role.catalogRow?.jit_access as string | undefined) ??
+                        (role.catalogRow?.jitAccess as string | undefined) ??
+                        (role.catalogRow?.JIT_ACCESS as string | undefined);
+                      return typeof jit === "string" && jit.toLowerCase() === "yes";
+                    })() && (
+                      <span className="px-2 py-1 rounded text-xs font-medium border text-purple-700 bg-purple-50 border-purple-200">
+                        JIT Access
+                      </span>
+                    )}
+                    {(() => {
+                      const raw = role.catalogRow?.training_code as unknown;
+                      const arr = Array.isArray(raw) ? raw : [];
+                      if (arr.length === 0) return null;
+                      const first = arr[0] as Record<string, unknown>;
+                      const code = String(first.code ?? "").trim();
+                      if (!code) return null;
+                      return (
+                        <span className="px-2 py-1 rounded text-xs font-medium border text-amber-800 bg-amber-50 border-amber-200">
+                          Training Check
+                        </span>
+                      );
+                    })()}
                   </div>
                   <p className="text-sm text-gray-600">{role.description}</p>
                 </div>

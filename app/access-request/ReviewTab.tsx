@@ -44,41 +44,13 @@ const ReviewTab: React.FC<ReviewTabProps> = ({ catalogRoles = [] }) => {
           <h3 className="text-sm font-semibold text-gray-900">Request Details</h3>
         </div>
         <div className="w-full p-3 border border-gray-200 rounded-md bg-gray-50">
-          <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-xs sm:text-sm">
-            {/* Row 1: Access Type / Request Type */}
-            <div>
-              <span className="font-medium text-gray-700">Access Type: </span>
-              <span className="text-gray-600">
-                {globalAccessType === "indefinite" ? "Indefinite" : "Duration"}
-              </span>
-            </div>
-            <div>
-              <span className="font-medium text-gray-700">Request Type: </span>
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs sm:text-sm">
+            <div className="flex items-center gap-1">
+              <span className="font-medium text-gray-700">Request Type:</span>
               <span className="text-gray-600">{requestType}</span>
             </div>
-
-            {/* Row 2: Start / End dates */}
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
-              <span className="text-gray-700">
-                Start: {globalSettings.startDate ? formatDate(globalSettings.startDate) : "Not set"}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
-              <span className="text-gray-700">
-                End:{" "}
-                {globalAccessType === "indefinite"
-                  ? "Indefinite"
-                  : globalSettings.endDate
-                  ? formatDate(globalSettings.endDate)
-                  : "Not set"}
-              </span>
-            </div>
-
-            {/* Row 3: Global comment */}
-            <div className="col-span-2">
-              <span className="font-medium text-gray-700">Global Comment: </span>
+            <div className="flex items-center gap-1 min-w-0">
+              <span className="font-medium text-gray-700 whitespace-nowrap">Global Comment:</span>
               <span className="text-gray-600 whitespace-pre-wrap break-words">
                 {globalSettings.comment && globalSettings.comment.trim() !== ""
                   ? globalSettings.comment
