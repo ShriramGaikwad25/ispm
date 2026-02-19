@@ -1305,48 +1305,55 @@ export default function UserDetailPage() {
     const [searchTerm, setSearchTerm] = useState<string>("");
 
     useEffect(() => {
-      // TODO: Replace with actual API call to fetch proxy users
-      // For now, using sample data
-      const fetchProxyUsers = async () => {
+      const loadProxyUsersFromSelectedUser = () => {
         try {
           setLoading(true);
-          // Sample data - replace with actual API call
-          const sampleData = [
-            {
-              identity: "john.doe@example.com",
-              startDate: "2024-01-15",
-              endDate: "2024-12-31",
-              status: "Active",
-              capabilities: "Full Access, Read, Write",
-              comments: "Primary proxy user for operations",
-            },
-            {
-              identity: "jane.smith@example.com",
-              startDate: "2024-02-20",
-              endDate: "2024-11-30",
-              status: "Active",
-              capabilities: "Read Only",
-              comments: "Backup proxy user",
-            },
-            {
-              identity: "bob.jones@example.com",
-              startDate: "2024-03-10",
-              endDate: "2024-10-15",
-              status: "Disabled",
-              capabilities: "Read, Write",
-              comments: "Temporarily disabled",
-            },
-          ];
-          setProxyUsers(sampleData);
+
+          const fullStr = typeof window !== "undefined"
+            ? window.localStorage.getItem("selectedUserRawFull")
+            : null;
+
+          if (!fullStr) {
+            setProxyUsers([]);
+            return;
+          }
+
+          const rawUser = JSON.parse(fullStr);
+          const proxyArr = Array.isArray(rawUser?.proxy_user) ? rawUser.proxy_user : [];
+
+          const today = new Date();
+          const normalized = proxyArr.map((p: any) => {
+            const start = p.startDate || p.startdate || "";
+            const end = p.endDate || p.enddate || "";
+
+            let status = "Active";
+            if (end) {
+              const endDateObj = new Date(end);
+              if (!isNaN(endDateObj.getTime()) && endDateObj < today) {
+                status = "Expired";
+              }
+            }
+
+            return {
+              identity: p.identity || "",
+              startDate: start,
+              endDate: end,
+              status,
+              capabilities: p.capabilities || "",
+              comments: p.justification || "",
+            };
+          });
+
+          setProxyUsers(normalized);
         } catch (error) {
-          console.error("Error fetching proxy users:", error);
+          console.error("Error loading proxy users from selected user:", error);
           setProxyUsers([]);
         } finally {
           setLoading(false);
         }
       };
 
-      fetchProxyUsers();
+      loadProxyUsersFromSelectedUser();
     }, []);
 
     // Filter data based on search term
@@ -1358,9 +1365,7 @@ export default function UserDetailPage() {
       return proxyUsers.filter((user) => {
         return (
           user.identity?.toLowerCase().includes(searchLower) ||
-          user.status?.toLowerCase().includes(searchLower) ||
-          user.capabilities?.toLowerCase().includes(searchLower) ||
-          user.comments?.toLowerCase().includes(searchLower)
+          user.capabilities?.toLowerCase().includes(searchLower)
         );
       });
     }, [proxyUsers, searchTerm]);
@@ -1402,37 +1407,11 @@ export default function UserDetailPage() {
         valueFormatter: (p: any) => p.value ? require("@/utils/utils").formatDateMMDDYYSlashes(p.value) : "-",
       },
       { 
-        headerName: "Status", 
-        field: "status", 
-        flex: 1,
-        cellRenderer: (params: any) => {
-          const status = params.value || "Unknown";
-          const statusColor = status === "Active" 
-            ? "bg-green-100 text-green-700" 
-            : status === "Disabled"
-            ? "bg-red-100 text-red-700"
-            : "bg-gray-100 text-gray-700";
-          return (
-            <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${statusColor}`}>
-              {status}
-            </span>
-          );
-        },
-      },
-      { 
         headerName: "Capabilities", 
         field: "capabilities", 
         flex: 2,
         cellRenderer: (params: any) => (
           <span className="text-gray-700">{params.value || "-"}</span>
-        ),
-      },
-      { 
-        headerName: "Comments", 
-        field: "comments", 
-        flex: 2,
-        cellRenderer: (params: any) => (
-          <span className="text-gray-600 text-sm">{params.value || "-"}</span>
         ),
       },
       {

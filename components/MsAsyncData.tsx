@@ -156,7 +156,7 @@ const LOGO_BY_KEYWORD: Array<{ keyword: string; src: string }> = [
   { keyword: "workday", src: "/workday.svg" },
 ];
 
-const getLogoSrc = (appName: string) => {
+export const getLogoSrc = (appName: string) => {
   if (!appName) return "/window.svg";
   if (LOGO_BY_NAME[appName]) return LOGO_BY_NAME[appName];
   const lower = appName.toLowerCase();

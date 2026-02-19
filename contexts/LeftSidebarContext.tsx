@@ -7,12 +7,16 @@ interface LeftSidebarContextValue {
   toggleSidebar: () => void;
   hideSidebar: () => void;
   showSidebar: () => void;
+  /** Current sidebar width in px (64 collapsed, 280 expanded). Used by fixed elements (e.g. steps bar) to avoid overlap. */
+  sidebarWidthPx: number;
+  setSidebarWidthPx: (w: number) => void;
 }
 
 const LeftSidebarContext = createContext<LeftSidebarContextValue | undefined>(undefined);
 
 export const LeftSidebarProvider = ({ children }: { children: React.ReactNode }) => {
   const [isVisible, setIsVisible] = useState(true);
+  const [sidebarWidthPx, setSidebarWidthPx] = useState(64);
 
   const toggleSidebar = useCallback(() => {
     setIsVisible(prev => !prev);
@@ -31,7 +35,9 @@ export const LeftSidebarProvider = ({ children }: { children: React.ReactNode })
     toggleSidebar,
     hideSidebar,
     showSidebar,
-  }), [isVisible, toggleSidebar, hideSidebar, showSidebar]);
+    sidebarWidthPx,
+    setSidebarWidthPx,
+  }), [isVisible, toggleSidebar, hideSidebar, showSidebar, sidebarWidthPx]);
 
   return (
     <LeftSidebarContext.Provider value={value}>

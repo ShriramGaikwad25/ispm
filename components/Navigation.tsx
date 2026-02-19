@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight, ChevronLeft, Search } from 'lucide-react';
 import {navLinks as navigation, NavItem} from './Navi';
 import { useLeftSidebar } from '@/contexts/LeftSidebarContext';
@@ -12,7 +12,11 @@ export function Navigation() {
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState('');
-  const { isVisible } = useLeftSidebar();
+  const { isVisible, setSidebarWidthPx } = useLeftSidebar();
+
+  useEffect(() => {
+    setSidebarWidthPx(isSidebarExpanded ? 280 : 64);
+  }, [isSidebarExpanded, setSidebarWidthPx]);
 
   const handleLinkClick = () => {
     // No-op - removed hover reset logic
@@ -64,9 +68,9 @@ export function Navigation() {
 
   return (
     <aside 
-      className="bg-white border-r border-gray-200 flex flex-col relative"
+      className="fixed left-0 top-[60px] z-40 bg-white border-r border-gray-200 flex flex-col"
       style={{
-        height: '100vh',
+        height: 'calc(100vh - 60px)',
         width: isSidebarExpanded ? '280px' : '64px',
         transition: 'width 300ms ease-in-out'
       }}
@@ -230,11 +234,11 @@ export function Navigation() {
                           aria-current={isSubActive ? 'page' : undefined}
                           className={`flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
                             isSubActive 
-                              ? 'bg-blue-50 text-blue-600 border-l-2 border-blue-600' 
-                              : 'hover:bg-gray-50'
+                              ? 'bg-green-50 text-green-700 border-l-2 border-green-600' 
+                              : 'hover:bg-slate-50 text-slate-600'
                           }`}
                           style={{
-                            color: isSubActive ? '#2563eb' : 'var(--text-icons-base-second, #68727D)',
+                            color: isSubActive ? '#15803d' : '#475569',
                             fontFamily: 'Inter',
                             fontSize: '12px',
                             fontStyle: 'normal',
@@ -245,7 +249,7 @@ export function Navigation() {
                           <SubIcon 
                             className="h-3.5 w-3.5 flex-shrink-0" 
                             style={{
-                              color: isSubActive ? '#2563eb' : 'var(--text-icons-base-second, #68727D)'
+                              color: isSubActive ? '#15803d' : '#475569'
                             }}
                             aria-hidden="true"
                           />

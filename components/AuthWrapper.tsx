@@ -5,9 +5,11 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Header } from '@/components/Header';
 import { Navigation } from '@/components/Navigation';
+import { useLeftSidebar } from '@/contexts/LeftSidebarContext';
 
 export function AuthWrapper({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
+  const { isVisible: isSidebarVisible, sidebarWidthPx } = useLeftSidebar();
   const pathname = usePathname();
   const router = useRouter();
   const [isRedirecting, setIsRedirecting] = useState(false);
@@ -42,13 +44,16 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  // Show main app layout for authenticated users
+  // Show main app layout for authenticated users. Sidebar is fixed so main needs margin-left.
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col min-h-screen">
       <Header />
-      <div className="flex flex-1">
-        <Navigation />
-        <main className="flex-1 overflow-auto p-6 bg-gray-50">
+      <Navigation />
+      <div
+        className="flex flex-1 pt-[60px] min-h-0"
+        style={{ marginLeft: isSidebarVisible ? sidebarWidthPx : 0 }}
+      >
+        <main className="flex-1 overflow-auto p-6 bg-gray-50 min-h-0">
           {children}
         </main>
       </div>

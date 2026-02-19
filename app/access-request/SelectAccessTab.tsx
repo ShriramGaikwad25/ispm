@@ -6,6 +6,7 @@ import HorizontalTabs from "@/components/HorizontalTabs";
 import CustomPagination from "@/components/agTable/CustomPagination";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import AddDetailsSidebarContent, { getRiskColor, type Role } from "./AddDetailsSidebarContent";
+import { getLogoSrc } from "@/components/MsAsyncData";
 
 function getApplicationName(role: Role): string {
   const row = role.catalogRow;
@@ -148,9 +149,6 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
   // Roles data: populated from API-driven catalog (passed from parent)
   const roles: Role[] = rolesFromApi || [];
 
-  // Catalog search state (filter state for Application Instances checkbox is in parent so catalog refetches with correct query)
-  const [catalogSearchQuery, setCatalogSearchQuery] = useState("");
-
   const catalogTypeOptions = [
     { value: "All", label: "All" },
     { value: "Applications", label: "Applications" },
@@ -205,6 +203,9 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
     const isInitialMount = React.useRef(true);
     const pageSize = 100;
     const currentPage = apiCurrentPage;
+
+    // Catalog search is local to AllTab so typing doesn't remount the tab
+    const [catalogSearchQuery, setCatalogSearchQuery] = useState("");
 
     const roleType = (role: Role) =>
       (role.type ?? (role.catalogRow?.type as string) ?? "").toString().trim().toLowerCase();
@@ -434,8 +435,16 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
               className="flex items-center justify-between bg-gray-100 hover:bg-gray-200 rounded-lg p-4 transition-colors"
             >
               <div className="flex items-center gap-4 flex-1">
-                <div className="flex items-center justify-center w-10 h-10 bg-gray-300 rounded">
-                  <Users className="w-6 h-6 text-gray-600" />
+                <div className="flex items-center justify-center w-10 h-10 bg-gray-300 rounded overflow-hidden shrink-0">
+                  {roleType(role) === "applicationinstance" ? (
+                    <img
+                      src={getLogoSrc(getApplicationName(role) || role.name)}
+                      alt=""
+                      className="w-10 h-10 object-contain"
+                    />
+                  ) : (
+                    <Users className="w-6 h-6 text-gray-600" />
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-3 mb-2 flex-wrap">
@@ -584,8 +593,16 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
               className="flex items-center justify-between bg-gray-100 hover:bg-gray-200 rounded-lg p-4 transition-colors"
             >
               <div className="flex items-center gap-4 flex-1">
-                <div className="flex items-center justify-center w-10 h-10 bg-gray-300 rounded">
-                  <Users className="w-6 h-6 text-gray-600" />
+                <div className="flex items-center justify-center w-10 h-10 bg-gray-300 rounded overflow-hidden shrink-0">
+                  {roleType(role) === "applicationinstance" ? (
+                    <img
+                      src={getLogoSrc(getApplicationName(role) || role.name)}
+                      alt=""
+                      className="w-10 h-10 object-contain"
+                    />
+                  ) : (
+                    <Users className="w-6 h-6 text-gray-600" />
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-3 mb-2 flex-wrap">

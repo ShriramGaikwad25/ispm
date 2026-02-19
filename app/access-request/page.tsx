@@ -11,6 +11,7 @@ import ReviewTab from "./ReviewTab";
 import { useSelectedUsers } from "@/contexts/SelectedUsersContext";
 import { useCart } from "@/contexts/CartContext";
 import { useItemDetails } from "@/contexts/ItemDetailsContext";
+import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
 
 function clearAccessRequestSelections(
   clearCart: () => void,
@@ -39,6 +40,7 @@ const AccessRequest: React.FC = () => {
   const { selectedUsers, removeUser, clearUsers } = useSelectedUsers();
   const { addToCart, removeFromCart, isInCart, clearCart } = useCart();
   const { clearItemDetails } = useItemDetails();
+  const { isVisible: isSidebarVisible, sidebarWidthPx } = useLeftSidebar();
   const [selectedOption, setSelectedOption] = useState<"self" | "others">("self");
   const [currentStep, setCurrentStep] = useState(1);
   const [activeTab, setActiveTab] = useState(0);
@@ -361,9 +363,12 @@ const AccessRequest: React.FC = () => {
   ];
 
   return (
-    <div>
-      {/* Steps + Navigation in one panel: Previous | Steps | Next */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 px-3 sm:px-6 py-2.5 sm:py-3.5 mb-5">
+    <div className="pt-16">
+      {/* Steps + Navigation in one panel: fixed below header, left of bar starts after sidebar to avoid overlap */}
+      <div
+        className="fixed top-16 right-0 z-20 bg-white shadow-sm border-b border-gray-200 px-3 sm:px-6 py-2.5 sm:py-3.5"
+        style={{ left: isSidebarVisible ? sidebarWidthPx : 0 }}
+      >
         <div className="flex items-center gap-2 sm:gap-8 min-w-0">
           <button
             onClick={handlePrevious}
@@ -425,7 +430,7 @@ const AccessRequest: React.FC = () => {
       {currentStep === 1 && (
         <>
           {/* Toggle Button - Only show in step 1 */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 px-6 py-3 mb-6">
             <div className="flex justify-center items-center gap-4">
               <span 
                 className={`text-sm font-medium cursor-pointer ${
@@ -478,14 +483,14 @@ const AccessRequest: React.FC = () => {
         <>
           {/* Show Selected Users at the top (if "Request for Others") */}
           {selectedUsers.length > 0 && selectedOption === "others" && (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-4">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4">
               <h3 className="text-lg font-semibold mb-4 text-gray-900">Selected Users</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                 {selectedUsers.map((user) => {
                   return (
                     <div
                       key={user.id}
-                      className="relative p-3 rounded-lg border-2 border-emerald-400 bg-white shadow-sm hover:shadow-md transition-all"
+                      className="relative p-2 rounded-lg border-2 border-emerald-400 bg-white shadow-sm hover:shadow-md transition-all"
                     >
                       <button
                         onClick={() => removeUser(user.id)}
