@@ -55,6 +55,8 @@ const AccessRequest: React.FC = () => {
   const [catalogTypeFilter, setCatalogTypeFilter] = useState<string>("All");
   const [tagFilter, setTagFilter] = useState<string>("");
 
+  const [selectedGroups, setSelectedGroups] = useState<Array<{ value: string; label: string }>>([]);
+
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const pendingNavigateUrlRef = useRef<string | null>(null);
 
@@ -319,6 +321,34 @@ const AccessRequest: React.FC = () => {
       });
   }, [currentStep, catalogPage, selectedAppInstanceId, showApplicationInstancesOnly, catalogTypeFilter, tagFilter]);
 
+  // Load selected groups (from Step 1 User Group tab) for display in Step 2
+  React.useEffect(() => {
+    if (currentStep !== 2) return;
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem("accessRequestSelectedGroups");
+      if (!raw) {
+        setSelectedGroups([]);
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        setSelectedGroups(
+          parsed
+            .map((g) => ({
+              value: String(g?.value ?? "").trim(),
+              label: String(g?.label ?? "").trim(),
+            }))
+            .filter((g) => g.value && g.label)
+        );
+      } else {
+        setSelectedGroups([]);
+      }
+    } catch {
+      setSelectedGroups([]);
+    }
+  }, [currentStep]);
+
   const userTabs = [
     {
       label: "User Search",
@@ -448,7 +478,7 @@ const AccessRequest: React.FC = () => {
         <>
           {/* Show Selected Users at the top (if "Request for Others") */}
           {selectedUsers.length > 0 && selectedOption === "others" && (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-4">
               <h3 className="text-lg font-semibold mb-4 text-gray-900">Selected Users</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                 {selectedUsers.map((user) => {
@@ -475,6 +505,26 @@ const AccessRequest: React.FC = () => {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          )}
+
+          {/* Show Selected Groups (from User Group tab in Step 1) */}
+          {selectedGroups.length > 0 && (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+              <h3 className="text-sm font-semibold mb-3 text-gray-900">
+                Selected Groups ({selectedGroups.length})
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {selectedGroups.map((g) => (
+                  <span
+                    key={g.value}
+                    className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-800 border border-blue-200"
+                    title={g.label}
+                  >
+                    {g.label}
+                  </span>
+                ))}
               </div>
             </div>
           )}

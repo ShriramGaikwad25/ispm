@@ -1,28 +1,36 @@
 "use client";
-import React from "react";
-import { useForm, Control, FieldValues } from "react-hook-form";
+import React, { useEffect } from "react";
+import { useForm, Control, FieldValues, useWatch } from "react-hook-form";
 import MultiSelect from "@/components/MultiSelect";
+import { loadGroups } from "@/components/MsAsyncData";
 
 const UserGroupTab: React.FC = () => {
-  const { control, register } = useForm<FieldValues>({
+  const { control } = useForm<FieldValues>({
     defaultValues: {
       selectedUserGroups: [],
     },
   });
 
-  // Mock user groups data - replace with actual API call
-  const userGroups = [
-    { label: "IT Administrators", value: "it_admins" },
-    { label: "HR Managers", value: "hr_managers" },
-    { label: "Finance Team", value: "finance_team" },
-    { label: "Sales Department", value: "sales_dept" },
-    { label: "Marketing Group", value: "marketing_group" },
-    { label: "Executive Team", value: "executive_team" },
-    { label: "Developers", value: "developers" },
-    { label: "QA Team", value: "qa_team" },
-    { label: "Operations", value: "operations" },
-    { label: "Support Staff", value: "support_staff" },
-  ];
+  const selectedGroups = useWatch({
+    control,
+    name: "selectedUserGroups",
+  });
+
+  useEffect(() => {
+    try {
+      const toStore = Array.isArray(selectedGroups)
+        ? selectedGroups.map((g: any) => ({
+            value: String(g?.value ?? "").trim(),
+            label: String(g?.label ?? "").trim(),
+          }))
+        : [];
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("accessRequestSelectedGroups", JSON.stringify(toStore));
+      }
+    } catch {
+      // ignore
+    }
+  }, [selectedGroups]);
 
   return (
     <div className="p-6">
@@ -30,14 +38,17 @@ const UserGroupTab: React.FC = () => {
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Search and Select User Groups
         </label>
-        <div className="max-w-2xl">
+        <div className="max-w-md">
           <MultiSelect
-            className="w-full"
+            className="w-80"
             isMulti={true}
             control={control as unknown as Control<FieldValues>}
-            options={userGroups}
+            name="selectedUserGroups"
+            isAsync={true}
+            loadOptions={(inputValue, callback) => {
+              loadGroups(inputValue).then((options) => callback(options));
+            }}
             placeholder="Search and select user groups..."
-            {...register("selectedUserGroups")}
           />
         </div>
       </div>
