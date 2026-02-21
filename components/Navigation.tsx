@@ -28,13 +28,13 @@ export function Navigation() {
 
   const toggleExpanded = (itemName: string) => {
     setExpandedItems(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(itemName)) {
+      if (prev.has(itemName)) {
+        const newSet = new Set(prev);
         newSet.delete(itemName);
-      } else {
-        newSet.add(itemName);
+        return newSet;
       }
-      return newSet;
+      // Accordion: only one section open at a time so sublinks don't go below the screen
+      return new Set([itemName]);
     });
   };
 
@@ -137,12 +137,8 @@ export function Navigation() {
                       // If sidebar is collapsed, expand it first
                       if (!isSidebarExpanded) {
                         setIsSidebarExpanded(true);
-                        // Also expand the sub-items for this item
-                        setExpandedItems(prev => {
-                          const newSet = new Set(prev);
-                          newSet.add(item.name);
-                          return newSet;
-                        });
+                        // Open only this item (accordion: one at a time)
+                        setExpandedItems(new Set([item.name]));
                       } else {
                         toggleExpanded(item.name);
                       }

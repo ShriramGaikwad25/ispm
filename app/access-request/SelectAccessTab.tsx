@@ -468,7 +468,7 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
                         (role.catalogRow?.JIT_ACCESS as string | undefined);
                       return typeof jit === "string" && jit.toLowerCase() === "yes";
                     })() && (
-                      <span className="px-2 py-1 rounded text-xs font-medium border text-purple-700 bg-purple-50 border-purple-200">
+                      <span className="px-2 py-1 rounded text-xs font-medium border text-[#E0745A] bg-[#E0745A]/15 border-[#E0745A]">
                         JIT Access
                       </span>
                     )}
@@ -480,7 +480,7 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
                       const code = String(first.code ?? "").trim();
                       if (!code) return null;
                       return (
-                        <span className="px-2 py-1 rounded text-xs font-medium border text-amber-800 bg-amber-50 border-amber-200">
+                        <span className={`px-2 py-1 rounded text-xs font-medium border ${getRiskColor("Low")}`}>
                           Training Check
                         </span>
                       );
