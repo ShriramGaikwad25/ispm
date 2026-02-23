@@ -901,6 +901,8 @@ const OpenTab: React.FC = () => {
     // Store campaign summary data for navigation to App Owner, User Access Review, or Entitlement Owner
     if (e.data && (certificationType === "App Owner" || certificationType === "User Manager" || certificationType === "Entitlement Owner")) {
       const campaignSummary = {
+        reviewerId: clickedReviewerId,
+        certificationId: clickedCertificationId,
         campaignName: e.data.certificationName,
         status: e.data.status,
         snapshotAt: e.data.certificationCreatedOn,

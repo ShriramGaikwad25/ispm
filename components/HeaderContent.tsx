@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import Dropdown from "./Dropdown";
@@ -265,6 +265,8 @@ const PopupButton = ({
 
 const HeaderContent = () => {
   const pathname = usePathname();
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
   const router = useRouter();
   const { logout, user } = useAuth();
   const { isVisible, toggleSidebar } = useLeftSidebar();
@@ -561,9 +563,27 @@ const HeaderContent = () => {
               userType: firstItem.userType || "Internal",
             });
 
-            // Calculate user-based progress
-            const userProgress = calculateUserProgress(firstItem);
-            setUserProgressData(userProgress);
+            // Prefer campaign progress from Access Review list (same % as list) on campaign pages
+            const currentPath = pathnameRef.current ?? pathname;
+            const onCampaignPage = currentPath?.includes("/app-owner") || currentPath?.includes("/access-review");
+            const summary = selectedCampaignSummary ? JSON.parse(selectedCampaignSummary) : null;
+            const useListProgress =
+              onCampaignPage &&
+              summary?.progress != null &&
+              summary?.totalItems != null &&
+              summary?.approvedCount !== undefined &&
+              summary?.pendingCount !== undefined;
+            if (useListProgress) {
+              setUserProgressData({
+                totalItems: summary.totalItems,
+                approvedCount: summary.approvedCount ?? 0,
+                pendingCount: summary.pendingCount ?? 0,
+                percentage: summary.progress,
+              });
+            } else {
+              const userProgress = calculateUserProgress(firstItem);
+              setUserProgressData(userProgress);
+            }
           }
         }
       } catch (error) {
@@ -734,63 +754,63 @@ const HeaderContent = () => {
           </div>
         ) : shouldShowHeader ? (
           <div className="flex h-full items-center header-content">
-            <div className="flex items-center px-4">
-              <p className="text-sm font-medium text-white">
+            <div className="flex items-center px-4 min-w-0 max-w-[420px]">
+              <p className="text-sm font-medium text-white whitespace-normal break-words line-clamp-2">
                 {headerInfo.campaignName || "Quarterly Access Review - Megan Jackson"}
               </p>
             </div>
-            <div className="flex items-center px-2">
+            <div className="flex items-center px-2 flex-shrink-0">
               <span className="text-white text-lg">•</span>
             </div>
-            <div className="flex items-center px-4">
-              <p className="text-sm font-medium text-white">
+            <div className="flex items-center px-4 min-w-0 max-w-[140px]">
+              <p className="text-sm font-medium text-white whitespace-normal break-words">
                 Generated On {headerInfo.snapshotAt ? formatDateMMDDYY(headerInfo.snapshotAt) : "N/A"}
               </p>
             </div>
-            <div className="flex items-center px-2">
+            <div className="flex items-center px-2 flex-shrink-0">
               <span className="text-white text-lg">•</span>
             </div>
-            <div className="flex items-center px-4">
-              <p className="text-sm font-medium text-white">
+            <div className="flex items-center px-4 min-w-0 max-w-[140px]">
+              <p className="text-sm font-medium text-white whitespace-normal break-words">
                 Due In {headerInfo.daysLeft || 0} days
                 <span className="font-bold ml-1 text-white">
                   ({headerInfo.dueDate ? formatDateMMDDYY(headerInfo.dueDate) : "N/A"})
                 </span>
               </p>
             </div>
-            {/* User Progress */}
-            <div className="flex items-center px-4">
+            {/* User Progress - single line only */}
+            <div className="flex items-center px-4 flex-shrink-0 whitespace-nowrap">
               <UserProgress progressData={userProgressData} />
             </div>
           </div>
         ) : shouldShowCampaignHeader ? (
           <div className="flex h-full items-center header-content">
-            <div className="flex items-center px-4">
-              <p className="text-sm font-medium text-white">
+            <div className="flex items-center px-4 min-w-0 max-w-[420px]">
+              <p className="text-sm font-medium text-white whitespace-normal break-words line-clamp-2">
                 {headerInfo.campaignName || "Campaign"}
               </p>
             </div>
-            <div className="flex items-center px-2">
+            <div className="flex items-center px-2 flex-shrink-0">
               <span className="text-white text-lg">•</span>
             </div>
-            <div className="flex items-center px-4">
-              <p className="text-sm font-medium text-white">
+            <div className="flex items-center px-4 min-w-0 max-w-[120px]">
+              <p className="text-sm font-medium text-white whitespace-normal break-words">
                 {headerInfo.status ? `Status: ${headerInfo.status}` : "Status: N/A"}
               </p>
             </div>
-            <div className="flex items-center px-2">
+            <div className="flex items-center px-2 flex-shrink-0">
               <span className="text-white text-lg">•</span>
             </div>
-            <div className="flex items-center px-4">
-              <p className="text-sm font-medium text-white">
+            <div className="flex items-center px-4 min-w-0 max-w-[140px]">
+              <p className="text-sm font-medium text-white whitespace-normal break-words">
                 {headerInfo.snapshotAt ? `Data Snapshot: ${formatDateMMDDYY(headerInfo.snapshotAt)}` : "Data Snapshot: N/A"}
               </p>
             </div>
-            <div className="flex items-center px-2">
+            <div className="flex items-center px-2 flex-shrink-0">
               <span className="text-white text-lg">•</span>
             </div>
-            <div className="flex items-center px-4">
-              <p className="text-sm font-medium text-white">
+            <div className="flex items-center px-4 min-w-0 max-w-[140px]">
+              <p className="text-sm font-medium text-white whitespace-normal break-words">
                 {headerInfo.dueDate ? `Due on ${formatDateMMDDYY(headerInfo.dueDate)}` : "Due on N/A"}
                 <span className="font-bold ml-1 text-white">
                   ({headerInfo.daysLeft || 0} days left)
@@ -800,32 +820,32 @@ const HeaderContent = () => {
           </div>
         ) : shouldShowAppOwnerHeader ? (
           <div className="flex h-full items-center header-content">
-            <div className="flex items-center px-4">
-              <p className="text-sm font-medium text-white">
+            <div className="flex items-center px-4 min-w-0 max-w-[420px]">
+              <p className="text-sm font-medium text-white whitespace-normal break-words line-clamp-2">
                 {headerInfo.campaignName || "App Owner Review"}
               </p>
             </div>
-            <div className="flex items-center px-2">
+            <div className="flex items-center px-2 flex-shrink-0">
               <span className="text-white text-lg">•</span>
             </div>
-            <div className="flex items-center px-4">
-              <p className="text-sm font-medium text-white">
+            <div className="flex items-center px-4 min-w-0 max-w-[140px]">
+              <p className="text-sm font-medium text-white whitespace-normal break-words">
                 Generated On: {headerInfo.snapshotAt ? formatDateMMDDYY(headerInfo.snapshotAt) : "N/A"}
               </p>
             </div>
-            <div className="flex items-center px-2">
+            <div className="flex items-center px-2 flex-shrink-0">
               <span className="text-white text-lg">•</span>
             </div>
-            <div className="flex items-center px-4">
-              <p className="text-sm font-medium text-white">
+            <div className="flex items-center px-4 min-w-0 max-w-[140px]">
+              <p className="text-sm font-medium text-white whitespace-normal break-words">
                 Due In {headerInfo.daysLeft || 0} days
                 <span className="font-bold ml-1 text-white">
                   ({headerInfo.dueDate ? formatDateMMDDYY(headerInfo.dueDate) : "N/A"})
                 </span>
               </p>
             </div>
-            {/* User Progress */}
-            <div className="flex items-center px-4">
+            {/* User Progress - single line only */}
+            <div className="flex items-center px-4 flex-shrink-0 whitespace-nowrap">
               <UserProgress progressData={userProgressData} />
             </div>
           </div>

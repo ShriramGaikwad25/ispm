@@ -970,28 +970,30 @@ function AppOwnerContent() {
     return Math.max(Math.ceil(diffTime / (1000 * 60 * 60 * 24)), 0);
   };
 
-  // Calculate user-based progress helper function
+  // Calculate user-based progress helper: prefer campaign progress from Access Review list (same % as list) when summary matches current campaign
   const calculateUserProgress = (userData: any) => {
-    // First try to get campaign-level progress data
     const selectedCampaignSummary = localStorage.getItem(
       "selectedCampaignSummary"
     );
     if (selectedCampaignSummary) {
       try {
         const summary = JSON.parse(selectedCampaignSummary);
+        const matchesCurrent =
+          summary.reviewerId != null &&
+          summary.certificationId != null &&
+          String(summary.reviewerId) === String(reviewerId) &&
+          String(summary.certificationId) === String(certificationId);
         if (
-          summary.totalItems &&
+          matchesCurrent &&
+          summary.progress != null &&
+          summary.totalItems != null &&
           summary.approvedCount !== undefined &&
           summary.pendingCount !== undefined
         ) {
           const rejectedCount = summary.rejectedCount || 0;
           const revokedCount = summary.revokedCount || 0;
           const completedCount =
-            summary.approvedCount + rejectedCount + revokedCount; // Certified, rejected, and revoked all count as progress
-          const percentage =
-            summary.totalItems > 0
-              ? Math.round((completedCount / summary.totalItems) * 100)
-              : 0;
+            summary.approvedCount + rejectedCount + revokedCount;
           return {
             totalItems: summary.totalItems,
             approvedCount: summary.approvedCount,
@@ -999,7 +1001,7 @@ function AppOwnerContent() {
             revokedCount: revokedCount,
             completedCount: completedCount,
             pendingCount: summary.pendingCount,
-            percentage: percentage,
+            percentage: summary.progress, // Use list progress (e.g. 7%) so it matches Access Review page
           };
         }
       } catch (error) {

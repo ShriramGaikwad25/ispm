@@ -543,6 +543,10 @@ const TreeClient: React.FC<TreeClientProps> = ({
         department: user.department,
         jobtitle: user.jobtitle,
         userType: user.userType,
+        numOfEntitlements: user.numOfEntitlements ?? 0,
+        numOfEntitlementsCertified: user.numOfEntitlementsCertified ?? 0,
+        numOfEntitlementsRejected: user.numOfEntitlementsRejected ?? 0,
+        numOfEntitlementsRevoked: user.numOfEntitlementsRevoked ?? 0,
       }));
       localStorage.setItem("sharedRowData", JSON.stringify(headerData));
       window.dispatchEvent(new Event("localStorageChange"));
@@ -588,6 +592,73 @@ const TreeClient: React.FC<TreeClientProps> = ({
       Delegated: delegated,
     };
   }, [certificationDetailsData, selectedUser]);
+
+  // Campaign-level progress from certification details (fallback when list progress not available)
+  const campaignProgressFromDetails = useMemo(() => {
+    if (!certificationDetailsData?.items?.length) return null;
+    let total = 0;
+    let completed = 0;
+    certificationDetailsData.items.forEach((task: any) => {
+      const access = task.access || {};
+      const pending = access.numOfPendingEntitlements ?? 0;
+      const certify =
+        (access.numOfEntitlementsCertified ?? 0) +
+        (access.numOfApplicationsCertified ?? 0) +
+        (access.numOfRolesCertified ?? 0);
+      const reject =
+        (access.numOfEntitlementsRevoked ?? 0) +
+        (access.numOfApplicationsRevoked ?? 0) +
+        (access.numOfRolesRevoked ?? 0);
+      const remediated = access.numOfRemediations ?? 0;
+      const delegated = 0;
+      const all = pending + certify + reject + remediated + delegated;
+      total += all;
+      completed += certify + reject + remediated + delegated;
+    });
+    const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+    return { total, completed, pending: total - completed, percentage };
+  }, [certificationDetailsData]);
+
+  // Prefer campaign progress from Access Review list (same 7% as list) when user clicked from list
+  const [campaignProgressFromList, setCampaignProgressFromList] = useState<{
+    total: number;
+    completed: number;
+    pending: number;
+    percentage: number;
+  } | null>(null);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("selectedCampaignSummary");
+      if (!raw) return;
+      const summary = JSON.parse(raw) as {
+        reviewerId?: string;
+        certificationId?: string;
+        progress?: number;
+        totalItems?: number;
+        approvedCount?: number;
+        pendingCount?: number;
+      };
+      const matchesCurrent =
+        summary.reviewerId != null && summary.certificationId != null &&
+        String(summary.reviewerId) === String(reviewerId) &&
+        String(summary.certificationId) === String(certId);
+      if (matchesCurrent && summary.progress != null && summary.totalItems != null) {
+        setCampaignProgressFromList({
+          total: summary.totalItems,
+          completed: summary.approvedCount ?? 0,
+          pending: summary.pendingCount ?? (summary.totalItems - (summary.approvedCount ?? 0)),
+          percentage: summary.progress,
+        });
+      } else {
+        setCampaignProgressFromList(null);
+      }
+    } catch {
+      setCampaignProgressFromList(null);
+    }
+  }, [certId, reviewerId]);
+
+  // Navbar: use list progress (same as Access Review page 7%) when available, else fallback to details-based
+  const campaignProgress = campaignProgressFromList ?? campaignProgressFromDetails;
 
   const refreshUsersAndEntitlements = useCallback(async () => {
     try {
@@ -1090,8 +1161,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
         )
       );
 
-      // Don't send progress data to header from TreeClient
-      // The header should get progress data from the page level
       onProgressDataChange?.(progress);
     } catch (error) {
       console.error("Error loading entitlements:", error);
@@ -1208,6 +1277,28 @@ const TreeClient: React.FC<TreeClientProps> = ({
       remediatedCount,
     };
   };
+
+  // Notify navbar with campaign-level percentage only (not selected user)
+  const dispatchProgressToNavbar = (payload: { total: number; completed: number; pending: number; percentage: number }) => {
+    try {
+      window.dispatchEvent(
+        new CustomEvent("progressDataChange", {
+          detail: {
+            total: payload.total,
+            approved: payload.completed,
+            pending: payload.pending,
+            percentage: payload.percentage,
+          },
+        })
+      );
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (campaignProgress) {
+      dispatchProgressToNavbar(campaignProgress);
+    }
+  }, [campaignProgress]);
 
   const handleScrollUp = async () => {
     if (pageNumber > 1 && !sidebarLoading) {
