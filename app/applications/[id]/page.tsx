@@ -1098,7 +1098,7 @@ export default function ApplicationDetailPage() {
   const handleRevoke = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!gridApiRef.current || !nodeData) return;
-    await updateActions("Reject", comment || "Revoked via UI");
+    await updateActions("Revoke", comment || "Revoked via UI");
   };
 
   const handleComment = (e: React.MouseEvent) => {

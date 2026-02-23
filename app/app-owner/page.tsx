@@ -21,6 +21,7 @@ import {
   ICellRendererParams,
   IDetailCellRendererParams,
   FirstDataRenderedEvent,
+  IHeaderParams,
 } from "ag-grid-enterprise";
 import ActionButtons from "@/components/agTable/ActionButtons";
 import { createPortal } from "react-dom";
@@ -62,6 +63,54 @@ import { MasterDetailModule } from "ag-grid-enterprise";
 import { ModuleRegistry } from "ag-grid-community";
 import { formatDateMMDDYY } from "../access-review/page";
 ModuleRegistry.registerModules([MasterDetailModule]);
+
+/** Header checkbox that selects all filtered rows (all pages) in ungrouped mode */
+function SelectAllHeader(props: IHeaderParams & { showSelectAll?: boolean }) {
+  const [checked, setChecked] = useState(false);
+  const [indeterminate, setIndeterminate] = useState(false);
+  const { api, showSelectAll = true } = props;
+
+  useEffect(() => {
+    if (!api || !showSelectAll) return;
+    const updateState = () => {
+      let total = 0;
+      let selected = 0;
+      api.forEachNodeAfterFilterAndSort((node: any) => {
+        if (node.group) return;
+        total++;
+        if (node.isSelected()) selected++;
+      });
+      setChecked(total > 0 && selected === total);
+      setIndeterminate(selected > 0 && selected < total);
+    };
+    updateState();
+    api.addEventListener("selectionChanged", updateState);
+    return () => api.removeEventListener("selectionChanged", updateState);
+  }, [api, showSelectAll]);
+
+  if (!showSelectAll) return <span />;
+
+  return (
+    <div className="ag-header-select-all flex items-center h-full" onClick={(e) => e.stopPropagation()}>
+      <input
+        type="checkbox"
+        className="w-4 h-4 cursor-pointer"
+        checked={checked}
+        ref={(el) => {
+          if (el) el.indeterminate = indeterminate;
+        }}
+        onChange={(e) => {
+          if (e.target.checked) {
+            api.selectAllFiltered?.();
+          } else {
+            api.deselectAll?.();
+          }
+        }}
+        aria-label="Select all rows"
+      />
+    </div>
+  );
+}
 
 type DataItem = {
   label: string;
@@ -217,7 +266,7 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
         const normalizedStatus = (() => {
           const a = normalizedAction.toLowerCase();
           if (a === "approve") return "approved";
-          if (a === "reject") return "revoked";
+          if (a === "reject" || a === "revoke") return "revoked";
           if (a === "delegate") return "delegated";
           if (a === "remediate") return "remediated";
           if (a === "pending") return "pending";
@@ -285,7 +334,7 @@ const transformApiData = (items: any[], isGrouped: boolean): RowData[] => {
       const normalizedStatus = (() => {
         const a = normalizedAction.toLowerCase();
         if (a === "approve") return "approved";
-        if (a === "reject") return "revoked";
+        if (a === "reject" || a === "revoke") return "revoked";
         if (a === "delegate") return "delegated";
         if (a === "remediate") return "remediated";
         if (a === "pending") return "pending";
@@ -531,8 +580,11 @@ function AppOwnerContent() {
       console.log("Transformed data count:", transformedData.length);
       console.log("Setting rowData with", transformedData.length, "items");
       setRowData(transformedData);
-      setTotalPages(response.total_pages || 1);
-      setTotalItems(response.total_items || 0);
+      const total = response.total_items ?? 0;
+      const pageSizeNum = typeof pageSize === "number" ? pageSize : pageSizeSelector[0];
+      const derivedPages = total > 0 && pageSizeNum > 0 ? Math.max(1, Math.ceil(total / pageSizeNum)) : 1;
+      setTotalPages(response.total_pages ?? derivedPages);
+      setTotalItems(total);
       setRawDetailsItems(response.items || []);
 
       // Store header data in localStorage for header component
@@ -597,7 +649,6 @@ function AppOwnerContent() {
           pending += access.numOfPendingEntitlements ?? 0;
           certify +=
             (access.numOfEntitlementsCertified ?? 0) +
-            (access.numOfApplicationsCertified ?? 0) +
             (access.numOfRolesCertified ?? 0);
           reject +=
             (access.numOfEntitlementsRevoked ?? 0) +
@@ -612,7 +663,6 @@ function AppOwnerContent() {
         pending += access.numOfPendingEntitlements ?? 0;
         certify +=
           (access.numOfEntitlementsCertified ?? 0) +
-          (access.numOfApplicationsCertified ?? 0) +
           (access.numOfRolesCertified ?? 0);
         reject +=
           (access.numOfEntitlementsRevoked ?? 0) +
@@ -1034,7 +1084,7 @@ function AppOwnerContent() {
 
   const handleAction = async (
     lineItemId: string,
-    actionType: "Approve" | "Reject",
+    actionType: "Approve" | "Revoke",
     justification: string
   ) => {
     const payload = {
@@ -1547,7 +1597,7 @@ function AppOwnerContent() {
     } else if (selected === "Certify") {
       nextStatusFilterQuery = "action eq Approve";
     } else if (selected === "Reject") {
-      nextStatusFilterQuery = "action eq Reject";
+      nextStatusFilterQuery = "action eq Revoke";
     } else {
       nextStatusFilterQuery = undefined;
     }
@@ -1588,6 +1638,11 @@ function AppOwnerContent() {
       return rowData;
     }
     const normalized = selectedFilters.map((f) => f.trim().toLowerCase());
+    // When status filter is "All", show all entitlements (no filtering)
+    if (normalized.length === 1 && normalized[0] === "all") {
+      console.log("Status filter is All, returning all rowData:", rowData.length);
+      return rowData;
+    }
     const filtered = rowData.filter((r) => {
       const action = String((r as any).action || "")
         .trim()
@@ -1596,13 +1651,17 @@ function AppOwnerContent() {
         .trim()
         .toLowerCase();
       return normalized.some((f) => {
+        if (f === "all") return true;
         if (f === "pending")
           return action === "pending" || status === "pending";
         if (f === "certify")
           return action === "approve" || status === "approved";
         if (f === "reject")
           return (
-            action === "reject" || status === "revoked" || status === "rejected"
+            action === "reject" ||
+            action === "revoke" ||
+            status === "revoked" ||
+            status === "rejected"
           );
         if (f === "delegated")
           return action === "delegate" || status === "delegated";
@@ -1797,6 +1856,7 @@ function AppOwnerContent() {
 
   const autoGroupColumnDef = useMemo<ColDef>(
     () => {
+      const isGrouped = isGroupedByEntitlementCheckbox || groupByOption === "Entitlements";
       console.log('[autoGroupColumnDef] Creating column def with GroupCellRenderer', {
         groupByOption,
         isGroupedByEntitlementCheckbox,
@@ -1804,11 +1864,16 @@ function AppOwnerContent() {
       });
       return {
         minWidth: 300,
-        flex: isGroupedByEntitlementCheckbox || groupByOption === "Entitlements" ? 2 : 1,
+        flex: isGrouped ? 2 : 1,
         autoHeight: true, // Allow row to expand to show description
         wrapText: true,
         // No grid checkbox: we render [checkbox][arrow][name] in GroupCellRenderer for alignment; no checkbox for account rows
         checkboxSelection: () => false,
+        // When not grouped: custom header with "select all" that selects all filtered rows (all pages)
+        ...(!isGrouped && {
+          headerComponent: SelectAllHeader,
+          headerComponentParams: { showSelectAll: true },
+        }),
         cellRendererParams: {
           suppressExpand: true, // we render our own expand icon after the checkbox
         },
@@ -2163,7 +2228,7 @@ function AppOwnerContent() {
         {!loading && !error && rowData.length > 0 && (
           <div className="mb-4">
             <CustomPagination
-              totalItems={filteredRowData.length || totalItems}
+              totalItems={totalItems}
               currentPage={pageNumber}
               totalPages={totalPages}
               pageSize={pageSize}
@@ -2448,22 +2513,14 @@ function AppOwnerContent() {
                     });
                   } else {
                     // NORMAL (UNGROUPED) MODE:
-                    // Count and queue actions ONLY for rows on the CURRENT PAGE.
-                    const currentPage = api.paginationGetCurrentPage?.() ?? 0;
-                    const pageSize = api.paginationGetPageSize?.() ?? pageSizeSelector[0];
-
+                    // Collect ALL selected rows across all pages (not just current page).
                     api.forEachNodeAfterFilterAndSort((node: any) => {
                       if (node.group) return;
-                      const rowIndex = node.rowIndex ?? 0;
-                      const pageIndex = Math.floor(rowIndex / pageSize);
-
-                      if (pageIndex === currentPage) {
-                        totalVisible++;
-                        if (node.isSelected()) {
-                          totalSelected++;
-                          if (node.data) {
-                            rows.push(node.data as RowData);
-                          }
+                      totalVisible++;
+                      if (node.isSelected()) {
+                        totalSelected++;
+                        if (node.data) {
+                          rows.push(node.data as RowData);
                         }
                       }
                     });
@@ -2491,7 +2548,7 @@ function AppOwnerContent() {
               />
               <div className="mt-4">
                 <CustomPagination
-                  totalItems={filteredRowData.length || totalItems}
+                  totalItems={totalItems}
                   currentPage={pageNumber}
                   totalPages={totalPages}
                   pageSize={pageSize}

@@ -109,9 +109,9 @@ export async function getLineItemDetailsWithLoading(
 }
 
 interface UpdateActionPayload {
-  useraction?: Array<{ userId: string; actionType: "Approve" | "Reject"; justification: string }>;
-  accountAction?: Array<{ lineItemId: string; actionType: "Approve" | "Reject"; justification: string }>;
-  entitlementAction?: Array<{ lineItemIds: string[]; actionType: "Approve" | "Reject"; justification: string }>;
+  useraction?: Array<{ userId: string; actionType: "Approve" | "Revoke"; justification: string }>;
+  accountAction?: Array<{ lineItemId: string; actionType: "Approve" | "Revoke"; justification: string }>;
+  entitlementAction?: Array<{ lineItemIds: string[]; actionType: "Approve" | "Revoke"; justification: string }>;
 }
 
 export async function updateActionWithLoading(

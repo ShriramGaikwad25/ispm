@@ -572,7 +572,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
     const pending = access.numOfPendingEntitlements ?? 0;
     const certify =
       (access.numOfEntitlementsCertified ?? 0) +
-      (access.numOfApplicationsCertified ?? 0) +
       (access.numOfRolesCertified ?? 0);
     const reject =
       (access.numOfEntitlementsRevoked ?? 0) +
@@ -603,7 +602,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
       const pending = access.numOfPendingEntitlements ?? 0;
       const certify =
         (access.numOfEntitlementsCertified ?? 0) +
-        (access.numOfApplicationsCertified ?? 0) +
         (access.numOfRolesCertified ?? 0);
       const reject =
         (access.numOfEntitlementsRevoked ?? 0) +
@@ -764,6 +762,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
     setLoadingEntitlements(true);
     try {
       // Prefer raw getAccessDetails response so we get entityEntitlements.items with isRemediated
+      // Always fetch full data (no filter) so Certify/Reject filters can show items via client-side filtering
       const rawResponse = await getAccessDetails<any>(
         reviewerId,
         certId,
@@ -792,7 +791,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
             const a = String(normalizedAction).trim().toLowerCase();
             if (a === "approve") return "approved";
             if (a === "pending") return "pending";
-            if (a === "reject") return "revoked";
+            if (a === "reject" || a === "revoke") return "revoked";
             if (a === "delegate") return "delegated";
             if (a === "remediate") return "remediated";
             return "";
@@ -1005,7 +1004,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
             const a = String(normalizedAction).trim().toLowerCase();
             if (a === 'approve') return 'approved';
             if (a === 'pending') return 'pending';
-            if (a === 'reject') return 'revoked';
+            if (a === 'reject' || a === 'revoke') return 'revoked';
             if (a === 'delegate') return 'delegated';
             if (a === 'remediate') return 'remediated';
             return '';
@@ -1080,7 +1079,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
             const a = String(normalizedAction).trim().toLowerCase();
             if (a === 'approve') return 'approved';
             if (a === 'pending') return 'pending';
-            if (a === 'reject') return 'revoked';
+            if (a === 'reject' || a === 'revoke') return 'revoked';
             if (a === 'delegate') return 'delegated';
             if (a === 'remediate') return 'remediated';
             return '';
@@ -1422,7 +1421,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
           const a = String(normalizedAction).trim().toLowerCase();
           if (a === 'approve') return 'approved';
           if (a === 'pending') return 'pending';
-          if (a === 'reject') return 'revoked';
+          if (a === 'reject' || a === 'revoke') return 'revoked';
           if (a === 'delegate') return 'delegated';
           if (a === 'remediate') return 'remediated';
           return '';
@@ -1562,13 +1561,14 @@ const TreeClient: React.FC<TreeClientProps> = ({
         setSelectedFilters([]);
       }
 
-      // If a user is already selected, immediately reload entitlements
+      // Only reset to page 1 when filter changes; do NOT refetch - we already have full
+      // entitlements data and Certify/Reject are applied client-side, so refetch would
+      // replace data and can make items disappear
       if (selectedUser) {
         setEntitlementsPageNumber(1);
-        loadUserEntitlements(selectedUser, 1, nextStatusFilterQuery);
       }
     },
-    [loadUserEntitlements, selectedUser]
+    [selectedUser]
   );
 
   // Handle account-level filter (Elevated, Orphan, Dormant, etc.)
@@ -1603,7 +1603,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
       if (action === 'approve' || status === 'approved') {
         hasCertify = true;
       }
-      if (action === 'reject' || status === 'rejected' || status === 'revoked') {
+      if (action === 'reject' || action === 'revoke' || status === 'rejected' || status === 'revoked') {
         hasReject = true;
       }
       if (entitlement.isRemediated === true || String(entitlement.isRemediated || '').toUpperCase() === 'Y') {
@@ -1711,11 +1711,29 @@ const TreeClient: React.FC<TreeClientProps> = ({
             return action === 'pending' || status === 'pending';
           }
           if (filter === 'certify') {
-            // Certify maps to Approve/Approved
-            return action === 'approve' || status === 'approved';
+            // Certify: action Approve (or Approved); if isRemediated is present, must be false
+            const isApprove =
+              action === 'approve' ||
+              action === 'approved' ||
+              status === 'approved';
+            const hasIsRemediated = entitlement.isRemediated !== undefined && entitlement.isRemediated !== null && String(entitlement.isRemediated).trim() !== '';
+            const notRemediated =
+              !hasIsRemediated ||
+              (entitlement.isRemediated !== true && String(entitlement.isRemediated || '').toUpperCase() !== 'Y');
+            return isApprove && notRemediated;
           }
           if (filter === 'reject') {
-            return action === 'reject' || status === 'revoked' || status === 'rejected';
+            // Reject: action Reject/Revoke (or status revoked/rejected); if isRemediated is present, must be false
+            const isRejectOrRevoke =
+              action === 'reject' ||
+              action === 'revoke' ||
+              status === 'revoked' ||
+              status === 'rejected';
+            const hasIsRemediated = entitlement.isRemediated !== undefined && entitlement.isRemediated !== null && String(entitlement.isRemediated).trim() !== '';
+            const notRemediated =
+              !hasIsRemediated ||
+              (entitlement.isRemediated !== true && String(entitlement.isRemediated || '').toUpperCase() !== 'Y');
+            return isRejectOrRevoke && notRemediated;
           }
           if (filter === 'delegated') {
             return action === 'delegate' || status === 'delegated';

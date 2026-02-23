@@ -119,9 +119,9 @@ const ActionButtons = <T extends { status?: string }>({
   const rowStatusRaw = definedRows.length > 0 ? (definedRows[0] as any)?.status : null;
   const rowStatus = typeof rowStatusRaw === 'string' ? rowStatusRaw : (rowStatusRaw ? String(rowStatusRaw) : null);
   const normalizedStatus = (rowStatus || "").toString().trim().toLowerCase();
-  // Treat approved/certified similarly; rejected/revoked similarly
+  // Treat approved/certified similarly; rejected/revoked similarly (backend may return Reject or Revoke)
   const isApproved = normalizedStatus === "approved" || normalizedStatus === "certified";
-  const isRejected = normalizedStatus === "rejected" || normalizedStatus === "revoked";
+  const isRejected = normalizedStatus === "rejected" || normalizedStatus === "revoked" || normalizedStatus === "reject";
 
   // Local pending visualization: if all selected rows have same pending action, reflect it on the button
   // Filter out duplicates and invalid IDs
@@ -146,7 +146,7 @@ const ActionButtons = <T extends { status?: string }>({
   const statusRaw = definedRows.length > 0 ? (definedRows[0] as any)?.status : null;
   const statusLower = (statusRaw ? String(statusRaw) : "").trim().toLowerCase();
   const isApproveAction = context === "entitlement" && actionLower === "approve";
-  const isRejectAction = context === "entitlement" && actionLower === "reject";
+  const isRejectAction = context === "entitlement" && (actionLower === "reject" || actionLower === "revoke");
   const isRemediatedFromRow = context === "entitlement" && definedRows.some(
     (row: any) => row.isRemediated === true || String(row.isRemediated || "").toUpperCase() === "Y"
   );
@@ -263,17 +263,17 @@ const ActionButtons = <T extends { status?: string }>({
           const rowAction = (row.action || "").toString().trim().toLowerCase();
           const rowRecommendation = (row.recommendation || "").toString().trim().toLowerCase();
           
-          // Check status field
+          // Check status field (backend may return Reject or Revoke)
           const hasApprovedStatus = rowStatus === "approved" || rowStatus === "certified";
-          const hasRejectedStatus = rowStatus === "rejected" || rowStatus === "revoked";
+          const hasRejectedStatus = rowStatus === "rejected" || rowStatus === "revoked" || rowStatus === "reject";
           
-          // Check action field
+          // Check action field (we send Revoke; backend may return reject or revoke)
           const hasApproveAction = rowAction === "approve";
-          const hasRejectAction = rowAction === "reject";
+          const hasRejectAction = rowAction === "reject" || rowAction === "revoke";
           
           // Check recommendation field (sometimes action is stored here)
           const hasApproveRecommendation = rowRecommendation === "approve";
-          const hasRejectRecommendation = rowRecommendation === "reject";
+          const hasRejectRecommendation = rowRecommendation === "reject" || rowRecommendation === "revoke";
           
           const result = hasApprovedStatus || hasRejectedStatus || 
                         hasApproveAction || hasRejectAction ||
@@ -360,8 +360,8 @@ const ActionButtons = <T extends { status?: string }>({
             const status = (row.status || "").toString().trim().toLowerCase();
             const action = (row.action || "").toString().trim().toLowerCase();
             const recommendation = (row.recommendation || "").toString().trim().toLowerCase();
-            return status === "rejected" || status === "revoked" || 
-                   action === "reject" || recommendation === "reject";
+            return status === "rejected" || status === "revoked" || status === "reject" ||
+                   action === "reject" || action === "revoke" || recommendation === "reject" || recommendation === "revoke";
           }));
         
         // If buttonWasFilled is true, we're definitely undoing something, so ensure it's counted
@@ -438,6 +438,8 @@ const ActionButtons = <T extends { status?: string }>({
       console.log('[ActionButtons] queueAction called successfully');
 
        // Mark local pending state for button visuals (both state and module-level storage)
+       // Store 'Reject' for Revoke so button fill logic (isRejectPending) works
+       const pendingValue = actionType === 'Revoke' ? 'Reject' : actionType;
        setPendingById((prev) => {
          const next = { ...prev } as Record<string, 'Approve' | 'Reject' | 'Pending' | 'Remediate' | 'Delegate'>;
          if (actionType === 'Pending') {
@@ -448,8 +450,8 @@ const ActionButtons = <T extends { status?: string }>({
            });
          } else {
            selectedIds.forEach((id) => {
-             next[id] = actionType as any;
-             pendingActionsStorage.set(id, actionType as any);
+             next[id] = pendingValue as any;
+             pendingActionsStorage.set(id, pendingValue as any);
            });
          }
          return next;
@@ -459,7 +461,7 @@ const ActionButtons = <T extends { status?: string }>({
       setError(null);
       
       // Notify parent of action success with action type
-      if (onActionSuccess && (actionType === 'Approve' || actionType === 'Reject')) {
+      if (onActionSuccess && (actionType === 'Approve' || actionType === 'Revoke' || actionType === 'Reject')) {
         onActionSuccess();
       }
       
@@ -589,10 +591,10 @@ const ActionButtons = <T extends { status?: string }>({
       }))
     });
     
-    // If currently set to Pending (undone) and button is clicked, restore to Reject
+    // If currently set to Pending (undone) and button is clicked, restore to Revoke
     if (isAllPendingReset || (isPendingReset && !isApprovePending && !isRejectPending)) {
       console.log('[ActionButtons] Restoring to Reject from Pending state');
-      await updateActions("Reject", getJustification("Revoked via UI"));
+      await updateActions("Revoke", getJustification("Revoked via UI"));
     }
     // If already marked reject (pending state) OR underlying state rejected, toggle to Pending
     else if (isRejectPending || isRejected || isRejectAction) {
@@ -604,13 +606,13 @@ const ActionButtons = <T extends { status?: string }>({
       await updateActions("Pending", getJustification("Reset to pending"));
     } else {
       console.log('[ActionButtons] Setting to Reject');
-      await updateActions("Reject", getJustification("Revoked via UI"));
+      await updateActions("Revoke", getJustification("Revoked via UI"));
     }
   };
 
   const handleUndo = async (
     e: React.MouseEvent,
-    originalAction: "Approve" | "Reject"
+    originalAction: "Approve" | "Revoke"
   ) => {
     e.stopPropagation();
     if (!api || definedRows.length === 0 || isActionLoading) return;
@@ -717,13 +719,13 @@ const ActionButtons = <T extends { status?: string }>({
     if (selectedIds.length > 0 && reviewerId && certId && context === "entitlement") {
       // Map current status-filter to an action type:
       // - Certify  -> Approve
-      // - Reject   -> Reject
+      // - Reject   -> Revoke
       // - Pending / anything else -> Pending (no status change)
-      let actionTypeForComment: "Approve" | "Reject" | "Pending" = "Pending";
+      let actionTypeForComment: "Approve" | "Revoke" | "Pending" = "Pending";
       if (isCertifyFilterActive) {
         actionTypeForComment = "Approve";
       } else if (isRejectFilterActive) {
-        actionTypeForComment = "Reject";
+        actionTypeForComment = "Revoke";
       }
 
       // Build entitlement payload directly for updateAction
