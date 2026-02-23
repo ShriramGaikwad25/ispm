@@ -1,8 +1,33 @@
 "use client";
 
-import React, { useState } from "react";
-import { AlertTriangle, CheckCircle } from "lucide-react";
+import React from "react";
 import ActionButtons from "@/components/agTable/ActionButtons";
+
+/** Shape of one entry from aiassist.kf_insights[] */
+export interface KfInsight {
+  peer_analysis?: unknown[];
+  latest_decision?: {
+    comments?: string;
+    campaign?: string;
+    reviewer?: string;
+    reviewed_on?: string;
+    status?: string;
+  };
+  risk_assessment?: {
+    reason?: string;
+    overall_risk?: string;
+    details?: {
+      metadata?: Record<string, string | null>;
+      entitlement_risk_level?: string;
+      high_privilege_signals?: string[];
+    };
+  };
+  six_month_history?: {
+    approved_count?: number;
+    revoked_count?: number;
+  };
+  [key: string]: unknown;
+}
 
 export interface TaskSummaryPanelProps {
   headerLeft: {
@@ -22,173 +47,149 @@ export interface TaskSummaryPanelProps {
   onActionSuccess?: () => void;
 }
 
+function formatReviewDate(iso: string | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  const y = d.getFullYear();
+  return `${m}/${day}/${y}`;
+}
+
+function capitalize(s: string): string {
+  if (!s) return s;
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+}
+
 const TaskSummaryPanel: React.FC<TaskSummaryPanelProps> = ({
   headerLeft,
   headerRight,
-  riskLabel,
-  jobTitle,
   applicationName,
   reviewerId,
   certId,
   selectedRow,
   onActionSuccess,
 }) => {
-  const [activeTab, setActiveTab] = useState<"overview" | "history">("overview");
+  const insight: KfInsight | undefined = selectedRow?.aiassist?.kf_insights?.[0];
 
   return (
-    <div className="p-3 space-y-3">
-      {/* Tabs */}
-      <div className="flex border-b border-gray-200">
-        <button
-          onClick={() => setActiveTab("overview")}
-          className={`px-4 py-2 text-sm font-medium transition-colors ${
-            activeTab === "overview"
-              ? "text-blue-600 border-b-2 border-blue-600"
-              : "text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          Overview
-        </button>
-        <button
-          onClick={() => setActiveTab("history")}
-          className={`px-4 py-2 text-sm font-medium transition-colors ${
-            activeTab === "history"
-              ? "text-blue-600 border-b-2 border-blue-600"
-              : "text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          History
-        </button>
-      </div>
-
-      {activeTab === "overview" && (
-        <>
-      <div className="bg-gray-50 rounded-lg p-3">
-        <div className="flex items-center space-x-2 p-2">
-          <div className="flex-1">
-            <p className="text-sm font-medium text-gray-900">{headerLeft.primary}</p>
-            <p className="text-xs text-gray-600">{headerLeft.secondary} - User</p>
+    <div className="space-y-2">
+      {/* Assignment card (no border) */}
+      <div className="rounded bg-blue-50/40 overflow-hidden">
+        <div className="flex items-stretch gap-2 p-2 min-w-0">
+          <div className="flex-1 min-w-0 rounded bg-gray-50/80 px-1.5 py-1">
+            <p className="text-[10px] font-medium uppercase tracking-wide text-gray-500">User</p>
+            <p className="text-xs font-semibold text-gray-900 break-words leading-tight">{headerLeft.primary}</p>
+            <p className="text-[10px] text-gray-500 truncate">{headerLeft.secondary}</p>
           </div>
-          <span className="text-gray-400 text-lg">→</span>
-          <div className="flex-1">
-            <p className="text-sm font-medium text-gray-900">{headerRight.primary}</p>
-            <p className="text-xs text-gray-600">{applicationName || headerRight.secondary} - IAM role</p>
+          <div className="flex items-center shrink-0 text-gray-300">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0 rounded bg-gray-50/80 px-1.5 py-1">
+            <p className="text-[10px] font-medium uppercase tracking-wide text-gray-500">IAM role</p>
+            <p className="text-xs font-semibold text-gray-900 break-words leading-tight">{headerRight.primary}</p>
+            <p className="text-[10px] text-gray-500 truncate">{applicationName || headerRight.secondary}</p>
           </div>
         </div>
       </div>
 
-      <div className="border-l-4 border-yellow-400 bg-yellow-50 p-3 rounded-md">
-        <p className="font-semibold flex items-center text-yellow-700 mb-2 text-sm">
-          <AlertTriangle className="w-4 h-4 mr-2 flex-shrink-0" />
-          We suggest taking a closer look at this access
-        </p>
-        <ul className="list-decimal list-inside text-xs text-yellow-800 space-y-1">
-          <li>
-            This access is {riskLabel || "critical"} risk and this user might be over-permissioned
-          </li>
-          {jobTitle && (
-            <li>
-              Users with the job title <span>{jobTitle}</span> don't usually have this access
-            </li>
-          )}
-        </ul>
-      </div>
-
-      <div className="space-y-2">
-        <div className="flex items-start space-x-2">
-          <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-          <div>
-            <p className="text-xs text-gray-700">
-              <strong>{headerLeft.primary}</strong> is <strong>active</strong> in Okta
-            </p>
+      {/* 1) Peer Analysis - always show when insight exists */}
+      {insight && (
+        <div className="rounded border border-gray-200 border-l-4 border-l-indigo-500 bg-indigo-50/40 p-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-indigo-700">Peer Analysis</p>
+          <div className="text-xs text-gray-700 space-y-0.5 mt-1">
+            {Array.isArray(insight.peer_analysis) && insight.peer_analysis.length > 0 ? (
+              insight.peer_analysis.map((entry: any, i: number) => (
+                <p key={i}>
+                  {entry && typeof entry === "object" && "message" in entry
+                    ? String(entry.message)
+                    : typeof entry === "string"
+                      ? entry
+                      : String(entry ?? "")}
+                </p>
+              ))
+            ) : (
+              <p className="italic text-gray-500">No peer analysis available.</p>
+            )}
           </div>
         </div>
-        <div className="text-xs text-gray-700">
-          <p>
-            {headerLeft.primary} last logged into {applicationName || headerRight.secondary} recently
+      )}
+
+      {/* 2) Last Access Review Action */}
+      {insight?.latest_decision && (
+        <div className="rounded border border-gray-200 border-l-4 border-l-emerald-500 bg-emerald-50/40 p-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+            Last Access Review Action (Past Action / Latest Decision)
+          </p>
+          <p className="text-xs text-gray-700 mt-1">
+            Access &quot;{capitalize(insight.latest_decision.status ?? "")}&quot; on &quot;
+            {formatReviewDate(insight.latest_decision.reviewed_on)}&quot; by &quot;
+            {insight.latest_decision.reviewer ?? ""}&quot; with comments - &quot;
+            {insight.latest_decision.comments ?? ""}&quot; as part of access review campaign - &quot;
+            {insight.latest_decision.campaign ?? ""}&quot;
           </p>
         </div>
-        {riskLabel && (
-          <div className="text-red-600 text-xs">
-            <p>This entitlement is marked as <strong>{riskLabel}</strong> risk</p>
-          </div>
-        )}
-        <div className="text-xs text-gray-700 space-y-0.5">
-          <p>1 out of 11 users with the title {jobTitle || ""} have this entitlement</p>
-          <p>1 out of 2495 users in your organization have this entitlement</p>
-          <p>1 out of 13 accounts in this application have this entitlement</p>
-        </div>
-      </div>
+      )}
 
-      <div className="border-t border-gray-200 pt-3">
-        <div className="flex justify-between items-center mb-2">
-          <h3 className="text-xs font-semibold text-gray-700">Should this user have this access?</h3>
-          <div className="space-x-2">
-            <ActionButtons
-              api={{} as any}
-              selectedRows={selectedRow ? [selectedRow] : []}
-              context="entitlement"
-              reviewerId={reviewerId}
-              certId={certId}
-              onActionSuccess={onActionSuccess}
-            />
+      {/* 3) Access Sensitivity Risk Tag (Risk Assessment) */}
+      {insight?.risk_assessment && (
+        <div className="rounded border border-gray-200 border-l-4 border-l-amber-500 bg-amber-50/40 p-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+            Access Sensitivity Risk Tag (Risk Assessment)
+          </p>
+          <div className="text-xs text-gray-700 space-y-0.5 mt-1 font-mono break-words">
+            <p>{capitalize(insight.risk_assessment.overall_risk ?? "")} Risk</p>
+            {insight.risk_assessment.details?.metadata &&
+              Object.entries(insight.risk_assessment.details.metadata).map(([key, val]) => (
+                <p key={key}>
+                  {key}: &quot;{val ?? ""}&quot;
+                </p>
+              ))}
+            {insight.risk_assessment.details?.entitlement_risk_level != null && (
+              <p>entitlement_risk_level: &quot;{insight.risk_assessment.details.entitlement_risk_level}&quot;</p>
+            )}
+            {insight.risk_assessment.details?.high_privilege_signals &&
+              insight.risk_assessment.details.high_privilege_signals.length > 0 && (
+                <p>
+                  high_privilege_signals: &quot;
+                  {insight.risk_assessment.details.high_privilege_signals.join("; ")}&quot;
+                </p>
+              )}
           </div>
         </div>
-        <p className="text-xs text-gray-500 mb-2">
-          Certify or recommend removing this user's access.
-          <a href="#" className="text-blue-600 hover:underline ml-1">More about decisions</a>
+      )}
+
+      {/* 4) Six Month History */}
+      {insight?.six_month_history != null && (
+        <div className="rounded border border-gray-200 border-l-4 border-l-violet-500 bg-violet-50/40 p-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-violet-700">Six Month History</p>
+          <p className="text-xs text-gray-700 mt-1">
+            This item was Approved {insight.six_month_history.approved_count ?? 0} times, Revoked{" "}
+            {insight.six_month_history.revoked_count ?? 0} times in the last 6 months.
+          </p>
+        </div>
+      )}
+
+      {/* Decision & actions */}
+      <div className="rounded border border-gray-200 border-l-4 border-l-blue-600 bg-blue-50/50 p-2">
+        <h3 className="text-xs font-semibold text-gray-800">Should this user have this access?</h3>
+        <div className="flex flex-wrap items-center justify-center gap-1.5">
+          <ActionButtons
+            api={{} as any}
+            selectedRows={selectedRow ? [selectedRow] : []}
+            context="entitlement"
+            reviewerId={reviewerId}
+            certId={certId}
+            onActionSuccess={onActionSuccess}
+          />
+        </div>
+        <p className="text-[11px] text-gray-500">
+          Certify or recommend removal. <a href="#" className="text-blue-600 hover:underline">More about decisions</a>
         </p>
       </div>
-
-      <div className="border-t border-gray-200 pt-3">
-        <input
-          type="text"
-          placeholder="Ask me Anything"
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-        />
-        <button className="mt-2 w-full px-3 py-2 rounded-lg text-xs font-medium transition-colors bg-blue-600 hover:bg-blue-700 text-white">
-          Submit
-        </button>
-      </div>
-        </>
-      )}
-
-      {activeTab === "history" && (
-        <div className="space-y-4">
-          {/* Approval History Section */}
-          <div className="border border-gray-200 rounded-lg p-3">
-            <h3 className="text-sm font-semibold text-gray-900 mb-3">Approval History</h3>
-            <div className="space-y-2">
-              <div className="text-xs text-gray-600">
-                <p className="font-medium text-gray-700">No approval history available</p>
-                <p className="text-gray-500 mt-1">Approval history will appear here once actions are taken.</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Access History Section */}
-          <div className="border border-gray-200 rounded-lg p-3">
-            <h3 className="text-sm font-semibold text-gray-900 mb-3">Access History</h3>
-            <div className="space-y-2">
-              <div className="text-xs text-gray-600">
-                <p className="font-medium text-gray-700">No access history available</p>
-                <p className="text-gray-500 mt-1">Access history will appear here once changes are made.</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Usage History Section */}
-          <div className="border border-gray-200 rounded-lg p-3">
-            <h3 className="text-sm font-semibold text-gray-900 mb-3">Usage History</h3>
-            <div className="space-y-2">
-              <div className="text-xs text-gray-600">
-                <p className="font-medium text-gray-700">No usage history available</p>
-                <p className="text-gray-500 mt-1">Usage history will appear here once activity is recorded.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

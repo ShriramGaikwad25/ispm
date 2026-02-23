@@ -79,7 +79,12 @@ const RightSidebar = ({ isOpen, widthPx = DEFAULT_WIDTH, onClose, children, topO
         }}
       >
         <div className="flex justify-between items-center p-4 border-b">
-          {title && <h2 className="text-xl font-semibold text-gray-800">{title}</h2>}
+          {title && (
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-6 bg-blue-600 rounded-full shrink-0" aria-hidden />
+              <h2 className="text-xl font-semibold text-gray-800">{title}</h2>
+            </div>
+          )}
           <button 
             onClick={onClose} 
             className="flex items-center justify-center w-8 h-8 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200"
