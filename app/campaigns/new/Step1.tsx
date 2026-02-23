@@ -8,7 +8,7 @@ import FileDropzone from "@/components/FileDropzone";
 import ToggleSwitch from "@/components/ToggleSwitch";
 import { asterisk, downArrow, userGroups, excludeUsers, defaultExpression } from "@/utils/utils";
 import ExpressionBuilder from "@/components/ExpressionBuilder";
-import { StepProps, FormData } from "@/types/stepTypes";
+import { StepProps, FormData, AccountTypeScope } from "@/types/stepTypes";
 import { validationSchema } from "./step1CombinedValidation";
 // Combined form data type
 type CombinedStep1FormData = {
@@ -32,6 +32,7 @@ type CombinedStep1FormData = {
   excludeUsersIsChecked: boolean;
   excludeUsers: string | null;
   selectData: string;
+  accountType: AccountTypeScope;
 };
 
 const Step1: React.FC<StepProps> = ({
@@ -46,6 +47,7 @@ const Step1: React.FC<StepProps> = ({
     ...formData.step2,
     userType: formData.step2?.userType ?? "All users",
     selectData: formData.step2?.selectData ?? "All Applications",
+    accountType: formData.step2?.accountType ?? "regular",
     expressionEntitlement: formData.step2?.expressionEntitlement ?? [defaultExpression],
     groupListIsChecked: formData.step2?.groupListIsChecked ?? false,
     specificUserExpression: formData.step2?.specificUserExpression ?? [],
@@ -118,6 +120,7 @@ const Step1: React.FC<StepProps> = ({
       ...formData.step2,
       userType: formData.step2?.userType ?? "All users",
       selectData: formData.step2?.selectData ?? "All Applications",
+      accountType: formData.step2?.accountType ?? "regular",
       expressionEntitlement: formData.step2?.expressionEntitlement ?? [defaultExpression],
       groupListIsChecked: formData.step2?.groupListIsChecked ?? false,
       specificUserExpression: formData.step2?.specificUserExpression ?? [],
@@ -194,6 +197,7 @@ const Step1: React.FC<StepProps> = ({
         excludeUsersIsChecked: values.excludeUsersIsChecked,
         excludeUsers: values.excludeUsers,
         selectData: values.selectData,
+        accountType: values.accountType,
       };
       setFormData((prev) => ({ ...prev, step1: step1Data, step2: step2Data }));
     });
@@ -269,8 +273,14 @@ const Step1: React.FC<StepProps> = ({
     }
     if (selectData === "Select Entitlement") {
       setValue("specificApps", [], { shouldValidate: false });
+      setValue("accountType", "regular", { shouldValidate: false });
     }
   }, [selectData, setValue]);
+
+  const campaignType = watch("campaignType");
+  const isAppOwnerTemplate = campaignType === "AppOwnerReview";
+  const accountType = watch("accountType");
+  const isExpressionBuilderDisabled = (accountType === "service" || accountType === "both") && watch("selectData") === "Specific Applications";
 
   // Check if this is an Entitlement Owner template
   const isEntitlementOwnerTemplate = useMemo(() => {
@@ -299,7 +309,7 @@ const Step1: React.FC<StepProps> = ({
           : "Create an access review campaign"}
       </h2>
 
-        <div className="text-sm space-y-6 w-full max-w-4xl">
+        <div className="text-sm space-y-6 w-full max-w-6xl">
           {/* Step1 Fields */}
           <div className={`grid grid-cols-[280px_1.5fr] gap-2`}>
             <label htmlFor="certificationTemplate" className={`pl-2 ${asterisk}`}>Template Name</label>
@@ -479,6 +489,7 @@ const Step1: React.FC<StepProps> = ({
                     setValue={setValue as unknown as UseFormSetValue<FieldValues>}
                     watch={watch as unknown as UseFormWatch<FieldValues>}
                     fieldName="specificUserExpression"
+                    fullWidth
                   />
                 )}
 
@@ -600,6 +611,38 @@ const Step1: React.FC<StepProps> = ({
                 </button>
               ))}
 
+              {/* App Owner template only: Account type (compact) */}
+              {isAppOwnerTemplate && (
+                <div className="mt-3 mb-4 flex items-center gap-3 flex-wrap">
+                  <span className="text-sm font-medium text-gray-600">Account type:</span>
+                  {watch("selectData") === "Select Entitlement" ? (
+                    <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded border border-gray-200 bg-gray-50 text-gray-500 text-xs font-medium">
+                      <span className="w-2.5 h-2.5 rounded-full bg-gray-400 flex-shrink-0" aria-hidden />
+                      <span>Regular accounts</span>
+                    </span>
+                  ) : (
+                    <div className="flex gap-0 rounded border border-gray-300 overflow-hidden">
+                      {[
+                        { value: "regular" as const, label: "Regular account" },
+                        { value: "service" as const, label: "Service account" },
+                        { value: "both" as const, label: "Both" },
+                      ].map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setValue("accountType", opt.value, { shouldValidate: true })}
+                          className={`px-3 py-1.5 text-xs font-medium border-r border-gray-300 last:border-r-0 transition-colors ${
+                            accountType === opt.value ? "bg-teal-600 text-white" : "bg-gray-50 text-gray-600 hover:bg-gray-200"
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {watch("selectData") === "Specific Applications" && (
                 <div className="space-y-4 bg-[#F4F5FA]/60 border-1 border-gray-300 p-4 rounded-md">
                   <div>
@@ -619,36 +662,39 @@ const Step1: React.FC<StepProps> = ({
                         </p>
                       )}
                   </div>
-                  <div className="w-full bg-white">
-                    <ExpressionBuilder
-                      control={control as unknown as Control<FieldValues>}
-                      setValue={
-                        setValue as unknown as UseFormSetValue<FieldValues>
-                      }
-                      watch={watch as unknown as UseFormWatch<FieldValues>}
-                      fieldName="expressionApps"
-                      attributesOptions={[
-                        { label: "Risk", value: "risk" },
-                        { label: "Pre-Requisite", value: "pre_requisite" },
-                        { label: "Shared Pwd", value: "shared_pwd" },
-                        { label: "Regulatory Scope", value: "regulatory_scope" },
-                        { label: "Access Scope", value: "access_scope" },
-                        { label: "Review Schedule", value: "review_schedule" },
-                        { label: "Business Unit", value: "business_unit" },
-                        { label: "Data Classification", value: "data_classification" },
-                        { label: "Privileged", value: "privileged" },
-                        { label: "Non Persistent Access", value: "non_persistent_access" },
-                        { label: "License Type", value: "license_type" },
-                        { label: "Tags", value: "tags" },
-                      ]}
-                    />
-                    {touchedFields.expressionApps && errors.expressionApps?.message &&
-                      typeof errors.expressionApps.message === "string" && (
-                        <p className="text-red-500">
-                          {errors.expressionApps.message}
-                        </p>
-                      )}
-                  </div>
+                  {!isExpressionBuilderDisabled && (
+                    <div className="w-full bg-white">
+                      <ExpressionBuilder
+                        control={control as unknown as Control<FieldValues>}
+                        setValue={
+                          setValue as unknown as UseFormSetValue<FieldValues>
+                        }
+                        watch={watch as unknown as UseFormWatch<FieldValues>}
+                        fieldName="expressionApps"
+                        fullWidth
+                        attributesOptions={[
+                          { label: "Risk", value: "risk" },
+                          { label: "Pre-Requisite", value: "pre_requisite" },
+                          { label: "Shared Pwd", value: "shared_pwd" },
+                          { label: "Regulatory Scope", value: "regulatory_scope" },
+                          { label: "Access Scope", value: "access_scope" },
+                          { label: "Review Schedule", value: "review_schedule" },
+                          { label: "Business Unit", value: "business_unit" },
+                          { label: "Data Classification", value: "data_classification" },
+                          { label: "Privileged", value: "privileged" },
+                          { label: "Non Persistent Access", value: "non_persistent_access" },
+                          { label: "License Type", value: "license_type" },
+                          { label: "Tags", value: "tags" },
+                        ]}
+                      />
+                      {touchedFields.expressionApps && errors.expressionApps?.message &&
+                        typeof errors.expressionApps.message === "string" && (
+                          <p className="text-red-500">
+                            {errors.expressionApps.message}
+                          </p>
+                        )}
+                    </div>
+                  )}
                 </div>
               )}
               {watch("selectData") === "Select Entitlement" && (
@@ -659,6 +705,7 @@ const Step1: React.FC<StepProps> = ({
                     setValue={setValue as unknown as UseFormSetValue<FieldValues>}
                     watch={watch as unknown as UseFormWatch<FieldValues>}
                     fieldName="expressionEntitlement"
+                    fullWidth
                     attributesOptions={[
                       { label: "Risk", value: "risk" },
                       { label: "Pre-Requisite", value: "pre_requisite" },

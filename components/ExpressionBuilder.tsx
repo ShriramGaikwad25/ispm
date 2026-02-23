@@ -12,6 +12,7 @@ import { Controller } from "react-hook-form";
 import Select from "react-select";
 import { v4 as uuidv4 } from "uuid";
 import Accordion from "./Accordion";
+import { buildNestedExpression } from "@/utils/expressionBuilder";
 
 const attributes = [
   { label: "User Role", value: "user_role" },
@@ -35,6 +36,12 @@ const logicalOperators = [
   { label: "AND", value: "AND" },
   { label: "OR", value: "OR" },
 ];
+
+/** react-select styles so dropdowns fill their flex container */
+const selectStyles = {
+  container: (base: object) => ({ ...base, width: "100%", minWidth: 0 }),
+  control: (base: object) => ({ ...base, width: "100%", minWidth: 0 }),
+};
 
 interface Condition {
   id: string;
@@ -120,74 +127,91 @@ const ExpressionBuilder: React.FC<ExpressionBuilderProps> = ({
     logicalOp: cond.logicalOp || "",
   }));
 
+  const nestedExpression = buildNestedExpression(conditions);
+
   return (
     <>
       {title && <h3 className="font-bold">{title}</h3>}
-      <div className={`p-4 border rounded-md w-full border-gray-300 relative ${fullWidth ? '' : 'max-w-2xl'}`}>
+      <div className={`p-4 border rounded-md border-gray-300 relative ${fullWidth ? 'w-full min-w-0' : 'w-full max-w-2xl'}`}>
         {conditions.map((condition, index) => (
           <div
             key={condition.id || `expr-${index}`}
-            className="flex space-x-2 items-center mb-2 justify-end"
+            className="flex gap-3 items-center w-full mb-2 last:mb-0"
           >
-            {index > 0 && (
+            {/* Spacer so first row aligns with rows that have AND/OR */}
+            {index === 0 ? (
+              <div className="flex-shrink-0 w-28" aria-hidden />
+            ) : (
+              <div className="flex-shrink-0 w-28 min-w-28">
+                <Controller
+                  name={`${fieldName}.${index}.logicalOp`}
+                  control={control}
+                  render={({ field }) => (
+                    <Select
+                      {...field}
+                      options={logicalOperators}
+                      isSearchable={false}
+                      placeholder="AND/OR"
+                      styles={selectStyles}
+                    />
+                  )}
+                />
+              </div>
+            )}
+
+            <div className="flex-1 min-w-0">
               <Controller
-                name={`${fieldName}.${index}.logicalOp`}
+                name={`${fieldName}.${index}.attribute`}
                 control={control}
                 render={({ field }) => (
                   <Select
                     {...field}
-                    options={logicalOperators}
+                    options={attributesOptions ?? attributes}
                     isSearchable={false}
-                    placeholder="AND/OR"
+                    placeholder="Select Attribute"
+                    styles={selectStyles}
                   />
                 )}
               />
-            )}
+            </div>
 
-            <Controller
-              name={`${fieldName}.${index}.attribute`}
-              control={control}
-              render={({ field }) => (
-                <Select
-                  {...field}
-                  options={attributesOptions ?? attributes}
-                  isSearchable={false}
-                  placeholder="Select Attribute"
-                />
-              )}
-            />
+            <div className="flex-1 min-w-0">
+              <Controller
+                name={`${fieldName}.${index}.operator`}
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    {...field}
+                    options={operators}
+                    isSearchable={false}
+                    placeholder="Condition"
+                    styles={selectStyles}
+                  />
+                )}
+              />
+            </div>
 
-            <Controller
-              name={`${fieldName}.${index}.operator`}
-              control={control}
-              render={({ field }) => (
-                <Select
-                  {...field}
-                  options={operators}
-                  isSearchable={false}
-                  placeholder="Condition"
-                />
-              )}
-            />
-
-            <Controller
-              name={`${fieldName}.${index}.value`}
-              control={control}
-              render={({ field }) => (
-                <input
-                  {...field}
-                  type="text"
-                  placeholder="Enter value"
-                  className="form-input !w-32 border border-gray-300 rounded-md px-2 py-1"
-                />
-              )}
-            />
+            <div className="flex-1 min-w-0">
+              <Controller
+                name={`${fieldName}.${index}.value`}
+                control={control}
+                render={({ field }) => (
+                  <input
+                    {...field}
+                    type="text"
+                    placeholder="Enter value"
+                    className="form-input w-full border border-gray-300 rounded-md px-2 py-1.5 min-w-0 box-border"
+                  />
+                )}
+              />
+            </div>
 
             {conditions.length > 1 && (
               <button
                 type="button"
                 onClick={() => removeCondition(condition.id)}
-                className="text-red-500 cursor-pointer"
+                className="flex-shrink-0 p-1 text-red-500 hover:bg-red-50 rounded cursor-pointer transition-colors"
+                aria-label="Remove condition"
               >
                 <CircleX size={18} />
               </button>
@@ -195,11 +219,11 @@ const ExpressionBuilder: React.FC<ExpressionBuilderProps> = ({
           </div>
         ))}
 
-        <div className="flex items-center gap-3 mt-2">
+        <div className="flex items-center gap-3 mt-4 pt-3 border-t border-gray-200">
           <button
             type="button"
             onClick={addCondition}
-            className="bg-blue-500 text-white px-2 py-1 rounded flex items-center gap-1 cursor-pointer"
+            className="bg-blue-500 text-white px-3 py-1.5 rounded text-sm font-medium flex items-center gap-1.5 cursor-pointer hover:bg-blue-600 transition-colors"
           >
             <Plus size={15} /> Add Condition
           </button>
@@ -208,27 +232,29 @@ const ExpressionBuilder: React.FC<ExpressionBuilderProps> = ({
             type="button"
             disabled={conditions.length === 0}
             onClick={() => setIsSidebarOpen(true)}
-            className={`px-3 py-1 rounded text-white ${
+            className={`px-3 py-1.5 rounded text-sm font-medium ${
               conditions.length === 0
-                ? "bg-gray-400 cursor-not-allowed"
-                : "bg-green-600 hover:bg-green-700"
-            }`}
+                ? "bg-gray-400 cursor-not-allowed text-gray-200"
+                : "bg-green-600 hover:bg-green-700 text-white"
+            } transition-colors`}
           >
             Test Expression
           </button>
         </div>
 
         {!hideJsonPreview && (
-          <div className="mt-4 border border-gray-300 rounded bg-gray-100">
+          <div className="mt-4 w-full border border-gray-300 rounded-md bg-gray-50 overflow-hidden">
             <Accordion
               iconClass="absolute -top-2 right-5 bg-white rounded-full text-gray-400"
               iconSize={16}
               title="Expand/Collapse"
               open={isAccordionOpen}
             >
-              <div className="py-3 overflow-auto max-h-40">
-                <pre className="text-sm  px-3">
-                  {JSON.stringify(formattedExpression, null, 2)}
+              <div className="py-3 overflow-auto max-h-40 w-full">
+                <pre className="text-sm px-3 w-full overflow-x-auto">
+                  {nestedExpression
+                    ? JSON.stringify(nestedExpression, null, 2)
+                    : "Add conditions to build expression"}
                 </pre>
               </div>
             </Accordion>
@@ -248,11 +274,22 @@ const ExpressionBuilder: React.FC<ExpressionBuilderProps> = ({
               ✕
             </button>
           </div>
-          <div className="p-4 overflow-auto">
-            {/* Replace this with actual test output logic */}
-            <pre className="text-sm bg-gray-100 p-3 rounded">
-              {JSON.stringify(formattedExpression, null, 2)}
-            </pre>
+          <div className="p-4 overflow-auto space-y-4">
+            <div>
+              <h5 className="text-sm font-semibold text-gray-700 mb-2">Built Expression</h5>
+              <pre className="text-sm bg-gray-100 p-3 rounded overflow-x-auto">
+                {nestedExpression
+                  ? JSON.stringify(nestedExpression, null, 2)
+                  : "No conditions added yet."}
+              </pre>
+            </div>
+            <div>
+              <h5 className="text-sm font-semibold text-gray-700 mb-2">Test Results</h5>
+              <pre className="text-sm bg-gray-100 p-3 rounded overflow-x-auto">
+                {/* Replace with actual test output when backend is connected */}
+                Run test to see results here.
+              </pre>
+            </div>
           </div>
         </div>
       )}

@@ -69,8 +69,11 @@ export const validationSchema = yup.object().shape({
     then: (schema) => schema.min(1, "Select at least one application").required(),
     otherwise: (schema) => schema.notRequired(),
   }),
-  expressionApps: yup.array().when("selectData", {
-    is: "Specific Applications",
+  expressionApps: yup.array().when(["selectData", "accountType"], {
+    is: (selectData: string, accountType: string) =>
+      selectData === "Specific Applications" &&
+      accountType !== "service" &&
+      accountType !== "both",
     then: (schema) =>
       schema
         .of(

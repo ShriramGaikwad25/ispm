@@ -1,4 +1,5 @@
 import { FormData } from "@/types/stepTypes";
+import { buildNestedExpression } from "@/utils/expressionBuilder";
 
 /**
  * Transforms form data from the wizard form into the API payload structure
@@ -9,42 +10,13 @@ export function transformFormDataToPayload(formData: FormData): any {
   const step3 = formData.step3 || {};
   const step4 = formData.step4 || {};
 
-  // Helper function to build filter criteria from expression array
+  /** Build nested expression { operator, conditions } for API; fallback empty shape when none */
   const buildFilterCriteria = (expressions: any[]) => {
-    if (!expressions || expressions.length === 0) {
-      return {
-        attribute: null,
-        children: null,
-        condition: null,
-        operator: null,
-        value: null,
-      };
-    }
-
-    if (expressions.length === 1) {
-      const exp = expressions[0];
-      return {
-        attribute: exp.attribute?.value || exp.attribute || null,
-        operator: exp.operator?.value || exp.operator || null,
-        value: exp.value || null,
-        children: null,
-        condition: null,
-      };
-    }
-
-    // For multiple expressions, build a tree structure
+    const nested = buildNestedExpression(expressions || []);
+    if (nested) return nested;
     return {
-      condition: "AND",
-      children: expressions.map((exp) => ({
-        attribute: exp.attribute?.value || exp.attribute || null,
-        operator: exp.operator?.value || exp.operator || null,
-        value: exp.value || null,
-        children: null,
-        condition: null,
-      })),
-      attribute: null,
-      operator: null,
-      value: null,
+      operator: "AND",
+      conditions: [],
     };
   };
 

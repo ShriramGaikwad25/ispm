@@ -43,6 +43,9 @@ export interface StepProps {
 }
 
 /***Steps2****/
+/** Account type for App Owner Campaign Scope: regular, service, or both. */
+export type AccountTypeScope = "regular" | "service" | "both";
+
 export interface Step2FormData {
   userType: string;
   specificUserExpression: { attribute: any; operator: any; value: string }[];
@@ -55,6 +58,8 @@ export interface Step2FormData {
   excludeUsersIsChecked: boolean;
   excludeUsers: string | null;
   selectData: string;
+  /** App Owner only: "regular" | "service" | "both". Used in Campaign Scope. */
+  accountType?: AccountTypeScope;
 }
 /***End of Step2 */
 

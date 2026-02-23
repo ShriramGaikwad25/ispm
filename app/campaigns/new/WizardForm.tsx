@@ -7,6 +7,7 @@ import { BookType, ChevronLeft, ChevronRight, Check, X, Save } from "lucide-reac
 import { useRouter } from "next/navigation";
 import { apiRequestWithAuth } from "@/lib/auth";
 import { transformFormDataToPayload } from "./transformFormData";
+import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
 interface WizardFormProps {
   steps: Step[];
   initialFormData?: FormData | null;
@@ -17,7 +18,8 @@ interface WizardFormProps {
 const WizardForm: React.FC<WizardFormProps> = ({ steps, initialFormData, isEditMode = false, editTemplateId }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useFormData();
-  
+  const { isVisible: isSidebarVisible, sidebarWidthPx } = useLeftSidebar();
+
   // Pre-populate form data if editing
   useEffect(() => {
     if (initialFormData) {
@@ -31,6 +33,7 @@ const WizardForm: React.FC<WizardFormProps> = ({ steps, initialFormData, isEditM
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const router = useRouter();
 
 
@@ -149,129 +152,118 @@ const WizardForm: React.FC<WizardFormProps> = ({ steps, initialFormData, isEditM
       setCurrentStep((prev) => prev - 1); // Go to the previous step
     }
   };
-    const handleClose = () => {
-    router.push("/campaigns?tab=template"); // Navigate back to campaigns page with template tab
+  const handleClose = () => {
+    router.push("/campaigns?tab=template");
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="w-full py-8 px-4">
-        {/* Close Button */}
-        <div className="mb-6 flex justify-end">
-          <button
-            className="p-2 rounded-full bg-gray-200 hover:bg-gray-300 text-red-400 transition-colors duration-200"
-            onClick={handleClose}
-            title="Close Form"
-            aria-label="Close form"
-          >
-            <X size={24} />
-          </button>
-        </div>
-
-        {/* Progress Steps */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-          <div className="flex items-center justify-between">
-            {steps.map((step, index) => {
-              const stepNumber = index + 1;
-              const isCompleted = currentStep > index;
-              const isActive = currentStep === index;
-              const isClickable = index <= currentStep || validationStatus.slice(0, index).every(Boolean);
-
-              return (
-                <React.Fragment key={index}>
-                  <div
-                    className={`flex items-center ${
-                      isClickable ? "cursor-pointer" : "cursor-not-allowed"
-                    }`}
-                    onClick={() => {
-                      if (isClickable && (index <= currentStep || validationStatus.slice(0, index).every(Boolean))) {
-                        setCurrentStep(index);
-                      }
-                    }}
-                  >
-                    <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                        isActive || isCompleted
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-200 text-gray-600"
-                      }`}
-                    >
-                      {isCompleted ? <Check className="w-4 h-4" /> : stepNumber}
-                    </div>
-                    <div className="ml-3">
-                      <p className="text-sm font-medium text-gray-900">{step.name}</p>
-                    </div>
-                  </div>
-                  {index < steps.length - 1 && (
-                    <div className="flex-1 h-0.5 bg-gray-200 mx-4" />
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Navigation Buttons */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-          <div className="flex justify-between">
+      {/* Step bar: fixed below header, full width (respecting sidebar) */}
+      <div
+        className="fixed top-[60px] right-0 z-20 bg-white shadow-sm border-b border-gray-200 px-3 sm:px-6 py-2.5 sm:py-3.5 border-t border-gray-200"
+        style={{ left: isSidebarVisible ? sidebarWidthPx : 0 }}
+      >
+          <div className="flex items-center gap-2 sm:gap-8 min-w-0">
             <button
               onClick={prevStep}
               disabled={currentStep === 0}
-              className={`flex items-center px-4 py-2 rounded-md text-sm font-medium ${
+              className={`flex items-center px-2 sm:px-5 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium shrink-0 ${
                 currentStep === 0
                   ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                   : "bg-gray-200 text-gray-700 hover:bg-gray-300"
               }`}
             >
-              <ChevronLeft className="w-4 h-4 mr-2" />
+              <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-2.5" />
               Previous
             </button>
-
-            <div className="flex gap-3">
+            <div className="flex-1 min-w-0 flex items-center justify-center">
+              <div className="flex items-center justify-center gap-0.5 sm:gap-1 min-w-0 w-full">
+                {steps.map((step, index) => {
+                  const stepId = index + 1;
+                  const isClickable = index <= currentStep || validationStatus.slice(0, index).every(Boolean);
+                  return (
+                    <div key={index} className="flex items-center min-w-0 flex-1 sm:flex-initial">
+                      <div
+                        className={`flex items-center ${isClickable ? "cursor-pointer" : "cursor-not-allowed"}`}
+                        onClick={() => {
+                          if (isClickable && (index <= currentStep || validationStatus.slice(0, index).every(Boolean))) {
+                            setCurrentStep(index);
+                          }
+                        }}
+                      >
+                        <div
+                          className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium shrink-0 ${
+                            currentStep >= index ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"
+                          }`}
+                        >
+                          {currentStep > index ? <Check className="w-3 h-3 sm:w-4 sm:h-4" /> : stepId}
+                        </div>
+                        <div className="ml-1.5 sm:ml-3 min-w-0 overflow-hidden flex-1">
+                          <p className="text-xs sm:text-sm font-medium text-gray-900 truncate" title={step.name}>{step.name}</p>
+                        </div>
+                      </div>
+                      {index < steps.length - 1 && (
+                        <div className="flex-1 sm:flex-initial w-2 sm:w-14 md:w-20 h-0.5 bg-gray-200 mx-0.5 sm:mx-5 shrink-0 max-w-2 sm:max-w-none" />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="flex gap-1 sm:gap-4 shrink-0">
               {isEditMode && (
                 <button
                   onClick={handleSave}
-                  className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium"
+                  className="flex items-center px-2 sm:px-5 py-1.5 sm:py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs sm:text-sm font-medium"
                 >
-                  <Save size={18} className="mr-2" />
+                  <Save className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-2.5" />
                   Save
                 </button>
               )}
-              {currentStep < steps.length - 1 && (
+              {currentStep < steps.length - 1 ? (
                 <button
                   onClick={nextStep}
                   disabled={!validationStatus[currentStep]}
-                  className={`flex items-center px-4 py-2 rounded-md text-sm font-medium ${
+                  className={`flex items-center px-2 sm:px-5 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium ${
                     validationStatus[currentStep]
                       ? "bg-blue-600 text-white hover:bg-blue-700"
-                      : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                      : "bg-gray-100 text-gray-400 cursor-not-allowed"
                   }`}
                 >
                   Next
-                  <ChevronRight className="w-4 h-4 ml-2" />
+                  <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 ml-1 sm:ml-2.5" />
                 </button>
-              )}
-              {!isEditMode && currentStep === steps.length - 1 && (
+              ) : !isEditMode ? (
                 <button
                   onClick={() => {
                     setIsDialogOpen(true);
                     setSaveAsTemplate(false);
                   }}
                   disabled={!validationStatus[currentStep]}
-                  className={`flex items-center px-4 py-2 rounded-md text-sm font-medium ${
+                  className={`flex items-center px-2 sm:px-5 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium ${
                     validationStatus[currentStep]
-                      ? "bg-blue-600 text-white hover:bg-blue-700"
-                      : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                      ? "bg-green-600 text-white hover:bg-green-700"
+                      : "bg-gray-100 text-gray-400 cursor-not-allowed"
                   }`}
                 >
-                  <Save size={18} className="mr-2" />
+                  <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-2.5" />
                   Create Campaign
                 </button>
-              )}
+              ) : null}
+              <button
+                className="p-1.5 sm:p-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-red-500 hover:text-red-600 transition-colors shrink-0"
+                onClick={() => setShowCloseConfirm(true)}
+                title="Close"
+                aria-label="Close form"
+              >
+                <X className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
             </div>
           </div>
-        </div>
+      </div>
 
+      {/* Spacer so content is not under fixed bar (header 60px + bar height) */}
+      <div className="w-full pt-[80px] px-4 pb-8">
         {/* Form Content */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6" key={`step-${currentStep}`}>
           {steps[currentStep].component({
@@ -296,6 +288,37 @@ const WizardForm: React.FC<WizardFormProps> = ({ steps, initialFormData, isEditM
           }))
         }
       />
+
+      {/* Close confirmation modal */}
+      {showCloseConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50" role="dialog" aria-modal="true" aria-labelledby="close-confirm-title">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h2 id="close-confirm-title" className="text-lg font-semibold text-gray-900 mb-2">Close campaign?</h2>
+            <p className="text-sm text-gray-600 mb-6">
+              Any unsaved changes will be lost. Do you want to close?
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowCloseConfirm(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Stay
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCloseConfirm(false);
+                  handleClose();
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

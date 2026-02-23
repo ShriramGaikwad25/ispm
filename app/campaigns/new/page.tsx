@@ -129,6 +129,7 @@ const CreateCampaign = () => {
             excludeUsersIsChecked: userCriteria.excludeUsersFromCampaign && userCriteria.excludeUsersFromCampaign.length > 0,
             excludeUsers: userCriteria.excludeUsersFromCampaign?.map((user: string) => ({ label: user, value: user })) || "",
             selectData: selectData,
+            accountType: (scopingCriteria as any)?.accountType ?? "regular",
           };
 
           // Step3 data
