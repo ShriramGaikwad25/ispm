@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { useCart } from "@/contexts/CartContext";
 import { useItemDetails } from "@/contexts/ItemDetailsContext";
-import { Calendar, Edit, Save, X, Paperclip, Check } from "lucide-react";
+import { Calendar, Edit, Save, X, Paperclip, ChevronDown, ChevronRight } from "lucide-react";
 
 interface ItemDates {
   [itemId: string]: {
@@ -22,16 +22,13 @@ const DetailsTab: React.FC = () => {
     getItemDetail, 
     globalSettings, 
     setGlobalSettings,
-    attachmentEmailByItem,
     attachmentFileByItem,
-    setAttachmentEmail,
     setAttachmentFile,
     requestType,
     setRequestType,
   } = useItemDetails();
   const [itemDates, setItemDates] = useState<ItemDates>({});
-  const [attachmentMenuForItemId, setAttachmentMenuForItemId] = useState<string | null>(null);
-  const [attachmentPanel, setAttachmentPanel] = useState<{ itemId: string; type: "email" | "excel" | "csv" } | null>(null);
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const fileInputRefs = React.useRef<Record<string, HTMLInputElement | null>>({});
   const initializedItemsRef = React.useRef<Set<string>>(new Set());
   const prevGlobalSettingsRef = React.useRef(globalSettings);
@@ -447,25 +444,47 @@ const DetailsTab: React.FC = () => {
             }
           };
 
+          const isExpanded = expandedItems.has(item.id);
+          const toggleExpanded = () => {
+            setExpandedItems((prev) => {
+              const next = new Set(prev);
+              if (next.has(item.id)) next.delete(item.id);
+              else next.add(item.id);
+              return next;
+            });
+          };
+
           return (
             <div
               key={item.id}
-              className={`p-4 border rounded-lg transition-colors ${
+              className={`border rounded-lg transition-colors overflow-hidden ${
                 useGlobal 
                   ? "border-blue-200 bg-blue-50/30" 
                   : "border-gray-200 bg-white hover:bg-gray-50"
               }`}
             >
-              <div className="mb-3">
-                <div className="flex items-center gap-2 mb-3">
-                  <h4 className="text-sm font-semibold text-gray-900">{item.name}</h4>
+              <button
+                type="button"
+                onClick={toggleExpanded}
+                className="w-full flex items-center justify-between gap-2 p-4 text-left hover:bg-gray-50/50 transition-colors"
+                aria-expanded={isExpanded}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <h4 className="text-sm font-semibold text-gray-900 truncate">{item.name}</h4>
                   {item.risk && (
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium border ${getRiskColor(item.risk)}`}>
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium border shrink-0 ${getRiskColor(item.risk)}`}>
                       {item.risk} Risk
                     </span>
                   )}
                 </div>
-                
+                <span className="shrink-0 text-gray-500" aria-hidden>
+                  {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+                </span>
+              </button>
+
+              {isExpanded && (
+              <div className="px-4 pb-4 pt-0 border-t border-gray-100">
+                <div className="mb-3">
                 {/* Access Type Toggle, Start Date, and End Date in same row */}
                 <div className={`grid gap-3 items-end ${!isIndefinite ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1'}`}>
                   {/* Access Type Toggle */}
@@ -598,67 +617,27 @@ const DetailsTab: React.FC = () => {
                     </div>
                     {/* Half row: Attachment */}
                     <div className="min-w-0 flex flex-wrap items-center gap-2">
-                      <div className="relative shrink-0">
+                      <div className="relative shrink-0 flex items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => setAttachmentMenuForItemId(attachmentMenuForItemId === item.id ? null : item.id)}
+                          onClick={() => {
+                            const input = fileInputRefs.current[item.id];
+                            if (input) {
+                              input.value = "";
+                              input.click();
+                            }
+                          }}
                           className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md bg-indigo-100 text-indigo-700 border border-indigo-200 hover:bg-indigo-200 hover:text-indigo-800 hover:border-indigo-300 transition-colors text-sm font-medium"
-                          title="Attach"
-                          aria-label="Attach"
+                          title="Attach file (XLS, PDF, JPEG/PNG)"
+                          aria-label="Attach file"
                         >
                           <Paperclip className="w-4 h-4" />
                           <span>Attachment</span>
                         </button>
-                        {attachmentMenuForItemId === item.id && (
-                          <>
-                            <div
-                              className="fixed inset-0 z-10"
-                              aria-hidden
-                              onClick={() => setAttachmentMenuForItemId(null)}
-                            />
-                            <div className="absolute right-0 top-full mt-1 z-20 py-1 min-w-[100px] bg-white border border-gray-200 rounded-md shadow-lg">
-                              <button
-                                type="button"
-                                className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-100"
-                                onClick={() => {
-                                  setAttachmentPanel({ itemId: item.id, type: "email" });
-                                  setAttachmentMenuForItemId(null);
-                                }}
-                              >
-                                Email
-                              </button>
-                              <button
-                                type="button"
-                                className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-100"
-                                onClick={() => {
-                                  const input = fileInputRefs.current[item.id];
-                                  if (input) {
-                                    input.accept = ".xlsx,.xls";
-                                    input.value = "";
-                                    input.click();
-                                  }
-                                  setAttachmentMenuForItemId(null);
-                                }}
-                              >
-                                Excel
-                              </button>
-                              <button
-                                type="button"
-                                className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-100"
-                                onClick={() => {
-                                  const input = fileInputRefs.current[item.id];
-                                  if (input) {
-                                    input.accept = ".csv";
-                                    input.value = "";
-                                    input.click();
-                                  }
-                                  setAttachmentMenuForItemId(null);
-                                }}
-                              >
-                                CSV
-                              </button>
-                            </div>
-                          </>
+                        {!attachmentFileByItem[item.id] && (
+                          <span className="text-xs text-gray-500">
+                            File types supported - XLS, PDF, JPEG/PNG. Max file size of 2 MB
+                          </span>
                         )}
                       </div>
                       <input
@@ -667,78 +646,35 @@ const DetailsTab: React.FC = () => {
                           if (el) fileInputRefs.current[item.id] = el;
                         }}
                         className="hidden"
-                        accept=".xlsx,.xls,.csv"
+                        accept=".xls,.xlsx,.pdf,.jpg,.jpeg,.png"
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file) setAttachmentFile(item.id, file.name);
                         }}
                       />
-                      {attachmentPanel?.itemId === item.id && attachmentPanel.type === "email" && (
-                        <>
-                          <input
-                            type="email"
-                            placeholder="Enter email address"
-                            value={attachmentEmailByItem[item.id] ?? ""}
-                            onChange={(e) => setAttachmentEmail(item.id, e.target.value)}
-                            className="min-w-[280px] max-w-[380px] px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 shrink-0"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setAttachmentPanel(null)}
-                            className="p-2 rounded-md text-green-600 hover:bg-green-100 shrink-0"
-                            aria-label="Confirm"
-                            title="Confirm"
-                          >
-                            <Check className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setAttachmentPanel(null)}
-                            className="p-2 rounded-md text-gray-500 hover:bg-gray-200 shrink-0"
-                            aria-label="Close"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </>
-                      )}
-                      {(attachmentEmailByItem[item.id] || attachmentFileByItem[item.id]) && (
+                      {attachmentFileByItem[item.id] && (
                         <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                          {attachmentEmailByItem[item.id] && (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-50 text-blue-800 border border-blue-200 rounded-md max-w-full min-w-0">
-                              <span className="truncate" title={attachmentEmailByItem[item.id]}>
-                                Email: {attachmentEmailByItem[item.id]}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => setAttachmentEmail(item.id, "")}
-                                className="p-0.5 rounded hover:bg-blue-100 text-blue-600 shrink-0"
-                                aria-label="Remove email"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
+                          <span className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-md max-w-full min-w-0">
+                            <span className="truncate" title={attachmentFileByItem[item.id]}>
+                              File: {attachmentFileByItem[item.id]}
                             </span>
-                          )}
-                          {attachmentFileByItem[item.id] && (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-md max-w-full min-w-0">
-                              <span className="truncate" title={attachmentFileByItem[item.id]}>
-                                File: {attachmentFileByItem[item.id]}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => setAttachmentFile(item.id, "")}
-                                className="p-0.5 rounded hover:bg-emerald-100 text-emerald-600 shrink-0"
-                                aria-label="Remove file"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            </span>
-                          )}
+                            <button
+                              type="button"
+                              onClick={() => setAttachmentFile(item.id, "")}
+                              className="p-0.5 rounded hover:bg-emerald-100 text-emerald-600 shrink-0"
+                              aria-label="Remove file"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
                         </div>
                       )}
                     </div>
                   </div>
                 )}
               </div>
+              </div>
+              )}
             </div>
           );
         })}

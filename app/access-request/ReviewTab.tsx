@@ -14,7 +14,7 @@ interface ReviewTabProps {
 const ReviewTab: React.FC<ReviewTabProps> = ({ catalogRoles = [] }) => {
   const { items } = useCart();
   const { selectedUsers } = useSelectedUsers();
-  const { getItemDetail, globalAccessType, globalSettings, requestType, attachmentEmailByItem, attachmentFileByItem } = useItemDetails();
+  const { getItemDetail, globalAccessType, globalSettings, requestType, attachmentFileByItem } = useItemDetails();
   const { openSidebar, closeSidebar } = useRightSidebar();
 
   const formatDate = (dateString: string) => {
@@ -160,19 +160,12 @@ const ReviewTab: React.FC<ReviewTabProps> = ({ catalogRoles = [] }) => {
                       )}
                     </div>
                     <div className="text-xs text-left flex flex-wrap items-center gap-2 min-w-0">
-                      {(attachmentEmailByItem[item.id] || attachmentFileByItem[item.id]) ? (
+                      {attachmentFileByItem[item.id] ? (
                         <>
                           <span className="font-medium text-gray-700">Attachment: </span>
-                          {attachmentEmailByItem[item.id] && (
-                            <span className="inline-flex items-center px-2.5 py-1 text-xs bg-blue-50 text-blue-800 border border-blue-200 rounded">
-                              Email: {attachmentEmailByItem[item.id]}
-                            </span>
-                          )}
-                          {attachmentFileByItem[item.id] && (
-                            <span className="inline-flex items-center px-2.5 py-1 text-xs bg-emerald-50 text-emerald-800 border border-emerald-200 rounded">
-                              File: {attachmentFileByItem[item.id]}
-                            </span>
-                          )}
+                          <span className="inline-flex items-center px-2.5 py-1 text-xs bg-emerald-50 text-emerald-800 border border-emerald-200 rounded">
+                            File: {attachmentFileByItem[item.id]}
+                          </span>
                         </>
                       ) : (
                         <span className="text-gray-400 italic">No attachment</span>

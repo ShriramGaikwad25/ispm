@@ -35,11 +35,67 @@ function clearAccessRequestSelections(
   }
 }
 
+/** Payload shape for the full Access Request (all steps, all fields). */
+export interface AccessRequestPayload {
+  /** Step 1: "self" | "others" */
+  requestFor: "self" | "others";
+  /** Step 1: when request for others, selected users */
+  selectedUsers: Array<{
+    id: string;
+    name: string;
+    email: string;
+    username: string;
+    department: string;
+    jobTitle: string;
+    employeeId?: string;
+  }>;
+  /** Step 1: selected groups (from User Group tab) */
+  selectedGroups: Array<{ value: string; label: string }>;
+  /** Step 3: request type */
+  requestType: "Regular" | "Urgent";
+  /** Step 3: global dates/comment applied when useGlobalSettings is true */
+  globalSettings: {
+    startDate: string;
+    endDate: string;
+    isIndefinite: boolean;
+    comment: string;
+    accessType: "indefinite" | "duration";
+  };
+  /** Step 2 + 3: each access item with details and optional catalog/saved form data */
+  accessItems: Array<{
+    id: string;
+    name: string;
+    risk: "High" | "Medium" | "Low";
+    catalogRow?: Record<string, unknown>;
+    startDate: string;
+    endDate: string;
+    isIndefinite: boolean;
+    comment: string;
+    useGlobalSettings: boolean;
+    attachmentEmail?: string;
+    attachmentFile?: string;
+    customFieldValues?: Record<number, string>;
+    provisioningValues?: Record<string, string>;
+  }>;
+}
+
+function loadSavedRoleDetails(itemId: string): { fieldValues?: Record<number, string>; provisioningValues?: Record<string, string> } | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(`accessRoleDetails:${itemId}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { fieldValues?: Record<number, string>; provisioningValues?: Record<string, string> };
+    return parsed || null;
+  } catch {
+    return null;
+  }
+}
+
 const AccessRequest: React.FC = () => {
   const router = useRouter();
   const { selectedUsers, removeUser, clearUsers } = useSelectedUsers();
-  const { addToCart, removeFromCart, isInCart, clearCart } = useCart();
-  const { clearItemDetails } = useItemDetails();
+  const { addToCart, removeFromCart, isInCart, clearCart, items: cartItems } = useCart();
+  const { clearItemDetails, getItemDetail, globalSettings, requestType, attachmentEmailByItem, attachmentFileByItem } = useItemDetails();
   const { isVisible: isSidebarVisible, sidebarWidthPx } = useLeftSidebar();
   const [selectedOption, setSelectedOption] = useState<"self" | "others">("self");
   const [currentStep, setCurrentStep] = useState(1);
@@ -211,6 +267,57 @@ const AccessRequest: React.FC = () => {
     if (currentStep < steps.length) {
       setCurrentStep(currentStep + 1);
     }
+  };
+
+  const buildAccessRequestPayload = (): AccessRequestPayload => {
+    const norm = (x: unknown) => String(x ?? "").trim();
+    const accessItems = cartItems.map((item) => {
+      const detail = getItemDetail(item.id);
+      const saved = loadSavedRoleDetails(item.id);
+      const role = apiRoles.find((r) => norm(r.id) === norm(item.id));
+      const catalogRow = role?.catalogRow as Record<string, unknown> | undefined;
+      return {
+        id: item.id,
+        name: item.name,
+        risk: item.risk ?? "Low",
+        catalogRow,
+        startDate: detail?.startDate ?? globalSettings.startDate,
+        endDate: detail?.endDate ?? globalSettings.endDate,
+        isIndefinite: detail?.isIndefinite ?? globalSettings.isIndefinite,
+        comment: detail?.comment ?? globalSettings.comment,
+        useGlobalSettings: detail?.useGlobalSettings ?? true,
+        attachmentEmail: attachmentEmailByItem[item.id] || undefined,
+        attachmentFile: attachmentFileByItem[item.id] || undefined,
+        customFieldValues: saved?.fieldValues,
+        provisioningValues: saved?.provisioningValues,
+      };
+    });
+    return {
+      requestFor: selectedOption,
+      selectedUsers: selectedOption === "others" ? selectedUsers.map((u) => ({ id: u.id, name: u.name, email: u.email, username: u.username, department: u.department, jobTitle: u.jobTitle, employeeId: u.employeeId })) : [],
+      selectedGroups,
+      requestType,
+      globalSettings: {
+        startDate: globalSettings.startDate,
+        endDate: globalSettings.endDate,
+        isIndefinite: globalSettings.isIndefinite,
+        comment: globalSettings.comment,
+        accessType: globalSettings.accessType,
+      },
+      accessItems,
+    };
+  };
+
+  const handleSubmit = () => {
+    const payload = buildAccessRequestPayload();
+    console.log("Access Request Payload:", JSON.stringify(payload, null, 2));
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(JSON.stringify(payload, null, 2)).catch(() => {});
+    }
+    clearAccessRequestSelections(clearCart, clearUsers, clearItemDetails);
+    setSelectedGroups([]);
+    setCurrentStep(1);
+    setSelectedOption("self");
   };
 
   // Keep ref in sync so we can ignore stale responses
@@ -416,6 +523,7 @@ const AccessRequest: React.FC = () => {
               </button>
             ) : (
               <button
+                onClick={handleSubmit}
                 className="flex items-center px-2 sm:px-5 py-1.5 sm:py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs sm:text-sm font-medium"
               >
                 <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-2.5" />
@@ -485,7 +593,7 @@ const AccessRequest: React.FC = () => {
           {selectedUsers.length > 0 && selectedOption === "others" && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4">
               <h3 className="text-lg font-semibold mb-4 text-gray-900">Selected Users</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                 {selectedUsers.map((user) => {
                   return (
                     <div
