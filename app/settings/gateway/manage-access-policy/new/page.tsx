@@ -2,7 +2,6 @@
 
 import React, { useState } from "react";
 import { useForm, Control, FieldValues, UseFormSetValue, UseFormWatch } from "react-hook-form";
-import { BackButton } from "@/components/BackButton";
 import { Trash2, Plus, ChevronLeft, ChevronRight, Check } from "lucide-react";
 import ExpressionBuilder from "@/components/ExpressionBuilder";
 
@@ -278,10 +277,6 @@ export default function CreateAccessPolicyPage() {
 
   return (
     <div className="p-6 bg-white min-h-screen">
-      <div className="mb-6">
-        <BackButton />
-      </div>
-
       <div className="max-w-6xl mx-auto">
         <h1 className="text-2xl font-bold text-gray-900 mb-8">Create Access Policy</h1>
         

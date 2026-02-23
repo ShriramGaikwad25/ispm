@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { Plus, Pencil, Trash2, Droplet } from "lucide-react";
-import { BackButton } from "@/components/BackButton";
 import ClientOnlyAgGrid from "@/components/ClientOnlyAgGrid";
 import CustomPagination from "@/components/agTable/CustomPagination";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
@@ -262,7 +261,6 @@ export default function GatewayCustomSchemaSettings() {
   return (
     <div className="h-full p-6">
       <div className="mx-auto">
-        <div className="mb-4"><BackButton /></div>
         <div className="bg-white rounded-md shadow overflow-hidden">
           <div className="flex items-center justify-between px-5 py-3 text-white" style={{ backgroundColor: '#27B973' }}>
             <div className="flex items-center gap-3">

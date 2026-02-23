@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { BackButton } from "@/components/BackButton";
 import { Mail, Plus, Archive } from "lucide-react";
 import AgGridReact from "@/components/ClientOnlyAgGrid";
 import "@/lib/ag-grid-setup";
@@ -143,10 +142,6 @@ export default function GatewayEmailTemplatesSettings() {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Back Button */}
-      <div className="p-6 pb-4">
-        <BackButton />
-      </div>
       {/* Green Header Bar */}
       <div className="flex items-center justify-between px-6 py-4 h-16 text-white" style={{ backgroundColor: '#27B973' }}>
         <div className="flex items-center gap-3">

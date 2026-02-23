@@ -18,7 +18,6 @@ import { getCatalogEntitlements } from "@/lib/api";
 import { getReviewerId } from "@/lib/auth";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import CustomPagination from "@/components/agTable/CustomPagination";
-import { BackButton } from "@/components/BackButton";
 
 const EntitlementOwnerPageContent = () => {
   const { openSidebar, closeSidebar } = useRightSidebar();
@@ -1007,9 +1006,6 @@ const EntitlementOwnerPageContent = () => {
   if (loading) {
     return (
       <div className="ag-theme-alpine" style={{ height: 600, width: "100%" }}>
-        <div className="mb-4">
-          <BackButton />
-        </div>
         <div className="relative mb-4 flex items-center justify-between">
           <h1 className="text-xl font-bold pb-2 text-blue-950">Entitlement Review</h1>
         </div>
@@ -1026,9 +1022,6 @@ const EntitlementOwnerPageContent = () => {
   if (apiError) {
     return (
       <div className="ag-theme-alpine" style={{ height: 600, width: "100%" }}>
-        <div className="mb-4">
-          <BackButton />
-        </div>
         <div className="relative mb-4 flex items-center justify-between">
           <h1 className="text-xl font-bold pb-2 text-blue-950">Entitlement Review</h1>
         </div>
@@ -1056,9 +1049,6 @@ const EntitlementOwnerPageContent = () => {
       <style jsx global>{`
         .ag-paging-panel { display: none !important; }
       `}</style>
-      <div className="mb-4">
-        <BackButton />
-      </div>
       <div className="relative mb-4 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold pb-2 text-blue-950">Entitlement Review</h1>

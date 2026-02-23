@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { getCurrentUser, getReviewerId, apiRequestWithAuth } from "@/lib/auth";
-import { BackButton } from "@/components/BackButton";
 
 export default function ProfilePage() {
   const [isLoading, setIsLoading] = useState(true);
@@ -140,9 +139,6 @@ export default function ProfilePage() {
 
   return (
     <>
-      <div className="mb-4">
-        <BackButton />
-      </div>
       <div className="bg-white rounded-lg shadow-md p-6 flex flex-col items-center justify-center min-h-[320px]">
         {(isLoading || redirecting) && (
           <div className="text-center">

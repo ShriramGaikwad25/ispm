@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { BackButton } from "@/components/BackButton";
 import { Check, ChevronLeft, ChevronRight, Workflow, Plus, X, Minus } from "lucide-react";
 import { useForm, Control, FieldValues, UseFormSetValue, UseFormWatch } from "react-hook-form";
 import MultiSelect from "@/components/MultiSelect";
@@ -1970,10 +1969,6 @@ export default function WorkflowBuilderPage() {
   return (
     <div className="h-full p-6">
       <div className="mx-auto min-h-[calc(100vh-120px)]">
-        <div className="mb-4">
-          <BackButton />
-        </div>
-
         <div className="w-full">
           <div className="p-6">
             {/* Progress Steps */}

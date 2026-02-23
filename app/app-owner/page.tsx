@@ -52,7 +52,6 @@ import {
 import { getReviewerId } from "@/lib/auth";
 import { useActionPanel } from "@/contexts/ActionPanelContext";
 import { PaginatedResponse } from "@/types/api";
-import { BackButton } from "@/components/BackButton";
 import { useRouter } from "next/navigation";
 import { useLoading } from "@/contexts/LoadingContext";
 import ExcelJS from "exceljs";
@@ -2021,9 +2020,6 @@ function AppOwnerContent() {
 
   return (
     <div className="w-full h-screen">
-      <div className="mb-4">
-        <BackButton text="Back" onClick={() => router.push("/access-review")} />
-      </div>
       <div className={isGroupedByEntitlementCheckbox || groupByOption === "Entitlements" ? "w-full" : "max-w-full"}>
         {}
         <Accordion

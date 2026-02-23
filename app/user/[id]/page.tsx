@@ -29,7 +29,6 @@ import {
   ChartData,
 } from "chart.js";
 import ChartDataLabels from "chartjs-plugin-datalabels";
-import { BackButton } from "@/components/BackButton";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import UserDisplayName from "@/components/UserDisplayName";
 
@@ -1663,7 +1662,6 @@ export default function UserDetailPage() {
   return (
     <>
       <div className="mb-4 flex items-center justify-between">
-        <BackButton />
         <div className="flex items-center gap-3">
           <button
             onClick={() => {

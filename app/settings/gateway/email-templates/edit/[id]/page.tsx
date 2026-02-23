@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { BackButton } from "@/components/BackButton";
 import { Mail, ChevronDown, Bold, Italic, Underline, Strikethrough, List, ListOrdered, AlignLeft, AlignCenter, AlignRight, Link, Image, Table, Code, Quote, Minus, Maximize2, HelpCircle } from "lucide-react";
 
 interface EmailTemplateFormData {
@@ -694,7 +693,6 @@ export default function EditEmailTemplatePage() {
   if (error) {
     return (
       <div className="h-full p-6">
-        <div className="mb-4"><BackButton /></div>
         <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-4">
           <p className="font-medium">Error loading template</p>
           <p className="text-sm">{error}</p>
@@ -705,7 +703,6 @@ export default function EditEmailTemplatePage() {
 
   return (
     <div className="h-full p-6" style={{ overflow: 'visible', paddingRight: '360px' }}>
-      <div className="mb-4"><BackButton /></div>
       <div className="flex gap-6 items-start" style={{ position: 'relative' }}>
         {/* Main Section */}
         <div className="flex-1 bg-white rounded-md shadow overflow-hidden">

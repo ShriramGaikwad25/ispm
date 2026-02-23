@@ -10,7 +10,6 @@ import { customOption, loadUsers, loadIspmApps } from "@/components/MsAsyncData"
 import { asterisk, userGroups, excludeUsers, defaultExpression } from "@/utils/utils";
 import ToggleSwitch from "@/components/ToggleSwitch";
 import FileDropzone from "@/components/FileDropzone";
-import { BackButton } from "@/components/BackButton";
 import DateInput from "@/components/DatePicker";
 import { executeQuery, scheduleCampaign, updateCampaignSchedule } from "@/lib/api";
 import { apiRequestWithAuth, getCookie, COOKIE_NAMES } from "@/lib/auth";
@@ -863,10 +862,6 @@ const SchedulePage: React.FC = () => {
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="mb-6">
-        <BackButton />
-      </div>
-
       <div className="w-full">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900">Schedule Template</h1>

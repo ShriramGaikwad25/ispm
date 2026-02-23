@@ -27,7 +27,6 @@ import {
 import { MasterDetailModule } from "ag-grid-enterprise";
 import { ModuleRegistry } from "ag-grid-community";
 import "./AccessPolicy.css";
-import { BackButton } from "@/components/BackButton";
 import TemplateTab from "./TemplateTab";
 
 // Register AG Grid Enterprise modules
@@ -314,9 +313,6 @@ export default function ManageAccessPolicyPage() {
 
   return (
     <div className="p-6 bg-white min-h-screen">
-      <div className="mb-4">
-        <BackButton />
-      </div>
       <div className="mb-6">
         <div className="flex justify-between items-start mb-4">
           <div>

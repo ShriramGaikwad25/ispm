@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm, Control, FieldValues, UseFormSetValue, UseFormWatch } from "react-hook-form";
 import ReportFilterBuilder from "@/components/ReportFilterBuilder";
-import { ArrowLeft, Play, Download } from "lucide-react";
+import { Play, Download } from "lucide-react";
 import { executeQuery } from "@/lib/api";
 import dynamic from "next/dynamic";
 const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
@@ -605,13 +605,6 @@ export default function ReportFilterPage() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           {/* Header */}
           <div className="mb-4">
-            <button
-              onClick={handleBack}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-3 transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Back to Reports</span>
-            </button>
             {reportType && (
               <p className="text-sm text-gray-600 mt-1">
                 Report Type: <span className="font-bold">{reportType}</span>

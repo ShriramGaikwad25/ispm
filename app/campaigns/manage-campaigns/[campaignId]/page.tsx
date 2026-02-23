@@ -16,7 +16,6 @@ import VerticalBarChart from "@/components/VerticalBarChart";
 import ChampaignActionButton from "@/components/agTable/ChampaignActionButton";
 import AuditorsCorner from "../AuditorsCorner";
 import Revocations from "./Revocations";
-import { BackButton } from "@/components/BackButton";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 
 type CampaignReviewer = {
@@ -617,7 +616,6 @@ export default function ManageCampaigns() {
   return (
     <>
       <div className="mb-4 flex justify-between items-center">
-        <BackButton />
         <button
           title="Microsoft Teams"
           aria-label="Open in Microsoft Teams"

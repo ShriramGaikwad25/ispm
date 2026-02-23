@@ -44,7 +44,6 @@ import Link from "next/link";
 import Tabs from "@/components/tabs";
 import PolicyRiskDetails from "@/components/PolicyRiskDetails";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
-import { BackButton } from "@/components/BackButton";
 import UserDisplayName from "@/components/UserDisplayName";
 
 interface DataItem {
@@ -5441,9 +5440,6 @@ export default function ApplicationDetailPage() {
 
   return (
     <div>
-      <div className="mb-4">
-        <BackButton />
-      </div>
       <HorizontalTabs
         tabs={tabsData}
         activeClass="bg-[#15274E] text-white rounded-sm -ml-1"

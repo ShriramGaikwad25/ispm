@@ -9159,17 +9159,6 @@ export default function AddApplicationPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="w-full py-8 px-4">
-        {/* Back Button */}
-        <div className="mb-6">
-          <button
-            onClick={() => router.push("/settings/app-inventory")}
-            className="flex items-center text-gray-500 hover:text-gray-700"
-          >
-            <ChevronLeft className="w-6 h-6" />
-            <span className="ml-2">Back to App Inventory</span>
-          </button>
-        </div>
-
         {/* Edit mode: app summary card from IT Asset getapp */}
         {isCompleteIntegration && (
           <div className="mb-6 bg-white rounded-xl border border-gray-200 shadow-md overflow-hidden flex">

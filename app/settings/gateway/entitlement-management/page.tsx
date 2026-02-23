@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import { BackButton } from "@/components/BackButton";
 import { ShieldCheck } from "lucide-react";
 import ClientOnlyAgGrid from "@/components/ClientOnlyAgGrid";
 import CustomPagination from "@/components/agTable/CustomPagination";
@@ -274,8 +273,6 @@ export default function EntitlementManagementSettings() {
   return (
     <div className="h-full p-6">
       <div className="mx-auto min-h-[calc(100vh-120px)]">
-        <div className="mb-4"><BackButton /></div>
-
         <div className="bg-white rounded-md shadow overflow-hidden">
           {/* Header bar */}
           <div className="flex items-center justify-between px-5 py-3 text-white" style={{ backgroundColor: '#27B973' }}>

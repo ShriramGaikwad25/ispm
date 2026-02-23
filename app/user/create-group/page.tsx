@@ -287,17 +287,6 @@ export default function CreateUserGroupPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="w-full py-8 px-4">
-        {/* Back Button */}
-        <div className="mb-6">
-          <button
-            onClick={() => router.push("/user")}
-            className="flex items-center text-gray-500 hover:text-gray-700"
-          >
-            <ChevronLeft className="w-6 h-6" />
-            <span className="ml-2">Back to Users</span>
-          </button>
-        </div>
-
         {/* Progress Steps */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
           <div className="flex items-center justify-between">

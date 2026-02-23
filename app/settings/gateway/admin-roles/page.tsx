@@ -1,6 +1,5 @@
 "use client";
 
-import { BackButton } from "@/components/BackButton";
 import { UserPlus, LayoutTemplate, ChevronDown } from "lucide-react";
 import CustomPagination from "@/components/agTable/CustomPagination";
 import { useEffect, useState } from "react";
@@ -101,8 +100,6 @@ export default function GatewayAdminRolesSettings() {
   return (
     <div className="h-full p-6">
       <div className="mx-auto min-h-[calc(100vh-120px)]">
-        <div className="mb-4"><BackButton /></div>
-
         <div className="bg-white rounded-md shadow overflow-visible">
           {/* Header bar */}
           <div className="flex items-center justify-between px-5 py-3 text-white" style={{ backgroundColor: '#27B973' }}>

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { BackButton } from "@/components/BackButton";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
 export default function GatewayGeneralSettings() {
@@ -169,7 +168,6 @@ export default function GatewayGeneralSettings() {
   return (
     <div className="h-full p-6">
       <div className="w-full">
-        <div className="mb-4"><BackButton /></div>
         <h1 className="text-2xl font-bold text-gray-900 mb-6">General</h1>
         <div className="space-y-4">
           {cards.map((card, idx) => (

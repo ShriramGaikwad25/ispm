@@ -61,6 +61,74 @@ export function Navigation() {
       })
     : navigation;
 
+  // Back link config: first match wins (order = most specific first)
+  const getBackConfig = (): { href: string; label: string } | null => {
+    // App Inventory
+    if (pathname === '/settings/app-inventory/add-application' || pathname === '/settings/app-inventory/ai-assist-app') {
+      return { href: '/settings/app-inventory', label: 'Back to App Inventory' };
+    }
+    // Gateway - Email Templates (dynamic back for edit page)
+    const emailTemplatesEditMatch = pathname.match(/^\/settings\/gateway\/email-templates\/edit\/([^/]+)$/);
+    if (emailTemplatesEditMatch) {
+      return { href: `/settings/gateway/email-templates/${emailTemplatesEditMatch[1]}`, label: 'Back to Email Template' };
+    }
+    if (pathname === '/settings/gateway/email-templates/new') {
+      return { href: '/settings/gateway/email-templates', label: 'Back to Email Templates' };
+    }
+    if (pathname.match(/^\/settings\/gateway\/email-templates\/[^/]+$/) && !pathname.includes('/edit/')) {
+      return { href: '/settings/gateway/email-templates', label: 'Back to Email Templates' };
+    }
+    if (pathname === '/settings/gateway/email-templates') {
+      return { href: '/settings/gateway', label: 'Back to Gateway' };
+    }
+    // Gateway - other pages
+    if (pathname === '/settings/gateway/manage-access-policy/new') {
+      return { href: '/settings/gateway/manage-access-policy', label: 'Back to Manage Access Policy' };
+    }
+    if (pathname === '/settings/gateway/entitlement-management' || pathname === '/settings/gateway/workflow-builder' ||
+        pathname === '/settings/gateway/sam' || pathname === '/settings/gateway/native-users' ||
+        pathname === '/settings/gateway/admin-roles' || pathname === '/settings/gateway/custom-schema' ||
+        pathname === '/settings/gateway/general' || pathname === '/settings/gateway/scheduler') {
+      return { href: '/settings/gateway', label: 'Back to Gateway' };
+    }
+    if (pathname.startsWith('/settings/gateway/manage-access-policy')) {
+      return { href: '/settings/gateway', label: 'Back to Gateway' };
+    }
+    // App Owner / Access Review
+    if (pathname === '/app-owner') {
+      return { href: '/access-review', label: 'Back to Access Review' };
+    }
+    // Users
+    if (pathname === '/user/create-group') {
+      return { href: '/user', label: 'Back to Users' };
+    }
+    if (pathname.startsWith('/user/') && pathname !== '/user' && pathname !== '/user/create-group') {
+      return { href: '/user', label: 'Back to Users' };
+    }
+    if (pathname === '/profile') {
+      return { href: '/user', label: 'Back to Users' };
+    }
+    // Campaigns
+    if (pathname.startsWith('/campaigns/schedule/') || pathname.startsWith('/campaigns/manage-campaigns/') || pathname.startsWith('/campaigns/new')) {
+      return { href: '/campaigns', label: 'Back to Campaigns' };
+    }
+    // Applications
+    if (pathname.startsWith('/applications/') && pathname !== '/applications') {
+      return { href: '/applications', label: 'Back to Applications' };
+    }
+    // Entitlement Owner
+    if (pathname === '/entitlement-owner') {
+      return { href: '/access-review', label: 'Back to Access Review' };
+    }
+    // Reports
+    if (pathname === '/reports/filter') {
+      return { href: '/reports', label: 'Back to Reports' };
+    }
+    return null;
+  };
+
+  const backConfig = getBackConfig();
+
   // Don't render if sidebar is hidden
   if (!isVisible) {
     return null;
@@ -83,6 +151,19 @@ export function Navigation() {
         role="navigation"
         aria-label="Primary navigation"
       >
+        {/* Back - compact, before search */}
+        {backConfig && (
+          <div className="w-full mb-2">
+            <Link
+              href={backConfig.href}
+              className="flex items-center gap-2 px-2 py-1.5 rounded-md border border-blue-400 hover:bg-blue-50 text-gray-600 hover:text-gray-900 text-xs font-medium min-w-0"
+              title={backConfig.label}
+            >
+              <ChevronLeft className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+              {isSidebarExpanded && <span className="truncate">{backConfig.label}</span>}
+            </Link>
+          </div>
+        )}
         <div className="w-full mb-3">
           {isSidebarExpanded ? (
             <div className="relative">
