@@ -1087,6 +1087,14 @@ const OpenTab: React.FC = () => {
               window.removeEventListener("resize", handleResize);
             });
           }}
+          onFirstDataRendered={(params) => {
+            // Expand all rows so description is visible on the next row by default
+            params.api.forEachNode((node) => node.setExpanded(true));
+          }}
+          onRowDataUpdated={(params) => {
+            // Keep description rows expanded when data updates (e.g. pagination, search)
+            params.api.forEachNode((node) => node.setExpanded(true));
+          }}
           pagination={false}
           paginationPageSize={pageSize}
           paginationPageSizeSelector={pageSizeSelector}
