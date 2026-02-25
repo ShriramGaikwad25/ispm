@@ -160,6 +160,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
     remediatedCount: 0,
   });
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
+  const [guidedPathHovered, setGuidedPathHovered] = useState<string | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -624,6 +625,12 @@ const TreeClient: React.FC<TreeClientProps> = ({
     pending: number;
     percentage: number;
   } | null>(null);
+
+  // Guided Path modal state
+  const [guidedPathModalOpen, setGuidedPathModalOpen] = useState(false);
+  const [guidedPathModalFilter, setGuidedPathModalFilter] = useState<"Dormant" | "Access">(
+    "Dormant"
+  );
   useEffect(() => {
     try {
       const raw = localStorage.getItem("selectedCampaignSummary");
@@ -1853,6 +1860,29 @@ const TreeClient: React.FC<TreeClientProps> = ({
     });
   }, [filteredEntitlements, entitlementsPageSize]);
 
+  // Rows to show in Guided Path modal (Dormant / All Access)
+  const guidedPathModalRows = useMemo(() => {
+    if (!filteredEntitlements || filteredEntitlements.length === 0) return [] as any[];
+    if (guidedPathModalFilter === "Dormant") {
+      return filteredEntitlements.filter((entitlement: any) => {
+        const lastLogin = entitlement.lastLogin;
+        const accessed = String(entitlement.accessedWithinAMonth || "").toLowerCase();
+
+        if (accessed.includes("not accessed") || accessed.includes("no")) return true;
+        if (lastLogin) {
+          const d = new Date(lastLogin);
+          if (!isNaN(d.getTime())) {
+            const diffDays = (Date.now() - d.getTime()) / (1000 * 60 * 60 * 24);
+            return diffDays > 30;
+          }
+        }
+        return false;
+      });
+    }
+    // Access = all filtered entitlements
+    return filteredEntitlements;
+  }, [filteredEntitlements, guidedPathModalFilter]);
+
   // Robust resize function that checks container readiness
   const resizeColumnsWithRetry = useCallback((maxRetries = 5, delay = 200) => {
     if (!entitlementsGridApiRef.current || !entitlementsGridContainerRef.current) {
@@ -2441,8 +2471,10 @@ const TreeClient: React.FC<TreeClientProps> = ({
       <div className="flex-1 flex flex-col min-w-0 overflow-auto" style={{ marginLeft: 0, padding: '0 1rem 1rem 1rem' }}>
         {selectedUser && (
           <>
-            {/* User Information Card */}
-            <div className="bg-white border border-gray-200 rounded-lg px-2 pb-2 pt-0 shadow-sm w-full mb-4">
+            <div className="flex flex-col lg:flex-row gap-4 mb-4 items-stretch">
+              {/* User Information Card - 2/3 */}
+              <div className="w-full lg:w-2/3 flex">
+            <div className="bg-white border border-gray-200 rounded-lg px-2 pb-2 pt-0 shadow-sm w-full flex-1">
               {/* Upper section: Name, Status, Buttons */}
               <div className="flex items-center justify-between gap-3 bg-gray-50 p-3 rounded-md">
                 <div className="flex items-center gap-3 min-w-0">
@@ -2453,15 +2485,20 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       </div>
                     )}
                   </div>
-                  <div className="flex flex-col min-w-0">
+                    <div className="flex flex-col min-w-0">
                     <div className="flex items-center gap-3 flex-wrap">
                       <h4 className="text-lg font-bold text-gray-900 truncate">
-                        <UserDisplayName
-                          displayName={selectedUser.fullName || "Unknown User"}
-                          userType={selectedUser.userType}
-                          employeetype={selectedUser.employeetype}
-                          tags={selectedUser.tags}
-                        />
+                        <span className="flex items-center gap-2">
+                          {(selectedUser.status || "ACTIVE").toLowerCase() === "active" && (
+                            <span className="w-2 h-2 rounded-full bg-green-500" />
+                          )}
+                          <UserDisplayName
+                            displayName={selectedUser.fullName || "Unknown User"}
+                            userType={selectedUser.userType}
+                            employeetype={selectedUser.employeetype}
+                            tags={selectedUser.tags}
+                          />
+                        </span>
                       </h4>
                       <div className="flex items-center space-x-2 ml-4">
                         <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
@@ -2504,28 +2541,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span className="text-xs font-medium text-gray-500">
-                      Status:
-                    </span>
-                    <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-800">
-                      {selectedUser.status || "ACTIVE"}
-                    </span>
-                  </div>
-                  <button
-                    className="flex items-center space-x-2 px-3 py-2 bg-[#27B973] text-white rounded-md hover:bg-purple-700 transition-all duration-200 text-xs font-medium"
-                    title="AI Assist Analysis"
-                  >
-                    <svg
-                      className="w-4 h-4"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                    >
-                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
-                    </svg>
-                    <span>AI Assist</span>
-                  </button>
                         <button
                           ref={menuButtonRef}
                           onClick={toggleMenu}
@@ -2579,66 +2594,68 @@ const TreeClient: React.FC<TreeClientProps> = ({
 
               {/* Lower section: Filters and Controls */}
               <div className="mt-3 pt-3 border-t border-gray-200">
-                <div className="flex items-center gap-2 mb-3 flex-wrap">
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-wrap gap-2 mb-3 w-full">
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
                     <span className="text-xs font-bold text-gray-500">
                       Filters:
                     </span>
                   </div>
-                  {filterOptions.map((filter) => {
-                    const isSelected = selectedFilters.includes(filter.name);
-                    // Get corresponding count from certAnalytics
-                    let count = 0;
-                    if (certAnalytics) {
-                      if (filter.name === "Dormant Access") {
-                        count = certAnalytics.dormant_count || 0;
-                      } else if (filter.name === "Violation") {
-                        count = certAnalytics.violations_count || 0;
-                      } else if (filter.name === "High Risk") {
-                        count = certAnalytics.highriskentitlement_count || 0;
-                      } else if (filter.name === "Delta Access") {
-                        count = certAnalytics.newaccess_count || 0;
+                  <div className="flex flex-wrap gap-2 flex-1">
+                    {filterOptions.map((filter) => {
+                      const isSelected = selectedFilters.includes(filter.name);
+                      // Get corresponding count from certAnalytics
+                      let count = 0;
+                      if (certAnalytics) {
+                        if (filter.name === "Dormant Access") {
+                          count = certAnalytics.dormant_count || 0;
+                        } else if (filter.name === "Violation") {
+                          count = certAnalytics.violations_count || 0;
+                        } else if (filter.name === "High Risk") {
+                          count = certAnalytics.highriskentitlement_count || 0;
+                        } else if (filter.name === "Delta Access") {
+                          count = certAnalytics.newaccess_count || 0;
+                        }
                       }
-                    }
-                    return (
-                      <div
-                        key={filter.name}
-                        className={`
-                          px-2 py-1 rounded-md border cursor-pointer transition-all duration-200 text-xs ml-2 flex items-center gap-1.5
-                          ${
-                            isSelected
-                              ? `${filter.color} shadow-sm`
-                              : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
-                          }
-                        `}
-                      >
-                        <span 
-                          className="font-medium flex-1"
-                          onClick={() => handleFilterToggle(filter.name)}
+                      return (
+                        <div
+                          key={filter.name}
+                          className={`
+                            px-3 py-1 rounded-md border cursor-pointer transition-all duration-200 text-xs flex items-center justify-between gap-1.5 min-w-[120px]
+                            ${
+                              isSelected
+                                ? `${filter.color} shadow-sm`
+                                : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
+                            }
+                          `}
                         >
-                          {filter.name}
-                          {count > 0 && <span className="ml-1 font-bold">({count})</span>}
-                        </span>
-                        {isSelected && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleFilterToggle(filter.name);
-                            }}
-                            className="ml-1 hover:bg-black/10 rounded-full p-0.5 transition-colors flex-shrink-0"
-                            title="Remove filter"
+                          <span
+                            className="font-medium flex-1"
+                            onClick={() => handleFilterToggle(filter.name)}
                           >
-                            <X size={12} className="text-current" />
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
+                            {filter.name}
+                            {count > 0 && <span className="ml-1 font-bold">({count})</span>}
+                          </span>
+                          {isSelected && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleFilterToggle(filter.name);
+                              }}
+                              className="ml-1 hover:bg-black/10 rounded-full p-0.5 transition-colors flex-shrink-0"
+                              title="Remove filter"
+                            >
+                              <X size={12} className="text-current" />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
                 {/* Entitlements Table Controls */}
-                <div className="flex items-center justify-between flex-wrap gap-3">
-                  <div className="flex items-center gap-4 flex-wrap">
+                <div className="flex items-center justify-between flex-wrap gap-3 w-full">
+                  <div className="flex items-center gap-4 flex-wrap w-full">
                     {!isReadOnly && (
                       <SelectAll
                         gridApi={entitlementsGridApiRef.current}
@@ -2662,7 +2679,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     <input
                       type="text"
                       placeholder="Search entitlements..."
-                      className="border rounded px-3 py-1"
+                      className="border rounded px-3 py-1 w-64"
                       value={entitlementSearch}
                       onChange={(e) => {
                         setEntitlementSearch(e.target.value);
@@ -2695,6 +2712,135 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       }}
                     />
                   </div> */}
+                </div>
+              </div>
+            </div>
+              </div>
+
+              {/* AI Assist - Quick Wins - separate element, 1/3, same height as User card */}
+              <div className="w-full lg:w-1/3 flex">
+                <div className="bg-white border border-gray-200 rounded-lg px-3 py-3 shadow-sm w-full h-full flex flex-col">
+                  <div className="flex justify-between items-center mb-3 flex-shrink-0">
+                    <h2 className="text-sm font-medium text-gray-800">AI Assist - Quick Wins</h2>
+                  </div>
+                  <div className="flex flex-col gap-4 flex-1 min-h-0">
+                    {/* Card 1 */}
+                    <div
+                      className="relative flex-1 min-h-[5rem] cursor-pointer overflow-hidden rounded-lg border border-blue-200 bg-blue-50 shadow-sm"
+                      onMouseEnter={() => setGuidedPathHovered("card1")}
+                      onMouseLeave={() =>
+                        setGuidedPathHovered((prev) => (prev === "card1" ? null : prev))
+                      }
+                    >
+                      {/* First page (default) */}
+                      <div className="absolute inset-0 flex flex-col items-center justify-center px-3 text-center">
+                        <p className="text-sm font-semibold text-blue-800">Speed</p>
+                        <span className="mt-0.5 text-xs font-bold text-blue-600">
+                          35% Completion
+                        </span>
+                      </div>
+                      {/* Second page content on hover with diagonal sweep from top-right to bottom-left */}
+                      <div className="absolute inset-0 flex pointer-events-none">
+                        <div
+                          className="w-full h-full flex flex-col justify-between px-3 py-2 text-white rounded-lg shadow-sm"
+                          style={{
+                            background:
+                              "linear-gradient(135deg, rgba(37, 99, 235, 0.95), rgba(59, 130, 246, 0.9))",
+                            transform:
+                              guidedPathHovered === "card1"
+                                ? "translate(0, 0)"
+                                : "translate(120%, -120%)",
+                            transition: "transform 0.5s ease-out",
+                          }}
+                        >
+                          <p className="text-[11px] leading-snug">
+                            Quick review of recommended access through peer analysis with 70% match.
+                            Reduce effort by 3 hours.
+                          </p>
+                          <div className="flex gap-2 mt-2">
+                            <button
+                              className="px-2 py-0.5 text-[10px] font-medium rounded bg-white/90 text-blue-700 pointer-events-auto"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setGuidedPathModalFilter("Dormant");
+                                setGuidedPathModalOpen(true);
+                              }}
+                            >
+                              Approve
+                            </button>
+                            <button
+                              className="px-2 py-0.5 text-[10px] font-medium rounded border border-white/80 text-white bg-transparent pointer-events-auto"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setGuidedPathModalFilter("Access");
+                                setGuidedPathModalOpen(true);
+                              }}
+                            >
+                              Review
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Card 2 */}
+                    <div
+                      className="relative flex-1 min-h-[5rem] cursor-pointer overflow-hidden rounded-lg border border-emerald-200 bg-emerald-50 shadow-sm"
+                      onMouseEnter={() => setGuidedPathHovered("card2")}
+                      onMouseLeave={() =>
+                        setGuidedPathHovered((prev) => (prev === "card2" ? null : prev))
+                      }
+                    >
+                      {/* First page (default) */}
+                      <div className="absolute inset-0 flex flex-col items-center justify-center px-3 text-center">
+                        <p className="text-sm font-semibold text-emerald-800">Low Risk</p>
+                        <span className="mt-0.5 text-xs font-bold text-emerald-600">
+                          25% Completion
+                        </span>
+                      </div>
+                      {/* Second page content on hover with diagonal sweep from top-right to bottom-left */}
+                      <div className="absolute inset-0 flex pointer-events-none">
+                        <div
+                          className="w-full h-full flex flex-col justify-between px-3 py-2 text-white rounded-lg shadow-sm"
+                          style={{
+                            background:
+                              "linear-gradient(135deg, rgba(5, 150, 105, 0.95), rgba(16, 185, 129, 0.9))",
+                            transform:
+                              guidedPathHovered === "card2"
+                                ? "translate(0, 0)"
+                                : "translate(120%, -120%)",
+                            transition: "transform 0.5s ease-out",
+                          }}
+                        >
+                          <p className="text-[11px] leading-snug">
+                            Quick review of existing access approved in previous cycles with low
+                            risk items. Reduce effort by 2 hours.
+                          </p>
+                          <div className="flex gap-2 mt-2">
+                            <button
+                              className="px-2 py-0.5 text-[10px] font-medium rounded bg-white/90 text-emerald-700 pointer-events-auto"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setGuidedPathModalFilter("Dormant");
+                                setGuidedPathModalOpen(true);
+                              }}
+                            >
+                              Approve
+                            </button>
+                            <button
+                              className="px-2 py-0.5 text-[10px] font-medium rounded border border-white/80 text-white bg-transparent pointer-events-auto"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setGuidedPathModalFilter("Access");
+                                setGuidedPathModalOpen(true);
+                              }}
+                            >
+                              Review
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2884,6 +3030,90 @@ const TreeClient: React.FC<TreeClientProps> = ({
           </div>
         )}
       </div>
+      {/* AI Assist - Quick Wins modal for Dormant / Access table */}
+      {guidedPathModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div
+            className="bg-white rounded-lg shadow-xl mx-auto flex flex-col"
+            style={{ width: "90vw", maxHeight: "90vh" }}
+          >
+            <div className="flex items-center justify-between border-b px-4 py-3">
+              <h3 className="text-sm font-semibold text-gray-800">
+                AI Assist - Quick Wins –{" "}
+                {guidedPathModalFilter === "Dormant" ? "Dormant Access" : "All Access"}
+              </h3>
+              <button
+                className="text-gray-400 hover:text-gray-600 text-lg leading-none"
+                onClick={() => setGuidedPathModalOpen(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2 border-b">
+              <span className="text-xs font-medium text-gray-500">Filter:</span>
+              <button
+                className={`px-3 py-1 text-xs rounded-full border ${
+                  guidedPathModalFilter === "Dormant"
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-700 border-gray-300"
+                }`}
+                onClick={() => setGuidedPathModalFilter("Dormant")}
+              >
+                Dormant Access
+              </button>
+              <button
+                className={`px-3 py-1 text-xs rounded-full border ${
+                  guidedPathModalFilter === "Access"
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-700 border-gray-300"
+                }`}
+                onClick={() => setGuidedPathModalFilter("Access")}
+              >
+                All Access
+              </button>
+              <span className="ml-auto text-[11px] text-gray-500">
+                {guidedPathModalRows.length} item{guidedPathModalRows.length === 1 ? "" : "s"}
+              </span>
+            </div>
+            <div className="px-4 py-3 overflow-auto">
+              {guidedPathModalRows.length === 0 ? (
+                <div className="text-xs text-gray-500 py-6 text-center">
+                  No data available for the selected filter.
+                </div>
+              ) : (
+                <div className="w-full">
+                  <AgGridReact
+                    rowData={guidedPathModalRows}
+                    columnDefs={entitlementsColumnDefs}
+                    defaultColDef={defaultColDef}
+                    domLayout="autoHeight"
+                    rowSelection={{ mode: "multiRow" }}
+                    suppressSizeToFit={false}
+                    style={{ width: "100%", minWidth: 0 }}
+                    isRowSelectable={(node) => !node?.data?.__isDescRow}
+                    getRowId={(params: GetRowIdParams) => {
+                      const baseId =
+                        params.data.lineItemId ||
+                        params.data.accountLineItemId ||
+                        params.data.taskId ||
+                        `${params.data.applicationName}-${params.data.entitlementName}`;
+                      return params.data.__isDescRow ? `${baseId}-desc` : baseId;
+                    }}
+                    getRowClass={(params) =>
+                      params?.data?.__isDescRow ? "ag-row-custom ag-row-desc" : "ag-row-custom"
+                    }
+                    pagination={false}
+                    overlayLoadingTemplate={`<span class="ag-overlay-loading-center">⏳ Loading entitlements...</span>`}
+                    overlayNoRowsTemplate={`<span class="ag-overlay-loading-center">No entitlements found for this filter.</span>`}
+                    className="ag-main"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <DelegateActionModal
         isModalOpen={isDelegateModalOpen}
         closeModal={() => setIsDelegateModalOpen(false)}

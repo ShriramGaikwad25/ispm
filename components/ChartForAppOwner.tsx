@@ -1,5 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { formatDateMMDDYYSlashes } from "../utils/utils";
 import ProgressDonutChart from "./ProgressDonutChart";
+import AgGridReact from "./ClientOnlyAgGrid";
+import type { ColDef } from "ag-grid-community";
 
 interface DataItem {
   label: string;
@@ -16,6 +19,11 @@ interface ChartAppOwnerComponentProps {
   analyticsData?: any;
   analyticsLoading?: boolean;
   certificationId?: string;
+  // For Guided Path popup: reuse exact grid from AppOwner table
+  entitlementsData?: any[];
+  entitlementsColumnDefs?: ColDef[];
+  entitlementsDefaultColDef?: ColDef;
+  entitlementsAutoGroupColumnDef?: ColDef;
 }
 
 const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
@@ -26,6 +34,10 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
   analyticsData,
   analyticsLoading = false,
   certificationId,
+  entitlementsData,
+  entitlementsColumnDefs,
+  entitlementsDefaultColDef,
+  entitlementsAutoGroupColumnDef,
 }) => {
   // Colors tuned to match the screenshot
   const allData: DataItem[] = [
@@ -65,6 +77,9 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
 
   // Track selection for left and right columns separately
   const [selected, setSelected] = useState<{ [key: string]: number | null }>({});
+
+  // Track which Guided Path card is hovered for flip animation
+  const [hoveredCard, setHoveredCard] = useState<string | null>(null);
   
   // State for localStorage data to avoid SSR issues
   const [localStorageData, setLocalStorageData] = useState<{
@@ -162,10 +177,29 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
     return allData.find((d) => d.label === itemLabel)?.value ?? 0;
   };
 
+  // Guided Path modal state
+  const [guidedPathModalOpen, setGuidedPathModalOpen] = useState(false);
+  const [guidedPathModalFilter, setGuidedPathModalFilter] = useState<"Dormant" | "Access">(
+    "Dormant"
+  );
+
+  const guidedPathModalRows = useMemo(() => {
+    const base = Array.isArray(entitlementsData) && entitlementsData.length > 0 ? entitlementsData : rowData;
+    if (!Array.isArray(base)) return [] as any[];
+    if (guidedPathModalFilter === "Dormant") {
+      return base.filter((row: any) => {
+        const flag = String(row.isdormant || row.isDormant || "").toLowerCase();
+        return flag === "y" || flag === "yes" || flag === "true";
+      });
+    }
+    // Access = show all rows
+    return base;
+  }, [rowData, entitlementsData, guidedPathModalFilter]);
+
   return (
-    <div className="flex gap-4">
-      {/* Progress Summary - 1/3 */}
-      <div className="w-1/3 bg-white border border-gray-200 rounded-lg p-4">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      {/* Progress Summary */}
+      <div className="bg-white border border-gray-200 rounded-lg p-4 lg:col-span-3">
         <div className="flex justify-between items-center mb-3">
           <h2 className="text-base font-medium text-gray-800">Progress Summary</h2>
           <button className="text-gray-400 hover:text-gray-600" aria-label="More">
@@ -268,8 +302,8 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
         })()}
       </div>
 
-      {/* Interactive Filters - 2/3 */}
-      <div className="w-2/3 bg-white border border-gray-200 rounded-lg p-4">
+      {/* Interactive Filters - wider than the other two */}
+      <div className="bg-white border border-gray-200 rounded-lg p-4 lg:col-span-5">
         <div className="flex justify-between items-center mb-3">
           <h2 className="text-base font-medium text-gray-800">Filters</h2>
           <button className="text-gray-400 hover:text-gray-600" aria-label="More">
@@ -300,14 +334,14 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
                         backgroundColor: isSelected ? (item.color as string) : "transparent",
                       }}
                     ></div>
-                    <span className={`text-sm ${isSelected ? "text-blue-900" : "text-gray-700"}`}>
+                    <span className={`text-xs ${isSelected ? "text-blue-900" : "text-gray-700"}`}>
                       {item.label}
                     </span>
                   </div>
                   <span
-                    className={`text-sm font-medium ${
+                    className={`text-xs font-medium ${
                       isSelected ? "text-blue-700 border-blue-300" : "text-gray-900 border-gray-300"
-                    } bg-white border px-2 py-1 rounded text-xs min-w-[20px] text-center`}
+                    } bg-white border px-2 py-1 rounded min-w-[20px] text-center`}
                   >
                     {analyticsLoading ? "..." : getDisplayValue(item.label, isSelected)}
                   </span>
@@ -315,7 +349,7 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
               );
             })}
             <button
-              className="flex items-center gap-1 text-sm text-blue-600 hover:underline mt-4"
+              className="flex items-center gap-1 text-xs text-blue-600 hover:underline mt-4"
               onClick={() => {
                 setSelected({ left: null, right: null });
                 if (onFilterChange) {
@@ -364,14 +398,14 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
                         backgroundColor: isSelected ? (item.color as string) : "transparent",
                       }}
                     ></div>
-                    <span className={`text-sm ${isSelected ? "text-blue-900" : "text-gray-700"}`}>
+                    <span className={`text-xs ${isSelected ? "text-blue-900" : "text-gray-700"}`}>
                       {item.label}
                     </span>
                   </div>
                   <span
-                    className={`text-sm font-medium ${
+                    className={`text-xs font-medium ${
                       isSelected ? "text-blue-700 border-blue-300" : "text-gray-900 border-gray-300"
-                    } bg-white border px-2 py-1 rounded text-xs min-w-[20px] text-center`}
+                    } bg-white border px-2 py-1 rounded min-w-[20px] text-center`}
                   >
                     {analyticsLoading ? "..." : getDisplayValue(item.label, isSelected)}
                   </span>
@@ -381,6 +415,188 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
           </div>
         </div>
       </div>
+
+      {/* AI Assist - Quick Wins - two numbered cards with diagonal hover sweep */}
+      <div className="bg-white border border-gray-200 rounded-lg p-4 lg:col-span-4">
+        <div className="flex justify-between items-center mb-3">
+        <h2 className="text-base font-medium text-gray-800">AI Assist - Quick Wins</h2>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3">
+          {/* Card 1 */}
+          <div
+            className="relative h-28 cursor-pointer overflow-hidden rounded-lg border border-blue-200 bg-blue-50 shadow-sm"
+            onMouseEnter={() => setHoveredCard("card1")}
+            onMouseLeave={() => setHoveredCard((prev) => (prev === "card1" ? null : prev))}
+          >
+            {/* First page (default) */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center px-4 text-center">
+              <p className="text-sm font-semibold text-blue-800">Speed</p>
+              <span className="mt-1 text-xs font-bold text-blue-600">35% Completion</span>
+            </div>
+            {/* Second page content on hover with diagonal sweep from top-right to bottom-left */}
+            <div className="absolute inset-0 flex pointer-events-none">
+              <div
+                className="w-full h-full flex flex-col justify-between px-4 py-3 text-white rounded-lg shadow-sm"
+                style={{
+                  background:
+                    "linear-gradient(135deg, rgba(37, 99, 235, 0.95), rgba(59, 130, 246, 0.9))",
+                  transform:
+                    hoveredCard === "card1" ? "translate(0, 0)" : "translate(120%, -120%)",
+                  transition: "transform 0.5s ease-out",
+                }}
+              >
+                <p className="text-xs leading-snug">
+                  Quick review of recommended access through peer analysis with 70% match. Reduce
+                  effort by 3 hours.
+                </p>
+                <div className="flex gap-2 mt-2">
+                  <button
+                    className="px-3 py-1 text-xs font-medium rounded bg-white/90 text-blue-700 pointer-events-auto"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setGuidedPathModalFilter("Dormant");
+                      setGuidedPathModalOpen(true);
+                    }}
+                  >
+                    Approve
+                  </button>
+                  <button
+                    className="px-3 py-1 text-xs font-medium rounded border border-white/80 text-white bg-transparent pointer-events-auto"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setGuidedPathModalFilter("Access");
+                      setGuidedPathModalOpen(true);
+                    }}
+                  >
+                    Review
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2 */}
+          <div
+            className="relative h-28 cursor-pointer overflow-hidden rounded-lg border border-emerald-200 bg-emerald-50 shadow-sm"
+            onMouseEnter={() => setHoveredCard("card2")}
+            onMouseLeave={() => setHoveredCard((prev) => (prev === "card2" ? null : prev))}
+          >
+            {/* First page (default) */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center px-4 text-center">
+              <p className="text-sm font-semibold text-emerald-800">Low Risk</p>
+              <span className="mt-1 text-xs font-bold text-emerald-600">25% Completion</span>
+            </div>
+            {/* Second page content on hover with diagonal sweep from top-right to bottom-left */}
+            <div className="absolute inset-0 flex pointer-events-none">
+              <div
+                className="w-full h-full flex flex-col justify-between px-4 py-3 text-white rounded-lg shadow-sm"
+                style={{
+                  background:
+                    "linear-gradient(135deg, rgba(5, 150, 105, 0.95), rgba(16, 185, 129, 0.9))",
+                  transform:
+                    hoveredCard === "card2" ? "translate(0, 0)" : "translate(120%, -120%)",
+                  transition: "transform 0.5s ease-out",
+                }}
+              >
+                <p className="text-xs leading-snug">
+                  Quick review of existing access approved in previous cycles with low risk items.
+                  Reduce effort by 2 hours.
+                </p>
+                <div className="flex gap-2 mt-2">
+                  <button
+                    className="px-3 py-1 text-xs font-medium rounded bg-white/90 text-emerald-700 pointer-events-auto"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setGuidedPathModalFilter("Dormant");
+                      setGuidedPathModalOpen(true);
+                    }}
+                  >
+                    Approve
+                  </button>
+                  <button
+                    className="px-3 py-1 text-xs font-medium rounded border border-white/80 text-white bg-transparent pointer-events-auto"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setGuidedPathModalFilter("Access");
+                      setGuidedPathModalOpen(true);
+                    }}
+                  >
+                    Review
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* AI Assist - Quick Wins modal for Dormant / Access table */}
+      {guidedPathModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div
+            className="bg-white rounded-lg shadow-xl mx-auto flex flex-col"
+            style={{ width: "90vw", maxWidth: "1600px", maxHeight: "95vh" }}
+          >
+            <div className="flex items-center justify-between border-b px-4 py-3">
+              <h3 className="text-sm font-semibold text-gray-800">
+                AI Assist - Quick Wins –{" "}
+                {guidedPathModalFilter === "Dormant" ? "Dormant Access" : "All Access"}
+              </h3>
+              <button
+                className="text-gray-400 hover:text-gray-600 text-lg leading-none"
+                onClick={() => setGuidedPathModalOpen(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2 border-b">
+              <span className="text-xs font-medium text-gray-500">Filter:</span>
+              <button
+                className={`px-3 py-1 text-xs rounded-full border ${
+                  guidedPathModalFilter === "Dormant"
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-700 border-gray-300"
+                }`}
+                onClick={() => setGuidedPathModalFilter("Dormant")}
+              >
+                Dormant Access
+              </button>
+              <button
+                className={`px-3 py-1 text-xs rounded-full border ${
+                  guidedPathModalFilter === "Access"
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-700 border-gray-300"
+                }`}
+                onClick={() => setGuidedPathModalFilter("Access")}
+              >
+                All Access
+              </button>
+              <span className="ml-auto text-[11px] text-gray-500">
+                {guidedPathModalRows.length} item{guidedPathModalRows.length === 1 ? "" : "s"}
+              </span>
+            </div>
+            <div className="px-4 py-3 overflow-auto">
+              {guidedPathModalRows.length === 0 ? (
+                <div className="text-xs text-gray-500 py-6 text-center">
+                  No data available for the selected filter.
+                </div>
+              ) : (
+                <div className="w-full ag-theme-alpine" style={{ height: "70vh" }}>
+                  <AgGridReact
+                    rowData={guidedPathModalRows}
+                    columnDefs={entitlementsColumnDefs}
+                    defaultColDef={entitlementsDefaultColDef}
+                    autoGroupColumnDef={entitlementsAutoGroupColumnDef}
+                    domLayout="normal"
+                    suppressSizeToFit={false}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

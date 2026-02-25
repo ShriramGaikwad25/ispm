@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, Check, Upload } from "lucide-react";
 import { executeQuery } from "@/lib/api";
 import { useForm, Control, FieldValues, UseFormSetValue, UseFormWatch } from "react-hook-form";
 import ExpressionBuilder from "@/components/ExpressionBuilder";
+import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
 
 interface User {
   name: string;
@@ -32,6 +33,7 @@ interface FormData {
 
 export default function CreateUserGroupPage() {
   const router = useRouter();
+  const { isVisible: isSidebarVisible, sidebarWidthPx } = useLeftSidebar();
   const [currentStep, setCurrentStep] = useState(1);
   const [validationStatus, setValidationStatus] = useState<boolean[]>([
     false,
@@ -286,39 +288,20 @@ export default function CreateUserGroupPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="w-full py-8 px-4">
-        {/* Progress Steps */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-          <div className="flex items-center justify-between">
-            {steps.map((step, index) => (
-              <div key={step.id} className="flex items-center">
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                    currentStep >= step.id
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-200 text-gray-600"
-                  }`}
-                >
-                  {currentStep > step.id ? <Check className="w-4 h-4" /> : step.id}
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm font-medium text-gray-900">{step.title}</p>
-                </div>
-                {index < steps.length - 1 && (
-                  <div className="flex-1 h-0.5 bg-gray-200 mx-4" />
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Navigation Buttons */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-          <div className="flex justify-between">
+      {/* Fixed step bar below header; aligned with content area */}
+      <div
+        className="fixed top-[60px] z-20 bg-white border-b border-gray-200 shadow-sm px-6 py-4"
+        style={{
+          left: isSidebarVisible ? sidebarWidthPx : 0,
+          right: 0,
+          transition: "left 300ms ease-in-out",
+        }}
+      >
+        <div className="flex items-center gap-4 max-w-full">
             <button
               onClick={handlePrevious}
               disabled={currentStep === 1}
-              className={`flex items-center px-4 py-2 rounded-md text-sm font-medium ${
+              className={`flex items-center px-4 py-2 rounded-md text-sm font-medium shrink-0 ${
                 currentStep === 1
                   ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                   : "bg-gray-200 text-gray-700 hover:bg-gray-300"
@@ -328,7 +311,31 @@ export default function CreateUserGroupPage() {
               Previous
             </button>
 
-            <div className="flex gap-3">
+            <div className="flex-1 flex items-center min-w-0">
+              {steps.map((step, index) => (
+                <React.Fragment key={step.id}>
+                  <div className="flex items-center shrink-0">
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium border shrink-0 ${
+                        currentStep >= step.id
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-white text-gray-600 border-gray-300"
+                      }`}
+                    >
+                      {currentStep > step.id ? <Check className="w-4 h-4" /> : step.id}
+                    </div>
+                    <span className="ml-3 text-sm font-medium text-gray-900 whitespace-nowrap">
+                      {step.title}
+                    </span>
+                  </div>
+                  {index < steps.length - 1 && (
+                    <div className="flex-1 h-0.5 bg-gray-200 mx-4 min-w-[16px]" aria-hidden />
+                  )}
+                </React.Fragment>
+              ))}
+            </div>
+
+            <div className="shrink-0">
               {currentStep < 3 ? (
                 <button
                   onClick={handleNext}
@@ -355,6 +362,10 @@ export default function CreateUserGroupPage() {
           </div>
         </div>
 
+        {/* Spacer so content is not hidden under fixed step bar */}
+        <div className="h-[72px]" aria-hidden />
+
+        <div className="w-full py-8 px-4">
         {/* Form Content */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
           {currentStep === 1 && (

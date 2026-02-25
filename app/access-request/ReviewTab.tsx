@@ -11,6 +11,19 @@ interface ReviewTabProps {
   catalogRoles?: Role[];
 }
 
+function getApplicationName(role: Role): string {
+  const row = role.catalogRow;
+  if (!row || typeof row !== "object") return "";
+  const v =
+    (row.applicationname as string) ??
+    (row.applicationName as string) ??
+    (row.application_name as string) ??
+    (row.appname as string) ??
+    (row.appName as string) ??
+    "";
+  return typeof v === "string" ? v.trim() : "";
+}
+
 const ReviewTab: React.FC<ReviewTabProps> = ({ catalogRoles = [] }) => {
   const { items } = useCart();
   const { selectedUsers } = useSelectedUsers();
@@ -120,6 +133,25 @@ const ReviewTab: React.FC<ReviewTabProps> = ({ catalogRoles = [] }) => {
                 catalogRow: undefined,
               } as Role);
 
+              const applicationName = getApplicationName(fullRole);
+
+              const hasJitAccess = (() => {
+                const jit =
+                  (fullRole.catalogRow?.jit_access as string | undefined) ??
+                  (fullRole.catalogRow?.jitAccess as string | undefined) ??
+                  (fullRole.catalogRow?.JIT_ACCESS as string | undefined);
+                return typeof jit === "string" && jit.toLowerCase() === "yes";
+              })();
+
+              const hasTrainingCheck = (() => {
+                const raw = fullRole.catalogRow?.training_code as unknown;
+                const arr = Array.isArray(raw) ? raw : [];
+                if (arr.length === 0) return false;
+                const first = arr[0] as Record<string, unknown>;
+                const code = String(first.code ?? "").trim();
+                return !!code;
+              })();
+
               return (
                 <div
                   key={item.id}
@@ -127,7 +159,26 @@ const ReviewTab: React.FC<ReviewTabProps> = ({ catalogRoles = [] }) => {
                 >
                   <div className="flex-1 min-w-0 w-full grid grid-cols-2 gap-x-8 gap-y-3 py-0.5">
                     {/* Row 1 */}
-                    <h4 className="text-sm font-semibold text-gray-900">{item.name}</h4>
+                    <div className="flex flex-col gap-1">
+                      <h4 className="text-sm font-semibold text-gray-900">{item.name}</h4>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {applicationName && (
+                          <span className="px-2 py-0.5 rounded text-xs font-medium border text-blue-700 bg-blue-50 border-blue-200">
+                            {applicationName}
+                          </span>
+                        )}
+                        {hasJitAccess && (
+                          <span className="px-2 py-0.5 rounded text-xs font-medium border text-[#E0745A] bg-[#E0745A]/15 border-[#E0745A]">
+                            JIT Access
+                          </span>
+                        )}
+                        {hasTrainingCheck && (
+                          <span className={`px-2 py-0.5 rounded text-xs font-medium border ${getRiskColor("Low")}`}>
+                            Training Check
+                          </span>
+                        )}
+                      </div>
+                    </div>
                     <div className="text-left">
                       <span className="text-xs text-gray-600">
                         Access Type: {isIndefinite ? "Indefinite Access" : "Duration"}

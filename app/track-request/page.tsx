@@ -1,6 +1,13 @@
 "use client";
-import React, { useState } from "react";
-import { Search, Filter, ChevronDown, ChevronUp, Info, ArrowUpDown, X } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
+import { Search, ChevronDown, Info } from "lucide-react";
+import { BackButton } from "@/components/BackButton";
+const AgGridReact = dynamic(() => import("ag-grid-react").then((mod) => mod.AgGridReact), { ssr: false });
+type AgGridReactType = any;
+import "@/lib/ag-grid-setup";
+import { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 
 interface RequestHistory {
   action: string;
@@ -16,6 +23,7 @@ interface RequestDetails {
   justification: string;
   startDate: string;
   endDate: string;
+  globalComments?: string;
 }
 
 interface Request {
@@ -28,16 +36,15 @@ interface Request {
   status: string;
   hasInfoIcon?: boolean;
   canWithdraw?: boolean;
+  canProvideAdditionalDetails?: boolean;
   details?: RequestDetails;
   history?: RequestHistory[];
 }
 
 const TrackRequest: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
-  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
-  const [sortConfig, setSortConfig] = useState<{ column: string; direction: "asc" | "desc" } | null>(null);
-  const [currentHistoryPage, setCurrentHistoryPage] = useState<{ [key: number]: number }>({});
-  const historyPageSize = 5;
+  const gridRef = React.useRef<AgGridReactType>(null);
+  const router = useRouter();
 
   // Mock data matching the image description
   const mockRequests: Request[] = [
@@ -50,6 +57,7 @@ const TrackRequest: React.FC = () => {
       daysOpen: 434,
       status: "Request Awaiting Approval",
       canWithdraw: true,
+      canProvideAdditionalDetails: false,
       details: {
         dateCreated: "03/07/2022",
         type: "ApplicationInstance",
@@ -57,6 +65,7 @@ const TrackRequest: React.FC = () => {
         justification: "System generated account request to enable provisioning of entitlements in application Active Directory",
         startDate: "03/07/2022",
         endDate: "",
+        globalComments: "Awaiting manager approval.",
       },
       history: [
         { action: "Assigned to User", date: "2022-03-07", status: "ASSIGNED", assignedTo: "John Smith" },
@@ -76,6 +85,8 @@ const TrackRequest: React.FC = () => {
       daysOpen: 434,
       status: "Provide Information",
       hasInfoIcon: true,
+      canWithdraw: false,
+      canProvideAdditionalDetails: true,
       details: {
         dateCreated: "03/07/2022",
         type: "ApplicationInstance",
@@ -83,6 +94,7 @@ const TrackRequest: React.FC = () => {
         justification: "Access request for new employee onboarding",
         startDate: "03/07/2022",
         endDate: "",
+        globalComments: "Additional employment details required from HR.",
       },
       history: [
         { action: "Request Submitted", date: "2022-03-07", status: "SUBMITTED", assignedTo: "System" },
@@ -98,6 +110,8 @@ const TrackRequest: React.FC = () => {
       daysOpen: 434,
       status: "Provide Information",
       hasInfoIcon: true,
+      canWithdraw: false,
+      canProvideAdditionalDetails: true,
       details: {
         dateCreated: "03/07/2022",
         type: "ApplicationInstance",
@@ -105,6 +119,7 @@ const TrackRequest: React.FC = () => {
         justification: "Role assignment for project team",
         startDate: "03/07/2022",
         endDate: "",
+        globalComments: "Waiting for project lead to confirm role scope.",
       },
       history: [
         { action: "Request Submitted", date: "2022-03-07", status: "SUBMITTED", assignedTo: "System" },
@@ -119,6 +134,8 @@ const TrackRequest: React.FC = () => {
       entityType: "Role",
       daysOpen: 245,
       status: "Request Completed",
+      canWithdraw: false,
+      canProvideAdditionalDetails: false,
       details: {
         dateCreated: "06/15/2023",
         type: "Role",
@@ -126,6 +143,7 @@ const TrackRequest: React.FC = () => {
         justification: "Role access for approval workflow",
         startDate: "06/15/2023",
         endDate: "",
+        globalComments: "Request has been fulfilled.",
       },
       history: [
         { action: "Request Submitted", date: "2023-06-15", status: "SUBMITTED", assignedTo: "System" },
@@ -141,6 +159,8 @@ const TrackRequest: React.FC = () => {
       entityType: "Entitlement",
       daysOpen: 427,
       status: "Request Closed",
+      canWithdraw: false,
+      canProvideAdditionalDetails: false,
       details: {
         dateCreated: "04/20/2023",
         type: "Entitlement",
@@ -148,6 +168,7 @@ const TrackRequest: React.FC = () => {
         justification: "Entitlement for database refresh operations",
         startDate: "04/20/2023",
         endDate: "",
+        globalComments: "Closed after entitlement was deprovisioned.",
       },
       history: [
         { action: "Request Submitted", date: "2023-04-20", status: "SUBMITTED", assignedTo: "System" },
@@ -156,27 +177,6 @@ const TrackRequest: React.FC = () => {
       ],
     },
   ];
-
-  const toggleRow = (id: number) => {
-    setExpandedRows((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(id)) {
-        newSet.delete(id);
-      } else {
-        newSet.add(id);
-      }
-      return newSet;
-    });
-  };
-
-  const handleSort = (column: string) => {
-    setSortConfig((prev) => {
-      if (prev?.column === column) {
-        return { column, direction: prev.direction === "asc" ? "desc" : "asc" };
-      }
-      return { column, direction: "asc" };
-    });
-  };
 
   const getStatusColor = (status: string) => {
     if (status.includes("Completed") || status.includes("Approved")) {
@@ -194,21 +194,6 @@ const TrackRequest: React.FC = () => {
     return "bg-blue-100 text-blue-800";
   };
 
-  const getPaginatedHistory = (history: RequestHistory[], requestId: number) => {
-    const page = currentHistoryPage[requestId] || 1;
-    const startIndex = (page - 1) * historyPageSize;
-    const endIndex = startIndex + historyPageSize;
-    return history.slice(startIndex, endIndex);
-  };
-
-  const getTotalHistoryPages = (history: RequestHistory[]) => {
-    return Math.ceil(history.length / historyPageSize);
-  };
-
-  const handleHistoryPageChange = (requestId: number, page: number) => {
-    setCurrentHistoryPage((prev) => ({ ...prev, [requestId]: page }));
-  };
-
   const filteredRequests = mockRequests.filter((request) => {
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
@@ -219,6 +204,97 @@ const TrackRequest: React.FC = () => {
       request.displayName.toLowerCase().includes(query)
     );
   });
+
+  const columnDefs = useMemo<ColDef[]>(
+    () => [
+      {
+        headerName: "ID",
+        field: "id",
+        width: 110,
+        sortable: true,
+        cellRenderer: (params: ICellRendererParams) => {
+          const id = params.data?.id;
+          if (!id) return params.value;
+          return (
+            <button
+              type="button"
+              className="text-blue-600 hover:underline font-medium"
+              onClick={(e) => {
+                e.stopPropagation();
+                router.push(`/track-request/${id}`);
+              }}
+            >
+              {params.value}
+            </button>
+          );
+        },
+      },
+      {
+        headerName: "Requester",
+        field: "requesterName",
+        flex: 1,
+        sortable: true,
+        filter: true,
+      },
+      {
+        headerName: "Beneficiary",
+        field: "beneficiaryName",
+        flex: 1,
+        sortable: true,
+        filter: true,
+      },
+      {
+        headerName: "Date Created",
+        field: "dateCreated",
+        flex: 1,
+        valueGetter: (params) => params.data?.details?.dateCreated ?? "-",
+      },
+      {
+        headerName: "Global Comments",
+        field: "globalComments",
+        flex: 2,
+        valueGetter: (params) => params.data?.details?.globalComments ?? "-",
+      },
+      {
+        headerName: "Duration",
+        field: "daysOpen",
+        width: 120,
+        sortable: true,
+      },
+      {
+        headerName: "Request Type",
+        field: "requestType",
+        flex: 1,
+        valueGetter: (params) => params.data?.details?.type ?? params.data?.entityType ?? "-",
+      },
+      {
+        headerName: "Status",
+        field: "status",
+        flex: 1.2,
+        cellRenderer: (params: ICellRendererParams) => {
+          const status = params.data?.status as string;
+          const hasInfoIcon = !!params.data?.hasInfoIcon;
+          return (
+            <div className="flex items-center gap-1">
+              <span
+                className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(
+                  status
+                )}`}
+              >
+                {status}
+              </span>
+              {hasInfoIcon && (
+                <div className="w-4 h-4 rounded-full bg-blue-100 flex items-center justify-center">
+                  <Info className="w-3 h-3 text-blue-600" />
+                </div>
+              )}
+            </div>
+          );
+        },
+      },
+    ],
+    [router]
+  );
 
   return (
     <div>
@@ -252,202 +328,48 @@ const TrackRequest: React.FC = () => {
         </div>
       </div>
 
-      {/* Requests Table */}
+      {/* Requests Table (AG Grid) */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  ID
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Beneficiary Name
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Requester Name
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Display Name
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Entity Type
-                </th>
-                <th 
-                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort("daysOpen")}
-                >
-                  <div className="flex items-center gap-1">
-                    Days Open
-                    <ArrowUpDown className="w-3 h-3" />
-                  </div>
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Action
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredRequests.map((request) => {
-                const isExpanded = expandedRows.has(request.id);
-                return (
-                  <React.Fragment key={request.id}>
-                    <tr className="hover:bg-gray-50">
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => toggleRow(request.id)}
-                            className="text-gray-600 hover:text-gray-900"
-                          >
-                            {isExpanded ? (
-                              <ChevronUp className="w-4 h-4" />
-                            ) : (
-                              <ChevronDown className="w-4 h-4" />
-                            )}
-                          </button>
-                          <span className="text-sm font-medium text-gray-900">{request.id}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                        {request.beneficiaryName}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                        {request.requesterName}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                        {request.displayName}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                        {request.entityType}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                        {request.daysOpen}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="flex items-center gap-1">
-                          <span
-                            className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(
-                              request.status
-                            )}`}
-                          >
-                            {request.status}
-                          </span>
-                          {request.hasInfoIcon && (
-                            <div className="w-4 h-4 rounded-full bg-blue-100 flex items-center justify-center">
-                              <Info className="w-3 h-3 text-blue-600" />
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">
-                        {request.canWithdraw && (
-                          <button className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs font-medium">
-                            Withdraw
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                    {isExpanded && request.details && (
-                      <tr>
-                        <td colSpan={8} className="px-0 py-0 bg-gray-50">
-                          <div className="p-6 space-y-6">
-                            {/* Request Details */}
-                            <div>
-                              <h3 className="text-lg font-semibold mb-4 text-gray-900">Request Details</h3>
-                              <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                  <label className="text-xs font-medium text-gray-500 uppercase">Date Created</label>
-                                  <p className="text-sm text-gray-900 mt-1">{request.details.dateCreated}</p>
-                                </div>
-                                <div>
-                                  <label className="text-xs font-medium text-gray-500 uppercase">Type</label>
-                                  <p className="text-sm text-gray-900 mt-1">{request.details.type}</p>
-                                </div>
-                                <div className="col-span-2">
-                                  <label className="text-xs font-medium text-gray-500 uppercase flex items-center gap-1">
-                                    Name
-                                    <div className="w-4 h-4 rounded-full bg-blue-100 flex items-center justify-center">
-                                      <Info className="w-3 h-3 text-blue-600" />
-                                    </div>
-                                  </label>
-                                  <p className="text-sm text-gray-900 mt-1">{request.details.name}</p>
-                                </div>
-                                <div className="col-span-2">
-                                  <label className="text-xs font-medium text-gray-500 uppercase">Justification</label>
-                                  <p className="text-sm text-gray-900 mt-1">{request.details.justification}</p>
-                                </div>
-                                <div>
-                                  <label className="text-xs font-medium text-gray-500 uppercase">Start Date</label>
-                                  <p className="text-sm text-gray-900 mt-1">{request.details.startDate}</p>
-                                </div>
-                                <div>
-                                  <label className="text-xs font-medium text-gray-500 uppercase">End Date</label>
-                                  <p className="text-sm text-gray-900 mt-1">{request.details.endDate || "-"}</p>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Request History */}
-                            {request.history && request.history.length > 0 && (
-                              <div>
-                                <h3 className="text-lg font-semibold mb-4 text-gray-900">Request History</h3>
-                                <div className="overflow-x-auto">
-                                  <table className="w-full border border-gray-200">
-                                    <thead className="bg-gray-50">
-                                      <tr>
-                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
-                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Assigned To</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody className="bg-white divide-y divide-gray-200">
-                                      {getPaginatedHistory(request.history, request.id).map((item, idx) => (
-                                        <tr key={idx}>
-                                          <td className="px-4 py-2 text-sm text-gray-900">{item.action}</td>
-                                          <td className="px-4 py-2 text-sm text-gray-500">{item.date}</td>
-                                          <td className="px-4 py-2 text-sm text-gray-500">{item.status}</td>
-                                          <td className="px-4 py-2 text-sm text-gray-500">{item.assignedTo}</td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
-                                {getTotalHistoryPages(request.history) > 1 && (
-                                  <div className="flex items-center justify-center gap-2 mt-4">
-                                    <button
-                                      onClick={() => handleHistoryPageChange(request.id, (currentHistoryPage[request.id] || 1) - 1)}
-                                      disabled={(currentHistoryPage[request.id] || 1) === 1}
-                                      className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                      &lt;
-                                    </button>
-                                    <span className="px-3 py-1 text-sm text-gray-700">
-                                      {currentHistoryPage[request.id] || 1} / {getTotalHistoryPages(request.history || [])}
-                                    </span>
-                                    <button
-                                      onClick={() => handleHistoryPageChange(request.id, (currentHistoryPage[request.id] || 1) + 1)}
-                                      disabled={(currentHistoryPage[request.id] || 1) >= getTotalHistoryPages(request.history || [])}
-                                      className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                      &gt;
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="ag-theme-quartz w-full" style={{ width: "100%", minWidth: 0 }}>
+          <AgGridReact
+            ref={gridRef}
+            rowData={filteredRequests}
+            columnDefs={columnDefs}
+            rowSelection="single"
+            rowModelType="clientSide"
+            animateRows={true}
+            domLayout="autoHeight"
+            defaultColDef={{
+              sortable: true,
+              filter: true,
+              resizable: true,
+            }}
+            onGridReady={(params) => {
+              params.api.sizeColumnsToFit();
+              const handleResize = () => {
+                try {
+                  params.api.sizeColumnsToFit();
+                } catch {
+                  // ignore
+                }
+              };
+              window.addEventListener("resize", handleResize);
+              params.api.addEventListener("gridPreDestroyed", () => {
+                window.removeEventListener("resize", handleResize);
+              });
+            }}
+            onGridSizeChanged={(params) => {
+              try {
+                params.api.sizeColumnsToFit();
+              } catch {
+                // ignore
+              }
+            }}
+            onFirstDataRendered={(params) => {
+              params.api.sizeColumnsToFit();
+            }}
+            suppressSizeToFit={false}
+          />
         </div>
       </div>
 

@@ -2034,6 +2034,10 @@ function AppOwnerContent() {
             analyticsData={analyticsData}
             analyticsLoading={analyticsLoading}
             certificationId={certificationId}
+            entitlementsData={filteredRowData}
+            entitlementsColumnDefs={columnDefs}
+            entitlementsDefaultColDef={defaultColDef}
+            entitlementsAutoGroupColumnDef={autoGroupColumnDef}
           />
         </Accordion>
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-4 relative z-10 pt-10 gap-4">

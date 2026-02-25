@@ -124,6 +124,14 @@ export function Navigation() {
     if (pathname === '/reports/filter') {
       return { href: '/reports', label: 'Back to Reports' };
     }
+    // Oracle Reports
+    if (pathname.startsWith('/oracle-reports/') && pathname !== '/oracle-reports') {
+      return { href: '/oracle-reports', label: 'Back to Oracle Reports' };
+    }
+    // Track Request detail → back to Track Request list
+    if (pathname.startsWith('/track-request/') && pathname !== '/track-request') {
+      return { href: '/track-request', label: 'Back to Track Requests' };
+    }
     return null;
   };
 

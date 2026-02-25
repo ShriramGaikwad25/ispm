@@ -115,7 +115,7 @@ const ProgressDonutChart: React.FC<ProgressDonutChartProps> = ({
     maintainAspectRatio: false,
     cutout: "65%", // Creates the donut effect
     layout: {
-      padding: 15, // Adds space around the chart
+      padding: { left: 15, right: 24, top: 15, bottom: 15 }, // Keep chart large; legend is compact
     },
     plugins: {
       legend: {
@@ -125,9 +125,11 @@ const ProgressDonutChart: React.FC<ProgressDonutChartProps> = ({
         labels: {
           usePointStyle: true,
           pointStyle: "rect",
-          padding: 12,
+          padding: 6,
+          boxWidth: 8,
+          boxHeight: 8,
           font: {
-            size: 11,
+            size: 9,
             weight: "normal" as const,
           },
           generateLabels: (chart: any) => {

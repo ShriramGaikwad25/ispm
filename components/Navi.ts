@@ -24,7 +24,8 @@ import {
   Lock,
   Workflow,
   Users,
-  ShieldCheck
+  ShieldCheck,
+  FileBarChart
 } from 'lucide-react';
 
 export interface NavItem {
@@ -92,5 +93,10 @@ export const navLinks: NavItem[] = [
       { name: 'Onboard App', href: '/settings/onboard-app', icon: Plus },
       { name: 'Gateway', href: '/settings/gateway', icon: Server }
     ]
+  },
+  {
+    name: 'Oracle Reports',
+    href: '/oracle-reports',
+    icon: FileBarChart,
   }
 ];

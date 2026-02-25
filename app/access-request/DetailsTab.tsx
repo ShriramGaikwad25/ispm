@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { useCart } from "@/contexts/CartContext";
 import { useItemDetails } from "@/contexts/ItemDetailsContext";
-import { Calendar, Edit, Save, X, Paperclip, ChevronDown, ChevronRight } from "lucide-react";
+import { Calendar, Edit, Save, X, Paperclip, ChevronDown, ChevronUp } from "lucide-react";
 
 interface ItemDates {
   [itemId: string]: {
@@ -478,7 +478,7 @@ const DetailsTab: React.FC = () => {
                   )}
                 </div>
                 <span className="shrink-0 text-gray-500" aria-hidden>
-                  {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+                  {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
                 </span>
               </button>
 
