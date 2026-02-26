@@ -43,6 +43,9 @@ interface Request {
 
 const TrackRequest: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const gridRef = React.useRef<AgGridReactType>(null);
   const router = useRouter();
 
@@ -194,15 +197,58 @@ const TrackRequest: React.FC = () => {
     return "bg-blue-100 text-blue-800";
   };
 
+  const parseMmDdYyyy = (value: string): Date | null => {
+    if (!value) return null;
+    const parts = value.split("/");
+    if (parts.length !== 3) return null;
+    const [mm, dd, yyyy] = parts.map((p) => Number(p));
+    if (!mm || !dd || !yyyy) return null;
+    return new Date(yyyy, mm - 1, dd);
+  };
+
+  const parseInputDate = (value: string): Date | null => {
+    if (!value) return null;
+    const parts = value.split("-");
+    if (parts.length !== 3) return null;
+    const [yyyy, mm, dd] = parts.map((p) => Number(p));
+    if (!mm || !dd || !yyyy) return null;
+    return new Date(yyyy, mm - 1, dd);
+  };
+
   const filteredRequests = mockRequests.filter((request) => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      request.id.toString().includes(query) ||
-      request.beneficiaryName.toLowerCase().includes(query) ||
-      request.requesterName.toLowerCase().includes(query) ||
-      request.displayName.toLowerCase().includes(query)
-    );
+    const query = searchQuery.trim().toLowerCase();
+
+    if (query) {
+      const matchesSearch =
+        request.id.toString().includes(query) ||
+        request.requesterName.toLowerCase().includes(query) ||
+        request.beneficiaryName.toLowerCase().includes(query);
+
+      if (!matchesSearch) {
+        return false;
+      }
+    }
+
+    if (statusFilter) {
+      if (request.status !== statusFilter) {
+        return false;
+      }
+    }
+
+    const createdStr = request.details?.dateCreated ?? "";
+    const createdDate = parseMmDdYyyy(createdStr);
+    const from = parseInputDate(fromDate);
+    const to = parseInputDate(toDate);
+
+    if (from && createdDate && createdDate < from) {
+      return false;
+    }
+
+    if (to && createdDate && createdDate > to) {
+      return false;
+    }
+
+    return true;
   });
 
   const columnDefs = useMemo<ColDef[]>(
@@ -230,47 +276,42 @@ const TrackRequest: React.FC = () => {
         },
       },
       {
+        headerName: "Type",
+        field: "requestType",
+        flex: 0.8,
+        valueGetter: (params) =>
+          params.data?.details?.type ?? params.data?.entityType ?? "-",
+      },
+      {
         headerName: "Requester",
         field: "requesterName",
-        flex: 1,
+        flex: 0.9,
         sortable: true,
         filter: true,
       },
       {
         headerName: "Beneficiary",
         field: "beneficiaryName",
-        flex: 1,
+        flex: 0.9,
         sortable: true,
         filter: true,
       },
       {
-        headerName: "Date Created",
-        field: "dateCreated",
-        flex: 1,
+        headerName: "Raised On",
+        field: "raisedOn",
+        flex: 0.9,
         valueGetter: (params) => params.data?.details?.dateCreated ?? "-",
       },
       {
-        headerName: "Global Comments",
-        field: "globalComments",
-        flex: 2,
-        valueGetter: (params) => params.data?.details?.globalComments ?? "-",
-      },
-      {
-        headerName: "Duration",
-        field: "daysOpen",
-        width: 120,
-        sortable: true,
-      },
-      {
-        headerName: "Request Type",
-        field: "requestType",
-        flex: 1,
-        valueGetter: (params) => params.data?.details?.type ?? params.data?.entityType ?? "-",
+        headerName: "Expires On",
+        field: "expiresOn",
+        flex: 0.9,
+        valueGetter: (params) => params.data?.details?.endDate || "-",
       },
       {
         headerName: "Status",
         field: "status",
-        flex: 1.2,
+        flex: 1,
         cellRenderer: (params: ICellRendererParams) => {
           const status = params.data?.status as string;
           const hasInfoIcon = !!params.data?.hasInfoIcon;
@@ -292,6 +333,12 @@ const TrackRequest: React.FC = () => {
           );
         },
       },
+      {
+        headerName: "Comments",
+        field: "comments",
+        flex: 3,
+        valueGetter: (params) => params.data?.details?.globalComments ?? "-",
+      },
     ],
     [router]
   );
@@ -304,27 +351,67 @@ const TrackRequest: React.FC = () => {
 
       {/* Search and Filter Section */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-        <div className="flex flex-col md:flex-row gap-4 items-center">
-          <div className="flex items-center gap-2 text-blue-600">
-            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-              <Search className="w-4 h-4" />
-            </div>
-            <span className="text-sm font-medium">Track requests</span>
-          </div>
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {/* Search by ID / Requester / Beneficiary */}
+          <div className="relative">
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Search
+            </label>
+            <Search className="absolute left-3 top-9 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <input
               type="text"
-              placeholder="Search for Requests"
+              placeholder="Request ID, Requester, Beneficiary"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             />
           </div>
-          <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 text-sm font-medium">
-            <span>Filter</span>
-            <ChevronDown className="w-4 h-4" />
-          </button>
+
+          {/* Date Created From */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Date Created (From)
+            </label>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            />
+          </div>
+
+          {/* Date Created To */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Date Created (To)
+            </label>
+            <input
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            />
+          </div>
+
+          {/* Status dropdown */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Status
+            </label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            >
+              <option value="">All</option>
+              <option value="Request Awaiting Approval">
+                Request Awaiting Approval
+              </option>
+              <option value="Provide Information">Provide Information</option>
+              <option value="Request Completed">Request Completed</option>
+              <option value="Request Closed">Request Closed</option>
+            </select>
+          </div>
         </div>
       </div>
 

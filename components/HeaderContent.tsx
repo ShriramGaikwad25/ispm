@@ -810,9 +810,9 @@ const HeaderContent = () => {
               <span className="text-white text-lg">•</span>
             </div>
             <div className="flex items-center px-4 min-w-0 max-w-[140px]">
-              <p className="text-sm font-medium text-white whitespace-normal break-words">
+              <p className="text-sm font-medium text-white whitespace-normal break-words leading-tight">
                 {headerInfo.dueDate ? `Due on ${formatDateMMDDYY(headerInfo.dueDate)}` : "Due on N/A"}
-                <span className="font-bold ml-1 text-white">
+                <span className="block font-bold text-white mt-0.5">
                   ({headerInfo.daysLeft || 0} days left)
                 </span>
               </p>
@@ -895,12 +895,12 @@ const HeaderContent = () => {
             >
               Profile
             </button>
-            <a
+            {/* <a
               href="#"
               className="block px-4 py-2 text-gray-700 hover:bg-gray-100"
             >
               Settings
-            </a>
+            </a> */}
             <button
               onClick={handleLogoutClick}
               className="block px-4 py-2 text-gray-700 hover:bg-gray-100 w-full text-left"

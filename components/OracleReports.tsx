@@ -15,21 +15,21 @@ type OracleReportCard = {
 
 const ORACLE_REPORT_CARDS: OracleReportCard[] = [
   {
-    title: "Access Request Report",
+    title: "Access Request Summary Report",
     description:
       "Aggregates access requests, approvals, and rejections related to Oracle applications to support compliance reviews.",
     icon: ClipboardList,
-    href: "#",
+    href: "/oracle-reports/access-request-report",
   },
   {
-    title: "Target Application Last Logon Report",
+    title: "Last Login Report - Application",
     description:
       "Highlights last-login timestamps for Oracle target application accounts to help spot inactive or stale access.",
     icon: Clock4,
-    href: "#",
+    href: "/oracle-reports/target-application-last-logon-report",
   },
   {
-    title: "Deleted Target Application Accounts Report",
+    title: "Deleted Application Accounts Report",
     description:
       "Summarizes accounts deleted in Oracle target applications so you can validate deprovisioning and audit trails.",
     icon: UserX,

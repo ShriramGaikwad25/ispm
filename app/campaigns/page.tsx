@@ -379,9 +379,18 @@ export default function Campaigns() {
       {
         headerName: "Campaign Name",
         field: "campaignName",
-        // cellRenderer: "agGroupCellRenderer",
-        width:400,
-        onCellClicked: handleRowClick,
+        width: 400,
+        cellRenderer: (params: ICellRendererParams) => (
+          <span
+            className="text-blue-600 hover:text-blue-800 underline cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleRowClick(params as unknown as RowClickedEvent);
+            }}
+          >
+            {params.value}
+          </span>
+        ),
       },
       {
         headerName: "Description",

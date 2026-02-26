@@ -19,7 +19,6 @@ export default function DeletedTargetApplicationAccountsReportPage() {
   const [rows, setRows] = useState<DeletedRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [verificationDate, setVerificationDate] = useState<string | null>(null);
   const [gridApi, setGridApi] = useState<GridApi | null>(null);
 
   useEffect(() => {
@@ -60,44 +59,6 @@ export default function DeletedTargetApplicationAccountsReportPage() {
         }
 
         setRows(data);
-
-        // Derive verification date (same for all) from first row if present.
-        // Fallback to "N/A" so the box is always visible.
-        let derivedDate: string | null = null;
-        if (data.length > 0) {
-          const first = data[0];
-          const candidateKeys = [
-            "verification_date",
-            "verificationDate",
-            "verified_date",
-            "verifiedDate",
-            "verificationdate",
-            "VERIFICATION_DATE",
-          ];
-
-          for (const key of candidateKeys) {
-            const value = (first as any)[key];
-            if (value) {
-              derivedDate = String(value);
-              break;
-            }
-          }
-
-          // If none of the known keys matched, try any key containing "verify" (case-insensitive)
-          if (!derivedDate) {
-            const dynamicKey = Object.keys(first).find((k) =>
-              k.toLowerCase().includes("verif")
-            );
-            if (dynamicKey) {
-              const value = (first as any)[dynamicKey];
-              if (value) {
-                derivedDate = String(value);
-              }
-            }
-          }
-        }
-
-        setVerificationDate(derivedDate ?? "N/A");
       } catch (err: any) {
         console.error(
           "Failed to load deleted target application accounts report:",
@@ -118,8 +79,6 @@ export default function DeletedTargetApplicationAccountsReportPage() {
     if (!rows.length) return [] as string[];
     const keys = new Set<string>();
     rows.forEach((r) => Object.keys(r || {}).forEach((k) => keys.add(k)));
-    // Exclude any verification-related columns from the grid;
-    // we show verification date separately in the header box.
     return Array.from(keys).filter((k) => !k.toLowerCase().includes("verif"));
   }, [rows]);
 
@@ -128,17 +87,19 @@ export default function DeletedTargetApplicationAccountsReportPage() {
       const lower = col.toLowerCase();
       const isDeletedDate =
         lower.includes("delete") && lower.includes("date");
+      const isOrphanDiscoveryDate =
+        lower.includes("orphan") && lower.includes("date");
+      const isEventDateCol = isDeletedDate || isOrphanDiscoveryDate;
       const isApplicationCol = lower.includes("application");
 
       return {
-        headerName: col,
+        headerName: isEventDateCol ? "Event Date" : col,
         field: col,
         valueGetter: (params: any) =>
           params.data ? formatCell(params.data[col]) : "",
-        // Make Deleted Date and Application narrower
-        flex: isDeletedDate || isApplicationCol ? 0 : 1,
-        width: isApplicationCol ? 120 : isDeletedDate ? 160 : undefined,
-        minWidth: isApplicationCol ? 110 : isDeletedDate ? 140 : 120,
+        flex: isEventDateCol || isApplicationCol ? 0 : 1,
+        width: isApplicationCol ? 120 : isEventDateCol ? 160 : undefined,
+        minWidth: isApplicationCol ? 110 : isEventDateCol ? 140 : 120,
         sortable: true,
         filter: true,
         resizable: true,
@@ -160,25 +121,13 @@ export default function DeletedTargetApplicationAccountsReportPage() {
   return (
     <div className="min-h-screen bg-white">
       <div className="w-full py-4 px-6">
-        <div className="flex items-start justify-between mb-4 gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold text-gray-900">
-              Deleted Target Application Accounts Report
-            </h1>
-            <p className="text-sm text-gray-600 mt-1">
-              Review accounts that have been deleted in target applications.
-            </p>
-          </div>
-          {verificationDate && (
-            <div className="min-w-[220px] bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-left">
-              <p className="text-xs font-medium text-emerald-700 uppercase tracking-wide">
-                Verification Date
-              </p>
-              <p className="text-sm font-semibold text-emerald-900 mt-1">
-                {verificationDate}
-              </p>
-            </div>
-          )}
+        <div className="mb-4">
+          <h1 className="text-2xl font-semibold text-gray-900">
+            Deleted Target Application Accounts Report
+          </h1>
+          <p className="text-sm text-gray-600 mt-1">
+            Review accounts that have been deleted in target applications.
+          </p>
         </div>
 
         {loading && (
