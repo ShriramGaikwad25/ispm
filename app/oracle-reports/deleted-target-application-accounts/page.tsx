@@ -79,7 +79,42 @@ export default function DeletedTargetApplicationAccountsReportPage() {
     if (!rows.length) return [] as string[];
     const keys = new Set<string>();
     rows.forEach((r) => Object.keys(r || {}).forEach((k) => keys.add(k)));
-    return Array.from(keys).filter((k) => !k.toLowerCase().includes("verif"));
+    const filtered = Array.from(keys).filter(
+      (k) => !k.toLowerCase().includes("verif")
+    );
+
+    const normalized = (key: string) =>
+      key.toLowerCase().replace(/[\s_]/g, "");
+
+    // Identify specific columns for ordering
+    const accountKeyCol =
+      filtered.find((k) => normalized(k) === "accountkey") || null;
+
+    const applicationCol =
+      filtered.find((k) => normalized(k).includes("application")) || null;
+
+    const eventDateCol =
+      filtered.find((k) => {
+        const lower = k.toLowerCase();
+        return (
+          (lower.includes("delete") && lower.includes("date")) ||
+          (lower.includes("orphan") && lower.includes("date"))
+        );
+      }) || null;
+
+    const ordered: string[] = [];
+    if (accountKeyCol) ordered.push(accountKeyCol);
+    if (applicationCol && !ordered.includes(applicationCol))
+      ordered.push(applicationCol);
+    if (eventDateCol && !ordered.includes(eventDateCol))
+      ordered.push(eventDateCol);
+
+    // Append any remaining columns in original order
+    for (const k of filtered) {
+      if (!ordered.includes(k)) ordered.push(k);
+    }
+
+    return ordered;
   }, [rows]);
 
   const columnDefs = React.useMemo<ColDef[]>(() => {
@@ -123,7 +158,7 @@ export default function DeletedTargetApplicationAccountsReportPage() {
       <div className="w-full py-4 px-6">
         <div className="mb-4">
           <h1 className="text-2xl font-semibold text-gray-900">
-            Deleted Target Application Accounts Report
+            Deleted Application Accounts Report
           </h1>
           <p className="text-sm text-gray-600 mt-1">
             Review accounts that have been deleted in target applications.

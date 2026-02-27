@@ -115,7 +115,52 @@ export default function OrphanAccountReportPage() {
     rows.forEach((r) => Object.keys(r || {}).forEach((k) => keys.add(k)));
     // Exclude any verification-related columns from the grid;
     // we show verification date separately in the header box.
-    return Array.from(keys).filter((k) => !k.toLowerCase().includes("verif"));
+    const filtered = Array.from(keys).filter(
+      (k) => !k.toLowerCase().includes("verif")
+    );
+
+    const normalized = (key: string) =>
+      key.toLowerCase().replace(/[\s_]/g, "");
+
+    const accountKeyCol =
+      filtered.find((k) => normalized(k) === "accountkey") || null;
+
+    const accountNameCol =
+      filtered.find((k) => {
+        const n = normalized(k);
+        return n === "accountname" || n.endsWith("accountname");
+      }) || null;
+
+    const applicationCol =
+      filtered.find((k) => normalized(k).includes("application")) || null;
+
+    const orphanDiscoveryDateCol =
+      filtered.find((k) => {
+        const lower = k.toLowerCase();
+        return lower.includes("orphan") && lower.includes("date");
+      }) || null;
+
+    const ordered: string[] = [];
+
+    // First: Account Key, Account Name, Application
+    if (accountKeyCol) ordered.push(accountKeyCol);
+    if (accountNameCol && !ordered.includes(accountNameCol))
+      ordered.push(accountNameCol);
+    if (applicationCol && !ordered.includes(applicationCol))
+      ordered.push(applicationCol);
+
+    // Next: all remaining columns except Orphan Discovery Date
+    for (const k of filtered) {
+      if (k === orphanDiscoveryDateCol) continue;
+      if (!ordered.includes(k)) ordered.push(k);
+    }
+
+    // Last: Orphan Discovery Date (if present)
+    if (orphanDiscoveryDateCol && !ordered.includes(orphanDiscoveryDateCol)) {
+      ordered.push(orphanDiscoveryDateCol);
+    }
+
+    return ordered;
   }, [rows]);
 
   const columnDefs = React.useMemo<ColDef[]>(() => {

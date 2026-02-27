@@ -20,6 +20,8 @@ export default function TargetApplicationLastLogonReportPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [gridApi, setGridApi] = useState<GridApi | null>(null);
+  const [filterMode, setFilterMode] = useState<"" | "within" | "morethan">("");
+  const [filterDays, setFilterDays] = useState<string>("");
 
   useEffect(() => {
     const runQuery = async () => {
@@ -85,6 +87,13 @@ export default function TargetApplicationLastLogonReportPage() {
     return `${yy}/${MM}/${dd} ${hh}:${mm}`;
   };
 
+  const toDate = (value: any): Date | null => {
+    if (!value) return null;
+    const date = new Date(value);
+    if (isNaN(date.getTime())) return null;
+    return date;
+  };
+
   const formatCell = (key: string, value: any): string => {
     if (value === null || value === undefined) return "";
 
@@ -142,6 +151,40 @@ export default function TargetApplicationLastLogonReportPage() {
     }
     return ordered;
   }, [rows]);
+
+  const lastLoginKey = React.useMemo(() => {
+    const normalized = (key: string) =>
+      key.toLowerCase().replace(/[_\s]/g, "");
+    return (
+      columns.find((k) => {
+        const n = normalized(k);
+        return n === "lastlogintime" || n === "lastlogin";
+      }) || null
+    );
+  }, [columns]);
+
+  const filteredRows = React.useMemo(() => {
+    if (!lastLoginKey || !filterMode || !filterDays) return rows;
+    const days = Number(filterDays);
+    if (!Number.isFinite(days) || days <= 0) return rows;
+
+    const now = new Date().getTime();
+    const threshold = now - days * 24 * 60 * 60 * 1000;
+
+    return rows.filter((row) => {
+      const raw = row[lastLoginKey];
+      const date = toDate(raw);
+      if (!date) return false;
+      const time = date.getTime();
+      if (filterMode === "within") {
+        return time >= threshold;
+      }
+      if (filterMode === "morethan") {
+        return time < threshold;
+      }
+      return true;
+    });
+  }, [rows, lastLoginKey, filterMode, filterDays]);
 
   const toTitleCase = (value: string): string =>
     value
@@ -251,9 +294,49 @@ export default function TargetApplicationLastLogonReportPage() {
 
         {!loading && !error && rows.length > 0 && (
           <div className="mt-2">
+            {lastLoginKey && (
+              <div className="mb-3 flex flex-wrap items-center gap-3 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-gray-600">
+                    Last Login
+                  </span>
+                  <select
+                    className="border rounded px-2 py-1 text-sm text-gray-800"
+                    value={filterMode}
+                    onChange={(e) =>
+                      setFilterMode(e.target.value as "" | "within" | "morethan")
+                    }
+                  >
+                    <option value="">All</option>
+                    <option value="within">Within</option>
+                    <option value="morethan">More Than</option>
+                  </select>
+                  <input
+                    type="number"
+                    min={1}
+                    className="border rounded px-2 py-1 text-sm w-24 text-gray-800"
+                    placeholder="Days"
+                    value={filterDays}
+                    onChange={(e) => setFilterDays(e.target.value)}
+                  />
+                </div>
+                {(filterMode || filterDays) && (
+                  <button
+                    type="button"
+                    className="text-xs text-blue-600 underline"
+                    onClick={() => {
+                      setFilterMode("");
+                      setFilterDays("");
+                    }}
+                  >
+                    Clear Filter
+                  </button>
+                )}
+              </div>
+            )}
             <div className="ag-theme-alpine w-full">
               <AgGridReact
-                rowData={rows}
+                rowData={filteredRows}
                 columnDefs={columnDefs}
                 defaultColDef={defaultColDef}
                 theme="legacy"

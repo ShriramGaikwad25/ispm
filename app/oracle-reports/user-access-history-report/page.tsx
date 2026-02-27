@@ -126,104 +126,152 @@ function IdentitySidebarSection({ identityId }: { identityId: string }) {
     return "";
   };
 
+  // If we've finished loading with no error and no details, hide the block entirely
+  if (!loading && !error && !details) {
+    return null;
+  }
+
+  // If we've finished loading with no error and no details, hide the block entirely
+  if (!loading && !error && !details) {
+    return null;
+  }
+
+  const firstName =
+    details &&
+    getField(details, [
+      "payload.value.name.givenName",
+      "payload.value.customAttributes.USR_UDF_FIRST_NAME_PRF",
+      "givenName",
+      "FirstName",
+      "first_name",
+      "firstName",
+    ]);
+  const lastName =
+    details &&
+    getField(details, [
+      "payload.value.name.familyName",
+      "familyName",
+      "LastName",
+      "last_name",
+      "lastName",
+    ]);
+  const primaryEmail =
+    details &&
+    getField(details, [
+      "payload.value.customAttributes.USR_UDF_DIR_EMAIL",
+      "payload.value.emails.0.value",
+      "PrimaryEmail",
+      "primary_email",
+      "primaryEmail",
+      "email",
+      "mail",
+    ]);
+  const agSubType =
+    details &&
+    getField(details, [
+      "payload.value.agSubType",
+      "payload.value.userType",
+      "AGSubType",
+      "ag_sub_type",
+      "agsubtype",
+      "userType",
+    ]);
+  const udfAffPri =
+    details &&
+    getField(details, [
+      "payload.value.customAttributes.USR_UDF_AFF_PRI",
+      "payload.value.customAttributes.USR_UDF_AFF_PRI_EMPSTU_TYP",
+      "USR_UDF_AFF_PRI",
+      "usr_udf_aff_pri",
+      "primaryAffiliation",
+      "affiliation",
+    ]);
+  const dirStatus =
+    details &&
+    getField(details, [
+      "payload.value.customAttributes.USR_UDF_DIR_STATUS",
+      "usr_udf_dir_status",
+      "USR_UDF_DIR_STATUS",
+      "campusStatus",
+      "status",
+    ]);
+  const dirEmail =
+    details &&
+    getField(details, [
+      "payload.value.customAttributes.USR_UDF_DIR_EMAIL",
+      "usr_udf_dir_email",
+      "USR_UDF_DIR_EMAIL",
+      "directoryEmail",
+    ]);
+
+  const hasAnyValue = !!(
+    firstName ||
+    lastName ||
+    primaryEmail ||
+    agSubType ||
+    udfAffPri ||
+    dirStatus ||
+    dirEmail
+  );
+
+  if (!loading && !error && details && !hasAnyValue) {
+    // We have an identity row, but none of the fields we display have values,
+    // so don't render the User Details block at all.
+    return null;
+  }
+
   return (
     <div className="space-y-2 text-sm">
-      <div className="rounded-lg border border-gray-200 bg-gray-50/60 px-3 py-2.5">
-        <h3 className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
-          User details
+      <div className="rounded-lg border border-gray-200 bg-gray-50/60 px-3 py-2.5 text-sm">
+        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          User Details
         </h3>
         {loading && (
-          <p className="mt-1 text-xs text-gray-500">Loading identity details…</p>
+          <p className="mt-1 text-sm text-gray-500">Loading identity details…</p>
         )}
-        {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+        {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
         {!loading && !error && details && (
-          <dl className="mt-2 grid grid-cols-[minmax(0,1.1fr)_minmax(0,1.7fr)] gap-x-4 gap-y-2 text-xs">
+          <dl className="mt-2 grid grid-cols-[minmax(0,1.1fr)_minmax(0,1.7fr)] gap-x-4 gap-y-2 text-sm">
             <div className="contents">
-              <dt className="font-medium text-gray-500">FirstName</dt>
-              <dd className="text-gray-900 text-right break-words">
-                {getField(details, [
-                  "payload.value.name.givenName",
-                  "payload.value.customAttributes.USR_UDF_FIRST_NAME_PRF",
-                  "givenName",
-                  "FirstName",
-                  "first_name",
-                  "firstName",
-                ]) || "—"}
+              <dt className="font-medium text-gray-500">First Name</dt>
+              <dd className="text-gray-900 break-words">
+                {firstName || "—"}
               </dd>
             </div>
             <div className="contents">
-              <dt className="font-medium text-gray-500">LastName</dt>
-              <dd className="text-gray-900 text-right break-words">
-                {getField(details, [
-                  "payload.value.name.familyName",
-                  "familyName",
-                  "LastName",
-                  "last_name",
-                  "lastName",
-                ]) || "—"}
+              <dt className="font-medium text-gray-500">Last Name</dt>
+              <dd className="text-gray-900 break-words">
+                {lastName || "—"}
               </dd>
             </div>
             <div className="contents">
               <dt className="font-medium text-gray-500">Primary Email</dt>
-              <dd className="text-gray-900 text-right break-words">
-                {getField(details, [
-                  "payload.value.customAttributes.USR_UDF_DIR_EMAIL",
-                  "payload.value.emails.0.value",
-                  "PrimaryEmail",
-                  "primary_email",
-                  "primaryEmail",
-                  "email",
-                  "mail",
-                ]) || "—"}
+              <dd className="text-gray-900 break-words">
+                {primaryEmail || "—"}
               </dd>
             </div>
             <div className="contents">
-              <dt className="font-medium text-gray-500">AGSubType</dt>
-              <dd className="text-gray-900 text-right break-words">
-                {getField(details, [
-                  "payload.value.agSubType",
-                  "payload.value.userType",
-                  "AGSubType",
-                  "ag_sub_type",
-                  "agsubtype",
-                  "userType",
-                ]) || "—"}
+              <dt className="font-medium text-gray-500">AG Sub Type</dt>
+              <dd className="text-gray-900 break-words">
+                {agSubType || "—"}
               </dd>
             </div>
             <div className="contents">
               <dt className="font-medium text-gray-500">USR_UDF_AFF_PRI</dt>
-              <dd className="text-gray-900 text-right break-words">
-                {getField(details, [
-                  "payload.value.customAttributes.USR_UDF_AFF_PRI",
-                  "payload.value.customAttributes.USR_UDF_AFF_PRI_EMPSTU_TYP",
-                  "USR_UDF_AFF_PRI",
-                  "usr_udf_aff_pri",
-                  "primaryAffiliation",
-                  "affiliation",
-                ]) || "—"}
+              <dd className="text-gray-900 break-words">
+                {udfAffPri || "—"}
               </dd>
             </div>
             <div className="contents">
-              <dt className="font-medium text-gray-500">usr_udf_dir_status</dt>
-              <dd className="text-gray-900 text-right break-words">
-                {getField(details, [
-                  "payload.value.customAttributes.USR_UDF_DIR_STATUS",
-                  "usr_udf_dir_status",
-                  "USR_UDF_DIR_STATUS",
-                  "campusStatus",
-                  "status",
-                ]) || "—"}
+              <dt className="font-medium text-gray-500">Directory Status</dt>
+              <dd className="text-gray-900 break-words">
+                {dirStatus || "—"}
               </dd>
             </div>
             <div className="contents">
-              <dt className="font-medium text-gray-500">usr_udf_dir_email</dt>
-              <dd className="text-gray-900 text-right break-words">
-                {getField(details, [
-                  "payload.value.customAttributes.USR_UDF_DIR_EMAIL",
-                  "usr_udf_dir_email",
-                  "USR_UDF_DIR_EMAIL",
-                  "directoryEmail",
-                ]) || "—"}
+              <dt className="font-medium text-gray-500">Directory Email</dt>
+              <dd className="text-gray-900 break-words">
+                {dirEmail || "—"}
               </dd>
             </div>
           </dl>
@@ -282,108 +330,108 @@ function AccessBundleSidebarContent({ bundleId }: { bundleId: string }) {
 
   return (
     <div className="space-y-4 text-sm">
-      <div className="rounded-lg border border-gray-200 px-3 py-2.5">
-        <h3 className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
-          Access bundle
+      <div className="rounded-lg border border-gray-200 px-3 py-2.5 text-sm">
+        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          Access Bundle
         </h3>
         {loading && (
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-sm text-gray-500">
             Loading access bundle details…
           </p>
         )}
-        {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+        {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
         {!loading && !error && b && (
-          <dl className="mt-2 space-y-1.5 text-xs">
-            <div className="flex justify-between gap-4">
-              <dt className="font-medium text-gray-500">Name</dt>
-              <dd className="text-gray-900 text-right break-words">
+          <dl className="mt-2 grid grid-cols-[minmax(0,1.15fr)_minmax(0,1.7fr)] gap-x-6 gap-y-2.5 text-sm">
+            <div className="contents">
+              <dt className="font-medium text-gray-500 pr-1">Name</dt>
+              <dd className="text-gray-900 break-words">
                 {b.name ?? b.displayName ?? "—"}
               </dd>
             </div>
-            <div className="flex justify-between gap-4">
-              <dt className="font-medium text-gray-500">Description</dt>
-              <dd className="text-gray-900 text-right break-words">
+            <div className="contents">
+              <dt className="font-medium text-gray-500 pr-1">Description</dt>
+              <dd className="text-gray-900 break-words">
                 {b.description ?? "—"}
               </dd>
             </div>
-            <div className="flex justify-between gap-4">
-              <dt className="font-medium text-gray-500">CreatedBy</dt>
-              <dd className="text-gray-900 text-right break-words">
+            <div className="contents">
+              <dt className="font-medium text-gray-500 pr-1">Created By</dt>
+              <dd className="text-gray-900 break-words">
                 {b.createdBy?.displayName ?? "—"}
               </dd>
             </div>
-            <div className="flex justify-between gap-4">
-              <dt className="font-medium text-gray-500">requestableBy</dt>
-              <dd className="text-gray-900 text-right break-words">
+            <div className="contents">
+              <dt className="font-medium text-gray-500 pr-1">Requestable By</dt>
+              <dd className="text-gray-900 break-words">
                 {b.requestableBy?.displayName ?? "—"}
               </dd>
             </div>
-            <div className="flex justify-between gap-4">
-              <dt className="font-medium text-gray-500">Status</dt>
-              <dd className="text-gray-900 text-right">
+            <div className="contents">
+              <dt className="font-medium text-gray-500 pr-1">Status</dt>
+              <dd className="text-gray-900">
                 {b.status ?? "—"}
               </dd>
             </div>
-            <div className="flex justify-between gap-4">
-              <dt className="font-medium text-gray-500">Approval Workflow</dt>
-              <dd className="text-gray-900 text-right break-words">
+            <div className="contents">
+              <dt className="font-medium text-gray-500 pr-1">Approval Workflow</dt>
+              <dd className="text-gray-900 break-words">
                 {b.approvalWorkflowId?.displayName ?? "—"}
               </dd>
             </div>
-            <div className="flex justify-between gap-4">
-              <dt className="font-medium text-gray-500">Orchestrated System</dt>
-              <dd className="text-gray-900 text-right break-words">
+            <div className="contents">
+              <dt className="font-medium text-gray-500 pr-1">Orchestrated System</dt>
+              <dd className="text-gray-900 break-words">
                 {b.orchestratedSystem?.displayName ?? "—"}
               </dd>
             </div>
-            <div className="flex justify-between gap-4">
-              <dt className="font-medium text-gray-500">owners</dt>
-              <dd className="text-gray-900 text-right break-words">
+            <div className="contents">
+              <dt className="font-medium text-gray-500 pr-1">Owners</dt>
+              <dd className="text-gray-900 break-words">
                 {b.owners?.[0]?.name ?? "—"}
               </dd>
             </div>
-            <div className="flex justify-between gap-4">
-              <dt className="font-medium text-gray-500">resourceType</dt>
-              <dd className="text-gray-900 text-right break-words">
+            <div className="contents">
+              <dt className="font-medium text-gray-500 pr-1">Resource Type</dt>
+              <dd className="text-gray-900 break-words">
                 {b.customAttributes?.resourceType ?? b.resourceType ?? "—"}
               </dd>
             </div>
-            <div className="flex justify-between gap-4">
-              <dt className="font-medium text-gray-500">
+            <div className="contents">
+              <dt className="font-medium text-gray-500 pr-1">
                 Auto-approve if no violation
               </dt>
-              <dd className="text-gray-900 text-right">
-                {String(
-                  b.autoApproveIfNoViolation ?? "—"
-                )}
+              <dd className="text-gray-900">
+                {String(b.autoApproveIfNoViolation ?? "—")}
               </dd>
             </div>
             {b.accessTimeLimitType !== "INDEFINITELY" && (
-              <div className="flex justify-between gap-4">
-                <dt className="text-xs font-medium text-gray-500">
-                  accessTimeLimit
+              <div className="contents">
+                <dt className="text-sm font-medium text-gray-500 pr-1">
+                  Access Time Limit
                 </dt>
-                <dd className="text-xs text-gray-900 text-right">
+                <dd className="text-sm text-gray-900">
                   {b.accessTimeLimit ?? "—"}
                 </dd>
               </div>
             )}
-            <div className="flex justify-between gap-4">
-              <dt className="text-xs font-medium text-gray-500">
-                permission resource
+            <div className="contents">
+              <dt className="text-sm font-medium text-gray-500 pr-1">
+                Permission Resource
               </dt>
-              <dd className="text-xs text-gray-900 text-right break-words">
+              <dd className="text-sm text-gray-900 break-words">
                 {b.permissions?.[0]?.resource?.name ??
                   b.permissions?.[0]?.resource?.displayName ??
                   "—"}
               </dd>
             </div>
-            <div className="flex justify-between gap-4">
-              <dt className="text-xs font-medium text-gray-500">
-                permission type
+            <div className="contents">
+              <dt className="text-sm font-medium text-gray-500 pr-1">
+                Permission Type
               </dt>
-              <dd className="text-xs text-gray-900 text-right">
-                {b.permissions?.[0]?.type ?? b.permissions?.[0]?.permissionType ?? "—"}
+              <dd className="text-sm text-gray-900">
+                {b.permissions?.[0]?.type ??
+                  b.permissions?.[0]?.permissionType ??
+                  "—"}
               </dd>
             </div>
           </dl>
@@ -605,43 +653,12 @@ export default function UserAccessHistoryReportPage() {
       };
 
       if (isDisplayNameCol) {
+        // Normalize and display the best-guess Display Name value,
+        // but do not make it clickable (arrow column still opens the sidebar).
         colDef.valueGetter = (params: any) => {
           const row = params.data as HistoryRow;
           const fromRow = getDisplayNameFromRow(row);
           return fromRow || (row ? formatCell(row[col], col) : "");
-        };
-        colDef.cellRenderer = (params: any) => {
-          const row = params.data as HistoryRow;
-          const display = getDisplayNameFromRow(row);
-          if (!display) return "";
-          const identityId = getIdentityIdFromRow(row);
-          const assignmentType = getAssignmentType(row);
-          const bundleId = getAccessBundleIdFromRow(row);
-          return (
-            <button
-              type="button"
-              className="text-blue-600 underline hover:text-blue-800"
-              onClick={() => {
-                openSidebar(
-                  <div className="space-y-4">
-                    {identityId ? (
-                      <IdentitySidebarSection identityId={identityId} />
-                    ) : (
-                      <div className="text-xs text-gray-500">
-                        No identity details available for this record.
-                      </div>
-                    )}
-                    {bundleId && assignmentType === "ACCESS_BUNDLE" && (
-                      <AccessBundleSidebarContent bundleId={bundleId} />
-                    )}
-                  </div>,
-                  { title: "Row details", widthPx: 480 }
-                );
-              }}
-            >
-              {display}
-            </button>
-          );
         };
       }
 
@@ -670,19 +687,15 @@ export default function UserAccessHistoryReportPage() {
               const assignmentType = getAssignmentType(row);
               const bundleId = getAccessBundleIdFromRow(row);
               openSidebar(
-                <div className="space-y-4">
-                  {identityId ? (
+                <div className="space-y-4 text-sm">
+                  {identityId && (
                     <IdentitySidebarSection identityId={identityId} />
-                  ) : (
-                    <div className="text-xs text-gray-500">
-                      No identity details available for this record.
-                    </div>
                   )}
                   {bundleId && assignmentType === "ACCESS_BUNDLE" && (
                     <AccessBundleSidebarContent bundleId={bundleId} />
                   )}
                 </div>,
-                { title: "Row details", widthPx: 480 }
+                { title: "User Access Details", widthPx: 480 }
               );
             }}
             title="View details"

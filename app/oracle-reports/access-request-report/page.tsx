@@ -124,21 +124,21 @@ function AccessRequestSidebarContent({
   return (
     <div className="space-y-4 text-sm">
       {/* Row details card */}
-      <div className="rounded-lg border border-gray-200 bg-gray-50/60 px-3 py-2.5">
-        <dl className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1.6fr)] gap-x-4 gap-y-1.5">
+      <div className="rounded-lg border border-gray-200 bg-gray-50/60 px-3 py-2.5 text-sm">
+        <dl className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1.6fr)] gap-x-4 gap-y-2">
           <div className="contents">
-            <dt className="text-xs font-medium text-gray-500">Request Type (Workflow)</dt>
-            <dd className="text-xs text-gray-900 break-words">{lastThreeValues.requestType}</dd>
+            <dt className="text-sm font-medium text-gray-500">Request Type (Workflow)</dt>
+            <dd className="text-sm text-gray-900 break-words">{lastThreeValues.requestType}</dd>
           </div>
           <div className="contents">
-            <dt className="text-xs font-medium text-gray-500">Time Updated</dt>
-            <dd className="text-xs text-gray-900">{lastThreeValues.timeUpdated}</dd>
+            <dt className="text-sm font-medium text-gray-500">Time Updated</dt>
+            <dd className="text-sm text-gray-900">{lastThreeValues.timeUpdated}</dd>
           </div>
           <div className="contents">
-            <dt className="text-xs font-medium text-gray-500">
+            <dt className="text-sm font-medium text-gray-500">
               Failed Due To Access Guardrail Violations
             </dt>
-            <dd className="text-xs text-gray-900 break-words whitespace-normal">
+            <dd className="text-sm text-gray-900 break-words whitespace-normal">
               {lastThreeValues.failedDueToAccessGuardrailViolations}
             </dd>
           </div>
@@ -147,14 +147,14 @@ function AccessRequestSidebarContent({
 
       {/* Access bundle card */}
       {assignmentType === "ACCESS_BUNDLE" && bundleId && (
-        <div className="rounded-lg border border-gray-200 px-3 py-2.5">
-          <h3 className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
-            Access bundle
+        <div className="rounded-lg border border-gray-200 px-3 py-2.5 text-sm">
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            Access Bundle
           </h3>
           {bundleLoading && (
-            <p className="mt-1 text-xs text-gray-500">Loading access bundle details…</p>
+            <p className="mt-1 text-sm text-gray-500">Loading access bundle details…</p>
           )}
-          {bundleError && <p className="mt-1 text-xs text-red-600">{bundleError}</p>}
+          {bundleError && <p className="mt-1 text-sm text-red-600">{bundleError}</p>}
           {!bundleLoading && !bundleError && bundleData && (() => {
             const payload = bundleData.payload ?? bundleData.Payload;
             const source = payload && typeof payload === "object" ? { ...bundleData, ...payload } : bundleData;
@@ -162,20 +162,20 @@ function AccessRequestSidebarContent({
             return (
               <dl className="mt-2 grid grid-cols-[minmax(0,1.15fr)_minmax(0,1.7fr)] gap-x-6 gap-y-2.5">
                 <div className="contents">
-                  <dt className="text-xs font-medium text-gray-500 pr-1">Name</dt>
-                  <dd className="text-xs text-gray-900 break-words">
+                  <dt className="text-sm font-medium text-gray-500 pr-1">Name</dt>
+                  <dd className="text-sm text-gray-900 break-words">
                     {getBundleField(source, ["name", "displayName", "Name"])}
                   </dd>
                 </div>
                 <div className="contents">
-                  <dt className="text-xs font-medium text-gray-500 pr-1">Description</dt>
-                  <dd className="text-xs text-gray-900 break-words">
+                  <dt className="text-sm font-medium text-gray-500 pr-1">Description</dt>
+                  <dd className="text-sm text-gray-900 break-words">
                     {getBundleField(source, ["description", "Description"])}
                   </dd>
                 </div>
                 <div className="contents">
-                  <dt className="text-xs font-medium text-gray-500 pr-1">CreatedBy</dt>
-                  <dd className="text-xs text-gray-900 break-words">
+                  <dt className="text-sm font-medium text-gray-500 pr-1">Created By</dt>
+                  <dd className="text-sm text-gray-900 break-words">
                     {getBundleField(source, [
                       "createdBy.displayName",
                       "CreatedBy.DisplayName",
@@ -184,8 +184,8 @@ function AccessRequestSidebarContent({
                   </dd>
                 </div>
                 <div className="contents">
-                  <dt className="text-xs font-medium text-gray-500 pr-1">requestableBy</dt>
-                  <dd className="text-xs text-gray-900 break-words">
+                  <dt className="text-sm font-medium text-gray-500 pr-1">Requestable By</dt>
+                  <dd className="text-sm text-gray-900 break-words">
                     {getBundleField(source, [
                       "requestableBy.displayName",
                       "requestableBy.displayname",
@@ -194,16 +194,16 @@ function AccessRequestSidebarContent({
                   </dd>
                 </div>
                 <div className="contents">
-                  <dt className="text-xs font-medium text-gray-500 pr-1">Status</dt>
-                  <dd className="text-xs text-gray-900">
+                  <dt className="text-sm font-medium text-gray-500 pr-1">Status</dt>
+                  <dd className="text-sm text-gray-900">
                     {getBundleField(source, ["status", "Status"])}
                   </dd>
                 </div>
                 <div className="contents">
-                  <dt className="text-xs font-medium text-gray-500 pr-1">
+                  <dt className="text-sm font-medium text-gray-500 pr-1">
                     Approval Workflow
                   </dt>
-                  <dd className="text-xs text-gray-900 break-words">
+                  <dd className="text-sm text-gray-900 break-words">
                     {getBundleField(source, [
                       "approvalWorkflowId.displayName",
                       "approvalWorkflowId.displayname",
@@ -212,10 +212,10 @@ function AccessRequestSidebarContent({
                   </dd>
                 </div>
                 <div className="contents">
-                  <dt className="text-xs font-medium text-gray-500 pr-1">
+                  <dt className="text-sm font-medium text-gray-500 pr-1">
                     Orchestrated System
                   </dt>
-                  <dd className="text-xs text-gray-900 break-words">
+                  <dd className="text-sm text-gray-900 break-words">
                     {getBundleField(source, [
                       "orchestratedSystem.displayName",
                       "orchestratedSystem.displayname",
@@ -224,16 +224,16 @@ function AccessRequestSidebarContent({
                   </dd>
                 </div>
                 <div className="contents">
-                  <dt className="text-xs font-medium text-gray-500 pr-1">owners</dt>
-                  <dd className="text-xs text-gray-900 break-words">
+                  <dt className="text-sm font-medium text-gray-500 pr-1">Owners</dt>
+                  <dd className="text-sm text-gray-900 break-words">
                     {getBundleField(source, ["owners.0.name", "owners.name"])}
                   </dd>
                 </div>
                 <div className="contents">
-                  <dt className="text-xs font-medium text-gray-500 pr-1">
-                    resourceType
+                  <dt className="text-sm font-medium text-gray-500 pr-1">
+                    Resource Type
                   </dt>
-                  <dd className="text-xs text-gray-900 break-words">
+                  <dd className="text-sm text-gray-900 break-words">
                     {getBundleField(source, [
                       "customAttributes.resourceType",
                       "resourceType",
@@ -242,10 +242,10 @@ function AccessRequestSidebarContent({
                   </dd>
                 </div>
                 <div className="contents">
-                  <dt className="text-xs font-medium text-gray-500 pr-1">
+                  <dt className="text-sm font-medium text-gray-500 pr-1">
                     Auto-approve if no violation
                   </dt>
-                  <dd className="text-xs text-gray-900">
+                  <dd className="text-sm text-gray-900">
                     {getBundleField(source, [
                       "autoApproveIfNoViolation",
                       "auto_approve_if_no_violation",
@@ -254,17 +254,17 @@ function AccessRequestSidebarContent({
                 </div>
                 {accessTimeLimitType !== "INDEFINITELY" && (
                   <div className="contents">
-                    <dt className="text-xs font-medium text-gray-500 pr-1">accessTimeLimit</dt>
-                    <dd className="text-xs text-gray-900">
+                    <dt className="text-sm font-medium text-gray-500 pr-1">Access Time Limit</dt>
+                    <dd className="text-sm text-gray-900">
                       {getBundleField(source, ["accessTimeLimit", "access_time_limit"])}
                     </dd>
                   </div>
                 )}
                 <div className="contents">
-                  <dt className="text-xs font-medium text-gray-500 pr-1">
-                    permission resource
+                  <dt className="text-sm font-medium text-gray-500 pr-1">
+                    Permission Resource
                   </dt>
-                  <dd className="text-xs text-gray-900 break-words">
+                  <dd className="text-sm text-gray-900 break-words">
                     {getBundleField(source, [
                       "permissions.0.resource.name",
                       "permissions.0.resource.displayName",
@@ -273,8 +273,8 @@ function AccessRequestSidebarContent({
                   </dd>
                 </div>
                 <div className="contents">
-                  <dt className="text-xs font-medium text-gray-500 pr-1">permission type</dt>
-                  <dd className="text-xs text-gray-900">
+                  <dt className="text-sm font-medium text-gray-500 pr-1">Permission Type</dt>
+                  <dd className="text-sm text-gray-900">
                     {getBundleField(source, [
                       "permissions.0.type",
                       "permissions.0.permissionType",
@@ -546,6 +546,7 @@ export default function AccessRequestReportPage() {
 
   const columnDefs = React.useMemo<ColDef[]>(() => {
     return [
+      // 1. Requester
       {
         headerName: "Requester",
         field: "requester",
@@ -566,47 +567,7 @@ export default function AccessRequestReportPage() {
           ]),
         minWidth: 160,
       },
-      {
-        headerName: "Request Status",
-        field: "request_status",
-        valueGetter: (params: any) =>
-          getNestedField(params.data, [
-            "request_status",
-            "requeststatus",
-            "status",
-            "requestStatus",
-          ]),
-        minWidth: 140,
-      },
-      {
-        headerName: "Justification",
-        field: "justification",
-        valueGetter: (params: any) =>
-          getNestedField(params.data, ["justification", "reason", "comment"]),
-        minWidth: 220,
-        wrapText: true,
-        autoHeight: true,
-        cellStyle: {
-          whiteSpace: "normal",
-          wordBreak: "break-word",
-          lineHeight: 1.4,
-        },
-      },
-      {
-        headerName: "Time Created",
-        field: "time_created",
-        valueGetter: (params: any) => {
-          const raw = getNestedField(params.data, [
-            "time_created",
-            "timeCreated",
-            "created_time",
-            "createdAt",
-            "created_at",
-          ]);
-          return formatDateTime(raw);
-        },
-        minWidth: 170,
-      },
+      // 2. Beneficiary
       {
         headerName: "Beneficiary",
         field: "beneficiary",
@@ -623,47 +584,36 @@ export default function AccessRequestReportPage() {
           ]),
         minWidth: 160,
       },
+      // 3. Time Created
       {
-        headerName: "Approval Status",
-        field: "approval_status",
+        headerName: "Time Created",
+        field: "time_created",
         valueGetter: (params: any) => {
-          const row = params.data;
-          const payload = row?.payload;
-          const approvals =
-            payload && Array.isArray(payload.approvalRequests)
-              ? payload.approvalRequests
-              : null;
-          const approval0 = approvals && approvals[0] ? approvals[0] : null;
-
-          if (approval0) {
-            const fromApproval = getField(approval0, [
-              "status",
-              "approvalStatus",
-              "approval_status",
-              "decision",
-            ]);
-            if (
-              fromApproval !== "" &&
-              fromApproval !== undefined &&
-              fromApproval !== null
-            ) {
-              return fromApproval;
-            }
-          }
-
-          return getNestedField(row, [
-            "approval_status",
-            "approvalstatus",
-            "approval status",
-            "approval",
-            "approvalStatus",
-            "approval_status_name",
-            "decision",
-            "status",
+          const raw = getNestedField(params.data, [
+            "time_created",
+            "timeCreated",
+            "created_time",
+            "createdAt",
+            "created_at",
           ]);
+          return formatDateTime(raw);
         },
-        minWidth: 150,
+        minWidth: 170,
       },
+      // 4. Request Status
+      {
+        headerName: "Request Status",
+        field: "request_status",
+        valueGetter: (params: any) =>
+          getNestedField(params.data, [
+            "request_status",
+            "requeststatus",
+            "status",
+            "requestStatus",
+          ]),
+        minWidth: 140,
+      },
+      // 5. Assignment Type
       {
         headerName: "Assignment Type",
         field: "assignment_type",
@@ -678,6 +628,7 @@ export default function AccessRequestReportPage() {
           ]),
         minWidth: 150,
       },
+      // 6. Assignment Name
       {
         headerName: "Assignment Name",
         field: "assignment_name",
@@ -689,6 +640,21 @@ export default function AccessRequestReportPage() {
             "assignment name",
           ]),
         minWidth: 160,
+      },
+      // 7. Justification (Approval Status hidden)
+      {
+        headerName: "Justification",
+        field: "justification",
+        valueGetter: (params: any) =>
+          getNestedField(params.data, ["justification", "reason", "comment"]),
+        minWidth: 220,
+        wrapText: true,
+        autoHeight: true,
+        cellStyle: {
+          whiteSpace: "normal",
+          wordBreak: "break-word",
+          lineHeight: 1.4,
+        },
       },
       {
         headerName: "",
@@ -717,7 +683,7 @@ export default function AccessRequestReportPage() {
                     assignmentType={assignmentType}
                     bundleId={bundleId}
                   />,
-                  { title: "Row details", widthPx: 480 }
+                  { title: "Request Details", widthPx: 480 }
                 );
               }}
               title="View details"
