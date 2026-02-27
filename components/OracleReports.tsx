@@ -1,7 +1,16 @@
 "use client";
 
 import React from "react";
-import { ClipboardList, Clock4, UserX, FileClock, UserMinus } from "lucide-react";
+import {
+  ClipboardList,
+  Clock4,
+  UserX,
+  FileClock,
+  UserMinus,
+  Users,
+  ShieldCheck,
+  ShieldAlert,
+} from "lucide-react";
 import DashboardCard from "@/components/DashboardCard";
 import type { LucideIcon } from "lucide-react";
 
@@ -48,6 +57,27 @@ const ORACLE_REPORT_CARDS: OracleReportCard[] = [
       "Shows Oracle accounts that are no longer linked to active identities, helping you detect and remediate orphaned access.",
     icon: UserMinus,
     href: "/oracle-reports/orphan-account",
+  },
+  {
+    title: "User Access Report",
+    description:
+      "Summarizes current user access across Oracle applications to support reviews and certifications.",
+    icon: Users,
+    href: "/oracle-reports/user-access-report",
+  },
+  {
+    title: "Policies Report",
+    description:
+      "Lists Oracle access and security policies to help you analyze configured controls and their impact.",
+    icon: ShieldCheck,
+    href: "/oracle-reports/policies-report",
+  },
+  {
+    title: "Access GuardRail Report",
+    description:
+      "Provides insight into Access GuardRail violations and policy evaluations for Oracle access.",
+    icon: ShieldAlert,
+    href: "/oracle-reports/access-guardrail-report",
   },
 ];
 

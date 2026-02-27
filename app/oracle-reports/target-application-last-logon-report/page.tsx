@@ -22,12 +22,18 @@ export default function TargetApplicationLastLogonReportPage() {
   const [gridApi, setGridApi] = useState<GridApi | null>(null);
   const [filterMode, setFilterMode] = useState<"" | "within" | "morethan">("");
   const [filterDays, setFilterDays] = useState<string>("");
+  const [statsRows, setStatsRows] = useState<LastLogonRow[]>([]);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState<string | null>(null);
 
   useEffect(() => {
     const runQuery = async () => {
       setLoading(true);
       setError(null);
+      setStatsLoading(true);
+      setStatsError(null);
       try {
+        // Main grid data
         const response = await executeQuery<any>(
           "SELECT * FROM ag_target_last_login",
           []
@@ -61,11 +67,52 @@ export default function TargetApplicationLastLogonReportPage() {
         }
 
         setRows(data);
+
+        // Stats data
+        try {
+          const statsResponse = await executeQuery<any>(
+            "SELECT * FROM ag_last_login_stats",
+            []
+          );
+
+          let stats: LastLogonRow[] = [];
+          if (Array.isArray(statsResponse)) {
+            stats = statsResponse;
+          } else if (statsResponse && typeof statsResponse === "object") {
+            const possibleKeys = [
+              "resultSet",
+              "data",
+              "items",
+              "rows",
+              "results",
+              "records",
+              "value",
+              "values",
+            ];
+            for (const key of possibleKeys) {
+              const v = (statsResponse as any)[key];
+              if (Array.isArray(v)) {
+                stats = v;
+                break;
+              }
+            }
+            if (!stats.length) {
+              stats = [statsResponse as LastLogonRow];
+            }
+          }
+          setStatsRows(stats);
+        } catch (statsErr: any) {
+          console.error("Failed to load last login stats:", statsErr);
+          setStatsError(
+            statsErr?.message || "Failed to load last login stats"
+          );
+        }
       } catch (err: any) {
         console.error("Failed to load target application last logon report:", err);
         setError(err?.message || "Failed to load target application last logon report");
       } finally {
         setLoading(false);
+        setStatsLoading(false);
       }
     };
 
@@ -267,14 +314,61 @@ export default function TargetApplicationLastLogonReportPage() {
   return (
     <div className="min-h-screen bg-white">
       <div className="w-full py-4 px-6">
-        <div className="mb-4">
-          <h1 className="text-2xl font-semibold text-gray-900">
-            Last Login Report - Application
-          </h1>
-          <p className="text-sm text-gray-600 mt-1">
-            View last login timestamps for Oracle target application accounts to
-            identify inactive or stale access.
-          </p>
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900">
+              Last Login Report - Application
+            </h1>
+            <p className="text-sm text-gray-600 mt-1">
+              View last login timestamps for Oracle target application accounts to
+              identify inactive or stale access.
+            </p>
+          </div>
+          <div className="w-full sm:w-auto sm:min-w-[320px]">
+            <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+              <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
+                Last Login Stats
+              </div>
+              {statsLoading && (
+                <p className="text-xs text-gray-500">Loading statistics…</p>
+              )}
+              {statsError && (
+                <p className="text-xs text-red-600">{statsError}</p>
+              )}
+              {!statsLoading && !statsError && statsRows.length === 0 && (
+                <p className="text-xs text-gray-500">No statistics available.</p>
+              )}
+              {!statsLoading && !statsError && statsRows.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-[11px] text-gray-900">
+                    <thead>
+                      <tr className="text-gray-500 border-b border-gray-200">
+                        {Object.keys(statsRows[0] || {}).map((key) => (
+                          <th
+                            key={key}
+                            className="px-2 py-1 text-left font-medium"
+                          >
+                            {toTitleCase(key)}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {statsRows.map((row, idx) => (
+                        <tr key={idx} className="border-b border-gray-100">
+                          {Object.keys(statsRows[0] || {}).map((key) => (
+                            <td key={key} className="px-2 py-1">
+                              {formatCell(key, row[key])}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {loading && (
@@ -294,9 +388,9 @@ export default function TargetApplicationLastLogonReportPage() {
 
         {!loading && !error && rows.length > 0 && (
           <div className="mt-2">
-            {lastLoginKey && (
-              <div className="mb-3 flex flex-wrap items-center gap-3 text-sm">
-                <div className="flex items-center gap-2">
+            <div className="mb-3 flex flex-wrap items-center gap-3 text-sm">
+              {lastLoginKey && (
+                <>
                   <span className="text-xs font-medium text-gray-600">
                     Last Login
                   </span>
@@ -304,7 +398,9 @@ export default function TargetApplicationLastLogonReportPage() {
                     className="border rounded px-2 py-1 text-sm text-gray-800"
                     value={filterMode}
                     onChange={(e) =>
-                      setFilterMode(e.target.value as "" | "within" | "morethan")
+                      setFilterMode(
+                        e.target.value as "" | "within" | "morethan"
+                      )
                     }
                   >
                     <option value="">All</option>
@@ -319,21 +415,21 @@ export default function TargetApplicationLastLogonReportPage() {
                     value={filterDays}
                     onChange={(e) => setFilterDays(e.target.value)}
                   />
-                </div>
-                {(filterMode || filterDays) && (
-                  <button
-                    type="button"
-                    className="text-xs text-blue-600 underline"
-                    onClick={() => {
-                      setFilterMode("");
-                      setFilterDays("");
-                    }}
-                  >
-                    Clear Filter
-                  </button>
-                )}
-              </div>
-            )}
+                  {(filterMode || filterDays) && (
+                    <button
+                      type="button"
+                      className="text-xs text-blue-600 underline"
+                      onClick={() => {
+                        setFilterMode("");
+                        setFilterDays("");
+                      }}
+                    >
+                      Clear Filter
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
             <div className="ag-theme-alpine w-full">
               <AgGridReact
                 rowData={filteredRows}
