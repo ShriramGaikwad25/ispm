@@ -250,6 +250,23 @@ export default function TargetApplicationLastLogonReportPage() {
     return toTitleCase(col);
   };
 
+  const statsKeys = React.useMemo(() => {
+    if (!statsRows.length) return [] as string[];
+    const keys = Object.keys(statsRows[0] || {});
+    const normalize = (k: string) => k.toLowerCase().replace(/\s+/g, "");
+    let appNameKey: string | null =
+      keys.find((k) => {
+        const n = normalize(k);
+        return n === "appname" || (n.includes("app") && n.includes("name"));
+      }) || null;
+    const ordered: string[] = [];
+    if (appNameKey) ordered.push(appNameKey);
+    keys.forEach((k) => {
+      if (!ordered.includes(k)) ordered.push(k);
+    });
+    return ordered;
+  }, [statsRows]);
+
   const columnDefs = React.useMemo<ColDef[]>(() => {
     return columns.map((col) => {
       const lower = col.toLowerCase();
@@ -343,7 +360,7 @@ export default function TargetApplicationLastLogonReportPage() {
                   <table className="min-w-full text-[11px] text-gray-900">
                     <thead>
                       <tr className="text-gray-500 border-b border-gray-200">
-                        {Object.keys(statsRows[0] || {}).map((key) => (
+                        {statsKeys.map((key) => (
                           <th
                             key={key}
                             className="px-2 py-1 text-left font-medium"
@@ -356,7 +373,7 @@ export default function TargetApplicationLastLogonReportPage() {
                     <tbody>
                       {statsRows.map((row, idx) => (
                         <tr key={idx} className="border-b border-gray-100">
-                          {Object.keys(statsRows[0] || {}).map((key) => (
+                          {statsKeys.map((key) => (
                             <td key={key} className="px-2 py-1">
                               {formatCell(key, row[key])}
                             </td>
