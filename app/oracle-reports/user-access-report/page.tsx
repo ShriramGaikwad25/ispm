@@ -23,12 +23,14 @@ function UserAccessSidebar({
   agStatusKey,
   emailKey,
   userCreateKey,
+  riskKey,
 }: {
   row: UserAccessRow;
   userLoginKey: string | null;
   agStatusKey: string | null;
   emailKey: string | null;
   userCreateKey: string | null;
+  riskKey: string | null;
 }) {
   const getValue = (key: string | null): string => {
     if (!key) return "—";
@@ -66,6 +68,10 @@ function UserAccessSidebar({
             <dt className="font-medium text-gray-500">User Create</dt>
             <dd className="text-gray-900 break-words">{getValue(userCreateKey)}</dd>
           </div>
+          <div className="contents">
+            <dt className="font-medium text-gray-500">Risk</dt>
+            <dd className="text-gray-900 break-words">{getValue(riskKey)}</dd>
+          </div>
         </dl>
       </div>
     </div>
@@ -85,7 +91,7 @@ export default function UserAccessReportPage() {
       setError(null);
       try {
         const response = await executeQuery<any>(
-          "Select * from ag_user_access_report",
+          "SELECT * FROM ag_user_access_report LIMIT 1000;",
           []
         );
 
@@ -135,6 +141,7 @@ export default function UserAccessReportPage() {
     emailKey,
     userCreateKey,
     userGlobalIdKey,
+    riskKey,
   } = React.useMemo(() => {
     const result: {
       columns: string[];
@@ -143,6 +150,7 @@ export default function UserAccessReportPage() {
       emailKey: string | null;
       userCreateKey: string | null;
       userGlobalIdKey: string | null;
+      riskKey: string | null;
     } = {
       columns: [],
       userLoginKey: null,
@@ -150,6 +158,7 @@ export default function UserAccessReportPage() {
       emailKey: null,
       userCreateKey: null,
       userGlobalIdKey: null,
+      riskKey: null,
     };
 
     if (!rows.length) return result;
@@ -199,6 +208,12 @@ export default function UserAccessReportPage() {
         );
       }) || null;
 
+    result.riskKey =
+      allKeys.find((k) => {
+        const n = normalize(k);
+        return n === "risk" || n.endsWith("risk");
+      }) || null;
+
     // Columns shown in grid (hide the sidebar fields + global id)
     const hiddenSet = new Set(
       [
@@ -207,6 +222,7 @@ export default function UserAccessReportPage() {
         result.emailKey,
         result.userCreateKey,
         result.userGlobalIdKey,
+        result.riskKey,
       ].filter(Boolean) as string[]
     );
 
@@ -215,27 +231,67 @@ export default function UserAccessReportPage() {
     return result;
   }, [rows]);
 
+  const toTitleCase = (value: string): string =>
+    value
+      .replace(/_/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1));
+
+  const getHeaderName = (col: string): string => {
+    const normalized = col.toLowerCase().replace(/_/g, "");
+    if (normalized === "displayname") return "Display Name";
+    if (normalized === "usertype") return "User Type";
+    if (normalized === "permstatus") return "Perm Status";
+    if (normalized === "systemtype") return "System Type";
+    if (normalized === "provisionmechanism") return "Provision Mechanism";
+    if (normalized === "permissiontype") return "Permission Type";
+    if (normalized === "orchestratedsystem") return "Orchestrated System";
+    if (normalized === "permissionname") return "Permission Name";
+    if (normalized === "grantdate") return "Grant Date";
+    return toTitleCase(col);
+  };
+
   const columnDefs = React.useMemo<ColDef[]>(() => {
-    const defs: ColDef[] = columns.map((col) => ({
-      headerName: col,
-      field: col,
-      valueGetter: (params: any) =>
-        params.data && params.data[col] !== undefined && params.data[col] !== null
-          ? String(params.data[col])
-          : "",
-      flex: 1,
-      minWidth: 120,
-      sortable: true,
-      filter: true,
-      resizable: true,
-      wrapText: true,
-      autoHeight: true,
-      cellStyle: {
-        whiteSpace: "normal",
-        wordBreak: "break-word",
-        lineHeight: 1.4,
-      },
-    }));
+    const defs: ColDef[] = columns.map((col) => {
+      const norm = col.toLowerCase().replace(/[\s_]/g, "");
+      const isProvisionMechanism = norm === "provisionmechanism";
+      const isPermissionType = norm === "permissiontype";
+      const isOrchestratedSystem = norm === "orchestratedsystem";
+      const isPermissionName = norm === "permissionname";
+      const isGrantUntil = norm === "grantuntil";
+      const isGrantDate = norm === "grantdate";
+
+      const minWidth =
+        isProvisionMechanism || isPermissionType || isOrchestratedSystem
+          ? 170
+          : isPermissionName
+          ? 180
+          : isGrantUntil || isGrantDate
+          ? 130
+          : 120;
+
+      return {
+        headerName: getHeaderName(col),
+        field: col,
+        valueGetter: (params: any) =>
+          params.data && params.data[col] !== undefined && params.data[col] !== null
+            ? String(params.data[col])
+            : "",
+        flex: 1,
+        minWidth,
+        sortable: true,
+        filter: true,
+        resizable: true,
+        wrapText: true,
+        autoHeight: true,
+        cellStyle: {
+          whiteSpace: "normal",
+          wordBreak: "break-word",
+          lineHeight: 1.4,
+        },
+      } as ColDef;
+    });
 
     // Trailing arrow column to open sidebar
     defs.push({
@@ -262,6 +318,7 @@ export default function UserAccessReportPage() {
                   agStatusKey={agStatusKey}
                   emailKey={emailKey}
                   userCreateKey={userCreateKey}
+                  riskKey={riskKey}
                 />,
                 { title: "User Access Details", widthPx: 480 }
               );
@@ -275,12 +332,12 @@ export default function UserAccessReportPage() {
     } as ColDef);
 
     return defs;
-  }, [columns, openSidebar, userLoginKey, agStatusKey, emailKey, userCreateKey]);
+  }, [columns, openSidebar, userLoginKey, agStatusKey, emailKey, userCreateKey, riskKey]);
 
   const defaultColDef = React.useMemo<ColDef>(
     () => ({
       flex: 1,
-      minWidth: 100,
+      minWidth: 110,
       sortable: true,
       filter: true,
       resizable: true,
