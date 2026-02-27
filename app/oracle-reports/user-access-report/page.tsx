@@ -24,6 +24,8 @@ function UserAccessSidebar({
   emailKey,
   userCreateKey,
   riskKey,
+  systemTypeKey,
+  grantUntilKey,
 }: {
   row: UserAccessRow;
   userLoginKey: string | null;
@@ -31,6 +33,8 @@ function UserAccessSidebar({
   emailKey: string | null;
   userCreateKey: string | null;
   riskKey: string | null;
+  systemTypeKey: string | null;
+  grantUntilKey: string | null;
 }) {
   const getValue = (key: string | null): string => {
     if (!key) return "—";
@@ -71,6 +75,18 @@ function UserAccessSidebar({
           <div className="contents">
             <dt className="font-medium text-gray-500">Risk</dt>
             <dd className="text-gray-900 break-words">{getValue(riskKey)}</dd>
+          </div>
+          <div className="contents">
+            <dt className="font-medium text-gray-500">System Type</dt>
+            <dd className="text-gray-900 break-words">
+              {getValue(systemTypeKey)}
+            </dd>
+          </div>
+          <div className="contents">
+            <dt className="font-medium text-gray-500">Grant Until</dt>
+            <dd className="text-gray-900 break-words">
+              {getValue(grantUntilKey)}
+            </dd>
           </div>
         </dl>
       </div>
@@ -142,6 +158,8 @@ export default function UserAccessReportPage() {
     userCreateKey,
     userGlobalIdKey,
     riskKey,
+    systemTypeKey,
+    grantUntilKey,
   } = React.useMemo(() => {
     const result: {
       columns: string[];
@@ -151,6 +169,8 @@ export default function UserAccessReportPage() {
       userCreateKey: string | null;
       userGlobalIdKey: string | null;
       riskKey: string | null;
+      systemTypeKey: string | null;
+      grantUntilKey: string | null;
     } = {
       columns: [],
       userLoginKey: null,
@@ -159,6 +179,8 @@ export default function UserAccessReportPage() {
       userCreateKey: null,
       userGlobalIdKey: null,
       riskKey: null,
+      systemTypeKey: null,
+      grantUntilKey: null,
     };
 
     if (!rows.length) return result;
@@ -214,6 +236,18 @@ export default function UserAccessReportPage() {
         return n === "risk" || n.endsWith("risk");
       }) || null;
 
+    result.systemTypeKey =
+      allKeys.find((k) => {
+        const n = normalize(k);
+        return n === "systemtype" || (n.includes("system") && n.includes("type"));
+      }) || null;
+
+    result.grantUntilKey =
+      allKeys.find((k) => {
+        const n = normalize(k);
+        return n === "grantuntil" || (n.includes("grant") && n.includes("until"));
+      }) || null;
+
     // Columns shown in grid (hide the sidebar fields + global id)
     const hiddenSet = new Set(
       [
@@ -223,6 +257,8 @@ export default function UserAccessReportPage() {
         result.userCreateKey,
         result.userGlobalIdKey,
         result.riskKey,
+        result.systemTypeKey,
+        result.grantUntilKey,
       ].filter(Boolean) as string[]
     );
 
@@ -253,23 +289,19 @@ export default function UserAccessReportPage() {
   };
 
   const columnDefs = React.useMemo<ColDef[]>(() => {
-    const defs: ColDef[] = columns.map((col) => {
-      const norm = col.toLowerCase().replace(/[\s_]/g, "");
-      const isProvisionMechanism = norm === "provisionmechanism";
-      const isPermissionType = norm === "permissiontype";
-      const isOrchestratedSystem = norm === "orchestratedsystem";
-      const isPermissionName = norm === "permissionname";
-      const isGrantUntil = norm === "grantuntil";
-      const isGrantDate = norm === "grantdate";
+    // Ensure "Grant Date" appears last in the grid
+    const grantDateCols = columns.filter((col) => {
+      const n = col.toLowerCase().replace(/[\s_]/g, "");
+      return n === "grantdate" || (n.includes("grant") && n.includes("date"));
+    });
+    const otherCols = columns.filter((col) => !grantDateCols.includes(col));
+    const orderedCols = [...otherCols, ...grantDateCols];
 
-      const minWidth =
-        isProvisionMechanism || isPermissionType || isOrchestratedSystem
-          ? 170
-          : isPermissionName
-          ? 180
-          : isGrantUntil || isGrantDate
-          ? 130
-          : 120;
+    const defs: ColDef[] = orderedCols.map((col) => {
+      const norm = col.toLowerCase().replace(/[\s_]/g, "");
+      const isDisplayName = norm === "displayname";
+      const isGrantDate = norm === "grantdate" || (norm.includes("grant") && norm.includes("date"));
+      const isPermStatus = norm === "permstatus";
 
       return {
         headerName: getHeaderName(col),
@@ -279,7 +311,7 @@ export default function UserAccessReportPage() {
             ? String(params.data[col])
             : "",
         flex: 1,
-        minWidth,
+        minWidth: isDisplayName ? 160 : isGrantDate ? 60 : isPermStatus ? 60 : 70,
         sortable: true,
         filter: true,
         resizable: true,
@@ -319,6 +351,8 @@ export default function UserAccessReportPage() {
                   emailKey={emailKey}
                   userCreateKey={userCreateKey}
                   riskKey={riskKey}
+                  systemTypeKey={systemTypeKey}
+                  grantUntilKey={grantUntilKey}
                 />,
                 { title: "User Access Details", widthPx: 480 }
               );
@@ -332,17 +366,19 @@ export default function UserAccessReportPage() {
     } as ColDef);
 
     return defs;
-  }, [columns, openSidebar, userLoginKey, agStatusKey, emailKey, userCreateKey, riskKey]);
+  }, [columns, openSidebar, userLoginKey, agStatusKey, emailKey, userCreateKey, riskKey, systemTypeKey, grantUntilKey]);
 
   const defaultColDef = React.useMemo<ColDef>(
     () => ({
       flex: 1,
-      minWidth: 110,
+      minWidth: 60,
       sortable: true,
       filter: true,
       resizable: true,
       wrapText: true,
       autoHeight: true,
+      wrapHeaderText: true,
+      autoHeaderHeight: true,
       cellStyle: {
         whiteSpace: "normal",
         wordBreak: "break-word",
@@ -357,7 +393,7 @@ export default function UserAccessReportPage() {
       <div className="w-full py-4 px-6">
         <div className="mb-4">
           <h1 className="text-2xl font-semibold text-gray-900">
-            User Access Report
+            User Current Access Report
           </h1>
           <p className="text-sm text-gray-600 mt-1">
             View current user access across Oracle applications.
@@ -390,6 +426,10 @@ export default function UserAccessReportPage() {
                 paginationPageSizeSelector={[10, 20, 50, 100]}
                 animateRows={true}
                 domLayout="autoHeight"
+                suppressHorizontalScroll={true}
+                onGridSizeChanged={(params: any) => {
+                  params.api.sizeColumnsToFit();
+                }}
                 onGridReady={(params: any) => {
                   setGridApi(params.api);
                   params.api.sizeColumnsToFit();

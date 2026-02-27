@@ -59,7 +59,7 @@ const ORACLE_REPORT_CARDS: OracleReportCard[] = [
     href: "/oracle-reports/orphan-account",
   },
   {
-    title: "User Access Report",
+    title: "User Current Access Report",
     description:
       "Summarizes current user access across Oracle applications to support reviews and certifications.",
     icon: Users,
