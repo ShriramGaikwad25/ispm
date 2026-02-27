@@ -84,16 +84,13 @@ const ORACLE_REPORT_CARDS: OracleReportCard[] = [
 export default function OracleReports() {
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="w-full py-8 px-4">
+      <div className="w-full py-2 px-1">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h1 className="text-2xl font-semibold text-gray-900 mb-2">
-            Oracle Reports
+          <h1 className="text-2xl font-semibold text-black mb-6">
+            Oracle Access Governance Reports
           </h1>
-          <p className="text-sm text-gray-600 mb-6 max-w-2xl">
-            Choose an Oracle report to view.
-          </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {ORACLE_REPORT_CARDS.map((card) => (
               <DashboardCard
                 key={card.title}

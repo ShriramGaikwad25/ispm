@@ -59,21 +59,21 @@ export default function DashboardCard({
   return (
     <Link
       href={href}
-      className={`card bg-white rounded-lg shadow-md p-8 border-2 cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 ${colors.border} h-64 block`}
+      className={`card bg-white rounded-lg shadow-md p-6 border-2 cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 ${colors.border} h-56 block`}
     >
       <div className="card-inner h-full">
         <div className="card-front h-full flex items-center justify-center">
           <div className="flex flex-col items-center text-center space-y-4 w-full">
             <div
-              className={`w-16 h-16 ${colors.bg} rounded-full flex items-center justify-center flex-shrink-0`}
+              className={`w-12 h-12 ${colors.bg} rounded-full flex items-center justify-center flex-shrink-0`}
             >
-              <Icon className={`w-8 h-8 ${colors.icon}`} />
+              <Icon className={`w-6 h-6 ${colors.icon}`} />
             </div>
             <div className="w-full">
-              <h3 className="text-xl font-semibold text-gray-800 mb-2">
+              <h3 className="text-sm font-semibold text-blue-600 mb-1">
                 {title}
               </h3>
-              <p className="text-sm text-gray-600 px-2">{description}</p>
+              <p className="text-xs text-gray-600 px-1">{description}</p>
             </div>
           </div>
         </div>
@@ -81,15 +81,15 @@ export default function DashboardCard({
           <div className="flex flex-col items-center justify-center text-center w-full">
             <Icon className={`w-12 h-12 ${colors.icon} mb-4`} />
             {flipDescription ? (
-              <p className="text-sm text-gray-700 leading-relaxed px-4">
+              <p className="text-xs text-gray-700 leading-relaxed px-4">
                 {flipDescription}
               </p>
             ) : (
               <>
-                <p className="text-sm text-gray-600 font-medium">
+                <p className="text-xs text-gray-600 font-medium">
                   Click to open
                 </p>
-                <p className="text-xs text-gray-500 mt-2">{title}</p>
+                <p className="text-xs text-blue-600 mt-2">{title}</p>
               </>
             )}
           </div>
