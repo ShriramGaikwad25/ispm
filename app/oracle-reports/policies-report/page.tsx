@@ -16,19 +16,14 @@ const AgGridReact = dynamic(
   { ssr: false }
 );
 
-const AG_API_BASE =
-  "https://ag-poc-idoc2ay9p1ie.access-governance.us-ashburn-1.oci.oraclecloud.com/access-governance/access-controls/20250331";
-
-// NOTE: Token provided by user; used only on explicit clicks
-const AG_BEARER_TOKEN =
-  "eyJ4NXQjUzI1NiI6InZMRmNVZkdOWGZfZ2pQbzEtNzcxZ1UxMDRaT3NCLWlnaVFURVFQdDhXdk0iLCJ4NXQiOiJobHhLdVk0QjNQRVJKVEp1THVlaC1XdGFMN3MiLCJraWQiOiJTSUdOSU5HX0tFWSIsImFsZyI6IlJTMjU2In0.eyJjbGllbnRfb2NpZCI6Im9jaWQxLmRvbWFpbmFwcC5vYzEuaWFkLmFtYWFhYWFha2ZvbWpzYWF3enBwenFybHhwdnN3YjZ2aG5ucDV0b2k0dG91eHczZ24ycDdiN3ZtdWw1YSIsInN1YiI6ImJmNTNiNDM3MWJiZjQxY2FhY2IzOTEzZDIwNDM5MDFhIiwic2lkbGUiOjQ4MCwidXNlci50ZW5hbnQubmFtZSI6ImlkY3MtMGY0OGY0ZmQzM2NkNGViN2JjNjkwZmNiOTQ5YWQyNGUiLCJpc3MiOiJodHRwczovL2lkZW50aXR5Lm9yYWNsZWNsb3VkLmNvbS8iLCJkb21haW5faG9tZSI6InVzLWFzaGJ1cm4tMSIsImNhX29jaWQiOiJvY2lkMS50ZW5hbmN5Lm9jMS4uYWFhYWFhYWF4emhibWJicHBkbGFjaHl3Znd5dHlocWdsNTV4NjNub3N0Z2tucmp5b2lnNXl1bGd4a3JxIiwiY2xpZW50X2lkIjoiYmY1M2I0MzcxYmJmNDFjYWFjYjM5MTNkMjA0MzkwMWEiLCJkb21haW5faWQiOiJvY2lkMS5kb21haW4ub2MxLi5hYWFhYWFhYWN6bndoMng3ZGVkYnphc21oYm5qenBmbnpjNmZ3M3Y0czZkYXBhc2VobWt0bGlvYzJidmEiLCJzdWJfdHlwZSI6ImNsaWVudCIsInNjb3BlIjoidXJuOm9wYzphZ2NzOmFsbCIsImNsaWVudF90ZW5hbnRuYW1lIjoiaWRjcy0wZjQ4ZjRmZDMzY2Q0ZWI3YmM2OTBmY2I5NDlhZDI0ZSIsInJlZ2lvbl9uYW1lIjoidXMtYXNoYnVybi1pZGNzLTEiLCJleHAiOjE3NzU3MzczOTgsImlhdCI6MTc3MjEzNzM5OCwiY2xpZW50X2d1aWQiOiJmM2VjZmI5MjhjYWE0MjY3OTIzNDk4NGM0M2E0M2NjOSIsImNsaWVudF9uYW1lIjoiYWdwb2MtYXBpLXRlc3Qtb2F1dGgtY2xpZW50LWFwcCIsInRlbmFudCI6ImlkY3MtMGY0OGY0ZmQzM2NkNGViN2JjNjkwZmNiOTQ5YWQyNGUiLCJqdGkiOiJlNmZiOWMyMDFjZWE0MWMzYWZkYzFiZGZiM2Q3YjYwNCIsImd0cCI6ImNjIiwib3BjIjpmYWxzZSwic3ViX21hcHBpbmdhdHRyIjoidXNlck5hbWUiLCJwcmltVGVuYW50Ijp0cnVlLCJ0b2tfdHlwZSI6IkFUIiwiY2FfZ3VpZCI6ImNhY2N0LTE0Mjk0ZWRmMDdlYTQyODRhMzBlMjIzZGY4ZTY3NGU1IiwiYXVkIjoiaHR0cHM6Ly9hZy1wb2MtaWRvYzJheTlwMWllLmFjY2Vzcy1nb3Zlcm5hbmNlLnVzLWFzaGJ1cm4tMS5vY2kub3JhY2xlY2xvdWQuY29tLyIsImNhX25hbWUiOiJ1bWFzc29jaSIsImRvbWFpbiI6Ik9yYWNsZUlkZW50aXR5Q2xvdWRTZXJ2aWNlIiwidGVuYW50X2lzcyI6Imh0dHBzOi8vaWRjcy0wZjQ4ZjRmZDMzY2Q0ZWI3YmM2OTBmY2I5NDlhZDI0ZS5pZGVudGl0eS5vcmFjbGVjbG91ZC5jb206NDQzIiwicmVzb3VyY2VfYXBwX2lkIjoiNGIwMTE1NDAwMjkxNDI2NzhkZDIwMmJlZWJlNTIxNmQifQ.ne9_pYJhem2byLskx683mOdFc1TTeK-yw4CxhN1ObcsF4ks_AC705LpdTLDhXsdpdA7LMTrrVprVAKQj5rCzLfNroKiOfWxMzteM0agTqvElvE_oA7bkdkLAE0qp_Rs8Zn4nJl459NH_yg6jBmq_KsVgWuRASIbSzTd8zrWT_SY2KQqiy78v_RUKMtvv8E5AxG0wVgGLVCfT4_aAXPSgOQIwLDI-Wypb4hXJ-LXBayEM336X9o0SPcwSNiczFd5ePTDHZVtakR1Do7XW5HN3pTjLD0b4QvxYVmKbLpZyDTjYddPLr67HubfymrNReK6hHoqjchXKZhxy-LPCdNsWJg";
-
 async function openAgResourceInNewWindow(
   type: "roles" | "accessBundles" | "identityCollections",
   id?: string | null
 ) {
   if (!id) return;
-  const url = `${AG_API_BASE}/${type}/${encodeURIComponent(id)}`;
+  const url = `/api/ag-resource?type=${encodeURIComponent(
+    type
+  )}&id=${encodeURIComponent(id)}`;
 
   const win = window.open("", "_blank", "noopener,noreferrer");
   if (!win) return;
@@ -36,12 +31,7 @@ async function openAgResourceInNewWindow(
   win.document.write("<pre>Loading...</pre>");
 
   try {
-    const res = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${AG_BEARER_TOKEN}`,
-        Accept: "application/json",
-      },
-    });
+    const res = await fetch(url);
     const text = await res.text();
     win.document.body.innerHTML = "";
     const pre = win.document.createElement("pre");
@@ -284,14 +274,11 @@ export default function PoliciesReportPage() {
       setResourceError(null);
       setResourceBody(null);
 
-      const url = `${AG_API_BASE}/${type}/${encodeURIComponent(id)}`;
+      const url = `/api/ag-resource?type=${encodeURIComponent(
+        type
+      )}&id=${encodeURIComponent(id)}`;
       try {
-        const res = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${AG_BEARER_TOKEN}`,
-            Accept: "application/json",
-          },
-        });
+        const res = await fetch(url);
         const text = await res.text();
         setResourceBody(text);
         if (!res.ok) {
