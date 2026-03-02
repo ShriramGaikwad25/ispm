@@ -189,7 +189,8 @@ export default function PoliciesReportPage() {
   const [resourceLoading, setResourceLoading] = useState(false);
   const [resourceError, setResourceError] = useState<string | null>(null);
   const [resourceBody, setResourceBody] = useState<string | null>(null);
-  const { openSidebar } = useRightSidebar();
+  const [resourceJson, setResourceJson] = useState<any | null>(null);
+  const { openSidebar, closeSidebar } = useRightSidebar();
 
   useEffect(() => {
     const runQuery = async () => {
@@ -269,10 +270,17 @@ export default function PoliciesReportPage() {
   const handleOpenResource = React.useCallback(
     async (type: ResourceType, id?: string | null) => {
       if (!id) return;
+      // Close the right sidebar when a resource link is clicked
+      try {
+        closeSidebar();
+      } catch {
+        // ignore if sidebar is already closed
+      }
       setResourceView({ type, id });
       setResourceLoading(true);
       setResourceError(null);
       setResourceBody(null);
+      setResourceJson(null);
 
       const url = `/api/ag-resource?type=${encodeURIComponent(
         type
@@ -281,6 +289,11 @@ export default function PoliciesReportPage() {
         const res = await fetch(url);
         const text = await res.text();
         setResourceBody(text);
+        try {
+          setResourceJson(JSON.parse(text));
+        } catch {
+          setResourceJson(null);
+        }
         if (!res.ok) {
           setResourceError(`HTTP ${res.status} ${res.statusText}`);
         }
@@ -457,20 +470,7 @@ export default function PoliciesReportPage() {
 
         {resourceView && (
           <div className="mb-4 rounded-lg border border-gray-200 bg-white px-4 py-3">
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  REST API Call
-                </p>
-                <p className="text-sm font-medium text-gray-900">
-                  {resourceView.type === "roles"
-                    ? "Role"
-                    : resourceView.type === "accessBundles"
-                    ? "Access Bundle"
-                    : "Identity Collection"}{" "}
-                  – {resourceView.id}
-                </p>
-              </div>
+            <div className="flex items-center justify-end mb-2">
               <button
                 type="button"
                 className="text-xs px-3 py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
@@ -478,6 +478,7 @@ export default function PoliciesReportPage() {
                   setResourceView(null);
                   setResourceBody(null);
                   setResourceError(null);
+                  setResourceJson(null);
                 }}
               >
                 Back to Policies
@@ -490,12 +491,166 @@ export default function PoliciesReportPage() {
               {resourceError && (
                 <p className="text-sm text-red-600 mb-2">{resourceError}</p>
               )}
-              {resourceBody && (
+              {resourceJson && (
+                <div className="mt-2 max-h-[480px] overflow-auto border border-gray-200 rounded">
+                  {(() => {
+                    const rowsArray = Array.isArray(resourceJson)
+                      ? resourceJson
+                      : [resourceJson];
+
+                    if (!rowsArray.length) {
+                      return (
+                        <p className="text-xs text-gray-500 px-2 py-1">
+                          Empty response.
+                        </p>
+                      );
+                    }
+
+                    const columnSpecs = [
+                      {
+                        header: "Name",
+                        paths: ["name", "displayName"],
+                        isDate: false,
+                      },
+                      {
+                        header: "Description",
+                        paths: ["description"],
+                        isDate: false,
+                      },
+                      {
+                        header: "Status",
+                        paths: ["status", "lifecycleState"],
+                        isDate: false,
+                      },
+                      {
+                        header: "Owner",
+                        paths: [
+                          "owners.0.name",
+                          "owners.0.displayName",
+                          "owner.name",
+                          "owner.displayName",
+                        ],
+                        isDate: false,
+                      },
+                      {
+                        header: "Created By",
+                        paths: [
+                          "createdBy.name",
+                          "createdBy.displayName",
+                          "created_by.name",
+                          "created_by.display_name",
+                        ],
+                        isDate: false,
+                      },
+                      {
+                        header: "Updated By",
+                        paths: [
+                          "updatedBy.name",
+                          "updatedBy.displayName",
+                          "updated_by.name",
+                          "updated_by.display_name",
+                        ],
+                        isDate: false,
+                      },
+                      {
+                        header: "Time Created",
+                        paths: [
+                          "timeCreated",
+                          "createdTime",
+                          "created_at",
+                          "createdAt",
+                        ],
+                        isDate: true,
+                      },
+                      {
+                        header: "Time Updated",
+                        paths: [
+                          "timeUpdated",
+                          "updatedTime",
+                          "updated_at",
+                          "updatedAt",
+                        ],
+                        isDate: true,
+                      },
+                      {
+                        header: "Identity Group Type",
+                        paths: ["identityGroupType"],
+                        isDate: false,
+                      },
+                      {
+                        header: "Revision Workflow",
+                        paths: ["revisionApprovalWorkflow.name"],
+                        isDate: false,
+                      },
+                      {
+                        header: "Revision Status",
+                        paths: ["revisionStatus"],
+                        isDate: false,
+                      },
+                    ];
+
+                    return (
+                      <table className="min-w-full text-xs">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-2 py-1 text-left font-semibold text-gray-700">
+                              #
+                            </th>
+                            {columnSpecs.map((col) => (
+                              <th
+                                key={col.header}
+                                className="px-2 py-1 text-left font-semibold text-gray-700"
+                              >
+                                {col.header}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rowsArray.map((row: any, rowIndex: number) => (
+                            <tr
+                              key={rowIndex}
+                              className={
+                                rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50"
+                              }
+                            >
+                              <td className="px-2 py-1 align-top text-gray-500">
+                                {rowIndex + 1}
+                              </td>
+                              {columnSpecs.map((col) => {
+                                let value = getStringField(
+                                  row,
+                                  col.paths,
+                                  "",
+                                );
+                                if (col.isDate) {
+                                  value = formatDateTime(value);
+                                }
+                                return (
+                                  <td
+                                    key={col.header}
+                                    className="px-2 py-1 align-top text-gray-700"
+                                  >
+                                    <pre className="whitespace-pre-wrap break-words text-[11px]">
+                                      {value}
+                                    </pre>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    );
+                  })()}
+                </div>
+              )}
+              {resourceBody && !resourceJson && (
                 <pre className="mt-2 text-xs bg-gray-50 border border-gray-200 rounded p-3 overflow-auto max-h-[480px] whitespace-pre-wrap break-words">
                   {resourceBody}
                 </pre>
               )}
-              {!resourceLoading && !resourceError && !resourceBody && (
+              {!resourceLoading && !resourceError && !resourceBody && !resourceJson && (
                 <p className="text-sm text-gray-500">
                   No response body received.
                 </p>

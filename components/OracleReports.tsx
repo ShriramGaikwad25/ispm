@@ -162,7 +162,7 @@ function ComplianceReportsView() {
                   </thead>
                   <tbody>
                     <tr className="align-top">
-                      <td className="border-b border-gray-200 px-3 py-2">
+                      <td className="border-b border-gray-200 px-3 py-2 whitespace-pre-wrap break-words">
                         AC-2 (Account Management), AC-3 (Access Enforcement), AC-5
                         (Separation of Duties), AU-2 (Audit Events)
                       </td>
@@ -174,7 +174,7 @@ function ComplianceReportsView() {
                       </td>
                     </tr>
                     <tr className="align-top">
-                      <td className="border-b border-gray-200 px-3 py-2">
+                      <td className="border-b border-gray-200 px-3 py-2 whitespace-pre-wrap break-words">
                         AC-2(3), AC-2(12), IA-11
                       </td>
                       <td className="border-b border-gray-200 px-3 py-2">
@@ -185,7 +185,7 @@ function ComplianceReportsView() {
                       </td>
                     </tr>
                     <tr className="align-top">
-                      <td className="border-b border-gray-200 px-3 py-2">
+                      <td className="border-b border-gray-200 px-3 py-2 whitespace-pre-wrap break-words">
                         AC-2(2), AC-2(4)
                       </td>
                       <td className="border-b border-gray-200 px-3 py-2"></td>
@@ -194,7 +194,7 @@ function ComplianceReportsView() {
                       </td>
                     </tr>
                     <tr className="align-top">
-                      <td className="border-b border-gray-200 px-3 py-2">
+                      <td className="border-b border-gray-200 px-3 py-2 whitespace-pre-wrap break-words">
                         AU-2, AU-6, AC-2
                       </td>
                       <td className="border-b border-gray-200 px-3 py-2"></td>
@@ -203,7 +203,7 @@ function ComplianceReportsView() {
                       </td>
                     </tr>
                     <tr className="align-top">
-                      <td className="border-b border-gray-200 px-3 py-2">
+                      <td className="border-b border-gray-200 px-3 py-2 whitespace-pre-wrap break-words">
                         AC-2, IA-4
                       </td>
                       <td className="border-b border-gray-200 px-3 py-2"></td>
@@ -212,7 +212,7 @@ function ComplianceReportsView() {
                       </td>
                     </tr>
                     <tr className="align-top">
-                      <td className="border-b border-gray-200 px-3 py-2">
+                      <td className="border-b border-gray-200 px-3 py-2 whitespace-pre-wrap break-words">
                         AC-2, AC-5
                       </td>
                       <td className="border-b border-gray-200 px-3 py-2"></td>
@@ -230,7 +230,7 @@ function ComplianceReportsView() {
                       </td>
                     </tr>
                     <tr className="align-top">
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-2 whitespace-pre-wrap break-words">
                         AC-3, AC-5, AC-6
                       </td>
                       <td className="px-3 py-2"></td>
