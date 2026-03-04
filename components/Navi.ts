@@ -8,7 +8,6 @@ import {
   UserCircle2Icon, 
   ScreenShareIcon, 
   Package, 
-  Plus, 
   Server, 
   Key, 
   FileText, 
@@ -90,7 +89,6 @@ export const navLinks: NavItem[] = [
     icon: Settings,
     subItems: [
       { name: 'App Inventory', href: '/settings/app-inventory', icon: Package },
-      { name: 'Onboard App', href: '/settings/onboard-app', icon: Plus },
       { name: 'Gateway', href: '/settings/gateway', icon: Server }
     ]
   },
