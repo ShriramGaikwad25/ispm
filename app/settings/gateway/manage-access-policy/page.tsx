@@ -2,11 +2,8 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Tabs from "@/components/tabs";
 import {
   CheckCircleIcon,
-  ChevronDown,
-  ChevronUp,
   DownloadIcon,
   EyeIcon,
   Upload,
@@ -27,7 +24,6 @@ import {
 import { MasterDetailModule } from "ag-grid-enterprise";
 import { ModuleRegistry } from "ag-grid-community";
 import "./AccessPolicy.css";
-import TemplateTab from "./TemplateTab";
 
 // Register AG Grid Enterprise modules
 ModuleRegistry.registerModules([MasterDetailModule]);
@@ -260,15 +256,31 @@ export default function ManageAccessPolicyPage() {
     });
   };
 
-  const tabsData = [
-    {
-      label: "Active",
-      icon: ChevronDown,
-      iconOff: ChevronUp,
-      component: () => {
-        if (isLoading) return <div>Loading...</div>;
-        if (error) return <div className="text-red-600">{error}</div>;
-        return (
+  return (
+    <div className="p-6 bg-white min-h-screen">
+      <div className="mb-6">
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">
+              All Access Policies
+            </h1>
+            <p className="text-gray-600 text-sm">
+              Access policies are used to manage and configure access permissions for your users. To start a new access policy.
+            </p>
+          </div>
+          <Link
+            href="/settings/gateway/manage-access-policy/new"
+            className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 transition-colors duration-200"
+          >
+            Create New
+          </Link>
+        </div>
+        
+        {isLoading ? (
+          <div>Loading...</div>
+        ) : error ? (
+          <div className="text-red-600">{error}</div>
+        ) : (
           <div className="h-96 w-full">
             <AgGridReact
               ref={gridRef}
@@ -294,51 +306,7 @@ export default function ManageAccessPolicyPage() {
               onFirstDataRendered={onFirstDataRendered}
             />
           </div>
-        );
-      },
-    },
-    {
-      label: "Completed",
-      icon: ChevronDown,
-      iconOff: ChevronUp,
-      component: () => <p>Coming Soon...</p>,
-    },
-    {
-      label: "Template",
-      icon: ChevronDown,
-      iconOff: ChevronUp,
-      component: () => <TemplateTab />,
-    },
-  ];
-
-  return (
-    <div className="p-6 bg-white min-h-screen">
-      <div className="mb-6">
-        <div className="flex justify-between items-start mb-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">
-              All Access Policies
-            </h1>
-            <p className="text-gray-600 text-sm">
-              Access policies are used to manage and configure access permissions for your users. To start a new access policy.
-            </p>
-          </div>
-          <Link
-            href="/settings/gateway/manage-access-policy/new"
-            className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 transition-colors duration-200"
-          >
-            Create New
-          </Link>
-        </div>
-        
-        <div className="mb-6">
-          <Tabs
-            tabs={tabsData}
-            activeClass="bg-blue-600 text-white rounded-lg -ml-1"
-            buttonClass="h-9 -mt-1 w-26 text-sm px-2 py-1"
-            className="ml-0.5 border border-gray-300 w-80 h-8 rounded-md"
-          />
-        </div>
+        )}
       </div>
     </div>
   );

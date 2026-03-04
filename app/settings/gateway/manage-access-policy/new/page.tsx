@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useForm, Control, FieldValues, UseFormSetValue, UseFormWatch } from "react-hook-form";
 import { Trash2, Plus, ChevronLeft, ChevronRight, Check } from "lucide-react";
 import ExpressionBuilder from "@/components/ExpressionBuilder";
+import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
+import SelectAccessTab from "@/app/access-request/SelectAccessTab";
 
 type AccessProvision = {
   id: string;
@@ -17,15 +19,227 @@ export default function CreateAccessPolicyPage() {
     defaultValues: {
       policyName: "",
       description: "",
+      owner: "",
       priority: "",
       enabled: false,
       userAttributeConditions: [],
     },
   });
 
-  const [currentStep, setCurrentStep] = useState(0);
+  const { isVisible: isSidebarVisible, sidebarWidthPx } = useLeftSidebar();
+  const [currentStep, setCurrentStep] = useState(1);
   const [advanced, setAdvanced] = useState(false);
   const [accessProvisions, setAccessProvisions] = useState<AccessProvision[]>([]);
+
+  const [catalogData, setCatalogData] = useState<any[]>([]);
+  const [catalogPage, setCatalogPage] = useState(1);
+  const [selectedAppInstanceId, setSelectedAppInstanceId] = useState<string | null>(null);
+  const [showApplicationInstancesOnly, setShowApplicationInstancesOnly] = useState(false);
+  const [applicationInstances, setApplicationInstances] = useState<Array<{ id: string; name: string }>>([]);
+  const [catalogTypeFilter, setCatalogTypeFilter] = useState<string>("All");
+  const [tagFilter, setTagFilter] = useState<string>("");
+  const catalogFetchKeyRef = useRef<string | null>(null);
+  const catalogPageRef = useRef(catalogPage);
+
+  catalogPageRef.current = catalogPage;
+
+  const apiRoles = React.useMemo(() => {
+    if (!catalogData || catalogData.length === 0) return [];
+    const firstRow = catalogData[0] || {};
+    const keys = Object.keys(firstRow);
+
+    const findKey = (predicates: ((k: string) => boolean)[]): string | undefined => {
+      const lowerKeys = keys.map((k) => k.toLowerCase());
+      for (const predicate of predicates) {
+        const idx = lowerKeys.findIndex(predicate);
+        if (idx !== -1) return keys[idx];
+      }
+      return undefined;
+    };
+
+    const nameKey =
+      findKey([
+        (k) => k === "name",
+        (k) => k === "entitlementname",
+        (k) => k === "entitlement_name",
+        (k) => k === "applicationname",
+      ]) || keys[0];
+
+    const riskKey =
+      findKey([
+        (k) => k === "risk",
+        (k) => k.endsWith("_risk"),
+        (k) => k.includes("risk"),
+      ]) || keys[1] || keys[0];
+
+    const descriptionKey =
+      findKey([
+        (k) => k === "description",
+        (k) => k === "entitlementdescription",
+        (k) => k === "entitlement_description",
+        (k) => k === "business_objective",
+      ]) || keys[2] || keys[0];
+
+    const idKeysPreference = ["catalogid", "entitlementid", "appinstanceid", "id"];
+
+    const resolveIdKey = (): string | undefined => {
+      const lowerKeys = keys.map((k) => k.toLowerCase());
+      for (const pref of idKeysPreference) {
+        const idx = lowerKeys.indexOf(pref);
+        if (idx !== -1) return keys[idx];
+      }
+      return undefined;
+    };
+
+    const idKey = resolveIdKey();
+
+    const normalizeRisk = (value: string): "Low" | "Medium" | "High" => {
+      const v = value.toLowerCase();
+      if (v.startsWith("high")) return "High";
+      if (v.startsWith("medium")) return "Medium";
+      if (v.startsWith("low")) return "Low";
+      return "Low";
+    };
+
+    return catalogData.map((row, idx) => {
+      const rawName =
+        row[nameKey] !== undefined && row[nameKey] !== null ? String(row[nameKey]) : "";
+      const rawRisk =
+        row[riskKey] !== undefined && row[riskKey] !== null ? String(row[riskKey]) : "";
+      const rawDesc =
+        row[descriptionKey] !== undefined && row[descriptionKey] !== null
+          ? String(row[descriptionKey])
+          : "";
+
+      const idValue =
+        (idKey && row[idKey]) ||
+        row.catalogid ||
+        row.entitlementid ||
+        row.appinstanceid ||
+        idx;
+
+      return {
+        id: String(idValue).trim(),
+        name: rawName || "Unnamed access",
+        risk: normalizeRisk(rawRisk),
+        description: rawDesc,
+        catalogRow: row,
+      };
+    });
+  }, [catalogData]);
+
+  // Load application instances when on Select Access step
+  useEffect(() => {
+    if (currentStep !== 3) return;
+    const url = "https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery";
+    fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query:
+          "SELECT appinstanceid, name FROM vw_catalog WHERE type = 'ApplicationInstance' ORDER BY name",
+        parameters: [],
+      }),
+    })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`${res.status}`))))
+      .then((data) => {
+        let rows: any[] = [];
+        if (Array.isArray(data)) rows = data;
+        else if (Array.isArray((data as any).resultSet)) rows = (data as any).resultSet;
+        else if (Array.isArray((data as any).rows)) rows = (data as any).rows;
+        const seen = new Set<string>();
+        const list: Array<{ id: string; name: string }> = [];
+        rows.forEach((r: any) => {
+          const id = (r.appinstanceid ?? r.appInstanceId ?? r.app_instance_id ?? "")
+            .toString()
+            .trim();
+          const name = (r.name ?? "").toString().trim();
+          if (id && !seen.has(id)) {
+            seen.add(id);
+            list.push({ id, name: name || id });
+          }
+        });
+        setApplicationInstances(list);
+      })
+      .catch(() => setApplicationInstances([]));
+  }, [currentStep]);
+
+  // Load catalog data in Select Access step
+  useEffect(() => {
+    if (currentStep !== 3) return;
+
+    const fetchKey = `3-${catalogPage}-${selectedAppInstanceId ?? "all"}-${showApplicationInstancesOnly}-${catalogTypeFilter}-${tagFilter || "all"}`;
+    if (catalogFetchKeyRef.current === fetchKey) return;
+    catalogFetchKeyRef.current = fetchKey;
+
+    const pageRequested = catalogPage;
+
+    const limit = 100;
+    const offset = (catalogPage - 1) * limit;
+
+    const isFilteredByAppInstance = !!selectedAppInstanceId?.trim() && !showApplicationInstancesOnly;
+    const trimmedTag = tagFilter.trim();
+
+    const body =
+      showApplicationInstancesOnly
+        ? {
+            query:
+              "SELECT * FROM vw_catalog WHERE type = 'ApplicationInstance' ORDER BY appinstanceid LIMIT ? OFFSET ?",
+            parameters: [limit, offset],
+          }
+        : catalogTypeFilter === "Tags"
+          ? {
+              query:
+                trimmedTag
+                  ? `SELECT * FROM vw_catalog WHERE type = 'Entitlement' AND tags ILIKE '%${trimmedTag}%' ORDER BY appinstanceid LIMIT ? OFFSET ?`
+                  : "SELECT * FROM vw_catalog WHERE type = 'Entitlement' ORDER BY appinstanceid LIMIT ? OFFSET ?",
+              parameters: [limit, offset],
+            }
+          : isFilteredByAppInstance
+            ? {
+                query:
+                  "SELECT * FROM vw_catalog WHERE type = 'Entitlement' AND appinstanceid = ?::uuid ORDER BY appinstanceid LIMIT ? OFFSET ?",
+                parameters: [selectedAppInstanceId!.trim(), limit, offset],
+              }
+            : {
+                query: "SELECT * FROM vw_catalog ORDER BY appinstanceid LIMIT ? OFFSET ?",
+                parameters: [limit, offset],
+              };
+
+    fetch("https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        if (catalogPageRef.current !== pageRequested) return;
+        let rows: any[] = [];
+        if (Array.isArray(data)) rows = data;
+        else if (Array.isArray((data as any).resultSet)) rows = (data as any).resultSet;
+        else if (Array.isArray((data as any).rows)) rows = (data as any).rows;
+        setCatalogData(rows);
+      })
+      .catch(() => {
+        if (catalogPageRef.current !== pageRequested) return;
+        setCatalogData([]);
+      })
+      .finally(() => {
+        if (catalogPageRef.current === pageRequested) {
+          catalogFetchKeyRef.current = null;
+        }
+      });
+  }, [
+    currentStep,
+    catalogPage,
+    selectedAppInstanceId,
+    showApplicationInstancesOnly,
+    catalogTypeFilter,
+    tagFilter,
+  ]);
 
   // User-specific attributes for the expression builder
   const userAttributes = [
@@ -82,278 +296,333 @@ export default function CreateAccessPolicyPage() {
   };
 
   const handleNext = () => {
-    if (currentStep < 1) {
+    if (currentStep < 4) {
       setCurrentStep(currentStep + 1);
     }
   };
 
   const handlePrevious = () => {
-    if (currentStep > 0) {
+    if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
     }
   };
 
   // Step 1 Component - Policy Details
   const Step1Content = () => (
-    <form onSubmit={handleSubmit(onSubmit)}>
-      <div className="max-w-6xl mx-auto">
+    <>
+      {/* Policy Details Section */}
+      <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Policy Details</h2>
+        
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Policy Name
+            </label>
+            <input
+              type="text"
+              {...register("policyName")}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
 
-        {/* Policy Details Section */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Policy Details</h2>
-          
-          <div className="space-y-4">
-            <div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Description
+            </label>
+            <textarea
+              {...register("description")}
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Owner
+            </label>
+            <input
+              type="text"
+              {...register("owner")}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="flex items-center gap-6">
+            <div className="flex-1">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Policy Name
+                Priority
               </label>
               <input
-                type="text"
-                {...register("policyName")}
+                type="number"
+                {...register("priority")}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Description
-              </label>
-              <textarea
-                {...register("description")}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+            <div className="flex items-center gap-2 pt-8">
+              <input
+                type="checkbox"
+                id="enabled"
+                {...register("enabled")}
+                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
               />
-            </div>
-
-            <div className="flex items-center gap-6">
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Priority
-                </label>
-                <input
-                  type="number"
-                  {...register("priority")}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div className="flex items-center gap-2 pt-8">
-                <input
-                  type="checkbox"
-                  id="enabled"
-                  {...register("enabled")}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                />
-                <label htmlFor="enabled" className="text-sm font-medium text-gray-700">
-                  Enabled
-                </label>
-              </div>
+              <label htmlFor="enabled" className="text-sm font-medium text-gray-700">
+                Enabled
+              </label>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* User Attribute Condition Section */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-lg font-semibold text-gray-900">User Attribute Condition</h2>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Advanced</span>
-              <button
-                type="button"
-                onClick={() => setAdvanced(!advanced)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  advanced ? "bg-blue-600" : "bg-gray-300"
-                }`}
+    </>
+  );
+
+  // Step 2 Component - Membership Rule
+  const Step2Content = () => (
+    <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-lg font-semibold text-gray-900">Membership Rule</h2>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-600">Advanced</span>
+          <button
+            type="button"
+            onClick={() => setAdvanced(!advanced)}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              advanced ? "bg-blue-600" : "bg-gray-300"
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                advanced ? "translate-x-6" : "translate-x-1"
+              }`}
+            />
+          </button>
+        </div>
+      </div>
+      <p className="text-sm text-gray-600 mb-4">
+        Define which users are in scope for this access policy. All conditions must be true (AND) for the policy to apply.
+      </p>
+
+      <ExpressionBuilder
+        control={control as unknown as Control<FieldValues>}
+        setValue={setValue as unknown as UseFormSetValue<FieldValues>}
+        watch={watch as unknown as UseFormWatch<FieldValues>}
+        fieldName="userAttributeConditions"
+        attributesOptions={userAttributes}
+        hideJsonPreview={true}
+        fullWidth={true}
+      />
+    </div>
+  );
+
+  // Step 3 Component - Select Access
+  const Step3Content = () => (
+    <div className="space-y-6">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <SelectAccessTab
+          onApply={() => setCurrentStep(4)}
+          rolesFromApi={apiRoles}
+          apiCurrentPage={catalogPage}
+          onApiPageChange={(page) => setCatalogPage(page)}
+          applicationInstances={applicationInstances}
+          selectedAppInstanceId={selectedAppInstanceId}
+          onAppInstanceChange={(id) => {
+            setSelectedAppInstanceId(id || null);
+            setCatalogPage(1);
+          }}
+          showApplicationInstancesOnly={showApplicationInstancesOnly}
+          onShowApplicationInstancesOnlyChange={(checked) => {
+            setShowApplicationInstancesOnly(checked);
+            setCatalogPage(1);
+          }}
+          onCatalogTypeChange={(value) => {
+            setCatalogTypeFilter(value);
+            setCatalogPage(1);
+          }}
+          onTagSearch={(tag) => {
+            setTagFilter(tag);
+            setCatalogPage(1);
+          }}
+          hideRecommendedTab
+          hideAddDetailsSidebar
+        />
+      </div>
+
+      {/* Optional manual access definitions */}
+      <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-2">Additional Access</h2>
+        <p className="text-sm text-gray-600 mb-4">
+          Optionally define additional access that will be provisioned when the policy applies.
+        </p>
+
+        <div className="space-y-3">
+          {accessProvisions.map((access) => (
+            <div key={access.id} className="flex items-center gap-3">
+              <select
+                value={access.type}
+                onChange={(e) => updateAccess(access.id, "type", e.target.value)}
+                className="w-40 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    advanced ? "translate-x-6" : "translate-x-1"
-                  }`}
+                {typeOptions.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+              {access.type === "Business Role" ? (
+                <input
+                  type="text"
+                  value={access.application}
+                  readOnly
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500"
                 />
-              </button>
-            </div>
-          </div>
-          <p className="text-sm text-gray-600 mb-4">
-            All conditions must be true (AND) for the policy to apply.
-          </p>
-
-          <ExpressionBuilder
-            control={control as unknown as Control<FieldValues>}
-            setValue={setValue as unknown as UseFormSetValue<FieldValues>}
-            watch={watch as unknown as UseFormWatch<FieldValues>}
-            fieldName="userAttributeConditions"
-            attributesOptions={userAttributes}
-            hideJsonPreview={true}
-            fullWidth={true}
-          />
-        </div>
-
-        {/* Access Section */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">Access</h2>
-          <p className="text-sm text-gray-600 mb-4">
-            This is the access that will be provisioned when the conditions are met.
-          </p>
-
-          <div className="space-y-3">
-            {accessProvisions.map((access) => (
-              <div key={access.id} className="flex items-center gap-3">
+              ) : (
                 <select
-                  value={access.type}
-                  onChange={(e) => updateAccess(access.id, "type", e.target.value)}
-                  className="w-40 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={access.application}
+                  onChange={(e) => updateAccess(access.id, "application", e.target.value)}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  {typeOptions.map((opt) => (
+                  {applicationOptions.map((opt) => (
                     <option key={opt} value={opt}>
                       {opt}
                     </option>
                   ))}
                 </select>
-                {access.type === "Business Role" ? (
-                  <input
-                    type="text"
-                    value={access.application}
-                    readOnly
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500"
-                  />
-                ) : (
-                  <select
-                    value={access.application}
-                    onChange={(e) => updateAccess(access.id, "application", e.target.value)}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {applicationOptions.map((opt) => (
-                      <option key={opt} value={opt}>
-                        {opt}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                <input
-                  type="text"
-                  value={access.name}
-                  onChange={(e) => updateAccess(access.id, "name", e.target.value)}
-                  placeholder="NAME (ROLE, ENTITLEMENT, ETC.)"
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <button
-                  type="button"
-                  onClick={() => removeAccess(access.id)}
-                  className="p-2 text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                >
-                  <Trash2 className="w-5 h-5" />
-                </button>
-              </div>
-            ))}
-          </div>
-
-          <button
-            type="button"
-            onClick={addAccess}
-            className="mt-4 text-blue-600 hover:text-blue-800 font-medium text-sm flex items-center gap-1"
-          >
-            <Plus className="w-4 h-4" />
-            <span>ADD ACCESS</span>
-          </button>
+              )}
+              <input
+                type="text"
+                value={access.name}
+                onChange={(e) => updateAccess(access.id, "name", e.target.value)}
+                placeholder="NAME (ROLE, ENTITLEMENT, ETC.)"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button
+                type="button"
+                onClick={() => removeAccess(access.id)}
+                className="p-2 text-red-600 hover:bg-red-50 rounded-md transition-colors"
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
+            </div>
+          ))}
         </div>
 
-      </div>
-    </form>
-  );
-
-  // Step 2 Component - Review/Additional Info
-  const Step2Content = () => (
-    <div className="max-w-6xl mx-auto">
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Review</h2>
-        <p className="text-gray-600">Review your access policy configuration here.</p>
+        <button
+          type="button"
+          onClick={addAccess}
+          className="mt-4 text-blue-600 hover:text-blue-800 font-medium text-sm flex items-center gap-1"
+        >
+          <Plus className="w-4 h-4" />
+          <span>ADD ACCESS</span>
+        </button>
       </div>
     </div>
   );
 
+  // Step 4 Component - Review/Additional Info
+  const Step4Content = () => (
+    <div className="bg-white border border-gray-200 rounded-lg p-6">
+      <h2 className="text-lg font-semibold text-gray-900 mb-4">Review</h2>
+      <p className="text-gray-600">Review your access policy configuration here.</p>
+    </div>
+  );
+
   const steps = [
-    { name: "Policy Details", number: 1 },
-    { name: "Review", number: 2 },
+    { id: 1, title: "Policy Details" },
+    { id: 2, title: "Membership Rule" },
+    { id: 3, title: "Select Access" },
+    { id: 4, title: "Review" },
   ];
 
   return (
-    <div className="p-6 bg-white min-h-screen">
-      <div className="max-w-6xl mx-auto">
-        <h1 className="text-2xl font-bold text-gray-900 mb-8">Create Access Policy</h1>
-        
-        {/* Step Indicator */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            {steps.map((step, index) => {
-              const isActive = index === currentStep;
-              const isCompleted = index < currentStep;
-              
-              return (
-                <React.Fragment key={index}>
-                  <div className="flex items-center">
-                    <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium ${
-                        isActive || isCompleted
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-200 text-gray-600"
-                      }`}
-                    >
-                      {isCompleted ? <Check className="w-5 h-5" /> : step.number}
-                    </div>
-                    <div className="ml-3">
-                      <p className={`text-sm font-medium ${isActive ? "text-blue-600" : "text-gray-600"}`}>
-                        {step.name}
-                      </p>
-                    </div>
-                  </div>
-                  {index < steps.length - 1 && (
-                    <div className={`flex-1 h-0.5 mx-4 ${isCompleted ? "bg-blue-600" : "bg-gray-200"}`} />
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Step Content */}
-        <div className="mb-6">
-          {currentStep === 0 && <Step1Content />}
-          {currentStep === 1 && <Step2Content />}
-        </div>
-
-        {/* Navigation Buttons */}
-        <div className="flex justify-between">
+    <div className="min-h-screen bg-gray-50">
+      {/* Fixed step bar below header; aligned with content area */}
+      <div
+        className="fixed top-[60px] z-20 bg-white border-b border-gray-200 shadow-sm px-6 py-4"
+        style={{
+          left: isSidebarVisible ? sidebarWidthPx : 0,
+          right: 0,
+          transition: "left 300ms ease-in-out",
+        }}
+      >
+        <div className="flex items-center gap-4 max-w-full">
           <button
             type="button"
             onClick={handlePrevious}
-            disabled={currentStep === 0}
-            className={`px-4 py-2 rounded-md font-medium transition-colors flex items-center gap-2 ${
-              currentStep === 0
-                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+            disabled={currentStep === 1}
+            className={`flex items-center px-4 py-2 rounded-md text-sm font-medium shrink-0 ${
+              currentStep === 1
+                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                 : "bg-gray-200 text-gray-700 hover:bg-gray-300"
             }`}
           >
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft className="w-4 h-4 mr-2" />
             Previous
           </button>
-          
-          {currentStep === 0 ? (
-            <button
-              type="button"
-              onClick={handleNext}
-              className="bg-blue-600 text-white px-8 py-2 rounded-md font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
-            >
-              Next
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleSubmit(onSubmit)}
-              className="bg-blue-600 text-white px-8 py-2 rounded-md font-medium hover:bg-blue-700 transition-colors"
-            >
-              CREATE POLICY
-            </button>
-          )}
+
+          <div className="flex-1 flex items-center min-w-0">
+            {steps.map((step, index) => (
+              <React.Fragment key={step.id}>
+                <div className="flex items-center shrink-0">
+                  <div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium border shrink-0 ${
+                      currentStep >= step.id
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "bg-white text-gray-600 border-gray-300"
+                    }`}
+                  >
+                    {currentStep > step.id ? (
+                      <Check className="w-4 h-4" />
+                    ) : (
+                      step.id
+                    )}
+                  </div>
+                  <span className="ml-3 text-sm font-medium text-gray-900 whitespace-nowrap">
+                    {step.title}
+                  </span>
+                </div>
+                {index < steps.length - 1 && (
+                  <div className="flex-1 h-0.5 bg-gray-200 mx-4 min-w-[16px]" aria-hidden />
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+
+          <div className="shrink-0">
+            {currentStep < steps.length ? (
+              <button
+                type="button"
+                onClick={handleNext}
+                className="flex items-center px-4 py-2 rounded-md text-sm font-medium bg-blue-600 text-white hover:bg-blue-700"
+              >
+                Next
+                <ChevronRight className="w-4 h-4 ml-2" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSubmit(onSubmit)}
+                className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium"
+              >
+                <Check className="w-4 h-4 mr-2" />
+                Create Policy
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Spacer so content is not hidden under fixed step bar */}
+      <div className="h-[72px]" aria-hidden />
+
+      <div className="w-full py-3 px-2">
+        <div className="w-full">
+          <div className="space-y-6">
+            {currentStep === 1 && <Step1Content />}
+            {currentStep === 2 && <Step2Content />}
+            {currentStep === 3 && <Step3Content />}
+            {currentStep === 4 && <Step4Content />}
+          </div>
         </div>
       </div>
     </div>
