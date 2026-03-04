@@ -54,6 +54,10 @@ interface SelectAccessTabProps {
   onShowApplicationInstancesOnlyChange?: (checked: boolean) => void;
   onCatalogTypeChange?: (value: string) => void;
   onTagSearch?: (tag: string) => void;
+  /** Optional: hide Recommended tab (for simplified flows) */
+  hideRecommendedTab?: boolean;
+  /** Optional: hide Add Details sidebar button in catalog list */
+  hideAddDetailsSidebar?: boolean;
 }
 
 const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
@@ -68,6 +72,8 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
   onShowApplicationInstancesOnlyChange,
   onCatalogTypeChange,
   onTagSearch,
+  hideRecommendedTab = false,
+  hideAddDetailsSidebar = false,
 }) => {
   const { addToCart, removeFromCart, isInCart, cartCount } = useCart();
   const { openSidebar, closeSidebar } = useRightSidebar();
@@ -490,30 +496,32 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <button
-                  onClick={() => {
-                    const addToCartForRole = () => {
-                      if (!isInCart(role.id)) addToCart({ id: role.id, name: role.name, risk: role.risk });
-                      closeSidebar();
-                    };
-                    const onValidate = () => {
-                      // Validate action – can be wired to validation API or flow later
-                      closeSidebar();
-                    };
-                    openSidebar(
-                      <AddDetailsSidebarContent
-                        role={role}
-                        riskClass={getRiskColor(role.risk)}
-                        onAddToCart={addToCartForRole}
-                        onValidate={onValidate}
-                      />,
-                      { widthPx: 500, title: "Add Details" }
-                    );
-                  }}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-md font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors text-sm"
-                >
-                  Add Details
-                </button>
+                {!hideAddDetailsSidebar && (
+                  <button
+                    onClick={() => {
+                      const addToCartForRole = () => {
+                        if (!isInCart(role.id)) addToCart({ id: role.id, name: role.name, risk: role.risk });
+                        closeSidebar();
+                      };
+                      const onValidate = () => {
+                        // Validate action – can be wired to validation API or flow later
+                        closeSidebar();
+                      };
+                      openSidebar(
+                        <AddDetailsSidebarContent
+                          role={role}
+                          riskClass={getRiskColor(role.risk)}
+                          onAddToCart={addToCartForRole}
+                          onValidate={onValidate}
+                        />,
+                        { widthPx: 500, title: "Add Details" }
+                      );
+                    }}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-md font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors text-sm"
+                  >
+                    Add Details
+                  </button>
+                )}
                 <button
                   onClick={() => handleAddToCart(role)}
                   className={`inline-flex items-center justify-center px-3 py-2 rounded-md font-medium transition-colors ${
@@ -1199,10 +1207,14 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
       label: "All",
       component: AllTab,
     },
-    {
-      label: "Recommended",
-      component: RecommendedTab,
-    },
+    ...(!hideRecommendedTab
+      ? [
+          {
+            label: "Recommended",
+            component: RecommendedTab,
+          },
+        ]
+      : []),
     {
       label: "Mirror Access",
       component: MirrorAccessTab,

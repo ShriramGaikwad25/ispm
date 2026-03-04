@@ -38,6 +38,13 @@ export default function GatewaySettings() {
       icon: <Shield className="w-5 h-5 text-gray-600" />,
     },
     {
+      id: 'manage-business-roles',
+      title: 'Manage Business Roles',
+      subtitle: 'Configure and manage Business roles and permissions.',
+      href: '/settings/gateway/manage-business-roles',
+      icon: <Users className="w-5 h-5 text-gray-600" />,
+    },
+    {
       id: 'email-templates',
       title: 'Email Templates',
       subtitle: 'Create and manage email templates for notifications.',

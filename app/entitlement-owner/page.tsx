@@ -14,7 +14,6 @@ import {
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
-import { getCatalogEntitlements } from "@/lib/api";
 import { getReviewerId } from "@/lib/auth";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import CustomPagination from "@/components/agTable/CustomPagination";
@@ -124,42 +123,19 @@ const EntitlementOwnerPageContent = () => {
     setCommentText(`${commentCategory} - ${subcategory}`);
   };
 
-  // Fetch data from API
+  // Fetch data from cached Entitlement Owner catalog details (set on click)
   useEffect(() => {
-    const fetchData = async () => {
-      if (!reviewerId || !appInstanceId) {
-        setApiError("Missing reviewerId or appInstanceId");
-        setLoading(false);
-        return;
-      }
-
+    const loadFromCache = () => {
       try {
         setLoading(true);
         setApiError(null);
 
-        // Fetch entitlements using getCatalogEntitlements (same API as catalog page)
-        console.log("Fetching entitlements with appInstanceId:", appInstanceId, "reviewerId:", reviewerId);
-        const response = await getCatalogEntitlements<any>(
-          appInstanceId,
-          reviewerId
-        );
+        const cached = typeof window !== "undefined"
+          ? localStorage.getItem("entitlementOwnerCatalogCertificationDetails")
+          : null;
 
-        // Debug: Log the API response to see what fields are available
-        console.log("API Response:", response);
-        console.log("Response type:", typeof response);
-        console.log("Response items:", response.items);
-        console.log("Response items type:", typeof response.items);
-        console.log("Is array:", Array.isArray(response.items));
-        
-        if (!response) {
-          throw new Error("No response received from API");
-        }
-
-        // Handle different response structures
-        const items = response.items || response.data?.items || (Array.isArray(response) ? response : []);
-        
-        if (!items || items.length === 0) {
-          console.warn("No entitlements found in response");
+        if (!cached) {
+          console.warn("No cached entitlement owner catalog details found");
           setRowData([]);
           setTotalItems(0);
           setTotalPages(1);
@@ -167,108 +143,141 @@ const EntitlementOwnerPageContent = () => {
           return;
         }
 
-        if (items.length > 0) {
-          console.log("First item structure:", items[0]);
-          console.log(
-            "Available fields in first item:",
-            Object.keys(items[0])
-          );
+        const parsed = JSON.parse(cached);
+        const items =
+          parsed?.items ||
+          parsed?.data?.items ||
+          (Array.isArray(parsed) ? parsed : [parsed]);
+
+        if (!items || items.length === 0) {
+          console.warn("No entitlements found in cached data");
+          setRowData([]);
+          setTotalItems(0);
+          setTotalPages(1);
+          setLoading(false);
+          return;
         }
 
-        // Transform API response to match the expected format (same as catalog page)
+        // Transform cached data to match the expected format (same as catalog page)
         const transformedData =
           items.map((item: any) => {
+            // New API wraps catalog details inside catalogDetails; fall back to flat item if needed
+            const details = item.catalogDetails || item;
+            const metadata = details.metadata || {};
+
             // Normalize snake_case and different APIs to the keys used by Applications sidebar
             const name =
-              item.name ||
-              item.entitlementName ||
-              item.entitlementname ||
+              details.name ||
+              details.entitlementName ||
+              details.entitlementname ||
               "N/A";
             const description =
-              item.description ||
-              item.entitlementDescription ||
-              item.details ||
-              item.summary ||
-              item.comment ||
-              item.notes ||
+              details.description ||
+              details.entitlementDescription ||
+              details.details ||
+              details.summary ||
+              details.comment ||
+              details.notes ||
               "N/A";
             const entType =
-              item["Ent Type"] ||
-              item.entitlementType ||
-              item.entitlementtype ||
-              item.type ||
+              details["Ent Type"] ||
+              details.entitlementType ||
+              details.entitlementtype ||
+              details.type ||
               "N/A";
             const appName =
-              item["App Name"] ||
-              item.applicationName ||
-              item.applicationname ||
-              item.appName ||
+              details["App Name"] ||
+              details.applicationName ||
+              details.applicationname ||
+              details.appName ||
               "N/A";
             const entOwner =
-              item["Ent Owner"] ||
-              item.entitlementOwner ||
-              item.entitlementowner ||
-              item.owner ||
+              details["Ent Owner"] ||
+              details.entitlementOwner ||
+              details.entitlementowner ||
+              details.owner ||
               "N/A";
             const appOwner =
-              item["App Owner"] ||
-              item.applicationowner ||
-              item.appOwner ||
+              details["App Owner"] ||
+              details.applicationowner ||
+              details.appOwner ||
               "N/A";
             const businessObjective =
-              item["Business Objective"] ||
-              item.businessObjective ||
-              item.business_objective ||
+              details["Business Objective"] ||
+              details.businessObjective ||
+              details.business_objective ||
               "N/A";
             const complianceType =
-              item["Compliance Type"] ||
-              item.complianceType ||
-              item.regulatory_scope ||
+              details["Compliance Type"] ||
+              details.complianceType ||
+              details.regulatory_scope ||
               "N/A";
             const dataClassification =
-              item["Data Classification"] || item.data_classification || "N/A";
+              details["Data Classification"] ||
+              details.data_classification ||
+              "N/A";
             const businessUnit =
-              item["Business Unit"] || item.businessunit_department || "N/A";
-            const risk = item["Risk"] || item.risk || item.riskLevel || "N/A";
+              details["Business Unit"] ||
+              details.businessunit_department ||
+              "N/A";
+            const riskVal =
+              details["Risk"] || details.risk || details.riskLevel || "N/A";
             const requestable =
-              item.requestable ?? item["Requestable"] ? "Yes" : "No";
+              details.requestable ?? details["Requestable"] ? "Yes" : "No";
             const certifiable =
-              item.certifiable ?? item["Certifiable"] ? "Yes" : "No";
+              details.certifiable ?? details["Certifiable"] ? "Yes" : "No";
             const lastReviewed =
-              item["Last Reviewed on"] ||
-              item.last_reviewed_on ||
-              item.lastReviewedOn ||
-              item.last_reviewed ||
+              details["Last Reviewed on"] ||
+              details.last_reviewed_on ||
+              details.lastReviewedOn ||
+              details.last_reviewed ||
               "N/A";
             const lastSync =
-              item["Last Sync"] || item.last_sync || item.lastSync || "N/A";
+              details["Last Sync"] ||
+              details.last_sync ||
+              details.lastSync ||
+              "N/A";
             const createdOn =
-              item["Created On"] ||
-              item.created_on ||
-              item.createdOn ||
-              item.createdDate ||
-              item.createddate ||
+              details["Created On"] ||
+              details.created_on ||
+              details.createdOn ||
+              details.createdDate ||
+              details.createddate ||
               "N/A";
             const reviewSchedule =
-              item["Review Schedule"] ||
-              item.review_schedule ||
-              item.reviewSchedule ||
+              details["Review Schedule"] ||
+              details.review_schedule ||
+              details.reviewSchedule ||
               "N/A";
             const accessScope =
-              item["Access Scope"] ||
-              item.access_scope ||
-              item.accessScope ||
+              details["Access Scope"] ||
+              details.access_scope ||
+              details.accessScope ||
               "N/A";
-            const dynamicTag =
-              item["Dynamic Tag"] || item.tags || item.dynamicTag || "N/A";
+
+            // Normalize tags/dynamicTag so we never pass an object directly to React
+            const rawTags =
+              details["Dynamic Tag"] ?? details.tags ?? details.dynamicTag;
+            let dynamicTag: string;
+            if (Array.isArray(rawTags)) {
+              dynamicTag = rawTags.join(", ");
+            } else if (rawTags && typeof rawTags === "object") {
+              dynamicTag = Object.entries(rawTags)
+                .map(([key, value]) => `${key}: ${String(value)}`)
+                .join(", ");
+            } else if (rawTags != null && rawTags !== "") {
+              dynamicTag = String(rawTags);
+            } else {
+              dynamicTag = "N/A";
+            }
             const revokeOnDisable =
-              item["Revoke on Disable"] ??
-              item.revoke_on_disable ??
-              item.revokeOnDisable
+              details["Revoke on Disable"] ??
+              details.revoke_on_disable ??
+              details.revokeOnDisable
                 ? "Yes"
                 : "No";
             const sharedPwd =
-              item["Shared Pwd"] ?? item.shared_pwd ?? item.sharedPassword;
+              details["Shared Pwd"] ?? details.shared_pwd ?? details.sharedPassword;
             const sharedPwdText =
               sharedPwd === true || sharedPwd === "true"
                 ? "Yes"
@@ -276,67 +285,79 @@ const EntitlementOwnerPageContent = () => {
                 ? "No"
                 : sharedPwd || "N/A";
             const mfaStatus =
-              item["MFA Status"] || item.mfa_status || item.mfaStatus || "N/A";
-            const hierarchy = item["Hierarchy"] || item.hierarchy || "N/A";
-            const preReq = item["Pre- Requisite"] || item.prerequisite || "N/A";
+              details["MFA Status"] ||
+              details.mfa_status ||
+              details.mfaStatus ||
+              "N/A";
+            const hierarchy =
+              details["Hierarchy"] || details.hierarchy || "N/A";
+            const preReq =
+              details["Pre- Requisite"] || details.prerequisite || "N/A";
             const preReqDetails =
-              item["Pre-Requisite Details"] ||
-              item.prerequisite_details ||
-              item.prerequisiteDetails ||
+              details["Pre-Requisite Details"] ||
+              details.prerequisite_details ||
+              details.prerequisiteDetails ||
               "N/A";
             const totalAssignments =
-              item["Total Assignments"] ||
-              item.totalAssignments ||
-              item.assignmentCount ||
-              item.totalassignmentstousers ||
+              details["Total Assignments"] ||
+              details.totalAssignments ||
+              details.assignmentCount ||
+              details.totalassignmentstousers ||
               0;
             const assignment =
-              item["assignment"] ||
-              item.assignment ||
-              item.assigned_to ||
-              item.assignedTo ||
+              details["assignment"] ||
+              details.assignment ||
+              details.assigned_to ||
+              details.assignedTo ||
               "N/A";
             const licenseType =
-              item["License Type"] || item.license_type || "N/A";
+              details["License Type"] || details.license_type || "N/A";
             const toxicCombination =
-              item["SOD Check"] ||
-              item.toxic_combination ||
-              item.sodCheck ||
+              details["SOD Check"] ||
+              details.toxic_combination ||
+              details.sodCheck ||
               "N/A";
             const provisionerGroup =
-              item["Provisioner Group"] || item.provisioner_group || "N/A";
+              details["Provisioner Group"] ||
+              details.provisioner_group ||
+              "N/A";
             const provisioningSteps =
-              item["Provisioning Steps"] || item.provisioning_steps || "N/A";
+              details["Provisioning Steps"] ||
+              details.provisioning_steps ||
+              "N/A";
             const provisioningMechanism =
-              item["Provisioning Mechanism"] ||
-              item.provisioning_mechanism ||
+              details["Provisioning Mechanism"] ||
+              details.provisioning_mechanism ||
               "N/A";
             const autoAssignPolicy =
-              item["Auto Assign Access Policy"] ||
-              item.auto_assign_access_policy ||
+              details["Auto Assign Access Policy"] ||
+              details.auto_assign_access_policy ||
               "N/A";
             const actionOnNativeChange =
-              item["Action on Native Change"] ||
-              item.action_on_native_change ||
+              details["Action on Native Change"] ||
+              details.action_on_native_change ||
               "N/A";
             const accountTypeRestriction =
-              item["Account Type Restriction"] ||
-              item.account_type_restriction ||
+              details["Account Type Restriction"] ||
+              details.account_type_restriction ||
               "N/A";
             const nonPersistentAccess =
-              item["Non Persistent Access"] ??
-              item.non_persistent_access ??
-              item.nonPersistentAccess
+              details["Non Persistent Access"] ??
+              details.non_persistent_access ??
+              details.nonPersistentAccess
                 ? "Yes"
                 : "No";
-            const privileged =
-              item["Privileged"] ?? item.privileged ? "Yes" : "No";
+            const privilegedVal =
+              details["Privileged"] ?? details.privileged ? "Yes" : "No";
             const costCenter =
-              item["Cost Center"] || item.cost_center || item.costCenter || "N/A";
+              details["Cost Center"] ||
+              details.cost_center ||
+              details.costCenter ||
+              "N/A";
             const auditComments =
-              item["Audit Comments"] ||
-              item.audit_comments ||
-              item.auditComments ||
+              details["Audit Comments"] ||
+              details.audit_comments ||
+              details.auditComments ||
               "N/A";
 
             return {
@@ -348,8 +369,8 @@ const EntitlementOwnerPageContent = () => {
               "Ent Type": entType,
               applicationName: appName,
               "App Name": appName,
-              risk: risk,
-              "Risk": risk,
+              risk: riskVal,
+              "Risk": riskVal,
               "Total Assignments": totalAssignments,
               "Dynamic Tag": dynamicTag,
               "Business Objective": businessObjective,
@@ -360,7 +381,8 @@ const EntitlementOwnerPageContent = () => {
               "Cost Center": costCenter,
               "Created On": createdOn,
               "Last Sync": lastSync,
-              "App Instance": appInstanceId,
+              "App Instance":
+                details.appinstanceid || metadata.instanceId || appInstanceId,
               "App Owner": appOwner,
               "Hierarchy": hierarchy,
               "MFA Status": mfaStatus,
@@ -373,7 +395,7 @@ const EntitlementOwnerPageContent = () => {
               "Access Scope": accessScope,
               "Review Schedule": reviewSchedule,
               "Last Reviewed on": lastReviewed,
-              "Privileged": privileged,
+              "Privileged": privilegedVal,
               "Non Persistent Access": nonPersistentAccess,
               "Audit Comments": auditComments,
               "Account Type Restriction": accountTypeRestriction,
@@ -385,26 +407,32 @@ const EntitlementOwnerPageContent = () => {
               "Provisioning Steps": provisioningSteps,
               "Provisioning Mechanism": provisioningMechanism,
               "Action on Native Change": actionOnNativeChange,
-              entitlementId: item.entitlementId || item.id || "",
+              entitlementId:
+                details.entitlementId ||
+                details.entitlementid ||
+                metadata.entitlementId ||
+                item.entitlementId ||
+                "",
               lineItemId: item.lineItemId || "",
-              status: item.status || "Pending",
+              status: item.action || details.status || "Pending",
             };
           }) || [];
 
-        console.log("Transformed data count:", transformedData.length);
+        console.log("Transformed cached data count:", transformedData.length);
         setRowData(transformedData);
-        setTotalItems(response.total_items || response.totalItems || items.length || transformedData.length);
-        setTotalPages(response.total_pages || response.totalPages || 1);
+        const total = items.length || transformedData.length;
+        setTotalItems(total);
+        setTotalPages(Math.max(1, Math.ceil(total / pageSize)));
       } catch (err: any) {
-        console.error("Error fetching entitlements:", err);
-        setApiError(err.message || "Failed to load entitlements");
+        console.error("Error loading cached entitlements:", err);
+        setApiError(err.message || "Failed to load entitlements from cache");
       } finally {
         setLoading(false);
       }
     };
 
-    fetchData();
-  }, [reviewerId, appInstanceId, pageSize, currentPage]);
+    loadFromCache();
+  }, [pageSize]);
 
   // Sync grid pagination with entitlement-based pagination
   useEffect(() => {

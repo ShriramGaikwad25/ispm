@@ -760,39 +760,11 @@ const OpenTab: React.FC = () => {
         }
       );
       console.log("Mapped Row Data:", mapped); // Debug mapped data
-      
-      // Add dummy Entitlement Owner record for testing
-      const dummyEntitlementOwnerRecord: CertificationRow = {
-        id: `dummy-${reviewerId}-entitlement-owner-test`,
-        taskId: "dummy-task-id",
-        reviewerId: reviewerId,
-        certificationId: "dummy-cert-id-entitlement-owner",
-        campaignId: "dummy-campaign-id",
-        certificationName: "Entitlement Owner Review",
-        certificationType: "Entitlement Owner",
-        certificationCreatedOn: new Date().toISOString(),
-        certificationExpiration: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
-        status: "Active",
-        certificationSignedOff: false,
-        certificateRequester: "Test User",
-        certificateOwner: "Test User",
-        percentageCompleted: 45,
-        totalActions: 100,
-        totalActionsCompleted: 45,
-        progress: 45,
-        description: "Entitlement Owner review Certification",
-        reviewerName: reviewerId,
-        dueIn: "30 days",
-        estimatedTimeToCompletion: "2 hours",
-      };
-      
-      // Add dummy record at the beginning of the array
-      const dataWithDummy = [dummyEntitlementOwnerRecord, ...mapped];
-      
-      setRowData(dataWithDummy as unknown as UserRowData[]);
-      localStorage.setItem("sharedRowData", JSON.stringify(dataWithDummy));
+
+      setRowData(mapped as unknown as UserRowData[]);
+      localStorage.setItem("sharedRowData", JSON.stringify(mapped));
       try { window.dispatchEvent(new Event("localStorageChange")); } catch {}
-      setTotalItems((certificationData.total_items || 0) + 1); // Add 1 for dummy record
+      setTotalItems(certificationData.total_items || 0);
       setTotalPages(certificationData.total_pages || 1);
       
       // Progress data will be sent to header when a certification row is clicked
@@ -801,14 +773,11 @@ const OpenTab: React.FC = () => {
 
   useEffect(() => {
     let filtered = rowData;
-    
-    // Filter by status - only show truly "open" items
-    // - backend often leaves status as "Active" even after sign-off
-    // - we treat rows with certificationSignedOff === true as "completed"
-    filtered = filtered.filter(
-      (row) => row.status === "Active" && row.certificationSignedOff !== true
-    );
-    
+
+    // Show all non-signed-off items, regardless of status,
+    // so types like "Entitlement Owner" are visible here.
+    filtered = filtered.filter((row) => row.certificationSignedOff !== true);
+
     // Filter by search term
     if (searchTerm.trim()) {
       filtered = filtered.filter((row) =>
@@ -817,7 +786,7 @@ const OpenTab: React.FC = () => {
         row.reviewerName.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
-    
+
     setFilteredRowData(filtered);
   }, [rowData, searchTerm]);
 
@@ -880,7 +849,7 @@ const OpenTab: React.FC = () => {
     }
   };
 
-  function handleRowClick(e: RowClickedEvent<CertificationRow>) {
+  async function handleRowClick(e: RowClickedEvent<CertificationRow>) {
     const clickedReviewerId = e.data?.reviewerId;
     const clickedCertificationId = e.data?.certificationId;
     const certificationType = e.data?.certificationType;
@@ -929,10 +898,34 @@ const OpenTab: React.FC = () => {
         });
         router.push(`/app-owner?reviewerId=${clickedReviewerId}&certificationId=${clickedCertificationId}`);
       } else if (certificationType === "Entitlement Owner") {
-        console.log('Navigating to Entitlement Owner with parameters:', {
+        console.log('Fetching Entitlement Owner catalog details with parameters:', {
           reviewerId: clickedReviewerId,
           certificationId: clickedCertificationId
         });
+
+        try {
+          showApiLoader?.(true, "Loading entitlement owner details...");
+
+          const response = await fetch(
+            `https://preview.keyforge.ai/certification/api/v1/ACMECOM/getCatalogCertificationDetails/${clickedReviewerId}/${clickedCertificationId}`
+          );
+
+          if (!response.ok) {
+            throw new Error(`Failed to fetch catalog certification details: ${response.status} ${response.statusText}`);
+          }
+
+          const data = await response.json();
+          // Store details for the Entitlement Owner page (or other consumers)
+          localStorage.setItem(
+            "entitlementOwnerCatalogCertificationDetails",
+            JSON.stringify(data)
+          );
+        } catch (error) {
+          console.error("Error fetching Entitlement Owner catalog details:", error);
+        } finally {
+          hideApiLoader?.();
+        }
+
         router.push(`/entitlement-owner?reviewerId=${clickedReviewerId}&certificationId=${clickedCertificationId}`);
       }
     }

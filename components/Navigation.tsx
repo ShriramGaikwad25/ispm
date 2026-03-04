@@ -85,10 +85,14 @@ export function Navigation() {
     if (pathname === '/settings/gateway/manage-access-policy/new') {
       return { href: '/settings/gateway/manage-access-policy', label: 'Back to Manage Access Policy' };
     }
+    if (pathname === '/settings/gateway/manage-business-roles/new') {
+      return { href: '/settings/gateway/manage-business-roles', label: 'Back to Manage Business Roles' };
+    }
     if (pathname === '/settings/gateway/entitlement-management' || pathname === '/settings/gateway/workflow-builder' ||
         pathname === '/settings/gateway/sam' || pathname === '/settings/gateway/native-users' ||
         pathname === '/settings/gateway/admin-roles' || pathname === '/settings/gateway/custom-schema' ||
-        pathname === '/settings/gateway/general' || pathname === '/settings/gateway/scheduler') {
+        pathname === '/settings/gateway/general' || pathname === '/settings/gateway/scheduler' ||
+        pathname === '/settings/gateway/manage-business-roles') {
       return { href: '/settings/gateway', label: 'Back to Gateway' };
     }
     if (pathname.startsWith('/settings/gateway/manage-access-policy')) {
