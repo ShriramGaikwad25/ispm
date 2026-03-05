@@ -10,13 +10,16 @@ import { formatDateMMDDYY } from "../access-review/page";
 import {
   CircleCheck,
   CircleX,
-  ArrowRightCircle,
   ChevronDown,
   ChevronRight,
+  Download as DownloadIcon,
+  UserRoundCheckIcon,
+  SquarePen,
 } from "lucide-react";
 import { getReviewerId } from "@/lib/auth";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import CustomPagination from "@/components/agTable/CustomPagination";
+import Filters from "@/components/agTable/Filters";
 
 const EntitlementOwnerPageContent = () => {
   const { openSidebar, closeSidebar } = useRightSidebar();
@@ -32,6 +35,7 @@ const EntitlementOwnerPageContent = () => {
   const [error, setError] = useState<string | null>(null);
   const [lastAction, setLastAction] = useState<string | null>(null);
   const [searchText, setSearchText] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("All");
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
   const [comment, setComment] = useState("");
   const [commentText, setCommentText] = useState("");
@@ -50,13 +54,29 @@ const EntitlementOwnerPageContent = () => {
   // Transform rowData to add description rows (separate row for each description)
   const filteredRowData = useMemo(() => {
     if (!rowData || rowData.length === 0) return [];
+
+    let base = rowData;
+    const normalizedFilter = (statusFilter || "All").toLowerCase();
+    if (normalizedFilter !== "all") {
+      base = rowData.filter((item) => {
+        const rawStatus = String(item.status || item.action || "").toLowerCase();
+        if (normalizedFilter === "pending") {
+          return rawStatus === "pending";
+        }
+        if (normalizedFilter === "approve" || normalizedFilter === "certify") {
+          return rawStatus.startsWith("approve") || rawStatus === "approved";
+        }
+        return true;
+      });
+    }
+
     const rows: any[] = [];
-    for (const item of rowData) {
+    for (const item of base) {
       rows.push(item);
       rows.push({ ...item, __isDescRow: true });
     }
     return rows;
-  }, [rowData]);
+  }, [rowData, statusFilter]);
 
   // Action handlers
   const handleApprove = () => {
@@ -547,18 +567,15 @@ const EntitlementOwnerPageContent = () => {
               </button>
               <button
                 onClick={handleRevoke}
-                title="Revoke"
-                aria-label="Revoke selected rows"
-                className={`p-1 rounded ${
-                  params.data?.status === "Rejected" ? "bg-red-100" : ""
-                }`}
+                title="Reassign"
+                aria-label="Reassign selected rows"
+                className="p-1 rounded transition-colors duration-200"
               >
-                <CircleX
-                  className="cursor-pointer hover:opacity-80 transform rotate-90"
-                  color="#FF2D55"
+                <UserRoundCheckIcon
+                  className="cursor-pointer"
+                  color="#b146ccff"
                   strokeWidth="1"
-                  size="32"
-                  fill={params.data?.status === "Rejected" ? "#FF2D55" : "none"}
+                  size="24"
                 />
               </button>
               <button
@@ -590,6 +607,18 @@ const EntitlementOwnerPageContent = () => {
                       security: false,
                       lifecycle: false,
                     });
+                    const [entName, setEntName] = useState<string>(
+                      row?.["Ent Name"] ||
+                        row?.entitlementName ||
+                        row?.applicationName ||
+                        ""
+                    );
+                    const [entDescription, setEntDescription] = useState<string>(
+                      row?.["Ent Description"] ||
+                        row?.description ||
+                        row?.details ||
+                        ""
+                    );
 
                     return (
                       <div className="flex flex-col h-full">
@@ -598,28 +627,27 @@ const EntitlementOwnerPageContent = () => {
                           <div className="p-4 border-b bg-gray-50">
                             <div className="flex justify-between items-start">
                               <div className="flex-1">
-                                <h2 className="text-lg font-semibold">Entitlement Details</h2>
-                                <div className="mt-2">
+                                <div className="mt-1">
                                   <span className="text-xs uppercase text-gray-500">
                                     Entitlement Name:
                                   </span>
-                                  <div className="text-md font-medium break-words break-all whitespace-normal max-w-full">
-                                    {row?.["Ent Name"] ||
-                                      row?.entitlementName ||
-                                      row?.applicationName ||
-                                      "-"}
-                                  </div>
+                                  <input
+                                    type="text"
+                                    value={entName}
+                                    onChange={(e) => setEntName(e.target.value)}
+                                    className="mt-1 w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  />
                                 </div>
                                 <div className="mt-2">
                                   <span className="text-xs uppercase text-gray-500">
                                     Description:
                                   </span>
-                                  <p className="text-sm text-gray-700 break-words break-all whitespace-pre-wrap max-w-full">
-                                    {row?.["Ent Description"] ||
-                                      row?.description ||
-                                      row?.details ||
-                                      "-"}
-                                  </p>
+                                  <textarea
+                                    value={entDescription}
+                                    onChange={(e) => setEntDescription(e.target.value)}
+                                    rows={3}
+                                    className="mt-1 w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+                                  />
                                 </div>
                               </div>
                             </div>
@@ -695,27 +723,53 @@ const EntitlementOwnerPageContent = () => {
                                 General
                               </button>
                               {sectionsOpen.general && (
-                                <div className="p-4 space-y-2">
-                                  <div className="flex space-x-4 text-sm text-gray-700">
+                                <div className="p-4 space-y-2 text-sm text-gray-700">
+                                  <div className="flex space-x-4">
                                     <div className="flex-1">
-                                      <strong>Ent Type:</strong>{" "}
-                                      {row?.["Ent Type"] || row?.type || "N/A"}
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        Ent Type
+                                      </label>
+                                      <input
+                                        type="text"
+                                        defaultValue={row?.["Ent Type"] || row?.type || "N/A"}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
                                     </div>
                                     <div className="flex-1">
-                                      <strong>#Assignments:</strong>{" "}
-                                      {row?.["Total Assignments"] ?? "N/A"}
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        #Assignments
+                                      </label>
+                                      <input
+                                        type="text"
+                                        defaultValue={String(row?.["Total Assignments"] ?? "N/A")}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
                                     </div>
                                   </div>
-                                  <div className="flex space-x-4 text-sm text-gray-700">
+                                  <div className="flex space-x-4">
                                     <div className="flex-1">
-                                      <strong>App Name:</strong>{" "}
-                                      {row?.["App Name"] ||
-                                        row?.applicationName ||
-                                        "N/A"}
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        App Name
+                                      </label>
+                                      <input
+                                        type="text"
+                                        defaultValue={
+                                          row?.["App Name"] ||
+                                          row?.applicationName ||
+                                          "N/A"
+                                        }
+                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
                                     </div>
                                     <div className="flex-1">
-                                      <strong>Tag(s):</strong>{" "}
-                                      {row?.["Dynamic Tag"] || "N/A"}
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        Tag(s)
+                                      </label>
+                                      <input
+                                        type="text"
+                                        defaultValue={row?.["Dynamic Tag"] || "N/A"}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
                                     </div>
                                   </div>
                                 </div>
@@ -739,31 +793,67 @@ const EntitlementOwnerPageContent = () => {
                               {sectionsOpen.business && (
                                 <div className="p-4 space-y-2 text-sm text-gray-700">
                                   <div>
-                                    <strong>Objective:</strong>{" "}
-                                    {row?.["Business Objective"] || "N/A"}
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                                      Objective
+                                    </label>
+                                    <textarea
+                                      defaultValue={row?.["Business Objective"] || "N/A"}
+                                      rows={2}
+                                      className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+                                    />
                                   </div>
                                   <div className="flex space-x-4">
                                     <div className="flex-1">
-                                      <strong>Business Unit:</strong>{" "}
-                                      {row?.["Business Unit"] || "N/A"}
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        Business Unit
+                                      </label>
+                                      <input
+                                        type="text"
+                                        defaultValue={row?.["Business Unit"] || "N/A"}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
                                     </div>
                                     <div className="flex-1">
-                                      <strong>Business Owner:</strong>{" "}
-                                      {row?.["Ent Owner"] || "N/A"}
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        Business Owner
+                                      </label>
+                                      <input
+                                        type="text"
+                                        defaultValue={row?.["Ent Owner"] || "N/A"}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
                                     </div>
                                   </div>
                                   <div>
-                                    <strong>Regulatory Scope:</strong>{" "}
-                                    {row?.["Compliance Type"] || "N/A"}
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                                      Regulatory Scope
+                                    </label>
+                                    <input
+                                      type="text"
+                                      defaultValue={row?.["Compliance Type"] || "N/A"}
+                                      className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
                                   </div>
                                   <div className="flex space-x-4">
                                     <div className="flex-1">
-                                      <strong>Data Classification:</strong>{" "}
-                                      {row?.["Data Classification"] || "N/A"}
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        Data Classification
+                                      </label>
+                                      <input
+                                        type="text"
+                                        defaultValue={row?.["Data Classification"] || "N/A"}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
                                     </div>
                                     <div className="flex-1">
-                                      <strong>Cost Center:</strong>{" "}
-                                      {row?.["Cost Center"] || "N/A"}
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        Cost Center
+                                      </label>
+                                      <input
+                                        type="text"
+                                        defaultValue={row?.["Cost Center"] || "N/A"}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
                                     </div>
                                   </div>
                                 </div>
@@ -791,53 +881,115 @@ const EntitlementOwnerPageContent = () => {
                                 <div className="p-4 space-y-2 text-sm text-gray-700">
                                   <div className="flex space-x-4">
                                     <div className="flex-1">
-                                      <strong>Created On:</strong>{" "}
-                                      {row?.["Created On"] || "N/A"}
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        Created On
+                                      </label>
+                                      <input
+                                        type="text"
+                                        defaultValue={row?.["Created On"] || "N/A"}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
                                     </div>
                                     <div className="flex-1">
-                                      <strong>Last Sync:</strong>{" "}
-                                      {row?.["Last Sync"] || "N/A"}
-                                    </div>
-                                  </div>
-                                  <div className="flex space-x-4">
-                                    <div className="flex-1">
-                                      <strong>App Name:</strong>{" "}
-                                      {row?.["App Name"] ||
-                                        row?.applicationName ||
-                                        "N/A"}
-                                    </div>
-                                    <div className="flex-1">
-                                      <strong>App Instance:</strong>{" "}
-                                      {row?.["App Instance"] || "N/A"}
-                                    </div>
-                                  </div>
-                                  <div className="flex space-x-4">
-                                    <div className="flex-1">
-                                      <strong>App Owner:</strong>{" "}
-                                      {row?.["App Owner"] || "N/A"}
-                                    </div>
-                                    <div className="flex-1">
-                                      <strong>Ent Owner:</strong>{" "}
-                                      {row?.["Ent Owner"] || "N/A"}
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        Last Sync
+                                      </label>
+                                      <input
+                                        type="text"
+                                        defaultValue={row?.["Last Sync"] || "N/A"}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
                                     </div>
                                   </div>
                                   <div className="flex space-x-4">
                                     <div className="flex-1">
-                                      <strong>Hierarchy:</strong>{" "}
-                                      {row?.["Hierarchy"] || "N/A"}
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        App Name
+                                      </label>
+                                      <input
+                                        type="text"
+                                        defaultValue={
+                                          row?.["App Name"] ||
+                                          row?.applicationName ||
+                                          "N/A"
+                                        }
+                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
                                     </div>
                                     <div className="flex-1">
-                                      <strong>MFA Status:</strong>{" "}
-                                      {row?.["MFA Status"] || "N/A"}
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        App Instance
+                                      </label>
+                                      <input
+                                        type="text"
+                                        defaultValue={row?.["App Instance"] || "N/A"}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="flex space-x-4">
+                                    <div className="flex-1">
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        App Owner
+                                      </label>
+                                      <input
+                                        type="text"
+                                        defaultValue={row?.["App Owner"] || "N/A"}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                    <div className="flex-1">
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        Ent Owner
+                                      </label>
+                                      <input
+                                        type="text"
+                                        defaultValue={row?.["Ent Owner"] || "N/A"}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="flex space-x-4">
+                                    <div className="flex-1">
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        Hierarchy
+                                      </label>
+                                      <input
+                                        type="text"
+                                        defaultValue={row?.["Hierarchy"] || "N/A"}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                    <div className="flex-1">
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        MFA Status
+                                      </label>
+                                      <input
+                                        type="text"
+                                        defaultValue={row?.["MFA Status"] || "N/A"}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
                                     </div>
                                   </div>
                                   <div>
-                                    <strong>Assigned to/Member of:</strong>{" "}
-                                    {row?.["assignment"] || "N/A"}
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                                      Assigned to/Member of
+                                    </label>
+                                    <input
+                                      type="text"
+                                      defaultValue={row?.["assignment"] || "N/A"}
+                                      className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
                                   </div>
                                   <div>
-                                    <strong>License Type:</strong>{" "}
-                                    {row?.["License Type"] || "N/A"}
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                                      License Type
+                                    </label>
+                                    <input
+                                      type="text"
+                                      defaultValue={row?.["License Type"] || "N/A"}
+                                      className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
                                   </div>
                                 </div>
                               )}
@@ -861,59 +1013,131 @@ const EntitlementOwnerPageContent = () => {
                                 <div className="p-4 space-y-2 text-sm text-gray-700">
                                   <div className="flex space-x-4">
                                     <div className="flex-1">
-                                      <strong>Risk:</strong>{" "}
-                                      {row?.["Risk"] || row?.risk || "N/A"}
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        Risk
+                                      </label>
+                                      <input
+                                        type="text"
+                                        defaultValue={row?.["Risk"] || row?.risk || "N/A"}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
                                     </div>
                                     <div className="flex-1">
-                                      <strong>Certifiable:</strong>{" "}
-                                      {row?.["Certifiable"] || "N/A"}
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        Certifiable
+                                      </label>
+                                      <input
+                                        type="text"
+                                        defaultValue={row?.["Certifiable"] || "N/A"}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
                                     </div>
                                   </div>
                                   <div className="flex space-x-4">
                                     <div className="flex-1">
-                                      <strong>Revoke on Disable:</strong>{" "}
-                                      {row?.["Revoke on Disable"] || "N/A"}
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        Revoke on Disable
+                                      </label>
+                                      <input
+                                        type="text"
+                                        defaultValue={row?.["Revoke on Disable"] || "N/A"}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
                                     </div>
                                     <div className="flex-1">
-                                      <strong>Shared Pwd:</strong>{" "}
-                                      {row?.["Shared Pwd"] || "N/A"}
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        Shared Pwd
+                                      </label>
+                                      <input
+                                        type="text"
+                                        defaultValue={row?.["Shared Pwd"] || "N/A"}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
                                     </div>
                                   </div>
                                   <div>
-                                    <strong>SoD/Toxic Combination:</strong>{" "}
-                                    {row?.["SOD Check"] || "N/A"}
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                                      SoD/Toxic Combination
+                                    </label>
+                                    <input
+                                      type="text"
+                                      defaultValue={row?.["SOD Check"] || "N/A"}
+                                      className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
                                   </div>
                                   <div>
-                                    <strong>Access Scope:</strong>{" "}
-                                    {row?.["Access Scope"] || "N/A"}
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                                      Access Scope
+                                    </label>
+                                    <input
+                                      type="text"
+                                      defaultValue={row?.["Access Scope"] || "N/A"}
+                                      className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
                                   </div>
                                   <div className="flex space-x-4">
                                     <div className="flex-1">
-                                      <strong>Review Schedule:</strong>{" "}
-                                      {row?.["Review Schedule"] || "N/A"}
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        Review Schedule
+                                      </label>
+                                      <input
+                                        type="text"
+                                        defaultValue={row?.["Review Schedule"] || "N/A"}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
                                     </div>
                                     <div className="flex-1">
-                                      <strong>Last Reviewed On:</strong>{" "}
-                                      {row?.["Last Reviewed on"] || "N/A"}
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        Last Reviewed On
+                                      </label>
+                                      <input
+                                        type="text"
+                                        defaultValue={row?.["Last Reviewed on"] || "N/A"}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
                                     </div>
                                   </div>
                                   <div className="flex space-x-4">
                                     <div className="flex-1">
-                                      <strong>Privileged:</strong>{" "}
-                                      {row?.["Privileged"] || "N/A"}
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        Privileged
+                                      </label>
+                                      <input
+                                        type="text"
+                                        defaultValue={row?.["Privileged"] || "N/A"}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
                                     </div>
                                     <div className="flex-1">
-                                      <strong>Non Persistent Access:</strong>{" "}
-                                      {row?.["Non Persistent Access"] || "N/A"}
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        Non Persistent Access
+                                      </label>
+                                      <input
+                                        type="text"
+                                        defaultValue={row?.["Non Persistent Access"] || "N/A"}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
                                     </div>
                                   </div>
                                   <div>
-                                    <strong>Audit Comments:</strong>{" "}
-                                    {row?.["Audit Comments"] || "N/A"}
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                                      Audit Comments
+                                    </label>
+                                    <textarea
+                                      defaultValue={row?.["Audit Comments"] || "N/A"}
+                                      rows={2}
+                                      className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+                                    />
                                   </div>
                                   <div>
-                                    <strong>Account Type Restriction:</strong>{" "}
-                                    {row?.["Account Type Restriction"] || "N/A"}
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                                      Account Type Restriction
+                                    </label>
+                                    <input
+                                      type="text"
+                                      defaultValue={row?.["Account Type Restriction"] || "N/A"}
+                                      className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
                                   </div>
                                 </div>
                               )}
@@ -940,41 +1164,89 @@ const EntitlementOwnerPageContent = () => {
                                 <div className="p-4 space-y-2 text-sm text-gray-700">
                                   <div className="flex space-x-4">
                                     <div className="flex-1">
-                                      <strong>Requestable:</strong>{" "}
-                                      {row?.["Requestable"] || "N/A"}
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        Requestable
+                                      </label>
+                                      <input
+                                        type="text"
+                                        defaultValue={row?.["Requestable"] || "N/A"}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
                                     </div>
                                     <div className="flex-1">
-                                      <strong>Pre-Requisite:</strong>{" "}
-                                      {row?.["Pre- Requisite"] || "N/A"}
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        Pre-Requisite
+                                      </label>
+                                      <input
+                                        type="text"
+                                        defaultValue={row?.["Pre- Requisite"] || "N/A"}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
                                     </div>
                                   </div>
                                   <div>
-                                    <strong>Pre-Req Details:</strong>{" "}
-                                    {row?.["Pre-Requisite Details"] || "N/A"}
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                                      Pre-Req Details
+                                    </label>
+                                    <textarea
+                                      defaultValue={row?.["Pre-Requisite Details"] || "N/A"}
+                                      rows={2}
+                                      className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+                                    />
                                   </div>
                                   <div className="flex space-x-4">
                                     <div className="flex-1">
-                                      <strong>Auto Assign Access Policy:</strong>{" "}
-                                      {row?.["Auto Assign Access Policy"] || "N/A"}
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        Auto Assign Access Policy
+                                      </label>
+                                      <input
+                                        type="text"
+                                        defaultValue={row?.["Auto Assign Access Policy"] || "N/A"}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
                                     </div>
                                     <div className="flex-1">
-                                      <strong>Provisioner Group:</strong>{" "}
-                                      {row?.["Provisioner Group"] || "N/A"}
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        Provisioner Group
+                                      </label>
+                                      <input
+                                        type="text"
+                                        defaultValue={row?.["Provisioner Group"] || "N/A"}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
                                     </div>
                                   </div>
                                   <div className="flex space-x-4">
                                     <div className="flex-1">
-                                      <strong>Provisioning Steps:</strong>{" "}
-                                      {row?.["Provisioning Steps"] || "N/A"}
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        Provisioning Steps
+                                      </label>
+                                      <input
+                                        type="text"
+                                        defaultValue={row?.["Provisioning Steps"] || "N/A"}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
                                     </div>
                                     <div className="flex-1">
-                                      <strong>Provisioning Mechanism:</strong>{" "}
-                                      {row?.["Provisioning Mechanism"] || "N/A"}
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                                        Provisioning Mechanism
+                                      </label>
+                                      <input
+                                        type="text"
+                                        defaultValue={row?.["Provisioning Mechanism"] || "N/A"}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
                                     </div>
                                   </div>
                                   <div>
-                                    <strong>Action on Native Change:</strong>{" "}
-                                    {row?.["Action on Native Change"] || "N/A"}
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                                      Action on Native Change
+                                    </label>
+                                    <input
+                                      type="text"
+                                      defaultValue={row?.["Action on Native Change"] || "N/A"}
+                                      className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
                                   </div>
                                 </div>
                               )}
@@ -985,17 +1257,13 @@ const EntitlementOwnerPageContent = () => {
                     );
                   };
                   
-                  openSidebar(<InfoSidebar />, { widthPx: 500 });
+                  openSidebar(<InfoSidebar />, { widthPx: 500, title: "Edit Entitlement" });
                 }}
-                title="Info"
-                className="cursor-pointer rounded-sm hover:opacity-80"
-                aria-label="View details"
+                title="Edit"
+                className="p-1 rounded transition-colors duration-200 hover:bg-gray-100 cursor-pointer"
+                aria-label="Edit entitlement"
               >
-                <ArrowRightCircle
-                  color="#2563eb"
-                  size="42"
-                  className="transform scale-[0.6]"
-                />
+                <SquarePen className="w-6 h-6 text-gray-600 hover:text-blue-600" />
               </button>
             </div>
           );
@@ -1031,11 +1299,19 @@ const EntitlementOwnerPageContent = () => {
     setTotalItems(actualTotalItems);
   };
 
+  const handleDownload = () => {
+    if (!gridApi) return;
+    gridApi.exportDataAsCsv({
+      fileName: "entitlement-meta-data.csv",
+      onlySelected: false,
+    });
+  };
+
   if (loading) {
     return (
       <div className="ag-theme-alpine" style={{ height: 600, width: "100%" }}>
         <div className="relative mb-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold pb-2 text-blue-950">Entitlement Review</h1>
+          <h1 className="text-xl font-bold pb-2 text-blue-950">Entitlement Meta Data</h1>
         </div>
         <div className="flex items-center justify-center h-96">
           <div className="text-center">
@@ -1051,7 +1327,7 @@ const EntitlementOwnerPageContent = () => {
     return (
       <div className="ag-theme-alpine" style={{ height: 600, width: "100%" }}>
         <div className="relative mb-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold pb-2 text-blue-950">Entitlement Review</h1>
+          <h1 className="text-xl font-bold pb-2 text-blue-950">Entitlement Meta Data</h1>
         </div>
         <div className="flex items-center justify-center h-96">
           <div className="text-center">
@@ -1077,11 +1353,14 @@ const EntitlementOwnerPageContent = () => {
       <style jsx global>{`
         .ag-paging-panel { display: none !important; }
       `}</style>
-      <div className="relative mb-4 flex items-center justify-between">
+      <div className="relative mb-2 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold pb-2 text-blue-950">Entitlement Review</h1>
+          <h1 className="text-xl font-bold pb-2 text-blue-950">Entitlement Meta Data</h1>
         </div>
-        <div className="flex items-center gap-3">
+        <div />
+      </div>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <input
             value={searchText}
             onChange={(e) => {
@@ -1094,9 +1373,34 @@ const EntitlementOwnerPageContent = () => {
               }
             }}
             placeholder="Search..."
-            className="border border-gray-300 rounded px-3 h-9 text-sm w-64"
+            className="border border-gray-300 rounded px-3 h-8 text-xs w-64"
+          />
+          <Filters
+            context="entitlement-meta-status"
+            appliedFilter={(filters: string[]) => {
+              const selected = filters && filters.length > 0 ? filters[0] : "All";
+              if (selected === "All" || !selected) {
+                setStatusFilter("All");
+              } else if (selected === "Pending") {
+                setStatusFilter("Pending");
+              } else if (selected === "Approve") {
+                setStatusFilter("Approve");
+              } else {
+                // For any other status values, treat as All for this page
+                setStatusFilter("All");
+              }
+            }}
           />
         </div>
+        <button
+          type="button"
+          onClick={handleDownload}
+          className="inline-flex items-center justify-center h-8 w-8 border border-gray-300 rounded-md bg-white hover:bg-gray-50 text-gray-800"
+          title="Download CSV"
+          aria-label="Download CSV"
+        >
+          <DownloadIcon className="w-3.5 h-3.5" />
+        </button>
       </div>
       {/* Top pagination */}
       <div className="mb-2">

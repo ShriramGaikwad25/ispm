@@ -12,6 +12,12 @@ const statusOptions = [
   "Remediated",
 ];
 
+const entitlementMetaStatusOptions = [
+  "All",
+  "Pending",
+  "Approve",
+];
+
 const appInventoryStatusOptions = [
   "All",
   "Integrated",
@@ -43,7 +49,7 @@ const Filters = ({
   columns?: string[];
   appliedFilter?: (filters: string[]) => void;
   onFilterChange?: (filter: string) => void;
-  context?: "status" | "account" | "app-inventory-status";
+  context?: "status" | "account" | "app-inventory-status" | "entitlement-meta-status";
   initialSelected?: string;
   value?: string; // Controlled value
   actionStates?: {
@@ -207,6 +213,8 @@ const Filters = ({
     ? accountFilterOptions
     : context === "app-inventory-status"
     ? appInventoryStatusOptions.map(opt => ({ label: opt, value: opt } as any))
+    : context === "entitlement-meta-status"
+    ? entitlementMetaStatusOptions.map(opt => ({ label: opt, value: opt } as any))
     : statusOptions.map(opt => ({ label: opt, value: opt } as any));
 
   return (
