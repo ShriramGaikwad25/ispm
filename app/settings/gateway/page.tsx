@@ -73,6 +73,13 @@ export default function GatewaySettings() {
       icon: <Lock className="w-5 h-5 text-gray-600" />,
     },
     {
+      id: 'manage-approval-policies',
+      title: 'Manage Approval Policies',
+      subtitle: 'Define approval policies and attach workflows.',
+      href: '/settings/gateway/manage-approval-policies',
+      icon: <Workflow className="w-5 h-5 text-gray-600" />,
+    },
+    {
       id: 'workflow-builder',
       title: 'Workflow Builder',
       subtitle: 'Design and configure approval workflows with AI-assisted policies.',

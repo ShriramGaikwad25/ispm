@@ -92,7 +92,7 @@ export function Navigation() {
         pathname === '/settings/gateway/sam' || pathname === '/settings/gateway/native-users' ||
         pathname === '/settings/gateway/admin-roles' || pathname === '/settings/gateway/custom-schema' ||
         pathname === '/settings/gateway/general' || pathname === '/settings/gateway/scheduler' ||
-        pathname === '/settings/gateway/manage-business-roles') {
+        pathname === '/settings/gateway/manage-business-roles' || pathname === '/settings/gateway/manage-approval-policies') {
       return { href: '/settings/gateway', label: 'Back to Gateway' };
     }
     if (pathname.startsWith('/settings/gateway/manage-access-policy')) {
