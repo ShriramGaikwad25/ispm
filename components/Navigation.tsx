@@ -88,6 +88,12 @@ export function Navigation() {
     if (pathname === '/settings/gateway/manage-business-roles/new') {
       return { href: '/settings/gateway/manage-business-roles', label: 'Back to Manage Business Roles' };
     }
+    if (pathname === '/settings/gateway/sod/business-process/new') {
+      return { href: '/settings/gateway/sod', label: 'Back to Business Processes' };
+    }
+    if (pathname === '/settings/gateway/sod/rules/new') {
+      return { href: '/settings/gateway/sod/rules', label: 'Back to Rules' };
+    }
     if (pathname === '/settings/gateway/entitlement-management' || pathname === '/settings/gateway/workflow-builder' ||
         pathname === '/settings/gateway/sam' || pathname === '/settings/gateway/native-users' ||
         pathname === '/settings/gateway/admin-roles' || pathname === '/settings/gateway/custom-schema' ||
@@ -158,8 +164,8 @@ export function Navigation() {
     >
       {/* Navigation Links */}
       <nav 
-        className="flex flex-col px-3 py-6 space-y-1 flex-1 w-full items-start" 
-        style={{ gap: '8px' }}
+        className="flex flex-col px-3 py-4 space-y-1 flex-1 w-full items-start" 
+        style={{ gap: '6px' }}
         role="navigation"
         aria-label="Primary navigation"
       >
@@ -239,7 +245,7 @@ export function Navigation() {
                     aria-expanded={isExpanded}
                     aria-controls={`submenu-${item.name}`}
                     aria-label={!isSidebarExpanded ? item.name : `${item.name}, ${isExpanded ? 'expanded' : 'collapsed'}`}
-                    className={`flex items-center gap-2 px-2 py-2.5 rounded-md transition-colors flex-1 w-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                    className={`flex items-center gap-2 px-2 py-2 rounded-md transition-colors flex-1 w-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
                       isActive 
                         ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600' 
                         : 'hover:bg-gray-50'
@@ -277,7 +283,7 @@ export function Navigation() {
                   <Link
                     href={item.href}
                     onClick={handleLinkClick}
-                    className={`flex items-center gap-2 px-2 py-2.5 rounded-md transition-colors flex-1 ${
+                    className={`flex items-center gap-2 px-2 py-2 rounded-md transition-colors flex-1 ${
                       isActive 
                         ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600' 
                         : 'hover:bg-gray-50'
@@ -307,7 +313,7 @@ export function Navigation() {
               {hasVisibleSubItems && isExpanded && isSidebarExpanded && (
                 <ul 
                   id={`submenu-${item.name}`}
-                  className="ml-4 mt-1 space-y-1"
+                  className="ml-4 mt-1 space-y-0.5"
                   role="menu"
                 >
                   {visibleSubItems!.map((subItem) => {
@@ -321,7 +327,7 @@ export function Navigation() {
                           onClick={handleLinkClick}
                           role="menuitem"
                           aria-current={isSubActive ? 'page' : undefined}
-                          className={`flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                          className={`flex items-center gap-2 px-2 py-1.25 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
                             isSubActive 
                               ? 'bg-green-50 text-green-700 border-l-2 border-green-600' 
                               : 'hover:bg-slate-50 text-slate-600'

@@ -2,25 +2,15 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  CheckCircleIcon,
-  DownloadIcon,
-  EyeIcon,
-  Upload,
-} from "lucide-react";
+import { SquarePen } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
 // Type import only - component is dynamically loaded
 type AgGridReactType = any;
 import "@/lib/ag-grid-setup";
-import {
-  ColDef,
-  ICellRendererParams,
-  RowClickedEvent,
-  IDetailCellRendererParams,
-  FirstDataRenderedEvent,
-} from "ag-grid-enterprise";
+import { executeQuery } from "@/lib/api";
+import { ColDef, ICellRendererParams, IDetailCellRendererParams, RowClickedEvent } from "ag-grid-enterprise";
 import { MasterDetailModule } from "ag-grid-enterprise";
 import { ModuleRegistry } from "ag-grid-community";
 import "./AccessPolicy.css";
@@ -30,41 +20,20 @@ ModuleRegistry.registerModules([MasterDetailModule]);
 
 type AccessPolicyRow = {
   id: string;
-  policyName: string;
-  description: string | null;
-  instances: number;
-  progress: number;
-  expiryDate: string | null;
-  owner: string | null;
-  startDate?: string | null;
-  status?: string;
-};
-
-// Progress Bar Cell Renderer
-const ProgressCellRenderer = (props: ICellRendererParams) => {
-  const progress = props.value || 0;
-  return (
-    <div className="progress-bar-container">
-      <div className="progress-bar">
-        <div 
-          className="progress-fill"
-          style={{ width: `${progress}%` }}
-        ></div>
-      </div>
-      <span className="progress-text">
-        {progress}%
-      </span>
-    </div>
-  );
+  policy_name: string;
+  policy_description: string | null;
+  priority: number | null;
+  created_by: string | null;
+  status: string | null;
 };
 
 // Detail Cell Renderer for Description
 const DetailCellRenderer = (props: IDetailCellRendererParams) => {
-  const description = props.data?.description || "No description available";
+  const description = props.data?.policy_description || "No description available";
   return (
     <div className="flex p-2 bg-gray-50 border-t border-gray-200">
       <div className="flex flex-row items-center gap-2">
-        <span className="text-gray-800">{description}</span>
+        <span className="text-gray-800 pl-2">{description}</span>
       </div>
     </div>
   );
@@ -78,82 +47,94 @@ export default function ManageAccessPolicyPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Mock data for UI display only
-    const mockData: AccessPolicyRow[] = [
-      {
-        id: "1",
-        policyName: "Quarterly Access Policy Review 0917",
-        description: "Review user access for Q4 2025",
-        instances: 0,
-        progress: 100,
-        expiryDate: "12/13/25",
-        owner: "System Admin",
-        startDate: null,
-        status: "Running",
-      },
-      {
-        id: "2",
-        policyName: "Q4 2025 Finance Business Unit App Owner Review",
-        description: "Q4 2025 Finance Business Unit App Owner Review",
-        instances: 0,
-        progress: 100,
-        expiryDate: "12/13/25",
-        owner: "System Admin",
-        startDate: null,
-        status: "Running",
-      },
-      {
-        id: "3",
-        policyName: "Q4 2025 - SAP App Owner Certification",
-        description: "Policy to certify SAP user access by application owners.",
-        instances: 0,
-        progress: 100,
-        expiryDate: "12/13/25",
-        owner: "System Admin",
-        startDate: null,
-        status: "Running",
-      },
-    ];
-    
-    setIsLoading(false);
-    setRows(mockData);
+    const fetchPolicies = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const query = "select * from kf_ap_access_policies_vw order by ?";
+        const parameters = [" "];
+
+        const response = await executeQuery<any>(query, parameters);
+        const rowsFromApi: any[] =
+          Array.isArray(response)
+            ? response
+            : Array.isArray((response as any).resultSet)
+            ? (response as any).resultSet
+            : Array.isArray((response as any).rows)
+            ? (response as any).rows
+            : [];
+
+        const normalized: AccessPolicyRow[] = rowsFromApi.map((row, idx) => ({
+          id:
+            String(
+              row.id ??
+                row.policy_id ??
+                row.policyid ??
+                row.policy_name ??
+                idx
+            ) || String(idx),
+          policy_name:
+            row.policy_name ??
+            row.POLICY_NAME ??
+            row.name ??
+            "Unnamed Policy",
+          policy_description:
+            row.policy_description ??
+            row.POLICY_DESCRIPTION ??
+            row.description ??
+            null,
+          priority:
+            row.priority !== undefined && row.priority !== null
+              ? Number(row.priority)
+              : null,
+          created_by:
+            row.created_by ??
+            row.CREATED_BY ??
+            row.owner ??
+            row.createdby ??
+            null,
+          status:
+            row.status ??
+            row.STATUS ??
+            row.policy_status ??
+            row.state ??
+            null,
+        }));
+
+        setRows(normalized);
+      } catch (e: any) {
+        console.error("Failed to load access policies:", e);
+        setError(
+          e?.message || "Failed to load access policies from executeQuery API."
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchPolicies();
   }, []);
 
   const columnDefs = useMemo<ColDef[]>(
     () => [
       {
         headerName: "Policy Name",
-        field: "policyName",
+        field: "policy_name",
         width: 300,
       },
       {
         headerName: "Description",
-        field: "description",
+        field: "policy_description",
         flex: 2,
-        hide: true, // Hide in main grid, show in detail row
-      },
-      { headerName: "Instances", field: "instances", width: 100 },
-      { 
-        headerName: "Progress", 
-        field: "progress", 
-        width: 200,
-        cellRenderer: ProgressCellRenderer
+        hide: true,
       },
       { 
-        headerName: "Expiry Date", 
-        field: "expiryDate", 
-        width: 200,
-        flex: 1, 
-        valueFormatter: (p: any) => require("@/utils/utils").formatDateMMDDYY(p.value) 
+        headerName: "Priority",
+        field: "priority",
+        width: 120,
       },
-      { headerName: "Owner", field: "owner", flex: 1 },
-      { 
-        headerName: "Start Date", 
-        field: "startDate", 
-        width: 150,
-        flex: 1,
-        valueFormatter: (p: any) => p.value ? require("@/utils/utils").formatDateMMDDYY(p.value) : ""
-      },
+      { headerName: "Created By", field: "created_by", flex: 1 },
       { 
         headerName: "Status", 
         field: "status", 
@@ -177,63 +158,23 @@ export default function ManageAccessPolicyPage() {
       {
         field: "actions",
         headerName: "Actions",
-        width: 250,
+        width: 120,
         cellRenderer: (params: ICellRendererParams) => {
-          const status = params.data?.status || "Running";
-          const isStaging = status === "Staging";
-          
           return (
             <div className="flex space-x-4 h-full items-center">
               <button
-                title="Download"
-                aria-label="Download selected rows"
-                className="p-1 rounded transition-colors duration-200"
+                title="Edit Policy"
+                aria-label="Edit policy"
+                className="p-1 rounded transition-colors duration-200 hover:bg-gray-100"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const id = params.data?.id;
+                  if (!id) return;
+                  router.push(`/settings/gateway/manage-access-policy/new?policyId=${encodeURIComponent(id)}`);
+                }}
               >
-                <DownloadIcon
-                  className="cursor-pointer"
-                  strokeWidth="1"
-                  size="24"
-                  color="#6f3d1cff"
-                />
+                <SquarePen className="w-5 h-5 text-gray-700" />
               </button>
-              <button
-                title="View"
-                aria-label="View selected rows"
-                className="p-1 rounded transition-colors duration-200"
-              >
-                <EyeIcon
-                  className="cursor-pointer"
-                  strokeWidth="1"
-                  size="24"
-                  color="#2563eb"
-                />
-              </button>
-              <button
-                title="Sign Off"
-                aria-label="Sign off selected rows"
-                className="p-1 rounded transition-colors duration-200"
-              >
-                <CheckCircleIcon
-                  className="cursor-pointer"
-                  strokeWidth="1"
-                  size="24"
-                  color="#10a13cff"
-                />
-              </button>
-              {isStaging && (
-                <button
-                  title="Push to Production"
-                  aria-label="Push to Production"
-                  className="p-1 rounded transition-colors duration-200 hover:bg-green-100"
-                >
-                  <Upload
-                    className="cursor-pointer"
-                    strokeWidth="1"
-                    size="24"
-                    color="#10a13cff"
-                  />
-                </button>
-              )}
             </div>
           );
         },
@@ -245,15 +186,6 @@ export default function ManageAccessPolicyPage() {
   const handleRowClick = (e: RowClickedEvent) => {
     const policyId = e.data.id;
     router.push(`/settings/gateway/manage-access-policy/${policyId}`);
-  };
-
-  const onFirstDataRendered = (params: FirstDataRenderedEvent) => {
-    console.log("First data rendered, expanding all rows");
-    params.api.forEachNode((node) => {
-      if (node.master) {
-        node.setExpanded(true); // Expand all master rows
-      }
-    });
   };
 
   return (
@@ -299,11 +231,9 @@ export default function ManageAccessPolicyPage() {
               detailCellRenderer={DetailCellRenderer}
               detailRowAutoHeight={true}
               detailRowHeight={80}
-              onRowClicked={handleRowClick}
               onGridReady={(params) => {
                 params.api.sizeColumnsToFit();
               }}
-              onFirstDataRendered={onFirstDataRendered}
             />
           </div>
         )}

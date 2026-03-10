@@ -84,12 +84,17 @@ export const navLinks: NavItem[] = [
     ]
   },
   {
-    name: 'Settings',
+    name: 'Administration',
     href: '/settings',
     icon: Settings,
     subItems: [
-      { name: 'App Inventory', href: '/settings/app-inventory', icon: Package },
-      { name: 'Gateway', href: '/settings/gateway', icon: Server }
+      { name: 'Integrations', href: '/settings/app-inventory', icon: Package },
+      { name: 'Roles', href: '/settings/gateway/admin-roles', icon: Shield },
+      { name: 'Scheduler', href: '/settings/gateway/scheduler', icon: Clock },
+      { name: 'Access Policy', href: '/settings/gateway/manage-access-policy', icon: Lock },
+      { name: 'Workflow', href: '/settings/gateway/workflow-builder', icon: Workflow },
+      { name: 'SoD', href: '/settings/gateway/sod', icon: Shield },
+      { name: 'Generic', href: '/settings/gateway', icon: Server }
     ]
   },
   {

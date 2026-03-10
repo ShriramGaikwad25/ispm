@@ -31,13 +31,6 @@ export default function GatewaySettings() {
       icon: <Users className="w-5 h-5 text-gray-600" />,
     },
     {
-      id: 'admin-roles',
-      title: 'Manage Admin Roles',
-      subtitle: 'Create and assign privileged administrative roles.',
-      href: '/settings/gateway/admin-roles',
-      icon: <Shield className="w-5 h-5 text-gray-600" />,
-    },
-    {
       id: 'manage-business-roles',
       title: 'Manage Business Roles',
       subtitle: 'Configure and manage Business roles and permissions.',
@@ -59,31 +52,10 @@ export default function GatewaySettings() {
       icon: <ShieldCheck className="w-5 h-5 text-gray-600" />,
     },
     {
-      id: 'scheduler',
-      title: 'Scheduler',
-      subtitle: 'Manage and configure scheduled jobs and tasks.',
-      href: '/settings/gateway/scheduler',
-      icon: <Clock className="w-5 h-5 text-gray-600" />,
-    },
-    {
-      id: 'manage-access-policy',
-      title: 'Manage Access Policy',
-      subtitle: 'Configure and manage access policies and permissions.',
-      href: '/settings/gateway/manage-access-policy',
-      icon: <Lock className="w-5 h-5 text-gray-600" />,
-    },
-    {
       id: 'manage-approval-policies',
       title: 'Manage Approval Policies',
       subtitle: 'Define approval policies and attach workflows.',
       href: '/settings/gateway/manage-approval-policies',
-      icon: <Workflow className="w-5 h-5 text-gray-600" />,
-    },
-    {
-      id: 'workflow-builder',
-      title: 'Workflow Builder',
-      subtitle: 'Design and configure approval workflows with AI-assisted policies.',
-      href: '/settings/gateway/workflow-builder',
       icon: <Workflow className="w-5 h-5 text-gray-600" />,
     },
     {

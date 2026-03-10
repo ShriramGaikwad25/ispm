@@ -1,14 +1,16 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useForm, Control, FieldValues, UseFormSetValue, UseFormWatch } from "react-hook-form";
-import { Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, SquarePen } from "lucide-react";
 import { asterisk, downArrow } from "@/utils/utils";
 import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
 import ExpressionBuilder from "@/components/ExpressionBuilder";
+import { executeQuery } from "@/lib/api";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
+import type { ColDef } from "ag-grid-community";
 
 type Status = "Staging" | "Active" | "Inactive";
 type Priority = "Low" | "Medium" | "High" | "Critical";
@@ -158,6 +160,19 @@ interface ApprovalPolicyFormData {
 }
 
 export default function ManageApprovalPoliciesPage() {
+  const [mode, setMode] = useState<"list" | "create">("list");
+  const [policies, setPolicies] = useState<
+    {
+      id: string;
+      name: string;
+      description: string | null;
+      owner: string | null;
+      priority: number | null;
+      status: string | null;
+    }[]
+  >([]);
+  const [isLoadingList, setIsLoadingList] = useState<boolean>(false);
+  const [listError, setListError] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<ApprovalPolicyFormData>({
     step1: {
@@ -204,6 +219,197 @@ export default function ManageApprovalPoliciesPage() {
 
   const [conditionSubject, setConditionSubject] = useState<ConditionSubject>("Request Type");
   const approvalConditions = (conditionWatch("approvalConditions") as any[]) || [];
+
+  const onEditPolicy = (row: any) => {
+    setMode("create");
+    setCurrentStep(1);
+
+    setFormData({
+      step1: {
+        name: row.name || "",
+        description: row.description || "",
+        owner: row.owner || "",
+        tags: "", // tags not available from view yet
+        priority:
+          (row.priority as Priority) && ["Low", "Medium", "High", "Critical"].includes(String(row.priority))
+            ? (row.priority as Priority)
+            : "Medium",
+        status:
+          (row.status as Status) && ["Staging", "Active", "Inactive"].includes(String(row.status))
+            ? (row.status as Status)
+            : "Staging",
+      },
+      step2: {
+        // Conditions not yet modeled in view; start empty
+        rules: [],
+      },
+      step3: {
+        selectedWorkflowId: null,
+      },
+    });
+
+    conditionSetValue("approvalConditions", [], {
+      shouldDirty: false,
+      shouldValidate: false,
+    });
+    setWorkflowSearch("");
+  };
+
+  const approvalListColumnDefs = useMemo<ColDef[]>(
+    () => [
+      {
+        headerName: "Name",
+        field: "name",
+        flex: 2,
+        minWidth: 260,
+        colSpan: (params: any) =>
+          params.data?._rowType === "description" ? 4 : 1,
+        cellRenderer: (params: any) => {
+          const rowType = params.data?._rowType || "main";
+          const name = params.data?.name || "";
+          const description = params.data?.description || "";
+
+          if (rowType === "description") {
+            return (
+              <div className="text-sm text-gray-600 py-1">
+                {description || "Not provided"}
+              </div>
+            );
+          }
+
+          return (
+            <span className="font-medium text-gray-900">{name}</span>
+          );
+        },
+      },
+      { headerName: "Owner", field: "owner", flex: 1, minWidth: 160 },
+      { headerName: "Priority", field: "priority", width: 120 },
+      { headerName: "Status", field: "status", width: 140 },
+      {
+        headerName: "Action",
+        field: "actions",
+        width: 100,
+        cellRenderer: (params: any) => {
+          if (params.data?._rowType === "description") {
+            return null;
+          }
+          return (
+            <button
+              type="button"
+              className="p-1.5 rounded-md hover:bg-gray-100 transition-colors"
+              aria-label="Edit approval policy"
+              onClick={() => onEditPolicy(params.data)}
+            >
+              <SquarePen className="w-4 h-4 text-gray-700" />
+            </button>
+          );
+        },
+      },
+    ],
+    [onEditPolicy]
+  );
+
+  const approvalListRows = useMemo(
+    () =>
+      policies.flatMap((p) => [
+        { ...p, _rowType: "main" },
+        { ...p, _rowType: "description" },
+      ]),
+    [policies]
+  );
+
+  // Load policies list from API when in list mode
+  useEffect(() => {
+    if (mode !== "list") return;
+
+    const fetchPolicies = async () => {
+      try {
+        setIsLoadingList(true);
+        setListError(null);
+
+        const query = "select * from public.kf_wf_approval_policy_vw order by ?";
+        const parameters = [" "];
+
+        const response = await executeQuery<any>(query, parameters);
+        const rows: any[] =
+          Array.isArray(response)
+            ? response
+            : Array.isArray((response as any).resultSet)
+            ? (response as any).resultSet
+            : Array.isArray((response as any).rows)
+            ? (response as any).rows
+            : [];
+
+        const normalized = rows.map((row, idx) => {
+          const id =
+            row.id ??
+            row.policy_id ??
+            row.policyid ??
+            row.code ??
+            row.POLICY_ID ??
+            idx;
+
+          const name =
+            row.policy_name ??
+            row.POLICY_NAME ??
+            row.name ??
+            row.NAME ??
+            "Unnamed Policy";
+
+          const description =
+            row.policy_description ??
+            row.POLICY_DESCRIPTION ??
+            row.description ??
+            row.DESCRIPTION ??
+            null;
+
+          const owner =
+            row.owner ??
+            row.OWNER ??
+            row.created_by ??
+            row.CREATED_BY ??
+            null;
+
+          const priorityRaw =
+            row.priority ??
+            row.PRIORITY ??
+            row.priority_level ??
+            null;
+
+          const status =
+            row.status ??
+            row.STATUS ??
+            row.policy_status ??
+            row.STATE ??
+            null;
+
+          return {
+            id: String(id),
+            name: String(name),
+            description: description ? String(description) : null,
+            owner: owner ? String(owner) : null,
+            priority:
+              priorityRaw !== undefined && priorityRaw !== null
+                ? Number(priorityRaw)
+                : null,
+            status: status ? String(status) : null,
+          };
+        });
+
+        setPolicies(normalized);
+      } catch (e: any) {
+        console.error("Failed to load approval policies:", e);
+        setListError(
+          e?.message ||
+            "Failed to load approval policies from executeQuery API."
+        );
+      } finally {
+        setIsLoadingList(false);
+      }
+    };
+
+    fetchPolicies();
+  }, [mode]);
 
   const steps = [
     { id: 1, title: "Define Approval Policy" },
@@ -872,6 +1078,66 @@ export default function ManageApprovalPoliciesPage() {
     return null;
   };
 
+  // List view: initial table with Create button
+  if (mode === "list") {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="w-full py-4 px-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-2xl font-semibold text-gray-900">
+                Manage Approval Policies
+              </h1>
+              <p className="text-sm text-gray-600 mt-1">
+                View and manage approval policies. Click &quot;Create&quot; to configure a new policy.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setMode("create")}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+            >
+              Create Approval Policy
+            </button>
+          </div>
+
+          {isLoadingList ? (
+            <div className="py-10 text-center text-sm text-gray-500">
+              Loading approval policies...
+            </div>
+          ) : listError ? (
+            <div className="py-6 px-4 text-sm text-red-600">
+              {listError}
+            </div>
+          ) : policies.length === 0 ? (
+            <div className="py-10 text-center text-sm text-gray-500">
+              No approval policies configured yet.
+            </div>
+          ) : (
+            <div className="ag-theme-alpine w-full mt-2">
+              {/* @ts-ignore dynamic type */}
+              <AgGridReact
+                rowData={approvalListRows}
+                columnDefs={approvalListColumnDefs}
+                rowSelection="single"
+                rowModelType="clientSide"
+                animateRows={true}
+                defaultColDef={{
+                  sortable: true,
+                  filter: true,
+                  resizable: true,
+                }}
+                theme="legacy"
+                domLayout="autoHeight"
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Wizard view: current step form
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Fixed step bar below header; aligned with content area */}

@@ -87,7 +87,7 @@ const HorizontalTabs: React.FC<TabsProps> = ({
       <div 
         role="tablist" 
         aria-label="Tabs"
-        className="flex flex-shrink-0 w-full"
+        className="flex flex-shrink-0 gap-2"
       >
         {tabs.map((tab, index) => (
           <button
@@ -99,7 +99,7 @@ const HorizontalTabs: React.FC<TabsProps> = ({
             aria-controls={panelId(index)}
             aria-selected={activeIndex === index}
             tabIndex={activeIndex === index ? 0 : -1}
-            className={`px-4 py-2 text-sm font-medium transition-all duration-200 rounded-lg flex items-center gap-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+            className={`px-4 py-2 text-sm font-medium transition-all duration-200 rounded-lg inline-flex items-center justify-center gap-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
               index === activeIndex
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'

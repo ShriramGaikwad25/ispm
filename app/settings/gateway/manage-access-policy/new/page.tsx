@@ -1,11 +1,14 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { useForm, Control, FieldValues, UseFormSetValue, UseFormWatch } from "react-hook-form";
 import { Trash2, Plus, ChevronLeft, ChevronRight, Check } from "lucide-react";
 import ExpressionBuilder from "@/components/ExpressionBuilder";
 import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
 import SelectAccessTab from "@/app/access-request/SelectAccessTab";
+import { executeQuery } from "@/lib/api";
+import { useCart } from "@/contexts/CartContext";
 
 type AccessProvision = {
   id: string;
@@ -15,7 +18,7 @@ type AccessProvision = {
 };
 
 export default function CreateAccessPolicyPage() {
-  const { control, setValue, watch, register, handleSubmit } = useForm<FieldValues>({
+  const { control, setValue, watch, register, handleSubmit, reset } = useForm<FieldValues>({
     defaultValues: {
       policyName: "",
       description: "",
@@ -27,6 +30,8 @@ export default function CreateAccessPolicyPage() {
   });
 
   const { isVisible: isSidebarVisible, sidebarWidthPx } = useLeftSidebar();
+  const searchParams = useSearchParams();
+  const { addToCart, clearCart, isInCart } = useCart();
   const [currentStep, setCurrentStep] = useState(1);
   const [advanced, setAdvanced] = useState(false);
   const [accessProvisions, setAccessProvisions] = useState<AccessProvision[]>([]);
@@ -294,6 +299,220 @@ export default function CreateAccessPolicyPage() {
     });
     alert("Policy created successfully!");
   };
+
+  // Load existing policy into form when editing
+  useEffect(() => {
+    const policyId = searchParams.get("policyId");
+    if (!policyId) return;
+
+    const fetchPolicy = async () => {
+      try {
+        const query =
+          "select * from kf_ap_access_policies_vw where policy_id=?::uuid";
+        const parameters = [policyId];
+        const result = await executeQuery<any>(query, parameters);
+
+        const rows: any[] = Array.isArray(result)
+          ? result
+          : Array.isArray((result as any).resultSet)
+          ? (result as any).resultSet
+          : Array.isArray((result as any).rows)
+          ? (result as any).rows
+          : [];
+
+        if (!rows.length) return;
+        const row = rows[0];
+
+        // Try to hydrate ExpressionBuilder from any JSON condition / expression field on the row
+        let expressionConditions: any[] = [];
+        try {
+          const rawKeys = Object.keys(row || {});
+          const lowerKeys = rawKeys.map((k) => k.toLowerCase());
+
+          // Look for fields like condition_block, conditions_json, expression, membership_rule, etc.
+          const candidateIndex = lowerKeys.findIndex((k) =>
+            ["condition", "expression", "rule"].some((needle) =>
+              k.includes(needle)
+            )
+          );
+
+          if (candidateIndex !== -1) {
+            const key = rawKeys[candidateIndex];
+            const rawVal = row[key];
+
+            if (typeof rawVal === "string" && rawVal.trim()) {
+              const parsed = JSON.parse(rawVal);
+              if (Array.isArray(parsed)) {
+                expressionConditions = parsed;
+              } else if (
+                parsed &&
+                typeof parsed === "object" &&
+                Array.isArray((parsed as any).conditions)
+              ) {
+                expressionConditions = (parsed as any).conditions;
+              }
+            } else if (Array.isArray(rawVal)) {
+              expressionConditions = rawVal;
+            } else if (
+              rawVal &&
+              typeof rawVal === "object" &&
+              Array.isArray((rawVal as any).conditions)
+            ) {
+              expressionConditions = (rawVal as any).conditions;
+            }
+          }
+
+          // Helpful debug log so we can see what is actually coming back
+          console.log("Loaded policy row for ExpressionBuilder", {
+            row,
+            expressionConditions,
+          });
+        } catch (e) {
+          console.warn("Failed to parse condition block from policy row:", e);
+          expressionConditions = [];
+        }
+
+        const mappedConditions =
+          Array.isArray(expressionConditions) && expressionConditions.length > 0
+            ? expressionConditions.map((cond: any, index: number) => ({
+                id:
+                  cond.id ||
+                  `cond-${index}-${Date.now()}`,
+                attribute:
+                  cond.attribute && typeof cond.attribute === "object"
+                    ? cond.attribute
+                    : cond.attribute
+                    ? {
+                        label: cond.attributeLabel || cond.attribute,
+                        value: cond.attribute,
+                      }
+                    : null,
+                operator:
+                  cond.operator && typeof cond.operator === "object"
+                    ? cond.operator
+                    : cond.operator
+                    ? {
+                        label: cond.operatorLabel || cond.operator,
+                        value: cond.operator,
+                      }
+                    : null,
+                value: cond.value ?? "",
+                logicalOp:
+                  cond.logicalOp ||
+                  cond.condition ||
+                  "AND",
+              }))
+            : [];
+
+        // Map entitlements_json (or similar) into cart (step 3)
+        try {
+          const rawKeys = Object.keys(row || {});
+          const lowerKeys = rawKeys.map((k) => k.toLowerCase());
+          const entIndex = lowerKeys.findIndex((k) =>
+            ["entitlements_json", "entitlement_json", "entitlements"].some(
+              (needle) => k.includes(needle)
+            )
+          );
+          if (entIndex !== -1) {
+            const key = rawKeys[entIndex];
+            const rawEnt = row[key];
+            let entList: any[] = [];
+            if (typeof rawEnt === "string" && rawEnt.trim()) {
+              const parsed = JSON.parse(rawEnt);
+              if (Array.isArray(parsed)) entList = parsed;
+              else if (
+                parsed &&
+                typeof parsed === "object" &&
+                Array.isArray((parsed as any).items)
+              ) {
+                entList = (parsed as any).items;
+              }
+            } else if (Array.isArray(rawEnt)) {
+              entList = rawEnt;
+            } else if (
+              rawEnt &&
+              typeof rawEnt === "object" &&
+              Array.isArray((rawEnt as any).items)
+            ) {
+              entList = (rawEnt as any).items;
+            }
+
+            if (entList.length > 0) {
+              clearCart();
+              entList.forEach((ent, idx) => {
+                const id =
+                  String(
+                    ent.id ??
+                      ent.entitlement_id ??
+                      ent.entitlementid ??
+                      ent.catalogid ??
+                      idx
+                  ).trim() || String(idx);
+                const name =
+                  ent.name ??
+                  ent.entitlement_name ??
+                  ent.entitlementName ??
+                  ent.role_name ??
+                  `Entitlement ${idx + 1}`;
+                let risk: "High" | "Medium" | "Low" | undefined;
+                const rawRisk = String(
+                  ent.risk ?? ent.risk_level ?? ent.riskLevel ?? ""
+                ).toLowerCase();
+                if (rawRisk.startsWith("high")) risk = "High";
+                else if (rawRisk.startsWith("medium")) risk = "Medium";
+                else if (rawRisk.startsWith("low")) risk = "Low";
+
+                if (!isInCart(id)) {
+                  addToCart({
+                    id,
+                    name,
+                    risk,
+                  });
+                }
+              });
+            }
+          }
+        } catch (e) {
+          console.warn(
+            "Failed to hydrate entitlements_json into cart from policy row:",
+            e
+          );
+        }
+
+        reset({
+          policyName:
+            row.policy_name ??
+            row.POLICY_NAME ??
+            row.name ??
+            "",
+          description:
+            row.policy_description ??
+            row.POLICY_DESCRIPTION ??
+            row.description ??
+            "",
+          owner:
+            row.created_by ??
+            row.CREATED_BY ??
+            row.owner ??
+            "",
+          priority:
+            row.priority !== undefined && row.priority !== null
+              ? String(row.priority)
+              : "",
+          enabled: Boolean(
+            row.enabled ??
+              (row.status &&
+                String(row.status).toLowerCase() === "enabled")
+          ),
+          userAttributeConditions: mappedConditions,
+        });
+      } catch (e) {
+        console.error("Failed to load policy into form:", e);
+      }
+    };
+
+    fetchPolicy();
+  }, [searchParams, reset]);
 
   const handleNext = () => {
     if (currentStep < 4) {
