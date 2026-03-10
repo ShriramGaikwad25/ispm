@@ -41,7 +41,7 @@ const UserSearchTab: React.FC = () => {
 
     try {
       // Build query to get all users with specified fields
-      const query = `SELECT firstname, lastname, email, username, employeeid, department, title FROM usr`;
+      const query = `SELECT firstname, lastname, email, username, employeeid, department, title,userid FROM usr`;
 
       const response = await fetch(
         "https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery",

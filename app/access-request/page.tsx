@@ -12,6 +12,7 @@ import { useSelectedUsers } from "@/contexts/SelectedUsersContext";
 import { useCart } from "@/contexts/CartContext";
 import { useItemDetails } from "@/contexts/ItemDetailsContext";
 import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
+import { getReviewerId } from "@/lib/auth";
 
 function clearAccessRequestSelections(
   clearCart: () => void,
@@ -308,12 +309,73 @@ const AccessRequest: React.FC = () => {
     };
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const payload = buildAccessRequestPayload();
+
+    // Build payload expected by workflow submitrequest API
+    const formatDateForApi = (dateStr: string) => {
+      if (!dateStr) return "";
+      const d = new Date(dateStr);
+      if (Number.isNaN(d.getTime())) return dateStr;
+      const dd = String(d.getDate()).padStart(2, "0");
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const yyyy = d.getFullYear();
+      return `${dd}-${mm}-${yyyy}`;
+    };
+
+    const apiPayload = {
+      requestParameter: {
+        isJit: false,
+        justification: payload.globalSettings.comment || "Emergency access",
+        requestType: payload.requestType === "Urgent" ? "URGENT" : "REGULAR",
+      },
+      benificiary: payload.selectedUsers.map((u) => ({
+        userId: u.userid,
+      })),
+      requestItem: payload.accessItems.map((item) => ({
+        catalogId: item.id,
+        startDate: formatDateForApi(item.startDate),
+        endDate: formatDateForApi(item.endDate),
+        comments: item.comment || "Needed for Job Role",
+      })),
+    };
+
+    const reviewerId = getReviewerId();
+    if (!reviewerId) {
+      console.error("Reviewer ID not found. Cannot submit request.");
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `https://preview.keyforge.ai/workflow/api/v1/ACMECOM/submitrequest/${reviewerId}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(apiPayload),
+        }
+      );
+
+      if (!res.ok) {
+        console.error("Submit request failed:", res.status, await res.text());
+        return;
+      }
+
+      console.log("Submit request succeeded:", await res.json());
+    } catch (err) {
+      console.error("Error calling submitrequest API:", err);
+      return;
+    }
+
+    // Keep existing debug logging / clipboard copy of full internal payload
     console.log("Access Request Payload:", JSON.stringify(payload, null, 2));
     if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(JSON.stringify(payload, null, 2)).catch(() => {});
     }
+
+    // Reset wizard state
     clearAccessRequestSelections(clearCart, clearUsers, clearItemDetails);
     setSelectedGroups([]);
     setCurrentStep(1);
