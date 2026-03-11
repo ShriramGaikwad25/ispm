@@ -4,6 +4,7 @@ import React, { useMemo, useRef, useState, useEffect } from "react";
 import SelectAccessTab from "@/app/access-request/SelectAccessTab";
 import { ChevronLeft, ChevronRight, Check } from "lucide-react";
 import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
+import { useCart } from "@/contexts/CartContext";
 
 type BusinessProcess = {
   id: string;
@@ -31,8 +32,9 @@ const CATALOG_ITEMS: CatalogItem[] = [
 ];
 
 export default function SodRulesNewPage() {
-  const [currentStep, setCurrentStep] = useState<1 | 2>(1);
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   const { isVisible: isSidebarVisible, sidebarWidthPx } = useLeftSidebar();
+  const { items: cartItems } = useCart();
 
   // Step 1 state
   const [name, setName] = useState("");
@@ -42,8 +44,7 @@ export default function SodRulesNewPage() {
   const [bpSearch, setBpSearch] = useState("");
   const [availableBps, setAvailableBps] = useState<BusinessProcess[]>(BUSINESS_PROCESSES);
   const [selectedBps, setSelectedBps] = useState<BusinessProcess[]>([]);
-  const [availableBpIds, setAvailableBpIds] = useState<Set<string>>(new Set());
-  const [selectedBpIds, setSelectedBpIds] = useState<Set<string>>(new Set());
+  const [isBpDropdownOpen, setIsBpDropdownOpen] = useState(false);
 
   const filteredAvailableBps = useMemo(
     () =>
@@ -288,37 +289,6 @@ export default function SodRulesNewPage() {
     tagFilter,
   ]);
 
-  const toggleBpId = (
-    setFn: React.Dispatch<React.SetStateAction<Set<string>>>,
-    id: string
-  ) => {
-    setFn((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
-
-  const moveBps = (
-    from: BusinessProcess[],
-    to: BusinessProcess[],
-    setFrom: React.Dispatch<React.SetStateAction<BusinessProcess[]>>,
-    setTo: React.Dispatch<React.SetStateAction<BusinessProcess[]>>,
-    ids: Set<string>,
-    clearIds: React.Dispatch<React.SetStateAction<Set<string>>>
-  ) => {
-    if (!ids.size) return;
-    const toMove = from.filter((i) => ids.has(i.id));
-    const remaining = from.filter((i) => !ids.has(i.id));
-    setFrom(remaining);
-    setTo([...to, ...toMove]);
-    clearIds(new Set());
-  };
-
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Fixed step bar below header; aligned with content area */}
@@ -333,7 +303,9 @@ export default function SodRulesNewPage() {
         <div className="flex items-center gap-4 max-w-full">
           <button
             type="button"
-            onClick={() => setCurrentStep((prev) => (prev > 1 ? (prev - 1) as 1 | 2 : prev))}
+            onClick={() =>
+              setCurrentStep((prev) => (prev > 1 ? ((prev - 1) as 1 | 2 | 3) : prev))
+            }
             disabled={currentStep === 1}
             className={`flex items-center px-4 py-2 rounded-md text-sm font-medium shrink-0 ${
               currentStep === 1
@@ -346,7 +318,7 @@ export default function SodRulesNewPage() {
           </button>
 
           <div className="flex-1 flex items-center min-w-0">
-            {[1, 2].map((stepId, index) => (
+            {[1, 2, 3].map((stepId, index) => (
               <React.Fragment key={stepId}>
                 <div className="flex items-center shrink-0">
                   <div
@@ -363,10 +335,14 @@ export default function SodRulesNewPage() {
                     )}
                   </div>
                   <span className="ml-3 text-sm font-medium text-gray-900 whitespace-nowrap">
-                    {stepId === 1 ? "Rule Details" : "Add Access"}
+                    {stepId === 1
+                      ? "Rule Details"
+                      : stepId === 2
+                        ? "Add Access"
+                        : "Review"}
                   </span>
                 </div>
-                {index < 1 && (
+                {index < 2 && (
                   <div className="flex-1 h-0.5 bg-gray-200 mx-4 min-w-[16px]" aria-hidden />
                 )}
               </React.Fragment>
@@ -374,13 +350,19 @@ export default function SodRulesNewPage() {
           </div>
 
           <div className="shrink-0">
-            {currentStep < 2 ? (
+            {currentStep < 3 ? (
               <button
                 type="button"
-                onClick={() => canGoToStep2 && setCurrentStep(2)}
-                disabled={!canGoToStep2}
+                onClick={() => {
+                  if (currentStep === 1) {
+                    if (canGoToStep2) setCurrentStep(2);
+                  } else if (currentStep === 2) {
+                    setCurrentStep(3);
+                  }
+                }}
+                disabled={currentStep === 1 && !canGoToStep2}
                 className={`flex items-center px-4 py-2 rounded-md text-sm font-medium ${
-                  !canGoToStep2
+                  currentStep === 1 && !canGoToStep2
                     ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                     : "bg-blue-600 text-white hover:bg-blue-700"
                 }`}
@@ -409,6 +391,7 @@ export default function SodRulesNewPage() {
           <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-6">
             {currentStep === 1 && (
               <div className="space-y-4">
+                {/* Name & Owner in first row */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -449,7 +432,8 @@ export default function SodRulesNewPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Tags & Business Process in one row */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Tags
@@ -462,133 +446,51 @@ export default function SodRulesNewPage() {
                       placeholder="Add tags"
                     />
                   </div>
-
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
                       Business Process
                     </label>
-                    <div className="grid grid-cols-[minmax(0,1.6fr)_auto_minmax(0,1.6fr)] gap-3 items-stretch">
-                      <div className="border border-gray-200 rounded-lg bg-white flex flex-col min-h-[200px] shadow-sm">
-                        <div className="px-3 py-2 border-b border-gray-200 space-y-2">
-                          <h3 className="text-xs font-semibold text-gray-800">
-                            Available Processes
-                          </h3>
-                          <input
-                            type="text"
-                            value={bpSearch}
-                            onChange={(e) => setBpSearch(e.target.value)}
-                            placeholder="Search processes..."
-                            className="w-full px-2 py-1 text-[11px] border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          />
+                    <div className="relative">
+                      <input
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Start typing to search and select"
+                        value={bpSearch}
+                        onFocus={() => setIsBpDropdownOpen(true)}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setBpSearch(value);
+                          setIsBpDropdownOpen(true);
+                          const found = availableBps.find(
+                            (bp) => bp.name.toLowerCase() === value.toLowerCase()
+                          );
+                          setSelectedBps(found ? [found] : []);
+                        }}
+                      />
+                      {isBpDropdownOpen && filteredAvailableBps.length > 0 && (
+                        <div className="absolute z-10 mt-1 w-full max-h-60 overflow-auto rounded-md border border-gray-200 bg-white shadow-lg">
+                          <ul className="py-1 text-sm">
+                            {filteredAvailableBps.map((bp) => (
+                              <li key={bp.id}>
+                                <button
+                                  type="button"
+                                  className="w-full px-3 py-1.5 text-left hover:bg-blue-50"
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    setBpSearch(bp.name);
+                                    setSelectedBps([bp]);
+                                    setIsBpDropdownOpen(false);
+                                  }}
+                                >
+                                  {bp.name}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
                         </div>
-                        <div className="flex-1 overflow-auto">
-                          {filteredAvailableBps.length === 0 ? (
-                            <p className="px-3 py-2 text-[11px] text-gray-500">
-                              No processes found.
-                            </p>
-                          ) : (
-                            <ul className="divide-y divide-gray-100">
-                              {filteredAvailableBps.map((bp) => (
-                                <li key={bp.id}>
-                                  <button
-                                    type="button"
-                                    onClick={() => toggleBpId(setAvailableBpIds, bp.id)}
-                                    className={`w-full text-left px-3 py-1.5 text-[11px] transition-colors ${
-                                      availableBpIds.has(bp.id)
-                                        ? "bg-blue-50 text-blue-700"
-                                        : "hover:bg-slate-50"
-                                    }`}
-                                  >
-                                    {bp.name}
-                                  </button>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col items-stretch justify-center gap-2 px-1">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            moveBps(
-                              availableBps,
-                              selectedBps,
-                              setAvailableBps,
-                              setSelectedBps,
-                              availableBpIds,
-                              setAvailableBpIds
-                            )
-                          }
-                          disabled={!availableBpIds.size}
-                          className={`w-24 text-center px-3 py-1.5 rounded-md text-[11px] font-medium border ${
-                            availableBpIds.size
-                              ? "bg-blue-600 text-white border-blue-600 hover:bg-blue-700"
-                              : "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
-                          }`}
-                        >
-                          Add →
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            moveBps(
-                              selectedBps,
-                              availableBps,
-                              setSelectedBps,
-                              setAvailableBps,
-                              selectedBpIds,
-                              setSelectedBpIds
-                            )
-                          }
-                          disabled={!selectedBpIds.size}
-                          className={`w-24 text-center px-3 py-1.5 rounded-md text-[11px] font-medium border ${
-                            selectedBpIds.size
-                              ? "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-                              : "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
-                          }`}
-                        >
-                          ← Remove
-                        </button>
-                      </div>
-
-                      <div className="border border-gray-200 rounded-lg bg-white flex flex-col min-h-[200px] shadow-sm">
-                        <div className="px-3 py-2 border-b border-gray-100">
-                          <h3 className="text-xs font-semibold text-gray-800">
-                            Selected Processes
-                          </h3>
-                        </div>
-                        <div className="flex-1 overflow-auto">
-                          {selectedBps.length === 0 ? (
-                            <p className="px-3 py-2 text-[11px] text-gray-500">
-                              No processes selected.
-                            </p>
-                          ) : (
-                            <ul className="divide-y divide-gray-100">
-                              {selectedBps.map((bp) => (
-                                <li key={bp.id}>
-                                  <button
-                                    type="button"
-                                    onClick={() => toggleBpId(setSelectedBpIds, bp.id)}
-                                    className={`w-full text-left px-3 py-1.5 text-[11px] border-l-2 transition-colors ${
-                                      selectedBpIds.has(bp.id)
-                                        ? "bg-blue-50 border-blue-500 text-blue-700"
-                                        : "border-transparent hover:bg-slate-50"
-                                    }`}
-                                  >
-                                    {bp.name}
-                                  </button>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-                      </div>
+                      )}
                     </div>
                   </div>
                 </div>
-
               </div>
             )}
 
@@ -626,6 +528,85 @@ export default function SodRulesNewPage() {
                 {catalogLoading && (
                   <p className="text-xs text-gray-500">Loading catalog…</p>
                 )}
+              </div>
+            )}
+            {currentStep === 3 && (
+              <div className="space-y-6">
+                <h2 className="text-lg font-semibold text-gray-900">Review Rule</h2>
+
+                {/* Rule summary */}
+                <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3 text-sm">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                        Name
+                      </p>
+                      <p className="text-sm text-gray-900">{name || "-"}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                        Owner
+                      </p>
+                      <p className="text-sm text-gray-900">{owner || "-"}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                        Tags
+                      </p>
+                      <p className="text-sm text-gray-900">{tags || "-"}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                        Business Process
+                      </p>
+                      <p className="text-sm text-gray-900">
+                        {selectedBps[0]?.name || bpSearch || "-"}
+                      </p>
+                    </div>
+                    <div className="space-y-1 md:col-span-2">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                        Description
+                      </p>
+                      <p className="text-sm text-gray-900 whitespace-pre-wrap">
+                        {description || "-"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Selected access summary from cart */}
+                <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-md font-semibold text-gray-900">
+                      Selected Access ({cartItems.length})
+                    </h3>
+                  </div>
+                  {cartItems.length === 0 ? (
+                    <p className="text-gray-500">
+                      No access items selected in Step 2.
+                    </p>
+                  ) : (
+                    <ul className="space-y-1">
+                      {cartItems.map((item) => (
+                        <li
+                          key={item.id}
+                          className="flex items-center justify-between border border-gray-200 rounded-md px-3 py-2 bg-white"
+                        >
+                          <div className="flex flex-col">
+                            <span className="font-medium text-gray-900">
+                              {item.name}
+                            </span>
+                          </div>
+                          {item.risk && (
+                            <span className="text-xs font-medium px-2 py-1 rounded-full border border-gray-300 text-gray-700">
+                              {item.risk} Risk
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
             )}
           </div>
