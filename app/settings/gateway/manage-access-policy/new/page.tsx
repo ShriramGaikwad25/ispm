@@ -31,7 +31,7 @@ export default function CreateAccessPolicyPage() {
 
   const { isVisible: isSidebarVisible, sidebarWidthPx } = useLeftSidebar();
   const searchParams = useSearchParams();
-  const { addToCart, clearCart, isInCart } = useCart();
+  const { addToCart, clearCart, isInCart, items: cartItems } = useCart();
   const [currentStep, setCurrentStep] = useState(1);
   const [advanced, setAdvanced] = useState(false);
   const [accessProvisions, setAccessProvisions] = useState<AccessProvision[]>([]);
@@ -291,13 +291,75 @@ export default function CreateAccessPolicyPage() {
     );
   };
 
-  const onSubmit = (data: any) => {
-    // TODO: Implement policy creation logic
-    console.log("Creating policy:", {
-      ...data,
-      accessProvisions,
-    });
-    alert("Policy created successfully!");
+  const onSubmit = async (data: any) => {
+    try {
+      const rawConditions = Array.isArray(data.userAttributeConditions)
+        ? data.userAttributeConditions
+        : [];
+
+      const conditions = rawConditions.map((cond: any) => {
+        const attribute =
+          cond?.attribute && typeof cond.attribute === "object"
+            ? cond.attribute.value ?? cond.attribute.label ?? cond.attribute
+            : cond?.attribute ?? "";
+        const operator =
+          cond?.operator && typeof cond.operator === "object"
+            ? cond.operator.value ?? cond.operator.label ?? cond.operator
+            : cond?.operator ?? "";
+
+        return {
+          value: cond?.value ?? "",
+          operator,
+          attribute,
+        };
+      });
+
+      const conditionPayload = {
+        operator: "AND",
+        conditions,
+      };
+
+      const accessGranted =
+        Array.isArray(cartItems) && cartItems.length > 0
+          ? cartItems.map((item) => ({
+              type: "entitlement",
+              value: item.id,
+            }))
+          : [];
+
+      const priorityNumber =
+        data.priority !== undefined && data.priority !== null && data.priority !== ""
+          ? Number(data.priority)
+          : 0;
+
+      const parameters = [
+        "access_policy",
+        "PUT",
+        {
+          policyName: data.policyName,
+          policyDescription: data.description,
+          priority: priorityNumber,
+          accessGranted,
+          condition: conditionPayload,
+        },
+      ];
+
+      console.log("Creating policy with payload:", {
+        query: "SELECT kf_apply_object_change(?,?,?::jsonb)",
+        parameters,
+      });
+
+      const result = await executeQuery(
+        "SELECT kf_apply_object_change(?,?,?::jsonb)",
+        parameters
+      );
+
+      console.log("Create policy result:", result);
+      alert("Policy created successfully!");
+    } catch (error) {
+      console.error("Failed to create policy:", error);
+      alert("Failed to create policy. Please check console for details.");
+    }
   };
 
   // Load existing policy into form when editing
@@ -740,9 +802,75 @@ export default function CreateAccessPolicyPage() {
 
   // Step 4 Component - Review/Additional Info
   const Step4Content = () => (
-    <div className="bg-white border border-gray-200 rounded-lg p-6">
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">Review</h2>
-      <p className="text-gray-600">Review your access policy configuration here.</p>
+    <div className="space-y-6">
+      {/* Policy summary */}
+      <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-3 text-sm">
+        <h2 className="text-lg font-semibold text-gray-900 mb-2">Review Access Policy</h2>
+        <div>
+          <span className="font-medium text-gray-700">Policy Name:</span>
+          <span className="ml-2 text-gray-900">
+            {watch("policyName") || "-"}
+          </span>
+        </div>
+        <div>
+          <span className="font-medium text-gray-700">Owner:</span>
+          <span className="ml-2 text-gray-900">
+            {watch("owner") || "-"}
+          </span>
+        </div>
+        <div>
+          <span className="font-medium text-gray-700">Priority:</span>
+          <span className="ml-2 text-gray-900">
+            {watch("priority") || "N/A"}
+          </span>
+        </div>
+        <div>
+          <span className="font-medium text-gray-700">Enabled:</span>
+          <span className="ml-2 text-gray-900">
+            {watch("enabled") ? "Yes" : "No"}
+          </span>
+        </div>
+        <div>
+          <span className="font-medium text-gray-700">Description:</span>
+          <p className="mt-1 text-gray-900 whitespace-pre-wrap">
+            {watch("description") || "-"}
+          </p>
+        </div>
+      </div>
+
+      {/* Selected access summary */}
+      <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-3 text-sm">
+        <div className="flex items-center justify-between">
+          <h3 className="text-md font-semibold text-gray-900">
+            Selected Access ({cartItems.length})
+          </h3>
+        </div>
+        {cartItems.length === 0 ? (
+          <p className="text-gray-500">
+            No access items selected in Step 3.
+          </p>
+        ) : (
+          <ul className="space-y-1">
+            {cartItems.map((item) => (
+              <li
+                key={item.id}
+                className="flex items-center justify-between border border-gray-200 rounded-md px-3 py-2 bg-white"
+              >
+                <div className="flex flex-col">
+                  <span className="font-medium text-gray-900">
+                    {item.name}
+                  </span>
+                </div>
+                {item.risk && (
+                  <span className="text-xs font-medium px-2 py-1 rounded-full border border-gray-300 text-gray-700">
+                    {item.risk} Risk
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 
