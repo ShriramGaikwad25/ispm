@@ -32,7 +32,7 @@ const operators = [
   { label: "NOT IN", value: "not_in" },
 ];
 
-const logicalOperators = [
+const defaultLogicalOperators = [
   { label: "AND", value: "AND" },
   { label: "OR", value: "OR" },
 ];
@@ -58,6 +58,8 @@ interface ExpressionBuilderProps {
   watch: UseFormWatch<FieldValues>;
   fieldName: string;
   attributesOptions?: { label: string; value: string }[];
+  /** Optional override for logical operators (defaults to AND/OR) */
+  logicalOperatorOptions?: { label: string; value: string }[];
   hideJsonPreview?: boolean;
   fullWidth?: boolean;
 }
@@ -68,6 +70,7 @@ const ExpressionBuilder: React.FC<ExpressionBuilderProps> = ({
   setValue,
   fieldName,
   attributesOptions,
+  logicalOperatorOptions,
   hideJsonPreview = false,
   fullWidth = false,
 }) => {
@@ -84,6 +87,10 @@ const ExpressionBuilder: React.FC<ExpressionBuilderProps> = ({
   const [isAccordionOpen, setIsAccordionOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); // <-- Sidebar State
   // (Reverted) No global shift behavior
+
+  const effectiveLogicalOperators = logicalOperatorOptions ?? defaultLogicalOperators;
+  const defaultLogicalOpValue =
+    effectiveLogicalOperators[0]?.value ?? defaultLogicalOperators[0].value;
 
   useEffect(() => {
     if (conditions.length > 0) {
@@ -103,7 +110,7 @@ const ExpressionBuilder: React.FC<ExpressionBuilderProps> = ({
       attribute: null,
       operator: null,
       value: "",
-      logicalOp: "AND",
+      logicalOp: defaultLogicalOpValue,
     };
 
     setValue(fieldName, [...conditions, newCondition], {
@@ -149,9 +156,13 @@ const ExpressionBuilder: React.FC<ExpressionBuilderProps> = ({
                   render={({ field }) => (
                     <Select
                       {...field}
-                      options={logicalOperators}
+                      options={effectiveLogicalOperators}
                       isSearchable={false}
-                      placeholder="AND/OR"
+                      placeholder={
+                        effectiveLogicalOperators.length === 1
+                          ? effectiveLogicalOperators[0].label
+                          : "AND/OR"
+                      }
                       styles={selectStyles}
                     />
                   )}

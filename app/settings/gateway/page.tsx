@@ -31,11 +31,11 @@ export default function GatewaySettings() {
       icon: <Users className="w-5 h-5 text-gray-600" />,
     },
     {
-      id: 'manage-business-roles',
-      title: 'Manage Business Roles',
-      subtitle: 'Configure and manage Business roles and permissions.',
-      href: '/settings/gateway/manage-business-roles',
-      icon: <Users className="w-5 h-5 text-gray-600" />,
+      id: 'admin-roles',
+      title: 'Admin Roles',
+      subtitle: 'Configure and manage admin roles and privileges.',
+      href: '/settings/gateway/admin-roles',
+      icon: <Shield className="w-5 h-5 text-gray-600" />,
     },
     {
       id: 'email-templates',
