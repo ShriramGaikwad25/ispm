@@ -556,11 +556,6 @@ const CompleteTab: React.FC = () => {
           detailRowAutoHeight={true}
           detailRowHeight={80}
           onGridReady={(params) => {
-            console.log("Grid initialized:", {
-              api: !!params.api,
-              columnApi: !!params.columnApi,
-              enterpriseModules: params.api.isEnterprise?.() ? "Loaded" : "Not loaded",
-            });
             setGridApi(params.api);
             params.api.sizeColumnsToFit();
             const handleResize = () => {

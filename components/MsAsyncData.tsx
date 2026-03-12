@@ -5,7 +5,7 @@ import { executeQuery } from '@/lib/api';
 export const loadUsers = async (inputValue: string) => {
   try {
     // Build query with search filter
-    let query = "SELECT username, email, displayname, firstname, lastname FROM usr";
+    let query = "SELECT * FROM usr";
     const parameters: string[] = [];
     
     if (inputValue && inputValue.trim()) {

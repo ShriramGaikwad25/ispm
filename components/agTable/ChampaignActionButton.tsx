@@ -409,7 +409,8 @@ const ChampaignActionButton: React.FC<ChampaignActionButtonProps> = ({
                     reviewerId: reviewerId || "",
                     certificationId: certId || "",
                     taskId: "", // Not available at this level
-                    lineItemId: "", // Not available at certification level
+                    // At certification level, backend expects certificationId in lineItemId
+                    lineItemId: certId || "",
                     assignmentEntity: "Cert",
                     newOwnerDetails: {
                       id: ownerId,

@@ -183,7 +183,7 @@ const AddProxyUserSidebar = ({ onClose }: { onClose: () => void }) => {
       setIsLoadingUsers(true);
       debounceTimerRef.current = setTimeout(async () => {
         try {
-          const query = `SELECT username, email FROM usr WHERE username ILIKE ? OR email::text ILIKE ?`;
+          const query = `SELECT * FROM usr WHERE username ILIKE ? OR email::text ILIKE ?`;
           const response = await executeQuery(query, [`%${searchValue}%`, `%${searchValue}%`]);
           
           let usersData: any[] = [];

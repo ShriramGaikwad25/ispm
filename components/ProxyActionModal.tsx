@@ -75,7 +75,8 @@ const ProxyActionModal: React.FC<ProxyActionModalProps> = ({
       isUsersFetchInProgressRef.current = true;
 
       try {
-        const query = `SELECT username, email FROM usr`;
+        // Explicitly include userid so we can send the correct internal ID
+        const query = `SELECT *, userid FROM usr`;
         console.log("Fetching users when modal opens...");
         
         const response = await executeQuery<any>(query, []);
@@ -96,7 +97,13 @@ const ProxyActionModal: React.FC<ProxyActionModalProps> = ({
               }
             }
             
+            // Preserve the internal user identifier (userid/id) so callers
+            // can send the correct ID in downstream APIs (e.g., reassign).
+            const internalId = user.userid || user.id || user.userUniqueID || "";
+
             return {
+              ...user,
+              userid: internalId,
               username: user.username || "",
               email: emailValue,
             };

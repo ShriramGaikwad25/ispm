@@ -1,7 +1,8 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Info, FileText, Clock, Search, ChevronDown, ChevronUp } from "lucide-react";
+import { getReviewerId } from "@/lib/auth";
 
 interface RequestHistory {
   action: string;
@@ -21,7 +22,7 @@ interface RequestDetails {
 }
 
 interface Request {
-  id: number;
+  id: string | number;
   beneficiaryName: string;
   requesterName: string;
   displayName: string;
@@ -34,149 +35,148 @@ interface Request {
   details?: RequestDetails;
   history?: RequestHistory[];
 }
-
-const mockRequests: Request[] = [
-  {
-    id: 47085,
-    beneficiaryName: "Alok Shah",
-    requesterName: "John Smith",
-    displayName: "Active Directory",
-    entityType: "ApplicationInstance",
-    daysOpen: 434,
-    status: "Request Awaiting Approval",
-    canWithdraw: true,
-    canProvideAdditionalDetails: false,
-    details: {
-      dateCreated: "03/07/2022",
-      type: "ApplicationInstance",
-      name: "Active Directory",
-      justification:
-        "System generated account request to enable provisioning of entitlements in application Active Directory",
-      startDate: "03/07/2022",
-      endDate: "",
-      globalComments: "Awaiting manager approval.",
-    },
-    history: [
-      { action: "Assigned to User", date: "2022-03-07", status: "ASSIGNED", assignedTo: "John Smith" },
-      { action: "Request Submitted", date: "2022-03-07", status: "SUBMITTED", assignedTo: "System" },
-      { action: "Under Review", date: "2022-03-08", status: "REVIEW", assignedTo: "Reviewer" },
-      { action: "Awaiting Approval", date: "2022-03-09", status: "PENDING", assignedTo: "Approver" },
-      { action: "Additional Info Requested", date: "2022-03-10", status: "INFO_REQUESTED", assignedTo: "Approver" },
-      { action: "Info Provided", date: "2022-03-11", status: "INFO_PROVIDED", assignedTo: "John Smith" },
-    ],
-  },
-  {
-    id: 47084,
-    beneficiaryName: "Alice Dickson",
-    requesterName: "John Smith",
-    displayName: "Active Directory",
-    entityType: "ApplicationInstance",
-    daysOpen: 434,
-    status: "Provide Information",
-    hasInfoIcon: true,
-    canWithdraw: false,
-    canProvideAdditionalDetails: true,
-    details: {
-      dateCreated: "03/07/2022",
-      type: "ApplicationInstance",
-      name: "Active Directory",
-      justification: "Access request for new employee onboarding",
-      startDate: "03/07/2022",
-      endDate: "",
-      globalComments: "Additional employment details required from HR.",
-    },
-    history: [
-      { action: "Request Submitted", date: "2022-03-07", status: "SUBMITTED", assignedTo: "System" },
-      { action: "Info Requested", date: "2022-03-08", status: "INFO_REQUESTED", assignedTo: "Approver" },
-    ],
-  },
-  {
-    id: 47083,
-    beneficiaryName: "Alex Gair",
-    requesterName: "John Smith",
-    displayName: "Active Directory",
-    entityType: "ApplicationInstance",
-    daysOpen: 434,
-    status: "Provide Information",
-    hasInfoIcon: true,
-    canWithdraw: false,
-    canProvideAdditionalDetails: true,
-    details: {
-      dateCreated: "03/07/2022",
-      type: "ApplicationInstance",
-      name: "Active Directory",
-      justification: "Role assignment for project team",
-      startDate: "03/07/2022",
-      endDate: "",
-      globalComments: "Waiting for project lead to confirm role scope.",
-    },
-    history: [
-      { action: "Request Submitted", date: "2022-03-07", status: "SUBMITTED", assignedTo: "System" },
-      { action: "Info Requested", date: "2022-03-08", status: "INFO_REQUESTED", assignedTo: "Approver" },
-    ],
-  },
-  {
-    id: 52077,
-    beneficiaryName: "John Smith",
-    requesterName: "John Smith",
-    displayName: "ApprvoalRole",
-    entityType: "Role",
-    daysOpen: 245,
-    status: "Request Completed",
-    canWithdraw: false,
-    canProvideAdditionalDetails: false,
-    details: {
-      dateCreated: "06/15/2023",
-      type: "Role",
-      name: "ApprvoalRole",
-      justification: "Role access for approval workflow",
-      startDate: "06/15/2023",
-      endDate: "",
-      globalComments: "Request has been fulfilled.",
-    },
-    history: [
-      { action: "Request Submitted", date: "2023-06-15", status: "SUBMITTED", assignedTo: "System" },
-      { action: "Approved", date: "2023-06-16", status: "APPROVED", assignedTo: "Approver" },
-      { action: "Completed", date: "2023-06-17", status: "COMPLETED", assignedTo: "System" },
-    ],
-  },
-  {
-    id: 49073,
-    beneficiaryName: "Anuroop Bashetty",
-    requesterName: "Anuroop Bashetty",
-    displayName: "ON COMMIT REFRESH",
-    entityType: "Entitlement",
-    daysOpen: 427,
-    status: "Request Closed",
-    canWithdraw: false,
-    canProvideAdditionalDetails: false,
-    details: {
-      dateCreated: "04/20/2023",
-      type: "Entitlement",
-      name: "ON COMMIT REFRESH",
-      justification: "Entitlement for database refresh operations",
-      startDate: "04/20/2023",
-      endDate: "",
-      globalComments: "Closed after entitlement was deprovisioned.",
-    },
-    history: [
-      { action: "Request Submitted", date: "2023-04-20", status: "SUBMITTED", assignedTo: "System" },
-      { action: "Approved", date: "2023-04-21", status: "APPROVED", assignedTo: "Approver" },
-      { action: "Closed", date: "2023-04-22", status: "CLOSED", assignedTo: "System" },
-    ],
-  },
-];
-
 const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> }) => {
   const { id } = React.use(params);
-  const numericId = Number(id);
-  const request = mockRequests.find((r) => r.id === numericId);
-  const [historySearch, setHistorySearch] = React.useState("");
-  const [isItemExpanded, setIsItemExpanded] = React.useState(true);
-  const [expandedTimelineIndex, setExpandedTimelineIndex] = React.useState<number | null>(null);
-  const [timelineComment, setTimelineComment] = React.useState("");
-  const [timelineAttachmentName, setTimelineAttachmentName] = React.useState("");
-  const [isConfirmModalOpen, setIsConfirmModalOpen] = React.useState(false);
+  const [request, setRequest] = useState<Request | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [historySearch, setHistorySearch] = useState("");
+  const [isItemExpanded, setIsItemExpanded] = useState(true);
+  const [expandedTimelineIndex, setExpandedTimelineIndex] = useState<number | null>(null);
+  const [timelineComment, setTimelineComment] = useState("");
+  const [timelineAttachmentName, setTimelineAttachmentName] = useState("");
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+
+  useEffect(() => {
+    const reviewerId = getReviewerId();
+    if (!reviewerId) {
+      setError("Reviewer ID not found.");
+      return;
+    }
+
+    const url = "https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery";
+    setLoading(true);
+    setError(null);
+
+    const body = {
+      query: "select * from kf_wf_get_access_request where requesterid = ?::uuid",
+      parameters: [reviewerId],
+    };
+
+    const formatDate = (value: string | null | undefined): string => {
+      if (!value) return "";
+      const datePart = value.split(" ")[0] ?? value;
+      const parts = datePart.split("-");
+      if (parts.length !== 3) return value;
+      const [yyyy, mm, dd] = parts;
+      if (!yyyy || !mm || !dd) return value;
+      return `${mm.padStart(2, "0")}/${dd.padStart(2, "0")}/${yyyy}`;
+    };
+
+    fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`Request failed: ${res.status}`);
+        }
+        return res.json();
+      })
+      .then((data) => {
+        let rawRows: any[] = [];
+        if (Array.isArray(data)) rawRows = data;
+        else if (Array.isArray((data as any).resultSet)) rawRows = (data as any).resultSet;
+        else if (Array.isArray((data as any).rows)) rawRows = (data as any).rows;
+
+        if (!rawRows || rawRows.length === 0) {
+          setRequest(null);
+          return;
+        }
+        const mapped: Request[] = rawRows.map((row) => {
+          const beneficiary = row.beneficiary ?? {};
+          const itemdetails: any[] = Array.isArray(row.itemdetails) ? row.itemdetails : [];
+          const firstItem = itemdetails[0] ?? {};
+          const catalog = firstItem.catalog ?? {};
+
+          const beneficiaryNameFromObject =
+            beneficiary.displayname ||
+            [beneficiary.firstname, beneficiary.lastname].filter(Boolean).join(" ") ||
+            beneficiary.username ||
+            "";
+
+          const displayNameFromCatalog =
+            catalog.name || catalog.entitlementname || catalog.applicationname || "";
+
+          const entityTypeFromCatalog =
+            catalog.type || catalog.entitlementtype || (catalog.metadata?.entitlementType as string) || "";
+
+          const requestedOn: string | undefined = row.requestedon;
+          const raisedOn = formatDate(requestedOn);
+
+          let daysOpen = 0;
+          if (requestedOn) {
+            const datePart = requestedOn.split(" ")[0] ?? requestedOn;
+            const d = new Date(datePart);
+            if (!Number.isNaN(d.getTime())) {
+              const now = new Date();
+              const diffMs = now.getTime() - d.getTime();
+              daysOpen = Math.max(0, Math.round(diffMs / (1000 * 60 * 60 * 24)));
+            }
+          }
+
+          const status: string =
+            typeof row.status === "string" && row.status.trim()
+              ? row.status
+              : row.isjit
+                ? "JIT Request Submitted"
+                : "Request Submitted";
+
+          const justification: string =
+            (row.requester_justification as string) || (firstItem.item_comments as string) || "";
+
+          const startDate = firstItem.item_startdate ? String(firstItem.item_startdate) : raisedOn;
+          const endDate = firstItem.item_enddate ? String(firstItem.item_enddate) : "";
+
+          return {
+            id: row.requestid ?? row.id ?? "",
+            beneficiaryName: String(beneficiaryNameFromObject),
+            requesterName: "",
+            displayName: String(displayNameFromCatalog),
+            entityType: String(entityTypeFromCatalog || "Entitlement"),
+            daysOpen,
+            status,
+            hasInfoIcon:
+              String(catalog.privileged ?? "").toLowerCase() === "yes" ||
+              String(catalog.risk ?? "").toLowerCase().startsWith("high"),
+            canWithdraw: status.toLowerCase().includes("awaiting") || status.toLowerCase().includes("pending"),
+            canProvideAdditionalDetails: status.toLowerCase().includes("provide information"),
+            details: {
+              dateCreated: raisedOn,
+              type: String(entityTypeFromCatalog || "Entitlement"),
+              name: String(displayNameFromCatalog || ""),
+              justification,
+              startDate,
+              endDate,
+              globalComments: justification || undefined,
+            },
+            history: [],
+          };
+        });
+
+        const match = mapped.find((r) => String(r.id) === String(id));
+        setRequest(match ?? null);
+      })
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : "Failed to load request.";
+        setError(message);
+        setRequest(null);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [id]);
 
   const historyItems = request?.history ?? [];
   const sortedHistory = [...historyItems].sort(
@@ -192,6 +192,23 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
       item.date.toLowerCase().includes(query)
     );
   });
+
+  if (loading) {
+    return (
+      <div className="p-6 space-y-4">
+        <h1 className="text-xl font-semibold text-gray-900">Loading request…</h1>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 space-y-4">
+        <h1 className="text-xl font-semibold text-gray-900">Unable to load request</h1>
+        <p className="text-sm text-gray-600">{error}</p>
+      </div>
+    );
+  }
 
   if (!request || !request.details) {
     return (

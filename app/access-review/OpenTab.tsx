@@ -1158,9 +1158,13 @@ const OpenTab: React.FC = () => {
             // Determine owner type and ID
             // Check if owner has username (User) or name (Group)
             const ownerType = owner.username ? "User" : "Group";
-            // For users, prefer username as ID, fallback to email
-            // For groups, use name as ID
-            const ownerId = owner.id || (ownerType === "User" ? (owner.username || owner.email || "") : (owner.name || ""));
+            // For users, prefer the actual internal user identifier (userid/id),
+            // then fall back to username/email only if necessary.
+            // For groups, use the stable group id, then name.
+            const ownerId =
+              ownerType === "User"
+                ? ((owner as any).userid || (owner as any).id || owner.username || owner.email || "")
+                : (owner.id || (owner as any).group_id || owner.name || "");
 
             // Construct the payload
             const rowData = selectedCertificationRow as any; // Type assertion to access reviewerName
@@ -1169,7 +1173,8 @@ const OpenTab: React.FC = () => {
               reviewerId: selectedCertificationRow.reviewerId,
               certificationId: selectedCertificationRow.certificationId,
               taskId: selectedCertificationRow.taskId || selectedCertificationRow.campaignId || "",
-              lineItemId: "", // Not available at certification level
+              // At certification level, backend expects certificationId in lineItemId
+              lineItemId: selectedCertificationRow.certificationId,
               assignmentEntity: "Cert",
               newOwnerDetails: {
                 id: ownerId,

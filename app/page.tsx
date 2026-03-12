@@ -72,7 +72,6 @@ export default function Dashboard() {
     const fetchStats = async () => {
       const reviewerId = getReviewerId();
       if (!reviewerId) {
-        console.error("No reviewerId found");
         setLoading(false);
         return;
       }

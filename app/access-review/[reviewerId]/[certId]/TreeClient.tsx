@@ -38,6 +38,7 @@ import {
   CheckCircle,
   MoreVertical,
   X,
+  ArrowLeft,
 } from "lucide-react";
 import { InsightsIcon } from "@/components/InsightsIcon";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -2289,15 +2290,20 @@ const TreeClient: React.FC<TreeClientProps> = ({
       {/* Left Sidebar Container - Back Button and User List */}
       <div
         className={`border-r border-gray-200 flex flex-col transition-all duration-300 ease-in-out z-30 shadow-sm ${
-          isSidebarHovered
-            ? "w-64"
-            : "w-20"
+          isSidebarHovered ? "w-64" : "w-20"
         }`}
-        style={{ height: '100vh' }}
+        style={{ height: "100vh" }}
       >
         {/* Back Button */}
-        <div className="flex items-center border-b border-gray-300">
-          <BackButton className={`${isSidebarHovered ? 'w-full' : 'w-auto'} text-sm py-1.5 px-2 !bg-gray-300 !border-gray-400 !text-gray-800 hover:!bg-gray-200`} text="Back" />
+        <div className="flex items-center justify-center border-b border-gray-300 px-2 py-2">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="p-2 rounded-full hover:bg-gray-100 text-gray-600 hover:text-gray-900 transition-colors"
+            aria-label="Back"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Users List */}

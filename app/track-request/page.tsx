@@ -1,13 +1,13 @@
 "use client";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { Search, ChevronDown, Info } from "lucide-react";
-import { BackButton } from "@/components/BackButton";
 const AgGridReact = dynamic(() => import("ag-grid-react").then((mod) => mod.AgGridReact), { ssr: false });
 type AgGridReactType = any;
 import "@/lib/ag-grid-setup";
 import { ColDef, ICellRendererParams } from "ag-grid-enterprise";
+import { getReviewerId } from "@/lib/auth";
 
 interface RequestHistory {
   action: string;
@@ -27,7 +27,7 @@ interface RequestDetails {
 }
 
 interface Request {
-  id: number;
+  id: string | number;
   beneficiaryName: string;
   requesterName: string;
   displayName: string;
@@ -48,138 +48,140 @@ const TrackRequest: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState("");
   const gridRef = React.useRef<AgGridReactType>(null);
   const router = useRouter();
+  const [requests, setRequests] = useState<Request[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Mock data matching the image description
-  const mockRequests: Request[] = [
-    {
-      id: 47085,
-      beneficiaryName: "Alok Shah",
-      requesterName: "John Smith",
-      displayName: "Active Directory",
-      entityType: "ApplicationInstance",
-      daysOpen: 434,
-      status: "Request Awaiting Approval",
-      canWithdraw: true,
-      canProvideAdditionalDetails: false,
-      details: {
-        dateCreated: "03/07/2022",
-        type: "ApplicationInstance",
-        name: "Active Directory",
-        justification: "System generated account request to enable provisioning of entitlements in application Active Directory",
-        startDate: "03/07/2022",
-        endDate: "",
-        globalComments: "Awaiting manager approval.",
-      },
-      history: [
-        { action: "Assigned to User", date: "2022-03-07", status: "ASSIGNED", assignedTo: "John Smith" },
-        { action: "Request Submitted", date: "2022-03-07", status: "SUBMITTED", assignedTo: "System" },
-        { action: "Under Review", date: "2022-03-08", status: "REVIEW", assignedTo: "Reviewer" },
-        { action: "Awaiting Approval", date: "2022-03-09", status: "PENDING", assignedTo: "Approver" },
-        { action: "Additional Info Requested", date: "2022-03-10", status: "INFO_REQUESTED", assignedTo: "Approver" },
-        { action: "Info Provided", date: "2022-03-11", status: "INFO_PROVIDED", assignedTo: "John Smith" },
-      ],
-    },
-    {
-      id: 47084,
-      beneficiaryName: "Alice Dickson",
-      requesterName: "John Smith",
-      displayName: "Active Directory",
-      entityType: "ApplicationInstance",
-      daysOpen: 434,
-      status: "Provide Information",
-      hasInfoIcon: true,
-      canWithdraw: false,
-      canProvideAdditionalDetails: true,
-      details: {
-        dateCreated: "03/07/2022",
-        type: "ApplicationInstance",
-        name: "Active Directory",
-        justification: "Access request for new employee onboarding",
-        startDate: "03/07/2022",
-        endDate: "",
-        globalComments: "Additional employment details required from HR.",
-      },
-      history: [
-        { action: "Request Submitted", date: "2022-03-07", status: "SUBMITTED", assignedTo: "System" },
-        { action: "Info Requested", date: "2022-03-08", status: "INFO_REQUESTED", assignedTo: "Approver" },
-      ],
-    },
-    {
-      id: 47083,
-      beneficiaryName: "Alex Gair",
-      requesterName: "John Smith",
-      displayName: "Active Directory",
-      entityType: "ApplicationInstance",
-      daysOpen: 434,
-      status: "Provide Information",
-      hasInfoIcon: true,
-      canWithdraw: false,
-      canProvideAdditionalDetails: true,
-      details: {
-        dateCreated: "03/07/2022",
-        type: "ApplicationInstance",
-        name: "Active Directory",
-        justification: "Role assignment for project team",
-        startDate: "03/07/2022",
-        endDate: "",
-        globalComments: "Waiting for project lead to confirm role scope.",
-      },
-      history: [
-        { action: "Request Submitted", date: "2022-03-07", status: "SUBMITTED", assignedTo: "System" },
-        { action: "Info Requested", date: "2022-03-08", status: "INFO_REQUESTED", assignedTo: "Approver" },
-      ],
-    },
-    {
-      id: 52077,
-      beneficiaryName: "John Smith",
-      requesterName: "John Smith",
-      displayName: "ApprvoalRole",
-      entityType: "Role",
-      daysOpen: 245,
-      status: "Request Completed",
-      canWithdraw: false,
-      canProvideAdditionalDetails: false,
-      details: {
-        dateCreated: "06/15/2023",
-        type: "Role",
-        name: "ApprvoalRole",
-        justification: "Role access for approval workflow",
-        startDate: "06/15/2023",
-        endDate: "",
-        globalComments: "Request has been fulfilled.",
-      },
-      history: [
-        { action: "Request Submitted", date: "2023-06-15", status: "SUBMITTED", assignedTo: "System" },
-        { action: "Approved", date: "2023-06-16", status: "APPROVED", assignedTo: "Approver" },
-        { action: "Completed", date: "2023-06-17", status: "COMPLETED", assignedTo: "System" },
-      ],
-    },
-    {
-      id: 49073,
-      beneficiaryName: "Anuroop Bashetty",
-      requesterName: "Anuroop Bashetty",
-      displayName: "ON COMMIT REFRESH",
-      entityType: "Entitlement",
-      daysOpen: 427,
-      status: "Request Closed",
-      canWithdraw: false,
-      canProvideAdditionalDetails: false,
-      details: {
-        dateCreated: "04/20/2023",
-        type: "Entitlement",
-        name: "ON COMMIT REFRESH",
-        justification: "Entitlement for database refresh operations",
-        startDate: "04/20/2023",
-        endDate: "",
-        globalComments: "Closed after entitlement was deprovisioned.",
-      },
-      history: [
-        { action: "Request Submitted", date: "2023-04-20", status: "SUBMITTED", assignedTo: "System" },
-        { action: "Approved", date: "2023-04-21", status: "APPROVED", assignedTo: "Approver" },
-        { action: "Closed", date: "2023-04-22", status: "CLOSED", assignedTo: "System" },
-      ],
-    },
-  ];
+  useEffect(() => {
+    const reviewerId = getReviewerId();
+    if (!reviewerId) {
+      setError("Reviewer ID not found.");
+      return;
+    }
+
+    const url = "https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery";
+    setLoading(true);
+    setError(null);
+
+    const body = {
+      query: "select * from kf_wf_get_access_request where requesterid = ?::uuid",
+      parameters: [reviewerId],
+    };
+
+    const formatDate = (value: string | null | undefined): string => {
+      if (!value) return "";
+      // API gives "2026-03-06 05:43:43.247628" – take date part and show as MM/DD/YYYY
+      const datePart = value.split(" ")[0] ?? value;
+      const parts = datePart.split("-");
+      if (parts.length !== 3) return value;
+      const [yyyy, mm, dd] = parts;
+      if (!yyyy || !mm || !dd) return value;
+      return `${mm.padStart(2, "0")}/${dd.padStart(2, "0")}/${yyyy}`;
+    };
+
+    fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`Request failed: ${res.status}`);
+        }
+        return res.json();
+      })
+      .then((data) => {
+        let rawRows: any[] = [];
+        if (Array.isArray(data)) rawRows = data;
+        else if (Array.isArray((data as any).resultSet)) rawRows = (data as any).resultSet;
+        else if (Array.isArray((data as any).rows)) rawRows = (data as any).rows;
+
+        if (!rawRows || rawRows.length === 0) {
+          setRequests([]);
+          return;
+        }
+        const mapped: Request[] = rawRows.map((row) => {
+          const beneficiary = row.beneficiary ?? {};
+          const itemdetails: any[] = Array.isArray(row.itemdetails) ? row.itemdetails : [];
+          const firstItem = itemdetails[0] ?? {};
+          const catalog = firstItem.catalog ?? {};
+
+          const beneficiaryNameFromObject =
+            beneficiary.displayname ||
+            [beneficiary.firstname, beneficiary.lastname].filter(Boolean).join(" ") ||
+            beneficiary.username ||
+            "";
+
+          const displayNameFromCatalog =
+            catalog.name || catalog.entitlementname || catalog.applicationname || "";
+
+          const entityTypeFromCatalog =
+            catalog.type || catalog.entitlementtype || (catalog.metadata?.entitlementType as string) || "";
+
+          const requestedOn: string | undefined = row.requestedon;
+          const raisedOn = formatDate(requestedOn);
+
+          let daysOpen = 0;
+          if (requestedOn) {
+            const datePart = requestedOn.split(" ")[0] ?? requestedOn;
+            const d = new Date(datePart);
+            if (!Number.isNaN(d.getTime())) {
+              const now = new Date();
+              const diffMs = now.getTime() - d.getTime();
+              daysOpen = Math.max(0, Math.round(diffMs / (1000 * 60 * 60 * 24)));
+            }
+          }
+
+          const status: string =
+            typeof row.status === "string" && row.status.trim()
+              ? row.status
+              : row.isjit
+                ? "JIT Request Submitted"
+                : "Request Submitted";
+
+          const justification: string =
+            (row.requester_justification as string) || (firstItem.item_comments as string) || "";
+
+          const startDate = firstItem.item_startdate ? String(firstItem.item_startdate) : raisedOn;
+          const endDate = firstItem.item_enddate ? String(firstItem.item_enddate) : "";
+
+          return {
+            id: row.requestid ?? row.id ?? "",
+            beneficiaryName: String(beneficiaryNameFromObject),
+            requesterName: "", // current user (reviewer) – ID only in payload
+            displayName: String(displayNameFromCatalog),
+            entityType: String(entityTypeFromCatalog || "Entitlement"),
+            daysOpen,
+            status,
+            hasInfoIcon:
+              String(catalog.privileged ?? "").toLowerCase() === "yes" ||
+              String(catalog.risk ?? "").toLowerCase().startsWith("high"),
+            canWithdraw: status.toLowerCase().includes("awaiting") || status.toLowerCase().includes("pending"),
+            canProvideAdditionalDetails: status.toLowerCase().includes("provide information"),
+            details: {
+              dateCreated: raisedOn,
+              type: String(entityTypeFromCatalog || "Entitlement"),
+              name: String(displayNameFromCatalog || ""),
+              justification,
+              startDate,
+              endDate,
+              globalComments: justification || undefined,
+            },
+            history: [],
+          };
+        });
+
+        setRequests(mapped);
+      })
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : "Failed to load track requests.";
+        setError(message);
+        setRequests([]);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, []);
 
   const getStatusColor = (status: string) => {
     if (status.includes("Completed") || status.includes("Approved")) {
@@ -215,7 +217,7 @@ const TrackRequest: React.FC = () => {
     return new Date(yyyy, mm - 1, dd);
   };
 
-  const filteredRequests = mockRequests.filter((request) => {
+  const filteredRequests = requests.filter((request) => {
     const query = searchQuery.trim().toLowerCase();
 
     if (query) {
@@ -259,7 +261,7 @@ const TrackRequest: React.FC = () => {
         width: 110,
         sortable: true,
         cellRenderer: (params: ICellRendererParams) => {
-          const id = params.data?.id;
+          const id = params.data?.id as string | number | undefined;
           if (!id) return params.value;
           return (
             <button
@@ -267,7 +269,7 @@ const TrackRequest: React.FC = () => {
               className="text-blue-600 hover:underline font-medium"
               onClick={(e) => {
                 e.stopPropagation();
-                router.push(`/track-request/${id}`);
+                router.push(`/track-request/${encodeURIComponent(String(id))}`);
               }}
             >
               {params.value}

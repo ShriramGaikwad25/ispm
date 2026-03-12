@@ -327,36 +327,17 @@ const HeaderContent = () => {
   };
 
   const getAvatarCandidates = (u: any): string[] => {
-    // Available pictures in public/pictures folder
+    // Always try the shared User.jpg first for every user,
+    // then fall back to the generic avatar pool if needed.
     const availablePictures = [
+      "/User.jpg",
       "/pictures/user_image1.avif",
       "/pictures/user_image4.avif",
       "/pictures/user_image7.avif",
       "/pictures/user_image8.avif",
     ];
-    
-    // If user has a photoFilename, try that first
-    const photoFilename = String(u?.photoFilename || "").trim();
-    if (photoFilename) {
-      return [`/pictures/${photoFilename}`, ...availablePictures];
-    }
-    
-    // Assign picture based on user key for consistency
-    const userKey = getHeaderUserKey(u);
-    let hash = 0;
-    for (let i = 0; i < userKey.length; i++) {
-      hash = (hash * 31 + userKey.charCodeAt(i)) >>> 0;
-    }
-    
-    // Use hash to assign a consistent picture per user
-    const pictureIndex = hash % availablePictures.length;
-    
-    // Return the assigned picture first, then others as fallbacks
-    const assignedPicture = availablePictures[pictureIndex];
-    return [
-      assignedPicture,
-      ...availablePictures.filter(p => p !== assignedPicture)
-    ];
+
+    return availablePictures;
   };
 
   const renderUserAvatar = (u: any, size: number, roundedClass: string) => {

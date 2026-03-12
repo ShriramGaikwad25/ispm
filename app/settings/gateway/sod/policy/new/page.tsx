@@ -300,12 +300,12 @@ export default function SodPolicyNewPage() {
               <div className="space-y-4">
                 {/* Two partitions separated by AND */}
                 <div className="flex flex-col lg:flex-row items-stretch gap-6">
-                  {/* Left partition */}
+                  {/* Left partition: Master Statement */}
                   <div className="flex-1 min-w-0 space-y-3">
                     {/* Scope dropdown */}
                     <div className="flex flex-col gap-1.5">
                       <label className="text-sm font-medium text-gray-700">
-                        Scope
+                        Master Statement
                       </label>
                       <select
                         value={conditionScope}
@@ -387,10 +387,10 @@ export default function SodPolicyNewPage() {
                     </span>
                   </div>
 
-                  {/* Right partition: Rules with OR (all rows uniform) */}
+                  {/* Right partition: Conflicting Statement (Rules with OR) */}
                   <div className="flex-1 min-w-0 space-y-3">
                     <label className="text-sm font-medium text-gray-700">
-                      Rules (OR)
+                      CONFLICTING STATEMENT
                     </label>
 
                     <div className="mt-1 space-y-2">
