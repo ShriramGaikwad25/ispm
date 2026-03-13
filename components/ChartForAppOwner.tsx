@@ -318,13 +318,23 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
           <div className="space-y-2">
             {leftColumnFilters.map((item, index) => {
               const isSelected = selected.left === index;
+              const baseCount =
+                analyticsLoading ? 0 : getDisplayValue(item.label, false);
+              const isDisabled = !analyticsLoading && baseCount === 0;
               return (
                 <div
                   key={index}
-                  className={`flex items-center justify-between py-2 px-3 rounded cursor-pointer transition-colors ${
-                    isSelected ? "bg-blue-100 border border-blue-300" : "bg-gray-100"
+                  className={`flex items-center justify-between py-2 px-3 rounded transition-colors ${
+                    isDisabled
+                      ? "bg-gray-100 opacity-50 cursor-not-allowed"
+                      : isSelected
+                      ? "bg-blue-100 border border-blue-300 cursor-pointer"
+                      : "bg-gray-100 cursor-pointer"
                   }`}
-                  onClick={() => handleSelect("left", index)}
+                  onClick={() => {
+                    if (isDisabled) return;
+                    handleSelect("left", index);
+                  }}
                 >
                   <div className="flex items-center gap-2">
                     <div
@@ -334,7 +344,11 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
                         backgroundColor: isSelected ? (item.color as string) : "transparent",
                       }}
                     ></div>
-                    <span className={`text-xs ${isSelected ? "text-blue-900" : "text-gray-700"}`}>
+                    <span
+                      className={`text-xs ${
+                        isSelected ? "text-blue-900" : "text-gray-700"
+                      }`}
+                    >
                       {item.label}
                     </span>
                   </div>
@@ -343,7 +357,9 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
                       isSelected ? "text-blue-700 border-blue-300" : "text-gray-900 border-gray-300"
                     } bg-white border px-2 py-1 rounded min-w-[20px] text-center`}
                   >
-                    {analyticsLoading ? "..." : getDisplayValue(item.label, isSelected)}
+                    {analyticsLoading
+                      ? "..."
+                      : getDisplayValue(item.label, isSelected)}
                   </span>
                 </div>
               );
@@ -382,13 +398,23 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
           <div className="space-y-2">
             {rightColumnFilters.map((item, index) => {
               const isSelected = selected.right === index;
+              const baseCount =
+                analyticsLoading ? 0 : getDisplayValue(item.label, false);
+              const isDisabled = !analyticsLoading && baseCount === 0;
               return (
                 <div
                   key={index}
-                  className={`flex items-center justify-between py-2 px-3 rounded cursor-pointer transition-colors ${
-                    isSelected ? "bg-blue-100 border border-blue-300" : "bg-gray-100"
+                  className={`flex items-center justify-between py-2 px-3 rounded transition-colors ${
+                    isDisabled
+                      ? "bg-gray-100 opacity-50 cursor-not-allowed"
+                      : isSelected
+                      ? "bg-blue-100 border border-blue-300 cursor-pointer"
+                      : "bg-gray-100 cursor-pointer"
                   }`}
-                  onClick={() => handleSelect("right", index)}
+                  onClick={() => {
+                    if (isDisabled) return;
+                    handleSelect("right", index);
+                  }}
                 >
                   <div className="flex items-center gap-2">
                     <div
@@ -398,7 +424,11 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
                         backgroundColor: isSelected ? (item.color as string) : "transparent",
                       }}
                     ></div>
-                    <span className={`text-xs ${isSelected ? "text-blue-900" : "text-gray-700"}`}>
+                    <span
+                      className={`text-xs ${
+                        isSelected ? "text-blue-900" : "text-gray-700"
+                      }`}
+                    >
                       {item.label}
                     </span>
                   </div>
@@ -407,7 +437,9 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
                       isSelected ? "text-blue-700 border-blue-300" : "text-gray-900 border-gray-300"
                     } bg-white border px-2 py-1 rounded min-w-[20px] text-center`}
                   >
-                    {analyticsLoading ? "..." : getDisplayValue(item.label, isSelected)}
+                    {analyticsLoading
+                      ? "..."
+                      : getDisplayValue(item.label, isSelected)}
                   </span>
                 </div>
               );

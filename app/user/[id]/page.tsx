@@ -1,6 +1,6 @@
 "use client";
 import SegmentedControl from "@/components/SegmentedControl";
-import { History, CircleX, CirclePlus, FileText, Search, Plus, Ban, Calendar, Edit } from "lucide-react";
+import { History, CircleX, CirclePlus, FileText, Search, Plus, Ban, Calendar, Edit, Trash2 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { executeQuery } from "@/lib/api";
 import type { ColDef } from "ag-grid-enterprise";
@@ -569,6 +569,10 @@ export default function UserDetailPage() {
     const [searchTerm, setSearchTerm] = useState<string>("");
     const gridRef = useRef<any>(null);
 
+    const handleDeleteRow = (row: any) => {
+      setRowData((prev) => prev.filter((r) => r !== row));
+    };
+
     useEffect(() => {
       const getUserIdFromStorage = (): string => {
         try {
@@ -628,6 +632,29 @@ export default function UserDetailPage() {
                 field: "lastLogin",
                 flex: 1,
                 valueFormatter: (p: any) => require("@/utils/utils").formatDateMMDDYYSlashes(p.value),
+              },
+              {
+                headerName: "",
+                colId: "actions",
+                flex: 0.5,
+                sortable: false,
+                filter: false,
+                cellRenderer: (p: any) => (
+                  <div className="flex items-center justify-center h-full">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteRow(p.data);
+                      }}
+                      className="p-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-700 hover:text-red-900 border border-red-200 hover:border-red-300 transition-colors"
+                      title="Remove entitlement"
+                      aria-label="Remove entitlement"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ),
               },
             ];
             setDynamicCols(desiredCols);
@@ -722,6 +749,29 @@ export default function UserDetailPage() {
                   "last_login_date",
                 ]),
               flex: 1,
+            },
+            {
+              headerName: "",
+              colId: "actions",
+              flex: 0.5,
+              sortable: false,
+              filter: false,
+              cellRenderer: (p: any) => (
+                <div className="flex items-center justify-center h-full">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteRow(p.data);
+                    }}
+                    className="p-1.5 rounded-md bg-red-50 hover:bg-red-100 text-red-700 hover:text-red-900 border border-red-200 hover:border-red-300 transition-colors"
+                    title="Remove entitlement"
+                    aria-label="Remove entitlement"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ),
             },
           ];
           // If none of the desired columns resolve for the first row, fall back to showing all keys
@@ -887,13 +937,14 @@ export default function UserDetailPage() {
           {/* AG Grid - hidden in print */}
           <div className="screen-only">
             {isMounted && (
-              <div className="ag-theme-alpine print-ag-grid" style={{ height: 400, width: "100%" }}>
+              <div className="ag-theme-alpine print-ag-grid" style={{ width: "100%" }}>
                 <AgGridReact
                   ref={gridRef}
                   rowData={filteredData}
                   columnDefs={dynamicCols}
                   defaultColDef={{ sortable: true, filter: true, resizable: true }}
                   suppressRowVirtualisation={false}
+                  domLayout="autoHeight"
                 />
               </div>
             )}

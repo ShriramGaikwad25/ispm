@@ -44,6 +44,7 @@ const Filters = ({
   value, // Controlled value prop
   actionStates,
   statusCounts, // Counts from certification details access block (Pending, Certify, Reject, etc.)
+  disableZeroCountOptions = false,
 }: {
   gridApi?: any;
   columns?: string[];
@@ -58,6 +59,12 @@ const Filters = ({
     remediate?: boolean;
   };
   statusCounts?: Record<string, number>;
+  /**
+   * When true (used in AppOwner), status options with no matching
+   * items (count === 0 or undefined) are shown disabled and cannot
+   * be selected. "All" is always enabled.
+   */
+  disableZeroCountOptions?: boolean;
 }) => {
   const [selectedFilter, setSelectedFilter] = useState<string>(value || initialSelected || "");
   const [filterCounts, setFilterCounts] = useState<{ [key: string]: number }>({});
@@ -277,13 +284,23 @@ const Filters = ({
             ? statusCounts[option.value]
             : filterCounts[option.value] || (option as any).count;
           const showCount = context === "account" || (context === "status" && statusCounts != null);
+          const isDisabled =
+            disableZeroCountOptions &&
+            context === "status" &&
+            option.value !== "All" &&
+            (!count || Number(count) === 0);
           return (
             <li
               key={option.value}
-              onClick={() => toggleFilter(option.value)}
-              className={`px-2 py-2 cursor-pointer flex items-center justify-between hover:bg-gray-100 ${
-                isSelected ? "bg-blue-50 font-semibold" : ""
-              }`}
+              onClick={() => {
+                if (isDisabled) return;
+                toggleFilter(option.value);
+              }}
+              className={`px-2 py-2 flex items-center justify-between ${
+                isDisabled
+                  ? "cursor-not-allowed text-gray-400"
+                  : "cursor-pointer hover:bg-gray-100"
+              } ${isSelected ? "bg-blue-50 font-semibold" : ""}`}
             >
               <div className="flex items-center">
                 <span className="mx-2 w-4 flex justify-center">
@@ -301,7 +318,13 @@ const Filters = ({
                     <span className="w-4" />
                   )}
                 </span>
-                <span className={option.label === "Terminated User Accounts" ? "text-gray-400" : ""}>
+                <span
+                  className={
+                    option.label === "Terminated User Accounts" || isDisabled
+                      ? "text-gray-400"
+                      : ""
+                  }
+                >
                   {option.label}
                 </span>
               </div>

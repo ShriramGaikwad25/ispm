@@ -2058,6 +2058,7 @@ function AppOwnerContent() {
                 initialSelected="Pending"
                 value={selectedFilters.length > 0 ? selectedFilters[0] : undefined}
                 statusCounts={statusCountsFromAccess}
+                disableZeroCountOptions={true}
               />
               <label className="flex items-center gap-2 cursor-pointer ml-2">
                 <input
@@ -2284,6 +2285,7 @@ function AppOwnerContent() {
                 getRowHeight={(params) =>
                   params.node.group ? 60 : 40
                 }
+                suppressRowClickSelection={true}
                 rowSelection={{
                   mode: "multiRow",
                   masterSelects: "detail",
@@ -2351,17 +2353,6 @@ function AppOwnerContent() {
                   
                   console.log('[getGroupRowAgg] Returning:', description ? description.substring(0, 50) : 'EMPTY');
                   return { entitlementDescription: description };
-                }}
-                onRowClicked={(params: any) => {
-                  // When grouped by entitlement: clicking a leaf row (account row) toggles single-row selection
-                  if ((groupByOption === "Entitlements" || isGroupedByEntitlementCheckbox) && params.node && !params.node.group) {
-                    params.node.setSelected(!params.node.isSelected());
-                    if (gridApiRef.current) {
-                      const groupNodes: any[] = [];
-                      gridApiRef.current.forEachNode((n: any) => { if (n.group) groupNodes.push(n); });
-                      if (groupNodes.length > 0) gridApiRef.current.refreshCells({ rowNodes: groupNodes, force: true });
-                    }
-                  }
                 }}
                 onGridReady={(params: any) => {
                   console.log(

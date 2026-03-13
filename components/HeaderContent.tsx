@@ -703,9 +703,9 @@ const HeaderContent = () => {
             <Image
               src="/MainLogo.svg"
               alt="Logo"
-              width={30}
-              height={64}
-              className="h-16 w-auto min-h-[px] object-contain rounded-2xl"
+              width={16}
+              height={32}
+              className="h-16 w-auto min-h-[32px] object-contain"
               priority
             />
           </button>

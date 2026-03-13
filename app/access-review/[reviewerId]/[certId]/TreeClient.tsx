@@ -1483,7 +1483,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
     
     // Map filter names to API filter strings
     const filterMap: Record<string, string> = {
-      "Dormant Access": "isdormant eq Y",
+      "Dormant Accounts": "isdormant eq Y",
       "High Risk": "itemrisk eq High",
       "Violation": "isviolations eq Y"
     };
@@ -2005,7 +2005,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
 
   const filterOptions = [
     {
-      name: "Dormant Access",
+      name: "Dormant Accounts",
       color: "bg-yellow-100 border-yellow-300 text-yellow-800",
     },
     { name: "Violation", color: "bg-red-100 border-red-300 text-red-800" },
@@ -2613,7 +2613,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       // Get corresponding count from certAnalytics
                       let count = 0;
                       if (certAnalytics) {
-                        if (filter.name === "Dormant Access") {
+                        if (filter.name === "Dormant Accounts") {
                           count = certAnalytics.dormant_count || 0;
                         } else if (filter.name === "Violation") {
                           count = certAnalytics.violations_count || 0;
@@ -2623,26 +2623,34 @@ const TreeClient: React.FC<TreeClientProps> = ({
                           count = certAnalytics.newaccess_count || 0;
                         }
                       }
+                      const isDisabled = count === 0;
                       return (
                         <div
                           key={filter.name}
                           className={`
-                            px-3 py-1 rounded-md border cursor-pointer transition-all duration-200 text-xs flex items-center justify-between gap-1.5 min-w-[120px]
+                            px-3 py-1 rounded-md border transition-all duration-200 text-xs flex items-center justify-between gap-1.5 min-w-[120px]
                             ${
-                              isSelected
-                                ? `${filter.color} shadow-sm`
-                                : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
+                              isDisabled
+                                ? "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
+                                : isSelected
+                                ? `${filter.color} shadow-sm cursor-pointer`
+                                : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100 cursor-pointer"
                             }
                           `}
                         >
                           <span
                             className="font-medium flex-1"
-                            onClick={() => handleFilterToggle(filter.name)}
+                            onClick={() => {
+                              if (isDisabled) return;
+                              handleFilterToggle(filter.name);
+                            }}
                           >
                             {filter.name}
-                            {count > 0 && <span className="ml-1 font-bold">({count})</span>}
+                            {count > 0 && (
+                              <span className="ml-1 font-bold">({count})</span>
+                            )}
                           </span>
-                          {isSelected && (
+                          {isSelected && !isDisabled && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -3046,7 +3054,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
             <div className="flex items-center justify-between border-b px-4 py-3">
               <h3 className="text-sm font-semibold text-gray-800">
                 AI Assist - Quick Wins –{" "}
-                {guidedPathModalFilter === "Dormant" ? "Dormant Access" : "All Access"}
+                {guidedPathModalFilter === "Dormant" ? "Dormant Accounts" : "All Access"}
               </h3>
               <button
                 className="text-gray-400 hover:text-gray-600 text-lg leading-none"
@@ -3065,7 +3073,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                 }`}
                 onClick={() => setGuidedPathModalFilter("Dormant")}
               >
-                Dormant Access
+                Dormant Accounts
               </button>
               <button
                 className={`px-3 py-1 text-xs rounded-full border ${
