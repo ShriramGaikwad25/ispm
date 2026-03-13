@@ -327,7 +327,7 @@ export default function ManageApprovalPoliciesPage() {
         setIsLoadingList(true);
         setListError(null);
 
-        const query = "select * from public.kf_wf_approval_policy_vw order by ?";
+        const query = "select * from kf_wf_approval_policy_vw order by ?";
         const parameters = [" "];
 
         const response = await executeQuery<any>(query, parameters);

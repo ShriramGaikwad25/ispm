@@ -463,14 +463,14 @@ const TrackRequest: React.FC = () => {
       </div>
 
       {/* Empty State */}
-      {filteredRequests.length === 0 && (
+      {/* {filteredRequests.length === 0 && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
           <p className="text-gray-500 text-lg">No requests found</p>
           <p className="text-gray-400 text-sm mt-2">
             Try adjusting your search criteria
           </p>
         </div>
-      )}
+      )} */}
     </div>
   );
 };

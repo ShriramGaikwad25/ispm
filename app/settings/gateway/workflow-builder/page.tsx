@@ -22,6 +22,8 @@ type WorkflowPolicyRow = {
   created_by: string | null;
   business_object_type: string | null;
   status: string | null;
+  code?: string | null;
+  definition_json?: any | null;
 };
 
 export default function WorkflowBuilderPage() {
@@ -36,7 +38,7 @@ export default function WorkflowBuilderPage() {
         setIsLoading(true);
         setError(null);
 
-        const query = "select * from kf_wf_approval_policy_vw order by ?";
+        const query = "select * from kf_wf_template_t order by ?";
         const parameters = [""];
 
         const response = await executeQuery<any>(query, parameters);
@@ -84,6 +86,8 @@ export default function WorkflowBuilderPage() {
             row.policy_status ??
             row.state ??
             null,
+          code: row.code ?? null,
+          definition_json: row.definition_json ?? row.definitionJson ?? null,
         }));
 
         setRows(normalized);
@@ -194,13 +198,14 @@ export default function WorkflowBuilderPage() {
             {error}
           </div>
         ) : (
-          <div className="h-72 w-full">
+          <div className="w-full">
             <AgGridReact
               rowData={rows}
               columnDefs={workflowColumnDefs}
               rowSelection="single"
               rowModelType="clientSide"
               animateRows={true}
+              domLayout="autoHeight"
               defaultColDef={{
                 sortable: true,
                 filter: true,

@@ -1,18 +1,22 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Users, Plus, Search, Pencil } from "lucide-react";
 import { AgGridReact } from "ag-grid-react";
 import type { ColDef } from "ag-grid-community";
 import CustomPagination from "@/components/agTable/CustomPagination";
+import { executeQuery } from "@/lib/api";
 
 interface BusinessRoleRow {
   roleName: string;
   description: string;
   owner: string;
   noOfUsers: number;
+  noOfPermissions?: number;
   tags: string;
+  /** Optional: ids of access items that belong to this role (for editing) */
+  selectedAccessIds?: string[];
 }
 
 const fallbackBusinessRoles: BusinessRoleRow[] = [
@@ -40,6 +44,117 @@ export default function ManageBusinessRolesSettings() {
   const [totalPages, setTotalPages] = useState(
     Math.max(1, Math.ceil(fallbackBusinessRoles.length / pageSizeSelector[0]))
   );
+
+  useEffect(() => {
+    const fetchBusinessRoles = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const query = "select * from vw_kf_br_role_list order by ?";
+        const parameters: string[] = [" "];
+
+        const response = await executeQuery<any>(query, parameters);
+
+        let rawRows: any[] = [];
+
+        if (Array.isArray(response)) {
+          rawRows = response;
+        } else if (response && typeof response === "object") {
+          const possibleKeys = ["resultSet", "rows", "items", "data", "records"];
+          for (const key of possibleKeys) {
+            const value = (response as any)[key];
+            if (Array.isArray(value)) {
+              rawRows = value;
+              break;
+            }
+          }
+        }
+
+        if (!rawRows.length) {
+          setRows(fallbackBusinessRoles);
+          return;
+        }
+
+        const mapped: BusinessRoleRow[] = rawRows.map((row: any) => {
+          const roleName =
+            row.rolename ??
+            row.role_name ??
+            row.businessrolename ??
+            row.business_role_name ??
+            row.name ??
+            "";
+
+          const description =
+            row.description ??
+            row.role_description ??
+            row.businessroledescription ??
+            row.business_role_description ??
+            "";
+
+          const owner =
+            row.owner ??
+            row.owner_email ??
+            row.owneremail ??
+            row.email ??
+            row.owner_name ??
+            "";
+
+          const noOfUsersRaw =
+            row.no_of_users ?? row.noofusers ?? row.usercount ?? row.users_count;
+          const noOfPermissionsRaw =
+            row.no_of_permissions ??
+            row.noofpermissions ??
+            row.permissioncount ??
+            row.permissions_count;
+
+          const tags =
+            row.tags ?? row.category ?? row.business_role_category ?? row.role_category ?? "";
+
+          let selectedAccessIds: string[] | undefined;
+          const rawSelectedIds =
+            row.selectedaccessids ??
+            row.selected_access_ids ??
+            row.accessids ??
+            row.access_ids ??
+            row.entitlement_ids ??
+            null;
+          if (typeof rawSelectedIds === "string") {
+            selectedAccessIds = rawSelectedIds
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean);
+          } else if (Array.isArray(rawSelectedIds)) {
+            selectedAccessIds = rawSelectedIds.map((v) => String(v ?? "").trim()).filter(Boolean);
+          }
+
+          return {
+            roleName: String(roleName || "").trim() || "Unnamed Role",
+            description: String(description || "").trim(),
+            owner: String(owner || "").trim(),
+            noOfUsers: Number(noOfUsersRaw ?? 0),
+            noOfPermissions:
+              noOfPermissionsRaw !== undefined && noOfPermissionsRaw !== null
+                ? Number(noOfPermissionsRaw)
+                : undefined,
+            tags: String(tags || "").trim(),
+            selectedAccessIds,
+          };
+        });
+
+        setRows(mapped);
+      } catch (e: any) {
+        console.error("Failed to load business roles:", e);
+        setError(
+          e?.message || "Failed to load business roles from executeQuery API."
+        );
+        setRows(fallbackBusinessRoles);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBusinessRoles();
+  }, []);
 
   useEffect(() => {
     setTotalItems(rows.length);
@@ -72,6 +187,22 @@ export default function ManageBusinessRolesSettings() {
     setTotalPages(Math.max(1, Math.ceil(newTotal / pageSize)));
     setPageNumber(1);
   }, [filteredRows.length, pageSize]);
+
+  const handleEdit = useCallback(
+    (row: BusinessRoleRow) => {
+      const search = new URLSearchParams({
+        mode: "edit",
+        roleName: row.roleName ?? "",
+        description: row.description ?? "",
+        owner: row.owner ?? "",
+        tags: row.tags ?? "",
+        selectedAccessIds: (row.selectedAccessIds ?? []).join(","),
+      });
+
+      router.push(`/settings/gateway/manage-business-roles/new?${search.toString()}`);
+    },
+    [router]
+  );
 
   const columnDefs = useMemo<ColDef[]>(
     () => [
@@ -115,10 +246,11 @@ export default function ManageBusinessRolesSettings() {
         headerName: "Actions",
         field: "actions",
         flex: 1,
-        cellRenderer: () => {
+        cellRenderer: (params: any) => {
           return (
             <button
               type="button"
+              onClick={() => handleEdit(params.data as BusinessRoleRow)}
               className="inline-flex items-center justify-center px-2 py-1 text-sm rounded-md border border-gray-300 text-blue-600 hover:bg-blue-50"
             >
               <Pencil className="w-4 h-4" />
@@ -127,7 +259,7 @@ export default function ManageBusinessRolesSettings() {
         },
       },
     ],
-    []
+    [handleEdit]
   );
 
   const handlePageChange = (newPage: number) => {

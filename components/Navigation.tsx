@@ -81,6 +81,10 @@ export function Navigation() {
     if (pathname === '/settings/gateway/email-templates') {
       return { href: '/settings/gateway', label: 'Back to Gateway' };
     }
+    // Gateway - Workflow Builder create/edit
+    if (pathname === '/settings/gateway/workflow-builder/new') {
+      return { href: '/settings/gateway/workflow-builder', label: 'Back to Workflow Builder' };
+    }
     // Gateway - other pages
     if (pathname === '/settings/gateway/manage-access-policy/new') {
       return { href: '/settings/gateway/manage-access-policy', label: 'Back to Manage Access Policy' };

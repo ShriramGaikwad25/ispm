@@ -247,12 +247,19 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
           stepJSON.config.skipSelf = step.skipIfRequestorIsApprover !== false;
         }
 
-        if (step.condition && step.condition !== "true") {
-          stepJSON.condition = step.condition;
-        }
+        const conditionStr =
+          typeof step.condition === "string"
+            ? step.condition
+            : step.condition?.expression ?? step.condition?.expr ?? "true";
 
         if (step.type === "FULFILLMENT") {
           stepJSON.config.mode = "ASYNC";
+          if (conditionStr && conditionStr !== "true") {
+            stepJSON.config.conditionExpr = conditionStr;
+          }
+        } else {
+          // Always wrap step condition in { expression: "..." } for API
+          stepJSON.condition = { expression: conditionStr || "true" };
         }
 
         if (step.type === "CUSTOM") {
@@ -265,7 +272,10 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
       return {
         name: stage.name,
         order: stage.order,
-        condition: stageCondition,
+        condition:
+          stageCondition === "true" || !stageCondition
+            ? stageCondition
+            : { expression: stageCondition },
         steps: stageSteps,
       };
     });
@@ -411,7 +421,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                     <div
                       key={step.id}
                       onClick={() => selectStep(stage.id, step)}
-                      className={`p-3 border rounded cursor-pointer transition-colors ${
+                      className={`min-w-0 p-3 border rounded cursor-pointer transition-colors ${
                         selectedStepId === step.id
                           ? "border-blue-500 bg-blue-50"
                           : "border-gray-200 hover:border-gray-300"
@@ -448,7 +458,14 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                           {step.type === "FULFILLMENT" ? "FULFILL" : step.type}
                         </span>
                       </div>
-                      <p className="text-xs text-gray-600">Condition: {step.condition}</p>
+                      <div className="text-xs text-gray-600 min-w-0">
+                        <span className="font-medium">Condition:</span>
+                        <div className="mt-0.5 px-2 py-1 rounded bg-gray-100 border border-gray-200 text-gray-800 font-mono text-[11px] whitespace-normal break-all max-h-16 overflow-y-auto w-full min-w-0">
+                          {typeof step.condition === "string"
+                            ? step.condition
+                            : step.condition?.expression ?? step.condition?.expr ?? "true"}
+                        </div>
+                      </div>
                       <button
                         type="button"
                         onClick={(e) => {
@@ -1239,6 +1256,8 @@ const getInitialFormData = () => ({
     ownerGroup: [] as any[],
     certificationTemplate: "",
     description: "",
+    tags: "",
+    owner: "",
     ownerType: "User",
     userType: "",
     specificUserExpression: [defaultExpression] as { attribute: any; operator: any; value: string }[],
@@ -1359,6 +1378,8 @@ export default function WorkflowBuilderCreatePage() {
       ownerGroup: formData.step1.ownerGroup || [],
       certificationTemplate: formData.step1.certificationTemplate || "",
       description: formData.step1.description || "",
+      tags: formData.step1.tags || "",
+      owner: formData.step1.owner || "",
       ownerType: formData.step1.ownerType || "User",
       userType: formData.step1.userType || "",
       specificUserExpression: formData.step1.specificUserExpression || [defaultExpression],
@@ -1445,27 +1466,106 @@ export default function WorkflowBuilderCreatePage() {
       setValue("certificationTemplate", data.name ?? "", { shouldValidate: true });
       setValue("description", data.description ?? "", { shouldValidate: true });
 
-      if (data.created_by) {
-        setValue(
-          "ownerType",
-          "User",
-          { shouldValidate: true }
-        );
-        setValue(
-          "ownerUser",
-          [
-            {
-              label: data.created_by,
-              value: data.created_by,
-            },
-          ],
-          { shouldValidate: true }
-        );
+      const ownerFromData = data.created_by ?? data.owner ?? "";
+      if (ownerFromData) {
+        setValue("owner", ownerFromData, { shouldValidate: true });
+      }
+
+      if (data.tags) {
+        setValue("tags", data.tags ?? "", { shouldValidate: false });
+      }
+
+      // If we have a definition_json.stages payload, hydrate step2 from it
+      const def = data.definition_json || data.definitionJson || data.definition;
+      if (def && Array.isArray(def.stages)) {
+        const normalizedStages = (def.stages as any[]).map((stage: any, stageIdx: number) => {
+          const stageName =
+            stage.name ||
+            (typeof stage.id === "string"
+              ? stage.id
+                  .replace(/_/g, " ")
+                  .toLowerCase()
+                  .replace(/\b\w/g, (c: string) => c.toUpperCase())
+              : "") ||
+            `Stage ${stageIdx + 1}`;
+
+          const mappedSteps = Array.isArray(stage.steps)
+            ? stage.steps.map((step: any, stepIdx: number) => {
+                const rawCode: string =
+                  step.code ||
+                  step.stepTypeCode ||
+                  step.type ||
+                  step.id ||
+                  `STEP_${stepIdx + 1}`;
+
+                const upperCode = String(rawCode).toUpperCase();
+
+                let kind: "SYSTEM" | "HUMAN" | "AI" = "SYSTEM";
+                let type: "LOGIC" | "APPROVAL" | "FULFILLMENT" | "AI AGENT" | "CUSTOM" = "LOGIC";
+
+                if (upperCode === "AI_AUTO_APPROVE_ANALYSIS" || upperCode.startsWith("AI_")) {
+                  kind = "AI";
+                  type = "AI AGENT";
+                } else if (
+                  upperCode.startsWith("APPROVAL_") ||
+                  upperCode === "HUMAN_APPROVAL"
+                ) {
+                  kind = "HUMAN";
+                  type = "APPROVAL";
+                } else if (
+                  upperCode.endsWith("FULFILLMENT") ||
+                  upperCode.startsWith("SCIM_")
+                ) {
+                  kind = "SYSTEM";
+                  type = "FULFILLMENT";
+                } else {
+                  kind = "SYSTEM";
+                  type = "LOGIC";
+                }
+
+                const conditionExpr =
+                  step.condition?.expression ||
+                  step.conditionExpr ||
+                  step.config?.conditionExpr ||
+                  null;
+
+                const prettyLabelSource: string =
+                  step.name || step.id || rawCode || `Step ${stepIdx + 1}`;
+                const label = String(prettyLabelSource)
+                  .replace(/_/g, " ")
+                  .replace(/\b\w/g, (c: string) => c.toUpperCase());
+
+                return {
+                  id: `step-${stageIdx + 1}-${stepIdx + 1}-${upperCode}`,
+                  label,
+                  code: upperCode,
+                  kind,
+                  type,
+                  condition: conditionExpr || "true",
+                };
+              })
+            : [];
+
+          return {
+            id: stage.id || `stage-${stageIdx + 1}`,
+            name: stageName,
+            order: stage.sequence ?? stage.order ?? stageIdx + 1,
+            steps: mappedSteps,
+          };
+        });
+
+        setFormData((prev) => ({
+          ...prev,
+          step2: {
+            ...prev.step2,
+            stages: normalizedStages,
+          },
+        }));
       }
     } catch {
       // ignore bad JSON / storage issues
     }
-  }, [searchParams, setValue]);
+  }, [searchParams, setValue, setFormData]);
 
   useEffect(() => {
     const subscription = watch((values) => {
@@ -1476,6 +1576,8 @@ export default function WorkflowBuilderCreatePage() {
           ownerGroup: values.ownerGroup || [],
           certificationTemplate: values.certificationTemplate || "",
           description: values.description || "",
+          tags: values.tags || "",
+          owner: values.owner || "",
           ownerType: values.ownerType || "User",
           userType: values.userType || "",
           specificUserExpression: values.specificUserExpression || [defaultExpression],
@@ -1501,9 +1603,8 @@ export default function WorkflowBuilderCreatePage() {
           step1Valid &&
           !!(
             formData.step1.certificationTemplate &&
-            formData.step1.ownerType &&
-            ((formData.step1.ownerType === "User" && formData.step1.ownerUser.length > 0) ||
-              (formData.step1.ownerType === "Group" && formData.step1.ownerGroup.length > 0))
+            formData.step1.description &&
+            formData.step1.owner
           )
         );
       case 2:
@@ -1519,392 +1620,67 @@ export default function WorkflowBuilderCreatePage() {
     switch (currentStep) {
       case 1:
         return (
-          <div className="text-sm space-y-6 w-full max-w-4xl mx-auto">
-            <div className={`grid grid-cols-[280px_1.5fr] gap-2`}>
-              <label className={`pl-2 ${asterisk}`}>Name</label>
-              <div className="max-w-md">
-                <input
-                  type="text"
-                  className="form-input"
-                  {...register("certificationTemplate", { required: true })}
-                />
-                {errors.certificationTemplate?.message &&
-                  typeof errors.certificationTemplate.message === "string" && (
-                    <p className="text-red-500">{errors.certificationTemplate.message}</p>
-                  )}
-              </div>
-            </div>
-
-            <div className={`grid grid-cols-[280px_1.5fr] gap-2`}>
-              <label className={`pl-2 ${asterisk}`}>Description</label>
-              <div className="max-w-md">
-                <textarea
-                  className="form-input"
-                  rows={3}
-                  {...register("description", { required: true })}
-                ></textarea>
-                {errors.description?.message &&
-                  typeof errors.description.message === "string" && (
-                    <p className="text-red-500">{errors.description.message}</p>
-                  )}
-              </div>
-            </div>
-
-            <div className={`grid grid-cols-[280px_1.5fr] gap-2`}>
-              <label className={`pl-2 ${asterisk}`}>Owners</label>
-              <div>
-                {["User", "Group"].map((option, index, array) => (
-                  <button
-                    key={option}
-                    type="button"
-                    className={`px-4 relative py-2 mb-3 min-w-16 rounded-md border border-gray-300 ${
-                      watch("ownerType") === option && downArrow
-                    } ${
-                      watch("ownerType") === option ? "bg-[#15274E] text-white" : ""
-                    } ${index === 0 && "rounded-r-none"} ${
-                      array.length > 2 &&
-                      index === 1 &&
-                      "rounded-none border-r-0 border-l-0"
-                    } ${index === array.length - 1 && "rounded-l-none"}`}
-                    onClick={() =>
-                      setValue("ownerType", option, { shouldValidate: true })
-                    }
-                  >
-                    {option}
-                  </button>
-                ))}
-
-                {watch("ownerType") === "User" && (
-                  <>
-                    <MultiSelect
-                      name="ownerUser"
-                      className="max-w-[420px]"
-                      control={control as unknown as Control<FieldValues>}
-                      isAsync
-                      loadOptions={loadUsers}
-                      components={{ Option: customOption }}
-                    />
-                    {errors.ownerUser?.message &&
-                      typeof errors.ownerUser.message === "string" && (
-                        <p className="text-red-500">{errors.ownerUser.message}</p>
-                      )}
-                  </>
+          <div className="w-full max-w-3xl mx-auto text-sm space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                {...register("certificationTemplate", { required: true })}
+              />
+              {errors.certificationTemplate?.message &&
+                typeof errors.certificationTemplate.message === "string" && (
+                  <p className="mt-1 text-red-500 text-xs">
+                    {errors.certificationTemplate.message}
+                  </p>
                 )}
-
-                {watch("ownerType") === "Group" && (
-                  <>
-                    <MultiSelect
-                      name="ownerGroup"
-                      className="max-w-[420px]"
-                      control={control as unknown as Control<FieldValues>}
-                      isAsync
-                      loadOptions={loadUsers}
-                      components={{ Option: customOption }}
-                    />
-                    {errors.ownerGroup?.message &&
-                      typeof errors.ownerGroup.message === "string" && (
-                        <p className="text-red-500">{errors.ownerGroup.message}</p>
-                      )}
-                  </>
-                )}
-              </div>
             </div>
 
-            {/* Policy Scope Card */}
-            <div className="border border-gray-200 rounded-lg p-6 bg-gray-50">
-              <h3 className="text-lg font-semibold text-gray-900 mb-6">Policy Scope</h3>
-              <div className="space-y-6">
-                <div className={`grid grid-cols-[280px_1.5fr] gap-2`}>
-                  <label className={`pl-2 ${asterisk}`}>Select Users</label>
-                  <div>
-                    {["All users", "Specific users", "Custom User Group"].map(
-                      (option, index, array) => (
-                        <button
-                          key={option}
-                          type="button"
-                          className={`px-4 relative py-2 mb-3 min-w-16 rounded-md border border-gray-300 ${
-                            watch("userType") === option && index > 0 && downArrow
-                          } ${
-                            watch("userType") === option
-                              ? "bg-[#15274E] text-white"
-                              : ""
-                          } ${index === 0 && "rounded-r-none"} ${
-                            array.length > 2 &&
-                            index === 1 &&
-                            "rounded-none border-r-0  border-l-0 "
-                          } ${index === array.length - 1 && "rounded-l-none"}`}
-                          onClick={() =>
-                            setValue("userType", option, { shouldValidate: true })
-                          }
-                        >
-                          {option}
-                        </button>
-                      )
-                    )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Description <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+                rows={3}
+                {...register("description", { required: true })}
+              />
+              {errors.description?.message &&
+                typeof errors.description.message === "string" && (
+                  <p className="mt-1 text-red-500 text-xs">
+                    {errors.description.message}
+                  </p>
+                )}
+            </div>
 
-                    {watch("userType") === "Specific users" && (
-                      <ExpressionBuilder
-                        title="Build Expression"
-                        control={control as unknown as Control<FieldValues>}
-                        setValue={setValue as unknown as UseFormSetValue<FieldValues>}
-                        watch={watch as unknown as UseFormWatch<FieldValues>}
-                        fieldName="specificUserExpression"
-                      />
-                    )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Owners <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                {...register("owner", { required: true })}
+              />
+              {errors.owner?.message &&
+                typeof errors.owner.message === "string" && (
+                  <p className="mt-1 text-red-500 text-xs">
+                    {errors.owner.message}
+                  </p>
+                )}
+            </div>
 
-                    {watch("userType") === "Custom User Group" && (
-                      <>
-                        <div className="flex items-center gap-1 mb-2">
-                          <span
-                            className={`flex items-center ${
-                              !watch("groupListIsChecked")
-                                ? `${asterisk} !pr-0 text-black`
-                                : "text-black/50"
-                            }`}
-                          >
-                            Select from List
-                          </span>
-                          <ToggleSwitch
-                            checked={watch("groupListIsChecked")}
-                            onChange={(checked) => {
-                              setValue("groupListIsChecked", checked, {
-                                shouldValidate: true,
-                              });
-                            }}
-                            className="scale-80"
-                          />
-                          <span
-                            className={`flex items-center ${
-                              watch("groupListIsChecked")
-                                ? `${asterisk} !pr-0 text-black`
-                                : "text-black/50"
-                            }`}
-                          >
-                            Import New User Group
-                          </span>
-                        </div>
-
-                        {watch("groupListIsChecked") && (
-                          <div className="w-[450px]">
-                            <FileDropzone
-                              name="importNewUserGroup"
-                              control={control as unknown as Control<FieldValues>}
-                            />
-                          </div>
-                        )}
-                        {!watch("groupListIsChecked") && (
-                          <>
-                            <MultiSelect
-                              name="userGroupList"
-                              className="max-w-[420px]"
-                              isMulti={true}
-                              control={control as unknown as Control<FieldValues>}
-                              options={userGroups}
-                            />
-
-                            {errors.userGroupList?.message &&
-                              typeof errors.userGroupList.message === "string" && (
-                                <p className="text-red-500">
-                                  {errors.userGroupList.message}
-                                </p>
-                              )}
-                          </>
-                        )}
-                      </>
-                    )}
-                    <div className="">
-                      <div className="flex items-center gap-1 py-2">
-                        <input type="checkbox" {...register("excludeUsersIsChecked")} />{" "}
-                        <span
-                          className={` ${watch("excludeUsersIsChecked") && asterisk}`}
-                        >
-                          exclude users from the certification campaign
-                        </span>
-                      </div>
-
-                      <MultiSelect
-                        name="excludeUsers"
-                        isDisabled={!watch("excludeUsersIsChecked")}
-                        className="max-w-[420px]"
-                        isMulti={true}
-                        control={control as unknown as Control<FieldValues>}
-                        options={excludeUsers}
-                      />
-
-                      {errors.excludeUsers?.message &&
-                        typeof errors.excludeUsers.message === "string" && (
-                          <p className="text-red-500">{errors.excludeUsers.message}</p>
-                        )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className={`grid grid-cols-[280px_1.5fr] gap-2`}>
-                  <label className={`pl-2 ${asterisk}`}>Select Data</label>
-                  <div>
-                    {[
-                      "Roles",
-                      "Application",
-                      "Entitlement",
-                    ].map((option, index, array) => (
-                      <button
-                        key={option}
-                        type="button"
-                        className={`px-4 relative py-2 mb-3 min-w-16 rounded-md border border-gray-300  ${
-                          watch("selectData") === option && index > 0 && downArrow
-                        } ${
-                          watch("selectData") === option
-                            ? "bg-[#15274E] text-white"
-                            : ""
-                        } ${index === 0 && "rounded-r-none"} ${
-                          array.length > 2 &&
-                          index === 1 &&
-                          "rounded-none border-r-0  border-l-0 "
-                        } ${index === array.length - 1 && "rounded-l-none"}`}
-                        onClick={() =>
-                          setValue("selectData", option, { shouldValidate: true })
-                        }
-                      >
-                        {option}
-                      </button>
-                    ))}
-
-                    {watch("selectData") === "Roles" && (
-                      <div className="space-y-4 bg-[#F4F5FA]/60 border-1 border-gray-300 p-4 rounded-md">
-                        <div>
-                          <MultiSelect
-                            name="specificApps"
-                            className="max-w-md"
-                            placeholder="Select Specific App(s)"
-                            control={control as unknown as Control<FieldValues>}
-                            isAsync
-                            loadOptions={loadIspmApps}
-                            components={{ Option: customOption }}
-                          />
-                          {errors.specificApps?.message &&
-                            typeof errors.specificApps.message === "string" && (
-                              <p className="text-red-500">
-                                {errors.specificApps.message}
-                              </p>
-                            )}
-                        </div>
-                        <div className="w-full bg-white">
-                          <ExpressionBuilder
-                            control={control as unknown as Control<FieldValues>}
-                            setValue={
-                              setValue as unknown as UseFormSetValue<FieldValues>
-                            }
-                            watch={watch as unknown as UseFormWatch<FieldValues>}
-                            fieldName="expressionApps"
-                            attributesOptions={[
-                              { label: "Risk", value: "risk" },
-                              { label: "Pre-Requisite", value: "pre_requisite" },
-                              { label: "Shared Pwd", value: "shared_pwd" },
-                              { label: "Regulatory Scope", value: "regulatory_scope" },
-                              { label: "Access Scope", value: "access_scope" },
-                              { label: "Review Schedule", value: "review_schedule" },
-                              { label: "Business Unit", value: "business_unit" },
-                              { label: "Data Classification", value: "data_classification" },
-                              { label: "Privileged", value: "privileged" },
-                              { label: "Non Persistent Access", value: "non_persistent_access" },
-                              { label: "License Type", value: "license_type" },
-                              { label: "Tags", value: "tags" },
-                            ]}
-                          />
-                          {errors.expressionApps?.message &&
-                            typeof errors.expressionApps.message === "string" && (
-                              <p className="text-red-500">
-                                {errors.expressionApps.message}
-                              </p>
-                            )}
-                        </div>
-                      </div>
-                    )}
-                    {watch("selectData") === "Application" && (
-                      <div className="space-y-4 bg-[#F4F5FA]/60 border-1 border-gray-300 p-4 rounded-md">
-                        <div>
-                          <MultiSelect
-                            name="specificApps"
-                            className="max-w-md"
-                            placeholder="Select Specific App(s)"
-                            control={control as unknown as Control<FieldValues>}
-                            isAsync
-                            loadOptions={loadIspmApps}
-                            components={{ Option: customOption }}
-                          />
-                          {errors.specificApps?.message &&
-                            typeof errors.specificApps.message === "string" && (
-                              <p className="text-red-500">
-                                {errors.specificApps.message}
-                              </p>
-                            )}
-                        </div>
-                        <div className="w-full bg-white">
-                          <ExpressionBuilder
-                            control={control as unknown as Control<FieldValues>}
-                            setValue={
-                              setValue as unknown as UseFormSetValue<FieldValues>
-                            }
-                            watch={watch as unknown as UseFormWatch<FieldValues>}
-                            fieldName="expressionApps"
-                            attributesOptions={[
-                              { label: "Risk", value: "risk" },
-                              { label: "Pre-Requisite", value: "pre_requisite" },
-                              { label: "Shared Pwd", value: "shared_pwd" },
-                              { label: "Regulatory Scope", value: "regulatory_scope" },
-                              { label: "Access Scope", value: "access_scope" },
-                              { label: "Review Schedule", value: "review_schedule" },
-                              { label: "Business Unit", value: "business_unit" },
-                              { label: "Data Classification", value: "data_classification" },
-                              { label: "Privileged", value: "privileged" },
-                              { label: "Non Persistent Access", value: "non_persistent_access" },
-                              { label: "License Type", value: "license_type" },
-                              { label: "Tags", value: "tags" },
-                            ]}
-                          />
-                          {errors.expressionApps?.message &&
-                            typeof errors.expressionApps.message === "string" && (
-                              <p className="text-red-500">
-                                {errors.expressionApps.message}
-                              </p>
-                            )}
-                        </div>
-                      </div>
-                    )}
-                    {watch("selectData") === "Entitlement" && (
-                      <>
-                        <ExpressionBuilder
-                          title="Build Expression for Entitlement"
-                          control={control as unknown as Control<FieldValues>}
-                          setValue={setValue as unknown as UseFormSetValue<FieldValues>}
-                          watch={watch as unknown as UseFormWatch<FieldValues>}
-                          fieldName="expressionEntitlement"
-                          attributesOptions={[
-                            { label: "Risk", value: "risk" },
-                            { label: "Pre-Requisite", value: "pre_requisite" },
-                            { label: "Shared Pwd", value: "shared_pwd" },
-                            { label: "Regulatory Scope", value: "regulatory_scope" },
-                            { label: "Access Scope", value: "access_scope" },
-                            { label: "Review Schedule", value: "review_schedule" },
-                            { label: "Business Unit", value: "business_unit" },
-                            { label: "Data Classification", value: "data_classification" },
-                            { label: "Privileged", value: "privileged" },
-                            { label: "Non Persistent Access", value: "non_persistent_access" },
-                            { label: "License Type", value: "license_type" },
-                            { label: "Tags", value: "tags" },
-                          ]}
-                        />
-                        {errors.expressionEntitlement?.message &&
-                          typeof errors.expressionEntitlement.message === "string" && (
-                            <p className="text-red-500">
-                              {errors.expressionEntitlement.message}
-                            </p>
-                          )}
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Tags
+              </label>
+              <input
+                type="text"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                {...register("tags")}
+              />
             </div>
           </div>
         );

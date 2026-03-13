@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { ChevronLeft, ChevronRight, Check } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
 import { useCart } from "@/contexts/CartContext";
 import SelectAccessTab from "@/app/access-request/SelectAccessTab";
@@ -20,10 +20,12 @@ interface FormData {
 
 export default function NewBusinessRoleWizard() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { isVisible: isSidebarVisible, sidebarWidthPx } = useLeftSidebar();
   const { items: cartItems, clearCart } = useCart();
   const [currentStep, setCurrentStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
+  const [preselectedAccessIds, setPreselectedAccessIds] = useState<string[]>([]);
 
   const [formData, setFormData] = useState<FormData>({
     step1: {
@@ -33,6 +35,32 @@ export default function NewBusinessRoleWizard() {
       tags: "",
     },
   });
+
+  useEffect(() => {
+    const mode = searchParams.get("mode");
+    if (mode !== "edit") return;
+
+    const roleName = searchParams.get("roleName") ?? "";
+    const description = searchParams.get("description") ?? "";
+    const owner = searchParams.get("owner") ?? "";
+    const tags = searchParams.get("tags") ?? "";
+    const selectedIdsParam = searchParams.get("selectedAccessIds") ?? "";
+    const selectedIds =
+      selectedIdsParam
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean) || [];
+
+    setFormData({
+      step1: {
+        roleName,
+        description,
+        owner,
+        tags,
+      },
+    });
+    setPreselectedAccessIds(selectedIds);
+  }, [searchParams]);
 
   // Catalog state for Select Access (same as Access Request step 2)
   const [catalogData, setCatalogData] = useState<any[]>([]);
@@ -524,6 +552,7 @@ export default function NewBusinessRoleWizard() {
                   }}
                   hideRecommendedTab
                   hideAddDetailsSidebar
+                  preselectedAccessIds={preselectedAccessIds}
                 />
               </div>
             )}

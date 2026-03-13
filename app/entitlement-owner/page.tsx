@@ -542,7 +542,7 @@ const EntitlementOwnerPageContent = () => {
       { field: "Last Reviewed on", headerName: "Last Reviewed", width: 180 },
       {
         headerName: "Actions",
-        width: 250,
+        width: 270,
         cellRenderer: (params: ICellRendererParams) => {
           return (
             <div className="flex space-x-4 h-full items-start">

@@ -58,6 +58,8 @@ interface SelectAccessTabProps {
   hideRecommendedTab?: boolean;
   /** Optional: hide Add Details sidebar button in catalog list */
   hideAddDetailsSidebar?: boolean;
+  /** Optional: preselect access ids (used for edit business role) */
+  preselectedAccessIds?: string[];
 }
 
 const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
@@ -74,6 +76,7 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
   onTagSearch,
   hideRecommendedTab = false,
   hideAddDetailsSidebar = false,
+  preselectedAccessIds,
 }) => {
   const { addToCart, removeFromCart, isInCart, cartCount } = useCart();
   const { openSidebar, closeSidebar } = useRightSidebar();
@@ -154,6 +157,26 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
   
   // Roles data: populated from API-driven catalog (passed from parent)
   const roles: Role[] = rolesFromApi || [];
+
+  // When editing an existing Business Role, pre-select access by id
+  const hasAppliedPreselectionRef = useRef(false);
+  useEffect(() => {
+    if (!preselectedAccessIds || preselectedAccessIds.length === 0) return;
+    if (hasAppliedPreselectionRef.current) return;
+    if (!roles || roles.length === 0) return;
+
+    const idSet = new Set(preselectedAccessIds.map((id) => id.trim()).filter(Boolean));
+    if (idSet.size === 0) return;
+
+    roles.forEach((role) => {
+      const id = String(role.id ?? "").trim();
+      if (!id || !idSet.has(id)) return;
+      if (isInCart(id)) return;
+      addToCart({ id, name: role.name, risk: role.risk });
+    });
+
+    hasAppliedPreselectionRef.current = true;
+  }, [preselectedAccessIds, roles, addToCart, isInCart]);
 
   const catalogTypeOptions = [
     { value: "All", label: "All" },
