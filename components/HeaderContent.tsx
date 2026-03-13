@@ -420,6 +420,9 @@ const HeaderContent = () => {
   // Check if we should show app-owner specific header
   const shouldShowAppOwnerHeader = pathname?.includes('/app-owner');
 
+  // Check if we should show entitlement-owner specific header
+  const shouldShowEntitlementOwnerHeader = pathname?.includes('/entitlement-owner');
+
   // Check if we should show campaign-specific header (only when inside a specific campaign)
   const shouldShowCampaignHeader = pathname?.includes('/campaigns/manage-campaigns/');
 
@@ -694,20 +697,39 @@ const HeaderContent = () => {
         </button>
 
         {/* Logo and Brand */}
-        <div className="flex items-center gap-2 mr-8">
+        <div className="flex items-center gap-3 mr-8">
           <button
             onClick={() => router.push('/')}
-            className="cursor-pointer hover:opacity-80 transition-opacity flex items-center"
+            className="cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-2"
             aria-label="Navigate to Dashboard"
           >
-            <Image
-              src="/MainLogo.svg"
-              alt="Logo"
-              width={16}
-              height={32}
-              className="h-16 w-auto min-h-[32px] object-contain"
-              priority
-            />
+            {/* Icon-only logo (previous logo) */}
+            <svg
+              width="32"
+              height="32"
+              viewBox="0 0 32 32"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              className="flex-shrink-0"
+            >
+              <path
+                d="M22.6616 6.01866L6.00958 22.6705C6.90371 23.9896 8.03687 25.1227 9.34707 25.9903L25.9725 9.3649C25.1049 8.04584 23.9718 6.91268 22.6527 6.02741L22.6616 6.01866Z"
+                fill="#58E5A1"
+              />
+              <path
+                d="M16.0043 4.00021C9.37365 4.00021 4 9.37375 4 16.0044C4 16.6064 4.04429 17.1995 4.13281 17.775L17.7749 4.13303C17.1994 4.0445 16.5975 4.00021 16.0043 4.00021Z"
+                fill="white"
+              />
+              <path
+                d="M27.8672 14.2426L14.2429 27.867C14.8183 27.9555 15.4114 27.9998 16.0045 27.9998C22.6352 27.9998 28 22.635 28 16.0043C28 15.4023 27.9557 14.8181 27.8672 14.2426Z"
+                fill="#58E5A1"
+              />
+            </svg>
+
+            {/* Brand name text */}
+            <span className="text-lg font-semibold tracking-tight text-white">
+              KeyForge
+            </span>
           </button>
         </div>
 
@@ -828,6 +850,36 @@ const HeaderContent = () => {
               </p>
             </div>
             {/* User Progress - single line only */}
+            <div className="flex items-center px-4 flex-shrink-0 whitespace-nowrap">
+              <UserProgress progressData={userProgressData} />
+            </div>
+          </div>
+        ) : shouldShowEntitlementOwnerHeader ? (
+          <div className="flex h-full items-center header-content">
+            <div className="flex items-center px-4 min-w-0 max-w-[420px]">
+              <p className="text-sm font-medium text-white whitespace-normal break-words line-clamp-2">
+                {headerInfo.campaignName || "Entitlement Owner Review"}
+              </p>
+            </div>
+            <div className="flex items-center px-2 flex-shrink-0">
+              <span className="text-white text-lg">•</span>
+            </div>
+            <div className="flex items-center px-4 min-w-0 max-w-[140px]">
+              <p className="text-sm font-medium text-white whitespace-normal break-words">
+                Generated On: {headerInfo.snapshotAt ? formatDateMMDDYY(headerInfo.snapshotAt) : "N/A"}
+              </p>
+            </div>
+            <div className="flex items-center px-2 flex-shrink-0">
+              <span className="text-white text-lg">•</span>
+            </div>
+            <div className="flex items-center px-4 min-w-0 max-w-[140px]">
+              <p className="text-sm font-medium text-white whitespace-normal break-words">
+                Due In {headerInfo.daysLeft || 0} days
+                <span className="font-bold ml-1 text-white">
+                  ({headerInfo.dueDate ? formatDateMMDDYY(headerInfo.dueDate) : "N/A"})
+                </span>
+              </p>
+            </div>
             <div className="flex items-center px-4 flex-shrink-0 whitespace-nowrap">
               <UserProgress progressData={userProgressData} />
             </div>

@@ -443,6 +443,25 @@ const EntitlementOwnerPageContent = () => {
         const total = items.length || transformedData.length;
         setTotalItems(total);
         setTotalPages(Math.max(1, Math.ceil(total / pageSize)));
+
+        // Populate shared header data so navbar can show context
+        try {
+          const headerData = transformedData.map((ent: any, idx: number) => ({
+            id: ent.entitlementId || ent.entitlementid || `ent-${idx}`,
+            certificationName: "Entitlement Owner Review",
+            certificationExpiration: "",
+            status: ent.status || "Pending",
+            fullName: ent["Ent Owner"] || ent.entitlementOwner || "Entitlement Owner",
+            manager: "",
+            department: ent["Business Unit"] || "",
+            jobtitle: ent["Ent Type"] || ent.type || "",
+            userType: "Internal",
+          }));
+          localStorage.setItem("sharedRowData", JSON.stringify(headerData));
+          window.dispatchEvent(new Event("localStorageChange"));
+        } catch (e) {
+          console.warn("Failed to update sharedRowData for header:", e);
+        }
       } catch (err: any) {
         console.error("Error loading cached entitlements:", err);
         setApiError(err.message || "Failed to load entitlements from cache");
@@ -1286,6 +1305,17 @@ const EntitlementOwnerPageContent = () => {
     []
   );
 
+  const handleGridSizeChanged = (params: any) => {
+    try {
+      const api = params.api as GridApi;
+      if (api) {
+        api.sizeColumnsToFit();
+      }
+    } catch {
+      // noop – best-effort column resize
+    }
+  };
+
   const updatePaginationState = (api: GridApi | null) => {
     if (!api) return;
     const pageZeroBased = api.paginationGetCurrentPage?.() ?? 0;
@@ -1310,9 +1340,6 @@ const EntitlementOwnerPageContent = () => {
   if (loading) {
     return (
       <div className="ag-theme-alpine" style={{ height: 600, width: "100%" }}>
-        <div className="relative mb-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold pb-2 text-blue-950">Entitlement Meta Data</h1>
-        </div>
         <div className="flex items-center justify-center h-96">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -1325,10 +1352,7 @@ const EntitlementOwnerPageContent = () => {
 
   if (apiError) {
     return (
-      <div className="ag-theme-alpine" style={{ height: 600, width: "100%" }}>
-        <div className="relative mb-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold pb-2 text-blue-950">Entitlement Meta Data</h1>
-        </div>
+      <div className="ag-theme-alpine w-full">
         <div className="flex items-center justify-center h-96">
           <div className="text-center">
             <div className="text-red-500 text-6xl mb-4">⚠️</div>
@@ -1349,16 +1373,10 @@ const EntitlementOwnerPageContent = () => {
   }
 
   return (
-    <div className="ag-theme-alpine" style={{ width: "100%" }}>
+    <div className="ag-theme-alpine w-full">
       <style jsx global>{`
         .ag-paging-panel { display: none !important; }
       `}</style>
-      <div className="relative mb-2 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold pb-2 text-blue-950">Entitlement Meta Data</h1>
-        </div>
-        <div />
-      </div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <input
@@ -1444,11 +1462,13 @@ const EntitlementOwnerPageContent = () => {
             setGridApi(params.api);
             params.api.setGridOption("paginationPageSize", pageSize * 2);
             updatePaginationState(params.api);
+            params.api.sizeColumnsToFit();
             params.api.addEventListener("paginationChanged", () => updatePaginationState(params.api));
             params.api.addEventListener("modelUpdated", () => updatePaginationState(params.api));
             params.api.addEventListener("filterChanged", () => updatePaginationState(params.api));
             params.api.addEventListener("sortChanged", () => updatePaginationState(params.api));
           }}
+          onGridSizeChanged={handleGridSizeChanged}
         />
       </div>
 
