@@ -50,6 +50,8 @@ const initialExceptionalState: ExceptionalState = {
   peakTimes: [{ id: "peak-time-1", startDate: "", endDate: "" }],
 };
 
+const SHOW_SDK_SECTION = false;
+
 const initialEventTabState = {
   isServiceExpanded: true,
   isSDKExpanded: true,
@@ -466,7 +468,7 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
               </div>
             </div>
 
-            {/* Service and SDK are part of the selected event tab */}
+            {/* Service (SDK hidden via SHOW_SDK_SECTION flag) are part of the selected event tab */}
             <div className="p-5">
             {/* Service Section */}
             <div className="space-y-4">
@@ -636,174 +638,178 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
               )}
             </div>
 
-            {/* SDK Section */}
-            <div className="space-y-4 mt-8">
-              <div
-                className="flex items-center justify-between cursor-pointer bg-blue-50 hover:bg-blue-100 p-2 rounded"
-                onClick={() => setTabState({ isSDKExpanded: !tabState.isSDKExpanded })}
-              >
-                <h3 className="text-md font-semibold text-gray-800 flex items-center">
-                  <svg
-                    className="w-5 h-5 text-gray-600 mr-2"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
+            {SHOW_SDK_SECTION && (
+              <>
+                {/* SDK Section */}
+                <div className="space-y-4 mt-8">
+                  <div
+                    className="flex items-center justify-between cursor-pointer bg-blue-50 hover:bg-blue-100 p-2 rounded"
+                    onClick={() => setTabState({ isSDKExpanded: !tabState.isSDKExpanded })}
                   >
-                    <path d="M3 3h18v2H3V3zm0 4h18v2H3V7zm0 4h18v2H3v-2zm0 4h18v2H3v-2zm0 4h18v2H3v-2z" />
-                  </svg>
-                  SDK
-                </h3>
-                {tabState.isSDKExpanded ? (
-                  <ChevronDown className="w-5 h-5 text-gray-500" />
-                ) : (
-                  <ChevronUp className="w-5 h-5 text-gray-500" />
-                )}
-              </div>
-
-              {tabState.isSDKExpanded && (
-                <>
-                  <div className="flex space-x-2 mb-4">
-                    <button
-                      className={`px-4 py-2 text-sm font-medium rounded ${
-                        tabState.activeSDKOperation === "create"
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
-                      onClick={() => setTabState({ activeSDKOperation: "create" })}
-                    >
-                      Create
-                    </button>
-                    <button
-                      className={`px-4 py-2 text-sm font-medium rounded ${
-                        tabState.activeSDKOperation === "update"
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
-                      onClick={() => setTabState({ activeSDKOperation: "update" })}
-                    >
-                      Update
-                    </button>
-                    <button
-                      className={`px-4 py-2 text-sm font-medium rounded ${
-                        tabState.activeSDKOperation === "delete"
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
-                      onClick={() => setTabState({ activeSDKOperation: "delete" })}
-                    >
-                      Delete
-                    </button>
-                    <button
-                      className={`px-4 py-2 text-sm font-medium rounded ${
-                        tabState.activeSDKOperation === "getuser"
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
-                      onClick={() => setTabState({ activeSDKOperation: "getuser" })}
-                    >
-                      GetUser
-                    </button>
-                    <button
-                      className={`px-4 py-2 text-sm font-medium rounded ${
-                        tabState.activeSDKOperation === "getalluser"
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
-                      onClick={() => setTabState({ activeSDKOperation: "getalluser" })}
-                    >
-                      GetAllUser
-                    </button>
+                    <h3 className="text-md font-semibold text-gray-800 flex items-center">
+                      <svg
+                        className="w-5 h-5 text-gray-600 mr-2"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path d="M3 3h18v2H3V3zm0 4h18v2H3V7zm0 4h18v2H3v-2zm0 4h18v2H3v-2zm0 4h18v2H3v-2z" />
+                      </svg>
+                      SDK
+                    </h3>
+                    {tabState.isSDKExpanded ? (
+                      <ChevronDown className="w-5 h-5 text-gray-500" />
+                    ) : (
+                      <ChevronUp className="w-5 h-5 text-gray-500" />
+                    )}
                   </div>
 
-                  <div className="border border-gray-200 rounded-lg overflow-hidden">
-                    <table className="w-full">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Implementation Class
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Agent Id
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Operation
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {(() => {
-                          const sdkRowsForOperation = (sdkRowsByEventTab[activeEventTab] || []).filter(
-                            (r) => r.operation === operationLabel(tabState.activeSDKOperation)
-                          );
-                          return sdkRowsForOperation.length === 0 ? (
+                  {tabState.isSDKExpanded && (
+                    <>
+                      <div className="flex space-x-2 mb-4">
+                        <button
+                          className={`px-4 py-2 text-sm font-medium rounded ${
+                            tabState.activeSDKOperation === "create"
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          }`}
+                          onClick={() => setTabState({ activeSDKOperation: "create" })}
+                        >
+                          Create
+                        </button>
+                        <button
+                          className={`px-4 py-2 text-sm font-medium rounded ${
+                            tabState.activeSDKOperation === "update"
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          }`}
+                          onClick={() => setTabState({ activeSDKOperation: "update" })}
+                        >
+                          Update
+                        </button>
+                        <button
+                          className={`px-4 py-2 text-sm font-medium rounded ${
+                            tabState.activeSDKOperation === "delete"
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          }`}
+                          onClick={() => setTabState({ activeSDKOperation: "delete" })}
+                        >
+                          Delete
+                        </button>
+                        <button
+                          className={`px-4 py-2 text-sm font-medium rounded ${
+                            tabState.activeSDKOperation === "getuser"
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          }`}
+                          onClick={() => setTabState({ activeSDKOperation: "getuser" })}
+                        >
+                          GetUser
+                        </button>
+                        <button
+                          className={`px-4 py-2 text-sm font-medium rounded ${
+                            tabState.activeSDKOperation === "getalluser"
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          }`}
+                          onClick={() => setTabState({ activeSDKOperation: "getalluser" })}
+                        >
+                          GetAllUser
+                        </button>
+                      </div>
+
+                      <div className="border border-gray-200 rounded-lg overflow-hidden">
+                        <table className="w-full">
+                          <thead className="bg-gray-50">
                             <tr>
-                              <td className="px-4 py-3 text-sm text-gray-500">-</td>
-                              <td className="px-4 py-3 text-sm text-gray-500">-</td>
-                              <td className="px-4 py-3 text-sm text-gray-500">-</td>
-                              <td className="px-4 py-3 text-sm text-gray-500">
-                                <div className="flex space-x-2">
-                                  <button type="button" className="text-gray-400 cursor-default" disabled>
-                                    <Edit className="w-4 h-4" />
-                                  </button>
-                                  <button type="button" className="text-gray-400 cursor-default" disabled>
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </td>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Implementation Class
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Agent Id
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Operation
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Actions
+                              </th>
                             </tr>
-                          ) : (
-                            sdkRowsForOperation.map((row) => (
-                              <tr key={row.id}>
-                                <td className="px-4 py-3 text-sm text-gray-900">{row.implementationClass}</td>
-                                <td className="px-4 py-3 text-sm text-gray-900">{row.agentId}</td>
-                                <td className="px-4 py-3 text-sm text-gray-900">{row.operation}</td>
-                                <td className="px-4 py-3 text-sm text-gray-500">
-                                  <div className="flex space-x-2">
-                                    <button type="button" className="text-blue-600 hover:text-blue-800">
-                                      <Edit className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => removeSdkRow(activeEventTab, row.id)}
-                                      className="text-red-600 hover:text-red-800"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))
-                          );
-                        })()}
-                      </tbody>
-                    </table>
-                  </div>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {(() => {
+                              const sdkRowsForOperation = (sdkRowsByEventTab[activeEventTab] || []).filter(
+                                (r) => r.operation === operationLabel(tabState.activeSDKOperation)
+                              );
+                              return sdkRowsForOperation.length === 0 ? (
+                                <tr>
+                                  <td className="px-4 py-3 text-sm text-gray-500">-</td>
+                                  <td className="px-4 py-3 text-sm text-gray-500">-</td>
+                                  <td className="px-4 py-3 text-sm text-gray-500">-</td>
+                                  <td className="px-4 py-3 text-sm text-gray-500">
+                                    <div className="flex space-x-2">
+                                      <button type="button" className="text-gray-400 cursor-default" disabled>
+                                        <Edit className="w-4 h-4" />
+                                      </button>
+                                      <button type="button" className="text-gray-400 cursor-default" disabled>
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ) : (
+                                sdkRowsForOperation.map((row) => (
+                                  <tr key={row.id}>
+                                    <td className="px-4 py-3 text-sm text-gray-900">{row.implementationClass}</td>
+                                    <td className="px-4 py-3 text-sm text-gray-900">{row.agentId}</td>
+                                    <td className="px-4 py-3 text-sm text-gray-900">{row.operation}</td>
+                                    <td className="px-4 py-3 text-sm text-gray-500">
+                                      <div className="flex space-x-2">
+                                        <button type="button" className="text-blue-600 hover:text-blue-800">
+                                          <Edit className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => removeSdkRow(activeEventTab, row.id)}
+                                          className="text-red-600 hover:text-red-800"
+                                        >
+                                          <Trash2 className="w-4 h-4" />
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))
+                              );
+                            })()}
+                          </tbody>
+                        </table>
+                      </div>
 
-                  <div className="flex items-center justify-between">
-                    <button
-                      type="button"
-                      onClick={openSdkModal}
-                      className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700"
-                    >
-                      Add SDK
-                    </button>
-                    <div className="flex items-center space-x-2">
-                      <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">
-                        &lt;
-                      </button>
-                      <button className="px-3 py-1 text-sm bg-blue-600 text-white rounded">
-                        1
-                      </button>
-                      <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">
-                        &gt;
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
+                      <div className="flex items-center justify-between">
+                        <button
+                          type="button"
+                          onClick={openSdkModal}
+                          className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700"
+                        >
+                          Add SDK
+                        </button>
+                        <div className="flex items-center space-x-2">
+                          <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">
+                            &lt;
+                          </button>
+                          <button className="px-3 py-1 text-sm bg-blue-600 text-white rounded">
+                            1
+                          </button>
+                          <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">
+                            &gt;
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
           </div>
           </div>
           </div>
@@ -1261,7 +1267,7 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
       )}
 
       {/* SDK modal (Add SDK) */}
-      {isSdkModalOpen && (
+      {SHOW_SDK_SECTION && isSdkModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">

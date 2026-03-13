@@ -45,16 +45,23 @@ const DetailsTab: React.FC = () => {
       newItems.forEach((item) => {
         const existingDetail = getItemDetail(item.id);
         const useGlobal = existingDetail?.useGlobalSettings ?? true;
-        
+
+        const isIndefinite =
+          existingDetail?.isIndefinite ?? globalSettings.isIndefinite;
+
         newDates[item.id] = {
-          startDate: existingDetail?.startDate || globalSettings.startDate,
-          endDate: existingDetail?.endDate || globalSettings.endDate,
-          isIndefinite: existingDetail?.isIndefinite ?? globalSettings.isIndefinite,
+          startDate:
+            existingDetail?.startDate ||
+            (isIndefinite ? "" : globalSettings.startDate),
+          endDate:
+            existingDetail?.endDate ||
+            (isIndefinite ? "" : globalSettings.endDate),
+          isIndefinite,
           comment: existingDetail?.comment || globalSettings.comment,
           isEditing: false,
           useGlobalSettings: useGlobal,
         };
-        
+
         initializedItemsRef.current.add(item.id);
       });
       return newDates;
@@ -64,10 +71,16 @@ const DetailsTab: React.FC = () => {
     newItems.forEach((item) => {
       const existingDetail = getItemDetail(item.id);
       const useGlobal = existingDetail?.useGlobalSettings ?? true;
+      const isIndefinite =
+        existingDetail?.isIndefinite ?? globalSettings.isIndefinite;
       setItemDetail(item.id, {
-        startDate: existingDetail?.startDate || globalSettings.startDate,
-        endDate: existingDetail?.endDate || globalSettings.endDate,
-        isIndefinite: existingDetail?.isIndefinite ?? globalSettings.isIndefinite,
+        startDate:
+          existingDetail?.startDate ||
+          (isIndefinite ? "" : globalSettings.startDate),
+        endDate:
+          existingDetail?.endDate ||
+          (isIndefinite ? "" : globalSettings.endDate),
+        isIndefinite,
         comment: existingDetail?.comment || globalSettings.comment,
         useGlobalSettings: useGlobal,
       });
@@ -86,7 +99,7 @@ const DetailsTab: React.FC = () => {
 
   // Update items when global settings change (only if they use global settings)
   useEffect(() => {
-    const globalChanged = 
+    const globalChanged =
       prevGlobalSettingsRef.current.startDate !== globalSettings.startDate ||
       prevGlobalSettingsRef.current.endDate !== globalSettings.endDate ||
       prevGlobalSettingsRef.current.isIndefinite !== globalSettings.isIndefinite ||
@@ -104,30 +117,39 @@ const DetailsTab: React.FC = () => {
       if (detail?.useGlobalSettings) {
         setItemDates((prev) => {
           const current = prev[item.id];
+          const targetStartDate = globalSettings.isIndefinite
+            ? ""
+            : globalSettings.startDate;
+          const targetEndDate = globalSettings.isIndefinite
+            ? ""
+            : globalSettings.endDate;
+
           // Only update if values actually changed
-          if (current && 
-              current.startDate === globalSettings.startDate &&
-              current.endDate === globalSettings.endDate &&
-              current.isIndefinite === globalSettings.isIndefinite &&
-              current.comment === globalSettings.comment) {
+          if (
+            current &&
+            current.startDate === targetStartDate &&
+            current.endDate === targetEndDate &&
+            current.isIndefinite === globalSettings.isIndefinite &&
+            current.comment === globalSettings.comment
+          ) {
             return prev;
           }
-          
+
           return {
             ...prev,
             [item.id]: {
               ...prev[item.id],
-              startDate: globalSettings.startDate,
-              endDate: globalSettings.endDate,
+              startDate: targetStartDate,
+              endDate: targetEndDate,
               isIndefinite: globalSettings.isIndefinite,
               comment: globalSettings.comment,
             },
           };
         });
-        
+
         setItemDetail(item.id, {
-          startDate: globalSettings.startDate,
-          endDate: globalSettings.endDate,
+          startDate: globalSettings.isIndefinite ? "" : globalSettings.startDate,
+          endDate: globalSettings.isIndefinite ? "" : globalSettings.endDate,
           isIndefinite: globalSettings.isIndefinite,
           comment: globalSettings.comment,
           useGlobalSettings: true,
@@ -143,10 +165,19 @@ const DetailsTab: React.FC = () => {
   };
 
   const handleGlobalAccessTypeChange = (type: "indefinite" | "duration") => {
-    setGlobalSettings({
-      accessType: type,
-      isIndefinite: type === "indefinite",
-    });
+    if (type === "indefinite") {
+      setGlobalSettings({
+        accessType: type,
+        isIndefinite: true,
+        startDate: "",
+        endDate: "",
+      });
+    } else {
+      setGlobalSettings({
+        accessType: type,
+        isIndefinite: false,
+      });
+    }
   };
 
   const handleGlobalCommentChange = (value: string) => {
@@ -178,24 +209,33 @@ const DetailsTab: React.FC = () => {
     }, 0);
   };
 
-  const handleItemAccessTypeChange = (itemId: string, type: "indefinite" | "duration") => {
+  const handleItemAccessTypeChange = (
+    itemId: string,
+    type: "indefinite" | "duration"
+  ) => {
+    const isIndefinite = type === "indefinite";
+
     setItemDates((prev) => {
       const updated = {
         ...prev,
         [itemId]: {
           ...prev[itemId],
-          isIndefinite: type === "indefinite",
+          isIndefinite,
+          startDate: isIndefinite ? "" : prev[itemId]?.startDate,
+          endDate: isIndefinite ? "" : prev[itemId]?.endDate,
           useGlobalSettings: false, // Mark as custom when user changes
         },
       };
-      
+
       return updated;
     });
-    
+
     // Sync with context after state update
     setTimeout(() => {
       setItemDetail(itemId, {
-        isIndefinite: type === "indefinite",
+        isIndefinite,
+        startDate: isIndefinite ? "" : undefined,
+        endDate: isIndefinite ? "" : undefined,
         useGlobalSettings: false,
       });
     }, 0);

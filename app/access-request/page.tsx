@@ -13,6 +13,7 @@ import { useCart } from "@/contexts/CartContext";
 import { useItemDetails } from "@/contexts/ItemDetailsContext";
 import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
 import { getReviewerId } from "@/lib/auth";
+import ActionCompletedToast from "@/components/ActionCompletedToast";
 
 function clearAccessRequestSelections(
   clearCart: () => void,
@@ -118,6 +119,9 @@ const AccessRequest: React.FC = () => {
 
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const pendingNavigateUrlRef = useRef<string | null>(null);
+
+  const [showSubmitSuccessToast, setShowSubmitSuccessToast] = useState(false);
+  const [submitRequestId, setSubmitRequestId] = useState<string | null>(null);
 
   // Browser leave (refresh, close tab, external link): show native confirm
   useEffect(() => {
@@ -346,6 +350,8 @@ const AccessRequest: React.FC = () => {
       return;
     }
 
+    let responseBody: any = null;
+
     try {
       const res = await fetch(
         `https://preview.keyforge.ai/workflow/api/v1/ACMECOM/submitrequest/${reviewerId}`,
@@ -363,11 +369,34 @@ const AccessRequest: React.FC = () => {
         return;
       }
 
-      console.log("Submit request succeeded:", await res.json());
+      responseBody = await res.json().catch(() => null);
+      console.log("Submit request succeeded:", responseBody);
     } catch (err) {
       console.error("Error calling submitrequest API:", err);
       return;
     }
+
+    // Try to extract a request ID from the response (best-effort)
+    let extractedRequestId: string | null = null;
+    if (responseBody && typeof responseBody === "object") {
+      const candidateKeys = [
+        "requestId",
+        "requestID",
+        "requestid",
+        "id",
+        "requestNo",
+        "requestNumber",
+      ];
+      for (const key of candidateKeys) {
+        if (responseBody[key]) {
+          extractedRequestId = String(responseBody[key]);
+          break;
+        }
+      }
+    }
+
+    setSubmitRequestId(extractedRequestId);
+    setShowSubmitSuccessToast(true);
 
     // Keep existing debug logging / clipboard copy of full internal payload
     console.log("Access Request Payload:", JSON.stringify(payload, null, 2));
@@ -647,6 +676,18 @@ const AccessRequest: React.FC = () => {
           )}
         </>
       )}
+
+      {/* Submission success toast */}
+      <ActionCompletedToast
+        isVisible={showSubmitSuccessToast}
+        messages={
+          submitRequestId
+            ? ["Request submitted successfully", `Request ID: ${submitRequestId}`]
+            : ["Request submitted successfully", "Request ID has been generated."]
+        }
+        onClose={() => setShowSubmitSuccessToast(false)}
+        messageDuration={1500}
+      />
 
       {/* Step 2 Content */}
       {currentStep === 2 && (
