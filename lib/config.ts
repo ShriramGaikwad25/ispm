@@ -4,8 +4,9 @@ export const config = {
   api: {
     // API endpoints
     endpoints: {
-      jobs: '/api/jobs',
+      // Direct external scheduler jobs endpoint (no local proxy route)
+      jobs: "https://preview.keyforge.ai/kfscheduler/api/v1/ACMECOM/jobs",
       // Add more endpoints as needed
-    }
-  }
+    },
+  },
 };

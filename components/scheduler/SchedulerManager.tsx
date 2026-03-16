@@ -16,6 +16,7 @@ import {
   Edit,
 } from "lucide-react";
 import { config } from "../../lib/config";
+import { apiRequestWithAuth } from "@/lib/auth";
 import "./SchedulerManager.css";
 
 interface JobSchedule {
@@ -125,17 +126,10 @@ export default function SchedulerManager() {
       setLoading(true);
       setError(null);
 
-      // Use local API route to avoid CORS issues
-      const response = await fetch(config.api.endpoints.jobs);
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.message || `HTTP error! status: ${response.status}`
-        );
-      }
-
-      const data = await response.json();
+      // Call external scheduler API directly with auth
+      const data = await apiRequestWithAuth<string[]>(
+        config.api.endpoints.jobs
+      );
       console.log("Fetched jobs data:", data);
 
       // Handle case where API returns an error object
@@ -207,20 +201,12 @@ export default function SchedulerManager() {
       setJobDetailsLoading(true);
       setJobDetailsError(null);
 
-      const response = await fetch(
-        `/api/jobs/${encodeURIComponent(groupName)}/${encodeURIComponent(
-          jobName
-        )}`
+      // Call external scheduler API directly with auth
+      const data = await apiRequestWithAuth<any>(
+        `https://preview.keyforge.ai/kfscheduler/api/v1/ACMECOM/jobs/${encodeURIComponent(
+          groupName
+        )}/${encodeURIComponent(jobName)}`
       );
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.message || `HTTP error! status: ${response.status}`
-        );
-      }
-
-      const data = await response.json();
       console.log("Fetched job details:", data);
 
       // Before applying, ensure the user is still viewing this job
@@ -326,18 +312,12 @@ export default function SchedulerManager() {
       setJobHistoryLoading(true);
       setJobHistoryError(null);
 
-      const response = await fetch(
-        `/api/jobs/history/${encodeURIComponent(
+      // Call external scheduler history API directly with auth
+      const data = await apiRequestWithAuth<any[]>(
+        `https://preview.keyforge.ai/kfscheduler/api/v1/ACMECOM/jobs/history/${encodeURIComponent(
           groupName
         )}/${encodeURIComponent(jobName)}`
       );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || errorData.error);
-      }
-
-      const data = await response.json();
 
       // Ensure still viewing this job
       const targetId = `${groupName}:${jobName}`;
@@ -380,42 +360,13 @@ export default function SchedulerManager() {
     try {
       setIsUpdatingJson(true);
 
-      const response = await fetch(
-        `/api/jobs/resume/${encodeURIComponent(groupName)}/${encodeURIComponent(
-          jobName
-        )}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
+      const resumeResult = await apiRequestWithAuth<any>(
+        `https://preview.keyforge.ai/kfscheduler/api/v1/ACMECOM/jobs/${encodeURIComponent(
+          groupName
+        )}/${encodeURIComponent(jobName)}/resume`,
+        { method: "POST" }
       );
-
-      const responseText = await response.text();
-
-      if (!response.ok) {
-        let errorMessage = "Failed to resume job";
-        try {
-          const errorData = JSON.parse(responseText);
-          errorMessage = errorData.message || errorData.error || errorMessage;
-        } catch {
-          errorMessage = responseText || errorMessage;
-        }
-        throw new Error(errorMessage);
-      }
-
-      let resumeResult;
-      try {
-        resumeResult = JSON.parse(responseText);
-        console.log("Job resumed successfully:", resumeResult);
-      } catch (parseError) {
-        console.log(
-          "Job resumed successfully (non-JSON response):",
-          responseText
-        );
-        resumeResult = { message: responseText, success: true };
-      }
+      console.log("Job resumed successfully:", resumeResult);
 
       alert("Job resumed successfully!");
       refreshSelectedJobData();
@@ -436,42 +387,13 @@ export default function SchedulerManager() {
     try {
       setIsUpdatingJson(true);
 
-      const response = await fetch(
-        `/api/jobs/pause/${encodeURIComponent(groupName)}/${encodeURIComponent(
-          jobName
-        )}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
+      const pauseResult = await apiRequestWithAuth<any>(
+        `https://preview.keyforge.ai/kfscheduler/api/v1/ACMECOM/jobs/${encodeURIComponent(
+          groupName
+        )}/${encodeURIComponent(jobName)}/pause`,
+        { method: "POST" }
       );
-
-      const responseText = await response.text();
-
-      if (!response.ok) {
-        let errorMessage = "Failed to pause job";
-        try {
-          const errorData = JSON.parse(responseText);
-          errorMessage = errorData.message || errorData.error || errorMessage;
-        } catch {
-          errorMessage = responseText || errorMessage;
-        }
-        throw new Error(errorMessage);
-      }
-
-      let pauseResult;
-      try {
-        pauseResult = JSON.parse(responseText);
-        console.log("Job paused successfully:", pauseResult);
-      } catch (parseError) {
-        console.log(
-          "Job paused successfully (non-JSON response):",
-          responseText
-        );
-        pauseResult = { message: responseText, success: true };
-      }
+      console.log("Job paused successfully:", pauseResult);
 
       alert("Job paused successfully!");
       refreshSelectedJobData();
@@ -492,43 +414,13 @@ export default function SchedulerManager() {
     try {
       setIsUpdatingJson(true); // Reuse loading state for now
 
-      const response = await fetch(
-        `/api/jobs/trigger/${encodeURIComponent(
+      const triggerResult = await apiRequestWithAuth<any>(
+        `https://preview.keyforge.ai/kfscheduler/api/v1/ACMECOM/jobs/${encodeURIComponent(
           groupName
-        )}/${encodeURIComponent(jobName)}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
+        )}/${encodeURIComponent(jobName)}/trigger`,
+        { method: "POST" }
       );
-
-      // Read the response body once
-      const responseText = await response.text();
-
-      if (!response.ok) {
-        let errorMessage = "Failed to trigger job";
-        try {
-          const errorData = JSON.parse(responseText);
-          errorMessage = errorData.message || errorData.error || errorMessage;
-        } catch {
-          errorMessage = responseText || errorMessage;
-        }
-        throw new Error(errorMessage);
-      }
-
-      let triggerResult;
-      try {
-        triggerResult = JSON.parse(responseText);
-        console.log("Job triggered successfully:", triggerResult);
-      } catch (parseError) {
-        console.log(
-          "Job triggered successfully (non-JSON response):",
-          responseText
-        );
-        triggerResult = { message: responseText, success: true };
-      }
+      console.log("Job triggered successfully:", triggerResult);
 
       // Show success message
       alert("Job triggered successfully!");
@@ -563,47 +455,17 @@ export default function SchedulerManager() {
         return;
       }
 
-      // Make API call to update the job data
-      const response = await fetch(
-        `/api/jobs/${encodeURIComponent(
+      // Make API call to update the job data directly on external scheduler
+      const updatedData = await apiRequestWithAuth<any>(
+        `https://preview.keyforge.ai/kfscheduler/api/v1/ACMECOM/jobs/${encodeURIComponent(
           selectedSchedule.groupName
         )}/${encodeURIComponent(selectedSchedule.name)}`,
         {
           method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify(parsedData),
         }
       );
-
-      // Read the response body once
-      const responseText = await response.text();
-
-      if (!response.ok) {
-        let errorMessage = "Failed to update job data";
-        try {
-          const errorData = JSON.parse(responseText);
-          errorMessage = errorData.message || errorData.error || errorMessage;
-        } catch {
-          // If response is not JSON, use the text as error message
-          errorMessage = responseText || errorMessage;
-        }
-        throw new Error(errorMessage);
-      }
-
-      let updatedData;
-      try {
-        updatedData = JSON.parse(responseText);
-        console.log("Job data updated successfully:", updatedData);
-      } catch (parseError) {
-        // If response is not JSON, treat as success with the text response
-        console.log(
-          "Job data updated successfully (non-JSON response):",
-          responseText
-        );
-        updatedData = { message: responseText, success: true };
-      }
+      console.log("Job data updated successfully:", updatedData);
 
       // Update the local state with the response
       setJobDetailsData(updatedData);
@@ -653,38 +515,15 @@ export default function SchedulerManager() {
       console.log("Payload being sent to API:", payload);
       console.log("Payload JSON:", JSON.stringify(payload, null, 2));
 
-      const response = await fetch("/api/jobs/create", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const responseText = await response.text();
-
-      // Console log the API response
-      console.log("=== API RESPONSE ===");
-      console.log("Response Status:", response.status);
-      console.log("Response OK:", response.ok);
-      console.log("Response Text:", responseText);
-
-      if (!response.ok) {
-        let errorMessage = "Failed to create job";
-        try {
-          const errorData = JSON.parse(responseText);
-          errorMessage = errorData.message || errorData.error || errorMessage;
-          console.log("Parsed Error Data:", errorData);
-        } catch {
-          errorMessage = responseText || errorMessage;
-          console.log("Raw Error Response:", responseText);
+      const createResult = await apiRequestWithAuth<any>(
+        "https://preview.keyforge.ai/kfscheduler/api/v1/ACMECOM/jobs",
+        {
+          method: "POST",
+          body: JSON.stringify(payload),
         }
-        throw new Error(errorMessage);
-      }
-
-      // Console log successful creation
+      );
       console.log("=== JOB CREATED SUCCESSFULLY ===");
-      console.log("Response:", responseText);
+      console.log("Response:", createResult);
 
       alert("Job created successfully!");
       setShowNewJobForm(false);
