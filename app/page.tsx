@@ -3,17 +3,18 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { 
-  LayoutPanelLeft, 
-  ListTodo, 
-  ClipboardList, 
-  Shield, 
+import {
+  LayoutPanelLeft,
+  ListTodo,
+  ClipboardList,
+  Shield,
   TrendingUp,
   Users,
   AlertCircle,
   CheckCircle,
   Clock,
-  ArrowRight
+  ArrowRight,
+  ShieldCheck,
 } from "lucide-react";
 import DonutChart from "@/components/DonutChart";
 import HorizontalBarChart from "@/components/HorizontalBarChart";
@@ -42,6 +43,70 @@ interface DashboardStats {
   totalUsers: number;
   highRiskItems: number;
 }
+
+interface RiskOvalsProps {
+  lowLabel: string;
+  mediumLabel: string;
+  highLabel: string;
+}
+
+const RiskOvals: React.FC<RiskOvalsProps> = ({ lowLabel, mediumLabel, highLabel }) => {
+  return (
+    <div className="flex items-center justify-center">
+      <svg
+        viewBox="0 0 320 220"
+        className="w-full max-w-md"
+      >
+        {/* Outer (Low) */}
+        <ellipse
+          cx="160"
+          cy="110"
+          rx="130"
+          ry="90"
+          fill="none"
+          stroke="#10B981"
+          strokeWidth="3"
+        />
+        {/* Middle (Medium) */}
+        <ellipse
+          cx="180"
+          cy="110"
+          rx="110"
+          ry="72"
+          fill="none"
+          stroke="#EF4444"
+          strokeWidth="3"
+        />
+        {/* Inner (High) */}
+        <ellipse
+          cx="215"
+          cy="110"
+          rx="75"
+          ry="60"
+          fill="none"
+          stroke="#F59E0B"
+          strokeWidth="3"
+        />
+
+        {/* Labels */}
+        {/* Low value - slightly away from left side of green oval, number only */}
+        <text x="35" y="108" fontSize="10" fontWeight="600" fill="#111827">
+          {lowLabel}
+        </text>
+
+        {/* Medium value - near left edge of red oval, number only */}
+        <text x="88" y="100" fontSize="10" fontWeight="600" fill="#111827">
+          {mediumLabel}
+        </text>
+
+        {/* High value - near left edge of orange oval, number only */}
+        <text x="150" y="108" fontSize="10" fontWeight="600" fill="#111827">
+          {highLabel}
+        </text>
+      </svg>
+    </div>
+  );
+};
 
 export default function Dashboard() {
   const router = useRouter();
@@ -315,8 +380,74 @@ export default function Dashboard() {
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
+        </div>
+
+        {/* Risk Posture - Top Section */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">Risk Posture</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Orphan Exposure */}
+            <Link
+              href="/risk-posture/orphan-exposure"
+              className="bg-gray-50 border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow duration-200 block"
+            >
+              <p className="text-sm font-medium text-gray-800 mb-3">
+                Orphan Exposure
+              </p>
+              <div className="flex items-center gap-6">
+                <div className="flex-1">
+                  <RiskOvals lowLabel="3" mediumLabel="2" highLabel="1" />
+                </div>
+                <div className="ml-auto flex flex-col gap-2 text-xs text-gray-700">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block h-2 w-4 rounded-full bg-emerald-400" />
+                    <span>Low Apps – 3</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block h-2 w-4 rounded-full bg-red-400" />
+                    <span>Medium Apps – 2</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block h-2 w-4 rounded-full bg-amber-400" />
+                    <span>High Apps – 1</span>
+                  </div>
+                </div>
+              </div>
+            </Link>
+
+            {/* User Access Drift */}
+            <Link
+              href="/risk-posture/user-access-drift"
+              className="bg-gray-50 border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow duration-200 block"
+            >
+              <p className="text-sm font-medium text-gray-800 mb-3">
+                User Access Drift
+              </p>
+              <div className="flex items-center gap-6">
+                <div className="flex-1">
+                  <RiskOvals lowLabel="170" mediumLabel="80" highLabel="10" />
+                </div>
+                <div className="ml-auto flex flex-col gap-2 text-xs text-gray-700">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block h-2 w-4 rounded-full bg-emerald-400" />
+                    <span>Low users – 170</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block h-2 w-4 rounded-full bg-red-400" />
+                    <span>Medium users – 80</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block h-2 w-4 rounded-full bg-amber-400" />
+                    <span>High users – 10</span>
+                  </div>
+                </div>
+              </div>
+            </Link>
+          </div>
         </div>
 
         {/* Statistics Cards Grid */}

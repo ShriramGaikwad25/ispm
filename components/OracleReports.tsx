@@ -649,7 +649,7 @@ export default function OracleReports() {
       <div className="w-full py-2 px-1">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h1 className="text-2xl font-semibold text-black mb-6">
-            Oracle Access Governance Reports
+            Reports
           </h1>
 
           <Tabs

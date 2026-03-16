@@ -150,6 +150,10 @@ export function Navigation() {
     if (pathname.startsWith('/oracle-reports/') && pathname !== '/oracle-reports') {
       return { href: '/oracle-reports', label: 'Back to Oracle Reports' };
     }
+    // Risk Posture detail pages → back to Dashboard
+    if (pathname.startsWith('/risk-posture/orphan-exposure') || pathname.startsWith('/risk-posture/user-access-drift')) {
+      return { href: '/', label: 'Back to Dashboard' };
+    }
     // Track Request detail → back to Track Request list
     if (pathname.startsWith('/track-request/') && pathname !== '/track-request') {
       return { href: '/track-request', label: 'Back to Track Requests' };
