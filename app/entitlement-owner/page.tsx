@@ -715,18 +715,17 @@ const EntitlementOwnerPageContent = () => {
                               </button>
                               <button
                                 onClick={() => handleRevoke(rowNodeId)}
-                                title="Revoke"
-                                aria-label="Revoke entitlement"
+                                title="Reassign"
+                                aria-label="Reassign entitlement"
                                 className={`p-1 rounded ${
                                   (selectedRowAction?.action === "Revoke" && selectedRowAction?.rowId === rowNodeId) || row?.status === "Rejected" ? "bg-red-100" : ""
                                 }`}
                               >
-                                <CircleX
-                                  className="cursor-pointer hover:opacity-80 transform rotate-90"
-                                  color="#FF2D55"
+                                <UserRoundCheckIcon
+                                  className="cursor-pointer hover:opacity-80"
+                                  color="#b146ccff"
                                   strokeWidth="1"
-                                  size="32"
-                                  fill={(selectedRowAction?.action === "Revoke" && selectedRowAction?.rowId === rowNodeId) || row?.status === "Rejected" ? "#FF2D55" : "none"}
+                                  size="24"
                                 />
                               </button>
                               <button

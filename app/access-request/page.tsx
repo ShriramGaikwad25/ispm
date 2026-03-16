@@ -142,6 +142,14 @@ const AccessRequest: React.FC = () => {
       const isInternal = href.startsWith("/");
       const isLeavingAccessRequest = isInternal && !href.startsWith("/access-request");
       if (!isLeavingAccessRequest) return;
+
+      const hasSelections =
+        selectedUsers.length > 0 ||
+        cartItems.length > 0 ||
+        selectedGroups.length > 0;
+      if (!hasSelections) {
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       pendingNavigateUrlRef.current = href;
@@ -149,7 +157,7 @@ const AccessRequest: React.FC = () => {
     };
     document.addEventListener("click", handleClick, true);
     return () => document.removeEventListener("click", handleClick, true);
-  }, []);
+  }, [selectedUsers, cartItems, selectedGroups]);
 
   // Clear all selections when leaving the Access Request page (e.g. unmount)
   useEffect(() => {
