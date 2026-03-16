@@ -126,8 +126,12 @@ export function Navigation() {
     if (pathname.startsWith('/campaigns/schedule/') || pathname.startsWith('/campaigns/manage-campaigns/') || pathname.startsWith('/campaigns/new')) {
       return { href: '/campaigns', label: 'Back to Campaigns' };
     }
-    // Continuous Compliance campaign detail → back to Continuous Compliance list
-    if (pathname === '/campaigns/continuous-compliance/review') {
+    // Continuous Compliance campaign details → back to Continuous Compliance list
+    if (
+      pathname === '/campaigns/continuous-compliance/review' ||
+      pathname === '/campaigns/continuous-compliance/entitlement-review' ||
+      pathname === '/campaigns/continuous-compliance/unlinked-accounts'
+    ) {
       return { href: '/campaigns/continuous-compliance', label: 'Back to Continuous Compliance' };
     }
     // Applications

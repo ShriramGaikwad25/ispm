@@ -161,6 +161,7 @@ export default function ContinuousCompliancePage() {
   const router = useRouter();
 
   const handleReviewClick = (rowData: any) => {
+    // User lifecycle events → open dummy Continuous Compliance review page
     if (
       rowData?.eventType === "Job Title Change" ||
       rowData?.eventType === "Manager Change"
@@ -172,6 +173,26 @@ export default function ContinuousCompliancePage() {
       });
 
       router.push(`/campaigns/continuous-compliance/review?${params.toString()}`);
+      return;
+    }
+
+    // Entitlement events → open dummy Entitlement Owner-style page (not live entitlement-owner)
+    if (
+      rowData?.eventType === "Newly Discovered Entitlement" ||
+      rowData?.eventType === "Owner Inactive"
+    ) {
+      const params = new URLSearchParams({
+        reviewerId: "DUMMY_REVIEWER",
+        certificationId: "DUMMY_CERT",
+        appinstanceid: "DUMMY_APP_INSTANCE",
+      });
+      router.push(`/campaigns/continuous-compliance/entitlement-review?${params.toString()}`);
+      return;
+    }
+
+    // Account events → open dummy Unlinked Accounts table page
+    if (rowData?.eventType === "Newly Discovered Unlinked Accounts") {
+      router.push(`/campaigns/continuous-compliance/unlinked-accounts`);
       return;
     }
 
