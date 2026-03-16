@@ -3227,9 +3227,6 @@ export default function ApplicationDetailPage() {
               </Accordion>
             </div> */}
             <div className="mb-2 relative z-10">
-              <div className="flex justify-end mb-2">
-                <Exports gridApi={gridApiRef.current} />
-              </div>
               <div className="flex justify-center">
                 <CustomPagination
                   totalItems={entTotalItems}
@@ -3375,9 +3372,6 @@ export default function ApplicationDetailPage() {
             </Accordion>
           </div> */}
           <div className="mb-2 relative z-10">
-            <div className="flex justify-end mb-2">
-              <Exports gridApi={gridApiRef.current} />
-            </div>
             <div className="flex justify-center">
               <CustomPagination
                 totalItems={entTotalItems}
@@ -3461,27 +3455,13 @@ export default function ApplicationDetailPage() {
           <h1 className="text-xl font-bold pb-2 text-blue-950">
             Entitlements
           </h1>
-          <div className="flex gap-2">
-            <div className="border border-gray-300 w-65 h-8 rounded-md flex ml-0.5">
-              {tabsDataEnt.map((tab, index) => (
-                <button
-                  key={index}
-                  onClick={() => setEntTabIndex(index)}
-                  className={`flex items-center justify-center px-2 gap-2 py-2 cursor-pointer h-10 -mt-1 w-40 right-0 ${
-                    entTabIndex === index
-                      ? "bg-[#2563eb] text-white text-sm rounded-sm"
-                      : "text-gray-500 hover:text-blue-500"
-                  }`}
-                >
-                  <small className="flex gap-2">{tab.label}</small>
-                </button>
-              ))}
-            </div>
+          <div className="flex items-center">
+            <Exports gridApi={gridApiRef.current} />
           </div>
         </div>
-        {/* Render the active tab content */}
-        {tabsDataEnt[entTabIndex]?.component && (
-          <div>{tabsDataEnt[entTabIndex].component()}</div>
+        {/* Always render the All tab content without showing inner tabs */}
+        {tabsDataEnt[0]?.component && (
+          <div>{tabsDataEnt[0].component()}</div>
         )}
       </div>
     );
