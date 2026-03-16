@@ -1,10 +1,11 @@
-"use client";
+ "use client";
 
 import React from "react";
 import dynamic from "next/dynamic";
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
 import { FileText, UserRoundCheckIcon } from "lucide-react";
 import "@/lib/ag-grid-setup";
+import { useRouter } from "next/navigation";
 
 const AgGridReact = dynamic(
   () => import("ag-grid-react").then((mod) => mod.AgGridReact),
@@ -156,87 +157,108 @@ const rows = [
   },
 ];
 
-const columnDefs: ColDef[] = [
-  { headerName: "Entity", field: "entity", flex: 1 },
-  { headerName: "Details", field: "details", flex: 1 },
-  {
-    headerName: "Event Type",
-    field: "eventType",
-    flex: 2,
-    wrapText: true,
-    autoHeight: true,
-  },
-  { headerName: "Action Type", field: "actionType", flex: 1 },
-  { headerName: "Due On / Expires In", field: "dueOn", flex: 1.2 },
-  {
-    headerName: "Actions",
-    field: "actions",
-    flex: 1,
-    width: 180,
-    sortable: false,
-    filter: false,
-    cellRenderer: (params: ICellRendererParams) => {
-      const value = params.value as string[] | string | undefined;
-      const hasReview = Array.isArray(value)
-        ? value.includes("Review")
-        : typeof value === "string"
-          ? value.includes("Review")
-          : true;
-      const hasReassign = Array.isArray(value)
-        ? value.includes("Reassign")
-        : typeof value === "string"
-          ? value.includes("Reassign")
-          : true;
-
-      return (
-        <div className="flex items-center gap-2 h-full" onClick={(e) => e.stopPropagation()}>
-          {hasReview && (
-            <button
-              type="button"
-              title="Review"
-              aria-label="Review"
-              className="p-1 rounded transition-colors duration-200 hover:bg-green-50"
-              onClick={() => {
-                // placeholder handler – wire to review workflow later
-                // eslint-disable-next-line no-console
-                console.log("Review clicked", params.data);
-              }}
-            >
-              <FileText
-                className="cursor-pointer"
-                color="#2563eb"
-                strokeWidth={1}
-                size={22}
-              />
-            </button>
-          )}
-          {hasReassign && (
-            <button
-              type="button"
-              title="Reassign"
-              aria-label="Reassign"
-              className="p-1 rounded transition-colors duration-200 hover:bg-purple-50"
-              onClick={() => {
-                // placeholder handler – wire to reassign workflow later
-                // eslint-disable-next-line no-console
-                console.log("Reassign clicked", params.data);
-              }}
-            >
-              <UserRoundCheckIcon
-                className="cursor-pointer"
-                color="#b146ccff"
-                strokeWidth={1}
-                size={22}
-              />
-            </button>
-          )}
-        </div>
-      );
-    },
-  },
-];
-
 export default function ContinuousCompliancePage() {
+  const router = useRouter();
+
+  const handleReviewClick = (rowData: any) => {
+    if (
+      rowData?.eventType === "Job Title Change" ||
+      rowData?.eventType === "Manager Change"
+    ) {
+      const params = new URLSearchParams({
+        eventType: rowData.eventType ?? "",
+        entity: rowData.entity ?? "",
+        details: rowData.details ?? "",
+      });
+
+      router.push(`/campaigns/continuous-compliance/review?${params.toString()}`);
+      return;
+    }
+
+    // Fallback for other rows: keep placeholder behavior
+    // eslint-disable-next-line no-console
+    console.log("Review clicked", rowData);
+  };
+
+  const columnDefs: ColDef[] = [
+    { headerName: "Entity", field: "entity", flex: 1 },
+    { headerName: "Details", field: "details", flex: 1 },
+    {
+      headerName: "Event Type",
+      field: "eventType",
+      flex: 2,
+      wrapText: true,
+      autoHeight: true,
+    },
+    { headerName: "Action Type", field: "actionType", flex: 1 },
+    { headerName: "Due On / Expires In", field: "dueOn", flex: 1.2 },
+    {
+      headerName: "Actions",
+      field: "actions",
+      flex: 1,
+      width: 180,
+      sortable: false,
+      filter: false,
+      cellRenderer: (params: ICellRendererParams) => {
+        const value = params.value as string[] | string | undefined;
+        const hasReview = Array.isArray(value)
+          ? value.includes("Review")
+          : typeof value === "string"
+            ? value.includes("Review")
+            : true;
+        const hasReassign = Array.isArray(value)
+          ? value.includes("Reassign")
+          : typeof value === "string"
+            ? value.includes("Reassign")
+            : true;
+
+        return (
+          <div
+            className="flex items-center gap-2 h-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {hasReview && (
+              <button
+                type="button"
+                title="Review"
+                aria-label="Review"
+                className="p-1 rounded transition-colors duration-200 hover:bg-green-50"
+                onClick={() => handleReviewClick(params.data)}
+              >
+                <FileText
+                  className="cursor-pointer"
+                  color="#2563eb"
+                  strokeWidth={1}
+                  size={22}
+                />
+              </button>
+            )}
+            {hasReassign && (
+              <button
+                type="button"
+                title="Reassign"
+                aria-label="Reassign"
+                className="p-1 rounded transition-colors duration-200 hover:bg-purple-50"
+                onClick={() => {
+                  // placeholder handler – wire to reassign workflow later
+                  // eslint-disable-next-line no-console
+                  console.log("Reassign clicked", params.data);
+                }}
+              >
+                <UserRoundCheckIcon
+                  className="cursor-pointer"
+                  color="#b146ccff"
+                  strokeWidth={1}
+                  size={22}
+                />
+              </button>
+            )}
+          </div>
+        );
+      },
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="w-full">

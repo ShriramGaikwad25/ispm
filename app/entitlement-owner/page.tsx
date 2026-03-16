@@ -34,6 +34,8 @@ const EntitlementOwnerPageContent = () => {
   const [totalItems, setTotalItems] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [lastAction, setLastAction] = useState<string | null>(null);
+  // Track which row has Approve/Revoke selected (so only that row shows as selected)
+  const [selectedRowAction, setSelectedRowAction] = useState<{ rowId: string; action: "Approve" | "Revoke" } | null>(null);
   const [searchText, setSearchText] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("All");
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
@@ -78,17 +80,41 @@ const EntitlementOwnerPageContent = () => {
     return rows;
   }, [rowData, statusFilter]);
 
-  // Action handlers
-  const handleApprove = () => {
-    setLastAction("Approve");
+  // Action handlers (rowId identifies which row so only that row shows Approve/Revoke as selected)
+  const handleApprove = (rowId?: string) => {
     setError(null);
-    console.log("Approve action triggered");
+    // Toggle: if this row already has Approve selected, clear the selection
+    if (
+      rowId != null &&
+      selectedRowAction?.rowId === rowId &&
+      selectedRowAction?.action === "Approve"
+    ) {
+      setSelectedRowAction(null);
+      setLastAction(null);
+      console.log("Approve action cleared", `for row ${rowId}`);
+      return;
+    }
+    setLastAction("Approve");
+    setSelectedRowAction(rowId != null ? { rowId, action: "Approve" } : null);
+    console.log("Approve action triggered", rowId != null ? `for row ${rowId}` : "");
   };
 
-  const handleRevoke = () => {
-    setLastAction("Revoke");
+  const handleRevoke = (rowId?: string) => {
     setError(null);
-    console.log("Revoke action triggered");
+    // Toggle: if this row already has Revoke selected, clear the selection
+    if (
+      rowId != null &&
+      selectedRowAction?.rowId === rowId &&
+      selectedRowAction?.action === "Revoke"
+    ) {
+      setSelectedRowAction(null);
+      setLastAction(null);
+      console.log("Revoke action cleared", `for row ${rowId}`);
+      return;
+    }
+    setLastAction("Revoke");
+    setSelectedRowAction(rowId != null ? { rowId, action: "Revoke" } : null);
+    console.log("Revoke action triggered", rowId != null ? `for row ${rowId}` : "");
   };
 
   const handleComment = () => {
@@ -563,32 +589,33 @@ const EntitlementOwnerPageContent = () => {
         headerName: "Actions",
         width: 270,
         cellRenderer: (params: ICellRendererParams) => {
+          const rowId = params.node?.id ?? "";
+          const isApproveSelected = selectedRowAction?.action === "Approve" && selectedRowAction?.rowId === rowId;
+          const isRevokeSelected = selectedRowAction?.action === "Revoke" && selectedRowAction?.rowId === rowId;
           return (
             <div className="flex space-x-4 h-full items-start">
               {error && <div className="text-red-500 text-sm">{error}</div>}
               <button
-                onClick={handleApprove}
+                onClick={() => handleApprove(rowId)}
                 title="Approve"
-                aria-label="Approve selected rows"
-                className={`p-1 rounded transition-colors duration-200 ${
-                  lastAction === "Approve"
-                    ? "bg-green-500"
-                    : "hover:bg-green-100"
-                }`}
+                aria-label="Approve this row"
+                className="p-1 rounded transition-colors duration-200 hover:bg-green-100"
               >
                 <CircleCheck
                   className="cursor-pointer"
-                  color="#1c821cff"
+                  color={isApproveSelected ? "#ffffff" : "#1c821cff"}
                   strokeWidth="1"
                   size="32"
-                  fill={lastAction === "Approve" ? "#1c821cff" : "none"}
+                  fill={isApproveSelected ? "#1c821cff" : "none"}
                 />
               </button>
               <button
-                onClick={handleRevoke}
+                onClick={() => handleRevoke(rowId)}
                 title="Reassign"
-                aria-label="Reassign selected rows"
-                className="p-1 rounded transition-colors duration-200"
+                aria-label="Reassign this row"
+                className={`p-1 rounded transition-colors duration-200 ${
+                  isRevokeSelected ? "bg-red-100" : ""
+                }`}
               >
                 <UserRoundCheckIcon
                   className="cursor-pointer"
@@ -618,6 +645,7 @@ const EntitlementOwnerPageContent = () => {
               <button
                 onClick={() => {
                   const row = params?.data || {};
+                  const rowNodeId = params.node?.id ?? "";
                   const InfoSidebar = () => {
                     const [sectionsOpen, setSectionsOpen] = useState({
                       general: false,
@@ -672,29 +700,25 @@ const EntitlementOwnerPageContent = () => {
                             </div>
                             <div className="mt-3 flex space-x-2">
                               <button
-                                onClick={handleApprove}
+                                onClick={() => handleApprove(rowNodeId)}
                                 title="Approve"
                                 aria-label="Approve entitlement"
-                                className={`p-1 rounded transition-colors duration-200 ${
-                                  lastAction === "Approve"
-                                    ? "bg-green-500"
-                                    : "hover:bg-green-100"
-                                }`}
+                                className="p-1 rounded transition-colors duration-200 hover:bg-green-100"
                               >
                                 <CircleCheck
                                   className="cursor-pointer"
-                                  color="#1c821cff"
+                                  color={selectedRowAction?.action === "Approve" && selectedRowAction?.rowId === rowNodeId ? "#ffffff" : "#1c821cff"}
                                   strokeWidth="1"
                                   size="32"
-                                  fill={lastAction === "Approve" ? "#1c821cff" : "none"}
+                                  fill={selectedRowAction?.action === "Approve" && selectedRowAction?.rowId === rowNodeId ? "#1c821cff" : "none"}
                                 />
                               </button>
                               <button
-                                onClick={handleRevoke}
+                                onClick={() => handleRevoke(rowNodeId)}
                                 title="Revoke"
                                 aria-label="Revoke entitlement"
                                 className={`p-1 rounded ${
-                                  row?.status === "Rejected" ? "bg-red-100" : ""
+                                  (selectedRowAction?.action === "Revoke" && selectedRowAction?.rowId === rowNodeId) || row?.status === "Rejected" ? "bg-red-100" : ""
                                 }`}
                               >
                                 <CircleX
@@ -702,7 +726,7 @@ const EntitlementOwnerPageContent = () => {
                                   color="#FF2D55"
                                   strokeWidth="1"
                                   size="32"
-                                  fill={row?.status === "Rejected" ? "#FF2D55" : "none"}
+                                  fill={(selectedRowAction?.action === "Revoke" && selectedRowAction?.rowId === rowNodeId) || row?.status === "Rejected" ? "#FF2D55" : "none"}
                                 />
                               </button>
                               <button
@@ -1302,7 +1326,7 @@ const EntitlementOwnerPageContent = () => {
       sortable: true,
       filter: true,
     }),
-    []
+    [selectedRowAction, error]
   );
 
   const handleGridSizeChanged = (params: any) => {

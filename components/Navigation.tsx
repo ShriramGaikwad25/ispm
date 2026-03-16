@@ -126,6 +126,10 @@ export function Navigation() {
     if (pathname.startsWith('/campaigns/schedule/') || pathname.startsWith('/campaigns/manage-campaigns/') || pathname.startsWith('/campaigns/new')) {
       return { href: '/campaigns', label: 'Back to Campaigns' };
     }
+    // Continuous Compliance campaign detail → back to Continuous Compliance list
+    if (pathname === '/campaigns/continuous-compliance/review') {
+      return { href: '/campaigns/continuous-compliance', label: 'Back to Continuous Compliance' };
+    }
     // Applications
     if (pathname.startsWith('/applications/') && pathname !== '/applications') {
       return { href: '/applications', label: 'Back to Applications' };
