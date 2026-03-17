@@ -846,43 +846,110 @@ const ActionButtons = <T extends { status?: string }>({
     setIsMenuOpen(false);
   };
 
-  // Separate API functions for each remediate action
-  // These should be implemented with specific API endpoints for each action
-  const handleLockAccount = async (justification: string) => {
-    // TODO: Implement lock account API call
-    // Example: await fetch('/api/remediate/lock-account', { method: 'POST', body: JSON.stringify({ justification, selectedRows }) })
-    console.log('Lock Account:', justification, selectedRows);
+  // Helper to queue a Remediate action into the central ActionPanel
+  const queueRemediateAction = async (
+    remediateType: string,
+    justification: string
+  ) => {
+    if (!reviewerId || !certId || selectedIds.length === 0) {
+      return;
+    }
+
+    // Build unique entitlement lineItemIds from the selected rows
+    const uniqueLineItemIds = Array.from(
+      new Set(
+        definedRows
+          .map(
+            (row: any) => row.lineItemId || (row as any)?.accountLineItemId
+          )
+          .filter(
+            (id: any) =>
+              Boolean(id) && id !== "undefined" && id !== "null"
+          )
+      )
+    ) as string[];
+
+    if (uniqueLineItemIds.length === 0) {
+      return;
+    }
+
+    const payload: any = {
+      useraction: [],
+      accountAction: [],
+      entitlementAction: [
+        {
+          actionType: "Remediate",
+          lineItemIds: uniqueLineItemIds,
+          justification,
+          remediateAction: remediateType,
+        },
+      ],
+    };
+
+    // Queue remediate action so it is submitted via the floating Submit button
+    queueAction({
+      reviewerId,
+      certId,
+      payload,
+      count: 0,
+    });
+
+    // Mark local pending state for button visuals (both state and module-level storage)
+    setPendingById((prev) => {
+      const next = {
+        ...prev,
+      } as Record<
+        string,
+        "Approve" | "Reject" | "Pending" | "Remediate" | "Delegate"
+      >;
+      selectedIds.forEach((id) => {
+        next[id] = "Remediate";
+        pendingActionsStorage.set(id, "Remediate");
+      });
+      return next;
+    });
+
     setHasRemediateAction(true);
+  };
+
+  // Separate handlers for each remediate action – they all queue into ActionPanel
+  const handleLockAccount = async (justification: string) => {
+    console.log("Lock Account (queued remediate):", justification, selectedRows);
+    await queueRemediateAction("LOCK_ACCOUNT", justification);
     if (onActionSuccess) {
       onActionSuccess();
     }
   };
 
   const handleRevokeAccess = async (justification: string) => {
-    // TODO: Implement revoke access API call
-    // Example: await fetch('/api/remediate/revoke-access', { method: 'POST', body: JSON.stringify({ justification, selectedRows }) })
-    console.log('Revoke Access:', justification, selectedRows);
-    setHasRemediateAction(true);
+    console.log("Revoke Access (queued remediate):", justification, selectedRows);
+    await queueRemediateAction("IMMEDIATE_REVOKE", justification);
     if (onActionSuccess) {
       onActionSuccess();
     }
   };
 
   const handleConditionalAccess = async (endDate: string, justification: string) => {
-    // TODO: Implement conditional access API call
-    // Example: await fetch('/api/remediate/conditional-access', { method: 'POST', body: JSON.stringify({ endDate, justification, selectedRows }) })
-    console.log('Conditional Access:', endDate, justification, selectedRows);
-    setHasRemediateAction(true);
+    console.log(
+      "Conditional Access (queued remediate):",
+      endDate,
+      justification,
+      selectedRows
+    );
+    await queueRemediateAction("CONDITIONAL_ACCESS", justification);
     if (onActionSuccess) {
       onActionSuccess();
     }
   };
 
   const handleModifyAccess = async (newAccess: string, justification: string) => {
-    // TODO: Implement modify access API call
-    // Example: await fetch('/api/remediate/modify-access', { method: 'POST', body: JSON.stringify({ newAccess, justification, selectedRows }) })
-    console.log('Modify Access:', newAccess, justification, selectedRows);
-    setHasRemediateAction(true);
+    console.log(
+      "Modify Access (queued remediate):",
+      newAccess,
+      justification,
+      selectedRows
+    );
+    await queueRemediateAction("MODIFY_ACCESS", justification);
     if (onActionSuccess) {
       onActionSuccess();
     }

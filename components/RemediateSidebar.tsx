@@ -894,7 +894,7 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
                     onClick={async (e) => {
                       e.stopPropagation();
                       if (!onLockAccount) return;
-                      
+
                       await onLockAccount(
                         "Lock account with immediate effect from Remediate"
                       );
@@ -960,106 +960,38 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
                   <button
                     onClick={async (e) => {
                       e.stopPropagation();
-                      const justification = revokeJustification.trim() || "Immediate revoke";
-                      if (!justification) return;
+                      const justification =
+                        revokeJustification.trim() || "Immediate revoke";
+                      if (!justification || !onRevokeAccess) return;
 
-                      const canCallApi = reviewerId && certId && definedRows.length > 0;
-
-                      if (canCallApi) {
-                        setIsImmediateRevokeLoading(true);
-                        setImmediateRevokeError(null);
-                        try {
-                          for (const row of definedRows) {
-                            const taskId =
-                              row.taskId ??
-                              row.taskid ??
-                              (definedRows[0] as any)?.taskId ??
-                              "";
-                            const lineItemId =
-                              row.lineItemId ??
-                              row.lineitemid ??
-                              row.accountLineItemId ??
-                              "";
-                            const accountId = row.accountId ?? row.accountid ?? "";
-                            const applicationName =
-                              row.applicationName ??
-                              row.application ??
-                              row.appName ??
-                              row.application_name ??
-                              row.applicationDisplayName ??
-                              row.app ??
-                              "";
-                            const entitlementName =
-                              row.entitlementName ??
-                              row.entitlementname ??
-                              row.entitlement_name ??
-                              row.name ??
-                              "";
-                            const parentLineItemId =
-                              row.parentLineItemId ??
-                              row.accountLineItemId ??
-                              row.lineItemId ??
-                              lineItemId;
-
-                            if (!taskId || !lineItemId) continue;
-
-                            await immediateRevoke(
-                              reviewerId,
-                              certId,
-                              taskId,
-                              lineItemId,
-                              {
-                                reviewerName: reviewerName || "Reviewer",
-                                reviewerId,
-                                certificationId: certId,
-                                taskId,
-                                revokeEntityType: "entitlement",
-                                removeAccounts: [],
-                                removeEntitlements: [
-                                  {
-                                    parentLineItemId,
-                                    lineItemId,
-                                    name: entitlementName,
-                                    accountId,
-                                    applicationName,
-                                    justification,
-                                  },
-                                ],
-                              }
-                            );
-                          }
-                          setShowRevokeConfirmation(false);
-                          setImmediateRevokeChecked(false);
-                          setRevokeJustification("");
-                          if (onRevokeAccess) {
-                            await onRevokeAccess(justification);
-                          }
-                          window.location.reload();
-                        } catch (err) {
-                          setImmediateRevokeError(
-                            err instanceof Error ? err.message : "Failed to revoke access"
-                          );
-                        } finally {
-                          setIsImmediateRevokeLoading(false);
-                        }
-                      } else if (onRevokeAccess) {
+                      setIsImmediateRevokeLoading(true);
+                      setImmediateRevokeError(null);
+                      try {
                         await onRevokeAccess(justification);
                         setShowRevokeConfirmation(false);
                         setImmediateRevokeChecked(false);
                         setRevokeJustification("");
+                      } catch (err) {
+                        setImmediateRevokeError(
+                          err instanceof Error
+                            ? err.message
+                            : "Failed to queue revoke access"
+                        );
+                      } finally {
+                        setIsImmediateRevokeLoading(false);
                       }
                     }}
                     disabled={
                       isActionLoading ||
                       isImmediateRevokeLoading ||
                       !revokeJustification.trim() ||
-                      (!(reviewerId && certId && definedRows.length > 0) && !onRevokeAccess)
+                      !onRevokeAccess
                     }
                     className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
                       isActionLoading ||
                       isImmediateRevokeLoading ||
                       !revokeJustification.trim() ||
-                      (!(reviewerId && certId && definedRows.length > 0) && !onRevokeAccess)
+                      !onRevokeAccess
                         ? "bg-gray-400 text-gray-100 cursor-not-allowed"
                         : "bg-blue-600 text-white hover:bg-blue-700"
                     }`}

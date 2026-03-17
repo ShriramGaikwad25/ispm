@@ -20,6 +20,9 @@ import { getReviewerId } from "@/lib/auth";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import CustomPagination from "@/components/agTable/CustomPagination";
 import Filters from "@/components/agTable/Filters";
+import ProxyActionModal from "@/components/ProxyActionModal";
+import { useActionPanel } from "@/contexts/ActionPanelContext";
+import { updateAction } from "@/lib/api";
 
 const EntitlementOwnerPageContent = () => {
   const { openSidebar, closeSidebar } = useRightSidebar();
@@ -44,6 +47,9 @@ const EntitlementOwnerPageContent = () => {
   const [commentCategory, setCommentCategory] = useState("");
   const [commentSubcategory, setCommentSubcategory] = useState("");
   const [isCommentDropdownOpen, setIsCommentDropdownOpen] = useState(false);
+  const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);
+  const [commentRow, setCommentRow] = useState<any | null>(null);
+  const { queueAction } = useActionPanel();
 
   // Get reviewerId, certificationId, and appInstanceId from URL parameters
   const reviewerId =
@@ -81,7 +87,7 @@ const EntitlementOwnerPageContent = () => {
   }, [rowData, statusFilter]);
 
   // Action handlers (rowId identifies which row so only that row shows Approve/Revoke as selected)
-  const handleApprove = (rowId?: string) => {
+  const handleApprove = (rowId?: string, row?: any) => {
     setError(null);
     // Toggle: if this row already has Approve selected, clear the selection
     if (
@@ -97,24 +103,48 @@ const EntitlementOwnerPageContent = () => {
     setLastAction("Approve");
     setSelectedRowAction(rowId != null ? { rowId, action: "Approve" } : null);
     console.log("Approve action triggered", rowId != null ? `for row ${rowId}` : "");
+
+    // Queue approve action so floating submit button appears (ActionPanel)
+    try {
+      const syntheticId =
+        row?.lineItemId ||
+        row?.lineitemid ||
+        row?.entitlementLineItemId ||
+        row?.entitlementId ||
+        row?.entitlementid ||
+        rowId ||
+        `${row?.applicationName || ""}|${row?.entitlementName || row?.["Ent Name"] || ""}`;
+
+      if (syntheticId && certificationId && reviewerId) {
+        const payload: any = {
+          useraction: [],
+          accountAction: [],
+          entitlementAction: [
+            {
+              actionType: "Approve",
+              lineItemIds: [syntheticId],
+              justification: "",
+            },
+          ],
+        };
+        queueAction({
+          reviewerId,
+          certId: certificationId,
+          payload,
+          count: 0,
+          isCertifyFilter: true,
+        });
+      }
+    } catch (e) {
+      console.error("Failed to queue approve action from Entitlement Owner:", e);
+    }
   };
 
-  const handleRevoke = (rowId?: string) => {
+  const openReassignModal = (rowId?: string) => {
     setError(null);
-    // Toggle: if this row already has Revoke selected, clear the selection
-    if (
-      rowId != null &&
-      selectedRowAction?.rowId === rowId &&
-      selectedRowAction?.action === "Revoke"
-    ) {
-      setSelectedRowAction(null);
-      setLastAction(null);
-      console.log("Revoke action cleared", `for row ${rowId}`);
-      return;
-    }
-    setLastAction("Revoke");
-    setSelectedRowAction(rowId != null ? { rowId, action: "Revoke" } : null);
-    console.log("Revoke action triggered", rowId != null ? `for row ${rowId}` : "");
+    setLastAction("Reassign");
+    console.log("Open reassign popup for row", rowId ?? "(unknown)");
+    setIsReassignModalOpen(true);
   };
 
   const handleComment = () => {
@@ -125,11 +155,59 @@ const EntitlementOwnerPageContent = () => {
     setIsCommentModalOpen(true);
   };
 
-  const handleSaveComment = () => {
-    if (!commentText.trim()) return;
-    setComment(commentText);
+  const handleSaveComment = async () => {
+    const trimmed = commentText.trim();
+    if (!trimmed) return;
+
+    setComment(trimmed);
+
+    try {
+      // Prefer the row that opened the comment popup
+      let targetRow: any = commentRow;
+
+      // Fallback: try to derive from currently selected "Approve" row
+      if (!targetRow && gridApi && selectedRowAction) {
+        gridApi.forEachNode((node: any) => {
+          if (!node.data || node.data.__isDescRow) return;
+          if (node.id === selectedRowAction.rowId) {
+            targetRow = node.data;
+          }
+        });
+      }
+
+      const syntheticId =
+        targetRow?.lineItemId ||
+        targetRow?.lineitemid ||
+        targetRow?.entitlementLineItemId ||
+        targetRow?.entitlementId ||
+        targetRow?.entitlementid ||
+        (selectedRowAction?.rowId ?? "");
+
+      if (syntheticId && certificationId && reviewerId) {
+        const payload: any = {
+          useraction: [],
+          accountAction: [],
+          entitlementAction: [
+            {
+              // Empty action; only justification/comment should be recorded
+              actionType: "",
+              lineItemIds: [syntheticId],
+              justification: trimmed,
+            },
+          ],
+        };
+        await updateAction(reviewerId, certificationId, payload);
+      }
+    } catch (e) {
+      console.error(
+        "[Entitlement Owner] Failed to save comment via updateAction:",
+        e
+      );
+    }
+
     setIsCommentModalOpen(false);
     setCommentText("");
+    setCommentRow(null);
   };
 
   const handleCancelComment = () => {
@@ -550,11 +628,15 @@ const EntitlementOwnerPageContent = () => {
             );
           }
 
-          const riskVal = (params.data?.risk || "").toString().toLowerCase();
+          const rawRisk = params.data?.risk || params.data?.["Risk"] || "";
+          const riskVal = rawRisk.toString().toLowerCase();
           const isHighRisk = riskVal === "high" || riskVal === "critical";
 
           return (
-            <div className="flex items-center h-full">
+            <div
+              className="flex items-center h-full"
+              title={isHighRisk ? "High risk entitlement" : undefined}
+            >
               {isHighRisk ? (
                 <span className="bg-red-100 text-red-600 px-3 py-1 rounded-full text-sm font-medium">
                   {params.value}
@@ -590,13 +672,14 @@ const EntitlementOwnerPageContent = () => {
         width: 270,
         cellRenderer: (params: ICellRendererParams) => {
           const rowId = params.node?.id ?? "";
+          const rowData = params.data || {};
           const isApproveSelected = selectedRowAction?.action === "Approve" && selectedRowAction?.rowId === rowId;
           const isRevokeSelected = selectedRowAction?.action === "Revoke" && selectedRowAction?.rowId === rowId;
           return (
             <div className="flex space-x-4 h-full items-start">
               {error && <div className="text-red-500 text-sm">{error}</div>}
               <button
-                onClick={() => handleApprove(rowId)}
+                onClick={() => handleApprove(rowId, rowData)}
                 title="Approve"
                 aria-label="Approve this row"
                 className="p-1 rounded transition-colors duration-200 hover:bg-green-100"
@@ -610,7 +693,7 @@ const EntitlementOwnerPageContent = () => {
                 />
               </button>
               <button
-                onClick={() => handleRevoke(rowId)}
+                onClick={() => openReassignModal(rowId)}
                 title="Reassign"
                 aria-label="Reassign this row"
                 className={`p-1 rounded transition-colors duration-200 ${
@@ -625,7 +708,10 @@ const EntitlementOwnerPageContent = () => {
                 />
               </button>
               <button
-                onClick={handleComment}
+                onClick={() => {
+                  setCommentRow(rowData);
+                  handleComment();
+                }}
                 title="Comment"
                 aria-label="Add comment"
                 className="p-1 rounded"
@@ -681,8 +767,8 @@ const EntitlementOwnerPageContent = () => {
                                   <input
                                     type="text"
                                     value={entName}
-                                    onChange={(e) => setEntName(e.target.value)}
-                                    className="mt-1 w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    readOnly
+                                    className="mt-1 w-full px-2 py-1 text-sm border border-gray-200 rounded bg-gray-50 text-gray-600 cursor-not-allowed"
                                   />
                                 </div>
                                 <div className="mt-2">
@@ -700,7 +786,7 @@ const EntitlementOwnerPageContent = () => {
                             </div>
                             <div className="mt-3 flex space-x-2">
                               <button
-                                onClick={() => handleApprove(rowNodeId)}
+                              onClick={() => handleApprove(rowNodeId, row)}
                                 title="Approve"
                                 aria-label="Approve entitlement"
                                 className="p-1 rounded transition-colors duration-200 hover:bg-green-100"
@@ -714,7 +800,7 @@ const EntitlementOwnerPageContent = () => {
                                 />
                               </button>
                               <button
-                                onClick={() => handleRevoke(rowNodeId)}
+                                onClick={() => openReassignModal(rowNodeId)}
                                 title="Reassign"
                                 aria-label="Reassign entitlement"
                                 className={`p-1 rounded ${
@@ -729,7 +815,10 @@ const EntitlementOwnerPageContent = () => {
                                 />
                               </button>
                               <button
-                                onClick={handleComment}
+                                onClick={() => {
+                                  setCommentRow(row);
+                                  handleComment();
+                                }}
                                 title="Comment"
                                 aria-label="Add comment"
                                 className="p-1 rounded"
@@ -774,7 +863,8 @@ const EntitlementOwnerPageContent = () => {
                                       <input
                                         type="text"
                                         defaultValue={row?.["Ent Type"] || row?.type || "N/A"}
-                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        readOnly
+                                        className="w-full px-2 py-1 border border-gray-200 rounded bg-gray-50 text-gray-600 cursor-not-allowed"
                                       />
                                     </div>
                                     <div className="flex-1">
@@ -784,7 +874,8 @@ const EntitlementOwnerPageContent = () => {
                                       <input
                                         type="text"
                                         defaultValue={String(row?.["Total Assignments"] ?? "N/A")}
-                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        readOnly
+                                        className="w-full px-2 py-1 border border-gray-200 rounded bg-gray-50 text-gray-600 cursor-not-allowed"
                                       />
                                     </div>
                                   </div>
@@ -800,7 +891,8 @@ const EntitlementOwnerPageContent = () => {
                                           row?.applicationName ||
                                           "N/A"
                                         }
-                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        readOnly
+                                        className="w-full px-2 py-1 border border-gray-200 rounded bg-gray-50 text-gray-600 cursor-not-allowed"
                                       />
                                     </div>
                                     <div className="flex-1">
@@ -929,7 +1021,8 @@ const EntitlementOwnerPageContent = () => {
                                       <input
                                         type="text"
                                         defaultValue={row?.["Created On"] || "N/A"}
-                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        readOnly
+                                        className="w-full px-2 py-1 border border-gray-200 rounded bg-gray-50 text-gray-600 cursor-not-allowed"
                                       />
                                     </div>
                                     <div className="flex-1">
@@ -939,7 +1032,8 @@ const EntitlementOwnerPageContent = () => {
                                       <input
                                         type="text"
                                         defaultValue={row?.["Last Sync"] || "N/A"}
-                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        readOnly
+                                        className="w-full px-2 py-1 border border-gray-200 rounded bg-gray-50 text-gray-600 cursor-not-allowed"
                                       />
                                     </div>
                                   </div>
@@ -955,7 +1049,8 @@ const EntitlementOwnerPageContent = () => {
                                           row?.applicationName ||
                                           "N/A"
                                         }
-                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        readOnly
+                                        className="w-full px-2 py-1 border border-gray-200 rounded bg-gray-50 text-gray-600 cursor-not-allowed"
                                       />
                                     </div>
                                     <div className="flex-1">
@@ -965,7 +1060,8 @@ const EntitlementOwnerPageContent = () => {
                                       <input
                                         type="text"
                                         defaultValue={row?.["App Instance"] || "N/A"}
-                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        readOnly
+                                        className="w-full px-2 py-1 border border-gray-200 rounded bg-gray-50 text-gray-600 cursor-not-allowed"
                                       />
                                     </div>
                                   </div>
@@ -1135,7 +1231,8 @@ const EntitlementOwnerPageContent = () => {
                                       <input
                                         type="text"
                                         defaultValue={row?.["Last Reviewed on"] || "N/A"}
-                                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        readOnly
+                                        className="w-full px-2 py-1 border border-gray-200 rounded bg-gray-50 text-gray-600 cursor-not-allowed"
                                       />
                                     </div>
                                   </div>
@@ -1512,6 +1609,37 @@ const EntitlementOwnerPageContent = () => {
           }}
         />
       </div>
+
+      {/* Reassign Modal (reuse Access Review proxy modal) */}
+      <ProxyActionModal
+        isModalOpen={isReassignModalOpen}
+        closeModal={() => setIsReassignModalOpen(false)}
+        heading="Reassign Entitlement"
+        users={[
+          { username: "john", email: "john@example.com", role: "admin" },
+          { username: "jane", email: "jane@example.com", role: "user" },
+        ]}
+        groups={[
+          { name: "entitlement-owners", email: "ent-owners@corp.com", role: "owner" },
+          { name: "app-owners", email: "app-owners@corp.com", role: "owner" },
+        ]}
+        userAttributes={[
+          { value: "username", label: "Username" },
+          { value: "email", label: "Email" },
+        ]}
+        groupAttributes={[
+          { value: "name", label: "Group Name" },
+          { value: "role", label: "Role" },
+        ]}
+        onSelectOwner={(assignee) => {
+          console.log(
+            "[Entitlement Owner] Reassign to:",
+            assignee.username || assignee.name,
+            assignee.email || ""
+          );
+          setIsReassignModalOpen(false);
+        }}
+      />
 
       {/* Comment Modal */}
       {isCommentModalOpen &&
