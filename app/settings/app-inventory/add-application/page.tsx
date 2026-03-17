@@ -258,6 +258,7 @@ export default function AddApplicationPage() {
   const [isEditingAttribute, setIsEditingAttribute] = useState(false);
   const [editingAttribute, setEditingAttribute] = useState<any>(null);
   const ATTR_MAPPING_PAGE_SIZE = 10;
+  const [restServiceTab, setRestServiceTab] = useState<"connection" | "general" | "advanced">("connection");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   
   // SCIM Attributes state

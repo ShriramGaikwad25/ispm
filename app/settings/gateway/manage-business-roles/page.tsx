@@ -341,6 +341,7 @@ export default function ManageBusinessRolesSettings() {
                   columnDefs={columnDefs}
                   rowData={paginatedRows}
                   domLayout="autoHeight"
+                  theme="legacy"
                   rowHeight={60}
                 />
               </div>

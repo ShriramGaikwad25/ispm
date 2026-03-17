@@ -11,7 +11,6 @@ import CustomPagination from "@/components/agTable/CustomPagination";
 import { useRouter } from "next/navigation";
 import { getAllApplications, getInProgressApplications, getAllAppsForUserWithAI, regenerateApiToken, getApplicationDetails, type Application } from "@/lib/api";
 import { getCookie, COOKIE_NAMES, getCurrentUser } from "@/lib/auth";
-import HorizontalTabs from "@/components/HorizontalTabs";
 
 interface AppInventoryItem {
   id: string;
@@ -387,22 +386,16 @@ useEffect(() => {
   setMounted(true);
 }, []);
 
-const categoryOptions = useMemo(() => {
+  const categoryOptions = useMemo(() => {
   const set = new Set<string>();
-  const base = activeTabIndex === 0
-    ? (applicationsData.length > 0 ? applicationsData : sampleData)
-    : aiApplicationsData;
-  const data = base || [];
+  const data = (applicationsData.length > 0 ? applicationsData : sampleData) || [];
   for (const item of data) set.add(item.category);
   return Array.from(set).sort();
-}, [applicationsData, aiApplicationsData, activeTabIndex]);
+}, [applicationsData]);
 
-const filteredData = useMemo(() => {
+  const filteredData = useMemo(() => {
   const q = searchQuery.trim().toLowerCase();
-  const base = activeTabIndex === 0
-    ? (applicationsData.length > 0 ? applicationsData : sampleData)
-    : aiApplicationsData;
-  const data = base || [];
+  const data = (applicationsData.length > 0 ? applicationsData : sampleData) || [];
   return data.filter((item) => {
     const matchesQuery =
       q.length === 0 ||
@@ -416,7 +409,7 @@ const filteredData = useMemo(() => {
     const matchesStatus = !selectedStatus || item.status === selectedStatus;
     return matchesQuery && matchesCategory && matchesRisk && matchesStatus;
   });
-}, [searchQuery, selectedCategory, selectedRisk, selectedStatus, applicationsData, aiApplicationsData, activeTabIndex]);
+  }, [searchQuery, selectedCategory, selectedRisk, selectedStatus, applicationsData]);
 
 // Interleave each item with a full-width description row
 const rowsWithDesc = useMemo(() => {
@@ -851,18 +844,6 @@ useEffect(() => {
                 <Download className="w-4 h-4" />
               </button>
 
-              {/* AI Assist App */}
-              <button
-                type="button"
-                className="flex items-center gap-2 rounded-full px-4 py-2 bg-violet-100 text-violet-700 hover:bg-violet-200 text-sm font-medium transition-colors"
-                onClick={() => router.push("/settings/app-inventory/ai-assist-app")}
-                title="AI Assist App"
-                aria-label="AI Assist App"
-              >
-                <Sparkles className="w-4 h-4" />
-                AI Assist App
-              </button>
-
               {/* Add Application */}
               <button
                 type="button"
@@ -894,9 +875,26 @@ useEffect(() => {
           />
         </div>
 
-        {/* Tabs only switch the table */}
+        {/* Direct table view (Without AI Assist) */}
         <div className="flex flex-col w-full px-6 py-4">
-          <HorizontalTabs tabs={tabsData} defaultIndex={0} activeIndex={activeTabIndex} onChange={setActiveTabIndex} />
+          <div className="w-full">
+            <AgGridReact
+              rowData={rowData}
+              columnDefs={columnDefs}
+              getRowHeight={getRowHeight}
+              headerHeight={44}
+              suppressRowClickSelection
+              suppressCellFocus
+              defaultColDef={{
+                resizable: true,
+                sortable: true,
+                filter: true,
+              }}
+              pagination={false}
+              domLayout="autoHeight"
+              style={{ width: "100%" }}
+            />
+          </div>
         </div>
 
         {/* Bottom pagination */}

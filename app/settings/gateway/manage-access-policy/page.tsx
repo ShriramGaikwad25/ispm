@@ -138,22 +138,35 @@ export default function ManageAccessPolicyPage() {
       { 
         headerName: "Status", 
         field: "status", 
-        width: 120,
+        width: 140,
         cellRenderer: (params: ICellRendererParams) => {
-          const status = params.value || "";
+          const rawStatus = (params.value || "") as string;
+          const status = rawStatus.trim();
+          const normalized = status.toLowerCase();
+
           const statusColors: Record<string, string> = {
-            "Staging": "bg-yellow-100 text-yellow-800",
-            "Running": "bg-blue-100 text-blue-800",
-            "Completed": "bg-green-100 text-green-800",
-            "Paused": "bg-gray-100 text-gray-800",
+            staging: "bg-yellow-100 text-yellow-800",
+            running: "bg-blue-100 text-blue-800",
+            completed: "bg-green-100 text-green-800",
+            paused: "bg-gray-100 text-gray-800",
+            active: "bg-green-100 text-green-800",
+            inactive: "bg-gray-100 text-gray-800",
+            draft: "bg-yellow-50 text-yellow-800",
+            failed: "bg-red-100 text-red-800",
+            error: "bg-red-100 text-red-800",
           };
-          const colorClass = statusColors[status] || "bg-gray-100 text-gray-800";
+
+          const colorClass =
+            statusColors[normalized] || "bg-gray-100 text-gray-800";
+
           return (
-            <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${colorClass}`}>
-              {status}
+            <span
+              className={`inline-flex items-center justify-center px-2 py-1 rounded-full text-xs font-medium ${colorClass}`}
+            >
+              {status || "—"}
             </span>
           );
-        }
+        },
       },
       {
         field: "actions",
@@ -189,7 +202,7 @@ export default function ManageAccessPolicyPage() {
   };
 
   return (
-    <div className="p-6 bg-white min-h-screen">
+    <div className="p-6 bg-white min-h-screen access-policy-page">
       <div className="mb-6">
         <div className="flex justify-between items-start mb-4">
           <div>
@@ -213,28 +226,60 @@ export default function ManageAccessPolicyPage() {
         ) : error ? (
           <div className="text-red-600">{error}</div>
         ) : (
-          <div className="h-96 w-full">
-            <AgGridReact
-              ref={gridRef}
-              rowData={rows}
-              columnDefs={columnDefs}
-              rowSelection="multiple"
-              context={{ gridRef }}
-              rowModelType="clientSide"
-              animateRows={true}
-              defaultColDef={{
-                sortable: true,
-                filter: true,
-                resizable: true,
-              }}
-              masterDetail={true}
-              detailCellRenderer={DetailCellRenderer}
-              detailRowAutoHeight={true}
-              detailRowHeight={80}
-              onGridReady={(params) => {
-                params.api.sizeColumnsToFit();
-              }}
-            />
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div
+              className="ag-theme-quartz w-full"
+              style={{ width: "100%", minWidth: 0 }}
+            >
+              <AgGridReact
+                ref={gridRef}
+                rowData={rows}
+                columnDefs={columnDefs}
+                rowSelection="multiple"
+                context={{ gridRef }}
+                rowModelType="clientSide"
+                animateRows={true}
+                defaultColDef={{
+                  sortable: true,
+                  filter: true,
+                  resizable: true,
+                  cellStyle: {
+                    display: "flex",
+                    alignItems: "center",      // vertical center
+                    justifyContent: "flex-start", // left-align content
+                  },
+                }}
+                masterDetail={true}
+                detailCellRenderer={DetailCellRenderer}
+                detailRowAutoHeight={true}
+                detailRowHeight={80}
+                domLayout="autoHeight"
+                onGridReady={(params) => {
+                  params.api.sizeColumnsToFit();
+                  const handleResize = () => {
+                    try {
+                      params.api.sizeColumnsToFit();
+                    } catch {
+                      // ignore
+                    }
+                  };
+                  window.addEventListener("resize", handleResize);
+                  params.api.addEventListener("gridPreDestroyed", () => {
+                    window.removeEventListener("resize", handleResize);
+                  });
+                }}
+                onGridSizeChanged={(params) => {
+                  try {
+                    params.api.sizeColumnsToFit();
+                  } catch {
+                    // ignore
+                  }
+                }}
+                onFirstDataRendered={(params) => {
+                  params.api.sizeColumnsToFit();
+                }}
+              />
+            </div>
           </div>
         )}
       </div>

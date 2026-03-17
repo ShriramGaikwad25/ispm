@@ -34,7 +34,12 @@ export default function CreateAccessPolicyPage() {
   const { addToCart, clearCart, isInCart, items: cartItems } = useCart();
   const [currentStep, setCurrentStep] = useState(1);
   const [advanced, setAdvanced] = useState(false);
+  // If policyId is present, we are editing an existing policy
+  const [editingPolicyId, setEditingPolicyId] = useState<string | null>(null);
   const [accessProvisions, setAccessProvisions] = useState<AccessProvision[]>([]);
+  // In edit mode, keep track of granted access ids and names so Step 3 list can preselect/match them
+  const [preselectedAccessIds, setPreselectedAccessIds] = useState<string[]>([]);
+  const [preselectedAccessNames, setPreselectedAccessNames] = useState<string[]>([]);
 
   const [catalogData, setCatalogData] = useState<any[]>([]);
   const [catalogPage, setCatalogPage] = useState(1);
@@ -332,30 +337,61 @@ export default function CreateAccessPolicyPage() {
           ? Number(data.priority)
           : 0;
 
-      const parameters = [
-        "access_policy",
-        "PUT",
-        {
+      if (editingPolicyId) {
+        // EDIT mode: PATCH existing access policy
+        const status =
+          data.enabled === true || data.enabled === "true"
+            ? "ACTIVE"
+            : "INACTIVE";
+
+        const patchPayload = {
           policyName: data.policyName,
+          id: editingPolicyId,
           policyDescription: data.description,
           priority: priorityNumber,
-          accessGranted,
-          condition: conditionPayload,
-        },
-      ];
+          status,
+        };
 
-      console.log("Creating policy with payload:", {
-        query: "SELECT kf_apply_object_change(?,?,?::jsonb)",
-        parameters,
-      });
+        console.log("Updating policy with payload:", {
+          query:
+            "SELECT kf_apply_object_change('access_policy', 'PATCH', ?::jsonb )",
+          parameters: [patchPayload],
+        });
 
-      const result = await executeQuery(
-        "SELECT kf_apply_object_change(?,?,?::jsonb)",
-        parameters
-      );
+        const result = await executeQuery(
+          "SELECT kf_apply_object_change('access_policy', 'PATCH', ?::jsonb )",
+          [patchPayload]
+        );
 
-      console.log("Create policy result:", result);
-      alert("Policy created successfully!");
+        console.log("Update policy result:", result);
+        alert("Policy updated successfully!");
+      } else {
+        // CREATE mode: existing PUT behavior
+        const parameters = [
+          "access_policy",
+          "PUT",
+          {
+            policyName: data.policyName,
+            policyDescription: data.description,
+            priority: priorityNumber,
+            accessGranted,
+            condition: conditionPayload,
+          },
+        ];
+
+        console.log("Creating policy with payload:", {
+          query: "SELECT kf_apply_object_change(?,?,?::jsonb)",
+          parameters,
+        });
+
+        const result = await executeQuery(
+          "SELECT kf_apply_object_change(?,?,?::jsonb)",
+          parameters
+        );
+
+        console.log("Create policy result:", result);
+        alert("Policy created successfully!");
+      }
     } catch (error) {
       console.error("Failed to create policy:", error);
       alert("Failed to create policy. Please check console for details.");
@@ -366,6 +402,7 @@ export default function CreateAccessPolicyPage() {
   useEffect(() => {
     const policyId = searchParams.get("policyId");
     if (!policyId) return;
+    setEditingPolicyId(policyId);
 
     const fetchPolicy = async () => {
       try {
@@ -466,16 +503,22 @@ export default function CreateAccessPolicyPage() {
               }))
             : [];
 
-        // Map entitlements_json (or similar) into cart (step 3)
+        // Map granted entitlements/access (JSON on the row) into cart (step 3)
         try {
           const rawKeys = Object.keys(row || {});
           const lowerKeys = rawKeys.map((k) => k.toLowerCase());
           const entIndex = lowerKeys.findIndex((k) =>
-            ["entitlements_json", "entitlement_json", "entitlements"].some(
-              (needle) => k.includes(needle)
-            )
+            [
+              "entitlements_json",
+              "entitlement_json",
+              "entitlements",
+              "entitlements_granted",
+              "access_granted",
+              "access_json",
+              "granted_access",
+            ].some((needle) => k.includes(needle))
           );
-          if (entIndex !== -1) {
+            if (entIndex !== -1) {
             const key = rawKeys[entIndex];
             const rawEnt = row[key];
             let entList: any[] = [];
@@ -501,6 +544,9 @@ export default function CreateAccessPolicyPage() {
 
             if (entList.length > 0) {
               clearCart();
+              const grantedIds: string[] = [];
+              const grantedNames: string[] = [];
+
               entList.forEach((ent, idx) => {
                 const id =
                   String(
@@ -516,6 +562,7 @@ export default function CreateAccessPolicyPage() {
                   ent.entitlementName ??
                   ent.role_name ??
                   `Entitlement ${idx + 1}`;
+
                 let risk: "High" | "Medium" | "Low" | undefined;
                 const rawRisk = String(
                   ent.risk ?? ent.risk_level ?? ent.riskLevel ?? ""
@@ -523,6 +570,11 @@ export default function CreateAccessPolicyPage() {
                 if (rawRisk.startsWith("high")) risk = "High";
                 else if (rawRisk.startsWith("medium")) risk = "Medium";
                 else if (rawRisk.startsWith("low")) risk = "Low";
+
+                grantedIds.push(id);
+                if (name) {
+                  grantedNames.push(String(name));
+                }
 
                 if (!isInCart(id)) {
                   addToCart({
@@ -532,6 +584,16 @@ export default function CreateAccessPolicyPage() {
                   });
                 }
               });
+
+              // Used by Step 3 catalog list to show granted access first and selected
+              setPreselectedAccessIds(grantedIds);
+              setPreselectedAccessNames(grantedNames);
+              // Reset catalog filters so edit mode Step 3 starts from a clean view
+              setCatalogPage(1);
+              setSelectedAppInstanceId(null);
+              setShowApplicationInstancesOnly(false);
+              setCatalogTypeFilter("All");
+              setTagFilter("");
             }
           }
         } catch (e) {
@@ -711,6 +773,8 @@ export default function CreateAccessPolicyPage() {
           }}
           hideRecommendedTab
           hideAddDetailsSidebar
+          preselectedAccessIds={preselectedAccessIds}
+          preselectedAccessNames={preselectedAccessNames}
         />
       </div>
 
@@ -786,78 +850,139 @@ export default function CreateAccessPolicyPage() {
   );
 
   // Step 4 Component - Review/Additional Info
-  const Step4Content = () => (
-    <div className="space-y-6">
-      {/* Policy summary */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-3 text-sm">
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">Review Access Policy</h2>
-        <div>
-          <span className="font-medium text-gray-700">Policy Name:</span>
-          <span className="ml-2 text-gray-900">
-            {watch("policyName") || "-"}
-          </span>
-        </div>
-        <div>
-          <span className="font-medium text-gray-700">Owner:</span>
-          <span className="ml-2 text-gray-900">
-            {watch("owner") || "-"}
-          </span>
-        </div>
-        <div>
-          <span className="font-medium text-gray-700">Priority:</span>
-          <span className="ml-2 text-gray-900">
-            {watch("priority") || "N/A"}
-          </span>
-        </div>
-        <div>
-          <span className="font-medium text-gray-700">Enabled:</span>
-          <span className="ml-2 text-gray-900">
-            {watch("enabled") ? "Yes" : "No"}
-          </span>
-        </div>
-        <div>
-          <span className="font-medium text-gray-700">Description:</span>
-          <p className="mt-1 text-gray-900 whitespace-pre-wrap">
-            {watch("description") || "-"}
-          </p>
-        </div>
-      </div>
+  const Step4Content = () => {
+    const membershipConditions: any[] = watch("userAttributeConditions") || [];
 
-      {/* Selected access summary */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-3 text-sm">
-        <div className="flex items-center justify-between">
-          <h3 className="text-md font-semibold text-gray-900">
-            Selected Access ({cartItems.length})
-          </h3>
+    const hasConditions =
+      Array.isArray(membershipConditions) && membershipConditions.length > 0;
+
+    return (
+      <div className="space-y-6">
+        {/* Policy summary */}
+        <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-3 text-sm">
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">
+            Review Access Policy
+          </h2>
+          <div>
+            <span className="font-medium text-gray-700">Policy Name:</span>
+            <span className="ml-2 text-gray-900">
+              {watch("policyName") || "-"}
+            </span>
+          </div>
+          <div>
+            <span className="font-medium text-gray-700">Owner:</span>
+            <span className="ml-2 text-gray-900">
+              {watch("owner") || "-"}
+            </span>
+          </div>
+          <div>
+            <span className="font-medium text-gray-700">Priority:</span>
+            <span className="ml-2 text-gray-900">
+              {watch("priority") || "N/A"}
+            </span>
+          </div>
+          <div>
+            <span className="font-medium text-gray-700">Enabled:</span>
+            <span className="ml-2 text-gray-900">
+              {watch("enabled") ? "Yes" : "No"}
+            </span>
+          </div>
+          <div>
+            <span className="font-medium text-gray-700">Description:</span>
+            <p className="mt-1 text-gray-900 whitespace-pre-wrap">
+              {watch("description") || "-"}
+            </p>
+          </div>
         </div>
-        {cartItems.length === 0 ? (
-          <p className="text-gray-500">
-            No access items selected in Step 3.
-          </p>
-        ) : (
-          <ul className="space-y-1">
-            {cartItems.map((item) => (
-              <li
-                key={item.id}
-                className="flex items-center justify-between border border-gray-200 rounded-md px-3 py-2 bg-white"
-              >
-                <div className="flex flex-col">
-                  <span className="font-medium text-gray-900">
-                    {item.name}
-                  </span>
-                </div>
-                {item.risk && (
-                  <span className="text-xs font-medium px-2 py-1 rounded-full border border-gray-300 text-gray-700">
-                    {item.risk} Risk
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
+
+        {/* Membership rule details (Step 2 summary) */}
+        <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-3 text-sm">
+          <div className="flex items-center justify-between">
+            <h3 className="text-md font-semibold text-gray-900">
+              Membership Rule Details
+            </h3>
+            <span className="text-xs text-gray-500">
+              All conditions are combined with AND
+            </span>
+          </div>
+
+          {!hasConditions ? (
+            <p className="text-gray-500">
+              No membership rule is defined. This policy will apply to all
+              users in scope.
+            </p>
+          ) : (
+            <ol className="list-decimal list-inside space-y-1">
+              {membershipConditions.map((cond: any, index: number) => {
+                const attributeLabel =
+                  cond?.attribute?.label ??
+                  cond?.attribute?.value ??
+                  cond?.attribute ??
+                  "";
+                const operatorLabel =
+                  cond?.operator?.label ??
+                  cond?.operator?.value ??
+                  cond?.operator ??
+                  "";
+                const valueLabel =
+                  cond?.value !== undefined && cond?.value !== null
+                    ? String(cond.value)
+                    : "";
+
+                return (
+                  <li key={cond.id ?? index} className="text-gray-800">
+                    <span className="font-medium">
+                      {attributeLabel || "(attribute)"}
+                    </span>{" "}
+                    <span className="text-gray-600">
+                      {operatorLabel || "(operator)"}
+                    </span>{" "}
+                    <span className="font-medium break-all">
+                      {valueLabel || "(value)"}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </div>
+
+        {/* Selected access summary */}
+        <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-3 text-sm">
+          <div className="flex items-center justify-between">
+            <h3 className="text-md font-semibold text-gray-900">
+              Selected Access ({cartItems.length})
+            </h3>
+          </div>
+          {cartItems.length === 0 ? (
+            <p className="text-gray-500">
+              No access items selected in Step 3.
+            </p>
+          ) : (
+            <ul className="space-y-1">
+              {cartItems.map((item) => (
+                <li
+                  key={item.id}
+                  className="flex items-center justify-between border border-gray-200 rounded-md px-3 py-2 bg-white"
+                >
+                  <div className="flex flex-col">
+                    <span className="font-medium text-gray-900">
+                      {item.name}
+                    </span>
+                  </div>
+                  {item.risk && (
+                    <span className="text-xs font-medium px-2 py-1 rounded-full border border-gray-300 text-gray-700">
+                      {item.risk} Risk
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const steps = [
     { id: 1, title: "Policy Details" },
@@ -937,7 +1062,7 @@ export default function CreateAccessPolicyPage() {
                 className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium"
               >
                 <Check className="w-4 h-4 mr-2" />
-                Create Policy
+                {editingPolicyId ? "Update Policy" : "Create Policy"}
               </button>
             )}
           </div>

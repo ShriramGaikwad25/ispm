@@ -33,6 +33,19 @@ function getApplicationId(role: Role): string | undefined {
   return s || undefined;
 }
 
+// Normalize the primary id used to match roles against cart and preselected ids
+function getRoleId(role: Role): string {
+  const row = role.catalogRow as any;
+  const raw =
+    (role.id as string | undefined) ??
+    (row?.catalogid as string | undefined) ??
+    (row?.entitlementid as string | undefined) ??
+    (row?.entitlement_id as string | undefined) ??
+    (row?.id as string | undefined) ??
+    "";
+  return typeof raw === "string" ? raw.trim() : String(raw ?? "").trim();
+}
+
 interface User {
   id: string;
   name: string;
@@ -60,6 +73,8 @@ interface SelectAccessTabProps {
   hideAddDetailsSidebar?: boolean;
   /** Optional: preselect access ids (used for edit business role) */
   preselectedAccessIds?: string[];
+  /** Optional: preselect access names (used when ids differ between policy and catalog) */
+  preselectedAccessNames?: string[];
 }
 
 const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
@@ -77,8 +92,9 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
   hideRecommendedTab = false,
   hideAddDetailsSidebar = false,
   preselectedAccessIds,
+  preselectedAccessNames,
 }) => {
-  const { addToCart, removeFromCart, isInCart, cartCount } = useCart();
+  const { addToCart, removeFromCart, isInCart, cartCount, items: cartItems } = useCart();
   const { openSidebar, closeSidebar } = useRightSidebar();
   
   // Mirror Access state - moved to parent to persist across tab switches
@@ -112,14 +128,18 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
   
   // Initialize activeTab - default to Mirror Access (2) if user is selected, otherwise 0
   const [activeTab, setActiveTab] = useState(() => {
-    if (typeof window !== 'undefined') {
+    // In edit mode (preselectedAccessIds present), always start on "All" tab
+    if (preselectedAccessIds && preselectedAccessIds.length > 0) {
+      return 0;
+    }
+    if (typeof window !== "undefined") {
       try {
-        const saved = localStorage.getItem('selectAccessActiveTab');
+        const saved = localStorage.getItem("selectAccessActiveTab");
         if (saved !== null) {
           return parseInt(saved, 10);
         }
         // Check if Mirror Access has a selected user
-        const mirrorState = localStorage.getItem('mirrorAccessState');
+        const mirrorState = localStorage.getItem("mirrorAccessState");
         if (mirrorState) {
           const parsed = JSON.parse(mirrorState);
           if (parsed.selectedUser) {
@@ -248,6 +268,29 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
       return true;
     };
 
+    // Precompute preselected ids (edit mode) as a Set for quick lookup
+    const preselectedIdSet = React.useMemo(
+      () =>
+        new Set(
+          (preselectedAccessIds || [])
+            .map((id) => (id ? String(id).trim() : ""))
+            .filter(Boolean)
+        ),
+      [preselectedAccessIds]
+    );
+
+    const preselectedNameSet = React.useMemo(
+      () =>
+        new Set(
+          (preselectedAccessNames || []).map((n) =>
+            n ? String(n).toLowerCase().trim() : ""
+          ).filter(Boolean)
+        ),
+      [preselectedAccessNames]
+    );
+
+    // Filter roles coming from catalog API; once catalog is loaded, items that are in the cart
+    // are highlighted and sorted to the top via isInCart below.
     const filteredRoles = roles.filter((role) => {
       const matchesSearch = role.name.toLowerCase().includes(catalogSearchQuery.toLowerCase());
       const matchesAppInstance =
@@ -269,6 +312,66 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
       return matchesSearch && matchesAppInstance && matchesType && matchesEntitlementApps && matchesTags;
     });
 
+    // When editing (cart pre-populated), ensure selected access appears first
+    // After catalog roles are loaded, ensure any preselected ids from edit mode are
+    // also added to the cart so they appear visually selected in the list.
+    useEffect(() => {
+      if (!preselectedIdSet.size && !preselectedNameSet.size) return;
+      if (!roles || roles.length === 0) return;
+
+      roles.forEach((role) => {
+        const normalizedId = getRoleId(role);
+        const normalizedName = role.name ? role.name.toLowerCase().trim() : "";
+        const matchesId =
+          normalizedId && preselectedIdSet.has(normalizedId || "");
+        const matchesName =
+          normalizedName && preselectedNameSet.has(normalizedName);
+        if (!matchesId && !matchesName) return;
+        const cartId = normalizedId || normalizedName || role.name;
+        if (!cartId) return;
+        if (isInCart(cartId)) return;
+        addToCart({ id: cartId, name: role.name, risk: role.risk });
+      });
+    }, [roles, preselectedIdSet, preselectedNameSet, addToCart, isInCart]);
+
+    const sortedRoles = React.useMemo(
+      () =>
+        [...filteredRoles].sort((a, b) => {
+          const aId = getRoleId(a);
+          const bId = getRoleId(b);
+          const aName = a.name?.toLowerCase?.() ?? "";
+          const bName = b.name?.toLowerCase?.() ?? "";
+
+          const aInCartById = aId ? isInCart(aId) : false;
+          const bInCartById = bId ? isInCart(bId) : false;
+
+          const aInCartByName =
+            aName &&
+            cartItems.some(
+              (item) => item.name.toLowerCase().trim() === aName
+            );
+          const bInCartByName =
+            bName &&
+            cartItems.some(
+              (item) => item.name.toLowerCase().trim() === bName
+            );
+
+          const aSelected =
+            aInCartById ||
+            aInCartByName ||
+            (aId ? preselectedIdSet.has(aId) : false);
+          const bSelected =
+            bInCartById ||
+            bInCartByName ||
+            (bId ? preselectedIdSet.has(bId) : false) ||
+            (bName ? preselectedNameSet.has(bName) : false);
+
+          if (aSelected === bSelected) return 0;
+          return aSelected ? -1 : 1;
+        }),
+      [filteredRoles, isInCart, preselectedIdSet, preselectedNameSet, cartItems]
+    );
+
     // Server-side pagination (100 rows per API page) – show all roles from current API page
     const isLastServerPage = filteredRoles.length < pageSize;
     const totalPages = isLastServerPage ? currentPage : currentPage + 1;
@@ -283,10 +386,12 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
     }, [catalogSearchQuery, showApplicationInstancesOnly, catalogTypeFilter, entitlementSelectedAppIds]);
 
     const handleAddToCart = (role: Role) => {
-      if (isInCart(role.id)) {
-        removeFromCart(role.id);
+      const id = getRoleId(role);
+      if (!id) return;
+      if (isInCart(id)) {
+        removeFromCart(id);
       } else {
-        addToCart({ id: role.id, name: role.name, risk: role.risk });
+        addToCart({ id, name: role.name, risk: role.risk });
       }
     };
 
@@ -458,11 +563,29 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
 
         {/* Roles List (all roles from current API page) */}
         <div className="space-y-3">
-          {filteredRoles.map((role) => (
-            <div
-              key={role.id}
-              className="flex items-center justify-between bg-gray-100 hover:bg-gray-200 rounded-lg p-4 transition-colors"
-            >
+          {sortedRoles.map((role) => {
+            const normalizedId = getRoleId(role);
+            const inCartById = normalizedId ? isInCart(normalizedId) : false;
+            const roleNameNorm = role.name ? role.name.toLowerCase().trim() : "";
+            const inCartByName =
+              roleNameNorm &&
+              cartItems.some(
+                (item) => item.name.toLowerCase().trim() === roleNameNorm
+              );
+            const isPreselected =
+              (normalizedId ? preselectedIdSet.has(normalizedId) : false) ||
+              (roleNameNorm ? preselectedNameSet.has(roleNameNorm) : false);
+            const isSelected = inCartById || inCartByName || isPreselected;
+            return (
+              <div
+                key={normalizedId || role.id}
+                className={`flex items-center justify-between rounded-lg p-4 transition-colors ${
+                  isSelected
+                    ? "bg-blue-50 hover:bg-blue-100 ring-2 ring-blue-400"
+                    : "bg-gray-100 hover:bg-gray-200"
+                }`}
+                aria-selected={isSelected}
+              >
               <div className="flex items-center gap-4 flex-1">
                 <div className="flex items-center justify-center w-10 h-10 bg-gray-300 rounded overflow-hidden shrink-0">
                   {roleType(role) === "applicationinstance" ? (
@@ -518,7 +641,7 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
                   <p className="text-sm text-gray-600">{role.description}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3">
                 {!hideAddDetailsSidebar && (
                   <button
                     onClick={() => {
@@ -548,16 +671,18 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
                 <button
                   onClick={() => handleAddToCart(role)}
                   className={`inline-flex items-center justify-center px-3 py-2 rounded-md font-medium transition-colors ${
-                    isInCart(role.id)
+                    isSelected
                       ? "bg-red-600 hover:bg-red-700 text-white"
                       : "bg-blue-600 hover:bg-blue-700 text-white"
                   }`}
                 >
-                  <ShoppingCart className="w-4 h-4" />
+                  <ShoppingCart className="w-4 h-4 mr-1" />
+                  {isSelected ? "Selected" : "Select"}
                 </button>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {filteredRoles.length === 0 && (
