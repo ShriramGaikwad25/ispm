@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { formatDateMMDDYYSlashes } from "../utils/utils";
 import ProgressDonutChart from "./ProgressDonutChart";
+import ActionButtons from "./agTable/ActionButtons";
 import AgGridReact from "./ClientOnlyAgGrid";
 import type { ColDef } from "ag-grid-community";
 
@@ -182,6 +183,16 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
   const [guidedPathModalFilter, setGuidedPathModalFilter] = useState<"Dormant" | "Access">(
     "Dormant"
   );
+  const [guidedPathSelectedCount, setGuidedPathSelectedCount] = useState(0);
+  const [guidedPathSelectedRows, setGuidedPathSelectedRows] = useState<any[]>([]);
+  const guidedPathGridApiRef = useRef<any | null>(null);
+  // Quick Wins Approve confirmation state (per card)
+  const [quickWinsApproveConfirmOpen, setQuickWinsApproveConfirmOpen] = useState(false);
+  const [quickWinsPendingCard, setQuickWinsPendingCard] = useState<"card1" | "card2" | null>(null);
+  const [quickWinsApprovedCards, setQuickWinsApprovedCards] = useState<{ card1: boolean; card2: boolean }>({
+    card1: false,
+    card2: false,
+  });
 
   const guidedPathModalRows = useMemo(() => {
     const base = Array.isArray(entitlementsData) && entitlementsData.length > 0 ? entitlementsData : rowData;
@@ -195,6 +206,39 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
     // Access = show all rows
     return base;
   }, [rowData, entitlementsData, guidedPathModalFilter]);
+
+  // Column defs for Guided Path modal: add leading checkbox column for selection
+  const guidedPathColumnDefs = useMemo(() => {
+    if (!entitlementsColumnDefs) return entitlementsColumnDefs;
+    // Strip any existing leading checkbox column from main grid (e.g. colId: "entitlementSelect")
+    const withoutMainCheckbox = entitlementsColumnDefs.filter(
+      (col) => (col as ColDef).colId !== "entitlementSelect"
+    );
+    return [
+      {
+        headerName: "",
+        colId: "__select__",
+        width: 40,
+        maxWidth: 50,
+        pinned: "left",
+        sortable: false,
+        filter: false,
+        resizable: false,
+        suppressMenu: true,
+      } as ColDef,
+      ...withoutMainCheckbox,
+    ];
+  }, [entitlementsColumnDefs]);
+
+  // Auto-group column for Guided Path modal: explicitly disable built-in checkboxes
+  const guidedPathAutoGroupColumnDef = useMemo(() => {
+    if (!entitlementsAutoGroupColumnDef) return entitlementsAutoGroupColumnDef;
+    return {
+      ...entitlementsAutoGroupColumnDef,
+      checkboxSelection: false,
+      headerCheckboxSelection: false,
+    } as ColDef;
+  }, [entitlementsAutoGroupColumnDef]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
@@ -368,6 +412,10 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
               className="flex items-center gap-1 text-xs text-blue-600 hover:underline mt-4"
               onClick={() => {
                 setSelected({ left: null, right: null });
+                // Also clear any Guided Path selections / floating actions
+                guidedPathGridApiRef.current?.deselectAll();
+                setGuidedPathSelectedCount(0);
+                setGuidedPathSelectedRows([]);
                 if (onFilterChange) {
                   onFilterChange("");
                 }
@@ -457,7 +505,9 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
         <div className="grid grid-cols-1 gap-3">
           {/* Card 1 */}
           <div
-            className="relative h-28 cursor-pointer overflow-hidden rounded-lg border border-blue-200 bg-blue-50 shadow-sm"
+            className={`relative h-28 cursor-pointer overflow-hidden rounded-lg border border-blue-200 bg-blue-50 shadow-sm ${
+              quickWinsApprovedCards.card1 ? "opacity-60" : ""
+            }`}
             onMouseEnter={() => setHoveredCard("card1")}
             onMouseLeave={() => setHoveredCard((prev) => (prev === "card1" ? null : prev))}
           >
@@ -484,19 +534,24 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
                 </p>
                 <div className="flex gap-2 mt-2">
                   <button
-                    className="px-3 py-1 text-xs font-medium rounded bg-white/90 text-blue-700 pointer-events-auto"
+                    className="px-3 py-1 text-xs font-medium rounded bg-white/90 text-blue-700 pointer-events-auto disabled:opacity-60"
+                    disabled={quickWinsApprovedCards.card1}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setGuidedPathModalFilter("Dormant");
-                      setGuidedPathModalOpen(true);
+                      setQuickWinsPendingCard("card1");
+                      setQuickWinsApproveConfirmOpen(true);
                     }}
                   >
                     Approve
                   </button>
                   <button
-                    className="px-3 py-1 text-xs font-medium rounded border border-white/80 text-white bg-transparent pointer-events-auto"
+                    className="px-3 py-1 text-xs font-medium rounded border border-white/80 text-white bg-transparent pointer-events-auto disabled:opacity-60"
+                    disabled={quickWinsApprovedCards.card1}
                     onClick={(e) => {
                       e.stopPropagation();
+                      guidedPathGridApiRef.current?.deselectAll();
+                      setGuidedPathSelectedCount(0);
+                      setGuidedPathSelectedRows([]);
                       setGuidedPathModalFilter("Access");
                       setGuidedPathModalOpen(true);
                     }}
@@ -506,11 +561,32 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
                 </div>
               </div>
             </div>
+            {quickWinsApprovedCards.card1 && hoveredCard === "card1" && (
+              <div className="absolute inset-0 bg-black/20 flex items-center justify-center pointer-events-none">
+                <div className="flex items-center gap-2 text-xs font-medium text-white bg-black/50 px-3 py-1.5 rounded-full">
+                  <svg
+                    className="w-4 h-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M9 11l3 3L22 4" />
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                  </svg>
+                  <span>Already approved</span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Card 2 */}
           <div
-            className="relative h-28 cursor-pointer overflow-hidden rounded-lg border border-emerald-200 bg-emerald-50 shadow-sm"
+            className={`relative h-28 cursor-pointer overflow-hidden rounded-lg border border-emerald-200 bg-emerald-50 shadow-sm ${
+              quickWinsApprovedCards.card2 ? "opacity-60" : ""
+            }`}
             onMouseEnter={() => setHoveredCard("card2")}
             onMouseLeave={() => setHoveredCard((prev) => (prev === "card2" ? null : prev))}
           >
@@ -537,19 +613,24 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
                 </p>
                 <div className="flex gap-2 mt-2">
                   <button
-                    className="px-3 py-1 text-xs font-medium rounded bg-white/90 text-emerald-700 pointer-events-auto"
+                    className="px-3 py-1 text-xs font-medium rounded bg-white/90 text-emerald-700 pointer-events-auto disabled:opacity-60"
+                    disabled={quickWinsApprovedCards.card2}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setGuidedPathModalFilter("Dormant");
-                      setGuidedPathModalOpen(true);
+                      setQuickWinsPendingCard("card2");
+                      setQuickWinsApproveConfirmOpen(true);
                     }}
                   >
                     Approve
                   </button>
                   <button
-                    className="px-3 py-1 text-xs font-medium rounded border border-white/80 text-white bg-transparent pointer-events-auto"
+                    className="px-3 py-1 text-xs font-medium rounded border border-white/80 text-white bg-transparent pointer-events-auto disabled:opacity-60"
+                    disabled={quickWinsApprovedCards.card2}
                     onClick={(e) => {
                       e.stopPropagation();
+                      guidedPathGridApiRef.current?.deselectAll();
+                      setGuidedPathSelectedCount(0);
+                      setGuidedPathSelectedRows([]);
                       setGuidedPathModalFilter("Access");
                       setGuidedPathModalOpen(true);
                     }}
@@ -559,6 +640,25 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
                 </div>
               </div>
             </div>
+            {quickWinsApprovedCards.card2 && hoveredCard === "card2" && (
+              <div className="absolute inset-0 bg-black/20 flex items-center justify-center pointer-events-none">
+                <div className="flex items-center gap-2 text-xs font-medium text-white bg-black/50 px-3 py-1.5 rounded-full">
+                  <svg
+                    className="w-4 h-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M9 11l3 3L22 4" />
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                  </svg>
+                  <span>Already approved</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -577,7 +677,12 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
               </h3>
               <button
                 className="text-gray-400 hover:text-gray-600 text-lg leading-none"
-                onClick={() => setGuidedPathModalOpen(false)}
+                onClick={() => {
+                  setGuidedPathModalOpen(false);
+                  guidedPathGridApiRef.current?.deselectAll();
+                  setGuidedPathSelectedCount(0);
+                  setGuidedPathSelectedRows([]);
+                }}
               >
                 ×
               </button>
@@ -590,7 +695,12 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
                     ? "bg-blue-600 text-white border-blue-600"
                     : "bg-white text-gray-700 border-gray-300"
                 }`}
-                onClick={() => setGuidedPathModalFilter("Dormant")}
+                onClick={() => {
+                  guidedPathGridApiRef.current?.deselectAll();
+                  setGuidedPathSelectedCount(0);
+                  setGuidedPathSelectedRows([]);
+                  setGuidedPathModalFilter("Dormant");
+                }}
               >
                 Dormant Access
               </button>
@@ -600,7 +710,12 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
                     ? "bg-blue-600 text-white border-blue-600"
                     : "bg-white text-gray-700 border-gray-300"
                 }`}
-                onClick={() => setGuidedPathModalFilter("Access")}
+                onClick={() => {
+                  guidedPathGridApiRef.current?.deselectAll();
+                  setGuidedPathSelectedCount(0);
+                  setGuidedPathSelectedRows([]);
+                  setGuidedPathModalFilter("Access");
+                }}
               >
                 All Access
               </button>
@@ -608,23 +723,106 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
                 {guidedPathModalRows.length} item{guidedPathModalRows.length === 1 ? "" : "s"}
               </span>
             </div>
-            <div className="px-4 py-3 overflow-auto">
+            <div className="px-4 py-3 overflow-auto relative">
               {guidedPathModalRows.length === 0 ? (
                 <div className="text-xs text-gray-500 py-6 text-center">
                   No data available for the selected filter.
                 </div>
               ) : (
-                <div className="w-full ag-theme-alpine" style={{ height: "70vh" }}>
-                  <AgGridReact
-                    rowData={guidedPathModalRows}
-                    columnDefs={entitlementsColumnDefs}
-                    defaultColDef={entitlementsDefaultColDef}
-                    autoGroupColumnDef={entitlementsAutoGroupColumnDef}
-                    domLayout="normal"
-                    suppressSizeToFit={false}
-                  />
-                </div>
+                <>
+                  <div className="w-full ag-theme-alpine" style={{ height: "70vh" }}>
+                    <AgGridReact
+                      rowData={guidedPathModalRows}
+                      columnDefs={guidedPathColumnDefs}
+                      defaultColDef={entitlementsDefaultColDef}
+                      autoGroupColumnDef={guidedPathAutoGroupColumnDef}
+                      domLayout="normal"
+                      suppressSizeToFit={false}
+                      suppressRowClickSelection={true}
+                      rowSelection={{
+                        mode: "multiRow",
+                        checkboxLocation: "primaryColumn",
+                        headerCheckboxSelection: true,
+                      }}
+                      onGridReady={(params) => {
+                        guidedPathGridApiRef.current = params.api;
+                      }}
+                      onSelectionChanged={(event) => {
+                        try {
+                          const selectedNodes = event.api.getSelectedNodes();
+                          setGuidedPathSelectedCount(selectedNodes.length);
+                          setGuidedPathSelectedRows(selectedNodes.map((n) => n.data));
+                        } catch {
+                          setGuidedPathSelectedCount(0);
+                          setGuidedPathSelectedRows([]);
+                        }
+                      }}
+                    />
+                  </div>
+                  {guidedPathSelectedCount > 1 && guidedPathSelectedRows.length > 1 && entitlementsColumnDefs && (
+                    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-100 border border-gray-200 rounded-full shadow-lg px-3 py-1.5 flex items-center gap-2">
+                      <span className="text-[11px] text-gray-600">
+                        {guidedPathSelectedCount} selected
+                      </span>
+                      <ActionButtons
+                        // For AppOwner, we don't have reviewerId/certId context here, so pass empty strings
+                        api={guidedPathGridApiRef.current as any}
+                        selectedRows={guidedPathSelectedRows}
+                        context="entitlement"
+                        reviewerId={String(certificationId || "")}
+                        certId={String(certificationId || "")}
+                        hideTeamsIcon
+                        onActionSuccess={() => {
+                          guidedPathGridApiRef.current?.deselectAll();
+                          setGuidedPathSelectedCount(0);
+                          setGuidedPathSelectedRows([]);
+                        }}
+                      />
+                    </div>
+                  )}
+                </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Assist - Quick Wins Approve All confirmation */}
+      {quickWinsApproveConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-lg shadow-xl mx-4 max-w-sm w-full p-4">
+            <h3 className="text-sm font-semibold text-gray-800 mb-2">
+              Approve all records
+            </h3>
+            <p className="text-xs text-gray-600 mb-4">
+              Are you sure you want to approve all recommended records in AI Assist - Quick Wins?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                className="px-3 py-1.5 text-xs rounded border border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
+                onClick={() => {
+                  setQuickWinsApproveConfirmOpen(false);
+                  setQuickWinsPendingCard(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-3 py-1.5 text-xs rounded bg-blue-600 text-white hover:bg-blue-700"
+                onClick={() => {
+                  // TODO: hook into bulk approve logic if/when implemented
+                  if (quickWinsPendingCard) {
+                    setQuickWinsApprovedCards((prev) => ({
+                      ...prev,
+                      [quickWinsPendingCard]: true,
+                    }));
+                  }
+                  setQuickWinsPendingCard(null);
+                  setQuickWinsApproveConfirmOpen(false);
+                }}
+              >
+                Approve all
+              </button>
             </div>
           </div>
         </div>

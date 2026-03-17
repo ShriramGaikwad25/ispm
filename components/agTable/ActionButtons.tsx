@@ -754,8 +754,7 @@ const ActionButtons = <T extends { status?: string }>({
 
         try {
           await updateAction(reviewerId, certId, payload);
-          // Refresh page after successful comment save
-          window.location.reload();
+          // Do not reload the page; rely on local state and queued actions instead
         } catch (err) {
           console.error("Failed to save comment via updateAction:", err);
           // Don't block closing the modal on API error; user can retry.

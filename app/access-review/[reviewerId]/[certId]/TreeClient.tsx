@@ -632,6 +632,16 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const [guidedPathModalFilter, setGuidedPathModalFilter] = useState<"Dormant" | "Access">(
     "Dormant"
   );
+  const [guidedPathSelectedCount, setGuidedPathSelectedCount] = useState(0);
+  const [guidedPathSelectedRows, setGuidedPathSelectedRows] = useState<any[]>([]);
+  const guidedPathGridApiRef = useRef<GridApi | null>(null);
+  // Quick Wins Approve confirmation state (track per card)
+  const [quickWinsApproveConfirmOpen, setQuickWinsApproveConfirmOpen] = useState(false);
+  const [quickWinsPendingCard, setQuickWinsPendingCard] = useState<"card1" | "card2" | null>(null);
+  const [quickWinsApprovedCards, setQuickWinsApprovedCards] = useState<{ card1: boolean; card2: boolean }>({
+    card1: false,
+    card2: false,
+  });
   useEffect(() => {
     try {
       const raw = localStorage.getItem("selectedCampaignSummary");
@@ -1566,7 +1576,11 @@ const TreeClient: React.FC<TreeClientProps> = ({
       if (filters.length > 0 && filters[0] !== "All") {
         setSelectedFilters(filters);
       } else {
+        // Clear status filters and any Guided Path selections / floating actions
         setSelectedFilters([]);
+        guidedPathGridApiRef.current?.deselectAll();
+        setGuidedPathSelectedCount(0);
+        setGuidedPathSelectedRows([]);
       }
 
       // Only reset to page 1 when filter changes; do NOT refetch - we already have full
@@ -2740,7 +2754,9 @@ const TreeClient: React.FC<TreeClientProps> = ({
                   <div className="flex flex-col gap-4 flex-1 min-h-0">
                     {/* Card 1 */}
                     <div
-                      className="relative flex-1 min-h-[5rem] cursor-pointer overflow-hidden rounded-lg border border-blue-200 bg-blue-50 shadow-sm"
+                      className={`relative flex-1 min-h-[5rem] cursor-pointer overflow-hidden rounded-lg border border-blue-200 bg-blue-50 shadow-sm ${
+                        quickWinsApprovedCards.card1 ? "opacity-60" : ""
+                      }`}
                       onMouseEnter={() => setGuidedPathHovered("card1")}
                       onMouseLeave={() =>
                         setGuidedPathHovered((prev) => (prev === "card1" ? null : prev))
@@ -2774,18 +2790,23 @@ const TreeClient: React.FC<TreeClientProps> = ({
                           <div className="flex gap-2 mt-2">
                             <button
                               className="px-2 py-0.5 text-[10px] font-medium rounded bg-white/90 text-blue-700 pointer-events-auto"
+                              disabled={quickWinsApprovedCards.card1}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setGuidedPathModalFilter("Dormant");
-                                setGuidedPathModalOpen(true);
+                                setQuickWinsPendingCard("card1");
+                                setQuickWinsApproveConfirmOpen(true);
                               }}
                             >
                               Approve
                             </button>
                             <button
                               className="px-2 py-0.5 text-[10px] font-medium rounded border border-white/80 text-white bg-transparent pointer-events-auto"
+                              disabled={quickWinsApprovedCards.card1}
                               onClick={(e) => {
                                 e.stopPropagation();
+                                guidedPathGridApiRef.current?.deselectAll();
+                                setGuidedPathSelectedCount(0);
+                                setGuidedPathSelectedRows([]);
                                 setGuidedPathModalFilter("Access");
                                 setGuidedPathModalOpen(true);
                               }}
@@ -2795,10 +2816,20 @@ const TreeClient: React.FC<TreeClientProps> = ({
                           </div>
                         </div>
                       </div>
+                      {quickWinsApprovedCards.card1 && guidedPathHovered === "card1" && (
+                        <div className="absolute inset-0 bg-black/20 flex items-center justify-center pointer-events-none">
+                          <div className="flex items-center gap-2 text-xs font-medium text-white bg-black/50 px-3 py-1.5 rounded-full">
+                            <CheckCircle className="w-4 h-4" />
+                            <span>Already approved</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     {/* Card 2 */}
                     <div
-                      className="relative flex-1 min-h-[5rem] cursor-pointer overflow-hidden rounded-lg border border-emerald-200 bg-emerald-50 shadow-sm"
+                      className={`relative flex-1 min-h-[5rem] cursor-pointer overflow-hidden rounded-lg border border-emerald-200 bg-emerald-50 shadow-sm ${
+                        quickWinsApprovedCards.card2 ? "opacity-60" : ""
+                      }`}
                       onMouseEnter={() => setGuidedPathHovered("card2")}
                       onMouseLeave={() =>
                         setGuidedPathHovered((prev) => (prev === "card2" ? null : prev))
@@ -2832,18 +2863,23 @@ const TreeClient: React.FC<TreeClientProps> = ({
                           <div className="flex gap-2 mt-2">
                             <button
                               className="px-2 py-0.5 text-[10px] font-medium rounded bg-white/90 text-emerald-700 pointer-events-auto"
+                              disabled={quickWinsApprovedCards.card2}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setGuidedPathModalFilter("Dormant");
-                                setGuidedPathModalOpen(true);
+                                setQuickWinsPendingCard("card2");
+                                setQuickWinsApproveConfirmOpen(true);
                               }}
                             >
                               Approve
                             </button>
                             <button
                               className="px-2 py-0.5 text-[10px] font-medium rounded border border-white/80 text-white bg-transparent pointer-events-auto"
+                              disabled={quickWinsApprovedCards.card2}
                               onClick={(e) => {
                                 e.stopPropagation();
+                                guidedPathGridApiRef.current?.deselectAll();
+                                setGuidedPathSelectedCount(0);
+                                setGuidedPathSelectedRows([]);
                                 setGuidedPathModalFilter("Access");
                                 setGuidedPathModalOpen(true);
                               }}
@@ -2853,6 +2889,14 @@ const TreeClient: React.FC<TreeClientProps> = ({
                           </div>
                         </div>
                       </div>
+                      {quickWinsApprovedCards.card2 && guidedPathHovered === "card2" && (
+                        <div className="absolute inset-0 bg-black/20 flex items-center justify-center pointer-events-none">
+                          <div className="flex items-center gap-2 text-xs font-medium text-white bg-black/50 px-3 py-1.5 rounded-full">
+                            <CheckCircle className="w-4 h-4" />
+                            <span>Already approved</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -3058,7 +3102,12 @@ const TreeClient: React.FC<TreeClientProps> = ({
               </h3>
               <button
                 className="text-gray-400 hover:text-gray-600 text-lg leading-none"
-                onClick={() => setGuidedPathModalOpen(false)}
+                onClick={() => {
+                  setGuidedPathModalOpen(false);
+                  guidedPathGridApiRef.current?.deselectAll();
+                  setGuidedPathSelectedCount(0);
+                  setGuidedPathSelectedRows([]);
+                }}
               >
                 ×
               </button>
@@ -3071,7 +3120,12 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     ? "bg-blue-600 text-white border-blue-600"
                     : "bg-white text-gray-700 border-gray-300"
                 }`}
-                onClick={() => setGuidedPathModalFilter("Dormant")}
+                onClick={() => {
+                  guidedPathGridApiRef.current?.deselectAll();
+                  setGuidedPathSelectedCount(0);
+                  setGuidedPathSelectedRows([]);
+                  setGuidedPathModalFilter("Dormant");
+                }}
               >
                 Dormant Accounts
               </button>
@@ -3081,7 +3135,12 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     ? "bg-blue-600 text-white border-blue-600"
                     : "bg-white text-gray-700 border-gray-300"
                 }`}
-                onClick={() => setGuidedPathModalFilter("Access")}
+                onClick={() => {
+                  guidedPathGridApiRef.current?.deselectAll();
+                  setGuidedPathSelectedCount(0);
+                  setGuidedPathSelectedRows([]);
+                  setGuidedPathModalFilter("Access");
+                }}
               >
                 All Access
               </button>
@@ -3089,40 +3148,117 @@ const TreeClient: React.FC<TreeClientProps> = ({
                 {guidedPathModalRows.length} item{guidedPathModalRows.length === 1 ? "" : "s"}
               </span>
             </div>
-            <div className="px-4 py-3 overflow-auto">
+            <div className="px-4 py-3 overflow-auto relative">
               {guidedPathModalRows.length === 0 ? (
                 <div className="text-xs text-gray-500 py-6 text-center">
                   No data available for the selected filter.
                 </div>
               ) : (
-                <div className="w-full">
-                  <AgGridReact
-                    rowData={guidedPathModalRows}
-                    columnDefs={entitlementsColumnDefs}
-                    defaultColDef={defaultColDef}
-                    domLayout="autoHeight"
-                    rowSelection={{ mode: "multiRow" }}
-                    suppressSizeToFit={false}
-                    style={{ width: "100%", minWidth: 0 }}
-                    isRowSelectable={(node) => !node?.data?.__isDescRow}
-                    getRowId={(params: GetRowIdParams) => {
-                      const baseId =
-                        params.data.lineItemId ||
-                        params.data.accountLineItemId ||
-                        params.data.taskId ||
-                        `${params.data.applicationName}-${params.data.entitlementName}`;
-                      return params.data.__isDescRow ? `${baseId}-desc` : baseId;
-                    }}
-                    getRowClass={(params) =>
-                      params?.data?.__isDescRow ? "ag-row-custom ag-row-desc" : "ag-row-custom"
-                    }
-                    pagination={false}
-                    overlayLoadingTemplate={`<span class="ag-overlay-loading-center">⏳ Loading entitlements...</span>`}
-                    overlayNoRowsTemplate={`<span class="ag-overlay-loading-center">No entitlements found for this filter.</span>`}
-                    className="ag-main"
-                  />
-                </div>
+                <>
+                  <div className="w-full">
+                    <AgGridReact
+                      rowData={guidedPathModalRows}
+                      columnDefs={entitlementsColumnDefs}
+                      defaultColDef={defaultColDef}
+                      domLayout="autoHeight"
+                      rowSelection={{ mode: "multiRow" }}
+                      suppressSizeToFit={false}
+                      style={{ width: "100%", minWidth: 0 }}
+                      isRowSelectable={(node) => !node?.data?.__isDescRow}
+                      onGridReady={(params) => {
+                        guidedPathGridApiRef.current = params.api;
+                      }}
+                      onSelectionChanged={(event) => {
+                        try {
+                          const selectedNodes = event.api.getSelectedNodes().filter((n) => !n.data?.__isDescRow);
+                          setGuidedPathSelectedCount(selectedNodes.length);
+                          setGuidedPathSelectedRows(selectedNodes.map((n) => n.data));
+                        } catch {
+                          setGuidedPathSelectedCount(0);
+                          setGuidedPathSelectedRows([]);
+                        }
+                      }}
+                      getRowId={(params: GetRowIdParams) => {
+                        const baseId =
+                          params.data.lineItemId ||
+                          params.data.accountLineItemId ||
+                          params.data.taskId ||
+                          `${params.data.applicationName}-${params.data.entitlementName}`;
+                        return params.data.__isDescRow ? `${baseId}-desc` : baseId;
+                      }}
+                      getRowClass={(params) =>
+                        params?.data?.__isDescRow ? "ag-row-custom ag-row-desc" : "ag-row-custom"
+                      }
+                      pagination={false}
+                      overlayLoadingTemplate={`<span class="ag-overlay-loading-center">⏳ Loading entitlements...</span>`}
+                      overlayNoRowsTemplate={`<span class="ag-overlay-loading-center">No entitlements found for this filter.</span>`}
+                      className="ag-main"
+                    />
+                  </div>
+                  {guidedPathSelectedCount > 1 && guidedPathSelectedRows.length > 1 && entitlementsColumnDefs && (
+                    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-100 border border-gray-200 rounded-full shadow-lg px-3 py-1.5 flex items-center gap-2">
+                      <span className="text-[11px] text-gray-600">
+                        {guidedPathSelectedCount} selected
+                      </span>
+                      <ActionButtons
+                        api={entitlementsGridApiRef.current as any}
+                        selectedRows={guidedPathSelectedRows}
+                        context="entitlement"
+                        reviewerId={reviewerId}
+                        certId={certId}
+                        selectedFilters={selectedFilters}
+                        hideTeamsIcon
+                        onActionSuccess={() => {
+                          guidedPathGridApiRef.current?.deselectAll();
+                          setGuidedPathSelectedCount(0);
+                          setGuidedPathSelectedRows([]);
+                        }}
+                      />
+                    </div>
+                  )}
+                </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Assist - Quick Wins Approve All confirmation */}
+      {quickWinsApproveConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-lg shadow-xl mx-4 max-w-sm w-full p-4">
+            <h3 className="text-sm font-semibold text-gray-800 mb-2">
+              Approve all records
+            </h3>
+            <p className="text-xs text-gray-600 mb-4">
+              Are you sure you want to approve all recommended records in AI Assist - Quick Wins?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                className="px-3 py-1.5 text-xs rounded border border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
+                onClick={() => {
+                  setQuickWinsApproveConfirmOpen(false);
+                  setQuickWinsPendingCard(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-3 py-1.5 text-xs rounded bg-blue-600 text-white hover:bg-blue-700"
+                onClick={() => {
+                  // TODO: hook into bulk approve logic if/when implemented
+                  if (quickWinsPendingCard) {
+                    setQuickWinsApprovedCards((prev) => ({
+                      ...prev,
+                      [quickWinsPendingCard]: true,
+                    }));
+                  }
+                  setQuickWinsPendingCard(null);
+                  setQuickWinsApproveConfirmOpen(false);
+                }}
+              >
+                Approve all
+              </button>
             </div>
           </div>
         </div>

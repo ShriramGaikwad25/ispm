@@ -663,22 +663,7 @@ export default function CreateAccessPolicyPage() {
     <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
       <div className="flex items-center justify-between mb-2">
         <h2 className="text-lg font-semibold text-gray-900">Membership Rule</h2>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-600">Advanced</span>
-          <button
-            type="button"
-            onClick={() => setAdvanced(!advanced)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              advanced ? "bg-blue-600" : "bg-gray-300"
-            }`}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                advanced ? "translate-x-6" : "translate-x-1"
-              }`}
-            />
-          </button>
-        </div>
+
       </div>
       <p className="text-sm text-gray-600 mb-4">
         Define which users are in scope for this access policy. All conditions must be true (AND) for the policy to apply.

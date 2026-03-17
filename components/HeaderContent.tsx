@@ -730,7 +730,7 @@ const HeaderContent = () => {
             </svg>
 
             {/* Brand name text */}
-            <span className="text-lg font-semibold tracking-tight text-white">
+            <span className="text-xl md:text-2xl font-semibold tracking-tight text-white">
               KeyForge
             </span>
           </button>
@@ -770,141 +770,141 @@ const HeaderContent = () => {
             </div>
           </div>
         ) : shouldShowHeader ? (
-          <div className="flex h-full items-center header-content gap-2 md:gap-4 overflow-hidden">
-            <div className="flex items-center px-3 min-w-0 max-w-[320px] md:max-w-[420px]">
+          <div className="flex h-full items-center header-content gap-1.5 md:gap-2 overflow-hidden">
+            <div className="flex items-center px-2 min-w-0 max-w-[280px] md:max-w-[380px]">
               <p
-                className="font-medium text-white text-[11px] md:text-xs whitespace-normal break-words leading-tight line-clamp-2"
+                className="font-semibold text-white text-xs md:text-sm whitespace-normal break-words leading-tight line-clamp-2"
                 title={headerInfo.campaignName || "Quarterly Access Review - Megan Jackson"}
               >
                 {headerInfo.campaignName || "Quarterly Access Review - Megan Jackson"}
               </p>
             </div>
-            <div className="flex items-center px-2 flex-shrink-0">
-              <span className="text-white text-lg">•</span>
+            <div className="flex items-center px-1 flex-shrink-0">
+              <span className="text-white text-base">•</span>
             </div>
-            <div className="flex items-center px-2 min-w-0">
-              <p className="font-medium text-white whitespace-nowrap text-[11px] md:text-xs">
+            <div className="flex items-center px-1 min-w-0">
+              <p className="font-medium text-white whitespace-nowrap text-xs md:text-sm">
                 Generated On {headerInfo.snapshotAt ? formatDateMMDDYY(headerInfo.snapshotAt) : "N/A"}
               </p>
             </div>
-            <div className="flex items-center px-2 flex-shrink-0">
-              <span className="text-white text-lg">•</span>
+            <div className="flex items-center px-1 flex-shrink-0">
+              <span className="text-white text-base">•</span>
             </div>
-            <div className="flex items-center px-2 min-w-0">
-              <p className="font-medium text-white whitespace-nowrap text-[11px] md:text-xs">
+            <div className="flex items-center px-1 min-w-0">
+              <p className="font-medium text-white whitespace-nowrap text-xs md:text-sm">
                 Due In {headerInfo.daysLeft || 0} days
-                <span className="font-medium ml-1 text-white text-[11px] md:text-xs">
+                <span className="font-medium ml-1 text-white text-xs md:text-sm">
                   ({headerInfo.dueDate ? formatDateMMDDYY(headerInfo.dueDate) : "N/A"})
                 </span>
               </p>
             </div>
             {/* User Progress - single line only */}
-            <div className="flex items-center px-4 flex-shrink-0 whitespace-nowrap">
+            <div className="flex items-center px-2 flex-shrink-0 whitespace-nowrap">
               <UserProgress progressData={userProgressData} />
             </div>
           </div>
         ) : shouldShowCampaignHeader ? (
-          <div className="flex h-full items-center header-content gap-2 md:gap-4 overflow-hidden">
+          <div className="flex h-full items-center header-content gap-2 md:gap-3 overflow-hidden">
             <div className="flex items-center px-3 min-w-0 max-w-[320px] md:max-w-[420px]">
               <p
-                className="font-medium text-white text-[11px] md:text-xs whitespace-normal break-words leading-tight line-clamp-2"
+                className="font-semibold text-white text-sm md:text-base whitespace-normal break-words leading-tight line-clamp-2"
                 title={headerInfo.campaignName || "Campaign"}
               >
                 {headerInfo.campaignName || "Campaign"}
               </p>
             </div>
-            <div className="flex items-center px-2 flex-shrink-0">
-              <span className="text-white text-lg">•</span>
+            <div className="flex items-center px-1 flex-shrink-0">
+              <span className="text-white text-base">•</span>
             </div>
-            <div className="flex items-center px-2 min-w-0">
-              <p className="font-medium text-white whitespace-nowrap text-[11px] md:text-xs">
+            <div className="flex items-center px-1 min-w-0">
+              <p className="font-medium text-white whitespace-nowrap text-xs md:text-sm">
                 {headerInfo.status ? `Status: ${headerInfo.status}` : "Status: N/A"}
               </p>
             </div>
-            <div className="flex items-center px-2 flex-shrink-0">
-              <span className="text-white text-lg">•</span>
+            <div className="flex items-center px-1 flex-shrink-0">
+              <span className="text-white text-base">•</span>
             </div>
-            <div className="flex items-center px-2 min-w-0">
-              <p className="font-medium text-white whitespace-nowrap text-[11px] md:text-xs">
+            <div className="flex items-center px-1 min-w-0">
+              <p className="font-medium text-white whitespace-nowrap text-xs md:text-sm">
                 {headerInfo.snapshotAt ? `Data Snapshot: ${formatDateMMDDYY(headerInfo.snapshotAt)}` : "Data Snapshot: N/A"}
               </p>
             </div>
-            <div className="flex items-center px-2 flex-shrink-0">
-              <span className="text-white text-lg">•</span>
+            <div className="flex items-center px-1 flex-shrink-0">
+              <span className="text-white text-base">•</span>
             </div>
-            <div className="flex items-center px-2 min-w-0">
-              <p className="font-medium text-white whitespace-nowrap leading-tight text-[11px] md:text-xs">
+            <div className="flex items-center px-1 min-w-0">
+              <p className="font-medium text-white whitespace-nowrap leading-tight text-xs md:text-sm">
                 {headerInfo.dueDate ? `Due on ${formatDateMMDDYY(headerInfo.dueDate)}` : "Due on N/A"}
-                <span className="font-bold text-white ml-1 text-[11px] md:text-xs">
+                <span className="font-bold text-white ml-1 text-xs md:text-sm">
                   ({headerInfo.daysLeft || 0} days left)
                 </span>
               </p>
             </div>
           </div>
         ) : shouldShowAppOwnerHeader ? (
-          <div className="flex h-full items-center header-content gap-2 md:gap-4 overflow-hidden">
-            <div className="flex items-center px-3 min-w-0 max-w-[320px] md:max-w-[420px]">
+          <div className="flex h-full items-center header-content gap-1.5 md:gap-2 overflow-hidden">
+            <div className="flex items-center px-2 min-w-0 max-w-[260px] md:max-w-[360px]">
               <p
-                className="font-medium text-white text-[11px] md:text-xs whitespace-normal break-words leading-tight line-clamp-2"
+                className="font-semibold text-white text-xs md:text-sm whitespace-normal break-words leading-tight line-clamp-2"
                 title={headerInfo.campaignName || "App Owner Review"}
               >
                 {headerInfo.campaignName || "App Owner Review"}
               </p>
             </div>
-            <div className="flex items-center px-2 flex-shrink-0">
-              <span className="text-white text-lg">•</span>
+            <div className="flex items-center px-1 flex-shrink-0">
+              <span className="text-white text-xs md:text-sm">•</span>
             </div>
-            <div className="flex items-center px-2 min-w-0">
-              <p className="font-medium text-white whitespace-nowrap text-[11px] md:text-xs">
+            <div className="flex items-center px-1 min-w-0">
+              <p className="font-medium text-white whitespace-nowrap text-[10px] md:text-xs">
                 Generated On: {headerInfo.snapshotAt ? formatDateMMDDYY(headerInfo.snapshotAt) : "N/A"}
               </p>
             </div>
-            <div className="flex items-center px-2 flex-shrink-0">
-              <span className="text-white text-lg">•</span>
+            <div className="flex items-center px-1 flex-shrink-0">
+              <span className="text-white text-xs md:text-sm">•</span>
             </div>
-            <div className="flex items-center px-2 min-w-0">
-              <p className="font-medium text-white whitespace-nowrap text-[11px] md:text-xs">
+            <div className="flex items-center px-1 min-w-0">
+              <p className="font-medium text-white whitespace-nowrap text-[10px] md:text-xs">
                 Due In {headerInfo.daysLeft || 0} days
-                <span className="font-bold ml-1 text-white text-[11px] md:text-xs">
+                <span className="font-bold ml-1 text-white text-[10px] md:text-xs">
                   ({headerInfo.dueDate ? formatDateMMDDYY(headerInfo.dueDate) : "N/A"})
                 </span>
               </p>
             </div>
             {/* User Progress - single line only */}
-            <div className="flex items-center px-4 flex-shrink-0 whitespace-nowrap">
+            <div className="flex items-center px-1.5 flex-shrink-0 whitespace-nowrap">
               <UserProgress progressData={userProgressData} />
             </div>
           </div>
         ) : shouldShowEntitlementOwnerHeader ? (
-          <div className="flex h-full items-center header-content gap-2 md:gap-4 overflow-hidden">
+          <div className="flex h-full items-center header-content gap-2 md:gap-3 overflow-hidden">
             <div className="flex items-center px-3 min-w-0 max-w-[320px] md:max-w-[420px]">
               <p
-                className="font-medium text-white text-[11px] md:text-xs whitespace-normal break-words leading-tight line-clamp-2"
+                className="font-semibold text-white text-sm md:text-base whitespace-normal break-words leading-tight line-clamp-2"
                 title={headerInfo.campaignName || "Entitlement Owner Review"}
               >
                 {headerInfo.campaignName || "Entitlement Owner Review"}
               </p>
             </div>
-            <div className="flex items-center px-2 flex-shrink-0">
-              <span className="text-white text-lg">•</span>
+            <div className="flex items-center px-1 flex-shrink-0">
+              <span className="text-white text-base">•</span>
             </div>
-            <div className="flex items-center px-2 min-w-0">
-              <p className="font-medium text-white whitespace-nowrap text-[11px] md:text-xs">
+            <div className="flex items-center px-1 min-w-0">
+              <p className="font-medium text-white whitespace-nowrap text-xs md:text-sm">
                 Generated On: {headerInfo.snapshotAt ? formatDateMMDDYY(headerInfo.snapshotAt) : "N/A"}
               </p>
             </div>
-            <div className="flex items-center px-2 flex-shrink-0">
-              <span className="text-white text-lg">•</span>
+            <div className="flex items-center px-1 flex-shrink-0">
+              <span className="text-white text-base">•</span>
             </div>
-            <div className="flex items-center px-2 min-w-0">
-              <p className="font-medium text-white whitespace-nowrap text-[11px] md:text-xs">
+            <div className="flex items-center px-1 min-w-0">
+              <p className="font-medium text-white whitespace-nowrap text-xs md:text-sm">
                 Due In {headerInfo.daysLeft || 0} days
-                <span className="font-bold ml-1 text-white text-[11px] md:text-xs">
+                <span className="font-bold ml-1 text-white text-xs md:text-sm">
                   ({headerInfo.dueDate ? formatDateMMDDYY(headerInfo.dueDate) : "N/A"})
                 </span>
               </p>
             </div>
-            <div className="flex items-center px-4 flex-shrink-0 whitespace-nowrap">
+            <div className="flex items-center px-2 flex-shrink-0 whitespace-nowrap">
               <UserProgress progressData={userProgressData} />
             </div>
           </div>
