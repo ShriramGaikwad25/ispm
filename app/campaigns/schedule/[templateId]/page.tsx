@@ -36,6 +36,8 @@ const SchedulePage: React.FC = () => {
   const templateNameFromQuery = searchParams?.get("name");
   const templateName = templateNameFromQuery ? decodeURIComponent(templateNameFromQuery) : "Template";
   const campaignId = searchParams?.get("campaignId") || null;
+  const fromTab = searchParams?.get("fromTab") || searchParams?.get("tab") || null;
+  const campaignsBackUrl = fromTab === "template" ? "/campaigns?tab=template" : "/campaigns";
   
   const [template, setTemplate] = useState<any>(null);
   const [showRunNowModal, setShowRunNowModal] = useState(false);
@@ -87,19 +89,24 @@ const SchedulePage: React.FC = () => {
         },
       });
 
-      // Check if the response contains an error
+      // If the response contains an error, treat it as "no triggers" instead of surfacing an error
       if (data && typeof data === "object" && (data.message || data.error)) {
-        throw new Error(data.message || data.error);
+        console.warn("Scheduler returned error for triggers, showing empty list instead:", data);
+        setTriggersData({ triggers: [] });
+        return;
       }
 
-      // Set the triggers data
-      setTriggersData(data);
+      // Set the triggers data (or an empty list fallback)
+      if (data && Array.isArray((data as any).triggers)) {
+        setTriggersData(data);
+      } else {
+        setTriggersData({ triggers: [] });
+      }
     } catch (err) {
       console.error("Error fetching triggers:", err);
-      setTriggersError(
-        err instanceof Error ? err.message : "Failed to fetch triggers"
-      );
-      setTriggersData(null);
+      // On any error, keep UI clean and just show empty triggers
+      setTriggersError(null);
+      setTriggersData({ triggers: [] });
     } finally {
       setTriggersLoading(false);
     }
@@ -491,7 +498,7 @@ const SchedulePage: React.FC = () => {
       
       console.log("Campaign scheduled successfully:", result);
       alert("Campaign scheduled successfully!");
-      router.push("/campaigns");
+      router.push(campaignsBackUrl);
     } catch (error) {
       console.error("Error scheduling campaign:", error);
       alert(`Failed to schedule campaign: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -589,7 +596,7 @@ const SchedulePage: React.FC = () => {
       setShowRunNowModal(false);
       setShowStagingForm(false);
       alert("Campaign started successfully!");
-      router.push("/campaigns");
+      router.push(campaignsBackUrl);
     } catch (error) {
       console.error("Error starting campaign:", error);
       console.error("Error details:", {
@@ -622,7 +629,7 @@ const SchedulePage: React.FC = () => {
     setShowRunNowModal(false);
     setShowStagingForm(false);
     alert("Campaign started with staging successfully!");
-    router.push("/campaigns");
+    router.push(campaignsBackUrl);
   };
 
   const handleEditNextFireTime = (triggerIndex: number, currentNextFireTime: string) => {

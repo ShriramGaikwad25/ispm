@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { executeQuery } from "@/lib/api";
 import dynamic from "next/dynamic";
 import { ColDef, GridApi } from "ag-grid-community";
+import { Download } from "lucide-react";
 import "@/lib/ag-grid-setup";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
@@ -209,16 +210,31 @@ export default function OrphanAccountReportPage() {
               Review accounts that are no longer linked to active identities.
             </p>
           </div>
-          {verificationDate && (
-            <div className="min-w-[220px] bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-left">
-              <p className="text-xs font-medium text-emerald-700 uppercase tracking-wide">
-                Verification Date
-              </p>
-              <p className="text-sm font-semibold text-emerald-900 mt-1">
-                {verificationDate}
-              </p>
-            </div>
-          )}
+          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+            {verificationDate && (
+              <div className="min-w-[220px] bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-left">
+                <p className="text-xs font-medium text-emerald-700 uppercase tracking-wide">
+                  Verification Date
+                </p>
+                <p className="text-sm font-semibold text-emerald-900 mt-1">
+                  {verificationDate}
+                </p>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                if (!gridApi) return;
+                gridApi.exportDataAsCsv({
+                  fileName: "orphan-account-report.csv",
+                });
+              }}
+              className="inline-flex items-center justify-center rounded-full border border-gray-300 bg-white p-2 text-gray-700 shadow-sm hover:bg-gray-50 hover:text-gray-900"
+              aria-label="Download report"
+            >
+              <Download className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {loading && (

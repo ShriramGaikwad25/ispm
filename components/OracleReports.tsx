@@ -16,7 +16,7 @@ import DashboardCard from "@/components/DashboardCard";
 import Tabs from "@/components/tabs";
 import type { LucideIcon } from "lucide-react";
 
-type OracleReportCard = {
+type ReportCard = {
   title: string;
   description: string;
   icon: LucideIcon;
@@ -24,60 +24,60 @@ type OracleReportCard = {
   flipDescription?: string;
 };
 
-const ORACLE_REPORT_CARDS: OracleReportCard[] = [
+const REPORT_CARDS: ReportCard[] = [
   {
     title: "Access Request Summary Report",
     description:
-      "Aggregates access requests, approvals, and rejections related to Oracle applications to support compliance reviews.",
+      "Aggregates access requests, approvals, and rejections related to applications to support compliance reviews.",
     icon: ClipboardList,
     href: "/oracle-reports/access-request-report",
   },
   {
     title: "Last Login Report - Application",
     description:
-      "Highlights last-login timestamps for Oracle target application accounts to help spot inactive or stale access.",
+      "Highlights last-login timestamps for target application accounts to help spot inactive or stale access.",
     icon: Clock4,
     href: "/oracle-reports/target-application-last-logon-report",
   },
   {
     title: "Deleted Application Accounts Report",
     description:
-      "Summarizes accounts deleted in Oracle target applications so you can validate deprovisioning and audit trails.",
+      "Summarizes accounts deleted in target applications so you can validate deprovisioning and audit trails.",
     icon: UserX,
     href: "/oracle-reports/deleted-target-application-accounts",
   },
   {
     title: "User Access History Report",
     description:
-      "Provides a chronological view of user access changes across Oracle applications for investigations and audits.",
+      "Provides a chronological view of user access changes across applications for investigations and audits.",
     icon: FileClock,
     href: "/oracle-reports/user-access-history-report",
   },
   {
     title: "Orphan Account Report",
     description:
-      "Shows Oracle accounts that are no longer linked to active identities, helping you detect and remediate orphaned access.",
+      "Shows accounts that are no longer linked to active identities, helping you detect and remediate orphaned access.",
     icon: UserMinus,
     href: "/oracle-reports/orphan-account",
   },
   {
     title: "User Current Access Report",
     description:
-      "Summarizes current user access across Oracle applications to support reviews and certifications.",
+      "Summarizes current user access across applications to support reviews and certifications.",
     icon: Users,
     href: "/oracle-reports/user-access-report",
   },
   {
     title: "Policies Report",
     description:
-      "Lists Oracle access and security policies to help you analyze configured controls and their impact.",
+      "Lists access and security policies to help you analyze configured controls and their impact.",
     icon: ShieldCheck,
     href: "/oracle-reports/policies-report",
   },
   {
     title: "Access GuardRail Report",
     description:
-      "Provides insight into Access GuardRail violations and policy evaluations for Oracle access.",
+      "Provides insight into Access GuardRail violations and policy evaluations for access.",
     icon: ShieldAlert,
     href: "/oracle-reports/access-guardrail-report",
   },
@@ -95,7 +95,7 @@ function ReportLink({ label }: { label: string }) {
   const normalise = (value: string) =>
     value.replace(/[\u2013\u2014]/g, "-").toLowerCase();
 
-  const card = ORACLE_REPORT_CARDS.find(
+  const card = REPORT_CARDS.find(
     (c) =>
       normalise(c.title) === normalise(label) ||
       normalise(c.title).includes(normalise(label)) ||
@@ -116,7 +116,7 @@ function ReportLink({ label }: { label: string }) {
 function DefaultReportsView() {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-      {ORACLE_REPORT_CARDS.map((card) => (
+      {REPORT_CARDS.map((card) => (
         <DashboardCard
           key={card.title}
           title={card.title}
@@ -130,12 +130,31 @@ function DefaultReportsView() {
 }
 
 function ComplianceReportsView() {
+  const getBorderClasses = (standard: string) => {
+    switch (standard) {
+      case "NIST 800-53":
+        return "border-blue-300";
+      case "PCI-DSS":
+        return "border-red-300";
+      case "SOX-ITGC":
+        return "border-amber-300";
+      case "ISO 27001":
+        return "border-emerald-300";
+      case "CIS v8":
+        return "border-purple-300";
+      default:
+        return "border-gray-200";
+    }
+  };
+
   return (
     <div className="py-4 space-y-3">
       {COMPLIANCE_STANDARDS.map((standard) => (
         <details
           key={standard}
-          className="group border border-gray-200 rounded-md bg-white"
+          className={`group border rounded-md bg-white shadow-sm ${getBorderClasses(
+            standard,
+          )}`}
         >
           <summary className="flex items-center justify-between px-4 py-3 cursor-pointer text-sm font-medium text-gray-800">
             <span>{standard}</span>
@@ -629,7 +648,7 @@ function ComplianceReportsView() {
   );
 }
 
-export default function OracleReports() {
+export default function Reports() {
   const tabsData = useMemo(
     () => [
       {

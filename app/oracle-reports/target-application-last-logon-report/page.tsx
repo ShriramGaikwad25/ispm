@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { executeQuery } from "@/lib/api";
 import dynamic from "next/dynamic";
 import { ColDef, GridApi } from "ag-grid-community";
+import { Download } from "lucide-react";
 import "@/lib/ag-grid-setup";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
@@ -337,53 +338,68 @@ export default function TargetApplicationLastLogonReportPage() {
               Last Login Report - Application
             </h1>
             <p className="text-sm text-gray-600 mt-1">
-              View last login timestamps for Oracle target application accounts to
+              View last login timestamps for target application accounts to
               identify inactive or stale access.
             </p>
           </div>
-          <div className="w-full sm:w-auto sm:min-w-[320px]">
-            <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
-              <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
-                Last Login Stats
-              </div>
-              {statsLoading && (
-                <p className="text-xs text-gray-500">Loading statistics…</p>
-              )}
-              {statsError && (
-                <p className="text-xs text-red-600">{statsError}</p>
-              )}
-              {!statsLoading && !statsError && statsRows.length === 0 && (
-                <p className="text-xs text-gray-500">No statistics available.</p>
-              )}
-              {!statsLoading && !statsError && statsRows.length > 0 && (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-[11px] text-gray-900">
-                    <thead>
-                      <tr className="text-gray-500 border-b border-gray-200">
-                        {statsKeys.map((key) => (
-                          <th
-                            key={key}
-                            className="px-2 py-1 text-left font-medium"
-                          >
-                            {toTitleCase(key)}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {statsRows.map((row, idx) => (
-                        <tr key={idx} className="border-b border-gray-100">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                if (!gridApi) return;
+                gridApi.exportDataAsCsv({
+                  fileName: "last-login-report-application.csv",
+                });
+              }}
+              className="inline-flex items-center justify-center rounded-full border border-gray-300 bg-white p-2 text-gray-700 shadow-sm hover:bg-gray-50 hover:text-gray-900"
+              aria-label="Download report"
+            >
+              <Download className="w-4 h-4" />
+            </button>
+            <div className="w-full sm:w-auto sm:min-w-[320px]">
+              <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
+                  Last Login Stats
+                </div>
+                {statsLoading && (
+                  <p className="text-xs text-gray-500">Loading statistics…</p>
+                )}
+                {statsError && (
+                  <p className="text-xs text-red-600">{statsError}</p>
+                )}
+                {!statsLoading && !statsError && statsRows.length === 0 && (
+                  <p className="text-xs text-gray-500">No statistics available.</p>
+                )}
+                {!statsLoading && !statsError && statsRows.length > 0 && (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-[11px] text-gray-900">
+                      <thead>
+                        <tr className="text-gray-500 border-b border-gray-200">
                           {statsKeys.map((key) => (
-                            <td key={key} className="px-2 py-1">
-                              {formatCell(key, row[key])}
-                            </td>
+                            <th
+                              key={key}
+                              className="px-2 py-1 text-left font-medium"
+                            >
+                              {toTitleCase(key)}
+                            </th>
                           ))}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                      </thead>
+                      <tbody>
+                        {statsRows.map((row, idx) => (
+                          <tr key={idx} className="border-b border-gray-100">
+                            {statsKeys.map((key) => (
+                              <td key={key} className="px-2 py-1">
+                                {formatCell(key, row[key])}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

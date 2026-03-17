@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight, ChevronLeft, Search } from 'lucide-react';
 import {navLinks as navigation, NavItem} from './Navi';
@@ -9,6 +9,7 @@ import { useLeftSidebar } from '@/contexts/LeftSidebarContext';
 
 export function Navigation() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState('');
@@ -123,7 +124,18 @@ export function Navigation() {
       return { href: '/user', label: 'Back to Users' };
     }
     // Campaigns
-    if (pathname.startsWith('/campaigns/schedule/') || pathname.startsWith('/campaigns/manage-campaigns/') || pathname.startsWith('/campaigns/new')) {
+    if (pathname.startsWith('/campaigns/manage-campaigns/')) {
+      const fromTab = searchParams?.get('fromTab') || searchParams?.get('tab');
+      if (fromTab === 'template') {
+        return { href: '/campaigns?tab=template', label: 'Back to Templates' };
+      }
+      return { href: '/campaigns', label: 'Back to Campaigns' };
+    }
+    if (pathname.startsWith('/campaigns/schedule/') || pathname.startsWith('/campaigns/new')) {
+      const fromTab = searchParams?.get('fromTab') || searchParams?.get('tab');
+      if (fromTab === 'template') {
+        return { href: '/campaigns?tab=template', label: 'Back to Templates' };
+      }
       return { href: '/campaigns', label: 'Back to Campaigns' };
     }
     // Continuous Compliance campaign details → back to Continuous Compliance list

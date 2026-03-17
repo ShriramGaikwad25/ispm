@@ -77,7 +77,7 @@ export const navLinks: NavItem[] = [
     href: '/reports',
     icon: Shield,
     subItems: [
-      { name: 'Reporting', href: '/reports', icon: FileText },
+      { name: 'Reporting', href: '/oracle-reports', icon: FileText },
       { name: 'Profiles', href: '/profiles', icon: UserCircle2Icon },
       { name: 'SoD Audit', href: '/reports/sod-audit', icon: AlertCircle },
       { name: 'Control Mapping', href: '/reports/control-mapping', icon: FolderTree }
@@ -96,10 +96,5 @@ export const navLinks: NavItem[] = [
       { name: 'SoD', href: '/settings/gateway/sod', icon: Shield },
       { name: 'Generic', href: '/settings/gateway', icon: Server }
     ]
-  },
-  {
-    name: 'Oracle Reports',
-    href: '/oracle-reports',
-    icon: FileBarChart,
   }
 ];

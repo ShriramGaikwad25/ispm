@@ -4,7 +4,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { executeQuery } from "@/lib/api";
 import dynamic from "next/dynamic";
 import { ColDef, GridApi } from "ag-grid-community";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Download } from "lucide-react";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import "@/lib/ag-grid-setup";
 import "ag-grid-community/styles/ag-grid.css";
@@ -717,13 +717,28 @@ export default function AccessRequestReportPage() {
   return (
     <div className="min-h-screen bg-white">
       <div className="w-full py-4 px-6">
-        <div className="mb-4">
-          <h1 className="text-2xl font-semibold text-gray-900">
-            Access Request Summary Report
-          </h1>
-          <p className="text-sm text-gray-600 mt-1">
-            View and analyze access requests and their approval status.
-          </p>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900">
+              Access Request Summary Report
+            </h1>
+            <p className="text-sm text-gray-600 mt-1">
+              View and analyze access requests and their approval status.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (!gridApi) return;
+              gridApi.exportDataAsCsv({
+                fileName: "access-request-summary-report.csv",
+              });
+            }}
+            className="inline-flex items-center justify-center rounded-full border border-gray-300 bg-white p-2 text-gray-700 shadow-sm hover:bg-gray-50 hover:text-gray-900"
+            aria-label="Download report"
+          >
+            <Download className="w-4 h-4" />
+          </button>
         </div>
 
         {loading && (

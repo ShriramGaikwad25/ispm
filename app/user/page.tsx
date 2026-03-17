@@ -36,7 +36,7 @@ function UsersTab() {
   const { isAuthenticated } = useAuth();
   
   // Pagination state
-  const pageSizeSelector = [10, 20, 50, 100];
+  const pageSizeSelector = [20, 50, 100];
   const [pageSize, setPageSize] = useState(pageSizeSelector[0]);
   const [pageNumber, setPageNumber] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
@@ -433,7 +433,7 @@ function UserGroupsTab() {
   const { isAuthenticated } = useAuth();
   
   // Pagination state
-  const pageSizeSelector = [10, 20, 50, 100];
+  const pageSizeSelector = [20, 50, 100];
   const [pageSize, setPageSize] = useState(pageSizeSelector[0]);
   const [pageNumber, setPageNumber] = useState(1);
   const [totalItems, setTotalItems] = useState(0);

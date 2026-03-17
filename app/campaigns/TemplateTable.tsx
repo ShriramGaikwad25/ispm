@@ -97,27 +97,47 @@ const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow, onDelet
         headerName: "Name",
         field: "name",
         flex: 2,
+        minWidth: 220,
+        wrapText: true,
+        autoHeight: true,
         sortable: true,
         filter: true,
+        cellStyle: {
+          whiteSpace: "normal",
+          lineHeight: "1.3",
+          display: "flex",
+          alignItems: "center",
+        },
       },
       {
         headerName: "Type",
         field: "type",
-        flex: 1,
+        flex: 1.5,
+        minWidth: 160,
+        wrapText: true,
+        autoHeight: true,
         sortable: true,
         filter: true,
+        cellStyle: {
+          whiteSpace: "normal",
+          lineHeight: "1.3",
+          display: "flex",
+          alignItems: "center",
+        },
       },
       {
         headerName: "Owner",
         field: "owner",
-        flex: 1.5,
+        width: 160,
+        minWidth: 140,
         sortable: true,
         filter: true,
       },
       {
         headerName: "Created On",
         field: "createdOn",
-        flex: 1.5,
+        width: 150,
+        minWidth: 130,
         sortable: true,
         filter: true,
         valueFormatter: (params: any) => {
@@ -128,7 +148,8 @@ const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow, onDelet
       {
         headerName: "Last Run",
         field: "lastRun",
-        flex: 1.5,
+        width: 150,
+        minWidth: 130,
         sortable: true,
         filter: true,
         valueFormatter: (params: any) => {
@@ -139,7 +160,8 @@ const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow, onDelet
       {
         headerName: "Next Run",
         field: "nextRun",
-        flex: 1.5,
+        width: 150,
+        minWidth: 130,
         sortable: true,
         filter: true,
         valueFormatter: (params: any) => {
@@ -150,7 +172,8 @@ const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow, onDelet
       {
         field: "actions",
         headerName: "Actions",
-        width: 220,
+        width: 180,
+        minWidth: 160,
         sortable: false,
         filter: false,
         cellRenderer: (params: ICellRendererParams) => {
@@ -229,7 +252,7 @@ const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow, onDelet
   }
 
   return (
-    <div className="w-full" style={{ width: '100%', minWidth: 0 }}>
+    <div className="w-full" style={{ width: "100%", minWidth: 0 }}>
       <AgGridReact
         ref={gridRef}
         rowData={rows}
@@ -243,32 +266,7 @@ const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow, onDelet
           filter: true,
           resizable: true,
         }}
-        onGridReady={(params) => {
-          params.api.sizeColumnsToFit();
-          // Add window resize listener
-          const handleResize = () => {
-            try {
-              params.api.sizeColumnsToFit();
-            } catch {}
-          };
-          window.addEventListener("resize", handleResize);
-          // Clean up listener when grid is destroyed
-          params.api.addEventListener('gridPreDestroyed', () => {
-            window.removeEventListener("resize", handleResize);
-          });
-        }}
-        onGridSizeChanged={(params) => {
-          // Automatically resize columns when grid size changes
-          try {
-            params.api.sizeColumnsToFit();
-          } catch (e) {
-            // Ignore errors
-          }
-        }}
-        onFirstDataRendered={(params) => {
-          params.api.sizeColumnsToFit();
-        }}
-        suppressSizeToFit={false}
+        suppressSizeToFit={true}
       />
     </div>
   );

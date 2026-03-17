@@ -29,7 +29,7 @@ const TemplateTab: React.FC<TemplateTabProps> = ({ campaignId }) => {
   const handleRunNow = (template: any) => {
     // Navigate to schedule page with template ID and name
     const templateName = encodeURIComponent(template.name || "Template");
-    const queryParams = new URLSearchParams({ name: templateName });
+    const queryParams = new URLSearchParams({ name: templateName, fromTab: "template" });
     if (campaignId) {
       queryParams.append("campaignId", campaignId);
     }
