@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 import {
@@ -31,6 +32,12 @@ type NestedItem = {
   hasViolation?: boolean;
 };
 
+type PendingApprovalStatus =
+  | "Pending"
+  | "Approved"
+  | "Rejected"
+  | "Info Requested";
+
 type PendingApproval = {
   id: string;
   type: string;
@@ -40,78 +47,124 @@ type PendingApproval = {
   expiresOn: string;
   itemsCount: number;
   entityName: string;
-   // Status is used only for filtering, not as a column
-  status: "Pending" | "Approved" | "Rejected" | "Info Requested";
+  // Status is used only for filtering, not as a column
+  status: PendingApprovalStatus;
   hasInsight?: boolean;
   hasRisk?: boolean;
   hasViolation?: boolean;
   items: NestedItem[];
 };
 
-const mockData: PendingApproval[] = [
-  {
-    id: "1",
-    type: "Access Request",
-    requester: "John Doe",
-    beneficiary: "Jane Smith",
-    assignedOn: "2026-02-10",
-    expiresOn: "2026-03-10",
-    itemsCount: 3,
-    entityName: "Oracle EBS",
-    status: "Pending",
-    hasInsight: true,
-    hasRisk: true,
-    hasViolation: false,
-    items: [
-      {
-        id: "1-1",
-        entityName: "AP Super User",
-        type: "Entitlement",
-        description: "Full accounts payable access",
-        duration: "90 days",
-        hasInsight: true,
-        hasRisk: true,
-        hasViolation: true,
+// Fallback mock data used only when API returns no records
+const mockDataFallback: PendingApproval[] = [];
+
+async function fetchPendingApprovals(): Promise<PendingApproval[]> {
+  const response = await fetch(
+    "https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        // Add authorization here if required, e.g. Authorization: `Bearer ${token}`,
       },
-      {
-        id: "1-2",
-        entityName: "GL Viewer",
-        type: "Entitlement",
-        description: "Read-only general ledger access",
-        duration: "Permanent",
-        hasInsight: false,
-        hasRisk: false,
-        hasViolation: false,
-      },
-    ],
-  },
-  {
-    id: "2",
-    type: "Role Change",
-    requester: "Alice Brown",
-    beneficiary: "Bob Johnson",
-    assignedOn: "2026-02-18",
-    expiresOn: "2026-04-01",
-    itemsCount: 1,
-    entityName: "Salesforce",
-    status: "Info Requested",
-    hasInsight: false,
-    hasRisk: true,
-    hasViolation: true,
-    items: [
-      {
-        id: "2-1",
-        entityName: "System Admin",
-        type: "Role",
-        description: "Full administrative privileges",
-        duration: "30 days",
-        hasInsight: true,
-        hasRisk: true,
-        hasViolation: true,
-      },
-    ],
-  },
-];
+      body: JSON.stringify({
+        query:
+          "select * from kf_wf_get_approval_task where assignee_id = 'f558e3b2-348b-4ff3-be4c-a3c5dc8b5a91' AND task_status = 'OPEN'",
+        parameters: [],
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to load pending approvals (${response.status})`);
+  }
+
+  const json = await response.json();
+
+  const rows: any[] = Array.isArray(json)
+    ? json
+    : Array.isArray((json as any)?.data)
+    ? (json as any).data
+    : Array.isArray((json as any)?.rows)
+    ? (json as any).rows
+    : [];
+
+  return rows.map((row, index) => {
+    const statusRaw: string =
+      row.status ??
+      row.task_status ??
+      row.taskStatus ??
+      row.STATE ??
+      "Pending";
+
+    const normalizedStatus =
+      (["Pending", "Approved", "Rejected", "Info Requested"] as const).find(
+        (s) => s.toLowerCase() === String(statusRaw).toLowerCase()
+      ) ?? "Pending";
+
+    const assignedOn =
+      row.assignedOn ??
+      row.assigned_on ??
+      row.created_at ??
+      row.start_date ??
+      "";
+
+    const expiresOn =
+      row.expiresOn ??
+      row.expires_on ??
+      row.due_date ??
+      row.expiry_date ??
+      "";
+
+    const requester =
+      row.requester ??
+      row.requester_name ??
+      row.requestor_name ??
+      row.requested_by ??
+      "";
+
+    const beneficiary =
+      row.beneficiary ??
+      row.beneficiary_name ??
+      row.user_name ??
+      row.account_name ??
+      "";
+
+    const entityName =
+      row.entityName ??
+      row.entity_name ??
+      row.application_name ??
+      row.system_name ??
+      "";
+
+    const items: NestedItem[] = Array.isArray(row.items)
+      ? row.items
+      : Array.isArray(row.line_items)
+      ? row.line_items
+      : [];
+
+    return {
+      id: String(row.id ?? row.task_id ?? row.taskId ?? index + 1),
+      type:
+        row.type ??
+        row.request_type ??
+        row.task_type ??
+        row.category ??
+        "Request",
+      requester,
+      beneficiary,
+      assignedOn,
+      expiresOn,
+      itemsCount: items.length || Number(row.itemsCount ?? row.items_count ?? 0),
+      entityName,
+      status: normalizedStatus,
+      hasInsight: Boolean(row.hasInsight ?? row.has_insight),
+      hasRisk: Boolean(row.hasRisk ?? row.has_risk),
+      hasViolation: Boolean(row.hasViolation ?? row.has_violation),
+      items,
+    };
+  });
+}
 
 const InsightsCell: React.FC<{
   hasRisk?: boolean;
@@ -249,10 +302,22 @@ const DetailsCell: React.FC = () => {
 const PendingApprovalsPage: React.FC = () => {
   const gridRef = React.useRef<any>(null);
 
+  const {
+    data: pendingApprovals = mockDataFallback,
+    isLoading,
+    isError,
+    error,
+  } = useQuery<PendingApproval[], Error>({
+    queryKey: ["pending-approvals"],
+    queryFn: fetchPendingApprovals,
+  });
+
   const [searchQuery, setSearchQuery] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"All" | PendingApproval["status"]>("All");
+  const [statusFilter, setStatusFilter] = useState<
+    "All" | PendingApprovalStatus
+  >("All");
   const [hoveredCard, setHoveredCard] = useState<"card1" | "card2" | null>(null);
 
   const parseInputDate = (value: string): Date | null => {
@@ -265,12 +330,13 @@ const PendingApprovalsPage: React.FC = () => {
   };
 
   const filteredData: PendingApproval[] = useMemo(() => {
+    const source = pendingApprovals.length ? pendingApprovals : mockDataFallback;
+
     const query = searchQuery.trim().toLowerCase();
     const from = parseInputDate(fromDate);
     const to = parseInputDate(toDate);
 
-    return mockData.filter((row) => {
-      // 1) Free form search on requester / beneficiary
+    return source.filter((row) => {
       if (query) {
         const matchesSearch =
           row.requester.toLowerCase().includes(query) ||
@@ -278,19 +344,17 @@ const PendingApprovalsPage: React.FC = () => {
         if (!matchesSearch) return false;
       }
 
-      // 2) Date Assigned (range) on assignedOn
       const assigned = parseInputDate(row.assignedOn);
       if (from && assigned && assigned < from) return false;
       if (to && assigned && assigned > to) return false;
 
-      // 3) Status filter
       if (statusFilter !== "All") {
         if (row.status !== statusFilter) return false;
       }
 
       return true;
     });
-  }, [searchQuery, fromDate, toDate, statusFilter]);
+  }, [pendingApprovals, searchQuery, fromDate, toDate, statusFilter]);
 
   const columnDefs = useMemo<ColDef[]>(
     () => [
@@ -440,6 +504,17 @@ const PendingApprovalsPage: React.FC = () => {
                   Review and act on pending access requests. Use Quick View to see
                   and act on individual line items.
                 </p>
+                {isLoading && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Loading pending approvals from server...
+                  </p>
+                )}
+                {isError && (
+                  <p className="text-xs text-red-500 mt-1">
+                    Failed to load pending approvals
+                    {error?.message ? `: ${error.message}` : ""}
+                  </p>
+                )}
               </div>
 
               {/* Filters row moved up into header area */}

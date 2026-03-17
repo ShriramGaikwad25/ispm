@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Users, Plus, Search, Pencil } from "lucide-react";
 import { AgGridReact } from "ag-grid-react";
 import type { ColDef } from "ag-grid-community";
+import "ag-grid-community/styles/ag-grid.css";
+import "ag-grid-community/styles/ag-theme-alpine.css";
 import CustomPagination from "@/components/agTable/CustomPagination";
 import { executeQuery } from "@/lib/api";
 
@@ -214,11 +216,21 @@ export default function ManageBusinessRolesSettings() {
         wrapText: true,
         cellRenderer: (params: any) => {
           return (
-            <span
-              style={{ color: "#1677ff", cursor: "pointer", fontWeight: 500 }}
+            <button
+              type="button"
+              onClick={() => handleEdit(params.data as BusinessRoleRow)}
+              style={{
+                color: "#1677ff",
+                cursor: "pointer",
+                fontWeight: 500,
+                background: "none",
+                border: "none",
+                padding: 0,
+                textAlign: "left",
+              }}
             >
               {params.value}
-            </span>
+            </button>
           );
         },
       },
@@ -229,7 +241,7 @@ export default function ManageBusinessRolesSettings() {
       },
       {
         headerName: "Tags",
-        field: "tags",
+        field: "description",
         flex: 1,
       },
       {

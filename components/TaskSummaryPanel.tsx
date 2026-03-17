@@ -143,11 +143,21 @@ const TaskSummaryPanel: React.FC<TaskSummaryPanelProps> = ({
           <div className="text-xs text-gray-700 space-y-0.5 mt-1 font-mono break-words">
             <p>{capitalize(insight.risk_assessment.overall_risk ?? "")} Risk</p>
             {insight.risk_assessment.details?.metadata &&
-              Object.entries(insight.risk_assessment.details.metadata).map(([key, val]) => (
-                <p key={key}>
-                  {key}: &quot;{val ?? ""}&quot;
-                </p>
-              ))}
+              Object.entries(insight.risk_assessment.details.metadata).map(
+                ([key, val]) => {
+                  const displayVal =
+                    val == null
+                      ? ""
+                      : typeof val === "object"
+                        ? JSON.stringify(val)
+                        : String(val);
+                  return (
+                    <p key={key}>
+                      {key}: &quot;{displayVal}&quot;
+                    </p>
+                  );
+                }
+              )}
             {insight.risk_assessment.details?.entitlement_risk_level != null && (
               <p>entitlement_risk_level: &quot;{insight.risk_assessment.details.entitlement_risk_level}&quot;</p>
             )}
