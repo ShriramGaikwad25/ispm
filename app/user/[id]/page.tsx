@@ -237,7 +237,7 @@ const AddProxyUserSidebar = ({ onClose }: { onClose: () => void }) => {
     });
   }, [apiUsers, searchValue]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUser) {
       alert("Please select a user");
@@ -251,7 +251,11 @@ const AddProxyUserSidebar = ({ onClose }: { onClose: () => void }) => {
       alert("Please provide a justification");
       return;
     }
-    if (!capabilities.requestAccess && !capabilities.reviewAndApprove && !capabilities.performAccessReviews) {
+    if (
+      !capabilities.requestAccess &&
+      !capabilities.reviewAndApprove &&
+      !capabilities.performAccessReviews
+    ) {
       alert("Please select at least one capability");
       return;
     }
@@ -265,13 +269,56 @@ const AddProxyUserSidebar = ({ onClose }: { onClose: () => void }) => {
         capabilities.requestAccess && "Request Access",
         capabilities.reviewAndApprove && "Review and approve Requests",
         capabilities.performAccessReviews && "Perform Access Reviews",
-      ].filter(Boolean).join(", "),
+      ]
+        .filter(Boolean)
+        .join(", "),
     };
 
-    console.log("Submitting proxy user:", proxyUserData);
-    // TODO: Call API to add proxy user
-    alert("Proxy user added successfully!");
-    onClose();
+    // Resolve userid of the current user from localStorage, falling back to a default UUID
+    const getUserIdForProxy = (): string => {
+      try {
+        const fullStr = localStorage.getItem("selectedUserRawFull");
+        if (fullStr) {
+          const u = JSON.parse(fullStr);
+          return (
+            u.userid ||
+            u.id ||
+            u.userId ||
+            u.customattributes?.id ||
+            "0109868e-b00c-4f24-ae5f-258029cce1d6"
+          );
+        }
+      } catch {}
+      try {
+        const sel = localStorage.getItem("selectedUserRaw");
+        if (sel) {
+          const s = JSON.parse(sel);
+          return s.id || s.userId || "0109868e-b00c-4f24-ae5f-258029cce1d6";
+        }
+      } catch {}
+      return "0109868e-b00c-4f24-ae5f-258029cce1d6";
+    };
+
+    const userid = getUserIdForProxy();
+
+    // Build payload for kf_apply_object_change('identity', 'PATCH', ?::jsonb)
+    const proxyPayload = {
+      userid,
+      proxy_user: [proxyUserData],
+    };
+
+    try {
+      await executeQuery(
+        "SELECT kf_apply_object_change('identity', 'PATCH', ?::jsonb)",
+        // The entities API accepts arbitrary JSON for parameters, including objects
+        [proxyPayload as any]
+      );
+      alert("Proxy user added successfully!");
+      onClose();
+    } catch (error) {
+      console.error("Error adding proxy user:", error);
+      alert("Failed to add proxy user. Please try again.");
+    }
   };
 
   return (

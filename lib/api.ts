@@ -406,7 +406,7 @@ export async function getCatalogEntitlements<T>(
 
 export async function executeQuery<T>(
   query: string,
-  parameters: string[]
+  parameters: any[]
 ): Promise<T> {
   const endpoint = "https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery";
   
