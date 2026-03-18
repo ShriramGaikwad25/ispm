@@ -1,11 +1,13 @@
 "use client";
 
-import React, { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
 const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
 import "@/lib/ag-grid-setup";
 import { ColDef } from "ag-grid-enterprise";
-import { Upload, Download, Search, Plus, Sparkles, Eye, X, Copy, RefreshCw, Settings, Pencil } from "lucide-react";
+import "ag-grid-community/styles/ag-grid.css";
+import "ag-grid-community/styles/ag-theme-alpine.css";
+import { Search, Plus, Sparkles, Eye, X, Copy, RefreshCw, Settings, Pencil } from "lucide-react";
 import Filters from "@/components/agTable/Filters";
 import CustomPagination from "@/components/agTable/CustomPagination";
 import { useRouter } from "next/navigation";
@@ -39,7 +41,6 @@ export default function AppInventoryPage() {
   const [selectedStatus, setSelectedStatus] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [valueModal, setValueModal] = useState<{ open: boolean; title: string; value: string; appId?: string }>({
     open: false,
     title: "",
@@ -505,8 +506,8 @@ useEffect(() => {
       {
         headerName: "Status",
         field: "status",
-        flex: 0.8,
-        minWidth: 100,
+        flex: 0.75,
+        minWidth: 110,
         cellRenderer: (params: any) => {
           if (params.data?.__isDescRow) return null;
           const status = params.value ?? params.data?.status ?? "";
@@ -516,7 +517,7 @@ useEffect(() => {
           const pillClass = isInProgress
             ? "bg-amber-100 text-amber-800"
             : isIntegrated
-            ? "bg-emerald-100 text-emerald-800"
+            ? "bg-blue-100 text-blue-800"
             : "bg-gray-100 text-gray-800";
           return (
             <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${pillClass}`}>
@@ -528,8 +529,8 @@ useEffect(() => {
       {
         headerName: "SCIM URL",
         field: "serviceUrl",
-        flex: 0.6,
-        minWidth: 56,
+        flex: 0.9,
+        minWidth: 90,
         cellRenderer: (params: any) => {
           if (params.data?.__isDescRow) return null;
           const url = params.value ?? "";
@@ -554,8 +555,8 @@ useEffect(() => {
       {
         headerName: "API Token",
         field: "apiToken",
-        flex: 0.6,
-        minWidth: 56,
+        flex: 0.9,
+        minWidth: 90,
         cellRenderer: (params: any) => {
           if (params.data?.__isDescRow) return null;
           const token = params.data?.apiToken ?? params.value ?? "";
@@ -582,8 +583,8 @@ useEffect(() => {
       {
         headerName: "Created On",
         field: "createdOn",
-        flex: 1,
-        minWidth: 88,
+        flex: 0.75,
+        minWidth: 80,
         cellRenderer: (params: any) => {
           if (params.data?.__isDescRow) return null;
           return (
@@ -662,8 +663,9 @@ useEffect(() => {
       },
     };
     const GridTab = () => (
-      <div className="w-full">
+      <div className="w-full ag-theme-alpine">
         <AgGridReact
+          theme="legacy"
           pagination={false}
           domLayout="autoHeight"
           style={{ width: "100%" }}
@@ -699,53 +701,6 @@ useEffect(() => {
 
   const handleAddApplication = () => {
     router.push("/settings/app-inventory/add-application");
-  };
-
-  const handleDownload = (data: AppInventoryItem[]) => {
-    const headers = [
-      "Name",
-      "Description",
-      "Category",
-      "Risk",
-      "Service URL",
-      "API Token",
-      "Created On",
-    ];
-    const rows = data.map((d) => [
-      escapeCsv(d.name),
-      escapeCsv(d.description),
-      escapeCsv(d.category),
-      escapeCsv(d.riskLevel),
-      escapeCsv(d.serviceUrl),
-      escapeCsv(d.apiToken ?? ""),
-      escapeCsv(d.createdOn),
-    ].join(","));
-    const csv = [headers.join(","), ...rows].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "app-inventory.csv";
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const escapeCsv = (value: string) => {
-    if (value == null) return "";
-    const needsQuotes = /[",\n]/.test(value);
-    const escaped = value.replace(/"/g, '""');
-    return needsQuotes ? `"${escaped}"` : escaped;
-  };
-
-  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      console.log("Uploaded file content:", reader.result);
-    };
-    reader.readAsText(file);
-    e.target.value = "";
   };
 
   if (!mounted || isLoading) {
@@ -815,39 +770,10 @@ useEffect(() => {
             />
 
             <div className="ml-auto flex items-center gap-2">
-              {/* Upload */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".csv,.json"
-                className="hidden"
-                onChange={(e) => handleUpload(e)}
-              />
-              <button
-                type="button"
-                className="rounded-full p-2 bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
-                onClick={() => fileInputRef.current?.click()}
-                title="Upload"
-                aria-label="Upload"
-              >
-                <Upload className="w-4 h-4" />
-              </button>
-
-              {/* Download */}
-              <button
-                type="button"
-                className="rounded-full p-2 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors"
-                onClick={() => handleDownload(filteredData)}
-                title="Download"
-                aria-label="Download"
-              >
-                <Download className="w-4 h-4" />
-              </button>
-
               {/* Add Application */}
               <button
                 type="button"
-                className="flex items-center gap-2 rounded-full px-4 py-2 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 text-sm font-medium transition-colors"
+                className="flex items-center gap-2 rounded-full px-4 py-2 bg-blue-100 text-blue-700 hover:bg-blue-200 text-sm font-medium transition-colors"
                 onClick={handleAddApplication}
                 title="Add Application"
                 aria-label="Add Application"
@@ -877,8 +803,9 @@ useEffect(() => {
 
         {/* Direct table view (Without AI Assist) */}
         <div className="flex flex-col w-full px-6 py-4">
-          <div className="w-full">
+          <div className="w-full ag-theme-alpine">
             <AgGridReact
+              theme="legacy"
               rowData={rowData}
               columnDefs={columnDefs}
               getRowHeight={getRowHeight}

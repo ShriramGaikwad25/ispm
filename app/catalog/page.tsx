@@ -3,6 +3,8 @@ import React, { useMemo, useState, useEffect, Suspense } from "react";
 import dynamic from "next/dynamic";
 const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
 import { ColDef, ICellRendererParams, GridApi } from "ag-grid-community";
+import "ag-grid-community/styles/ag-grid.css";
+import "ag-grid-community/styles/ag-theme-alpine.css";
 import { useSearchParams } from "next/navigation";
 import { createPortal } from "react-dom";
 import "@/lib/ag-grid-setup";
@@ -23,42 +25,6 @@ import PolicyRiskDetails from "@/components/PolicyRiskDetails";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import CustomPagination from "@/components/agTable/CustomPagination";
 
-interface TabProps {
-  tabs: { label: string }[];
-  activeClass: string;
-  buttonClass: string;
-  className: string;
-  activeIndex: number;
-  onChange: (index: number) => void;
-}
-
-const Tabs: React.FC<TabProps> = ({
-  tabs,
-  activeClass,
-  buttonClass,
-  className,
-  activeIndex,
-  onChange,
-}) => {
-  return (
-    <div className={className}>
-      {tabs.map((tab, index) => (
-        <button
-          key={tab.label}
-          className={`flex items-center justify-center ${
-            index === activeIndex
-              ? activeClass
-              : "text-gray-500 hover:text-gray-700"
-          } ${buttonClass}`}
-          onClick={() => onChange(index)}
-        >
-          {tab.label}
-        </button>
-      ))}
-    </div>
-  );
-};
-
 const CatalogPageContent = () => {
   const { openSidebar, closeSidebar } = useRightSidebar();
   const searchParams = useSearchParams();
@@ -77,7 +43,8 @@ const CatalogPageContent = () => {
   const reviewerId =
     searchParams.get("reviewerId") || getReviewerId() || "";
 
-  const [entTabIndex, setEntTabIndex] = useState<number>(0);
+  // Catalog now always renders the "All" table view.
+  const entTabIndex = 0;
   const [error, setError] = useState<string | null>(null);
   const [lastAction, setLastAction] = useState<string | null>(null);
   const [highRiskData, setHighRiskData] = useState<any>(null);
@@ -90,19 +57,24 @@ const CatalogPageContent = () => {
   const [commentSubcategory, setCommentSubcategory] = useState("");
   const [isCommentDropdownOpen, setIsCommentDropdownOpen] = useState(false);
 
-  // Define tabs data
-  const tabsDataEnt = [{ label: "All" }, { label: "Under Review" }];
-
-  // Transform rowData to add description rows (separate row for each description)
-  const filteredRowData = useMemo(() => {
+  // Apply app filter first, then transform to include paired description rows.
+  const appFilteredEntitlements = useMemo(() => {
     if (!rowData || rowData.length === 0) return [];
+    if (selectedAppFilter === "All") return rowData;
+    return rowData.filter(
+      (item) => (item?.applicationName || "").toString() === selectedAppFilter
+    );
+  }, [rowData, selectedAppFilter]);
+
+  const filteredRowData = useMemo(() => {
+    if (!appFilteredEntitlements || appFilteredEntitlements.length === 0) return [];
     const rows: any[] = [];
-    for (const item of rowData) {
+    for (const item of appFilteredEntitlements) {
       rows.push(item);
       rows.push({ ...item, __isDescRow: true });
     }
     return rows;
-  }, [rowData]);
+  }, [appFilteredEntitlements]);
 
   const applicationOptions = useMemo(() => {
     return [
@@ -710,6 +682,7 @@ const CatalogPageContent = () => {
         field: "applicationName",
         headerName: "Application",
         width: 150,
+        filter: "agTextColumnFilter",
         hide: true,
       },
       { field: "assignment", headerName: "Assignment", width: 150, hide: true },
@@ -1410,18 +1383,36 @@ const CatalogPageContent = () => {
     []
   );
 
+  const fitColumnsToGridWidth = (api: GridApi | null) => {
+    if (!api) return;
+    // Delay to let AG Grid finish DOM/layout calculations first.
+    window.requestAnimationFrame(() => {
+      try {
+        api.sizeColumnsToFit();
+      } catch {
+        // Ignore transient sizing errors during initial mount/unmount.
+      }
+    });
+  };
+
   const updatePaginationState = (api: GridApi | null) => {
     if (!api) return;
     const pageZeroBased = api.paginationGetCurrentPage?.() ?? 0;
-    // Calculate total pages based on actual entitlements, not rows
-    // Since each entitlement = 2 rows (entitlement + description),
-    // we divide filteredRowData.length by 2 to get actual entitlements
-    const actualTotalItems = rowData.length;
+    // Track totals by entitlements after app filter (not duplicated desc rows).
+    const actualTotalItems = appFilteredEntitlements.length;
     const actualTotalPages = Math.ceil(actualTotalItems / pageSize);
     setCurrentPage(Math.max(1, pageZeroBased + 1));
     setTotalPages(Math.max(1, actualTotalPages));
     setTotalItems(actualTotalItems);
   };
+
+  useEffect(() => {
+    const actualTotalItems = appFilteredEntitlements.length;
+    const actualTotalPages = Math.max(1, Math.ceil(actualTotalItems / pageSize));
+    setTotalItems(actualTotalItems);
+    setTotalPages(actualTotalPages);
+    setCurrentPage((prev) => Math.min(prev, actualTotalPages));
+  }, [appFilteredEntitlements, pageSize]);
 
   if (loading) {
     return (
@@ -1496,21 +1487,11 @@ const CatalogPageContent = () => {
             onChange={(e) => {
               const val = e.target.value;
               setSelectedAppFilter(val);
-              if (!gridApi) return;
-              if (val === "All") {
-                const current = gridApi.getFilterModel() || ({} as any);
-                delete (current as any)["applicationName"];
-                gridApi.setFilterModel(
-                  Object.keys(current).length ? current : null
-                );
-              } else {
-                const model = gridApi.getFilterModel() || ({} as any);
-                (model as any)["applicationName"] = {
-                  filterType: "text",
-                  type: "equals",
-                  filter: val,
-                } as any;
-                gridApi.setFilterModel(model);
+              // App dropdown filtering is applied in React state to avoid
+              // grid model shape mismatches across AG Grid versions.
+              if (gridApi) {
+                gridApi.paginationGoToPage(0);
+                updatePaginationState(gridApi);
               }
             }}
             className="border border-gray-300 rounded px-3 h-9 text-sm w-64"
@@ -1522,14 +1503,6 @@ const CatalogPageContent = () => {
             ))}
           </select>
           {/* Page size selector intentionally removed to match provided design */}
-          <Tabs
-            tabs={tabsDataEnt}
-            activeClass="bg-[#2563eb] text-white text-sm rounded-sm"
-            buttonClass="h-10 -mt-1 w-30"
-            className="border border-gray-300 w-61 h-8 rounded-md flex"
-            activeIndex={entTabIndex}
-            onChange={setEntTabIndex}
-          />
         </div>
       </div>
       {/* Top pagination - minimal gap to table */}
@@ -1555,6 +1528,7 @@ const CatalogPageContent = () => {
       </div>
       <div style={{ width: "100%" }}>
         <AgGridReact
+          theme="legacy"
           rowData={filteredRowData}
           columnDefs={entTabIndex === 0 ? colDefs : underReviewColDefs}
           defaultColDef={defaultColDef}
@@ -1576,12 +1550,21 @@ const CatalogPageContent = () => {
           }}
           onGridReady={(params: any) => {
             setGridApi(params.api);
+            // Prevent stale persisted filters from hiding all rows on first render.
+            params.api.setFilterModel(null);
             params.api.setGridOption("paginationPageSize", pageSize * 2);
             updatePaginationState(params.api);
+            fitColumnsToGridWidth(params.api);
             params.api.addEventListener("paginationChanged", () => updatePaginationState(params.api));
             params.api.addEventListener("modelUpdated", () => updatePaginationState(params.api));
             params.api.addEventListener("filterChanged", () => updatePaginationState(params.api));
             params.api.addEventListener("sortChanged", () => updatePaginationState(params.api));
+          }}
+          onGridSizeChanged={(params: any) => {
+            fitColumnsToGridWidth(params.api);
+          }}
+          onFirstDataRendered={(params: any) => {
+            fitColumnsToGridWidth(params.api);
           }}
         />
       </div>

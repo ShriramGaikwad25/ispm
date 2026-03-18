@@ -17,7 +17,6 @@ import {
   Shield,
   CheckCircle,
   AlertCircle,
-  FolderTree,
   Mail,
   Clock,
   Lock,
@@ -79,8 +78,7 @@ export const navLinks: NavItem[] = [
     subItems: [
       { name: 'Reporting', href: '/oracle-reports', icon: FileText },
       { name: 'Profiles', href: '/profiles', icon: UserCircle2Icon },
-      { name: 'SoD Audit', href: '/reports/sod-audit', icon: AlertCircle },
-      { name: 'Control Mapping', href: '/reports/control-mapping', icon: FolderTree }
+      { name: 'SoD Audit', href: '/reports/sod-audit', icon: AlertCircle }
     ]
   },
   {
