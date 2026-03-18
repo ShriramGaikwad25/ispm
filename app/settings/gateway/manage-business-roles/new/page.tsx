@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { ChevronLeft, ChevronRight, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight, Check, ChevronDown } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
 import { useCart } from "@/contexts/CartContext";
@@ -9,13 +9,27 @@ import SelectAccessTab from "@/app/access-request/SelectAccessTab";
 
 interface Step1Data {
   roleName: string;
+  roleCode: string;
   description: string;
   owner: string;
-  tags: string;
+  tags: string[];
 }
 
 interface FormData {
   step1: Step1Data;
+}
+
+interface OwnerUserRow {
+  userid?: string;
+  userId?: string;
+  username?: string;
+  userName?: string;
+  firstname?: string;
+  firstName?: string;
+  lastname?: string;
+  lastName?: string;
+  displayname?: string;
+  displayName?: string;
 }
 
 export default function NewBusinessRoleWizard() {
@@ -26,24 +40,103 @@ export default function NewBusinessRoleWizard() {
   const [currentStep, setCurrentStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [preselectedAccessIds, setPreselectedAccessIds] = useState<string[]>([]);
+  const [ownerUsers, setOwnerUsers] = useState<
+    Array<{ value: string; label: string; userName: string }>
+  >([]);
+  const [isOwnersLoading, setIsOwnersLoading] = useState(false);
+  const [ownerDropdownOpen, setOwnerDropdownOpen] = useState(false);
+  const [ownerFilter, setOwnerFilter] = useState("");
+  const ownerDropdownRef = useRef<HTMLDivElement | null>(null);
+  const [tagInput, setTagInput] = useState("");
 
   const [formData, setFormData] = useState<FormData>({
     step1: {
       roleName: "",
+      roleCode: "",
       description: "",
       owner: "",
-      tags: "",
+      tags: [],
     },
   });
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const loadOwnerUsers = async () => {
+      try {
+        setIsOwnersLoading(true);
+        const res = await fetch(
+          "https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            signal: controller.signal,
+            body: JSON.stringify({
+              query:
+                "SELECT userid, username, firstname, lastname, displayname FROM usr ORDER BY username",
+              parameters: [],
+            }),
+          },
+        );
+        if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+
+        const payload = await res.json();
+        const data: OwnerUserRow[] = Array.isArray(payload)
+          ? payload
+          : Array.isArray((payload as any).resultSet)
+            ? (payload as any).resultSet
+            : Array.isArray((payload as any).rows)
+              ? (payload as any).rows
+              : [];
+        const seen = new Set<string>();
+        const options = data
+          .map((u) => {
+            const userName = (u.userName ?? u.username ?? "").trim();
+            const userId = (u.userId ?? u.userid ?? "").trim();
+            if (!userName || !userId || seen.has(userId.toLowerCase())) return null;
+
+            seen.add(userId.toLowerCase());
+            const displayName = (u.displayName ?? u.displayname ?? "").trim();
+            const fullName = `${u.firstName ?? u.firstname ?? ""} ${u.lastName ?? u.lastname ?? ""}`.trim();
+            const labelBase = displayName || fullName || userName;
+
+            return {
+              value: userId,
+              userName,
+              label: labelBase === userName ? userName : `${labelBase} (${userName})`,
+            };
+          })
+          .filter(
+            (item): item is { value: string; label: string; userName: string } =>
+              item !== null,
+          );
+
+        setOwnerUsers(options);
+      } catch (error: any) {
+        if (error?.name !== "AbortError") {
+          setOwnerUsers([]);
+        }
+      } finally {
+        setIsOwnersLoading(false);
+      }
+    };
+
+    loadOwnerUsers();
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     const mode = searchParams.get("mode");
     if (mode !== "edit") return;
 
     const roleName = searchParams.get("roleName") ?? "";
+    const roleCode = searchParams.get("roleCode") ?? "";
     const description = searchParams.get("description") ?? "";
-    const owner = searchParams.get("owner") ?? "";
-    const tags = searchParams.get("tags") ?? "";
+    const owner = searchParams.get("ownerId") ?? searchParams.get("owner") ?? "";
+    const tags = (searchParams.get("tags") ?? "")
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean);
     const selectedIdsParam = searchParams.get("selectedAccessIds") ?? "";
     const selectedIds =
       selectedIdsParam
@@ -54,6 +147,7 @@ export default function NewBusinessRoleWizard() {
     setFormData({
       step1: {
         roleName,
+        roleCode,
         description,
         owner,
         tags,
@@ -78,11 +172,76 @@ export default function NewBusinessRoleWizard() {
     { id: 2, title: "Select Access" },
     { id: 3, title: "Review & Submit" },
   ];
+  const isEditMode = searchParams.get("mode") === "edit";
+  const businessRoleId = searchParams.get("businessRoleId") ?? "";
 
   const canGoNextFromStep1 =
     formData.step1.roleName.trim() !== "" &&
+    formData.step1.roleCode.trim() !== "" &&
     formData.step1.description.trim() !== "" &&
     formData.step1.owner.trim() !== "";
+
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (
+        ownerDropdownRef.current &&
+        !ownerDropdownRef.current.contains(event.target as Node)
+      ) {
+        setOwnerDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
+
+  const visibleOwnerUsers = React.useMemo(() => {
+    const q = ownerFilter.trim().toLowerCase();
+    if (!q) return ownerUsers;
+    return ownerUsers.filter(
+      (user) =>
+        user.label.toLowerCase().includes(q) ||
+        user.userName.toLowerCase().includes(q) ||
+        user.value.toLowerCase().includes(q),
+    );
+  }, [ownerUsers, ownerFilter]);
+
+  const selectedOwnerLabel =
+    ownerUsers.find((user) => user.value === formData.step1.owner)?.label ||
+    formData.step1.owner;
+
+  const selectedOwnerUserName =
+    ownerUsers.find((user) => user.value === formData.step1.owner)?.userName || "";
+
+  const addTag = (rawTag: string) => {
+    const nextTag = rawTag.trim();
+    if (!nextTag) return;
+
+    setFormData((prev) => {
+      const alreadyExists = prev.step1.tags.some(
+        (tag) => tag.toLowerCase() === nextTag.toLowerCase(),
+      );
+      if (alreadyExists) return prev;
+
+      return {
+        ...prev,
+        step1: {
+          ...prev.step1,
+          tags: [...prev.step1.tags, nextTag],
+        },
+      };
+    });
+  };
+
+  const removeTag = (tagToRemove: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      step1: {
+        ...prev.step1,
+        tags: prev.step1.tags.filter((tag) => tag !== tagToRemove),
+      },
+    }));
+  };
 
   const canGoNextFromStep2 = true;
 
@@ -105,12 +264,49 @@ export default function NewBusinessRoleWizard() {
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      // Placeholder: wire to API when available
-      // eslint-disable-next-line no-console
-      console.log("Submitting business role:", formData);
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      const payload = {
+        ...(isEditMode && businessRoleId.trim()
+          ? { businessRoleId: businessRoleId.trim() }
+          : {}),
+        roleName: formData.step1.roleName.trim(),
+        roleCode: formData.step1.roleCode.trim(),
+        description: formData.step1.description.trim(),
+        ownerId: formData.step1.owner.trim(),
+        status: "Active",
+        attributes: {},
+        tags: formData.step1.tags,
+        catalogItems: cartItems.map((item, index) => ({
+          catalogId: item.id,
+          order: index + 1,
+          attributes: {},
+        })),
+      };
+
+      const response = await fetch(
+        "https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query: "SELECT kf_br_upsert_role_with_accesses(p_payload => ?::jsonb)",
+            parameters: [payload],
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `${isEditMode ? "Update" : "Create"} business role failed: ${response.status}`,
+        );
+      }
+
       clearCart();
       router.push("/settings/gateway/manage-business-roles");
+    } catch (error) {
+      console.error(
+        `Failed to ${isEditMode ? "update" : "create"} business role:`,
+        error,
+      );
     } finally {
       setSubmitting(false);
     }
@@ -405,11 +601,11 @@ export default function NewBusinessRoleWizard() {
                 className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium disabled:opacity-60"
               >
                 {submitting ? (
-                  "Submitting..."
+                  isEditMode ? "Updating..." : "Submitting..."
                 ) : (
                   <>
                     <Check className="w-4 h-4 mr-2" />
-                    Submit
+                    {isEditMode ? "Update" : "Submit"}
                   </>
                 )}
               </button>
@@ -426,28 +622,54 @@ export default function NewBusinessRoleWizard() {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
             {currentStep === 1 && (
               <div className="space-y-6">
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={formData.step1.roleName}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        step1: { ...prev.step1, roleName: e.target.value },
-                      }))
-                    }
-                    className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
-                    placeholder=" "
-                  />
-                  <label
-                    className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                      formData.step1.roleName
-                        ? "top-0.5 text-xs text-blue-600"
-                        : "top-3.5 text-sm text-gray-500"
-                    }`}
-                  >
-                    Business Role Name <span className="text-red-500">*</span>
-                  </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={formData.step1.roleName}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          step1: { ...prev.step1, roleName: e.target.value },
+                        }))
+                      }
+                      className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                      placeholder=" "
+                    />
+                    <label
+                      className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                        formData.step1.roleName
+                          ? "top-0.5 text-xs text-blue-600"
+                          : "top-3.5 text-sm text-gray-500"
+                      }`}
+                    >
+                      Business Role Name <span className="text-red-500">*</span>
+                    </label>
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={formData.step1.roleCode}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          step1: { ...prev.step1, roleCode: e.target.value },
+                        }))
+                      }
+                      className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                      placeholder=" "
+                    />
+                    <label
+                      className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                        formData.step1.roleCode
+                          ? "top-0.5 text-xs text-blue-600"
+                          : "top-3.5 text-sm text-gray-500"
+                      }`}
+                    >
+                      Role Code <span className="text-red-500">*</span>
+                    </label>
+                  </div>
                 </div>
 
                 <div className="relative">
@@ -474,52 +696,152 @@ export default function NewBusinessRoleWizard() {
                   </label>
                 </div>
 
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={formData.step1.owner}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        step1: { ...prev.step1, owner: e.target.value },
-                      }))
-                    }
-                    className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
-                    placeholder=" "
-                  />
-                  <label
-                    className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                      formData.step1.owner
-                        ? "top-0.5 text-xs text-blue-600"
-                        : "top-3.5 text-sm text-gray-500"
-                    }`}
-                  >
-                    Owner <span className="text-red-500">*</span>
-                  </label>
-                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="relative" ref={ownerDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => setOwnerDropdownOpen((prev) => !prev)}
+                      className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline bg-white text-left flex items-center justify-between"
+                    >
+                      <span
+                        className={formData.step1.owner ? "text-gray-900" : "text-gray-500"}
+                      >
+                        {formData.step1.owner
+                          ? selectedOwnerLabel
+                          : isOwnersLoading
+                            ? "Loading users..."
+                            : ""}
+                      </span>
+                      <ChevronDown
+                        className={`w-4 h-4 text-gray-500 transition-transform ${
+                          ownerDropdownOpen ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+                    <label
+                      className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                        formData.step1.owner || ownerDropdownOpen
+                          ? "top-0.5 text-xs text-blue-600"
+                          : "top-3.5 text-sm text-gray-500"
+                      }`}
+                    >
+                      Owner <span className="text-red-500">*</span>
+                    </label>
 
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={formData.step1.tags}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        step1: { ...prev.step1, tags: e.target.value },
-                      }))
-                    }
-                    className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
-                    placeholder=" "
-                  />
-                  <label
-                    className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                      formData.step1.tags
-                        ? "top-0.5 text-xs text-blue-600"
-                        : "top-3.5 text-sm text-gray-500"
-                    }`}
-                  >
-                    Tags
-                  </label>
+                    {ownerDropdownOpen && (
+                      <div className="absolute left-0 right-0 top-full mt-1 z-30 bg-white border border-gray-300 rounded-md shadow-lg">
+                        <div className="p-2 border-b border-gray-200">
+                          <input
+                            type="text"
+                            value={ownerFilter}
+                            onChange={(e) => setOwnerFilter(e.target.value)}
+                            placeholder="Search user"
+                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div className="max-h-56 overflow-auto py-1">
+                          {formData.step1.owner &&
+                            !ownerUsers.some((user) => user.value === formData.step1.owner) && (
+                              <button
+                                type="button"
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 bg-blue-50/40"
+                                onClick={() => {
+                                  setOwnerDropdownOpen(false);
+                                }}
+                              >
+                                {formData.step1.owner}
+                              </button>
+                            )}
+
+                          {isOwnersLoading && (
+                            <div className="px-3 py-2 text-sm text-gray-500">Loading users...</div>
+                          )}
+
+                          {!isOwnersLoading && visibleOwnerUsers.length === 0 && (
+                            <div className="px-3 py-2 text-sm text-gray-500">No users found</div>
+                          )}
+
+                          {!isOwnersLoading &&
+                            visibleOwnerUsers.map((user) => (
+                              <button
+                                key={user.value}
+                                type="button"
+                                className={`w-full text-left px-3 py-2 text-sm hover:bg-blue-50 ${
+                                  formData.step1.owner === user.value ? "bg-blue-50" : ""
+                                }`}
+                                onClick={() => {
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    step1: { ...prev.step1, owner: user.value },
+                                  }));
+                                  setOwnerDropdownOpen(false);
+                                  setOwnerFilter("");
+                                }}
+                              >
+                                {user.label}
+                              </button>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <div className="w-full min-h-[46px] px-3 pt-5 pb-2 border border-gray-300 rounded-md focus-within:ring-2 focus-within:ring-blue-500">
+                      <div className="flex flex-wrap gap-2">
+                        {formData.step1.tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800"
+                          >
+                            {tag}
+                            <button
+                              type="button"
+                              className="text-blue-700 hover:text-blue-900"
+                              onClick={() => removeTag(tag)}
+                              aria-label={`Remove ${tag}`}
+                            >
+                              x
+                            </button>
+                          </span>
+                        ))}
+                        <input
+                          type="text"
+                          value={tagInput}
+                          onChange={(e) => setTagInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === ",") {
+                              e.preventDefault();
+                              addTag(tagInput);
+                              setTagInput("");
+                            } else if (
+                              e.key === "Backspace" &&
+                              tagInput.trim() === "" &&
+                              formData.step1.tags.length > 0
+                            ) {
+                              removeTag(formData.step1.tags[formData.step1.tags.length - 1]);
+                            }
+                          }}
+                          onBlur={() => {
+                            if (tagInput.trim()) {
+                              addTag(tagInput);
+                              setTagInput("");
+                            }
+                          }}
+                          className="flex-1 min-w-[120px] py-1 text-sm outline-none"
+                        />
+                      </div>
+                    </div>
+                    <label
+                      className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                        formData.step1.tags.length > 0 || tagInput.trim().length > 0
+                          ? "top-0.5 text-xs text-blue-600"
+                          : "top-3.5 text-sm text-gray-500"
+                      }`}
+                    >
+                      Tags
+                    </label>
+                  </div>
                 </div>
               </div>
             )}
@@ -574,15 +896,23 @@ export default function NewBusinessRoleWizard() {
                     </span>
                   </div>
                   <div>
+                    <span className="font-medium text-gray-700">Role Code:</span>
+                    <span className="ml-2 text-gray-900">
+                      {formData.step1.roleCode || "-"}
+                    </span>
+                  </div>
+                  <div>
                     <span className="font-medium text-gray-700">Owner:</span>
                     <span className="ml-2 text-gray-900">
-                      {formData.step1.owner || "-"}
+                      {selectedOwnerLabel || selectedOwnerUserName || "-"}
                     </span>
                   </div>
                   <div>
                     <span className="font-medium text-gray-700">Tags:</span>
                     <span className="ml-2 text-gray-900">
-                      {formData.step1.tags || "N/A"}
+                      {formData.step1.tags.length > 0
+                        ? formData.step1.tags.join(", ")
+                        : "N/A"}
                     </span>
                   </div>
                   <div>

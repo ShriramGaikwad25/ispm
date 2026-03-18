@@ -11,8 +11,11 @@ import CustomPagination from "@/components/agTable/CustomPagination";
 import { executeQuery } from "@/lib/api";
 
 interface BusinessRoleRow {
+  businessRoleId?: string;
   roleName: string;
+  roleCode?: string;
   description: string;
+  ownerId?: string;
   owner: string;
   noOfUsers: number;
   noOfPermissions?: number;
@@ -23,9 +26,12 @@ interface BusinessRoleRow {
 
 const fallbackBusinessRoles: BusinessRoleRow[] = [
   {
+    businessRoleId: "",
     roleName: "Finance - Approvers",
+    roleCode: "FIN_APPROVERS",
     description:
       "Business role for Finance approvers responsible for purchase approvals and financial controls.",
+    ownerId: "",
     owner: "finance.approver@acme.com",
     noOfUsers: 18,
     tags: "Finance",
@@ -78,12 +84,28 @@ export default function ManageBusinessRolesSettings() {
         }
 
         const mapped: BusinessRoleRow[] = rawRows.map((row: any) => {
+          const businessRoleId =
+            row.businessroleid ??
+            row.business_role_id ??
+            row.roleid ??
+            row.role_id ??
+            row.id ??
+            "";
+
           const roleName =
             row.rolename ??
             row.role_name ??
             row.businessrolename ??
             row.business_role_name ??
             row.name ??
+            "";
+
+          const roleCode =
+            row.rolecode ??
+            row.role_code ??
+            row.businessrolecode ??
+            row.business_role_code ??
+            row.code ??
             "";
 
           const description =
@@ -99,6 +121,13 @@ export default function ManageBusinessRolesSettings() {
             row.owneremail ??
             row.email ??
             row.owner_name ??
+            "";
+
+          const ownerId =
+            row.ownerid ??
+            row.owner_id ??
+            row.userid ??
+            row.user_id ??
             "";
 
           const noOfUsersRaw =
@@ -130,8 +159,11 @@ export default function ManageBusinessRolesSettings() {
           }
 
           return {
+            businessRoleId: String(businessRoleId || "").trim(),
             roleName: String(roleName || "").trim() || "Unnamed Role",
+            roleCode: String(roleCode || "").trim(),
             description: String(description || "").trim(),
+            ownerId: String(ownerId || "").trim(),
             owner: String(owner || "").trim(),
             noOfUsers: Number(noOfUsersRaw ?? 0),
             noOfPermissions:
@@ -194,8 +226,11 @@ export default function ManageBusinessRolesSettings() {
     (row: BusinessRoleRow) => {
       const search = new URLSearchParams({
         mode: "edit",
+        businessRoleId: row.businessRoleId ?? "",
         roleName: row.roleName ?? "",
+        roleCode: row.roleCode ?? "",
         description: row.description ?? "",
+        ownerId: row.ownerId ?? "",
         owner: row.owner ?? "",
         tags: row.tags ?? "",
         selectedAccessIds: (row.selectedAccessIds ?? []).join(","),
