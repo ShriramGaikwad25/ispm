@@ -8,7 +8,6 @@ const SOD_TABS = [
   { label: "Rules", href: "/settings/gateway/sod/rules" },
   { label: "SoD Policy", href: "/settings/gateway/sod/policy" },
   { label: "Mitigating Controls", href: "/settings/gateway/sod/mitigating-controls" },
-  { label: "Summary", href: "/settings/gateway/sod/summary" },
 ];
 
 export default function SodTabs() {

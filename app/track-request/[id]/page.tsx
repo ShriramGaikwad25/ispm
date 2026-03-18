@@ -1,14 +1,14 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Info, FileText, Clock, Search, ChevronDown, ChevronUp } from "lucide-react";
+import { Info, FileText, ChevronDown, ChevronUp } from "lucide-react";
 import { getReviewerId } from "@/lib/auth";
 
-interface RequestHistory {
+interface InstanceStep {
   action: string;
   date: string;
+  userActor: string;
   status: string;
-  assignedTo: string;
 }
 
 interface RequestDetails {
@@ -21,8 +21,26 @@ interface RequestDetails {
   globalComments?: string;
 }
 
+interface RequestLineItem {
+  name: string;
+  displayName: string;
+  applicationName: string;
+  type: string;
+  startDate: string;
+  endDate: string;
+  comments: string;
+  hasInfoIcon?: boolean;
+  hasHighRisk?: boolean;
+  canWithdraw?: boolean;
+  canProvideAdditionalDetails?: boolean;
+  instanceSteps: InstanceStep[];
+}
+
 interface Request {
   id: string | number;
+  requestId: string;
+  wfInstanceId: string;
+  lookupKeys: string[];
   beneficiaryName: string;
   requesterName: string;
   displayName: string;
@@ -33,19 +51,15 @@ interface Request {
   canWithdraw?: boolean;
   canProvideAdditionalDetails?: boolean;
   details?: RequestDetails;
-  history?: RequestHistory[];
+  lineItems: RequestLineItem[];
+  instanceSteps: InstanceStep[];
 }
 const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> }) => {
   const { id } = React.use(params);
   const [request, setRequest] = useState<Request | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [historySearch, setHistorySearch] = useState("");
-  const [isItemExpanded, setIsItemExpanded] = useState(true);
-  const [expandedTimelineIndex, setExpandedTimelineIndex] = useState<number | null>(null);
-  const [timelineComment, setTimelineComment] = useState("");
-  const [timelineAttachmentName, setTimelineAttachmentName] = useState("");
-  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [expandedLineItems, setExpandedLineItems] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const reviewerId = getReviewerId();
@@ -59,7 +73,7 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
     setError(null);
 
     const body = {
-      query: "select * from kf_wf_get_access_request where requesterid = ?::uuid",
+      query: "select * from vw_access_request_full_json where requested_by_user_id = ?::uuid",
       parameters: [reviewerId],
     };
 
@@ -71,6 +85,37 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
       const [yyyy, mm, dd] = parts;
       if (!yyyy || !mm || !dd) return value;
       return `${mm.padStart(2, "0")}/${dd.padStart(2, "0")}/${yyyy}`;
+    };
+
+    const formatDateTime = (value: string | null | undefined): string => {
+      if (!value) return "";
+      const parsed = new Date(value);
+      if (Number.isNaN(parsed.getTime())) return String(value);
+      return new Intl.DateTimeFormat("en-US", {
+        month: "2-digit",
+        day: "2-digit",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      }).format(parsed);
+    };
+
+    const normalizeStatus = (value: string | null | undefined): string => {
+      if (!value) return "";
+      return String(value)
+        .replace(/_/g, " ")
+        .toLowerCase()
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+    };
+
+    const stepCodeToAction = (code: string | null | undefined): string => {
+      const normalized = String(code ?? "").toUpperCase();
+      if (normalized === "SOD_CHECK") return "Assigned for SOD Approval";
+      if (normalized === "MANAGER_APPROVAL") return "Assigned to User Manager";
+      if (normalized === "APP_OWNER_APPROVAL") return "Assigned to App Owner";
+      if (normalized === "PROVISION_SCIM") return "Request Fulfillment";
+      return normalized ? normalized.replace(/_/g, " ") : "";
     };
 
     fetch(url, {
@@ -94,15 +139,210 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
           setRequest(null);
           return;
         }
+        const isStepLikeObject = (value: any): boolean => {
+          if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+          const keys = Object.keys(value).map((k) => k.toLowerCase());
+          const hasStepIdentity = keys.some((k) =>
+            [
+              "step_code",
+              "stepcode",
+              "template_step_id",
+              "templatestepid",
+              "instance_step_id",
+              "instancestepid",
+              "step_name",
+              "stepname",
+            ].includes(k)
+          );
+          const hasActionAndStatus =
+            keys.some((k) => ["action", "action_item", "item_action", "action_name", "actionname"].includes(k)) &&
+            keys.some((k) => ["status", "step_status", "stepstatus", "state"].includes(k));
+          const looksLikeOutboxEvent =
+            keys.includes("event_type") || keys.includes("aggregatetype") || keys.includes("aggregate_type");
+          return (hasStepIdentity || hasActionAndStatus) && !looksLikeOutboxEvent;
+        };
+
+        const toStepsArray = (value: any): any[] => {
+          if (Array.isArray(value)) return value;
+          if (!value) return [];
+
+          if (typeof value === "string") {
+            try {
+              const parsed = JSON.parse(value);
+              return toStepsArray(parsed);
+            } catch {
+              return [];
+            }
+          }
+
+          if (typeof value === "object") {
+            const obj = value as Record<string, unknown>;
+            const candidates = [
+              obj.instance_steps,
+              obj.instancesteps,
+              obj.instanceSteps,
+              obj.steps,
+              obj.workflow_steps,
+              obj.workflowSteps,
+              obj.data,
+              obj.result,
+            ];
+            for (const candidate of candidates) {
+              const arr = toStepsArray(candidate);
+              if (arr.length > 0) return arr;
+            }
+          }
+
+          return [];
+        };
+
+        const deepCollectStepArrays = (value: any, maxDepth = 6): any[][] => {
+          if (maxDepth < 0 || !value) return [];
+
+          if (Array.isArray(value)) {
+            const arrays: any[][] = [];
+            const allStepLike = value.length > 0 && value.every((v) => isStepLikeObject(v));
+            if (allStepLike) arrays.push(value);
+            for (const item of value) {
+              arrays.push(...deepCollectStepArrays(item, maxDepth - 1));
+            }
+            return arrays;
+          }
+
+          if (typeof value === "string") {
+            try {
+              const parsed = JSON.parse(value);
+              return deepCollectStepArrays(parsed, maxDepth - 1);
+            } catch {
+              return [];
+            }
+          }
+
+          if (typeof value === "object") {
+            const obj = value as Record<string, unknown>;
+            let arrays: any[][] = [];
+            for (const child of Object.values(obj)) {
+              arrays = arrays.concat(deepCollectStepArrays(child, maxDepth - 1));
+            }
+            return arrays;
+          }
+
+          return [];
+        };
+
+        const pickBestStepArray = (...sources: any[]): any[] => {
+          const explicitCandidate = sources
+            .map((s) => toStepsArray(s))
+            .find((arr) => arr.length > 0 && arr.every((v) => isStepLikeObject(v)));
+          if (explicitCandidate) return explicitCandidate;
+
+          let best: any[] = [];
+          for (const source of sources) {
+            const arrays = deepCollectStepArrays(source);
+            for (const arr of arrays) {
+              if (arr.length > best.length) best = arr;
+            }
+          }
+          return best;
+        };
+
+        const mapInstanceSteps = (steps: any[]): InstanceStep[] =>
+          steps.map((step) => {
+            const actionFromCode = stepCodeToAction(step?.step_code);
+            const actionFromFields =
+              step?.action ??
+              step?.action_item ??
+              step?.item_action ??
+              step?.actionItem ??
+              step?.action_name ??
+              step?.actionName ??
+              step?.step_name ??
+              step?.stepName ??
+              step?.name ??
+              "";
+
+            return {
+            action: String(actionFromCode ? actionFromCode : actionFromFields),
+            date: String(
+              formatDateTime(
+                step?.created_at ??
+                  step?.updated_at ??
+                  step?.completed_at ??
+                  step?.date ??
+                  step?.action_date ??
+                  step?.actionDate ??
+                  step?.createdon ??
+                  step?.createdOn ??
+                  step?.requestedon ??
+                  step?.requestedOn ??
+                  step?.timestamp
+              )
+            ),
+            userActor: String(
+              step?.tasks?.[0]?.assignee?.display_name ??
+                [step?.tasks?.[0]?.assignee?.first_name, step?.tasks?.[0]?.assignee?.last_name]
+                  .filter(Boolean)
+                  .join(" ") ??
+                step?.tasks?.[0]?.assignee?.username ??
+                step?.user_actor ??
+                step?.userActor ??
+                step?.assigned_to ??
+                step?.assignedTo ??
+                step?.actor ??
+                step?.user ??
+                step?.performed_by ??
+                step?.performedBy ??
+                step?.username ??
+                ""
+            ),
+            status: String(
+              normalizeStatus(
+                step?.status ??
+                  step?.tasks?.[0]?.task_status ??
+                  step?.tasks?.[0]?.step_state ??
+                  step?.step_status ??
+                  step?.stepStatus ??
+                  step?.state ??
+                  step?.current_status ??
+                  step?.currentStatus
+              )
+            ),
+          };
+          });
+
         const mapped: Request[] = rawRows.map((row) => {
-          const beneficiary = row.beneficiary ?? {};
-          const itemdetails: any[] = Array.isArray(row.itemdetails) ? row.itemdetails : [];
-          const firstItem = itemdetails[0] ?? {};
+          const requestJson = row.request_json ?? {};
+          const accessRequest = requestJson.access_request ?? {};
+          const requester = accessRequest.requested_by ?? row.requester ?? row.requestedby ?? row.requested_by ?? {};
+          const beneficiary = accessRequest.requested_for ?? row.beneficiary ?? {};
+          const accessItems: any[] = Array.isArray(requestJson.access_items)
+            ? requestJson.access_items
+            : Array.isArray(row.itemdetails)
+              ? row.itemdetails
+              : [];
+          const firstItem = accessItems[0] ?? {};
           const catalog = firstItem.catalog ?? {};
 
+          const requesterNameFromObject =
+            requester.display_name ||
+            requester.displayname ||
+            requester.display_name ||
+            [requester.firstname, requester.lastname].filter(Boolean).join(" ") ||
+            [requester.first_name, requester.last_name].filter(Boolean).join(" ") ||
+            requester.username ||
+            row.requesterdisplayname ||
+            row.requester_display_name ||
+            row.requestername ||
+            row.requester_name ||
+            row.requestedbyname ||
+            row.requested_by_name ||
+            "";
+
           const beneficiaryNameFromObject =
+            beneficiary.display_name ||
             beneficiary.displayname ||
             [beneficiary.firstname, beneficiary.lastname].filter(Boolean).join(" ") ||
+            [beneficiary.first_name, beneficiary.last_name].filter(Boolean).join(" ") ||
             beneficiary.username ||
             "";
 
@@ -112,7 +352,8 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
           const entityTypeFromCatalog =
             catalog.type || catalog.entitlementtype || (catalog.metadata?.entitlementType as string) || "";
 
-          const requestedOn: string | undefined = row.requestedon;
+          const requestedOn: string | undefined =
+            accessRequest.created_at ?? row.requestedon ?? row.created_at;
           const raisedOn = formatDate(requestedOn);
 
           let daysOpen = 0;
@@ -127,22 +368,147 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
           }
 
           const status: string =
-            typeof row.status === "string" && row.status.trim()
-              ? row.status
+            typeof accessRequest.status === "string" && accessRequest.status.trim()
+              ? accessRequest.status
+              : typeof row.status === "string" && row.status.trim()
+                ? row.status
               : row.isjit
                 ? "JIT Request Submitted"
                 : "Request Submitted";
 
           const justification: string =
-            (row.requester_justification as string) || (firstItem.item_comments as string) || "";
+            (accessRequest.justification as string) ||
+            (row.requester_justification as string) ||
+            (firstItem.item_comments as string) ||
+            "";
 
           const startDate = firstItem.item_startdate ? String(firstItem.item_startdate) : raisedOn;
           const endDate = firstItem.item_enddate ? String(firstItem.item_enddate) : "";
+          const requestJsonStepsRaw = pickBestStepArray(
+            requestJson?.instance_steps,
+            requestJson?.workflow_instance?.instance_steps,
+            requestJson?.workflowInstance?.instance_steps,
+            row?.instance_steps,
+            requestJson,
+            row
+          );
+          const lineItems: RequestLineItem[] = accessItems.map((item) => {
+            const lineCatalog = item?.catalog ?? {};
+            const instanceSteps = mapInstanceSteps(toStepsArray(item?.instance_steps));
+            const lineDisplayName =
+              lineCatalog.name || lineCatalog.entitlementname || lineCatalog.applicationname || "";
+            const lineApplicationName =
+              lineCatalog.applicationname || lineCatalog.applicationName || lineCatalog.name || "";
+            const lineType =
+              lineCatalog.type ||
+              lineCatalog.entitlementtype ||
+              (lineCatalog.metadata?.entitlementType as string) ||
+              "Entitlement";
+            const lineComments =
+              (item?.item_comments as string) || (row.requester_justification as string) || "";
+            const lineStartDate = item?.item_startdate ? String(item.item_startdate) : raisedOn;
+            const lineEndDate = item?.item_enddate ? String(item.item_enddate) : "";
+            const lineRisk = String(lineCatalog.risk ?? "").toLowerCase();
+
+            return {
+              name: String(lineDisplayName || ""),
+              displayName: String(lineDisplayName || ""),
+              applicationName: String(lineApplicationName || ""),
+              type: String(lineType),
+              startDate: lineStartDate,
+              endDate: lineEndDate,
+              comments: lineComments,
+              hasInfoIcon:
+                String(lineCatalog.privileged ?? "").toLowerCase() === "yes" ||
+                lineRisk.startsWith("high"),
+              hasHighRisk: lineRisk.startsWith("high"),
+              canWithdraw: status.toLowerCase().includes("awaiting") || status.toLowerCase().includes("pending"),
+              canProvideAdditionalDetails: status.toLowerCase().includes("provide information"),
+              instanceSteps,
+            };
+          });
+          const normalizedLineItems =
+            lineItems.length > 0
+              ? lineItems
+              : [
+                  {
+                    name: String(displayNameFromCatalog || ""),
+                    displayName: String(displayNameFromCatalog || ""),
+                    applicationName: String(catalog.applicationname || catalog.applicationName || catalog.name || ""),
+                    type: String(entityTypeFromCatalog || "Entitlement"),
+                    startDate,
+                    endDate,
+                    comments: justification,
+                    hasInfoIcon:
+                      String(catalog.privileged ?? "").toLowerCase() === "yes" ||
+                      String(catalog.risk ?? "").toLowerCase().startsWith("high"),
+                    hasHighRisk: String(catalog.risk ?? "").toLowerCase().startsWith("high"),
+                    canWithdraw:
+                      status.toLowerCase().includes("awaiting") || status.toLowerCase().includes("pending"),
+                    canProvideAdditionalDetails: status.toLowerCase().includes("provide information"),
+                    instanceSteps: [],
+                  },
+                ];
+          const mappedWorkflowSteps = mapInstanceSteps(requestJsonStepsRaw);
+          const submittedStep: InstanceStep[] = requestedOn
+            ? [
+                {
+                  action: "Request Submitted",
+                  date: formatDateTime(requestedOn),
+                  userActor: requesterNameFromObject
+                    ? `${requesterNameFromObject} (Requester)`
+                    : "Requester",
+                  status: "Completed",
+                },
+              ]
+            : [];
+          const requestInstanceSteps =
+            mappedWorkflowSteps.length > 0 ? [...submittedStep, ...mappedWorkflowSteps] : [];
+
+          const wfInstanceIdFromItem =
+            firstItem?.wf_instance_id ??
+            accessItems.find((item: any) => item?.wf_instance_id != null)?.wf_instance_id;
+          const wfInstanceIdFromRequestJson =
+            requestJson?.workflow_instance?.id ??
+            requestJson?.workflowInstance?.id;
+          const requestDisplayId =
+            accessRequest.id ??
+            row.request_id ??
+            row.requestid ??
+            row.id ??
+            wfInstanceIdFromRequestJson ??
+            wfInstanceIdFromItem ??
+            "";
+          const lookupKeys = [
+            wfInstanceIdFromRequestJson,
+            wfInstanceIdFromItem,
+            row.wf_instance_id,
+            row.wfinstanceid,
+            row.request_id,
+            accessRequest.id,
+            row.requestid,
+            row.id,
+          ]
+            .filter((value) => value !== null && value !== undefined && String(value).trim() !== "")
+            .map((value) => String(value));
+          const resolvedRequestId = String(
+            accessRequest.id ?? row.request_id ?? row.requestid ?? row.id ?? ""
+          );
+          const resolvedWfInstanceId = String(
+            wfInstanceIdFromRequestJson ??
+              wfInstanceIdFromItem ??
+              row.wf_instance_id ??
+              row.wfinstanceid ??
+              ""
+          );
 
           return {
-            id: row.requestid ?? row.id ?? "",
+            id: requestDisplayId,
+            requestId: resolvedRequestId,
+            wfInstanceId: resolvedWfInstanceId,
+            lookupKeys,
             beneficiaryName: String(beneficiaryNameFromObject),
-            requesterName: "",
+            requesterName: String(requesterNameFromObject),
             displayName: String(displayNameFromCatalog),
             entityType: String(entityTypeFromCatalog || "Entitlement"),
             daysOpen,
@@ -161,12 +527,50 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
               endDate,
               globalComments: justification || undefined,
             },
-            history: [],
+            lineItems: normalizedLineItems,
+            instanceSteps: requestInstanceSteps,
           };
         });
 
-        const match = mapped.find((r) => String(r.id) === String(id));
-        setRequest(match ?? null);
+        const incomingId = String(id);
+        const scoreCandidate = (candidate: Request): number => {
+          let score = 0;
+          if (candidate.requestId && candidate.requestId === incomingId) score += 1000;
+          if (candidate.wfInstanceId && candidate.wfInstanceId === incomingId) score += 900;
+          if (candidate.lookupKeys.includes(incomingId)) score += 700;
+          if (String(candidate.id) === incomingId) score += 500;
+          score += (candidate.instanceSteps?.length ?? 0) * 10;
+          score += candidate.lineItems?.length ?? 0;
+          return score;
+        };
+
+        const primaryCandidates = mapped.filter(
+          (r) =>
+            (r.requestId && r.requestId === incomingId) ||
+            (r.wfInstanceId && r.wfInstanceId === incomingId) ||
+            r.lookupKeys.includes(incomingId) ||
+            String(r.id) === incomingId
+        );
+
+        const bestPrimary =
+          [...primaryCandidates].sort((a, b) => scoreCandidate(b) - scoreCandidate(a))[0] ?? null;
+
+        const relatedByBestPrimary =
+          bestPrimary == null
+            ? []
+            : mapped.filter((r) => {
+                const sameRequestId =
+                  bestPrimary.requestId !== "" && r.requestId === bestPrimary.requestId;
+                const sameWfInstanceId =
+                  bestPrimary.wfInstanceId !== "" && r.wfInstanceId === bestPrimary.wfInstanceId;
+                return sameRequestId || sameWfInstanceId;
+              });
+
+        const bestRelated =
+          [...relatedByBestPrimary].sort((a, b) => scoreCandidate(b) - scoreCandidate(a))[0] ??
+          null;
+
+        setRequest(bestRelated ?? bestPrimary ?? null);
       })
       .catch((err: unknown) => {
         const message = err instanceof Error ? err.message : "Failed to load request.";
@@ -178,20 +582,14 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
       });
   }, [id]);
 
-  const historyItems = request?.history ?? [];
-  const sortedHistory = [...historyItems].sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-  );
-  const filteredHistory = sortedHistory.filter((item) => {
-    if (!historySearch.trim()) return true;
-    const query = historySearch.toLowerCase();
-    return (
-      item.action.toLowerCase().includes(query) ||
-      item.status.toLowerCase().includes(query) ||
-      item.assignedTo.toLowerCase().includes(query) ||
-      item.date.toLowerCase().includes(query)
-    );
-  });
+  useEffect(() => {
+    if (!request?.lineItems?.length) return;
+    const defaultExpandedState: Record<string, boolean> = {};
+    request.lineItems.forEach((_, index) => {
+      defaultExpandedState[String(index)] = true;
+    });
+    setExpandedLineItems(defaultExpandedState);
+  }, [request]);
 
   if (loading) {
     return (
@@ -217,6 +615,20 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
       </div>
     );
   }
+
+  const requestLevelSteps = Array.isArray(request.instanceSteps)
+    ? request.instanceSteps
+    : [];
+  const lineLevelSteps = Array.isArray(request.lineItems)
+    ? request.lineItems.flatMap((lineItem) =>
+        Array.isArray(lineItem.instanceSteps) ? lineItem.instanceSteps : []
+      )
+    : [];
+  const topInstanceSteps =
+    requestLevelSteps.length > 0 ? requestLevelSteps : lineLevelSteps;
+  const firstPendingIndex = topInstanceSteps.findIndex((step) =>
+    String(step.status ?? "").toLowerCase().includes("pending")
+  );
 
   return (
     <div className="p-6 space-y-6">
@@ -258,14 +670,6 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
             </div>
             <div className="text-gray-900">{request.beneficiaryName}</div>
           </div>
-          {typeof request.daysOpen === "number" && (
-            <div>
-              <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">
-                Duration
-              </div>
-              <div className="text-gray-900">{request.daysOpen} days</div>
-            </div>
-          )}
           <div className="md:col-span-2">
             <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">
               Justification
@@ -277,323 +681,207 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
         </div>
       </div>
 
-      {/* Line Item Details */}
-      <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
-        <div className="border border-gray-200 rounded-lg bg-gray-50">
-          {/* Line item header: requested access item + tags + actions */}
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={() => setIsItemExpanded((prev) => !prev)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                setIsItemExpanded((prev) => !prev);
-              }
-            }}
-            className="w-full flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-gray-200 text-left hover:bg-gray-100 transition-colors cursor-pointer"
-            aria-expanded={isItemExpanded}
-          >
-            <div className="flex flex-col gap-1 min-w-0">
-              <div className="flex items-center gap-2 min-w-0">
-                <h3 className="text-sm font-semibold text-gray-900 truncate">
-                  {request.details.name}
-                </h3>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center px-3 py-1 rounded-md text-[11px] font-medium border border-red-300 bg-red-50 text-red-600">
-                  High Risk
-                </span>
-                <span className="inline-flex items-center px-3 py-1 rounded-md text-[11px] font-medium border border-blue-300 bg-blue-50 text-blue-600">
-                  {request.displayName}
-                </span>
-                <span className="inline-flex items-center px-3 py-1 rounded-md text-[11px] font-medium border border-emerald-300 bg-emerald-50 text-emerald-600">
-                  Training Check
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={(e) => e.stopPropagation()}
-                disabled={!request.canWithdraw}
-                className={`inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-                  request.canWithdraw
-                    ? "border-red-300 text-red-600 bg-white hover:bg-red-50 cursor-pointer"
-                    : "border-gray-200 text-gray-400 bg-white cursor-not-allowed"
-                }`}
-              >
-                <img
-                  src="/withdraw-icon.svg"
-                  alt="Withdraw"
-                  className="w-4 h-4"
-                />
-              </button>
-              <button
-                type="button"
-                onClick={(e) => e.stopPropagation()}
-                disabled={!request.canProvideAdditionalDetails}
-                className={`inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-                  request.canProvideAdditionalDetails
-                    ? "border-indigo-300 text-indigo-600 bg-white hover:bg-indigo-50 cursor-pointer"
-                    : "border-gray-200 text-gray-400 bg-white cursor-not-allowed"
-                }`}
-              >
-                <img
-                  src="/provide-details-icon.svg"
-                  alt="Provide additional details"
-                  className="w-4 h-4"
-                />
-              </button>
-              {request.details.globalComments && (
-                <div
-                  className="ml-1 w-6 h-6 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600"
-                  title="User-provided details"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Info className="w-3.5 h-3.5" />
-                </div>
-              )}
-              <span className="text-gray-500 ml-1" aria-hidden>
-                {isItemExpanded ? (
-                  <ChevronUp className="w-4 h-4" />
-                ) : (
-                  <ChevronDown className="w-4 h-4" />
-                )}
-              </span>
-            </div>
-          </div>
-
-          {isItemExpanded && (
-            <div className="px-4 py-3 space-y-3 text-sm">
-              {/* Compact row: access duration, comments, attachment */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="space-y-1">
-                  <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">
-                    Access Duration
-                  </div>
-                  <div className="text-gray-900">
-                    {request.details.startDate}
-                    {request.details.endDate
-                      ? ` - ${request.details.endDate}`
-                      : " (ongoing)"}
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1 text-[11px] font-medium text-gray-500 uppercase tracking-wide">
-                    Comments
-                    {request.details.globalComments && (
-                      <Info className="w-3 h-3 text-blue-500" />
-                    )}
-                  </div>
-                  <div className="text-gray-900 whitespace-pre-wrap break-words">
-                    {request.details.globalComments || "No additional comments provided."}
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">
-                    Attachment
-                  </div>
-                  <button
-                    type="button"
-                    className="inline-flex items-center px-3 py-1.5 rounded-md border border-gray-300 text-xs font-medium text-gray-700 bg-white hover:bg-gray-50"
-                  >
-                    View / Add Attachment
-                  </button>
-                </div>
-              </div>
-
-              {/* Request Actions Timeline (within access item) */}
-              {historyItems.length > 0 && (
-                <div className="mt-3 border-t border-gray-200 pt-3 space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-gray-600" />
-                      <h3 className="text-xs font-semibold text-gray-900">
-                        Request Actions Timeline
-                      </h3>
-                    </div>
-                    <div className="relative w-full sm:w-64">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-3.5 h-3.5" />
-                      <input
-                        type="text"
-                        value={historySearch}
-                        onChange={(e) => setHistorySearch(e.target.value)}
-                        placeholder="Search actions"
-                        className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="overflow-x-auto">
-                    <table className="w-full border border-gray-200 text-xs">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-3 py-1.5 text-left font-medium text-gray-500 uppercase">
-                            Action
-                          </th>
-                          <th className="px-3 py-1.5 text-left font-medium text-gray-500 uppercase">
-                            Date
-                          </th>
-                          <th className="px-3 py-1.5 text-left font-medium text-gray-500 uppercase">
-                            Status
-                          </th>
-                          <th className="px-3 py-1.5 text-left font-medium text-gray-500 uppercase">
-                            Assigned To
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {filteredHistory.map((item, idx) => {
-                          const isRequestInfoRow =
-                            item.action.toLowerCase().includes("requesting info") ||
-                            item.action.toLowerCase().includes("info requested");
-                          const isExpanded = expandedTimelineIndex === idx;
-
-                          return (
-                            <React.Fragment key={`${item.action}-${item.date}-${idx}`}>
-                              <tr
-                                className={
-                                  isRequestInfoRow ? "cursor-pointer hover:bg-gray-50" : ""
-                                }
-                                onClick={() => {
-                                  if (!isRequestInfoRow) return;
-                                  setExpandedTimelineIndex(isExpanded ? null : idx);
-                                }}
-                              >
-                                <td className="px-3 py-1.5 text-gray-900">
-                                  {item.action}
-                                  {isRequestInfoRow && (
-                                    <span className="ml-2 text-[10px] text-blue-600 underline">
-                                      (add info)
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="px-3 py-1.5 text-gray-500">{item.date}</td>
-                                <td className="px-3 py-1.5 text-gray-500">{item.status}</td>
-                                <td className="px-3 py-1.5 text-gray-500">{item.assignedTo}</td>
-                              </tr>
-                              {isRequestInfoRow && isExpanded && (
-                                <tr>
-                                  <td
-                                    colSpan={4}
-                                    className="bg-gray-50 px-4 py-3 text-xs text-gray-700"
-                                  >
-                                    <div className="space-y-3">
-                                      <div className="space-y-1">
-                                        <div className="text-[11px] font-medium text-gray-600">
-                                          Additional comments
-                                        </div>
-                                        <textarea
-                                          rows={3}
-                                          value={timelineComment}
-                                          onChange={(e) => setTimelineComment(e.target.value)}
-                                          className="w-full border border-gray-300 rounded-md px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                          placeholder="Provide any additional information for this request"
-                                        />
-                                      </div>
-                                      <div className="space-y-1">
-                                        <div className="text-[11px] font-medium text-gray-600">
-                                          Attachment
-                                        </div>
-                                        <input
-                                          type="file"
-                                          className="block w-full text-[11px] text-gray-600 file:mr-2 file:py-1 file:px-2 file:text-[11px] file:font-medium file:border-0 file:rounded-md file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                                          onChange={(e) => {
-                                            const file = e.target.files?.[0];
-                                            setTimelineAttachmentName(file ? file.name : "");
-                                          }}
-                                        />
-                                        {timelineAttachmentName && (
-                                          <div className="text-[11px] text-gray-500 mt-0.5">
-                                            Selected: {timelineAttachmentName}
-                                          </div>
-                                        )}
-                                      </div>
-                                      <div className="flex justify-end gap-2">
-                                        <button
-                                          type="button"
-                                          className="px-3 py-1.5 rounded-md border border-gray-300 text-xs font-medium text-gray-700 bg-white hover:bg-gray-100"
-                                          onClick={() => {
-                                            setExpandedTimelineIndex(null);
-                                            setTimelineComment("");
-                                            setTimelineAttachmentName("");
-                                          }}
-                                        >
-                                          Cancel
-                                        </button>
-                                        <button
-                                          type="button"
-                                          className="px-3 py-1.5 rounded-md border border-blue-600 bg-blue-600 text-xs font-medium text-white hover:bg-blue-700"
-                                          onClick={() => {
-                                            setIsConfirmModalOpen(true);
-                                          }}
-                                        >
-                                          Submit
-                                        </button>
-                                      </div>
-                                    </div>
-                                  </td>
-                                </tr>
-                              )}
-                            </React.Fragment>
-                          );
-                        })}
-                        {filteredHistory.length === 0 && (
-                          <tr>
-                            <td
-                              colSpan={4}
-                              className="px-3 py-2 text-center text-gray-500"
-                            >
-                              No history entries match your search.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-      {isConfirmModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-lg shadow-lg max-w-sm w-full mx-4 p-4 space-y-3">
-            <h3 className="text-sm font-semibold text-gray-900">
-              Confirm submission
-            </h3>
-            <p className="text-xs text-gray-700">
-              Are you sure you want to submit? This action can't be reversed.
-            </p>
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                className="px-3 py-1.5 rounded-md border border-gray-300 text-xs font-medium text-gray-700 bg-white hover:bg-gray-100"
-                onClick={() => setIsConfirmModalOpen(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="px-3 py-1.5 rounded-md border border-blue-600 bg-blue-600 text-xs font-medium text-white hover:bg-blue-700"
-                onClick={() => {
-                  // Here we would call an API in a real app
-                  setIsConfirmModalOpen(false);
-                  setExpandedTimelineIndex(null);
-                  setTimelineComment("");
-                  setTimelineAttachmentName("");
-                }}
-              >
-                Confirm
-              </button>
-            </div>
+      {topInstanceSteps.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+          <div className="overflow-x-auto">
+            <table className="w-full border border-gray-200 text-xs">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 py-1.5 text-left font-medium text-gray-500 uppercase">
+                    S. No
+                  </th>
+                  <th className="px-3 py-1.5 text-left font-medium text-gray-500 uppercase">
+                    Action
+                  </th>
+                  <th className="px-3 py-1.5 text-left font-medium text-gray-500 uppercase">
+                    Date
+                  </th>
+                  <th className="px-3 py-1.5 text-left font-medium text-gray-500 uppercase">
+                    User
+                  </th>
+                  <th className="px-3 py-1.5 text-left font-medium text-gray-500 uppercase">
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {topInstanceSteps.map((step, idx) => {
+                  const hideMetaColumns = firstPendingIndex !== -1 && idx >= firstPendingIndex;
+                  return (
+                    <tr key={`${step.action}-${step.date}-${idx}`}>
+                      <td className="px-3 py-1.5 text-gray-900">{idx + 1}</td>
+                      <td className="px-3 py-1.5 text-gray-900">{step.action || "-"}</td>
+                      <td className="px-3 py-1.5 text-gray-500">
+                        {hideMetaColumns ? "" : (step.date || "-")}
+                      </td>
+                      <td className="px-3 py-1.5 text-gray-500">
+                        {hideMetaColumns ? "" : (step.userActor || "-")}
+                      </td>
+                      <td className="px-3 py-1.5 text-gray-500">
+                        {hideMetaColumns ? "" : (step.status || "-")}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
+
+      {/* Line Item Details */}
+      <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
+        {request.lineItems.map((lineItem, index) => {
+          const lineItemKey = String(index);
+          const isItemExpanded = expandedLineItems[lineItemKey] ?? true;
+          const withdrawTooltip = lineItem.canWithdraw
+            ? "Withdraw request"
+            : "Withdraw unavailable for current status";
+          const provideDetailsTooltip = lineItem.canProvideAdditionalDetails
+            ? "Provide additional details"
+            : "Additional details not required right now";
+          const infoTooltip = lineItem.hasHighRisk
+            ? "High-risk or privileged access item"
+            : "Additional item information";
+          const toggleTooltip = isItemExpanded ? "Collapse line item" : "Expand line item";
+          return (
+            <div key={lineItemKey} className="border border-gray-200 rounded-lg bg-gray-50">
+              {/* Line item header: requested access item + tags + actions */}
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() =>
+                  setExpandedLineItems((prev) => ({
+                    ...prev,
+                    [lineItemKey]: !(prev[lineItemKey] ?? true),
+                  }))
+                }
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setExpandedLineItems((prev) => ({
+                      ...prev,
+                      [lineItemKey]: !(prev[lineItemKey] ?? true),
+                    }));
+                  }
+                }}
+                className="w-full flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-gray-200 text-left hover:bg-gray-100 transition-colors cursor-pointer"
+                aria-expanded={isItemExpanded}
+              >
+                <div className="flex flex-col gap-1 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <h3 className="text-sm font-semibold text-gray-900 truncate">{lineItem.name}</h3>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {lineItem.hasHighRisk && (
+                      <span className="inline-flex items-center px-3 py-1 rounded-md text-[11px] font-medium border border-red-300 bg-red-50 text-red-600">
+                        High Risk
+                      </span>
+                    )}
+                    <span className="inline-flex items-center px-3 py-1 rounded-md text-[11px] font-medium border border-violet-300 bg-violet-50 text-violet-700">
+                      {lineItem.applicationName || "No Application"}
+                    </span>
+                    <span className="inline-flex items-center px-3 py-1 rounded-md text-[11px] font-medium border border-emerald-300 bg-emerald-50 text-emerald-600">
+                      Training Check
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={(e) => e.stopPropagation()}
+                    disabled={!lineItem.canWithdraw}
+                    title={withdrawTooltip}
+                    aria-label={withdrawTooltip}
+                    className={`inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+                      lineItem.canWithdraw
+                        ? "border-red-300 text-red-600 bg-white hover:bg-red-50 cursor-pointer"
+                        : "border-gray-200 text-gray-400 bg-white cursor-not-allowed"
+                    }`}
+                  >
+                    <img
+                      src="/withdraw-icon.svg"
+                      alt="Withdraw"
+                      className="w-4 h-4"
+                    />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => e.stopPropagation()}
+                    disabled={!lineItem.canProvideAdditionalDetails}
+                    title={provideDetailsTooltip}
+                    aria-label={provideDetailsTooltip}
+                    className={`inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+                      lineItem.canProvideAdditionalDetails
+                        ? "border-indigo-300 text-indigo-600 bg-white hover:bg-indigo-50 cursor-pointer"
+                        : "border-gray-200 text-gray-400 bg-white cursor-not-allowed"
+                    }`}
+                  >
+                    <img
+                      src="/provide-details-icon.svg"
+                      alt="Provide additional details"
+                      className="w-4 h-4"
+                    />
+                  </button>
+                  {lineItem.hasInfoIcon && (
+                    <div
+                      className="ml-1 w-6 h-6 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600"
+                      title={infoTooltip}
+                      aria-label={infoTooltip}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Info className="w-3.5 h-3.5" />
+                    </div>
+                  )}
+                  <span className="text-gray-500 ml-1" aria-hidden title={toggleTooltip}>
+                    {isItemExpanded ? (
+                      <ChevronUp className="w-4 h-4" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4" />
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              {isItemExpanded && (
+                <div className="px-4 py-3 space-y-3 text-sm">
+                  {/* Compact row: access duration, comments, attachment */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">
+                        Access Duration
+                      </div>
+                      <div className="text-gray-900">
+                        {lineItem.startDate}
+                        {lineItem.endDate
+                          ? ` - ${lineItem.endDate}`
+                          : " (ongoing)"}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">
+                        Comments
+                      </div>
+                      <div className="text-gray-900 whitespace-pre-wrap break-words">
+                        {lineItem.comments || "No additional comments provided."}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">
+                        Attachment
+                      </div>
+                      <div className="text-gray-900">No Attachment</div>
+                    </div>
+                  </div>
+
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 };

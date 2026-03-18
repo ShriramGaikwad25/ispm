@@ -96,8 +96,17 @@ export function Navigation() {
     if (pathname === '/settings/gateway/sod/business-process/new') {
       return { href: '/settings/gateway/sod', label: 'Back to Business Processes' };
     }
+    if (pathname === '/settings/gateway/sod/business-process/review') {
+      return { href: '/settings/gateway/sod', label: 'Back to Business Processes' };
+    }
     if (pathname === '/settings/gateway/sod/rules/new') {
       return { href: '/settings/gateway/sod/rules', label: 'Back to Rules' };
+    }
+    if (pathname === '/settings/gateway/sod/rules/review') {
+      return { href: '/settings/gateway/sod/rules', label: 'Back to Rules' };
+    }
+    if (pathname === '/settings/gateway/sod/policy/new') {
+      return { href: '/settings/gateway/sod/policy', label: 'Back to SoD Policy' };
     }
     if (pathname === '/settings/gateway/entitlement-management' || pathname === '/settings/gateway/workflow-builder' ||
         pathname === '/settings/gateway/sam' || pathname === '/settings/gateway/native-users' ||
@@ -169,6 +178,16 @@ export function Navigation() {
     // Track Request detail → back to Track Request list
     if (pathname.startsWith('/track-request/') && pathname !== '/track-request') {
       return { href: '/track-request', label: 'Back to Track Requests' };
+    }
+    // Pending Approvals detail → back to Pending Approvals list
+    if (
+      pathname.startsWith('/access-request/pending-approvals/') &&
+      pathname !== '/access-request/pending-approvals'
+    ) {
+      return {
+        href: '/access-request/pending-approvals',
+        label: 'Back to Pending Approvals',
+      };
     }
     return null;
   };

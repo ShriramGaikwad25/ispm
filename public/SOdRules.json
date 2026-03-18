@@ -1,0 +1,132 @@
+[
+  {
+    "Rule_ID": "R1",
+    "Rule_Name": "Supplier Setup Access",
+    "Description": "",
+    "Owner": "",
+    "Created On": "",
+    "Business Process ID": "BP1",
+    "Business Process Name": "",
+    "Actions": "Edit, View"
+  },
+  {
+    "Rule_ID": "R2",
+    "Rule_Name": "Invoice Processing Access",
+    "Description": "",
+    "Owner": "",
+    "Created On": "",
+    "Business Process ID": "BP1",
+    "Business Process Name": "",
+    "Actions": ""
+  },
+  {
+    "Rule_ID": "R3",
+    "Rule_Name": "Payment Release Access",
+    "Description": "",
+    "Owner": "",
+    "Created On": "",
+    "Business Process ID": "BP1",
+    "Business Process Name": "",
+    "Actions": ""
+  },
+  {
+    "Rule_ID": "R4",
+    "Rule_Name": "Revenue Order Access",
+    "Description": "",
+    "Owner": "",
+    "Created On": "",
+    "Business Process ID": "BP2",
+    "Business Process Name": "",
+    "Actions": ""
+  },
+  {
+    "Rule_ID": "R5",
+    "Rule_Name": "Credit Decision Access",
+    "Description": "",
+    "Owner": "",
+    "Created On": "",
+    "Business Process ID": "BP2",
+    "Business Process Name": "",
+    "Actions": ""
+  },
+  {
+    "Rule_ID": "R6",
+    "Rule_Name": "Directory Support Provisioning Access",
+    "Description": "",
+    "Owner": "",
+    "Created On": "",
+    "Business Process ID": "BP3",
+    "Business Process Name": "",
+    "Actions": ""
+  },
+  {
+    "Rule_ID": "R7",
+    "Rule_Name": "Privileged Directory Administration Access",
+    "Description": "",
+    "Owner": "",
+    "Created On": "",
+    "Business Process ID": "BP3",
+    "Business Process Name": "",
+    "Actions": ""
+  },
+  {
+    "Rule_ID": "R8",
+    "Rule_Name": "Access Assignment Access",
+    "Description": "",
+    "Owner": "",
+    "Created On": "",
+    "Business Process ID": "BP4",
+    "Business Process Name": "",
+    "Actions": ""
+  },
+  {
+    "Rule_ID": "R9",
+    "Rule_Name": "Access Approval Authority",
+    "Description": "",
+    "Owner": "",
+    "Created On": "",
+    "Business Process ID": "BP4",
+    "Business Process Name": "",
+    "Actions": ""
+  },
+  {
+    "Rule_ID": "R10",
+    "Rule_Name": "Recruiting Operations Access",
+    "Description": "",
+    "Owner": "",
+    "Created On": "",
+    "Business Process ID": "BP5",
+    "Business Process Name": "",
+    "Actions": ""
+  },
+  {
+    "Rule_ID": "R11",
+    "Rule_Name": "Worker Termination and HR Maintenance Access",
+    "Description": "",
+    "Owner": "",
+    "Created On": "",
+    "Business Process ID": "BP5",
+    "Business Process Name": "",
+    "Actions": ""
+  },
+  {
+    "Rule_ID": "R12",
+    "Rule_Name": "Payroll Administration Access",
+    "Description": "",
+    "Owner": "",
+    "Created On": "",
+    "Business Process ID": "BP5",
+    "Business Process Name": "",
+    "Actions": ""
+  },
+  {
+    "Rule_ID": "R13",
+    "Rule_Name": "HCM Platform Administration and Data Movement Access",
+    "Description": "",
+    "Owner": "",
+    "Created On": "",
+    "Business Process ID": "BP6",
+    "Business Process Name": "",
+    "Actions": ""
+  }
+]

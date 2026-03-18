@@ -60,8 +60,6 @@ export default function SodPolicyNewPage() {
   const [description, setDescription] = useState("");
   const [owner, setOwner] = useState("");
   const [tags, setTags] = useState("");
-  const [riskDefinition, setRiskDefinition] = useState("");
-  const [riskValue, setRiskValue] = useState<"Low" | "Medium" | "High" | "Critical" | "">("");
 
   // Step 2 – Condition builders (using ExpressionBuilder)
   const { control, setValue, watch } = useForm<FieldValues>({
@@ -89,9 +87,7 @@ export default function SodPolicyNewPage() {
   const canGoToStep2 =
     name.trim() &&
     description.trim() &&
-    owner.trim() &&
-    riskDefinition.trim() &&
-    riskValue !== "";
+    owner.trim();
 
   const canGoToStep3 = true; // ExpressionBuilder handles its own validation for now
 
@@ -249,7 +245,7 @@ export default function SodPolicyNewPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="max-w-md">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Tags
@@ -261,36 +257,6 @@ export default function SodPolicyNewPage() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="Add tags"
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Risk Definition
-                    </label>
-                    <input
-                      type="text"
-                      value={riskDefinition}
-                      onChange={(e) => setRiskDefinition(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Describe the risk"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Risk Value
-                    </label>
-                    <select
-                      value={riskValue}
-                      onChange={(e) =>
-                        setRiskValue(e.target.value as "Low" | "Medium" | "High" | "Critical" | "")
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                    >
-                      <option value="">Select...</option>
-                      <option value="Low">Low</option>
-                      <option value="Medium">Medium</option>
-                      <option value="High">High</option>
-                      <option value="Critical">Critical</option>
-                    </select>
                   </div>
                 </div>
               </div>

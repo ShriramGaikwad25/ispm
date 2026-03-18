@@ -7,7 +7,6 @@ const AgGridReact = dynamic(() => import("ag-grid-react").then((mod) => mod.AgGr
 type AgGridReactType = any;
 import "@/lib/ag-grid-setup";
 import { ColDef, ICellRendererParams } from "ag-grid-enterprise";
-import { getReviewerId } from "@/lib/auth";
 
 interface RequestHistory {
   action: string;
@@ -28,6 +27,7 @@ interface RequestDetails {
 
 interface Request {
   id: string | number;
+  routeId: string | number;
   beneficiaryName: string;
   requesterName: string;
   displayName: string;
@@ -53,30 +53,23 @@ const TrackRequest: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const reviewerId = getReviewerId();
-    if (!reviewerId) {
-      setError("Reviewer ID not found.");
-      return;
-    }
-
     const url = "https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery";
     setLoading(true);
     setError(null);
 
     const body = {
-      query: "select * from kf_wf_get_access_request where requesterid = ?::uuid",
-      parameters: [reviewerId],
+      query: "select * from vw_access_request_full_json where requested_by_user_id = ?::uuid",
+      parameters: ["d4cc2173-7471-4e26-8c72-a27be88ff6cb"],
     };
 
     const formatDate = (value: string | null | undefined): string => {
       if (!value) return "";
-      // API gives "2026-03-06 05:43:43.247628" – take date part and show as MM/DD/YYYY
-      const datePart = value.split(" ")[0] ?? value;
-      const parts = datePart.split("-");
-      if (parts.length !== 3) return value;
-      const [yyyy, mm, dd] = parts;
-      if (!yyyy || !mm || !dd) return value;
-      return `${mm.padStart(2, "0")}/${dd.padStart(2, "0")}/${yyyy}`;
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) return value;
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      const yyyy = String(d.getFullYear());
+      return `${mm}/${dd}/${yyyy}`;
     };
 
     fetch(url, {
@@ -101,30 +94,43 @@ const TrackRequest: React.FC = () => {
           return;
         }
         const mapped: Request[] = rawRows.map((row) => {
-          const beneficiary = row.beneficiary ?? {};
-          const itemdetails: any[] = Array.isArray(row.itemdetails) ? row.itemdetails : [];
-          const firstItem = itemdetails[0] ?? {};
+          const requestJson = row.request_json ?? {};
+          const accessRequest = requestJson.access_request ?? {};
+          const requestedBy = accessRequest.requested_by ?? {};
+          const requestedFor = accessRequest.requested_for ?? {};
+          const accessItems: any[] = Array.isArray(requestJson.access_items) ? requestJson.access_items : [];
+          const firstItem = accessItems[0] ?? {};
           const catalog = firstItem.catalog ?? {};
+          const entitlementMeta = firstItem.entitlement_metadata ?? {};
 
-          const beneficiaryNameFromObject =
-            beneficiary.displayname ||
-            [beneficiary.firstname, beneficiary.lastname].filter(Boolean).join(" ") ||
-            beneficiary.username ||
+          const requesterNameFromObject =
+            requestedBy.display_name ||
+            [requestedBy.first_name, requestedBy.last_name].filter(Boolean).join(" ") ||
+            requestedBy.username ||
             "";
 
+          const beneficiaryNameFromObject =
+            requestedFor.display_name ||
+            [requestedFor.first_name, requestedFor.last_name].filter(Boolean).join(" ") ||
+            requestedFor.username ||
+            "";
+
+          const primaryDisplayName =
+            catalog.name || catalog.entitlementname || catalog.applicationName || catalog.applicationname || "";
           const displayNameFromCatalog =
-            catalog.name || catalog.entitlementname || catalog.applicationname || "";
+            accessItems.length > 1 && primaryDisplayName
+              ? `${primaryDisplayName} +${accessItems.length - 1} more`
+              : primaryDisplayName;
 
           const entityTypeFromCatalog =
-            catalog.type || catalog.entitlementtype || (catalog.metadata?.entitlementType as string) || "";
+            catalog.type || catalog.entitlementtype || (catalog.metadata?.entitlementType as string) || "Entitlement";
 
-          const requestedOn: string | undefined = row.requestedon;
+          const requestedOn: string | undefined = accessRequest.created_at;
           const raisedOn = formatDate(requestedOn);
 
           let daysOpen = 0;
           if (requestedOn) {
-            const datePart = requestedOn.split(" ")[0] ?? requestedOn;
-            const d = new Date(datePart);
+            const d = new Date(requestedOn);
             if (!Number.isNaN(d.getTime())) {
               const now = new Date();
               const diffMs = now.getTime() - d.getTime();
@@ -132,35 +138,53 @@ const TrackRequest: React.FC = () => {
             }
           }
 
-          const status: string =
-            typeof row.status === "string" && row.status.trim()
-              ? row.status
-              : row.isjit
-                ? "JIT Request Submitted"
-                : "Request Submitted";
+          const rawStatus =
+            (typeof accessRequest.status === "string" && accessRequest.status.trim()) ||
+            (typeof row.status === "string" && row.status.trim()) ||
+            "";
+          const status = rawStatus ? rawStatus.replace(/_/g, " ") : "Request Submitted";
 
           const justification: string =
-            (row.requester_justification as string) || (firstItem.item_comments as string) || "";
+            (accessRequest.justification as string) || (entitlementMeta.comments as string) || "";
 
-          const startDate = firstItem.item_startdate ? String(firstItem.item_startdate) : raisedOn;
-          const endDate = firstItem.item_enddate ? String(firstItem.item_enddate) : "";
+          const startDate = entitlementMeta.startDate ? String(entitlementMeta.startDate) : raisedOn;
+          const endDate = entitlementMeta.endDate ? String(entitlementMeta.endDate) : "";
+          const hasHighRiskOrPrivileged = accessItems.some((item) => {
+            const itemCatalog = item?.catalog ?? {};
+            const privileged = String(itemCatalog.privileged ?? "").toLowerCase() === "yes";
+            const riskLevel = String(itemCatalog.risk ?? item?.risk?.level ?? "").toLowerCase();
+            return privileged || riskLevel.startsWith("high");
+          });
 
           return {
-            id: row.requestid ?? row.id ?? "",
+            id:
+              row.wf_instance_id ??
+              row.wfinstanceid ??
+              row.request_id ??
+              accessRequest.id ??
+              row.requestid ??
+              row.id ??
+              "",
+            routeId:
+              row.request_id ??
+              accessRequest.id ??
+              row.requestid ??
+              row.id ??
+              row.wf_instance_id ??
+              row.wfinstanceid ??
+              "",
             beneficiaryName: String(beneficiaryNameFromObject),
-            requesterName: "", // current user (reviewer) – ID only in payload
+            requesterName: String(requesterNameFromObject),
             displayName: String(displayNameFromCatalog),
-            entityType: String(entityTypeFromCatalog || "Entitlement"),
+            entityType: String(entityTypeFromCatalog),
             daysOpen,
             status,
-            hasInfoIcon:
-              String(catalog.privileged ?? "").toLowerCase() === "yes" ||
-              String(catalog.risk ?? "").toLowerCase().startsWith("high"),
+            hasInfoIcon: hasHighRiskOrPrivileged,
             canWithdraw: status.toLowerCase().includes("awaiting") || status.toLowerCase().includes("pending"),
             canProvideAdditionalDetails: status.toLowerCase().includes("provide information"),
             details: {
               dateCreated: raisedOn,
-              type: String(entityTypeFromCatalog || "Entitlement"),
+              type: String(entityTypeFromCatalog),
               name: String(displayNameFromCatalog || ""),
               justification,
               startDate,
@@ -261,15 +285,15 @@ const TrackRequest: React.FC = () => {
         width: 110,
         sortable: true,
         cellRenderer: (params: ICellRendererParams) => {
-          const id = params.data?.id as string | number | undefined;
-          if (!id) return params.value;
+          const routeId = params.data?.routeId as string | number | undefined;
+          if (!routeId) return params.value;
           return (
             <button
               type="button"
               className="text-blue-600 hover:underline font-medium"
               onClick={(e) => {
                 e.stopPropagation();
-                router.push(`/track-request/${encodeURIComponent(String(id))}`);
+                router.push(`/track-request/${encodeURIComponent(String(routeId))}`);
               }}
             >
               {params.value}

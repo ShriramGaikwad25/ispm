@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SquarePen } from "lucide-react";
 import Link from "next/link";
@@ -27,6 +27,12 @@ type AccessPolicyRow = {
   status: string | null;
 };
 
+type PendingStatusChange = {
+  id: string;
+  policyName: string;
+  nextStatus: "Active" | "Inactive";
+};
+
 // Detail Cell Renderer for Description
 const DetailCellRenderer = (props: IDetailCellRendererParams) => {
   const description = props.data?.policy_description || "No description available";
@@ -45,6 +51,45 @@ export default function ManageAccessPolicyPage() {
   const [rows, setRows] = useState<AccessPolicyRow[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [pendingStatusChange, setPendingStatusChange] =
+    useState<PendingStatusChange | null>(null);
+
+  const isRowActive = useCallback((status: string | null | undefined) => {
+    return (status || "").trim().toLowerCase() === "active";
+  }, []);
+
+  const handleStatusToggleRequest = useCallback(
+    (row: AccessPolicyRow) => {
+      const currentlyActive = isRowActive(row.status);
+      const nextStatus: "Active" | "Inactive" = currentlyActive
+        ? "Inactive"
+        : "Active";
+
+      setPendingStatusChange({
+        id: row.id,
+        policyName: row.policy_name,
+        nextStatus,
+      });
+    },
+    [isRowActive],
+  );
+
+  const confirmStatusToggle = useCallback(() => {
+    if (!pendingStatusChange) return;
+
+    setRows((prev) =>
+      prev.map((r) =>
+        r.id === pendingStatusChange.id
+          ? { ...r, status: pendingStatusChange.nextStatus }
+          : r,
+      ),
+    );
+    setPendingStatusChange(null);
+  }, [pendingStatusChange]);
+
+  const cancelStatusToggle = useCallback(() => {
+    setPendingStatusChange(null);
+  }, []);
 
   useEffect(() => {
     const fetchPolicies = async () => {
@@ -138,33 +183,43 @@ export default function ManageAccessPolicyPage() {
       { 
         headerName: "Status", 
         field: "status", 
-        width: 140,
+        width: 180,
         cellRenderer: (params: ICellRendererParams) => {
-          const rawStatus = (params.value || "") as string;
-          const status = rawStatus.trim();
-          const normalized = status.toLowerCase();
-
-          const statusColors: Record<string, string> = {
-            staging: "bg-yellow-100 text-yellow-800",
-            running: "bg-blue-100 text-blue-800",
-            completed: "bg-green-100 text-green-800",
-            paused: "bg-gray-100 text-gray-800",
-            active: "bg-green-100 text-green-800",
-            inactive: "bg-gray-100 text-gray-800",
-            draft: "bg-yellow-50 text-yellow-800",
-            failed: "bg-red-100 text-red-800",
-            error: "bg-red-100 text-red-800",
-          };
-
-          const colorClass =
-            statusColors[normalized] || "bg-gray-100 text-gray-800";
+          const row = params.data as AccessPolicyRow;
+          const isActive = isRowActive(row?.status);
+          const statusLabel = isActive ? "Active" : "Inactive";
 
           return (
-            <span
-              className={`inline-flex items-center justify-center px-2 py-1 rounded-full text-xs font-medium ${colorClass}`}
-            >
-              {status || "—"}
-            </span>
+            <div className="inline-flex items-center gap-2">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={isActive}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!row) return;
+                  handleStatusToggleRequest(row);
+                }}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  isActive ? "bg-green-500" : "bg-gray-300"
+                }`}
+                title={`Set policy to ${isActive ? "Inactive" : "Active"}`}
+                aria-label={`Toggle status. Current status ${statusLabel}`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                    isActive ? "translate-x-5" : "translate-x-1"
+                  }`}
+                />
+              </button>
+              <span
+                className={`text-xs font-medium ${
+                  isActive ? "text-green-700" : "text-gray-700"
+                }`}
+              >
+                {statusLabel}
+              </span>
+            </div>
           );
         },
       },
@@ -193,7 +248,7 @@ export default function ManageAccessPolicyPage() {
         },
       },
     ],
-    []
+    [handleStatusToggleRequest, isRowActive, router]
   );
 
   const handleRowClick = (e: RowClickedEvent) => {
@@ -283,6 +338,36 @@ export default function ManageAccessPolicyPage() {
           </div>
         )}
       </div>
+
+      {pendingStatusChange && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-md rounded-lg bg-white shadow-xl border border-gray-200 p-5">
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">
+              Confirm Status Change
+            </h2>
+            <p className="text-sm text-gray-700 mb-5">
+              Change policy <span className="font-medium">"{pendingStatusChange.policyName}"</span> to{" "}
+              <span className="font-medium">{pendingStatusChange.nextStatus}</span>?
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={cancelStatusToggle}
+                className="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmStatusToggle}
+                className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

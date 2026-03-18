@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ClipboardList,
@@ -130,6 +130,10 @@ function DefaultReportsView() {
 }
 
 function ComplianceReportsView() {
+  const [selectedStandard, setSelectedStandard] = useState<string>(
+    COMPLIANCE_STANDARDS[0],
+  );
+
   const getBorderClasses = (standard: string) => {
     switch (standard) {
       case "NIST 800-53":
@@ -147,23 +151,57 @@ function ComplianceReportsView() {
     }
   };
 
+  const getSelectedCardClasses = (standard: string) => {
+    switch (standard) {
+      case "NIST 800-53":
+        return "bg-blue-100 text-blue-900 border-blue-400";
+      case "PCI-DSS":
+        return "bg-red-100 text-red-900 border-red-400";
+      case "SOX-ITGC":
+        return "bg-amber-100 text-amber-900 border-amber-400";
+      case "ISO 27001":
+        return "bg-emerald-100 text-emerald-900 border-emerald-400";
+      case "CIS v8":
+        return "bg-purple-100 text-purple-900 border-purple-400";
+      default:
+        return "bg-gray-100 text-gray-900 border-gray-300";
+    }
+  };
+
   return (
-    <div className="py-4 space-y-3">
-      {COMPLIANCE_STANDARDS.map((standard) => (
-        <details
-          key={standard}
-          className={`group border rounded-md bg-white shadow-sm ${getBorderClasses(
-            standard,
-          )}`}
-        >
-          <summary className="flex items-center justify-between px-4 py-3 cursor-pointer text-sm font-medium text-gray-800">
-            <span>{standard}</span>
-            <span className="text-gray-400 transition-transform group-open:rotate-180">
-              ▼
-            </span>
-          </summary>
-          <div className="px-4 pb-4 text-xs text-gray-600">
-            {standard === "NIST 800-53" ? (
+    <div className="py-4 space-y-4">
+      <div className="overflow-x-auto">
+        <div className="grid grid-cols-5 gap-3 min-w-[900px]">
+          {COMPLIANCE_STANDARDS.map((standard) => {
+            const isSelected = selectedStandard === standard;
+            return (
+              <button
+                key={standard}
+                type="button"
+                onClick={() => setSelectedStandard(standard)}
+                className={`w-full rounded-md border px-4 py-3 text-left text-sm font-medium transition-colors ${
+                  isSelected
+                    ? getSelectedCardClasses(standard)
+                    : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                {standard}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div
+        className={`border rounded-md bg-white shadow-sm ${getBorderClasses(
+          selectedStandard,
+        )}`}
+      >
+        <div className="px-4 py-3 border-b border-gray-100 text-sm font-medium text-gray-800">
+          {selectedStandard}
+        </div>
+        <div className="px-4 pb-4 pt-3 text-xs text-gray-600">
+          {selectedStandard === "NIST 800-53" ? (
               <div className="overflow-x-auto">
                 <table className="min-w-full border border-gray-200 text-xs">
                   <thead className="bg-gray-50">
@@ -260,7 +298,7 @@ function ComplianceReportsView() {
                   </tbody>
                 </table>
               </div>
-            ) : standard === "PCI-DSS" ? (
+            ) : selectedStandard === "PCI-DSS" ? (
               <div className="overflow-x-auto">
                 <table className="min-w-full border border-gray-200 text-xs">
                   <thead className="bg-gray-50">
@@ -356,7 +394,7 @@ function ComplianceReportsView() {
                   </tbody>
                 </table>
               </div>
-            ) : standard === "SOX-ITGC" ? (
+            ) : selectedStandard === "SOX-ITGC" ? (
               <div className="overflow-x-auto">
                 <table className="min-w-full border border-gray-200 text-xs">
                   <thead className="bg-gray-50">
@@ -450,7 +488,7 @@ function ComplianceReportsView() {
                   </tbody>
                 </table>
               </div>
-            ) : standard === "ISO 27001" ? (
+            ) : selectedStandard === "ISO 27001" ? (
               <div className="overflow-x-auto">
                 <table className="min-w-full border border-gray-200 text-xs">
                   <thead className="bg-gray-50">
@@ -544,7 +582,7 @@ function ComplianceReportsView() {
                   </tbody>
                 </table>
               </div>
-            ) : standard === "CIS v8" ? (
+            ) : selectedStandard === "CIS v8" ? (
               <div className="overflow-x-auto">
                 <table className="min-w-full border border-gray-200 text-xs">
                   <thead className="bg-gray-50">
@@ -639,11 +677,10 @@ function ComplianceReportsView() {
                 </table>
               </div>
             ) : (
-              <>Compliance details for {standard} will appear here.</>
+              <>Compliance details for {selectedStandard} will appear here.</>
             )}
-          </div>
-        </details>
-      ))}
+        </div>
+      </div>
     </div>
   );
 }

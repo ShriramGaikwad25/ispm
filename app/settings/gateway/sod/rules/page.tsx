@@ -1,73 +1,241 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Eye, Pencil, Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
 import SodTabs from "@/components/SodTabs";
 import dynamic from "next/dynamic";
-import type { ColDef } from "ag-grid-enterprise";
+import type { ColDef, GridApi, GridReadyEvent } from "ag-grid-enterprise";
 import "@/lib/ag-grid-setup";
+import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
 
 const AgGridReact = dynamic(
   () => import("ag-grid-react").then((mod) => mod.AgGridReact),
   { ssr: false }
 );
 
+const BUSINESS_PROCESS_NAME_BY_ID: Record<string, string> = {
+  BP1: "Procure to Pay",
+  BP2: "Revenue and Credit Management",
+  BP3: "Directory Access Administration",
+  BP4: "Identity Governance and Access App",
+  BP5: "HR Lifecycle Management",
+  BP6: "HCM Platform Operations",
+};
+
+const DUMMY_OWNERS = ["SysAdm", "RiskAdmin", "AccessOps", "AuditLead"];
+const DUMMY_CREATED_ON = [
+  "01/08/2026",
+  "01/22/2026",
+  "02/03/2026",
+  "02/17/2026",
+  "03/01/2026",
+  "03/10/2026",
+];
+const SOD_RULE_VIEW_STORAGE_KEY = "sodRuleViewDraft";
+const SOD_RULE_EDIT_STORAGE_KEY = "sodRuleEditDraft";
+
 export default function SodRulesPage() {
+  type SodRuleRow = {
+    ruleId: string;
+    name: string;
+    description: string;
+    owner: string;
+    createdOn: string;
+    businessProcess: string;
+  };
+
+  type SodRuleJson = {
+    Rule_ID?: string;
+    Rule_Name?: string;
+    Description?: string;
+    Owner?: string;
+    "Created On"?: string;
+    "Business Process ID"?: string;
+    "Business Process Name"?: string;
+  };
+
+  const router = useRouter();
+  const { isVisible, sidebarWidthPx } = useLeftSidebar();
+  const gridApiRef = useRef<GridApi | null>(null);
+  const [rowData, setRowData] = useState<SodRuleRow[]>([]);
+
   const columnDefs = useMemo<ColDef[]>(
     () => [
       {
-        headerName: "Name",
+        headerName: "Rule Id",
+        field: "ruleId",
+        minWidth: 110,
+        width: 110,
+        suppressSizeToFit: true,
+      },
+      {
+        headerName: "Rule Name",
         field: "name",
-        minWidth: 220,
-        flex: 1,
+        minWidth: 260,
+        flex: 2.8,
       },
       {
         headerName: "Description",
         field: "description",
-        minWidth: 260,
-        flex: 2,
+        minWidth: 380,
+        flex: 4.2,
+        wrapText: true,
+        autoHeight: true,
       },
       {
         headerName: "Owner",
         field: "owner",
-        minWidth: 180,
+        minWidth: 120,
+        flex: 0.9,
       },
       {
         headerName: "Created On",
         field: "createdOn",
-        minWidth: 160,
+        minWidth: 130,
+        flex: 0.9,
       },
       {
-        headerName: "Business Process",
+        headerName: "Business Process Name",
         field: "businessProcess",
-        minWidth: 180,
+        minWidth: 230,
+        flex: 2.5,
+        wrapText: true,
+        autoHeight: true,
       },
       {
-        headerName: "Actions",
+        headerName: "Action",
         field: "actions",
-        width: 120,
-        cellRenderer: () => (
-          <button
-            type="button"
-            className="text-blue-600 hover:text-blue-800 text-xs font-medium"
-          >
-            Edit
-          </button>
+        width: 150,
+        minWidth: 150,
+        sortable: false,
+        filter: false,
+        resizable: false,
+        cellRenderer: (params: { data?: SodRuleRow }) => (
+          <div className="h-full w-full flex items-center justify-center gap-4">
+            <button
+              type="button"
+              className="inline-flex items-center justify-center text-blue-600 hover:text-blue-800"
+              aria-label="View rule"
+              title="View"
+              onClick={() => {
+                if (!params.data) return;
+                try {
+                  localStorage.setItem(SOD_RULE_VIEW_STORAGE_KEY, JSON.stringify(params.data));
+                } catch (error) {
+                  console.error("Unable to save rule review draft:", error);
+                }
+                router.push("/settings/gateway/sod/rules/review");
+              }}
+            >
+              <Eye className="w-6 h-6" />
+            </button>
+            <button
+              type="button"
+              className="inline-flex items-center justify-center text-blue-600 hover:text-blue-800"
+              aria-label="Edit rule"
+              title="Edit"
+              onClick={() => {
+                if (!params.data) return;
+                try {
+                  localStorage.setItem(SOD_RULE_EDIT_STORAGE_KEY, JSON.stringify(params.data));
+                } catch (error) {
+                  console.error("Unable to save rule edit draft:", error);
+                }
+                router.push("/settings/gateway/sod/rules/new?mode=edit");
+              }}
+            >
+              <Pencil className="w-6 h-6" />
+            </button>
+          </div>
         ),
       },
     ],
-    []
+    [router]
   );
 
   const defaultColDef = useMemo<ColDef>(
     () => ({
       sortable: true,
-      filter: true,
+      filter: false,
       resizable: true,
     }),
     []
   );
+
+  const fitColumns = useCallback(() => {
+    if (!gridApiRef.current) return;
+    gridApiRef.current.sizeColumnsToFit();
+  }, []);
+
+  const handleGridReady = useCallback(
+    (params: GridReadyEvent) => {
+      gridApiRef.current = params.api;
+      fitColumns();
+    },
+    [fitColumns]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadRules = async () => {
+      try {
+        const response = await fetch("/SOdRules.json");
+        if (!response.ok) {
+          throw new Error(`Failed to load SOdRules.json: ${response.status}`);
+        }
+
+        const json = (await response.json()) as SodRuleJson[];
+        if (cancelled) return;
+
+        const mappedRows: SodRuleRow[] = json.map((rule, index) => {
+          const businessProcess =
+            rule["Business Process Name"] ||
+            (rule["Business Process ID"]
+              ? BUSINESS_PROCESS_NAME_BY_ID[rule["Business Process ID"]] || rule["Business Process ID"]
+              : "");
+          const ruleName = (rule.Rule_Name ?? "").trim();
+          const description = (rule.Description ?? "").trim();
+          const owner = (rule.Owner ?? "").trim();
+          const createdOn = (rule["Created On"] ?? "").trim();
+
+          return {
+            ruleId: rule.Rule_ID ?? "",
+            name: ruleName,
+            description:
+              description ||
+              `Controls access for ${ruleName || "this rule"} within ${businessProcess || "the assigned business process"}.`,
+            owner: owner || DUMMY_OWNERS[index % DUMMY_OWNERS.length],
+            createdOn: createdOn || DUMMY_CREATED_ON[index % DUMMY_CREATED_ON.length],
+            businessProcess,
+          };
+        });
+
+        setRowData(mappedRows);
+      } catch (error) {
+        console.error("Error loading SOd rules:", error);
+      }
+    };
+
+    loadRules();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!gridApiRef.current) return;
+    const timer = window.setTimeout(() => {
+      fitColumns();
+    }, 320);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [fitColumns, isVisible, sidebarWidthPx]);
 
   return (
     <div className="h-[calc(100vh-60px)] w-full">
@@ -93,17 +261,18 @@ export default function SodRulesPage() {
           </div>
 
           <div className="flex-1 min-h-0">
-            <div className="h-full w-full">
+            <div className="w-full">
               <AgGridReact
-                rowData={[]}
+                rowData={rowData}
                 columnDefs={columnDefs}
                 defaultColDef={defaultColDef}
                 rowSelection="multiple"
                 rowModelType="clientSide"
                 animateRows={true}
-                onGridReady={(params) => {
-                  params.api.sizeColumnsToFit();
-                }}
+                domLayout="autoHeight"
+                onGridReady={handleGridReady}
+                onGridSizeChanged={fitColumns}
+                onFirstDataRendered={fitColumns}
               />
             </div>
           </div>

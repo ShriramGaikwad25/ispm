@@ -101,7 +101,7 @@ export default function LoginPage() {
           {/* Logo */}
           <div className="text-center mb-8">
             <div className="flex items-center justify-center">
-              <Image src="/MainLogo.svg" alt="Logo" width={320} height={80}  />
+              <Image src="/MainLogo.svg" alt="Logo" width={260} height={80}  />
             </div>
           </div>
 

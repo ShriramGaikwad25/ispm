@@ -7,35 +7,56 @@ import AgGridReact from "@/components/AgGridWrapper";
 const UserAccessDriftPage = () => {
   const rows = [
     {
-      account: "alice.williams",
+      entitlement: "FIN_AP_APPROVER",
+      type: "Role",
       application: "Oracle EBS",
-      entitlement: "XX_HR_VIEW",
-      privilege: "View HR Data",
+      account: "alice.williams",
       lastLogin: "2026-03-12",
     },
     {
-      account: "bob.smith",
-      application: "SAP",
       entitlement: "MM_CREATE_PO",
-      privilege: "Create Purchase Orders",
+      type: "Entitlement",
+      application: "SAP",
+      account: "bob.smith",
       lastLogin: "2026-03-09",
     },
     {
-      account: "charlie.jones",
-      application: "Workday",
       entitlement: "FIN_REPORT_RUN",
-      privilege: "Run Finance Reports",
+      type: "Entitlement",
+      application: "Workday",
+      account: "charlie.jones",
       lastLogin: "2026-03-01",
+    },
+    {
+      entitlement: "HR_EMPLOYEE_READ",
+      type: "Role",
+      application: "SuccessFactors",
+      account: "diana.lee",
+      lastLogin: "2026-02-26",
+    },
+    {
+      entitlement: "GL_JOURNAL_POST",
+      type: "Entitlement",
+      application: "Oracle Fusion",
+      account: "ethan.miller",
+      lastLogin: "2026-02-21",
+    },
+    {
+      entitlement: "IT_TICKET_ADMIN",
+      type: "Role",
+      application: "ServiceNow",
+      account: "frank.wilson",
+      lastLogin: "2026-03-14",
     },
   ];
 
   const columnDefs = useMemo<ColDef[]>(
     () => [
-      { headerName: "Account", field: "account", filter: true, sortable: true },
-      { headerName: "Application", field: "application", filter: true, sortable: true },
-      { headerName: "Entitlement", field: "entitlement", filter: true, sortable: true },
-      { headerName: "Privilege", field: "privilege", filter: true, sortable: true, flex: 1 },
-      { headerName: "Last Login", field: "lastLogin", filter: "agDateColumnFilter", sortable: true },
+      { headerName: "Entitlement", field: "entitlement", filter: true, sortable: true, flex: 1.3 },
+      { headerName: "Type", field: "type", filter: true, sortable: true, flex: 0.8 },
+      { headerName: "Application", field: "application", filter: true, sortable: true, flex: 1 },
+      { headerName: "Account", field: "account", filter: true, sortable: true, flex: 1 },
+      { headerName: "Last Login", field: "lastLogin", filter: "agDateColumnFilter", sortable: true, flex: 0.9 },
     ],
     []
   );

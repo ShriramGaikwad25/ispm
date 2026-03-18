@@ -2,9 +2,11 @@
 
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import SelectAccessTab from "@/app/access-request/SelectAccessTab";
-import { ChevronLeft, ChevronRight, Check } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, FileText, FolderTree, ShieldCheck, UserRound } from "lucide-react";
 import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
 import { useCart } from "@/contexts/CartContext";
+import { executeQuery } from "@/lib/api";
+import { useSearchParams } from "next/navigation";
 
 type BusinessProcess = {
   id: string;
@@ -17,11 +19,26 @@ type CatalogItem = {
   description: string;
 };
 
+interface OwnerUserRow {
+  userid?: string;
+  userId?: string;
+  username?: string;
+  userName?: string;
+  firstname?: string;
+  firstName?: string;
+  lastname?: string;
+  lastName?: string;
+  displayname?: string;
+  displayName?: string;
+}
+
 const BUSINESS_PROCESSES: BusinessProcess[] = [
-  { id: "bp1", name: "Order to Cash" },
-  { id: "bp2", name: "Procure to Pay" },
-  { id: "bp3", name: "Record to Report" },
-  { id: "bp4", name: "Hire to Retire" },
+  { id: "BP1", name: "Procure to Pay" },
+  { id: "BP2", name: "Revenue and Credit Management" },
+  { id: "BP3", name: "Directory Access Administration" },
+  { id: "BP4", name: "Identity Governance and Access App" },
+  { id: "BP5", name: "HR Lifecycle Management" },
+  { id: "BP6", name: "HCM Platform Operations" },
 ];
 
 const CATALOG_ITEMS: CatalogItem[] = [
@@ -30,8 +47,11 @@ const CATALOG_ITEMS: CatalogItem[] = [
   { id: "c3", name: "SAP_JE_POST", description: "Post journal entries" },
   { id: "c4", name: "SAP_JE_APPROVE", description: "Approve journal entries" },
 ];
+const SOD_RULE_EDIT_STORAGE_KEY = "sodRuleEditDraft";
 
 export default function SodRulesNewPage() {
+  const searchParams = useSearchParams();
+  const isEditMode = searchParams.get("mode") === "edit";
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   const { isVisible: isSidebarVisible, sidebarWidthPx } = useLeftSidebar();
   const { items: cartItems } = useCart();
@@ -40,18 +60,26 @@ export default function SodRulesNewPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [owner, setOwner] = useState("");
+  const [ownerUsers, setOwnerUsers] = useState<
+    Array<{ value: string; label: string; userName: string }>
+  >([]);
+  const [isOwnersLoading, setIsOwnersLoading] = useState(false);
+  const [ownerDropdownOpen, setOwnerDropdownOpen] = useState(false);
+  const [ownerFilter, setOwnerFilter] = useState("");
+  const ownerDropdownRef = useRef<HTMLDivElement | null>(null);
   const [tags, setTags] = useState("");
   const [bpSearch, setBpSearch] = useState("");
   const [availableBps, setAvailableBps] = useState<BusinessProcess[]>(BUSINESS_PROCESSES);
   const [selectedBps, setSelectedBps] = useState<BusinessProcess[]>([]);
   const [isBpDropdownOpen, setIsBpDropdownOpen] = useState(false);
+  const bpDropdownRef = useRef<HTMLDivElement | null>(null);
 
   const filteredAvailableBps = useMemo(
     () =>
       !bpSearch.trim()
         ? availableBps
         : availableBps.filter((bp) =>
-            bp.name.toLowerCase().includes(bpSearch.trim().toLowerCase())
+            `${bp.id} - ${bp.name}`.toLowerCase().includes(bpSearch.trim().toLowerCase())
           ),
     [availableBps, bpSearch]
   );
@@ -61,6 +89,162 @@ export default function SodRulesNewPage() {
     description.trim() !== "" &&
     owner.trim() !== "" &&
     selectedBps.length > 0;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadOwnerUsers = async () => {
+      try {
+        setIsOwnersLoading(true);
+        const payload = await executeQuery(
+          "SELECT userid, username, firstname, lastname, displayname FROM usr ORDER BY username",
+          []
+        );
+
+        const data: OwnerUserRow[] = Array.isArray(payload)
+          ? payload
+          : Array.isArray((payload as any).resultSet)
+            ? (payload as any).resultSet
+            : Array.isArray((payload as any).rows)
+              ? (payload as any).rows
+              : [];
+        const seen = new Set<string>();
+        const options = data
+          .map((u) => {
+            const userName = (u.userName ?? u.username ?? "").trim();
+            const userId = (u.userId ?? u.userid ?? "").trim();
+            if (!userName || !userId || seen.has(userId.toLowerCase())) return null;
+
+            seen.add(userId.toLowerCase());
+            const displayName = (u.displayName ?? u.displayname ?? "").trim();
+            const fullName = `${u.firstName ?? u.firstname ?? ""} ${u.lastName ?? u.lastname ?? ""}`.trim();
+            const labelBase = displayName || fullName || userName;
+
+            return {
+              value: userId,
+              userName,
+              label: labelBase === userName ? userName : `${labelBase} (${userName})`,
+            };
+          })
+          .filter(
+            (item): item is { value: string; label: string; userName: string } =>
+              item !== null
+          );
+
+        if (cancelled) return;
+        setOwnerUsers(options);
+      } catch {
+        if (!cancelled) setOwnerUsers([]);
+      } finally {
+        if (!cancelled) setIsOwnersLoading(false);
+      }
+    };
+
+    loadOwnerUsers();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (
+        ownerDropdownRef.current &&
+        !ownerDropdownRef.current.contains(event.target as Node)
+      ) {
+        setOwnerDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
+
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (
+        bpDropdownRef.current &&
+        !bpDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsBpDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
+
+  const visibleOwnerUsers = useMemo(() => {
+    const q = ownerFilter.trim().toLowerCase();
+    if (!q) return ownerUsers;
+    return ownerUsers.filter(
+      (user) =>
+        user.label.toLowerCase().includes(q) ||
+        user.userName.toLowerCase().includes(q) ||
+        user.value.toLowerCase().includes(q)
+    );
+  }, [ownerUsers, ownerFilter]);
+
+  const selectedOwnerLabel =
+    ownerUsers.find((user) => user.value === owner)?.label || owner;
+
+  useEffect(() => {
+    if (!isEditMode) return;
+
+    try {
+      const stored = localStorage.getItem(SOD_RULE_EDIT_STORAGE_KEY);
+      if (!stored) return;
+
+      const parsed = JSON.parse(stored) as {
+        name?: string;
+        description?: string;
+        owner?: string;
+        tags?: string;
+        businessProcess?: string;
+      };
+
+      setName(parsed.name ?? "");
+      setDescription(parsed.description ?? "");
+      setOwner(parsed.owner ?? "");
+      setTags(parsed.tags ?? "");
+
+      const bpRaw = (parsed.businessProcess ?? "").trim();
+      if (bpRaw) {
+        const matchedBp =
+          availableBps.find(
+            (bp) =>
+              `${bp.id} - ${bp.name}`.toLowerCase() === bpRaw.toLowerCase() ||
+              bp.name.toLowerCase() === bpRaw.toLowerCase() ||
+              bp.id.toLowerCase() === bpRaw.toLowerCase()
+          ) ?? null;
+
+        if (matchedBp) {
+          setSelectedBps([matchedBp]);
+          setBpSearch(`${matchedBp.id} - ${matchedBp.name}`);
+        } else {
+          setSelectedBps([]);
+          setBpSearch(bpRaw);
+        }
+      }
+    } catch (error) {
+      console.error("Unable to load rule edit draft:", error);
+    }
+  }, [availableBps, isEditMode]);
+
+  useEffect(() => {
+    if (!owner || ownerUsers.length === 0) return;
+    if (ownerUsers.some((user) => user.value === owner)) return;
+
+    const normalizedOwner = owner.toLowerCase();
+    const matchedUser = ownerUsers.find(
+      (user) =>
+        user.label.toLowerCase() === normalizedOwner ||
+        user.userName.toLowerCase() === normalizedOwner
+    );
+    if (matchedUser) {
+      setOwner(matchedUser.value);
+    }
+  }, [owner, ownerUsers]);
 
   // Step 2 state - catalog API wiring (mirrors Access Request flow)
   const [catalogData, setCatalogData] = useState<any[]>([]);
@@ -169,6 +353,33 @@ export default function SodRulesNewPage() {
       };
     });
   }, [catalogData]);
+
+  const getRoleByCartItemId = (itemId: string) => {
+    const normalizedId = itemId.trim().toLowerCase();
+    return apiRoles.find((role) => role.id.trim().toLowerCase() === normalizedId);
+  };
+
+  const getApplicationNameFromRole = (role: any): string => {
+    const row = role?.catalogRow;
+    if (!row || typeof row !== "object") return "";
+    const value =
+      (row.applicationname as string | undefined) ??
+      (row.applicationName as string | undefined) ??
+      (row.application_name as string | undefined) ??
+      (row.appname as string | undefined) ??
+      (row.appName as string | undefined) ??
+      "";
+    return typeof value === "string" ? value.trim() : "";
+  };
+
+  const hasTrainingCheck = (role: any): boolean => {
+    const raw = role?.catalogRow?.training_code as unknown;
+    const arr = Array.isArray(raw) ? raw : [];
+    if (arr.length === 0) return false;
+    const first = arr[0] as Record<string, unknown>;
+    const code = String(first?.code ?? "").trim();
+    return code.length > 0;
+  };
 
   // Keep ref in sync so we can ignore stale responses
   catalogPageRef.current = catalogPage;
@@ -328,7 +539,7 @@ export default function SodRulesNewPage() {
                         : "bg-white text-gray-600 border-gray-300"
                     }`}
                   >
-                    {currentStep > stepId ? (
+                    {currentStep === 3 || currentStep > stepId ? (
                       <Check className="w-4 h-4" />
                     ) : (
                       stepId
@@ -376,7 +587,7 @@ export default function SodRulesNewPage() {
                 className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium"
               >
                 <Check className="w-4 h-4 mr-2" />
-                Create Rule
+                {isEditMode ? "Update Rule" : "Create Rule"}
               </button>
             )}
           </div>
@@ -409,13 +620,78 @@ export default function SodRulesNewPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Owner
                     </label>
-                    <input
-                      type="text"
-                      value={owner}
-                      onChange={(e) => setOwner(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Owner"
-                    />
+                    <div className="relative" ref={ownerDropdownRef}>
+                      <button
+                        type="button"
+                        onClick={() => setOwnerDropdownOpen((prev) => !prev)}
+                        className="w-full h-[42px] px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-left flex items-center justify-between"
+                      >
+                        <span className={owner ? "text-gray-900 text-sm" : "text-gray-500 text-sm"}>
+                          {owner
+                            ? selectedOwnerLabel
+                            : isOwnersLoading
+                              ? "Loading users..."
+                              : "Select owner"}
+                        </span>
+                        <ChevronDown
+                          className={`w-4 h-4 text-gray-500 transition-transform ${
+                            ownerDropdownOpen ? "rotate-180" : ""
+                          }`}
+                        />
+                      </button>
+
+                      {ownerDropdownOpen && (
+                        <div className="absolute left-0 right-0 top-full mt-1 z-30 bg-white border border-gray-300 rounded-md shadow-lg">
+                          <div className="p-2 border-b border-gray-200">
+                            <input
+                              type="text"
+                              value={ownerFilter}
+                              onChange={(e) => setOwnerFilter(e.target.value)}
+                              placeholder="Search user"
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+                          <div className="max-h-56 overflow-auto py-1">
+                            {owner &&
+                              !ownerUsers.some((user) => user.value === owner) && (
+                                <button
+                                  type="button"
+                                  className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 bg-blue-50/40"
+                                  onClick={() => setOwnerDropdownOpen(false)}
+                                >
+                                  {owner}
+                                </button>
+                              )}
+
+                            {isOwnersLoading && (
+                              <div className="px-3 py-2 text-sm text-gray-500">Loading users...</div>
+                            )}
+
+                            {!isOwnersLoading && visibleOwnerUsers.length === 0 && (
+                              <div className="px-3 py-2 text-sm text-gray-500">No users found</div>
+                            )}
+
+                            {!isOwnersLoading &&
+                              visibleOwnerUsers.map((user) => (
+                                <button
+                                  key={user.value}
+                                  type="button"
+                                  className={`w-full text-left px-3 py-2 text-sm hover:bg-blue-50 ${
+                                    owner === user.value ? "bg-blue-50" : ""
+                                  }`}
+                                  onClick={() => {
+                                    setOwner(user.value);
+                                    setOwnerDropdownOpen(false);
+                                    setOwnerFilter("");
+                                  }}
+                                >
+                                  {user.label}
+                                </button>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -450,9 +726,9 @@ export default function SodRulesNewPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Business Process
                     </label>
-                    <div className="relative">
+                    <div className="relative" ref={bpDropdownRef}>
                       <input
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full h-[42px] px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder="Start typing to search and select"
                         value={bpSearch}
                         onFocus={() => setIsBpDropdownOpen(true)}
@@ -461,7 +737,7 @@ export default function SodRulesNewPage() {
                           setBpSearch(value);
                           setIsBpDropdownOpen(true);
                           const found = availableBps.find(
-                            (bp) => bp.name.toLowerCase() === value.toLowerCase()
+                            (bp) => `${bp.id} - ${bp.name}`.toLowerCase() === value.toLowerCase()
                           );
                           setSelectedBps(found ? [found] : []);
                         }}
@@ -476,12 +752,12 @@ export default function SodRulesNewPage() {
                                   className="w-full px-3 py-1.5 text-left hover:bg-blue-50"
                                   onMouseDown={(e) => {
                                     e.preventDefault();
-                                    setBpSearch(bp.name);
+                                    setBpSearch(`${bp.id} - ${bp.name}`);
                                     setSelectedBps([bp]);
                                     setIsBpDropdownOpen(false);
                                   }}
                                 >
-                                  {bp.name}
+                                  {bp.id} - {bp.name}
                                 </button>
                               </li>
                             ))}
@@ -532,80 +808,117 @@ export default function SodRulesNewPage() {
             )}
             {currentStep === 3 && (
               <div className="space-y-6">
-                <h2 className="text-lg font-semibold text-gray-900">Review Rule</h2>
-
-                {/* Rule summary */}
-                <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3 text-sm">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                        Name
-                      </p>
-                      <p className="text-sm text-gray-900">{name || "-"}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                        Owner
-                      </p>
-                      <p className="text-sm text-gray-900">{owner || "-"}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                        Tags
-                      </p>
-                      <p className="text-sm text-gray-900">{tags || "-"}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                        Business Process
-                      </p>
-                      <p className="text-sm text-gray-900">
-                        {selectedBps[0]?.name || bpSearch || "-"}
+                <div className="rounded-xl border border-blue-100 bg-white px-5 py-4 shadow-sm">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h1 className="text-2xl font-bold text-gray-900">Review Rule</h1>
+                      <p className="mt-1 text-xs text-gray-600">
+                        Review rule details before making updates.
                       </p>
                     </div>
-                    <div className="space-y-1 md:col-span-2">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                        Description
-                      </p>
-                      <p className="text-sm text-gray-900 whitespace-pre-wrap">
-                        {description || "-"}
-                      </p>
-                    </div>
+                    <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                      Draft Rule
+                    </span>
                   </div>
                 </div>
 
-                {/* Selected access summary from cart */}
-                <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3 text-sm">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-md font-semibold text-gray-900">
-                      Selected Access ({cartItems.length})
-                    </h3>
+                <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                        <p className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                          <ShieldCheck className="h-4 w-4 text-blue-600" />
+                          Rule Name
+                        </p>
+                        <p className="text-xs font-medium text-gray-900">{name || "-"}</p>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                        <p className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                          <UserRound className="h-4 w-4 text-blue-600" />
+                          Owner
+                        </p>
+                        <p className="text-xs font-medium text-gray-900">
+                          {selectedOwnerLabel || owner || "-"}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                        <p className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                          <FolderTree className="h-4 w-4 text-blue-600" />
+                          Business Process Name
+                        </p>
+                        <p className="text-xs font-medium text-gray-900">
+                          {selectedBps[0]
+                            ? `${selectedBps[0].id} - ${selectedBps[0].name}`
+                            : bpSearch || "-"}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                        <p className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                          <FolderTree className="h-4 w-4 text-blue-600" />
+                          Tags
+                        </p>
+                        <p className="text-xs font-medium text-gray-900">{tags || "-"}</p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-gray-200 bg-white p-3">
+                      <p className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                        <FileText className="h-4 w-4 text-blue-600" />
+                        Description
+                      </p>
+                      <p className="text-xs leading-5 text-gray-900 whitespace-pre-wrap">
+                        {description || "-"}
+                      </p>
+                    </div>
+
+                    <div className="rounded-lg border border-gray-200 bg-white p-3">
+                      <p className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                        <FileText className="h-4 w-4 text-blue-600" />
+                        Catalog
+                      </p>
+                      {cartItems.length === 0 ? (
+                        <p className="text-xs leading-5 text-gray-500">No catalog item selected.</p>
+                      ) : (
+                        <ul className="space-y-2">
+                          {cartItems.map((item) => (
+                            (() => {
+                              const role = getRoleByCartItemId(item.id);
+                              const appName = getApplicationNameFromRole(role);
+                              const showTraining = hasTrainingCheck(role);
+
+                              return (
+                                <li
+                                  key={item.id}
+                                  className="rounded-md border border-gray-200 px-3 py-2 text-xs"
+                                >
+                                  <div className="flex items-center justify-between gap-3">
+                                    <span className="font-medium text-gray-900 truncate">{item.name}</span>
+                                    <div className="flex flex-wrap items-center justify-end gap-2">
+                                      {item.risk ? (
+                                        <span className="rounded-md border border-orange-200 bg-orange-50 px-2 py-0.5 text-[11px] font-medium text-orange-700">
+                                          {item.risk} Risk
+                                        </span>
+                                      ) : null}
+                                      {appName ? (
+                                        <span className="rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">
+                                          {appName}
+                                        </span>
+                                      ) : null}
+                                      {showTraining ? (
+                                        <span className="rounded-md border border-green-200 bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-700">
+                                          Training Check
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                </li>
+                              );
+                            })()
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                   </div>
-                  {cartItems.length === 0 ? (
-                    <p className="text-gray-500">
-                      No access items selected in Step 2.
-                    </p>
-                  ) : (
-                    <ul className="space-y-1">
-                      {cartItems.map((item) => (
-                        <li
-                          key={item.id}
-                          className="flex items-center justify-between border border-gray-200 rounded-md px-3 py-2 bg-white"
-                        >
-                          <div className="flex flex-col">
-                            <span className="font-medium text-gray-900">
-                              {item.name}
-                            </span>
-                          </div>
-                          {item.risk && (
-                            <span className="text-xs font-medium px-2 py-1 rounded-full border border-gray-300 text-gray-700">
-                              {item.risk} Risk
-                            </span>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
                 </div>
               </div>
             )}

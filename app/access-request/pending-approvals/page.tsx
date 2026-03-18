@@ -3,12 +3,11 @@
 import React, { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 import {
-  CircleCheck,
-  CircleX,
-  RotateCcw,
   Eye,
+  ArrowRight,
   Clock3,
   Info,
   Paperclip,
@@ -40,14 +39,12 @@ type PendingApprovalStatus =
 
 type PendingApproval = {
   id: string;
-  type: string;
   requester: string;
   beneficiary: string;
-  assignedOn: string;
-  expiresOn: string;
-  itemsCount: number;
-  entityName: string;
-  // Status is used only for filtering, not as a column
+  createdOn: string;
+  lastActedOn: string;
+  entityCount: number;
+  comments: string;
   status: PendingApprovalStatus;
   hasInsight?: boolean;
   hasRisk?: boolean;
@@ -57,6 +54,39 @@ type PendingApproval = {
 
 // Fallback mock data used only when API returns no records
 const mockDataFallback: PendingApproval[] = [];
+
+const formatDateToMMDDYY = (value: string): string => {
+  if (!value) return "";
+
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    const mm = String(parsed.getMonth() + 1).padStart(2, "0");
+    const dd = String(parsed.getDate()).padStart(2, "0");
+    const yy = String(parsed.getFullYear()).slice(-2);
+    return `${mm}-${dd}-${yy}`;
+  }
+
+  const normalized = value.trim().replace(/\//g, "-");
+  const parts = normalized.split("-");
+
+  // Support YYYY-MM-DD
+  if (parts.length >= 3 && parts[0].length === 4) {
+    const yy = parts[0].slice(-2);
+    const mm = parts[1].padStart(2, "0");
+    const dd = parts[2].padStart(2, "0");
+    return `${mm}-${dd}-${yy}`;
+  }
+
+  // Support DD-MM-YYYY
+  if (parts.length >= 3 && parts[2].length === 4) {
+    const yy = parts[2].slice(-2);
+    const mm = parts[1].padStart(2, "0");
+    const dd = parts[0].padStart(2, "0");
+    return `${mm}-${dd}-${yy}`;
+  }
+
+  return value;
+};
 
 async function fetchPendingApprovals(): Promise<PendingApproval[]> {
   const response = await fetch(
@@ -81,8 +111,20 @@ async function fetchPendingApprovals(): Promise<PendingApproval[]> {
 
   const json = await response.json();
 
+  const toStringSafe = (value: unknown) =>
+    value === null || value === undefined ? "" : String(value);
+  const pick = (row: Record<string, any>, keys: string[]) => {
+    for (const key of keys) {
+      const value = row[key];
+      if (value !== undefined && value !== null && value !== "") return value;
+    }
+    return "";
+  };
+
   const rows: any[] = Array.isArray(json)
     ? json
+    : Array.isArray((json as any)?.resultSet)
+    ? (json as any).resultSet
     : Array.isArray((json as any)?.data)
     ? (json as any).data
     : Array.isArray((json as any)?.rows)
@@ -90,73 +132,114 @@ async function fetchPendingApprovals(): Promise<PendingApproval[]> {
     : [];
 
   return rows.map((row, index) => {
-    const statusRaw: string =
-      row.status ??
-      row.task_status ??
-      row.taskStatus ??
-      row.STATE ??
-      "Pending";
+    const statusRaw = toStringSafe(
+      pick(row, ["status", "task_status", "taskStatus", "STATE", "state"]) ||
+        "Pending"
+    );
 
     const normalizedStatus =
       (["Pending", "Approved", "Rejected", "Info Requested"] as const).find(
         (s) => s.toLowerCase() === String(statusRaw).toLowerCase()
       ) ?? "Pending";
 
-    const assignedOn =
-      row.assignedOn ??
-      row.assigned_on ??
-      row.created_at ??
-      row.start_date ??
-      "";
+    const createdOn = toStringSafe(
+      pick(row, [
+        "created_on",
+        "createdOn",
+        "created_at",
+        "assigned_on",
+        "assignedOn",
+        "start_date",
+        "requested_on",
+      ])
+    );
 
-    const expiresOn =
-      row.expiresOn ??
-      row.expires_on ??
-      row.due_date ??
-      row.expiry_date ??
-      "";
+    const lastActedOn = toStringSafe(
+      pick(row, [
+        "last_acted_on",
+        "lastActedOn",
+        "updated_at",
+        "modified_at",
+        "expires_on",
+        "expiresOn",
+        "due_date",
+        "expiry_date",
+      ])
+    );
 
-    const requester =
-      row.requester ??
-      row.requester_name ??
-      row.requestor_name ??
-      row.requested_by ??
-      "";
+    const requester = toStringSafe(
+      row?.requester?.displayname ??
+        pick(row, [
+          "requester_name",
+          "requestor_name",
+          "requester",
+          "requested_by_name",
+          "requested_by",
+        ])
+    );
 
-    const beneficiary =
-      row.beneficiary ??
-      row.beneficiary_name ??
-      row.user_name ??
-      row.account_name ??
-      "";
+    const beneficiary = toStringSafe(
+      row?.beneficiary?.username ??
+        pick(row, [
+          "beneficiary_name",
+          "beneficiary",
+          "user_name",
+          "account_name",
+          "requested_for",
+        ])
+    );
 
-    const entityName =
-      row.entityName ??
-      row.entity_name ??
-      row.application_name ??
-      row.system_name ??
-      "";
-
-    const items: NestedItem[] = Array.isArray(row.items)
-      ? row.items
-      : Array.isArray(row.line_items)
-      ? row.line_items
-      : [];
+    const rawItems =
+      (Array.isArray(row.items) && row.items) ||
+      (Array.isArray(row.line_items) && row.line_items) ||
+      [];
+    const items: NestedItem[] = rawItems;
+    const itemDetails = row.itemdetails ?? row.itemDetails;
+    const itemDetailsCount = Array.isArray(itemDetails)
+      ? itemDetails.length
+      : itemDetails && typeof itemDetails === "object"
+      ? Object.keys(itemDetails).length
+      : 0;
 
     return {
-      id: String(row.id ?? row.task_id ?? row.taskId ?? index + 1),
-      type:
-        row.type ??
-        row.request_type ??
-        row.task_type ??
-        row.category ??
-        "Request",
+      id: toStringSafe(
+        pick(row, [
+          "request_id",
+          "requestid",
+          "req_id",
+          "task_id",
+          "taskid",
+          "taskId",
+          "id",
+          "requestId",
+        ]) || index + 1
+      ),
       requester,
       beneficiary,
-      assignedOn,
-      expiresOn,
-      itemsCount: items.length || Number(row.itemsCount ?? row.items_count ?? 0),
-      entityName,
+      createdOn,
+      lastActedOn,
+      entityCount:
+        itemDetailsCount ||
+        Number(
+          pick(row, [
+            "entity_count",
+            "entityCount",
+            "number_of_entities",
+            "items_count",
+            "itemsCount",
+          ]) ?? items.length
+        ) ||
+        0,
+      comments: toStringSafe(
+        pick(row, [
+          "requester_justification",
+          "comments",
+          "comment",
+          "remarks",
+          "justification",
+          "reason",
+        ])
+      ),
       status: normalizedStatus,
       hasInsight: Boolean(row.hasInsight ?? row.has_insight),
       hasRisk: Boolean(row.hasRisk ?? row.has_risk),
@@ -170,78 +253,51 @@ const InsightsCell: React.FC<{
   hasRisk?: boolean;
   hasInsight?: boolean;
   hasViolation?: boolean;
-}> = ({ hasRisk, hasInsight, hasViolation }) => {
+}> = () => {
   return (
-    <div className="flex items-center gap-2">
-      {hasRisk && (
-        <span
-          className="inline-flex h-3 w-3 rounded-full border border-red-500 bg-red-100"
-          aria-label="Risk tag"
-        />
-      )}
-      {hasInsight && (
-        <InsightsIcon
-          size={18}
-          className="text-amber-500"
-        />
-      )}
-      {hasViolation && (
-        <span
-          className="inline-flex h-3 w-3 rounded-full border border-orange-500 bg-orange-100"
-          aria-label="Violation tag"
-        />
-      )}
+    <div className="flex items-center justify-center" title="AI Insights">
+      <InsightsIcon size={24} className="shrink-0 text-amber-500" />
     </div>
   );
 };
 
-const ActionsCell: React.FC = () => {
+type ActionsCellProps = {
+  node?: ICellRendererParams["node"];
+  onDetailedReview?: () => void;
+};
+
+const ActionsCell: React.FC<ActionsCellProps> = ({ node, onDetailedReview }) => {
   const baseBtn =
     "inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-colors";
+  const expanded = node?.expanded;
 
   return (
     <div className="flex items-center gap-2">
       <button
         type="button"
         className={baseBtn}
-        title="Approve"
-        aria-label="Approve"
+        title="Quick View"
+        aria-label="Quick View"
+        onClick={(e) => {
+          e.stopPropagation();
+          if (node) {
+            node.setExpanded(!expanded);
+          }
+        }}
       >
-        <CircleCheck className="h-5 w-5 text-emerald-600" />
+        <Eye className="h-4 w-4 text-blue-600" />
       </button>
       <button
         type="button"
         className={baseBtn}
-        title="Reject"
-        aria-label="Reject"
+        title="Detailed Review"
+        aria-label="Detailed Review"
+        onClick={(e) => {
+          e.stopPropagation();
+          onDetailedReview?.();
+        }}
       >
-        <CircleX className="h-5 w-5 text-red-600" />
-      </button>
-      <button
-        type="button"
-        className={baseBtn}
-        title="Request more information"
-        aria-label="Request more information"
-      >
-        <RotateCcw className="h-4 w-4 text-blue-600" />
-      </button>
-      <button
-        type="button"
-        className={baseBtn}
-        title="Add comments"
-        aria-label="Add comments"
-      >
-        <svg
-          width="24"
-          height="24"
-          viewBox="0 0 32 32"
-          className="cursor-pointer hover:opacity-80"
-        >
-          <path
-            d="M0.700195 0V19.5546H3.5802V25.7765C3.57994 25.9525 3.62203 26.1247 3.70113 26.2711C3.78022 26.4176 3.89277 26.5318 4.02449 26.5992C4.15621 26.6666 4.30118 26.6842 4.44101 26.6498C4.58085 26.6153 4.70926 26.5304 4.80996 26.4058C6.65316 24.1232 10.3583 19.5546 10.3583 19.5546H25.1802V0H0.700195ZM2.1402 1.77769H23.7402V17.7769H9.76212L5.0202 23.6308V17.7769H2.1402V1.77769ZM5.0202 5.33307V7.11076H16.5402V5.33307H5.0202ZM26.6202 5.33307V7.11076H28.0602V23.11H25.1802V28.9639L20.4383 23.11H9.34019L7.9002 24.8877H19.8421C19.8421 24.8877 23.5472 29.4563 25.3904 31.7389C25.4911 31.8635 25.6195 31.9484 25.7594 31.9828C25.8992 32.0173 26.0442 31.9997 26.1759 31.9323C26.3076 31.8648 26.4202 31.7507 26.4993 31.6042C26.5784 31.4578 26.6204 31.2856 26.6202 31.1096V24.8877H29.5002V5.33307H26.6202ZM5.0202 8.88845V10.6661H10.7802V8.88845H5.0202ZM5.0202 12.4438V14.2215H19.4202V12.4438H5.0202Z"
-            fill="#2684FF"
-          />
-        </svg>
+        <ArrowRight className="h-4 w-4 text-gray-700" />
       </button>
     </div>
   );
@@ -301,6 +357,7 @@ const DetailsCell: React.FC = () => {
 
 const PendingApprovalsPage: React.FC = () => {
   const gridRef = React.useRef<any>(null);
+  const router = useRouter();
 
   const {
     data: pendingApprovals = mockDataFallback,
@@ -344,7 +401,7 @@ const PendingApprovalsPage: React.FC = () => {
         if (!matchesSearch) return false;
       }
 
-      const assigned = parseInputDate(row.assignedOn);
+      const assigned = parseInputDate(row.createdOn);
       if (from && assigned && assigned < from) return false;
       if (to && assigned && assigned > to) return false;
 
@@ -359,45 +416,61 @@ const PendingApprovalsPage: React.FC = () => {
   const columnDefs = useMemo<ColDef[]>(
     () => [
       {
-        headerName: "Type",
-        field: "type",
-        flex: 1,
+        headerName: "Req ID",
+        field: "id",
+        minWidth: 90,
+        width: 100,
       },
       {
         headerName: "Requester",
         field: "requester",
-        flex: 1,
+        minWidth: 140,
+        width: 160,
       },
       {
         headerName: "Beneficiary",
         field: "beneficiary",
-        flex: 1,
+        minWidth: 140,
+        width: 160,
       },
       {
-        headerName: "Assigned On",
-        field: "assignedOn",
-        flex: 1,
+        headerName: "Created On",
+        field: "createdOn",
+        minWidth: 130,
+        width: 140,
+        valueFormatter: (params) => formatDateToMMDDYY(params.value ?? ""),
       },
       {
-        headerName: "Expires On",
-        field: "expiresOn",
-        flex: 1,
+        headerName: "Last Acted On",
+        field: "lastActedOn",
+        minWidth: 150,
+        width: 165,
+        valueFormatter: (params) => formatDateToMMDDYY(params.value ?? ""),
       },
       {
-        headerName: "#Items",
-        field: "itemsCount",
-        width: 110,
+        headerName: "# Entity",
+        field: "entityCount",
+        minWidth: 110,
+        width: 115,
         cellClass: "text-center",
       },
       {
-        headerName: "Entity Name",
-        field: "entityName",
-        flex: 1.1,
+        headerName: "Comments",
+        field: "comments",
+        minWidth: 150,
+        width: 180,
+      },
+      {
+        headerName: "Status",
+        field: "status",
+        minWidth: 120,
+        width: 130,
       },
       {
         headerName: "Insights",
         field: "insights",
-        flex: 1,
+        minWidth: 110,
+        width: 110,
         cellRenderer: (params: ICellRendererParams) => {
           const data = params.data as PendingApproval | undefined;
           if (!data) return null;
@@ -413,32 +486,25 @@ const PendingApprovalsPage: React.FC = () => {
       {
         headerName: "Actions",
         field: "actions",
-        flex: 1.3,
-        cellRenderer: () => <ActionsCell />,
-      },
-      {
-        headerName: "Quick View",
-        field: "quickView",
-        width: 120,
-        cellRenderer: (params: ICellRendererParams) => {
-          const expanded = params.node.expanded;
-          return (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                params.node.setExpanded(!expanded);
-              }}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-colors"
-              aria-label="Quick view"
-            >
-              <Eye className="h-4 w-4" />
-            </button>
-          );
-        },
+        minWidth: 130,
+        width: 140,
+        cellRenderer: (params: ICellRendererParams) => (
+          <ActionsCell
+            node={params.node}
+            onDetailedReview={() => {
+              const requestId = params.data?.id;
+              if (!requestId) return;
+              router.push(
+                `/access-request/pending-approvals/${encodeURIComponent(
+                  String(requestId)
+                )}`
+              );
+            }}
+          />
+        ),
       },
     ],
-    []
+    [router]
   );
 
   const detailColumnDefs = useMemo<ColDef[]>(
@@ -492,8 +558,8 @@ const PendingApprovalsPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="w-full py-8 px-4">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <div className="w-full">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-2">
           <div className="mb-4 flex flex-col lg:flex-row gap-4">
             <div className="flex-1 flex flex-col gap-3">
               <div>
@@ -718,8 +784,10 @@ const PendingApprovalsPage: React.FC = () => {
               domLayout="autoHeight"
               defaultColDef={{
                 sortable: true,
-                filter: true,
+                filter: false,
                 resizable: true,
+                wrapHeaderText: true,
+                autoHeaderHeight: true,
               }}
               masterDetail
               isRowMaster={(data: PendingApproval) =>
@@ -740,10 +808,9 @@ const PendingApprovalsPage: React.FC = () => {
                 },
               }}
               onGridReady={(params) => {
-                params.api.sizeColumnsToFit();
                 const handleResize = () => {
                   try {
-                    params.api.sizeColumnsToFit();
+                    params.api.refreshHeader();
                   } catch {
                     // ignore
                   }
@@ -755,15 +822,12 @@ const PendingApprovalsPage: React.FC = () => {
               }}
               onGridSizeChanged={(params) => {
                 try {
-                  params.api.sizeColumnsToFit();
+                  params.api.refreshHeader();
                 } catch {
                   // ignore
                 }
               }}
-              onFirstDataRendered={(params) => {
-                params.api.sizeColumnsToFit();
-              }}
-              suppressSizeToFit={false}
+              suppressSizeToFit={true}
             />
           </div>
         </div>

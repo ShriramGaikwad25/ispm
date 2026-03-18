@@ -109,34 +109,46 @@ export default function WorkflowBuilderPage() {
       {
         headerName: "Name",
         field: "name",
-        minWidth: 220,
-        flex: 1,
+        minWidth: 280,
+        flex: 2,
+        wrapText: true,
+        autoHeight: true,
       },
       {
         headerName: "Description",
         field: "description",
-        minWidth: 260,
-        flex: 2,
+        minWidth: 320,
+        flex: 3,
+        wrapText: true,
+        autoHeight: true,
       },
       {
         headerName: "Created By",
         field: "created_by",
         minWidth: 180,
+        width: 180,
+        suppressSizeToFit: true,
       },
       {
         headerName: "Type",
         field: "business_object_type",
         minWidth: 160,
+        width: 160,
+        suppressSizeToFit: true,
       },
       {
         headerName: "Status",
         field: "status",
         minWidth: 140,
+        width: 140,
+        suppressSizeToFit: true,
       },
       {
         headerName: "Action",
         field: "actions",
         minWidth: 140,
+        width: 140,
+        suppressSizeToFit: true,
         cellRenderer: (params: any) => {
           const row = params.data as WorkflowPolicyRow;
           return (
@@ -198,7 +210,7 @@ export default function WorkflowBuilderPage() {
             {error}
           </div>
         ) : (
-          <div className="w-full">
+          <div className="w-full workflow-builder-grid">
             <AgGridReact
               rowData={rows}
               columnDefs={workflowColumnDefs}
@@ -206,6 +218,11 @@ export default function WorkflowBuilderPage() {
               rowModelType="clientSide"
               animateRows={true}
               domLayout="autoHeight"
+              getRowClass={(params) =>
+                (params.node.rowIndex ?? 0) % 2 === 0
+                  ? "workflow-row-even"
+                  : "workflow-row-odd"
+              }
               defaultColDef={{
                 sortable: true,
                 filter: true,
@@ -218,6 +235,19 @@ export default function WorkflowBuilderPage() {
           </div>
         )}
       </div>
+      <style jsx global>{`
+        .workflow-builder-grid .ag-row {
+          border-bottom: 1px solid #e5e7eb;
+        }
+
+        .workflow-builder-grid .ag-row.workflow-row-even {
+          background-color: #ffffff;
+        }
+
+        .workflow-builder-grid .ag-row.workflow-row-odd {
+          background-color: #f8fafc;
+        }
+      `}</style>
     </div>
   );
 }
