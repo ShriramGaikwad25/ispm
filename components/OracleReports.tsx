@@ -75,9 +75,9 @@ const REPORT_CARDS: ReportCard[] = [
     href: "/oracle-reports/policies-report",
   },
   {
-    title: "Access GuardRail Report",
+    title: "SOD Violation Report",
     description:
-      "Provides insight into Access GuardRail violations and policy evaluations for access.",
+      "Provides insight into segregation-of-duties violations and policy conflicts across access assignments.",
     icon: ShieldAlert,
     href: "/oracle-reports/access-guardrail-report",
   },
@@ -254,7 +254,7 @@ function ComplianceReportsView() {
                       </td>
                       <td className="px-3 py-2"></td>
                       <td className="px-3 py-2">
-                        <ReportLink label="Access GuardRail Report" />
+                        <ReportLink label="SOD Violation Report" />
                       </td>
                     </tr>
                   </tbody>
@@ -350,7 +350,7 @@ function ComplianceReportsView() {
                       </td>
                       <td className="px-3 py-2"></td>
                       <td className="px-3 py-2">
-                        <ReportLink label="Access GuardRail Report" />
+                        <ReportLink label="SOD Violation Report" />
                       </td>
                     </tr>
                   </tbody>
@@ -444,7 +444,7 @@ function ComplianceReportsView() {
                       <td className="px-3 py-2">Preventive SoD controls</td>
                       <td className="px-3 py-2"></td>
                       <td className="px-3 py-2">
-                        <ReportLink label="Access GuardRail Report" />
+                        <ReportLink label="SOD Violation Report" />
                       </td>
                     </tr>
                   </tbody>
@@ -538,7 +538,7 @@ function ComplianceReportsView() {
                       <td className="px-3 py-2">A.5.15</td>
                       <td className="px-3 py-2"></td>
                       <td className="px-3 py-2">
-                        <ReportLink label="Access GuardRail Report" />
+                        <ReportLink label="SOD Violation Report" />
                       </td>
                     </tr>
                   </tbody>
@@ -632,7 +632,7 @@ function ComplianceReportsView() {
                       <td className="px-3 py-2">Control 6.8</td>
                       <td className="px-3 py-2"></td>
                       <td className="px-3 py-2">
-                        <ReportLink label="Access GuardRail Report" />
+                        <ReportLink label="SOD Violation Report" />
                       </td>
                     </tr>
                   </tbody>
@@ -674,7 +674,7 @@ export default function Reports() {
           <Tabs
             tabs={tabsData}
             activeClass="bg-blue-600 text-white rounded-lg"
-            buttonClass="text-sm px-3 py-1"
+            buttonClass="text-base px-3 py-1"
             className="justify-center"
           />
         </div>
