@@ -3,8 +3,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { Search, ShoppingCart, Users, Check, User, Info, Calendar, ChevronDown, X } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import HorizontalTabs from "@/components/HorizontalTabs";
-import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import CustomPagination from "@/components/agTable/CustomPagination";
+import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import AddDetailsSidebarContent, { getRiskColor, type Role } from "./AddDetailsSidebarContent";
 import { getLogoSrc } from "@/components/MsAsyncData";
 
@@ -70,6 +70,8 @@ interface User {
 interface SelectAccessTabProps {
   onApply?: () => void;
   rolesFromApi?: Role[];
+  apiCurrentPage?: number;
+  onApiPageChange?: (page: number) => void;
   applicationInstances?: Array<{ id: string; name: string }>;
   selectedAppInstanceId?: string | null;
   onAppInstanceChange?: (id: string | null) => void;
@@ -90,6 +92,8 @@ interface SelectAccessTabProps {
 const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
   onApply,
   rolesFromApi,
+  apiCurrentPage = 1,
+  onApiPageChange,
   applicationInstances = [],
   selectedAppInstanceId = null,
   onAppInstanceChange,
@@ -255,12 +259,14 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
     }
   };
 
-  // All Tab Component (server paging removed; this shows all roles returned by the API)
+  // All Tab Component (uses apiCurrentPage from parent so fetch offset increases correctly)
   const AllTab: React.FC = () => {
+    const isInitialMount = React.useRef(true);
+    const pageSize = 100;
+    const currentPage = apiCurrentPage;
+
     // Catalog search is local to AllTab so typing doesn't remount the tab
     const [catalogSearchQuery, setCatalogSearchQuery] = useState("");
-    const pageSize = 100;
-    const [currentUiPage, setCurrentUiPage] = useState(1);
 
     const matchesCatalogTypeFilter = (role: Role): boolean => {
       if (catalogTypeFilter === "All" || catalogTypeFilter === "Tags") return true;
@@ -338,13 +344,18 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
 
     const sortedRoles = filteredRoles;
 
-    const totalItems = sortedRoles.length;
-    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-    const paginatedRoles = sortedRoles.slice((currentUiPage - 1) * pageSize, currentUiPage * pageSize);
+    // Server-side pagination (100 rows per API page) – show all roles from current API page
+    const isLastServerPage = filteredRoles.length < pageSize;
+    const totalPages = isLastServerPage ? currentPage : currentPage + 1;
 
     useEffect(() => {
-      setCurrentUiPage(1);
-    }, [catalogSearchQuery, catalogTypeFilter, tagFilter, showApplicationInstancesOnly, entitlementSelectedAppIds]);
+      if (isInitialMount.current) {
+        isInitialMount.current = false;
+        return;
+      }
+      // Reset to first page only when user actually changes search or dropdown (not on mount/remount)
+      if (onApiPageChange) onApiPageChange(1);
+    }, [catalogSearchQuery, showApplicationInstancesOnly, catalogTypeFilter, entitlementSelectedAppIds]);
 
     const handleAddToCart = (role: Role) => {
       const id = getRoleId(role);
@@ -358,6 +369,10 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
 
     const handleReview = () => {
       console.log("Reviewing cart items:", cartCount);
+    };
+
+    const handlePageChange = (page: number) => {
+      if (onApiPageChange) onApiPageChange(page);
     };
 
     return (
@@ -504,23 +519,23 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
           </button>
         </div>
 
-        {/* Pagination */}
+        {/* Pagination at top */}
         {filteredRoles.length > 0 && (
           <div className="mb-4">
             <CustomPagination
-              totalItems={totalItems}
-              currentPage={currentUiPage}
+              totalItems={(currentPage - 1) * pageSize + filteredRoles.length}
+              currentPage={currentPage}
               totalPages={totalPages}
               pageSize={pageSize}
-              onPageChange={setCurrentUiPage}
+              onPageChange={handlePageChange}
               pageSizeOptions={[100]}
             />
           </div>
         )}
 
-        {/* Roles List */}
+        {/* Roles List (all roles from current API page) */}
         <div className="space-y-3">
-          {paginatedRoles.map((role) => {
+          {sortedRoles.map((role) => {
             const normalizedId = getRoleId(role);
             const inCartById = normalizedId ? isInCart(normalizedId) : false;
             const roleNameNorm = role.name ? role.name.toLowerCase().trim() : "";
@@ -645,6 +660,19 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
         {filteredRoles.length === 0 && (
           <div className="text-center py-12 text-gray-500">
             No roles found matching your search.
+          </div>
+        )}
+        {/* Pagination Controls (project-wide CustomPagination) */}
+        {filteredRoles.length > 0 && (
+          <div className="mt-4">
+            <CustomPagination
+              totalItems={(currentPage - 1) * pageSize + filteredRoles.length}
+              currentPage={currentPage}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              onPageChange={handlePageChange}
+              pageSizeOptions={[100]}
+            />
           </div>
         )}
       </div>

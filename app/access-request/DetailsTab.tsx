@@ -33,44 +33,6 @@ const DetailsTab: React.FC = () => {
   const initializedItemsRef = React.useRef<Set<string>>(new Set());
   const prevGlobalSettingsRef = React.useRef(globalSettings);
 
-  const addDaysToISODate = (dateStr: string, days: number) => {
-    if (!dateStr) return "";
-    // `YYYY-MM-DD` is treated as UTC by the JS engine; using toISOString keeps format consistent.
-    const d = new Date(dateStr);
-    if (Number.isNaN(d.getTime())) return dateStr;
-    d.setDate(d.getDate() + days);
-    return d.toISOString().split("T")[0];
-  };
-
-  const todayISO = new Date().toISOString().split("T")[0];
-  const tomorrowISO = addDaysToISODate(todayISO, 1);
-
-  React.useEffect(() => {
-    if (globalSettings.isIndefinite) return;
-    // Ensure start is not in the past and end is always a future date.
-    const currentStart = globalSettings.startDate;
-    const currentEnd = globalSettings.endDate;
-
-    const correctedStart = currentStart && currentStart < tomorrowISO ? tomorrowISO : currentStart;
-    const correctedEndBase = currentEnd && currentEnd <= todayISO ? tomorrowISO : currentEnd;
-
-    const effectiveStart = correctedStart;
-    const correctedEnd =
-      effectiveStart && correctedEndBase && correctedEndBase <= effectiveStart
-        ? addDaysToISODate(effectiveStart, 1)
-        : correctedEndBase;
-
-    const needsUpdate =
-      correctedStart !== currentStart || correctedEnd !== currentEnd;
-
-    if (needsUpdate) {
-      setGlobalSettings({
-        startDate: correctedStart,
-        endDate: correctedEnd,
-      });
-    }
-  }, [globalSettings.isIndefinite, globalSettings.startDate, globalSettings.endDate, setGlobalSettings, todayISO, tomorrowISO]);
-
   // Initialize dates for new items only
   React.useEffect(() => {
     const itemIds = new Set(items.map(item => item.id));
@@ -197,35 +159,8 @@ const DetailsTab: React.FC = () => {
   }, [globalSettings.startDate, globalSettings.endDate, globalSettings.isIndefinite, globalSettings.comment, items.map(item => item.id).join(','), getItemDetail, setItemDetail]);
 
   const handleGlobalDateChange = (field: "startDate" | "endDate", value: string) => {
-    if (globalSettings.isIndefinite) {
-      setGlobalSettings({ [field]: value });
-      return;
-    }
-
-    if (field === "startDate") {
-      const nextStart = value && value < tomorrowISO ? tomorrowISO : value;
-      const currentEnd = globalSettings.endDate;
-
-      // Ensure end date is strictly after start date.
-      const nextEnd =
-        nextStart && currentEnd && currentEnd <= nextStart ? addDaysToISODate(nextStart, 1) : currentEnd;
-
-      setGlobalSettings({
-        startDate: nextStart,
-        endDate: nextEnd,
-      });
-      return;
-    }
-
-    // field === "endDate"
-    const nextEnd = value && value <= todayISO ? tomorrowISO : value;
-    const currentStart =
-      globalSettings.startDate && globalSettings.startDate < tomorrowISO ? tomorrowISO : globalSettings.startDate;
-    const correctedEnd =
-      currentStart && nextEnd && nextEnd <= currentStart ? addDaysToISODate(currentStart, 1) : nextEnd;
-
     setGlobalSettings({
-      endDate: correctedEnd,
+      [field]: value,
     });
   };
 
@@ -252,47 +187,26 @@ const DetailsTab: React.FC = () => {
   };
 
   const handleDateChange = (itemId: string, field: "startDate" | "endDate", value: string) => {
-    const current = itemDates[itemId] || {
-      startDate: globalSettings.startDate,
-      endDate: globalSettings.endDate,
-      isIndefinite: globalSettings.isIndefinite,
-      comment: globalSettings.comment,
-      isEditing: false,
-      useGlobalSettings: true,
-    };
-
-    let nextStart = current.startDate;
-    let nextEnd = current.endDate;
-
-    if (field === "startDate") {
-      nextStart = value && value < tomorrowISO ? tomorrowISO : value;
-      if (nextStart && nextEnd) {
-        // End must be future and strictly after start.
-        if (nextEnd <= todayISO) nextEnd = tomorrowISO;
-        if (nextEnd <= nextStart) nextEnd = addDaysToISODate(nextStart, 1);
-      }
-    } else {
-      nextEnd = value && value <= todayISO ? tomorrowISO : value;
-      if (nextStart && nextEnd && nextEnd <= nextStart) {
-        nextEnd = addDaysToISODate(nextStart, 1);
-      }
-    }
-
-    setItemDates((prev) => ({
-      ...prev,
-      [itemId]: {
-        ...(prev[itemId] ?? current),
-        startDate: nextStart,
-        endDate: nextEnd,
-        useGlobalSettings: false, // Mark as custom when user changes
-      },
-    }));
-
-    setItemDetail(itemId, {
-      startDate: nextStart,
-      endDate: nextEnd,
-      useGlobalSettings: false,
+    setItemDates((prev) => {
+      const updated = {
+        ...prev,
+        [itemId]: {
+          ...prev[itemId],
+          [field]: value,
+          useGlobalSettings: false, // Mark as custom when user changes
+        },
+      };
+      
+      return updated;
     });
+    
+    // Sync with context after state update
+    setTimeout(() => {
+      setItemDetail(itemId, {
+        [field]: value,
+        useGlobalSettings: false,
+      });
+    }, 0);
   };
 
   const handleItemAccessTypeChange = (
@@ -428,7 +342,6 @@ const DetailsTab: React.FC = () => {
                     type="date"
                     value={globalSettings.startDate}
                     onChange={(e) => handleGlobalDateChange("startDate", e.target.value)}
-                    min={tomorrowISO}
                     disabled={globalIsIndefinite}
                     className={`w-full h-[42px] pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white ${globalIsIndefinite ? "opacity-60 cursor-not-allowed" : ""}`}
                   />
@@ -446,11 +359,7 @@ const DetailsTab: React.FC = () => {
                     type="date"
                     value={globalSettings.endDate}
                     onChange={(e) => handleGlobalDateChange("endDate", e.target.value)}
-                    min={
-                      globalSettings.startDate
-                        ? addDaysToISODate(globalSettings.startDate, 1)
-                        : tomorrowISO
-                    }
+                    min={globalSettings.startDate}
                     disabled={globalIsIndefinite}
                     className={`w-full h-[42px] pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white ${globalIsIndefinite ? "opacity-60 cursor-not-allowed" : ""}`}
                   />
@@ -669,7 +578,6 @@ const DetailsTab: React.FC = () => {
                           type="date"
                           value={dates.startDate}
                           onChange={(e) => handleDateChange(item.id, "startDate", e.target.value)}
-                          min={tomorrowISO}
                           className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                       </div>
@@ -688,7 +596,7 @@ const DetailsTab: React.FC = () => {
                           type="date"
                           value={dates.endDate}
                           onChange={(e) => handleDateChange(item.id, "endDate", e.target.value)}
-                          min={dates.startDate ? addDaysToISODate(dates.startDate, 1) : tomorrowISO}
+                          min={dates.startDate}
                           className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                       </div>

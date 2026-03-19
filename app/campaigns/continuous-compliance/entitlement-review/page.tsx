@@ -8,8 +8,6 @@ import "@/lib/ag-grid-setup";
 import Filters from "@/components/agTable/Filters";
 import ActionButtons from "@/components/agTable/ActionButtons";
 import { Lightbulb } from "lucide-react";
-import "ag-grid-community/styles/ag-grid.css";
-import "ag-grid-community/styles/ag-theme-alpine.css";
 
 const AgGridReact = dynamic(
   () => import("ag-grid-react").then((mod) => mod.AgGridReact),

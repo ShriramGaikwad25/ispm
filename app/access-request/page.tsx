@@ -105,10 +105,12 @@ const AccessRequest: React.FC = () => {
   const [catalogData, setCatalogData] = useState<any[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [catalogPage, setCatalogPage] = useState(1);
   const [selectedAppInstanceId, setSelectedAppInstanceId] = useState<string | null>(null);
   const [showApplicationInstancesOnly, setShowApplicationInstancesOnly] = useState(false);
   const [applicationInstances, setApplicationInstances] = useState<Array<{ id: string; name: string }>>([]);
   const catalogFetchKeyRef = useRef<string | null>(null);
+  const catalogPageRef = useRef(catalogPage);
 
   const [catalogTypeFilter, setCatalogTypeFilter] = useState<string>("All");
   const [tagFilter, setTagFilter] = useState<string>("");
@@ -430,6 +432,9 @@ const AccessRequest: React.FC = () => {
     setSelectedOption("self");
   };
 
+  // Keep ref in sync so we can ignore stale responses
+  catalogPageRef.current = catalogPage;
+
   // Fetch Application Instances list for dropdown when on step 2
   React.useEffect(() => {
     if (currentStep !== 2) return;
@@ -468,12 +473,16 @@ const AccessRequest: React.FC = () => {
   React.useEffect(() => {
     if (currentStep !== 2) return;
 
-    const fetchKey = `2-${selectedAppInstanceId ?? "all"}-${showApplicationInstancesOnly}-${catalogTypeFilter}-${tagFilter || "all"}`;
+    const fetchKey = `2-${catalogPage}-${selectedAppInstanceId ?? "all"}-${showApplicationInstancesOnly}-${catalogTypeFilter}-${tagFilter || "all"}`;
     if (catalogFetchKeyRef.current === fetchKey) return;
     catalogFetchKeyRef.current = fetchKey;
 
+    const pageRequested = catalogPage;
     setCatalogLoading(true);
     setCatalogError(null);
+
+    const limit = 100;
+    const offset = (catalogPage - 1) * limit;
 
     const isFilteredByAppInstance = !!selectedAppInstanceId?.trim() && !showApplicationInstancesOnly;
     const trimmedTag = tagFilter.trim();
@@ -481,27 +490,28 @@ const AccessRequest: React.FC = () => {
     const body =
       showApplicationInstancesOnly
         ? {
-            query: "SELECT * FROM vw_catalog WHERE type = 'ApplicationInstance' ORDER BY appinstanceid",
-            parameters: [],
+            query:
+              "SELECT * FROM vw_catalog WHERE type = 'ApplicationInstance' ORDER BY appinstanceid LIMIT ? OFFSET ?",
+            parameters: [limit, offset],
           }
         : catalogTypeFilter === "Tags"
           ? {
               // Entitlements filtered by tag text (inline filter on tags column only)
               query:
                 trimmedTag
-                  ? `SELECT * FROM vw_catalog WHERE type = 'Entitlement' AND tags ILIKE '%${trimmedTag}%' ORDER BY appinstanceid`
-                  : "SELECT * FROM vw_catalog WHERE type = 'Entitlement' ORDER BY appinstanceid",
-              parameters: [],
+                  ? `SELECT * FROM vw_catalog WHERE type = 'Entitlement' AND tags ILIKE '%${trimmedTag}%' ORDER BY appinstanceid LIMIT ? OFFSET ?`
+                  : "SELECT * FROM vw_catalog WHERE type = 'Entitlement' ORDER BY appinstanceid LIMIT ? OFFSET ?",
+              parameters: [limit, offset],
             }
           : isFilteredByAppInstance
             ? {
                 query:
-                  "SELECT * FROM vw_catalog WHERE type = 'Entitlement' AND appinstanceid = ?::uuid ORDER BY appinstanceid",
-                parameters: [selectedAppInstanceId!.trim()],
+                  "SELECT * FROM vw_catalog WHERE type = 'Entitlement' AND appinstanceid = ?::uuid ORDER BY appinstanceid LIMIT ? OFFSET ?",
+                parameters: [selectedAppInstanceId!.trim(), limit, offset],
               }
             : {
-                query: "SELECT * FROM vw_catalog ORDER BY appinstanceid",
-                parameters: [],
+                query: "SELECT * FROM vw_catalog ORDER BY appinstanceid LIMIT ? OFFSET ?",
+                parameters: [limit, offset],
               };
 
     fetch("https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery", {
@@ -514,7 +524,7 @@ const AccessRequest: React.FC = () => {
         return res.json();
       })
       .then((data) => {
-        if (catalogFetchKeyRef.current !== fetchKey) return;
+        if (catalogPageRef.current !== pageRequested) return;
         let rows: any[] = [];
         if (Array.isArray(data)) rows = data;
         else if (Array.isArray((data as any).resultSet)) rows = (data as any).resultSet;
@@ -522,17 +532,15 @@ const AccessRequest: React.FC = () => {
         setCatalogData(rows);
       })
       .catch((err) => {
-        if (catalogFetchKeyRef.current !== fetchKey) return;
+        if (catalogPageRef.current !== pageRequested) return;
         console.error("Catalog fetch failed:", err);
         setCatalogError(err instanceof Error ? err.message : "Failed to load catalog");
       })
       .finally(() => {
-        if (catalogFetchKeyRef.current === fetchKey) {
-          setCatalogLoading(false);
-          catalogFetchKeyRef.current = null;
-        }
+        if (catalogPageRef.current === pageRequested) setCatalogLoading(false);
+        catalogFetchKeyRef.current = null;
       });
-  }, [currentStep, selectedAppInstanceId, showApplicationInstancesOnly, catalogTypeFilter, tagFilter]);
+  }, [currentStep, catalogPage, selectedAppInstanceId, showApplicationInstancesOnly, catalogTypeFilter, tagFilter]);
 
   // Load selected groups (from Step 1 User Group tab) for display in Step 2
   React.useEffect(() => {
@@ -763,20 +771,26 @@ const AccessRequest: React.FC = () => {
             <SelectAccessTab
               onApply={() => setCurrentStep(3)}
               rolesFromApi={apiRoles}
+              apiCurrentPage={catalogPage}
+              onApiPageChange={(page) => setCatalogPage(page)}
               applicationInstances={applicationInstances}
               selectedAppInstanceId={selectedAppInstanceId}
               onAppInstanceChange={(id) => {
                 setSelectedAppInstanceId(id || null);
+                setCatalogPage(1);
               }}
               showApplicationInstancesOnly={showApplicationInstancesOnly}
               onShowApplicationInstancesOnlyChange={(checked) => {
                 setShowApplicationInstancesOnly(checked);
+                setCatalogPage(1);
               }}
               onCatalogTypeChange={(value) => {
                 setCatalogTypeFilter(value);
+                setCatalogPage(1);
               }}
               onTagSearch={(tag) => {
                 setTagFilter(tag);
+                setCatalogPage(1);
               }}
             />
           </div>
