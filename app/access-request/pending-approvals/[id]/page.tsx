@@ -98,6 +98,23 @@ const toArraySafe = (value: unknown): any[] => {
   return [];
 };
 
+const toObjectSafe = (value: unknown): Record<string, any> => {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, any>;
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, any>;
+      }
+    } catch {
+      // ignore invalid json
+    }
+  }
+  return {};
+};
+
 const PendingApprovalDetailPage = ({
   params,
 }: {
@@ -195,21 +212,60 @@ const PendingApprovalDetailPage = ({
             console.log("[PendingApprovalDetail] raw row keys:", Object.keys(row || {}));
             console.log("[PendingApprovalDetail] full row:", JSON.stringify(row, null, 2));
           }
-          const requestJson = row.request_json ?? {};
+          const contextJson = toObjectSafe(
+            row.context_json ??
+              row.contextJson ??
+              {}
+          );
+          const requestJson = toObjectSafe(
+            row.request_json ??
+              row.requestJson ??
+              row.requestjson ??
+              row.payload_json ??
+              row.payloadJson ??
+              {}
+          );
           const sodResults =
+            contextJson?.sodResults ??
+            contextJson?.sod_results ??
+            contextJson?.sodresults ??
             requestJson?.workflow_instance?.context_json?.sodResults ??
+            requestJson?.workflow_instance?.context_json?.sod_results ??
+            requestJson?.workflow_instance?.context_json?.sodresults ??
             requestJson?.workflowInstance?.context_json?.sodResults ??
+            requestJson?.workflowInstance?.context_json?.sod_results ??
+            requestJson?.workflowInstance?.context_json?.sodresults ??
             requestJson?.workflow_instance?.contextJson?.sodResults ??
-            requestJson?.workflowInstance?.contextJson?.sodResults;
+            requestJson?.workflow_instance?.contextJson?.sod_results ??
+            requestJson?.workflow_instance?.contextJson?.sodresults ??
+            requestJson?.workflowInstance?.contextJson?.sodResults ??
+            requestJson?.workflowInstance?.contextJson?.sod_results ??
+            requestJson?.workflowInstance?.contextJson?.sodresults;
           const hasGlobalSodConflict = Boolean(sodResults?.hasConflict);
           const sodConflictingRoles: string[] = Array.isArray(sodResults?.conflictingRoles)
             ? sodResults.conflictingRoles.map((r: any) => String(r).trim()).filter(Boolean)
             : [];
           const primaryConflictingRole = sodConflictingRoles[0] ?? "";
           const sodPolicyDetails: SodPolicyDetails | null =
-            (sodResults?.sodPolicyDetails as SodPolicyDetails | undefined) ?? null;
+            (sodResults?.sodPolicyDetails as SodPolicyDetails | undefined) ??
+            (sodResults?.SODPolicyDetails as SodPolicyDetails | undefined) ??
+            (sodResults?.sod_policy_details as SodPolicyDetails | undefined) ??
+            null;
           const sodSeverity: string | null =
             (typeof sodResults?.severity === "string" ? sodResults.severity : null);
+
+          // Debug SOD signal used to compute the red badge.
+          // This helps confirm whether we have: sodResults.hasConflict, conflictingRoles[0],
+          // and whether request.sodPolicyDetails is present.
+          if (hasGlobalSodConflict || primaryConflictingRole || sodPolicyDetails) {
+            console.log("[PendingApprovalDetail][SOD]", {
+              hasGlobalSodConflict,
+              primaryConflictingRole,
+              hasSodPolicyDetails: Boolean(sodPolicyDetails),
+              sodSeverity,
+              sodPolicyDetailsKeys: sodPolicyDetails ? Object.keys(sodPolicyDetails) : [],
+            });
+          }
           const requestId = toStringSafe(
             row.request_id ??
               row.requestId ??
@@ -297,6 +353,13 @@ const PendingApprovalDetailPage = ({
                 item?.entityName ??
                 item?.name
             ).trim();
+            const lineEntitlementIdKey = toStringSafe(
+              catalog?.entitlementid ??
+                catalog?.entitlementId ??
+                item?.entitlement_id ??
+                item?.entitlementId ??
+                ""
+            ).trim();
             const lineIdKey = toStringSafe(
               catalog?.catalogid ??
                 catalog?.catalogId ??
@@ -307,7 +370,28 @@ const PendingApprovalDetailPage = ({
             const lineHasConflict =
               hasGlobalSodConflict &&
               primaryConflictingRole &&
-              (lineNameKey === primaryConflictingRole || lineIdKey === primaryConflictingRole);
+              (lineNameKey === primaryConflictingRole ||
+                lineIdKey === primaryConflictingRole ||
+                lineEntitlementIdKey === primaryConflictingRole ||
+                applicationName === primaryConflictingRole);
+            if (
+              itemIdx < 3 &&
+              (hasGlobalSodConflict || primaryConflictingRole) // avoid spam when no SOD at all
+            ) {
+              console.log("[PendingApprovalDetail][SOD][Line]", {
+                itemIdx,
+                primaryConflictingRole,
+                lineNameKey,
+                lineIdKey,
+                lineEntitlementIdKey,
+                applicationName,
+                matchByName: lineNameKey === primaryConflictingRole,
+                matchByCatalogId: lineIdKey === primaryConflictingRole,
+                matchByEntitlementId: lineEntitlementIdKey === primaryConflictingRole,
+                matchByApplicationName: applicationName === primaryConflictingRole,
+                lineHasConflict,
+              });
+            }
             const hasTrainingCheck = (() => {
               const raw =
                 catalog?.training_code ??
@@ -840,7 +924,7 @@ const PendingApprovalDetailPage = ({
                           { widthPx: 460, title: "SOD Policy Details" }
                         );
                       }}
-                      className="inline-flex items-center px-4 py-1.5 rounded-md text-[11px] font-semibold border border-red-400 bg-red-50 text-red-600 underline underline-offset-2"
+                      className="inline-flex items-center px-4 py-1.5 rounded-md text-[11px] font-semibold border border-red-400 bg-red-50 text-red-600"
                     >
                       SOD Policy Violation Detected
                     </button>

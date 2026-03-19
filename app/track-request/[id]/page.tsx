@@ -829,12 +829,6 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
         {request.lineItems.map((lineItem, index) => {
           const lineItemKey = String(index);
           const isItemExpanded = expandedLineItems[lineItemKey] ?? true;
-          const withdrawTooltip = lineItem.canWithdraw
-            ? "Withdraw request"
-            : "Withdraw unavailable for current status";
-          const provideDetailsTooltip = lineItem.canProvideAdditionalDetails
-            ? "Provide additional details"
-            : "Additional details not required right now";
           const infoTooltip = lineItem.hasHighRisk
             ? "High-risk or privileged access item"
             : "Additional item information";
@@ -966,43 +960,7 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
                   </div>
                 )}
 
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={(e) => e.stopPropagation()}
-                    disabled={!lineItem.canWithdraw}
-                    title={withdrawTooltip}
-                    aria-label={withdrawTooltip}
-                    className={`inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-                      lineItem.canWithdraw
-                        ? "border-red-300 text-red-600 bg-white hover:bg-red-50 cursor-pointer"
-                        : "border-gray-200 text-gray-400 bg-white cursor-not-allowed"
-                    }`}
-                  >
-                    <img
-                      src="/withdraw-icon.svg"
-                      alt="Withdraw"
-                      className="w-4 h-4"
-                    />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => e.stopPropagation()}
-                    disabled={!lineItem.canProvideAdditionalDetails}
-                    title={provideDetailsTooltip}
-                    aria-label={provideDetailsTooltip}
-                    className={`inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-                      lineItem.canProvideAdditionalDetails
-                        ? "border-indigo-300 text-indigo-600 bg-white hover:bg-indigo-50 cursor-pointer"
-                        : "border-gray-200 text-gray-400 bg-white cursor-not-allowed"
-                    }`}
-                  >
-                    <img
-                      src="/provide-details-icon.svg"
-                      alt="Provide additional details"
-                      className="w-4 h-4"
-                    />
-                  </button>
+                <div className="flex items-center gap-2 shrink-0 ml-auto">
                   {lineItem.hasInfoIcon && (
                     <div
                       className="ml-1 w-6 h-6 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600"

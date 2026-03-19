@@ -196,11 +196,78 @@ async function fetchPendingApprovals(): Promise<PendingApproval[]> {
         ])
     );
 
+    const requestJson =
+      row?.request_json ??
+      row?.requestJson ??
+      row?.request ??
+      row?.data ??
+      {};
+
+    // Mirror Track Request: violation signal lives in workflow_instance.context_json.sodResults.
+    const sodResults =
+      requestJson?.workflow_instance?.context_json?.sodResults ??
+      requestJson?.workflow_instance?.context_json?.sod_results ??
+      requestJson?.workflow_instance?.context_json?.sodresults ??
+      requestJson?.workflowInstance?.context_json?.sodResults ??
+      requestJson?.workflowInstance?.context_json?.sod_results ??
+      requestJson?.workflowInstance?.context_json?.sodresults ??
+      requestJson?.workflow_instance?.contextJson?.sodResults ??
+      requestJson?.workflow_instance?.contextJson?.sod_results ??
+      requestJson?.workflow_instance?.contextJson?.sodresults ??
+      requestJson?.workflowInstance?.contextJson?.sodResults;
+
+    const hasGlobalSodConflict = Boolean(sodResults?.hasConflict);
+    const sodPolicyDetails =
+      sodResults?.sodPolicyDetails ?? sodResults?.SODPolicyDetails ?? sodResults?.policyDetails ?? null;
+    const conflictingRoles: string[] = Array.isArray(sodResults?.conflictingRoles)
+      ? sodResults.conflictingRoles.map((r: any) => String(r).trim()).filter(Boolean)
+      : [];
+    const primaryConflictingRole = conflictingRoles[0] ?? "";
+
     const rawItems =
       (Array.isArray(row.items) && row.items) ||
       (Array.isArray(row.line_items) && row.line_items) ||
       [];
-    const items: NestedItem[] = rawItems;
+    const items: NestedItem[] = rawItems.map((item: any) => {
+      // Different APIs may expose the violation signal with different field names/casing.
+      const sodConflicts = item?.SoDConflicts ?? item?.sodConflicts ?? item?.SODConflicts;
+      const sodConflict = item?.SoDConflict ?? item?.sodConflict ?? item?.SODConflict;
+      const nameKey = String(item?.entityName ?? item?.name ?? item?.description ?? "").trim();
+      const idKey = String(
+        item?.id ??
+          item?.entitlementId ??
+          item?.entitlement_id ??
+          item?.entityId ??
+          item?.entity_id ??
+          ""
+      ).trim();
+      const hasConflictFromSodResults =
+        hasGlobalSodConflict &&
+        Boolean(sodPolicyDetails) &&
+        primaryConflictingRole &&
+        (nameKey === primaryConflictingRole || idKey === primaryConflictingRole);
+      const derivedHasViolation =
+        Boolean(
+          item?.hasViolation ??
+            item?.has_violation ??
+            item?.hasConflict ??
+            item?.has_conflict ??
+            item?.violation ??
+            item?.sodViolation
+        ) ||
+        hasConflictFromSodResults ||
+        (Array.isArray(sodConflicts) && sodConflicts.length > 0) ||
+        Boolean(item?.SoDConflicts) ||
+        (Array.isArray(sodConflict) && sodConflict.length > 0) ||
+        Boolean(sodConflict);
+
+      return {
+        ...item,
+        // Ensure the nested "Insights" cell can show the red SOD badge consistently.
+        hasViolation: Boolean(item?.hasViolation ?? item?.has_violation) || derivedHasViolation,
+      };
+    });
+    const hasViolationFromItems = items.some((item: any) => Boolean(item?.hasViolation));
     const itemDetails = row.itemdetails ?? row.itemDetails;
     const itemDetailsCount = Array.isArray(itemDetails)
       ? itemDetails.length
@@ -250,7 +317,7 @@ async function fetchPendingApprovals(): Promise<PendingApproval[]> {
       status: normalizedStatus,
       hasInsight: Boolean(row.hasInsight ?? row.has_insight),
       hasRisk: Boolean(row.hasRisk ?? row.has_risk),
-      hasViolation: Boolean(row.hasViolation ?? row.has_violation),
+      hasViolation: Boolean(row.hasViolation ?? row.has_violation) || hasViolationFromItems,
       items,
     };
   });
@@ -260,7 +327,16 @@ const InsightsCell: React.FC<{
   hasRisk?: boolean;
   hasInsight?: boolean;
   hasViolation?: boolean;
-}> = () => {
+}> = ({ hasViolation }) => {
+  if (hasViolation) {
+    return (
+      <div className="flex items-center justify-center" title="SOD Policy Violation Detected">
+        <span className="inline-flex items-center px-4 py-1.5 rounded-md text-[11px] font-semibold border border-red-400 bg-red-50 text-red-600">
+          SOD Policy Violation Detected
+        </span>
+      </div>
+    );
+  }
   return (
     <div className="flex items-center justify-center" title="AI Insights">
       <InsightsIcon size={24} className="shrink-0 text-amber-500" />
