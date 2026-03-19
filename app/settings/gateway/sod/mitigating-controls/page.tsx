@@ -1,51 +1,202 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Eye, Pencil, Plus } from "lucide-react";
 import SodTabs from "@/components/SodTabs";
 import dynamic from "next/dynamic";
 import type { ColDef } from "ag-grid-enterprise";
 import "@/lib/ag-grid-setup";
+import "ag-grid-community/styles/ag-grid.css";
+import "ag-grid-community/styles/ag-theme-alpine.css";
+import { useRouter } from "next/navigation";
 
 const AgGridReact = dynamic(
   () => import("ag-grid-react").then((mod) => mod.AgGridReact),
   { ssr: false }
 );
 
+const SOD_MITIGATING_CONTROL_VIEW_STORAGE_KEY = "sodMitigatingControlViewDraft";
+const SOD_MITIGATING_CONTROL_EDIT_STORAGE_KEY = "sodMitigatingControlEditDraft";
+
+type MitigatingControlJson = {
+  "Control ID"?: string;
+  Name?: string;
+  Description?: string;
+  "Control Type"?: string;
+  "Control Method"?: string;
+  "Applicable Policy ID"?: string;
+  "Control owner"?: string;
+  Actions?: string;
+};
+
+type MitigatingControlRow = {
+  id: string;
+  name: string;
+  description: string;
+  type: string;
+  method: string;
+  applicablePolicyId: string;
+  owner: string;
+};
+
 export default function SodMitigatingControlsPage() {
+  const router = useRouter();
+  const [rowData, setRowData] = useState<MitigatingControlRow[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadMitigatingControls = async () => {
+      try {
+        const response = await fetch("/MitigatingControl.json");
+        if (!response.ok) {
+          throw new Error(`Failed to load MitigatingControl.json: ${response.status}`);
+        }
+
+        const json = (await response.json()) as MitigatingControlJson[];
+        if (cancelled) return;
+
+        const mappedRows = json.map((item) => ({
+          id: (item["Control ID"] ?? "").trim(),
+          name: (item.Name ?? "").trim(),
+          description: (item.Description ?? "").trim(),
+          type: (item["Control Type"] ?? "").trim(),
+          method: (item["Control Method"] ?? "").trim(),
+          applicablePolicyId: (item["Applicable Policy ID"] ?? "").trim(),
+          owner: (item["Control owner"] ?? "").trim(),
+        }));
+
+        setRowData(mappedRows);
+      } catch (error) {
+        console.error("Error loading mitigating controls:", error);
+        if (!cancelled) setRowData([]);
+      }
+    };
+
+    loadMitigatingControls();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const columnDefs = useMemo<ColDef[]>(
     () => [
       {
+        headerName: "ID",
+        field: "id",
+        minWidth: 90,
+        maxWidth: 110,
+        flex: 0.6,
+      },
+      {
         headerName: "Name",
         field: "name",
-        minWidth: 220,
-        flex: 1,
+        minWidth: 150,
+        flex: 1.2,
+        wrapText: true,
+        autoHeight: true,
       },
       {
         headerName: "Description",
         field: "description",
-        minWidth: 260,
-        flex: 2,
+        minWidth: 220,
+        flex: 2.2,
+        wrapText: true,
+        autoHeight: true,
+      },
+      {
+        headerName: "Type",
+        field: "type",
+        minWidth: 80,
+        maxWidth: 95,
+        flex: 0.55,
+      },
+      {
+        headerName: "Method",
+        field: "method",
+        minWidth: 92,
+        maxWidth: 110,
+        flex: 0.65,
+      },
+      {
+        headerName: "Applicable Policy Id",
+        field: "applicablePolicyId",
+        minWidth: 160,
+        flex: 1.3,
+        wrapText: true,
+        autoHeight: true,
       },
       {
         headerName: "Owner",
         field: "owner",
-        minWidth: 180,
+        minWidth: 120,
+        maxWidth: 145,
+        flex: 0.75,
       },
       {
-        headerName: "Status",
-        field: "status",
-        width: 140,
+        headerName: "Action",
+        field: "action",
+        minWidth: 90,
+        maxWidth: 110,
+        flex: 0.7,
+        sortable: false,
+        filter: false,
+        resizable: false,
+        cellRenderer: (params: { data?: MitigatingControlRow }) => (
+          <div className="h-full w-full flex items-center justify-center gap-3">
+            <button
+              type="button"
+              className="inline-flex items-center justify-center text-blue-600 hover:text-blue-800"
+              aria-label="View mitigating control"
+              title="View"
+              onClick={() => {
+                if (!params.data) return;
+                try {
+                  localStorage.setItem(
+                    SOD_MITIGATING_CONTROL_VIEW_STORAGE_KEY,
+                    JSON.stringify(params.data)
+                  );
+                } catch (error) {
+                  console.error("Unable to save mitigating control draft:", error);
+                }
+                router.push("/settings/gateway/sod/mitigating-controls/review");
+              }}
+            >
+              <Eye className="w-6 h-6" />
+            </button>
+            <button
+              type="button"
+              className="inline-flex items-center justify-center text-blue-600 hover:text-blue-800"
+              aria-label="Edit mitigating control"
+              title="Edit"
+              onClick={() => {
+                if (!params.data) return;
+                try {
+                  localStorage.setItem(
+                    SOD_MITIGATING_CONTROL_EDIT_STORAGE_KEY,
+                    JSON.stringify(params.data)
+                  );
+                } catch (error) {
+                  console.error("Unable to save mitigating control edit draft:", error);
+                }
+                router.push("/settings/gateway/sod/mitigating-controls/new?mode=edit");
+              }}
+            >
+              <Pencil className="w-6 h-6" />
+            </button>
+          </div>
+        ),
       },
     ],
-    []
+    [router]
   );
 
   const defaultColDef = useMemo<ColDef>(
     () => ({
       sortable: true,
-      filter: true,
+      filter: false,
       resizable: true,
     }),
     []
@@ -75,15 +226,21 @@ export default function SodMitigatingControlsPage() {
           </div>
 
           <div className="flex-1 min-h-0">
-            <div className="h-full w-full">
+            <div className="ag-theme-alpine w-full">
               <AgGridReact
-                rowData={[]}
+                rowData={rowData}
                 columnDefs={columnDefs}
                 defaultColDef={defaultColDef}
+                theme="legacy"
                 rowSelection="multiple"
                 rowModelType="clientSide"
                 animateRows={true}
+                domLayout="autoHeight"
+                suppressHorizontalScroll={true}
                 onGridReady={(params) => {
+                  params.api.sizeColumnsToFit();
+                }}
+                onGridSizeChanged={(params) => {
                   params.api.sizeColumnsToFit();
                 }}
               />

@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { executeQuery } from "@/lib/api";
 import { ChevronDown } from "lucide-react";
+import "@/lib/ag-grid-setup";
 
 type Item = {
   id: string;

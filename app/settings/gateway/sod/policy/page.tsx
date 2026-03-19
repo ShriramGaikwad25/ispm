@@ -2,11 +2,14 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Eye, Pencil, Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
 import SodTabs from "@/components/SodTabs";
 import dynamic from "next/dynamic";
 import type { ColDef, GridApi, GridReadyEvent } from "ag-grid-enterprise";
 import "@/lib/ag-grid-setup";
+import "ag-grid-community/styles/ag-grid.css";
+import "ag-grid-community/styles/ag-theme-alpine.css";
 import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
 
 const AgGridReact = dynamic(
@@ -15,6 +18,7 @@ const AgGridReact = dynamic(
 );
 
 const DUMMY_OWNERS = ["RiskAdmin", "SysAdm", "AccessOps", "AuditLead"];
+const SOD_POLICY_VIEW_STORAGE_KEY = "sodPolicyViewDraft";
 
 type SodPolicyJson = {
   Policy_ID?: string;
@@ -24,7 +28,13 @@ type SodPolicyJson = {
   "Mitigating Control ID"?: string;
 };
 
+type MitigatingControlJson = {
+  "Control ID"?: string;
+  "Applicable Policy ID"?: string;
+};
+
 type SodPolicyRow = {
+  policyId: string;
   name: string;
   description: string;
   owner: string;
@@ -58,6 +68,7 @@ const inferBusinessProcess = (policyName: string): string => {
 };
 
 export default function SodPolicyPage() {
+  const router = useRouter();
   const { isVisible, sidebarWidthPx } = useLeftSidebar();
   const gridApiRef = useRef<GridApi | null>(null);
   const [rowData, setRowData] = useState<SodPolicyRow[]>([]);
@@ -69,41 +80,86 @@ export default function SodPolicyPage() {
         field: "name",
         minWidth: 220,
         flex: 1,
+        wrapText: true,
+        autoHeight: true,
       },
       {
         headerName: "Description",
         field: "description",
         minWidth: 260,
         flex: 2,
+        wrapText: true,
+        autoHeight: true,
       },
       {
         headerName: "Owner",
         field: "owner",
-        minWidth: 180,
+        minWidth: 120,
+        width: 120,
       },
       {
         headerName: "Mitigating Controls",
         field: "riskDefinition",
         minWidth: 200,
+        wrapText: true,
+        autoHeight: true,
       },
       {
         headerName: "Business Process",
         field: "businessProcess",
         minWidth: 220,
+        wrapText: true,
+        autoHeight: true,
       },
       {
         headerName: "Actions",
         field: "actions",
-        width: 140,
+        width: 150,
+        minWidth: 150,
+        sortable: false,
+        filter: false,
+        resizable: false,
+        cellRenderer: (params: { data?: SodPolicyRow }) => (
+          <div className="h-full w-full flex items-center justify-center gap-4">
+            <button
+              type="button"
+              className="inline-flex items-center justify-center text-blue-600 hover:text-blue-800"
+              aria-label="View policy"
+              title="View"
+              onClick={() => {
+                if (!params.data) return;
+                try {
+                  localStorage.setItem(
+                    SOD_POLICY_VIEW_STORAGE_KEY,
+                    JSON.stringify(params.data)
+                  );
+                } catch (error) {
+                  console.error("Unable to save policy review draft:", error);
+                }
+                router.push("/settings/gateway/sod/policy/review");
+              }}
+            >
+              <Eye className="w-6 h-6" />
+            </button>
+            <button
+              type="button"
+              className="inline-flex items-center justify-center text-blue-600 hover:text-blue-800"
+              aria-label="Edit policy"
+              title="Edit"
+            >
+              <Pencil className="w-6 h-6" />
+            </button>
+          </div>
+        ),
       },
     ],
-    []
+    [router]
   );
 
   const defaultColDef = useMemo<ColDef>(
     () => ({
       sortable: true,
-      filter: true,
+      filter: false,
       resizable: true,
     }),
     []
@@ -127,25 +183,73 @@ export default function SodPolicyPage() {
 
     const loadPolicyData = async () => {
       try {
-        const response = await fetch("/SODPolicy.json");
-        if (!response.ok) {
-          throw new Error(`Failed to load SODPolicy.json: ${response.status}`);
+        const [policyResponse, controlsResponse] = await Promise.all([
+          fetch("/SODPolicy.json"),
+          fetch("/MitigatingControl.json"),
+        ]);
+        if (!policyResponse.ok) {
+          throw new Error(`Failed to load SODPolicy.json: ${policyResponse.status}`);
+        }
+        if (!controlsResponse.ok) {
+          throw new Error(
+            `Failed to load MitigatingControl.json: ${controlsResponse.status}`
+          );
         }
 
-        const json = (await response.json()) as SodPolicyJson[];
+        const [policyJson, controlsJson] = (await Promise.all([
+          policyResponse.json(),
+          controlsResponse.json(),
+        ])) as [SodPolicyJson[], MitigatingControlJson[]];
         if (cancelled) return;
 
-        const mappedRows: SodPolicyRow[] = json.map((policy, index) => {
+        const controlsByPolicyId: Record<string, string[]> = {};
+
+        controlsJson.forEach((control) => {
+          const controlId = (control["Control ID"] ?? "").trim();
+          if (!controlId) return;
+
+          const applicablePolicyIds = (control["Applicable Policy ID"] ?? "")
+            .split(",")
+            .map((id) => id.trim())
+            .filter(Boolean);
+
+          applicablePolicyIds.forEach((policyId) => {
+            if (!controlsByPolicyId[policyId]) {
+              controlsByPolicyId[policyId] = [];
+            }
+            if (!controlsByPolicyId[policyId].includes(controlId)) {
+              controlsByPolicyId[policyId].push(controlId);
+            }
+          });
+        });
+
+        const mappedRows: SodPolicyRow[] = policyJson.map((policy, index) => {
+          const policyId = (policy.Policy_ID ?? "").trim();
           const name = (policy.Policy_Name ?? "").trim();
           const description = (policy.Description ?? "").trim();
           const owner = (policy.Owner ?? "").trim();
-          const mitigatingControlIds = (policy["Mitigating Control ID"] ?? "").trim();
+          const directMitigatingControlIds = (policy["Mitigating Control ID"] ?? "")
+            .split(/\r?\n|,/)
+            .map((id) => id.trim())
+            .filter(Boolean);
+          const mappedMitigatingControlIds =
+            policyId && controlsByPolicyId[policyId]
+              ? controlsByPolicyId[policyId]
+              : [];
+          const finalMitigatingControlIds =
+            directMitigatingControlIds.length > 0
+              ? directMitigatingControlIds
+              : mappedMitigatingControlIds;
 
           return {
+            policyId,
             name,
             description,
             owner: owner || DUMMY_OWNERS[index % DUMMY_OWNERS.length],
-            riskDefinition: mitigatingControlIds || name || "N/A",
+            riskDefinition:
+              finalMitigatingControlIds.length > 0
+                ? finalMitigatingControlIds.join(", ")
+                : "N/A",
             businessProcess: inferBusinessProcess(name),
           };
         });
@@ -198,14 +302,16 @@ export default function SodPolicyPage() {
           </div>
 
           <div className="flex-1 min-h-0">
-            <div className="h-full w-full">
+            <div className="ag-theme-alpine w-full">
               <AgGridReact
                 rowData={rowData}
                 columnDefs={columnDefs}
                 defaultColDef={defaultColDef}
+                theme="legacy"
                 rowSelection="multiple"
                 rowModelType="clientSide"
                 animateRows={true}
+                domLayout="autoHeight"
                 onGridReady={handleGridReady}
                 onGridSizeChanged={fitColumns}
                 onFirstDataRendered={fitColumns}

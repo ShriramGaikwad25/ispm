@@ -8,6 +8,8 @@ import SodTabs from "@/components/SodTabs";
 import dynamic from "next/dynamic";
 import type { ColDef, GridApi, GridReadyEvent } from "ag-grid-enterprise";
 import "@/lib/ag-grid-setup";
+import "ag-grid-community/styles/ag-grid.css";
+import "ag-grid-community/styles/ag-theme-alpine.css";
 import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
 
 const AgGridReact = dynamic(
@@ -236,11 +238,12 @@ const BusinessProcessTab: React.FC = () => {
       </div>
 
       <div className="flex-1 min-h-0">
-        <div className="h-full w-full">
+        <div className="ag-theme-alpine h-full w-full">
           <AgGridReact
             rowData={rowData}
             columnDefs={columnDefs}
             defaultColDef={defaultColDef}
+            theme="legacy"
             rowSelection="multiple"
             rowModelType="clientSide"
             animateRows={true}

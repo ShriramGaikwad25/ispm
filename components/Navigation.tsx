@@ -108,6 +108,18 @@ export function Navigation() {
     if (pathname === '/settings/gateway/sod/policy/new') {
       return { href: '/settings/gateway/sod/policy', label: 'Back to SoD Policy' };
     }
+    if (pathname === '/settings/gateway/sod/policy/review') {
+      return { href: '/settings/gateway/sod/policy', label: 'Back to SoD Policy' };
+    }
+    if (pathname === '/settings/gateway/sod/mitigating-controls/new') {
+      return { href: '/settings/gateway/sod/mitigating-controls', label: 'Back to Mitigating Controls' };
+    }
+    if (pathname === '/settings/gateway/sod/mitigating-controls/review') {
+      return { href: '/settings/gateway/sod/mitigating-controls', label: 'Back to Mitigating Controls' };
+    }
+    if (pathname === '/settings/gateway/sod/mitigating-controls') {
+      return { href: '/settings/gateway/sod', label: 'Back to SoD' };
+    }
     if (pathname === '/settings/gateway/entitlement-management' || pathname === '/settings/gateway/workflow-builder' ||
         pathname === '/settings/gateway/sam' || pathname === '/settings/gateway/native-users' ||
         pathname === '/settings/gateway/admin-roles' || pathname === '/settings/gateway/custom-schema' ||
