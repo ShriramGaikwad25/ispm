@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from "react";
 import {
-  Info,
   FileText,
   ChevronDown,
   ChevronUp,
@@ -10,8 +9,11 @@ import {
   CircleX,
   RotateCcw,
 } from "lucide-react";
+import { updateAction } from "@/lib/api";
 
 interface RequestLineItem {
+  lineItemId: string;
+  entitlementId: string;
   name: string;
   displayName: string;
   applicationName: string;
@@ -32,6 +34,8 @@ interface RequestDetails {
 
 interface PendingApprovalDetail {
   id: string;
+  reviewerId: string;
+  fallbackEntitlementId: string;
   beneficiaryName: string;
   requesterName: string;
   durationDays?: number;
@@ -92,6 +96,45 @@ const PendingApprovalDetailPage = ({
   const [expandedLineItems, setExpandedLineItems] = useState<
     Record<string, boolean>
   >({});
+  const [lineItemActions, setLineItemActions] = useState<
+    Record<string, "approve" | "reject" | null>
+  >({});
+  const [lineItemLoading, setLineItemLoading] = useState<Record<string, boolean>>(
+    {}
+  );
+  const [lineItemError, setLineItemError] = useState<Record<string, string | null>>(
+    {}
+  );
+  const [lineItemComments, setLineItemComments] = useState<Record<string, string>>(
+    {}
+  );
+  const [commentModalItemKey, setCommentModalItemKey] = useState<string | null>(
+    null
+  );
+  const [commentDraft, setCommentDraft] = useState("");
+  const [commentCategory, setCommentCategory] = useState("");
+  const [commentSubcategory, setCommentSubcategory] = useState("");
+  const [isCommentDropdownOpen, setIsCommentDropdownOpen] = useState(false);
+  const [infoRequestItemKey, setInfoRequestItemKey] = useState<string | null>(null);
+  const [infoRequestMessage, setInfoRequestMessage] = useState("");
+  const [infoRequestLoading, setInfoRequestLoading] = useState(false);
+
+  const commentOptions: Record<string, string[]> = {
+    Approve: [
+      "Access required to perform current job responsibilities.",
+      "Access aligns with user's role and department functions.",
+      "Validated with manager/business owner – appropriate access.",
+      "No SoD (Segregation of Duties) conflict identified.",
+      "User continues to work on project/system requiring this access.",
+    ],
+    Revoke: [
+      "User no longer in role requiring this access.",
+      "Access redundant – duplicate with other approved entitlements.",
+      "Access not used in last 90 days (inactive entitlement).",
+      "SoD conflict identified – removing conflicting access.",
+      "Temporary/project-based access – no longer required.",
+    ],
+  };
 
   useEffect(() => {
     const url = "https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery";
@@ -122,7 +165,11 @@ const PendingApprovalDetailPage = ({
           ? (data as any).data
           : [];
 
-        const mapped = rows.map((row) => {
+        const mapped = rows.map((row, rowIdx) => {
+          if (rowIdx === 0) {
+            console.log("[PendingApprovalDetail] raw row keys:", Object.keys(row || {}));
+            console.log("[PendingApprovalDetail] full row:", JSON.stringify(row, null, 2));
+          }
           const requestId = toStringSafe(
             row.request_id ??
               row.requestId ??
@@ -163,8 +210,13 @@ const PendingApprovalDetailPage = ({
             row.itemdetails ?? row.itemDetails
           );
 
-          const lineItems: RequestLineItem[] = itemDetails.map((item) => {
+          const lineItems: RequestLineItem[] = itemDetails.map((item, itemIdx) => {
             const catalog = item?.catalog ?? {};
+            if (itemIdx === 0) {
+              console.log("[PendingApprovalDetail] raw item keys:", Object.keys(item || {}));
+              console.log("[PendingApprovalDetail] raw catalog keys:", Object.keys(catalog || {}));
+              console.log("[PendingApprovalDetail] full item:", JSON.stringify(item, null, 2));
+            }
             const lineName = toStringSafe(
               catalog.name ??
                 catalog.entitlementname ??
@@ -209,7 +261,39 @@ const PendingApprovalDetailPage = ({
               return !!toStringSafe(first?.code).trim();
             })();
 
+            const requestedItemId = toStringSafe(
+              item?.requested_itemid ??
+                item?.requestedItemId ??
+                item?.requesteditemid ??
+                item?.requestedItemid ??
+                ""
+            );
+            const entitlementId = toStringSafe(
+              catalog?.entitlementid ??
+                catalog?.entitlementId ??
+                item?.entitlement_id ??
+                item?.entitlementId ??
+                item?.entity_id ??
+                item?.entityId ??
+                item?.lineItemId ??
+                item?.line_item_id ??
+                item?.itemId ??
+                item?.item_id ??
+                item?.id ??
+                ""
+            );
+
+            const catalogId = toStringSafe(
+              catalog?.catalogid ??
+                catalog?.catalogId ??
+                catalog?.catalog_id ??
+                catalog?.id ??
+                ""
+            );
+
             return {
+              lineItemId: requestedItemId || catalogId || entitlementId,
+              entitlementId,
               name: lineName,
               displayName: lineName,
               applicationName,
@@ -225,11 +309,51 @@ const PendingApprovalDetailPage = ({
             };
           });
 
+          const reviewerId = toStringSafe(
+            row.assignee_id ??
+              row.assigneeId ??
+              row.reviewer_id ??
+              row.reviewerId ??
+              "f558e3b2-348b-4ff3-be4c-a3c5dc8b5a91"
+          );
+          const fallbackEntitlementId = toStringSafe(
+            row.entitlement_id ??
+              row.entitlementId ??
+              row.entity_id ??
+              row.entityId ??
+              row.certification_id ??
+              row.certificationId ??
+              row.cert_id ??
+              row.certId ??
+              ""
+          );
+
           const normalizedLineItems =
             lineItems.length > 0
               ? lineItems
               : [
                   {
+                    lineItemId: toStringSafe(
+                      row.requested_itemid ??
+                        row.requestedItemId ??
+                        row.requesteditemid ??
+                        row.requestedItemid ??
+                        row.entitlement_id ??
+                        row.entitlementId ??
+                        row.entity_id ??
+                        row.entityId ??
+                        row.lineItemId ??
+                        row.line_item_id ??
+                        row.item_id ??
+                        ""
+                    ),
+                    entitlementId: toStringSafe(
+                      row.entitlement_id ??
+                        row.entitlementId ??
+                        row.entity_id ??
+                        row.entityId ??
+                        ""
+                    ),
                     name: toStringSafe(
                       row.entity_name ?? row.entityName ?? "Requested Access"
                     ),
@@ -269,6 +393,8 @@ const PendingApprovalDetailPage = ({
 
           return {
             id: requestId,
+            reviewerId,
+            fallbackEntitlementId: fallbackEntitlementId || requestId,
             requesterName,
             beneficiaryName,
             durationDays,
@@ -300,6 +426,134 @@ const PendingApprovalDetailPage = ({
     });
     setExpandedLineItems(defaults);
   }, [request]);
+
+  const openCommentModal = (
+    e: React.MouseEvent,
+    lineItemKey: string,
+    existingComment: string
+  ) => {
+    e.stopPropagation();
+    setCommentModalItemKey(lineItemKey);
+    setCommentDraft(lineItemComments[lineItemKey] ?? existingComment ?? "");
+    setCommentCategory("");
+    setCommentSubcategory("");
+    setIsCommentDropdownOpen(false);
+  };
+
+  const closeCommentModal = () => {
+    setCommentModalItemKey(null);
+    setCommentDraft("");
+    setCommentCategory("");
+    setCommentSubcategory("");
+    setIsCommentDropdownOpen(false);
+  };
+
+  const handleLineItemAction = async (
+    lineItemKey: string,
+    action: "approve" | "reject"
+  ) => {
+    if (!request) return;
+    const lineItem = request.lineItems[Number(lineItemKey)];
+    if (!lineItem) return;
+
+    const currentAction = lineItemActions[lineItemKey] ?? null;
+    if (currentAction === action) {
+      setLineItemActions((prev) => ({ ...prev, [lineItemKey]: null }));
+      return;
+    }
+
+    setLineItemLoading((prev) => ({ ...prev, [lineItemKey]: true }));
+    setLineItemError((prev) => ({ ...prev, [lineItemKey]: null }));
+
+    try {
+      const actionType = action === "approve" ? "Approve" : "Revoke";
+      const justification =
+        lineItemComments[lineItemKey] ||
+        (action === "approve" ? "Approved via UI" : "Revoked via UI");
+      const entitlementIdForUpdate =
+        lineItem.entitlementId || request.fallbackEntitlementId;
+
+      if (!entitlementIdForUpdate) {
+        throw new Error("Missing entitlement ID for updateAction call.");
+      }
+
+      const payload: any = {
+        useraction: [],
+        accountAction: [],
+        entitlementAction: [
+          {
+            actionType,
+            lineItemIds: [lineItem.lineItemId],
+            justification,
+          },
+        ],
+      };
+
+      await updateAction(request.reviewerId, entitlementIdForUpdate, payload);
+      setLineItemActions((prev) => ({ ...prev, [lineItemKey]: action }));
+      window.location.reload();
+    } catch (err: any) {
+      console.error(`Failed to ${action} line item:`, err);
+      setLineItemError((prev) => ({
+        ...prev,
+        [lineItemKey]: err?.message || `Failed to ${action}`,
+      }));
+    } finally {
+      setLineItemLoading((prev) => ({ ...prev, [lineItemKey]: false }));
+    }
+  };
+
+  const saveComment = async () => {
+    if (!commentModalItemKey || !commentDraft.trim() || !request) return;
+
+    const lineItem = request.lineItems[Number(commentModalItemKey)];
+    if (!lineItem) return;
+
+    setLineItemLoading((prev) => ({ ...prev, [commentModalItemKey]: true }));
+    setLineItemError((prev) => ({ ...prev, [commentModalItemKey]: null }));
+
+    try {
+      const actionType = "";
+      const entitlementIdForUpdate =
+        lineItem.entitlementId || request.fallbackEntitlementId;
+
+      if (!entitlementIdForUpdate) {
+        throw new Error("Missing entitlement ID for updateAction call.");
+      }
+
+      const payload: any = {
+        useraction: [],
+        accountAction: [],
+        entitlementAction: [
+          {
+            actionType,
+            lineItemIds: [lineItem.lineItemId],
+            justification: commentDraft.trim(),
+          },
+        ],
+      };
+
+      await updateAction(request.reviewerId, entitlementIdForUpdate, payload);
+
+      setLineItemComments((prev) => ({
+        ...prev,
+        [commentModalItemKey]: commentDraft.trim(),
+      }));
+      closeCommentModal();
+      window.location.reload();
+    } catch (err: any) {
+      console.error("Failed to save comment:", err);
+      setLineItemError((prev) => ({
+        ...prev,
+        [commentModalItemKey]: err?.message || "Failed to save comment",
+      }));
+    } finally {
+      setLineItemLoading((prev) => ({
+        ...prev,
+        [commentModalItemKey!]: false,
+      }));
+    }
+  };
 
   if (loading) {
     return (
@@ -382,9 +636,13 @@ const PendingApprovalDetailPage = ({
           const isItemExpanded = expandedLineItems[lineItemKey] ?? true;
           const actionBtnClass =
             "inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-colors";
-          const infoTooltip = lineItem.hasHighRisk
-            ? "High-risk or privileged access item"
-            : "Additional item information";
+          const selectedAction = lineItemActions[lineItemKey] ?? null;
+          const approveFilled = selectedAction === "approve";
+          const rejectFilled = selectedAction === "reject";
+          const isItemLoading = lineItemLoading[lineItemKey] ?? false;
+          const itemError = lineItemError[lineItemKey] ?? null;
+          const effectiveComment =
+            lineItemComments[lineItemKey] ?? lineItem.comments;
 
           return (
             <div key={lineItemKey} className="border border-gray-200 rounded-lg bg-gray-50">
@@ -435,41 +693,114 @@ const PendingApprovalDetailPage = ({
                 <div className="flex items-center gap-2 shrink-0">
                   <button
                     type="button"
-                    title="Approve"
+                    title={approveFilled ? "Undo Approve" : "Approve"}
                     aria-label="Approve"
-                    onClick={(e) => e.stopPropagation()}
-                    className={actionBtnClass}
+                    disabled={isItemLoading}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleLineItemAction(lineItemKey, "approve");
+                    }}
+                    className={`p-1 rounded flex items-center justify-center ${isItemLoading ? "opacity-60 cursor-not-allowed" : ""}`}
                   >
-                    <CircleCheck className="h-5 w-5 text-emerald-600" />
+                    <div className="relative inline-flex items-center justify-center w-8 h-8">
+                      <CircleCheck
+                        className="cursor-pointer"
+                        color="#1c821cff"
+                        strokeWidth="1"
+                        size="32"
+                        fill={approveFilled ? "#1c821cff" : "none"}
+                      />
+                      {approveFilled && (
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          className="absolute pointer-events-none"
+                          style={{
+                            left: "50%",
+                            top: "50%",
+                            transform: "translate(-50%, -50%)",
+                          }}
+                        >
+                          <path
+                            d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"
+                            fill="#ffffff"
+                          />
+                        </svg>
+                      )}
+                    </div>
                   </button>
                   <button
                     type="button"
-                    title="Reject"
+                    title={rejectFilled ? "Undo Reject" : "Reject"}
                     aria-label="Reject"
-                    onClick={(e) => e.stopPropagation()}
-                    className={actionBtnClass}
+                    disabled={isItemLoading}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleLineItemAction(lineItemKey, "reject");
+                    }}
+                    className={`p-1 rounded flex items-center justify-center ${isItemLoading ? "opacity-60 cursor-not-allowed" : ""}`}
                   >
-                    <CircleX className="h-5 w-5 text-red-600" />
+                    <div className="relative inline-flex items-center justify-center w-8 h-8">
+                      <CircleX
+                        className="cursor-pointer"
+                        color="#FF2D55"
+                        strokeWidth="1"
+                        size="32"
+                        fill={rejectFilled ? "#FF2D55" : "none"}
+                      />
+                      {rejectFilled && (
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          className="absolute pointer-events-none"
+                          style={{
+                            left: "50%",
+                            top: "50%",
+                            transform: "translate(-50%, -50%)",
+                          }}
+                        >
+                          <path
+                            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                            fill="#ffffff"
+                          />
+                        </svg>
+                      )}
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    title="Comment"
+                    aria-label="Comment"
+                    onClick={(e) => openCommentModal(e, lineItemKey, lineItem.comments)}
+                    className="p-1 rounded flex items-center justify-center"
+                  >
+                    <svg
+                      width="30"
+                      height="30"
+                      viewBox="0 0 32 32"
+                      className="cursor-pointer hover:opacity-80"
+                    >
+                      <path
+                        d="M0.700195 0V19.5546H3.5802V25.7765C3.57994 25.9525 3.62203 26.1247 3.70113 26.2711C3.78022 26.4176 3.89277 26.5318 4.02449 26.5992C4.15621 26.6666 4.30118 26.6842 4.44101 26.6498C4.58085 26.6153 4.70926 26.5304 4.80996 26.4058C6.65316 24.1232 10.3583 19.5546 10.3583 19.5546H25.1802V0H0.700195ZM2.1402 1.77769H23.7402V17.7769H9.76212L5.0202 23.6308V17.7769H2.1402V1.77769ZM5.0202 5.33307V7.11076H16.5402V5.33307H5.0202ZM26.6202 5.33307V7.11076H28.0602V23.11H25.1802V28.9639L20.4383 23.11H9.34019L7.9002 24.8877H19.8421C19.8421 24.8877 23.5472 29.4563 25.3904 31.7389C25.4911 31.8635 25.6195 31.9484 25.7594 31.9828C25.8992 32.0173 26.0442 31.9997 26.1759 31.9323C26.3076 31.8648 26.4202 31.7507 26.4993 31.6042C26.5784 31.4578 26.6204 31.2856 26.6202 31.1096V24.8877H29.5002V5.33307H26.6202ZM5.0202 8.88845V10.6661H10.7802V8.88845H5.0202ZM5.0202 12.4438V14.2215H19.4202V12.4438H5.0202Z"
+                        fill="#2684FF"
+                      />
+                    </svg>
                   </button>
                   <button
                     type="button"
                     title="Request more information"
                     aria-label="Request more information"
-                    onClick={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setInfoRequestItemKey(lineItemKey);
+                      setInfoRequestMessage("");
+                    }}
                     className={actionBtnClass}
                   >
                     <RotateCcw className="h-4 w-4 text-blue-600" />
                   </button>
-                  {lineItem.hasInfoIcon && (
-                    <div
-                      className="ml-1 w-6 h-6 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600"
-                      title={infoTooltip}
-                      aria-label={infoTooltip}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Info className="w-3.5 h-3.5" />
-                    </div>
-                  )}
                   <span className="text-gray-500 ml-1" aria-hidden>
                     {isItemExpanded ? (
                       <ChevronUp className="w-4 h-4" />
@@ -482,25 +813,25 @@ const PendingApprovalDetailPage = ({
 
               {isItemExpanded && (
                 <div className="px-4 py-3 space-y-3 text-sm">
+                  {itemError && (
+                    <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-1.5">
+                      {itemError}
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">
                         Comments
                       </div>
                       <div className="text-gray-900 whitespace-pre-wrap break-words">
-                        {lineItem.comments || "No additional comments provided."}
+                        {effectiveComment || "No additional comments provided."}
                       </div>
                     </div>
                     <div className="space-y-1">
                       <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">
                         Attachment
                       </div>
-                      <button
-                        type="button"
-                        className="inline-flex items-center px-3 py-1.5 rounded-md border border-gray-300 text-xs font-medium text-gray-700 bg-white hover:bg-gray-50"
-                      >
-                        View / Add Attachment
-                      </button>
+                      <span className="text-gray-500 text-sm">No Attachment</span>
                     </div>
                   </div>
                 </div>
@@ -509,6 +840,266 @@ const PendingApprovalDetailPage = ({
           );
         })}
       </div>
+
+      {commentModalItemKey !== null && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-3">
+          <div
+            className="bg-white p-4 rounded-lg shadow-lg max-w-md w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Comment</h3>
+            </div>
+
+            <div className="mb-3">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Comment Suggestions
+              </label>
+              <div className="relative">
+                <button
+                  type="button"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-left focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white flex items-center justify-between"
+                  onClick={() => setIsCommentDropdownOpen(!isCommentDropdownOpen)}
+                >
+                  <span className="text-gray-500">
+                    {commentSubcategory
+                      ? `${commentCategory} - ${commentSubcategory}`
+                      : "Select a comment suggestion..."}
+                  </span>
+                  <svg
+                    className={`w-4 h-4 transition-transform ${isCommentDropdownOpen ? "rotate-180" : ""}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {isCommentDropdownOpen && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-80 overflow-y-auto">
+                    <div className="p-2 space-y-2">
+                      <div>
+                        <div className="flex items-center p-1">
+                          <div className="w-3 h-3 rounded-full border-2 mr-2 flex items-center justify-center border-green-500 bg-green-500">
+                            <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                          </div>
+                          <span className="text-xs font-medium text-gray-900">Approve</span>
+                        </div>
+                        <div className="ml-5 mt-1 space-y-1">
+                          {commentOptions["Approve"].map((option, idx) => (
+                            <div
+                              key={idx}
+                              className="text-xs text-gray-600 cursor-pointer hover:text-blue-600 hover:bg-blue-50 p-1 rounded transition-colors"
+                              onClick={() => {
+                                setCommentCategory("Approve");
+                                setCommentSubcategory(option);
+                                setCommentDraft(`Approve - ${option}`);
+                                setIsCommentDropdownOpen(false);
+                              }}
+                            >
+                              {option}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center p-1">
+                          <div className="w-3 h-3 rounded-full border-2 mr-2 flex items-center justify-center border-red-500 bg-red-500">
+                            <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                          </div>
+                          <span className="text-xs font-medium text-gray-900">Revoke</span>
+                        </div>
+                        <div className="ml-5 mt-1 space-y-1">
+                          {commentOptions["Revoke"].map((option, idx) => (
+                            <div
+                              key={idx}
+                              className="text-xs text-gray-600 cursor-pointer hover:text-blue-600 hover:bg-blue-50 p-1 rounded transition-colors"
+                              onClick={() => {
+                                setCommentCategory("Revoke");
+                                setCommentSubcategory(option);
+                                setCommentDraft(`Revoke - ${option}`);
+                                setIsCommentDropdownOpen(false);
+                              }}
+                            >
+                              {option}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Comment
+              </label>
+              <textarea
+                value={commentDraft}
+                onChange={(e) => setCommentDraft(e.target.value)}
+                placeholder={
+                  commentCategory
+                    ? `Enter additional details for ${commentCategory.toLowerCase()}...`
+                    : "Select an action type and reason, or enter your comment here..."
+                }
+                className="w-full h-24 px-3 py-2 border border-gray-300 rounded-md resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                autoFocus
+              />
+            </div>
+
+            {commentModalItemKey && lineItemError[commentModalItemKey] && (
+              <div className="mb-3 text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-1.5">
+                {lineItemError[commentModalItemKey]}
+              </div>
+            )}
+
+            <div className="flex justify-end items-center gap-3">
+              <button
+                onClick={closeCommentModal}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors min-w-[72px]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveComment}
+                disabled={
+                  !commentDraft.trim() ||
+                  (commentModalItemKey
+                    ? lineItemLoading[commentModalItemKey] ?? false
+                    : false)
+                }
+                className={`px-4 py-2 text-sm font-medium rounded-md focus:outline-none focus:ring-2 transition-colors min-w-[72px] ${
+                  commentDraft.trim()
+                    ? "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500"
+                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                }`}
+              >
+                {commentModalItemKey &&
+                (lineItemLoading[commentModalItemKey] ?? false)
+                  ? "Saving..."
+                  : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {infoRequestItemKey !== null && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-3">
+          <div
+            className="bg-white p-4 rounded-lg shadow-lg max-w-md w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Request More Information
+              </h3>
+              <p className="text-sm text-gray-500 mt-1">
+                Send a message to the requester for additional details.
+              </p>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Message
+              </label>
+              <textarea
+                value={infoRequestMessage}
+                onChange={(e) => setInfoRequestMessage(e.target.value)}
+                placeholder="Please provide more information about this access request..."
+                className="w-full h-24 px-3 py-2 border border-gray-300 rounded-md resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                autoFocus
+              />
+            </div>
+
+            {lineItemError[infoRequestItemKey] && (
+              <div className="mb-3 text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-1.5">
+                {lineItemError[infoRequestItemKey]}
+              </div>
+            )}
+
+            <div className="flex justify-end items-center gap-3">
+              <button
+                onClick={() => {
+                  setInfoRequestItemKey(null);
+                  setInfoRequestMessage("");
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors min-w-[72px]"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={!infoRequestMessage.trim() || infoRequestLoading}
+                onClick={async () => {
+                  if (
+                    !request ||
+                    !infoRequestItemKey ||
+                    !infoRequestMessage.trim()
+                  )
+                    return;
+                  const lineItem =
+                    request.lineItems[Number(infoRequestItemKey)];
+                  if (!lineItem) return;
+
+                  setInfoRequestLoading(true);
+                  setLineItemError((prev) => ({
+                    ...prev,
+                    [infoRequestItemKey]: null,
+                  }));
+
+                  try {
+                    const entitlementIdForUpdate =
+                      lineItem.entitlementId ||
+                      request.fallbackEntitlementId;
+
+                    const payload: any = {
+                      useraction: [],
+                      accountAction: [],
+                      entitlementAction: [
+                        {
+                          actionType: "Approve",
+                          lineItemIds: [lineItem.lineItemId],
+                          justification: infoRequestMessage.trim(),
+                        },
+                      ],
+                    };
+
+                    await updateAction(
+                      request.reviewerId,
+                      entitlementIdForUpdate,
+                      payload
+                    );
+
+                    setInfoRequestItemKey(null);
+                    setInfoRequestMessage("");
+                    window.location.reload();
+                  } catch (err: any) {
+                    console.error("Failed to send info request:", err);
+                    setLineItemError((prev) => ({
+                      ...prev,
+                      [infoRequestItemKey]:
+                        err?.message || "Failed to send request",
+                    }));
+                  } finally {
+                    setInfoRequestLoading(false);
+                  }
+                }}
+                className={`px-4 py-2 text-sm font-medium rounded-md focus:outline-none focus:ring-2 transition-colors min-w-[140px] ${
+                  infoRequestMessage.trim() && !infoRequestLoading
+                    ? "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500"
+                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                }`}
+              >
+                {infoRequestLoading ? "Sending..." : "Send to Requester"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

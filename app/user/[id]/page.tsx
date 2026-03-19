@@ -992,6 +992,7 @@ export default function UserDetailPage() {
                   defaultColDef={{ sortable: true, filter: true, resizable: true }}
                   suppressRowVirtualisation={false}
                   domLayout="autoHeight"
+                  theme="legacy"
                 />
               </div>
             )}
@@ -1601,6 +1602,7 @@ export default function UserDetailPage() {
                 columnDefs={columnDefs}
                 defaultColDef={{ sortable: true, filter: true, resizable: true }}
                 suppressRowVirtualisation={false}
+                theme="legacy"
               />
             </div>
           )}
