@@ -237,6 +237,7 @@ const Page = () => {
         }
       `}</style>
       <AgGridReact
+        theme="legacy"
         rowData={filteredRowData}
         columnDefs={columnDefs}
         defaultColDef={defaultColDef}

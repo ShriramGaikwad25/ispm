@@ -1475,6 +1475,19 @@ export default function WorkflowBuilderCreatePage() {
         setValue("tags", data.tags ?? "", { shouldValidate: false });
       }
 
+      // Keep local step1 snapshot in sync during edit prefill.
+      // Without this, Next can remain disabled until any field is manually changed.
+      setFormData((prev) => ({
+        ...prev,
+        step1: {
+          ...prev.step1,
+          certificationTemplate: data.name ?? "",
+          description: data.description ?? "",
+          owner: ownerFromData ?? "",
+          tags: data.tags ?? "",
+        },
+      }));
+
       // If we have a definition_json.stages payload, hydrate step2 from it
       const def = data.definition_json || data.definitionJson || data.definition;
       if (def && Array.isArray(def.stages)) {
@@ -1600,7 +1613,6 @@ export default function WorkflowBuilderCreatePage() {
     switch (step) {
       case 1:
         return (
-          step1Valid &&
           !!(
             formData.step1.certificationTemplate &&
             formData.step1.description &&

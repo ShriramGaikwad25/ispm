@@ -100,13 +100,29 @@ export default function AccessGuardrailReportPage() {
       "Last review date",
     ];
 
+    const flexByColumn: Record<string, number> = {
+      "Control ID": 0.9,
+      "Control name": 1.3,
+      "Policy ID": 0.9,
+      "Violating user display name": 1.3,
+      "User ID": 1,
+      "Master Entitlement": 1.4,
+      "Conflicting Entitlement": 1.4,
+      "Control owner": 1.1,
+      "Mitigation justification": 2.2,
+      "Violation Detection Date": 1.1,
+      "Mitigation Start date": 1.1,
+      "Mitigation Expiry date": 1.1,
+      "Last review date": 1.1,
+    };
+
     return preferredOrder
       .filter((key) => key in rows[0])
       .map((key) => ({
         headerName: key,
         field: key,
-        minWidth: key === "Mitigation justification" ? 340 : 170,
-        flex: key === "Mitigation justification" ? 1.8 : 1,
+        minWidth: key === "Mitigation justification" ? 220 : 100,
+        flex: flexByColumn[key] ?? 1,
         valueGetter: (params: any) => formatCell(params.data?.[key], key),
         sortable: true,
         filter: true,
@@ -193,10 +209,6 @@ export default function AccessGuardrailReportPage() {
                 domLayout="autoHeight"
                 onGridReady={(params: any) => {
                   setGridApi(params.api);
-                  params.api.sizeColumnsToFit();
-                }}
-                onFirstDataRendered={(params: any) => {
-                  params.api.sizeColumnsToFit();
                 }}
               />
             </div>
