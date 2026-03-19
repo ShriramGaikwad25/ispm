@@ -101,6 +101,7 @@ const UserSearchTab: React.FC = () => {
             name: nameValue,
             email: emailValue,
             username: user.username || "",
+            userid: (user.userid || "").toString(),
             employeeid: (user.employeeid || "").toString(),
             department: user.department || "",
             jobtitle: user.title || "",
@@ -110,7 +111,8 @@ const UserSearchTab: React.FC = () => {
 
       // Convert to User format expected by the component
       const normalizedUsers: User[] = usersData.map((user, index) => ({
-        id: `user-${index}-${user.username || user.email || index}`,
+        // Keep the true backend identifier so submit payload can pass beneficiary userId.
+        id: user.userid || `user-${index}-${user.username || user.email || index}`,
         name: user.name || user.username || "",
         email: user.email,
         username: user.username,

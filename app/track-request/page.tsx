@@ -93,7 +93,13 @@ const TrackRequest: React.FC = () => {
           setRequests([]);
           return;
         }
-        const mapped: Request[] = rawRows.map((row) => {
+        const mapped: Request[] = rawRows
+          .filter((row) => {
+            const requestJson = row?.request_json ?? {};
+            const workflowInstanceId = requestJson?.workflow_instance?.id;
+            return workflowInstanceId !== null && workflowInstanceId !== undefined && String(workflowInstanceId).trim() !== "";
+          })
+          .map((row) => {
           const requestJson = row.request_json ?? {};
           const accessRequest = requestJson.access_request ?? {};
           const requestedBy = accessRequest.requested_by ?? {};
@@ -155,23 +161,22 @@ const TrackRequest: React.FC = () => {
             const riskLevel = String(itemCatalog.risk ?? item?.risk?.level ?? "").toLowerCase();
             return privileged || riskLevel.startsWith("high");
           });
+          const workflowInstanceId = requestJson?.workflow_instance?.id;
 
           return {
             id:
-              row.wf_instance_id ??
-              row.wfinstanceid ??
+              workflowInstanceId ??
               row.request_id ??
               accessRequest.id ??
               row.requestid ??
               row.id ??
               "",
             routeId:
+              workflowInstanceId ??
               row.request_id ??
               accessRequest.id ??
               row.requestid ??
               row.id ??
-              row.wf_instance_id ??
-              row.wfinstanceid ??
               "",
             beneficiaryName: String(beneficiaryNameFromObject),
             requesterName: String(requesterNameFromObject),

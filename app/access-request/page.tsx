@@ -12,7 +12,7 @@ import { useSelectedUsers } from "@/contexts/SelectedUsersContext";
 import { useCart } from "@/contexts/CartContext";
 import { useItemDetails } from "@/contexts/ItemDetailsContext";
 import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
-import { getReviewerId } from "@/lib/auth";
+import { getCurrentUser, getReviewerId } from "@/lib/auth";
 import ActionCompletedToast from "@/components/ActionCompletedToast";
 
 function clearAccessRequestSelections(
@@ -323,6 +323,40 @@ const AccessRequest: React.FC = () => {
 
   const handleSubmit = async () => {
     const payload = buildAccessRequestPayload();
+    const resolveCurrentApiUserId = async (): Promise<string> => {
+      const loginId = String(getCurrentUser()?.email || "").trim();
+      if (!loginId) return "";
+
+      try {
+        const res = await fetch(
+          "https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              query:
+                "SELECT userid FROM usr WHERE lower(username) = lower(?) OR lower(email) = lower(?) LIMIT 1",
+              parameters: [loginId, loginId],
+            }),
+          }
+        );
+        if (!res.ok) return "";
+        const data = await res.json();
+        const rows = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.resultSet)
+            ? data.resultSet
+            : Array.isArray(data?.rows)
+              ? data.rows
+              : [];
+        const row = rows[0] || {};
+        return String(row.userid || row.userId || "").trim();
+      } catch {
+        return "";
+      }
+    };
+    const selfApiUserId =
+      payload.requestFor === "self" ? await resolveCurrentApiUserId() : "";
 
     // Build payload expected by workflow submitrequest API
     const formatDateForApi = (dateStr: string) => {
@@ -341,9 +375,14 @@ const AccessRequest: React.FC = () => {
         justification: payload.globalSettings.comment || "Emergency access",
         requestType: payload.requestType === "Urgent" ? "URGENT" : "REGULAR",
       },
-      benificiary: payload.selectedUsers.map((u) => ({
-        userId: u.userid,
-      })),
+      benificiary: (() => {
+        if (payload.requestFor === "others") {
+          return payload.selectedUsers
+            .map((u) => ({ userId: String(u.id || "").trim() }))
+            .filter((u) => !!u.userId);
+        }
+        return selfApiUserId ? [{ userId: selfApiUserId }] : [];
+      })(),
       requestItem: payload.accessItems.map((item) => ({
         catalogId: item.id,
         startDate: formatDateForApi(item.startDate),

@@ -31,6 +31,7 @@ interface RequestLineItem {
   comments: string;
   hasInfoIcon?: boolean;
   hasHighRisk?: boolean;
+  hasTrainingCheck?: boolean;
   canWithdraw?: boolean;
   canProvideAdditionalDetails?: boolean;
   instanceSteps: InstanceStep[];
@@ -79,12 +80,31 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
 
     const formatDate = (value: string | null | undefined): string => {
       if (!value) return "";
-      const datePart = value.split(" ")[0] ?? value;
-      const parts = datePart.split("-");
-      if (parts.length !== 3) return value;
-      const [yyyy, mm, dd] = parts;
-      if (!yyyy || !mm || !dd) return value;
-      return `${mm.padStart(2, "0")}/${dd.padStart(2, "0")}/${yyyy}`;
+      const raw = String(value).trim();
+
+      // Handles YYYY-MM-DD and ISO datetime starting with YYYY-MM-DD.
+      const isoPrefixMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (isoPrefixMatch) {
+        const [, yyyy, mm, dd] = isoPrefixMatch;
+        return `${mm}/${dd}/${yyyy}`;
+      }
+
+      // Handles DD-MM-YYYY format if returned by backend.
+      const dmyMatch = raw.match(/^(\d{2})-(\d{2})-(\d{4})/);
+      if (dmyMatch) {
+        const [, dd, mm, yyyy] = dmyMatch;
+        return `${mm}/${dd}/${yyyy}`;
+      }
+
+      const parsed = new Date(raw);
+      if (!Number.isNaN(parsed.getTime())) {
+        return new Intl.DateTimeFormat("en-US", {
+          month: "2-digit",
+          day: "2-digit",
+          year: "numeric",
+        }).format(parsed);
+      }
+      return raw;
     };
 
     const formatDateTime = (value: string | null | undefined): string => {
@@ -382,8 +402,8 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
             (firstItem.item_comments as string) ||
             "";
 
-          const startDate = firstItem.item_startdate ? String(firstItem.item_startdate) : raisedOn;
-          const endDate = firstItem.item_enddate ? String(firstItem.item_enddate) : "";
+          const startDate = firstItem.item_startdate ? formatDate(String(firstItem.item_startdate)) : raisedOn;
+          const endDate = firstItem.item_enddate ? formatDate(String(firstItem.item_enddate)) : "";
           const requestJsonStepsRaw = pickBestStepArray(
             requestJson?.instance_steps,
             requestJson?.workflow_instance?.instance_steps,
@@ -406,9 +426,21 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
               "Entitlement";
             const lineComments =
               (item?.item_comments as string) || (row.requester_justification as string) || "";
-            const lineStartDate = item?.item_startdate ? String(item.item_startdate) : raisedOn;
-            const lineEndDate = item?.item_enddate ? String(item.item_enddate) : "";
+            const lineStartDate = item?.item_startdate ? formatDate(String(item.item_startdate)) : raisedOn;
+            const lineEndDate = item?.item_enddate ? formatDate(String(item.item_enddate)) : "";
             const lineRisk = String(lineCatalog.risk ?? "").toLowerCase();
+            const lineHasTrainingCheck = (() => {
+              const raw =
+                lineCatalog?.training_code ??
+                lineCatalog?.trainingCode ??
+                item?.training_code ??
+                item?.trainingCode;
+              const arr = Array.isArray(raw) ? raw : [];
+              if (arr.length === 0) return false;
+              const first = arr[0] as Record<string, unknown>;
+              const code = String(first?.code ?? "").trim();
+              return !!code;
+            })();
 
             return {
               name: String(lineDisplayName || ""),
@@ -418,6 +450,7 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
               startDate: lineStartDate,
               endDate: lineEndDate,
               comments: lineComments,
+              hasTrainingCheck: lineHasTrainingCheck,
               hasInfoIcon:
                 String(lineCatalog.privileged ?? "").toLowerCase() === "yes" ||
                 lineRisk.startsWith("high"),
@@ -439,6 +472,13 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
                     startDate,
                     endDate,
                     comments: justification,
+                    hasTrainingCheck: (() => {
+                      const raw = catalog?.training_code ?? catalog?.trainingCode;
+                      const arr = Array.isArray(raw) ? raw : [];
+                      if (arr.length === 0) return false;
+                      const first = arr[0] as Record<string, unknown>;
+                      return !!String(first?.code ?? "").trim();
+                    })(),
                     hasInfoIcon:
                       String(catalog.privileged ?? "").toLowerCase() === "yes" ||
                       String(catalog.risk ?? "").toLowerCase().startsWith("high"),
@@ -781,9 +821,11 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
                     <span className="inline-flex items-center px-3 py-1 rounded-md text-[11px] font-medium border border-violet-300 bg-violet-50 text-violet-700">
                       {lineItem.applicationName || "No Application"}
                     </span>
-                    <span className="inline-flex items-center px-3 py-1 rounded-md text-[11px] font-medium border border-emerald-300 bg-emerald-50 text-emerald-600">
-                      Training Check
-                    </span>
+                    {lineItem.hasTrainingCheck && (
+                      <span className="inline-flex items-center px-3 py-1 rounded-md text-[11px] font-medium border border-emerald-300 bg-emerald-50 text-emerald-600">
+                        Training Check
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -852,10 +894,13 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
                         Access Duration
                       </div>
                       <div className="text-gray-900">
-                        {lineItem.startDate}
-                        {lineItem.endDate
-                          ? ` - ${lineItem.endDate}`
-                          : " (ongoing)"}
+                        {lineItem.startDate
+                          ? lineItem.endDate
+                            ? `${lineItem.startDate} - ${lineItem.endDate}`
+                            : `${lineItem.startDate} (ongoing)`
+                          : lineItem.endDate
+                            ? `Until ${lineItem.endDate}`
+                            : "-"}
                       </div>
                     </div>
 
