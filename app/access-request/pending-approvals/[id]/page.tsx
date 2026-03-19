@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { updateAction } from "@/lib/api";
 import { getReviewerId } from "@/lib/auth";
+import { useRightSidebar } from "@/contexts/RightSidebarContext";
 
 interface RequestLineItem {
   lineItemId: string;
@@ -33,6 +34,15 @@ interface RequestDetails {
   justification: string;
 }
 
+interface SodPolicyDetails {
+  Owner?: string;
+  Description?: string;
+  "Business Process"?: string;
+  "SOD Policy ID"?: string;
+  "Policy Name"?: string;
+  [key: string]: unknown;
+}
+
 interface PendingApprovalDetail {
   id: string;
   reviewerId: string;
@@ -42,6 +52,9 @@ interface PendingApprovalDetail {
   durationDays?: number;
   details: RequestDetails;
   lineItems: RequestLineItem[];
+  sodPolicyDetails?: SodPolicyDetails | null;
+  sodSeverity?: string | null;
+  sodConflictingRoles?: string[];
 }
 
 const formatDate = (value: string | null | undefined): string => {
@@ -91,6 +104,7 @@ const PendingApprovalDetailPage = ({
   params: Promise<{ id: string }>;
 }) => {
   const { id } = React.use(params);
+  const { openSidebar } = useRightSidebar();
   const [request, setRequest] = useState<PendingApprovalDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -181,6 +195,21 @@ const PendingApprovalDetailPage = ({
             console.log("[PendingApprovalDetail] raw row keys:", Object.keys(row || {}));
             console.log("[PendingApprovalDetail] full row:", JSON.stringify(row, null, 2));
           }
+          const requestJson = row.request_json ?? {};
+          const sodResults =
+            requestJson?.workflow_instance?.context_json?.sodResults ??
+            requestJson?.workflowInstance?.context_json?.sodResults ??
+            requestJson?.workflow_instance?.contextJson?.sodResults ??
+            requestJson?.workflowInstance?.contextJson?.sodResults;
+          const hasGlobalSodConflict = Boolean(sodResults?.hasConflict);
+          const sodConflictingRoles: string[] = Array.isArray(sodResults?.conflictingRoles)
+            ? sodResults.conflictingRoles.map((r: any) => String(r).trim()).filter(Boolean)
+            : [];
+          const primaryConflictingRole = sodConflictingRoles[0] ?? "";
+          const sodPolicyDetails: SodPolicyDetails | null =
+            (sodResults?.sodPolicyDetails as SodPolicyDetails | undefined) ?? null;
+          const sodSeverity: string | null =
+            (typeof sodResults?.severity === "string" ? sodResults.severity : null);
           const requestId = toStringSafe(
             row.request_id ??
               row.requestId ??
@@ -260,6 +289,25 @@ const PendingApprovalDetailPage = ({
             const startDate = formatDate(toStringSafe(item?.item_startdate));
             const endDate = formatDate(toStringSafe(item?.item_enddate));
             const riskLevel = String(catalog.risk ?? "").toLowerCase();
+            const lineNameKey = toStringSafe(
+              catalog.name ??
+                catalog.entitlementname ??
+                catalog.applicationname ??
+                item?.entity_name ??
+                item?.entityName ??
+                item?.name
+            ).trim();
+            const lineIdKey = toStringSafe(
+              catalog?.catalogid ??
+                catalog?.catalogId ??
+                catalog?.catalog_id ??
+                catalog?.id ??
+                ""
+            ).trim();
+            const lineHasConflict =
+              hasGlobalSodConflict &&
+              primaryConflictingRole &&
+              (lineNameKey === primaryConflictingRole || lineIdKey === primaryConflictingRole);
             const hasTrainingCheck = (() => {
               const raw =
                 catalog?.training_code ??
@@ -312,6 +360,7 @@ const PendingApprovalDetailPage = ({
               startDate,
               endDate,
               comments: lineComments,
+              hasConflict: lineHasConflict,
               hasInfoIcon:
                 String(catalog.privileged ?? "").toLowerCase() === "yes" ||
                 riskLevel.startsWith("high"),
@@ -380,6 +429,20 @@ const PendingApprovalDetailPage = ({
                     startDate: "",
                     endDate: "",
                     comments: justification,
+                    hasConflict: (() => {
+                      if (!hasGlobalSodConflict || !primaryConflictingRole) return false;
+                      const nameKey = toStringSafe(
+                        row.entity_name ?? row.entityName ?? "Requested Access"
+                      ).trim();
+                      const idKey = toStringSafe(
+                        row.entitlement_id ??
+                          row.entitlementId ??
+                          row.entity_id ??
+                          row.entityId ??
+                          ""
+                      ).trim();
+                      return nameKey === primaryConflictingRole || idKey === primaryConflictingRole;
+                    })(),
                     hasInfoIcon: false,
                     hasHighRisk: false,
                     hasTrainingCheck: (() => {
@@ -415,6 +478,9 @@ const PendingApprovalDetailPage = ({
               justification,
             },
             lineItems: normalizedLineItems,
+            sodPolicyDetails,
+            sodSeverity,
+            sodConflictingRoles,
           } as PendingApprovalDetail;
         });
 
@@ -700,6 +766,86 @@ const PendingApprovalDetailPage = ({
                     )}
                   </div>
                 </div>
+
+                {lineItem.hasConflict && request.sodPolicyDetails && (
+                  <div className="flex-1 flex justify-center">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const details = request.sodPolicyDetails || {};
+                        const severity = (request.sodSeverity || "").toUpperCase();
+                        const severityColorClasses =
+                          severity === "HIGH"
+                            ? "bg-red-100 text-red-800 border-red-300"
+                            : severity === "MEDIUM"
+                              ? "bg-amber-50 text-amber-800 border-amber-300"
+                              : "bg-gray-100 text-gray-800 border-gray-300";
+                        openSidebar(
+                          <div className="space-y-4 text-sm text-gray-900 bg-slate-50 -m-4 p-4 min-h-full">
+                            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm space-y-3 text-sm">
+                              <div className="space-y-1">
+                                <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
+                                  Policy Name
+                                </span>
+                                <span className="font-semibold">
+                                  {String(details["Policy Name"] ?? details["SOD Policy ID"] ?? "-")}
+                                </span>
+                              </div>
+
+                              {severity && (
+                                <div className="space-y-1">
+                                  <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
+                                    Severity
+                                  </span>
+                                  <span
+                                    className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wide ${severityColorClasses}`}
+                                  >
+                                    {severity}
+                                  </span>
+                                </div>
+                              )}
+
+                              <div className="space-y-1">
+                                <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
+                                  SOD Policy ID
+                                </span>
+                                <span>{String(details["SOD Policy ID"] ?? "-")}</span>
+                              </div>
+
+                              <div className="space-y-1">
+                                <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
+                                  Owner
+                                </span>
+                                <span>{String(details["Owner"] ?? "-")}</span>
+                              </div>
+
+                              <div className="space-y-1">
+                                <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
+                                  Business Process
+                                </span>
+                                <span>{String(details["Business Process"] ?? "-")}</span>
+                              </div>
+
+                              <div className="space-y-1">
+                                <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
+                                  Description
+                                </span>
+                                <p className="leading-relaxed text-gray-800 whitespace-pre-wrap break-words">
+                                  {String(details["Description"] ?? "-")}
+                                </p>
+                              </div>
+                            </div>
+                          </div>,
+                          { widthPx: 460, title: "SOD Policy Details" }
+                        );
+                      }}
+                      className="inline-flex items-center px-4 py-1.5 rounded-md text-[11px] font-semibold border border-red-400 bg-red-50 text-red-600 underline underline-offset-2"
+                    >
+                      SOD Policy Violation Detected
+                    </button>
+                  </div>
+                )}
 
                 <div className="flex items-center gap-2 shrink-0">
                   <button

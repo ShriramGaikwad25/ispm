@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Info, FileText, ChevronDown, ChevronUp } from "lucide-react";
 import { getReviewerId } from "@/lib/auth";
+import { useRightSidebar } from "@/contexts/RightSidebarContext";
 
 interface InstanceStep {
   action: string;
@@ -32,9 +33,19 @@ interface RequestLineItem {
   hasInfoIcon?: boolean;
   hasHighRisk?: boolean;
   hasTrainingCheck?: boolean;
+  hasConflict?: boolean;
   canWithdraw?: boolean;
   canProvideAdditionalDetails?: boolean;
   instanceSteps: InstanceStep[];
+}
+
+interface SodPolicyDetails {
+  Owner?: string;
+  Description?: string;
+  "Business Process"?: string;
+  "SOD Policy ID"?: string;
+  "Policy Name"?: string;
+  [key: string]: unknown;
 }
 
 interface Request {
@@ -54,9 +65,13 @@ interface Request {
   details?: RequestDetails;
   lineItems: RequestLineItem[];
   instanceSteps: InstanceStep[];
+  sodPolicyDetails?: SodPolicyDetails | null;
+  sodSeverity?: string | null;
+  sodConflictingRoles?: string[];
 }
 const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> }) => {
   const { id } = React.use(params);
+  const { openSidebar } = useRightSidebar();
   const [request, setRequest] = useState<Request | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -332,6 +347,23 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
 
         const mapped: Request[] = rawRows.map((row) => {
           const requestJson = row.request_json ?? {};
+          const sodResults =
+            requestJson?.workflow_instance?.context_json?.sodResults ??
+            requestJson?.workflowInstance?.context_json?.sodResults ??
+            requestJson?.workflow_instance?.contextJson?.sodResults ??
+            requestJson?.workflowInstance?.contextJson?.sodResults;
+          const hasGlobalSodConflict = Boolean(sodResults?.hasConflict);
+          const conflictingRoleNames: string[] = Array.isArray(sodResults?.conflictingRoles)
+            ? sodResults.conflictingRoles.map((r: any) => String(r).trim()).filter(Boolean)
+            : [];
+          const primaryConflictingRole = conflictingRoleNames[0] ?? "";
+          const sodPolicyDetails: SodPolicyDetails | null =
+            (sodResults?.sodPolicyDetails as SodPolicyDetails | undefined) ?? null;
+          const sodSeverity: string | null =
+            (typeof sodResults?.severity === "string" ? sodResults.severity : null);
+          const sodConflictingRoles: string[] = Array.isArray(sodResults?.conflictingRoles)
+            ? sodResults.conflictingRoles.map((r: any) => String(r).trim()).filter(Boolean)
+            : [];
           const accessRequest = requestJson.access_request ?? {};
           const requester = accessRequest.requested_by ?? row.requester ?? row.requestedby ?? row.requested_by ?? {};
           const beneficiary = accessRequest.requested_for ?? row.beneficiary ?? {};
@@ -429,6 +461,12 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
             const lineStartDate = item?.item_startdate ? formatDate(String(item.item_startdate)) : raisedOn;
             const lineEndDate = item?.item_enddate ? formatDate(String(item.item_enddate)) : "";
             const lineRisk = String(lineCatalog.risk ?? "").toLowerCase();
+            const lineNameKey = String(lineDisplayName).trim();
+            const lineIdKey = String(lineCatalog.catalogId ?? lineCatalog.catalogid ?? "").trim();
+            const lineHasConflict =
+              hasGlobalSodConflict &&
+              primaryConflictingRole &&
+              (lineNameKey === primaryConflictingRole || lineIdKey === primaryConflictingRole);
             const lineHasTrainingCheck = (() => {
               const raw =
                 lineCatalog?.training_code ??
@@ -451,6 +489,7 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
               endDate: lineEndDate,
               comments: lineComments,
               hasTrainingCheck: lineHasTrainingCheck,
+              hasConflict: lineHasConflict,
               hasInfoIcon:
                 String(lineCatalog.privileged ?? "").toLowerCase() === "yes" ||
                 lineRisk.startsWith("high"),
@@ -478,6 +517,12 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
                       if (arr.length === 0) return false;
                       const first = arr[0] as Record<string, unknown>;
                       return !!String(first?.code ?? "").trim();
+                    })(),
+                    hasConflict: (() => {
+                      if (!hasGlobalSodConflict || !primaryConflictingRole) return false;
+                      const nameKey = String(displayNameFromCatalog).trim();
+                      const idKey = String(catalog.catalogId ?? catalog.catalogid ?? "").trim();
+                      return nameKey === primaryConflictingRole || idKey === primaryConflictingRole;
                     })(),
                     hasInfoIcon:
                       String(catalog.privileged ?? "").toLowerCase() === "yes" ||
@@ -569,6 +614,9 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
             },
             lineItems: normalizedLineItems,
             instanceSteps: requestInstanceSteps,
+            sodPolicyDetails,
+            sodSeverity,
+            sodConflictingRoles,
           };
         });
 
@@ -812,7 +860,7 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
                     }));
                   }
                 }}
-                className="w-full flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-gray-200 text-left hover:bg-gray-100 transition-colors cursor-pointer"
+                className="w-full flex flex-wrap items-center gap-3 px-4 py-3 border-b border-gray-200 text-left hover:bg-gray-100 transition-colors cursor-pointer"
                 aria-expanded={isItemExpanded}
               >
                 <div className="flex flex-col gap-1 min-w-0">
@@ -835,6 +883,89 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
                     )}
                   </div>
                 </div>
+
+                {lineItem.hasConflict && request.sodPolicyDetails && (
+                  <div className="flex-1 flex justify-center">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const details = request.sodPolicyDetails || {};
+                        const severity = (request.sodSeverity || "").toUpperCase();
+                        const conflictingRoles = request.sodConflictingRoles || [];
+                        const severityColorClasses =
+                          severity === "HIGH"
+                            ? "bg-red-100 text-red-800 border-red-300"
+                            : severity === "MEDIUM"
+                              ? "bg-amber-50 text-amber-800 border-amber-300"
+                              : "bg-gray-100 text-gray-800 border-gray-300";
+                        openSidebar(
+                          <div className="space-y-4 text-sm text-gray-900 bg-slate-50 -m-4 p-4 min-h-full">
+                            {/* Stacked policy fields */}
+                            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm space-y-3 text-sm">
+                              <div className="space-y-1">
+                                <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
+                                  Policy Name
+                                </span>
+                                <span className="font-semibold">
+                                  {String(details["Policy Name"] ?? details["SOD Policy ID"] ?? "-")}
+                                </span>
+                              </div>
+
+                              {severity && (
+                                <div className="space-y-1">
+                                  <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
+                                    Severity
+                                  </span>
+                                  <span
+                                    className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wide ${severityColorClasses}`}
+                                  >
+                                    {severity}
+                                  </span>
+                                </div>
+                              )}
+
+                              <div className="space-y-1">
+                                <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
+                                  SOD Policy ID
+                                </span>
+                                <span>{String(details["SOD Policy ID"] ?? "-")}</span>
+                              </div>
+
+                              <div className="space-y-1">
+                                <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
+                                  Owner
+                                </span>
+                                <span>{String(details["Owner"] ?? "-")}</span>
+                              </div>
+
+                              <div className="space-y-1">
+                                <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
+                                  Business Process
+                                </span>
+                                <span>{String(details["Business Process"] ?? "-")}</span>
+                              </div>
+
+                              <div className="space-y-1">
+                                <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
+                                  Description
+                                </span>
+                                <p className="leading-relaxed text-gray-800 whitespace-pre-wrap break-words">
+                                  {String(details["Description"] ?? "-")}
+                                </p>
+                              </div>
+                            </div>
+                          </div>,
+                          { widthPx: 460, title: "SOD Policy Details" }
+                        );
+                      }}
+                      className="inline-flex items-center px-4 py-1.5 rounded-md text-[11px] font-semibold border border-red-400 bg-red-50 text-red-600 underline underline-offset-2"
+                    >
+                      SOD Policy Violation Detected
+                    </button>
+                  </div>
+                )}
+
                 <div className="flex items-center gap-2 shrink-0">
                   <button
                     type="button"
