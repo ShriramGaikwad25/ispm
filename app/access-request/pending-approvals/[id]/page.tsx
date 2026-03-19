@@ -14,12 +14,14 @@ import {
 interface RequestLineItem {
   name: string;
   displayName: string;
+  applicationName: string;
   type: string;
   startDate: string;
   endDate: string;
   comments: string;
   hasInfoIcon?: boolean;
   hasHighRisk?: boolean;
+  hasTrainingCheck?: boolean;
 }
 
 interface RequestDetails {
@@ -179,6 +181,12 @@ const PendingApprovalDetailPage = ({
                 item?.entityType ??
                 "Entitlement"
             );
+            const applicationName = toStringSafe(
+              catalog.applicationname ??
+                catalog.applicationName ??
+                item?.application_name ??
+                item?.applicationName
+            );
             const lineComments = toStringSafe(
               item?.item_comments ??
                 item?.comments ??
@@ -189,10 +197,22 @@ const PendingApprovalDetailPage = ({
             const startDate = formatDate(toStringSafe(item?.item_startdate));
             const endDate = formatDate(toStringSafe(item?.item_enddate));
             const riskLevel = String(catalog.risk ?? "").toLowerCase();
+            const hasTrainingCheck = (() => {
+              const raw =
+                catalog?.training_code ??
+                catalog?.trainingCode ??
+                item?.training_code ??
+                item?.trainingCode;
+              const arr = Array.isArray(raw) ? raw : [];
+              if (arr.length === 0) return false;
+              const first = arr[0] as Record<string, unknown>;
+              return !!toStringSafe(first?.code).trim();
+            })();
 
             return {
               name: lineName,
               displayName: lineName,
+              applicationName,
               type: lineType,
               startDate,
               endDate,
@@ -201,6 +221,7 @@ const PendingApprovalDetailPage = ({
                 String(catalog.privileged ?? "").toLowerCase() === "yes" ||
                 riskLevel.startsWith("high"),
               hasHighRisk: riskLevel.startsWith("high"),
+              hasTrainingCheck,
             };
           });
 
@@ -215,6 +236,9 @@ const PendingApprovalDetailPage = ({
                     displayName: toStringSafe(
                       row.entity_name ?? row.entityName ?? "Requested Access"
                     ),
+                    applicationName: toStringSafe(
+                      row.application_name ?? row.applicationName ?? ""
+                    ),
                     type: toStringSafe(
                       row.entity_type ?? row.entityType ?? "Entitlement"
                     ),
@@ -223,6 +247,13 @@ const PendingApprovalDetailPage = ({
                     comments: justification,
                     hasInfoIcon: false,
                     hasHighRisk: false,
+                    hasTrainingCheck: (() => {
+                      const raw = row.training_code ?? row.trainingCode;
+                      const arr = Array.isArray(raw) ? raw : [];
+                      if (arr.length === 0) return false;
+                      const first = arr[0] as Record<string, unknown>;
+                      return !!toStringSafe(first?.code).trim();
+                    })(),
                   },
                 ];
 
@@ -334,14 +365,6 @@ const PendingApprovalDetailPage = ({
             </div>
             <div className="text-gray-900">{request.beneficiaryName}</div>
           </div>
-          {typeof request.durationDays === "number" && (
-            <div>
-              <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">
-                Duration
-              </div>
-              <div className="text-gray-900">{request.durationDays} days</div>
-            </div>
-          )}
           <div className="md:col-span-2">
             <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">
               Justification
@@ -399,11 +422,13 @@ const PendingApprovalDetailPage = ({
                       </span>
                     )}
                     <span className="inline-flex items-center px-3 py-1 rounded-md text-[11px] font-medium border border-blue-300 bg-blue-50 text-blue-600">
-                      {lineItem.displayName}
+                      {lineItem.applicationName || "No Application"}
                     </span>
-                    <span className="inline-flex items-center px-3 py-1 rounded-md text-[11px] font-medium border border-emerald-300 bg-emerald-50 text-emerald-600">
-                      Training Check
-                    </span>
+                    {lineItem.hasTrainingCheck && (
+                      <span className="inline-flex items-center px-3 py-1 rounded-md text-[11px] font-medium border border-emerald-300 bg-emerald-50 text-emerald-600">
+                        Training Check
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -457,22 +482,10 @@ const PendingApprovalDetailPage = ({
 
               {isItemExpanded && (
                 <div className="px-4 py-3 space-y-3 text-sm">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">
-                        Access Duration
-                      </div>
-                      <div className="text-gray-900">
-                        {lineItem.startDate}
-                        {lineItem.endDate ? ` - ${lineItem.endDate}` : ""}
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1 text-[11px] font-medium text-gray-500 uppercase tracking-wide">
                         Comments
-                        {lineItem.comments && (
-                          <Info className="w-3 h-3 text-blue-500" />
-                        )}
                       </div>
                       <div className="text-gray-900 whitespace-pre-wrap break-words">
                         {lineItem.comments || "No additional comments provided."}

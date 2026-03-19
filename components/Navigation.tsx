@@ -191,14 +191,14 @@ export function Navigation() {
     if (pathname.startsWith('/track-request/') && pathname !== '/track-request') {
       return { href: '/track-request', label: 'Back to Track Requests' };
     }
-    // Pending Approvals detail → back to Pending Approvals list
+    // My Approvals detail → back to My Approvals list
     if (
       pathname.startsWith('/access-request/pending-approvals/') &&
       pathname !== '/access-request/pending-approvals'
     ) {
       return {
         href: '/access-request/pending-approvals',
-        label: 'Back to Pending Approvals',
+        label: 'Back to My Approvals',
       };
     }
     return null;

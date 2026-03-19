@@ -56,7 +56,7 @@ export const navLinks: NavItem[] = [
     subItems: [
       { name: 'Access Request', href: '/access-request', icon: ClipboardList },
       { name: 'Track Request', href: '/track-request', icon: Search },
-      { name: 'Pending Approvals', href: '/access-request/pending-approvals', icon: AlertCircle }
+      { name: 'My Approvals', href: '/access-request/pending-approvals', icon: AlertCircle }
     ]
   },
   {

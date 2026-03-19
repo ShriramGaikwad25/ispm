@@ -1,12 +1,11 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 import {
-  Eye,
   ArrowRight,
   Clock3,
   Info,
@@ -269,24 +268,9 @@ type ActionsCellProps = {
 const ActionsCell: React.FC<ActionsCellProps> = ({ node, onDetailedReview }) => {
   const baseBtn =
     "inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-colors";
-  const expanded = node?.expanded;
 
   return (
     <div className="flex items-center gap-2">
-      <button
-        type="button"
-        className={baseBtn}
-        title="Quick View"
-        aria-label="Quick View"
-        onClick={(e) => {
-          e.stopPropagation();
-          if (node) {
-            node.setExpanded(!expanded);
-          }
-        }}
-      >
-        <Eye className="h-4 w-4 text-blue-600" />
-      </button>
       <button
         type="button"
         className={baseBtn}
@@ -377,6 +361,24 @@ const PendingApprovalsPage: React.FC = () => {
   >("All");
   const [hoveredCard, setHoveredCard] = useState<"card1" | "card2" | null>(null);
 
+  // Quick Win hover animation can change available grid width without a window resize event.
+  // Re-fit columns both immediately and after the transition completes.
+  useEffect(() => {
+    const fitColumns = () => {
+      try {
+        gridRef.current?.api?.sizeColumnsToFit();
+      } catch {
+        // ignore
+      }
+    };
+    const rafId = window.requestAnimationFrame(fitColumns);
+    const timeoutId = window.setTimeout(fitColumns, 550);
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.clearTimeout(timeoutId);
+    };
+  }, [hoveredCard]);
+
   const parseInputDate = (value: string): Date | null => {
     if (!value) return null;
     const parts = value.split("-");
@@ -441,13 +443,6 @@ const PendingApprovalsPage: React.FC = () => {
         valueFormatter: (params) => formatDateToMMDDYY(params.value ?? ""),
       },
       {
-        headerName: "Last Acted On",
-        field: "lastActedOn",
-        minWidth: 150,
-        width: 165,
-        valueFormatter: (params) => formatDateToMMDDYY(params.value ?? ""),
-      },
-      {
         headerName: "# Entity",
         field: "entityCount",
         minWidth: 110,
@@ -457,8 +452,8 @@ const PendingApprovalsPage: React.FC = () => {
       {
         headerName: "Comments",
         field: "comments",
-        minWidth: 150,
-        width: 180,
+        minWidth: 240,
+        width: 300,
       },
       {
         headerName: "Status",
@@ -564,7 +559,7 @@ const PendingApprovalsPage: React.FC = () => {
             <div className="flex-1 flex flex-col gap-3">
               <div>
                 <h1 className="text-2xl font-semibold text-gray-900">
-                  Pending Approvals
+                  My Approvals
                 </h1>
                 <p className="text-gray-600 text-sm mt-1">
                   Review and act on pending access requests. Use Quick View to see
@@ -588,7 +583,7 @@ const PendingApprovalsPage: React.FC = () => {
                 {/* Row 1: Search + Status */}
                 <div className="flex flex-col gap-3 md:flex-row md:items-end">
                   {/* 1) Free form search */}
-                  <div className="flex-1 min-w-[200px]">
+                  <div className="w-full md:w-96">
                     <label className="block text-xs font-medium text-gray-600 mb-1">
                       Search (Requester, Beneficiary)
                     </label>
@@ -601,7 +596,7 @@ const PendingApprovalsPage: React.FC = () => {
                     />
                   </div>
                   {/* 3) Status filter */}
-                  <div className="w-full md:w-60">
+                  <div className="w-full md:w-96">
                     <label className="block text-xs font-medium text-gray-600 mb-1">
                       Status
                     </label>
@@ -622,22 +617,22 @@ const PendingApprovalsPage: React.FC = () => {
                 </div>
 
                 {/* Row 2: Date Assigned (Range) */}
-                <div className="flex-1 min-w-[220px]">
+                <div className="w-full">
                   <label className="block text-xs font-medium text-gray-600 mb-1">
                     Date Assigned (Range)
                   </label>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col md:flex-row gap-2">
                     <input
                       type="date"
                       value={fromDate}
                       onChange={(e) => setFromDate(e.target.value)}
-                      className="w-1/2 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      className="w-full md:w-96 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                     />
                     <input
                       type="date"
                       value={toDate}
                       onChange={(e) => setToDate(e.target.value)}
-                      className="w-1/2 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      className="w-full md:w-96 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                     />
                   </div>
                 </div>
@@ -808,9 +803,14 @@ const PendingApprovalsPage: React.FC = () => {
                 },
               }}
               onGridReady={(params) => {
+                try {
+                  params.api.sizeColumnsToFit();
+                } catch {
+                  // ignore
+                }
                 const handleResize = () => {
                   try {
-                    params.api.refreshHeader();
+                    params.api.sizeColumnsToFit();
                   } catch {
                     // ignore
                   }
@@ -822,12 +822,19 @@ const PendingApprovalsPage: React.FC = () => {
               }}
               onGridSizeChanged={(params) => {
                 try {
-                  params.api.refreshHeader();
+                  params.api.sizeColumnsToFit();
                 } catch {
                   // ignore
                 }
               }}
-              suppressSizeToFit={true}
+              onFirstDataRendered={(params) => {
+                try {
+                  params.api.sizeColumnsToFit();
+                } catch {
+                  // ignore
+                }
+              }}
+              suppressSizeToFit={false}
             />
           </div>
         </div>

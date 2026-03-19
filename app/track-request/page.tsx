@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { Search, ChevronDown, Info } from "lucide-react";
+import { Search, Info } from "lucide-react";
 const AgGridReact = dynamic(() => import("ag-grid-react").then((mod) => mod.AgGridReact), { ssr: false });
 type AgGridReactType = any;
 import "@/lib/ag-grid-setup";
@@ -43,9 +43,6 @@ interface Request {
 
 const TrackRequest: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
   const gridRef = React.useRef<AgGridReactType>(null);
   const router = useRouter();
   const [requests, setRequests] = useState<Request[]>([]);
@@ -228,24 +225,6 @@ const TrackRequest: React.FC = () => {
     return "bg-blue-100 text-blue-800";
   };
 
-  const parseMmDdYyyy = (value: string): Date | null => {
-    if (!value) return null;
-    const parts = value.split("/");
-    if (parts.length !== 3) return null;
-    const [mm, dd, yyyy] = parts.map((p) => Number(p));
-    if (!mm || !dd || !yyyy) return null;
-    return new Date(yyyy, mm - 1, dd);
-  };
-
-  const parseInputDate = (value: string): Date | null => {
-    if (!value) return null;
-    const parts = value.split("-");
-    if (parts.length !== 3) return null;
-    const [yyyy, mm, dd] = parts.map((p) => Number(p));
-    if (!mm || !dd || !yyyy) return null;
-    return new Date(yyyy, mm - 1, dd);
-  };
-
   const filteredRequests = requests.filter((request) => {
     const query = searchQuery.trim().toLowerCase();
 
@@ -260,25 +239,6 @@ const TrackRequest: React.FC = () => {
       }
     }
 
-    if (statusFilter) {
-      if (request.status !== statusFilter) {
-        return false;
-      }
-    }
-
-    const createdStr = request.details?.dateCreated ?? "";
-    const createdDate = parseMmDdYyyy(createdStr);
-    const from = parseInputDate(fromDate);
-    const to = parseInputDate(toDate);
-
-    if (from && createdDate && createdDate < from) {
-      return false;
-    }
-
-    if (to && createdDate && createdDate > to) {
-      return false;
-    }
-
     return true;
   });
 
@@ -287,7 +247,9 @@ const TrackRequest: React.FC = () => {
       {
         headerName: "ID",
         field: "id",
-        width: 110,
+        width: 120,
+        minWidth: 110,
+        suppressSizeToFit: true,
         sortable: true,
         cellRenderer: (params: ICellRendererParams) => {
           const routeId = params.data?.routeId as string | number | undefined;
@@ -309,40 +271,44 @@ const TrackRequest: React.FC = () => {
       {
         headerName: "Type",
         field: "requestType",
-        flex: 0.8,
+        flex: 0.65,
+        minWidth: 120,
         valueGetter: (params) =>
           params.data?.details?.type ?? params.data?.entityType ?? "-",
       },
       {
         headerName: "Requester",
         field: "requesterName",
-        flex: 0.9,
+        flex: 0.75,
+        minWidth: 130,
         sortable: true,
-        filter: true,
       },
       {
         headerName: "Beneficiary",
         field: "beneficiaryName",
-        flex: 0.9,
+        flex: 0.75,
+        minWidth: 130,
         sortable: true,
-        filter: true,
       },
       {
         headerName: "Raised On",
         field: "raisedOn",
-        flex: 0.9,
+        flex: 0.8,
+        minWidth: 140,
         valueGetter: (params) => params.data?.details?.dateCreated ?? "-",
       },
       {
         headerName: "Expires On",
         field: "expiresOn",
-        flex: 0.9,
+        flex: 0.8,
+        minWidth: 140,
         valueGetter: (params) => params.data?.details?.endDate || "-",
       },
       {
         headerName: "Status",
         field: "status",
-        flex: 1,
+        flex: 0.85,
+        minWidth: 150,
         cellRenderer: (params: ICellRendererParams) => {
           const status = params.data?.status as string;
           const hasInfoIcon = !!params.data?.hasInfoIcon;
@@ -367,7 +333,8 @@ const TrackRequest: React.FC = () => {
       {
         headerName: "Comments",
         field: "comments",
-        flex: 3,
+        flex: 4.5,
+        minWidth: 360,
         valueGetter: (params) => params.data?.details?.globalComments ?? "-",
       },
     ],
@@ -382,7 +349,7 @@ const TrackRequest: React.FC = () => {
 
       {/* Search and Filter Section */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
           {/* Search by ID / Requester / Beneficiary */}
           <div className="relative">
             <label className="block text-xs font-medium text-gray-600 mb-1">
@@ -396,52 +363,6 @@ const TrackRequest: React.FC = () => {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             />
-          </div>
-
-          {/* Date Created From */}
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              Date Created (From)
-            </label>
-            <input
-              type="date"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-            />
-          </div>
-
-          {/* Date Created To */}
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              Date Created (To)
-            </label>
-            <input
-              type="date"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-            />
-          </div>
-
-          {/* Status dropdown */}
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              Status
-            </label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-            >
-              <option value="">All</option>
-              <option value="Request Awaiting Approval">
-                Request Awaiting Approval
-              </option>
-              <option value="Provide Information">Provide Information</option>
-              <option value="Request Completed">Request Completed</option>
-              <option value="Request Closed">Request Closed</option>
-            </select>
           </div>
         </div>
       </div>
@@ -457,10 +378,13 @@ const TrackRequest: React.FC = () => {
             rowModelType="clientSide"
             animateRows={true}
             domLayout="autoHeight"
+            headerHeight={44}
             defaultColDef={{
               sortable: true,
-              filter: true,
+              filter: false,
               resizable: true,
+              wrapHeaderText: true,
+              autoHeaderHeight: true,
             }}
             onGridReady={(params) => {
               params.api.sizeColumnsToFit();

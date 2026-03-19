@@ -911,7 +911,11 @@ const HeaderContent = () => {
         ) : (
           <div className="flex items-center justify-center flex-1 px-4">
             {pathname?.startsWith('/access-request') && (
-              <p className="text-lg font-semibold text-white">Access Request</p>
+              <p className="text-lg font-semibold text-white">
+                {pathname?.startsWith('/access-request/pending-approvals')
+                  ? 'My Approvals'
+                  : 'Access Request'}
+              </p>
             )}
           </div>
         )}
