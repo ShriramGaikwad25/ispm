@@ -40,11 +40,18 @@ interface ItemDetailsContextType {
 const ItemDetailsContext = createContext<ItemDetailsContextType | undefined>(undefined);
 
 const getDefaultDates = () => {
-  const today = new Date().toISOString().split("T")[0];
-  const oneYearLater = new Date();
-  oneYearLater.setFullYear(oneYearLater.getFullYear() + 1);
-  const defaultEndDate = oneYearLater.toISOString().split("T")[0];
-  return { today, defaultEndDate };
+  // Step 3 defaults: start is tomorrow, end is after start.
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const endDate = new Date(tomorrow);
+  endDate.setFullYear(endDate.getFullYear() + 1);
+
+  const startISO = tomorrow.toISOString().split("T")[0];
+  const endISO = endDate.toISOString().split("T")[0];
+
+  // Keep existing return shape to avoid refactors at call sites.
+  return { today: startISO, defaultEndDate: endISO };
 };
 
 export function ItemDetailsProvider({ children }: { children: ReactNode }) {

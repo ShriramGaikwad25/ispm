@@ -8,6 +8,8 @@ import AgGridReact from "@/components/ClientOnlyAgGrid";
 import type { ColDef } from "ag-grid-community";
 import { Lightbulb } from "lucide-react";
 import ActionButtons from "@/components/agTable/ActionButtons";
+import "ag-grid-community/styles/ag-grid.css";
+import "ag-grid-community/styles/ag-theme-alpine.css";
 
 export default function ContinuousComplianceDummyReviewPage() {
   const searchParams = useSearchParams();

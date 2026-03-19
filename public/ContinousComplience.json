@@ -1,0 +1,155 @@
+[
+  {
+    "Entitlement": "Entitlement",
+    "ZNew_Comp_PP4": "AP_Invoice_Approve",
+    "Newly Discovered Entitlement": "Owner Inactive",
+    "Review Details": "Reassign",
+    "Hudson.White": "Matt.Phelps",
+    "03/25/2026": "03/28/2026",
+    "Review, Reassign": "Review, Reassign"
+  },
+  {
+    "Entitlement": "User",
+    "ZNew_Comp_PP4": "Ryan.Johnson",
+    "Newly Discovered Entitlement": "Job Title Change",
+    "Review Details": "Access Review",
+    "Hudson.White": "Jessica.Camacho",
+    "03/25/2026": "03/21/2026",
+    "Review, Reassign": "Review, Reassign"
+  },
+  {
+    "Entitlement": "User",
+    "ZNew_Comp_PP4": "Alicia.Reed",
+    "Newly Discovered Entitlement": "Department Change",
+    "Review Details": "Access Review",
+    "Hudson.White": "Priya.Menon",
+    "03/25/2026": "03/22/2026",
+    "Review, Reassign": "Review, Revoke Excess"
+  },
+  {
+    "Entitlement": "User",
+    "ZNew_Comp_PP4": "Daniel.Kim",
+    "Newly Discovered Entitlement": "Manager Change",
+    "Review Details": "Access Review",
+    "Hudson.White": "Sarah.Brooks",
+    "03/25/2026": "03/27/2026",
+    "Review, Reassign": "Review, Reassign"
+  },
+  {
+    "Entitlement": "User",
+    "ZNew_Comp_PP4": "Maya.Patel",
+    "Newly Discovered Entitlement": "Privelege Access Assigned",
+    "Review Details": "Elevated Access Review",
+    "Hudson.White": "Elena.Rossi",
+    "03/25/2026": "03/20/2026",
+    "Review, Reassign": "Review, Adjust Access"
+  },
+  {
+    "Entitlement": "User",
+    "ZNew_Comp_PP4": "Ethan.Walker",
+    "Newly Discovered Entitlement": "New Account Discovered",
+    "Review Details": "Immediate Remediation",
+    "Hudson.White": "Noah.Bennett",
+    "03/25/2026": "03/28/2026",
+    "Review, Reassign": "Disable, Revoke"
+  },
+  {
+    "Entitlement": "Service Account",
+    "ZNew_Comp_PP4": "svc_api_hrsync",
+    "Newly Discovered Entitlement": "Owner Inactive",
+    "Review Details": "Reassign Owner",
+    "Hudson.White": "Kavya.Iyer",
+    "03/25/2026": "03/22/2026",
+    "Review, Reassign": "Rotate, Review"
+  },
+  {
+    "Entitlement": "User",
+    "ZNew_Comp_PP4": "Sofia.Garcia",
+    "Newly Discovered Entitlement": "Leave of Absence",
+    "Review Details": "Suspend User Access",
+    "Hudson.White": "Hannah.Cooper",
+    "03/25/2026": "03/22/2026",
+    "Review, Reassign": "Review, Suspend"
+  },
+  {
+    "Entitlement": "User",
+    "ZNew_Comp_PP4": "Lucas.Adams",
+    "Newly Discovered Entitlement": "SoD Violation Detected",
+    "Review Details": "Mitigation Review",
+    "Hudson.White": "Hannah.Cooper",
+    "03/25/2026": "03/24/2026",
+    "Review, Reassign": "Review, Restore"
+  },
+  {
+    "Entitlement": "Account",
+    "ZNew_Comp_PP4": "adm_jliang",
+    "Newly Discovered Entitlement": "Newly Discovered Unlinked accounts",
+    "Review Details": "Classify Accounts",
+    "Hudson.White": "Victor.Chen",
+    "03/25/2026": "03/23/2026",
+    "Review, Reassign": "Review, Revoke"
+  },
+  {
+    "Entitlement": "User",
+    "ZNew_Comp_PP4": "Chloe.Turner",
+    "Newly Discovered Entitlement": "Account Inactive",
+    "Review Details": "Suspend User Access",
+    "Hudson.White": "Aisha.Hassan",
+    "03/25/2026": "03/23/2026",
+    "Review, Reassign": "Review, Enforce MFA"
+  },
+  {
+    "Entitlement": "Account",
+    "ZNew_Comp_PP4": "jmartin_salesforce",
+    "Newly Discovered Entitlement": "Dormant Account",
+    "Review Details": "Access Review",
+    "Hudson.White": "Rachel.Nguyen",
+    "03/25/2026": "03/25/2026",
+    "Review, Reassign": "Review, Disable"
+  },
+  {
+    "Entitlement": "Service Account",
+    "ZNew_Comp_PP4": "svc_etl_payroll",
+    "Newly Discovered Entitlement": "Owner Inactive",
+    "Review Details": "Reassign Owner",
+    "Hudson.White": "Mark.Ellison",
+    "03/25/2026": "03/27/2026",
+    "Review, Reassign": "Review, Reassign"
+  },
+  {
+    "Entitlement": "Account",
+    "ZNew_Comp_PP4": "james.shields",
+    "Newly Discovered Entitlement": "Dormant Account",
+    "Review Details": "Access Review",
+    "Hudson.White": "Kavya.Iyer",
+    "03/25/2026": "03/27/2026",
+    "Review, Reassign": "Review, Revoke"
+  },
+  {
+    "Entitlement": "SoD Policy",
+    "ZNew_Comp_PP4": "AP-001",
+    "Newly Discovered Entitlement": "SoD Violation Detected",
+    "Review Details": "Mitigation Review",
+    "Hudson.White": "Jacob.Wright",
+    "03/25/2026": "03/30/2026",
+    "Review, Reassign": "Review, Mitigate"
+  },
+  {
+    "Entitlement": "User",
+    "ZNew_Comp_PP4": "Emma.Lewis",
+    "Newly Discovered Entitlement": "Manager Inactive",
+    "Review Details": "Reassign Manager",
+    "Hudson.White": "Priya.Menon",
+    "03/25/2026": "03/26/2026",
+    "Review, Reassign": "Review, Rationalize"
+  },
+  {
+    "Entitlement": "User",
+    "ZNew_Comp_PP4": "Olivia.Hughes",
+    "Newly Discovered Entitlement": "Contractor End Date Reached",
+    "Review Details": "Immediate Remediation",
+    "Hudson.White": "Sarah.Brooks",
+    "03/25/2026": "04/02/2026",
+    "Review, Reassign": "Disable, Review"
+  }
+]
