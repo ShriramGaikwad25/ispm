@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation"; // Updated import
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import { executeQuery } from "@/lib/api";
 import "@/lib/ag-grid-setup";
+import "ag-grid-community/styles/ag-grid.css";
+import "ag-grid-community/styles/ag-theme-alpine.css";
 import CustomPagination from "@/components/agTable/CustomPagination";
 import { Plus, Search, Pencil } from "lucide-react";
 import HorizontalTabs from "@/components/HorizontalTabs";
@@ -92,7 +94,11 @@ function UsersTab() {
         if (response && typeof response === 'object' && 'resultSet' in response && Array.isArray((response as any).resultSet)) {
           const sourceArray: any[] = (response as any).resultSet;
           const transformedData: UserData[] = sourceArray.map((user: any) => ({
-            name: user.displayname || user.displayName || user.firstname + " " + user.lastname || "Unknown",
+            name:
+              user.displayname ||
+              user.displayName ||
+              [user.firstname, user.lastname].filter(Boolean).join(" ").trim() ||
+              "Unknown",
             email: user.email?.work || user.customattributes?.emails?.[0]?.value || user.username || "Unknown",
             title: user.title || user.customattributes?.title || "Unknown",
             department: user.department || user.customattributes?.enterpriseUser?.department || "Unknown",
@@ -117,7 +123,11 @@ function UsersTab() {
         } else if (response && Array.isArray(response)) {
           // Handle case where response is directly an array
           const transformedData: UserData[] = response.map((user: any) => ({
-            name: user.displayname || user.displayName || user.firstname + " " + user.lastname || "Unknown",
+            name:
+              user.displayname ||
+              user.displayName ||
+              [user.firstname, user.lastname].filter(Boolean).join(" ").trim() ||
+              "Unknown",
             email: user.email?.work || user.customattributes?.emails?.[0]?.value || user.username || "Unknown",
             title: user.title || user.customattributes?.title || "Unknown",
             department: user.department || user.customattributes?.enterpriseUser?.department || "Unknown",
@@ -220,9 +230,12 @@ const columnDefs = useMemo<ColDef[]>(
       field: "name",
       flex: 1.5,
       cellRenderer: (params: any) => {
-        const initials = params.value
-          .split(" ")
+        const rawName = params.value == null ? "Unknown" : String(params.value);
+        const initials = rawName
+          .trim()
+          .split(/\s+/)
           .map((n: string) => n[0])
+          .filter(Boolean)
           .join("")
           .toUpperCase();
         const colors = ["#7f3ff0", "#0099cc", "#777", "#d7263d", "#ffae00"];

@@ -7,6 +7,7 @@ const AgGridReact = dynamic(() => import("ag-grid-react").then((mod) => mod.AgGr
 type AgGridReactType = any;
 import "@/lib/ag-grid-setup";
 import { ColDef, ICellRendererParams } from "ag-grid-enterprise";
+import { getReviewerId } from "@/lib/auth";
 
 interface RequestHistory {
   action: string;
@@ -50,13 +51,21 @@ const TrackRequest: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const reviewerId = getReviewerId();
+    if (!reviewerId) {
+      setError("Reviewer ID not found.");
+      setRequests([]);
+      setLoading(false);
+      return;
+    }
+
     const url = "https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery";
     setLoading(true);
     setError(null);
 
     const body = {
       query: "select * from vw_access_request_full_json where requested_by_user_id = ?::uuid",
-      parameters: ["d4cc2173-7471-4e26-8c72-a27be88ff6cb"],
+      parameters: [String(reviewerId).trim()],
     };
 
     const formatDate = (value: string | null | undefined): string => {
