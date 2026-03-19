@@ -11,6 +11,7 @@ import {
   Info,
   Paperclip,
 } from "lucide-react";
+import { getReviewerId } from "@/lib/auth";
 import "@/lib/ag-grid-setup";
 import InsightsIcon from "@/components/InsightsIcon";
 
@@ -88,6 +89,13 @@ const formatDateToMMDDYY = (value: string): string => {
 };
 
 async function fetchPendingApprovals(): Promise<PendingApproval[]> {
+  const reviewerId = getReviewerId();
+
+  if (!reviewerId) {
+    console.warn("No reviewerId found in cookies; returning empty pending approvals list.");
+    return [];
+  }
+
   const response = await fetch(
     "https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery",
     {
@@ -98,8 +106,8 @@ async function fetchPendingApprovals(): Promise<PendingApproval[]> {
       },
       body: JSON.stringify({
         query:
-          "select * from kf_wf_get_approval_task where assignee_id = 'f558e3b2-348b-4ff3-be4c-a3c5dc8b5a91' AND task_status = 'OPEN'",
-        parameters: [],
+          "select * from kf_wf_get_approval_task where assignee_id = ?::uuid AND task_status = 'OPEN'",
+        parameters: [reviewerId],
       }),
     }
   );
@@ -340,7 +348,7 @@ const DetailsCell: React.FC = () => {
 };
 
 const PendingApprovalsPage: React.FC = () => {
-  const gridRef = React.useRef<any>(null);
+  const [gridApi, setGridApi] = useState<any | null>(null);
   const router = useRouter();
 
   const {
@@ -364,20 +372,24 @@ const PendingApprovalsPage: React.FC = () => {
   // Quick Win hover animation can change available grid width without a window resize event.
   // Re-fit columns both immediately and after the transition completes.
   useEffect(() => {
+    if (!gridApi) return;
+
     const fitColumns = () => {
       try {
-        gridRef.current?.api?.sizeColumnsToFit();
+        gridApi.sizeColumnsToFit();
       } catch {
         // ignore
       }
     };
+
     const rafId = window.requestAnimationFrame(fitColumns);
     const timeoutId = window.setTimeout(fitColumns, 550);
+
     return () => {
       window.cancelAnimationFrame(rafId);
       window.clearTimeout(timeoutId);
     };
-  }, [hoveredCard]);
+  }, [hoveredCard, gridApi]);
 
   const parseInputDate = (value: string): Date | null => {
     if (!value) return null;
@@ -770,7 +782,6 @@ const PendingApprovalsPage: React.FC = () => {
 
           <div className="ag-theme-quartz w-full" style={{ width: "100%", minWidth: 0 }}>
             <AgGridReact
-              ref={gridRef}
               rowData={filteredData}
               columnDefs={columnDefs}
               rowSelection="single"
@@ -785,9 +796,10 @@ const PendingApprovalsPage: React.FC = () => {
                 autoHeaderHeight: true,
               }}
               masterDetail
-              isRowMaster={(data: PendingApproval) =>
-                !!data && Array.isArray(data.items) && data.items.length > 0
-              }
+              isRowMaster={(dataItem) => {
+                const row = dataItem as PendingApproval;
+                return !!row && Array.isArray(row.items) && row.items.length > 0;
+              }}
               detailCellRendererParams={{
                 detailGridOptions: {
                   columnDefs: detailColumnDefs,
@@ -803,6 +815,7 @@ const PendingApprovalsPage: React.FC = () => {
                 },
               }}
               onGridReady={(params) => {
+                setGridApi(params.api);
                 try {
                   params.api.sizeColumnsToFit();
                 } catch {
@@ -834,7 +847,6 @@ const PendingApprovalsPage: React.FC = () => {
                   // ignore
                 }
               }}
-              suppressSizeToFit={false}
             />
           </div>
         </div>

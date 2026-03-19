@@ -289,8 +289,7 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
       [preselectedAccessNames]
     );
 
-    // Filter roles coming from catalog API; once catalog is loaded, items that are in the cart
-    // are highlighted and sorted to the top via isInCart below.
+    // Filter roles coming from catalog API; selected items are highlighted in-place.
     const filteredRoles = roles.filter((role) => {
       const matchesSearch = role.name.toLowerCase().includes(catalogSearchQuery.toLowerCase());
       const matchesAppInstance =
@@ -334,43 +333,7 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
       });
     }, [roles, preselectedIdSet, preselectedNameSet, addToCart, isInCart]);
 
-    const sortedRoles = React.useMemo(
-      () =>
-        [...filteredRoles].sort((a, b) => {
-          const aId = getRoleId(a);
-          const bId = getRoleId(b);
-          const aName = a.name?.toLowerCase?.() ?? "";
-          const bName = b.name?.toLowerCase?.() ?? "";
-
-          const aInCartById = aId ? isInCart(aId) : false;
-          const bInCartById = bId ? isInCart(bId) : false;
-
-          const aInCartByName =
-            aName &&
-            cartItems.some(
-              (item) => item.name.toLowerCase().trim() === aName
-            );
-          const bInCartByName =
-            bName &&
-            cartItems.some(
-              (item) => item.name.toLowerCase().trim() === bName
-            );
-
-          const aSelected =
-            aInCartById ||
-            aInCartByName ||
-            (aId ? preselectedIdSet.has(aId) : false);
-          const bSelected =
-            bInCartById ||
-            bInCartByName ||
-            (bId ? preselectedIdSet.has(bId) : false) ||
-            (bName ? preselectedNameSet.has(bName) : false);
-
-          if (aSelected === bSelected) return 0;
-          return aSelected ? -1 : 1;
-        }),
-      [filteredRoles, isInCart, preselectedIdSet, preselectedNameSet, cartItems]
-    );
+    const sortedRoles = filteredRoles;
 
     // Server-side pagination (100 rows per API page) – show all roles from current API page
     const isLastServerPage = filteredRoles.length < pageSize;

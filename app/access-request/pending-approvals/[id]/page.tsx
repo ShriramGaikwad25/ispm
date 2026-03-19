@@ -10,6 +10,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { updateAction } from "@/lib/api";
+import { getReviewerId } from "@/lib/auth";
 
 interface RequestLineItem {
   lineItemId: string;
@@ -138,6 +139,16 @@ const PendingApprovalDetailPage = ({
 
   useEffect(() => {
     const url = "https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery";
+    const reviewerId = getReviewerId();
+
+    if (!reviewerId) {
+      console.warn(
+        "[PendingApprovalDetail] No reviewerId found in cookies; skipping fetch and showing not found."
+      );
+      setLoading(false);
+      setRequest(null);
+      return;
+    }
     setLoading(true);
     setError(null);
 
@@ -146,8 +157,8 @@ const PendingApprovalDetailPage = ({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         query:
-          "select * from kf_wf_get_approval_task where assignee_id = 'f558e3b2-348b-4ff3-be4c-a3c5dc8b5a91' AND task_status = 'OPEN'",
-        parameters: [],
+          "select * from kf_wf_get_approval_task where assignee_id = ?::uuid AND task_status = 'OPEN'",
+        parameters: [reviewerId],
       }),
     })
       .then((res) => {
