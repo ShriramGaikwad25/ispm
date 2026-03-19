@@ -172,18 +172,16 @@ export default function ManageAccessPolicyPage() {
         headerName: "Description",
         field: "policy_description",
         flex: 2,
-        hide: true,
-      },
-      { 
-        headerName: "Priority",
-        field: "priority",
-        width: 120,
+        hide: false,
       },
       { headerName: "Created By", field: "created_by", flex: 1 },
-      { 
-        headerName: "Status", 
-        field: "status", 
+      {
+        headerName: "Status",
+        field: "status",
         width: 180,
+        minWidth: 180,
+        maxWidth: 180,
+        suppressSizeToFit: true,
         cellRenderer: (params: ICellRendererParams) => {
           const row = params.data as AccessPolicyRow;
           const isActive = isRowActive(row?.status);
@@ -216,6 +214,7 @@ export default function ManageAccessPolicyPage() {
                 className={`text-xs font-medium ${
                   isActive ? "text-green-700" : "text-gray-700"
                 }`}
+                style={{ display: "inline-block", minWidth: 70, textAlign: "left" }}
               >
                 {statusLabel}
               </span>
@@ -227,6 +226,9 @@ export default function ManageAccessPolicyPage() {
         field: "actions",
         headerName: "Actions",
         width: 120,
+        minWidth: 120,
+        maxWidth: 120,
+        suppressSizeToFit: true,
         cellRenderer: (params: ICellRendererParams) => {
           return (
             <div className="flex space-x-4 h-full items-center">
@@ -296,7 +298,7 @@ export default function ManageAccessPolicyPage() {
                 animateRows={true}
                 defaultColDef={{
                   sortable: true,
-                  filter: true,
+                  filter: false,
                   resizable: true,
                   cellStyle: {
                     display: "flex",
