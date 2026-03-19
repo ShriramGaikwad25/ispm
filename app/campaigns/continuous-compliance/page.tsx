@@ -295,6 +295,7 @@ export default function ContinuousCompliancePage() {
           <div className="mt-4">
             <div className="ag-theme-alpine w-full">
               <AgGridReact
+                theme="legacy"
                 rowData={rows}
                 columnDefs={columnDefs}
                 defaultColDef={{

@@ -195,6 +195,7 @@ export default function ContinuousComplianceDummyReviewPage() {
 
         <div className="ag-theme-alpine w-full">
           <AgGridReact
+            theme="legacy"
             rowData={dummyEntitlements}
             columnDefs={entitlementColumns}
             defaultColDef={{

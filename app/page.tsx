@@ -41,19 +41,23 @@ interface ChartAnalyticsData {
 interface DashboardStats {
   totalApplications: number;
   activeReviews: number;
-  pendingRequests: number;
   totalUsers: number;
   highRiskItems: number;
+  myApprovals: number;
+  myRequests: number;
 }
+
+const CONTINUOUS_COMPLIANCE_ITEMS = 17;
 
 export default function Dashboard() {
   const router = useRouter();
   const [stats, setStats] = useState<DashboardStats>({
     totalApplications: 0,
     activeReviews: 0,
-    pendingRequests: 0,
     totalUsers: 0,
     highRiskItems: 0,
+    myApprovals: 0,
+    myRequests: 0,
   });
   const [loading, setLoading] = useState(true);
   const [chartData, setChartData] = useState<ChartAnalyticsData>({
@@ -81,7 +85,14 @@ export default function Dashboard() {
 
       try {
         // Fetch all data in parallel for better performance
-        const [appsResponse, certificationsData, analyticsData, usersCountResponse] = await Promise.all([
+        const [
+          appsResponse,
+          certificationsData,
+          analyticsData,
+          usersCountResponse,
+          myApprovalsResponse,
+          myRequestsResponse,
+        ] = await Promise.all([
           // Fetch applications count
           fetch(
             `https://preview.keyforge.ai/entities/api/v1/ACMECOM/getApplications/${reviewerId}?page=1&page_size=1`
@@ -97,6 +108,16 @@ export default function Dashboard() {
           executeQuery<{ resultSet?: Array<{ count?: number; [key: string]: any }> }>(
             "SELECT COUNT(*) as count FROM usr",
             []
+          ).catch(() => null),
+          // Fetch My Approvals count
+          executeQuery<{ resultSet?: Array<{ count?: number }> }>(
+            "SELECT COUNT(*) as count FROM kf_wf_get_approval_task WHERE assignee_id = ?::uuid AND task_status = 'OPEN'",
+            [reviewerId]
+          ).catch(() => null),
+          // Fetch My Requests (Track requests) count
+          executeQuery<{ resultSet?: Array<{ count?: number }> }>(
+            "SELECT COUNT(*) as count FROM vw_access_request_full_json WHERE requested_by_user_id = ?::uuid",
+            [reviewerId]
           ).catch(() => null),
         ]);
 
@@ -230,6 +251,26 @@ export default function Dashboard() {
             totalUsers: typeof totalUsers === 'number' ? totalUsers : 0,
           }));
         }
+
+        // Process My Approvals count
+        if (myApprovalsResponse && myApprovalsResponse.resultSet && Array.isArray(myApprovalsResponse.resultSet)) {
+          const countResult = myApprovalsResponse.resultSet[0];
+          const approvalsCount = typeof countResult?.count === 'number' ? countResult.count : 0;
+          setStats((prev) => ({
+            ...prev,
+            myApprovals: approvalsCount,
+          }));
+        }
+
+        // Process My Requests count
+        if (myRequestsResponse && myRequestsResponse.resultSet && Array.isArray(myRequestsResponse.resultSet)) {
+          const countResult = myRequestsResponse.resultSet[0];
+          const requestsCount = typeof countResult?.count === 'number' ? countResult.count : 0;
+          setStats((prev) => ({
+            ...prev,
+            myRequests: requestsCount,
+          }));
+        }
       } catch (error) {
         console.error("Error fetching dashboard stats:", error);
       } finally {
@@ -242,12 +283,14 @@ export default function Dashboard() {
 
   const statCards = [
     {
-      title: "Total Applications",
-      value: loading ? "..." : (stats.totalApplications || 0),
-      icon: LayoutPanelLeft,
-      color: "bg-blue-500",
-      link: "/applications",
-      description: "Integrated applications",
+      title: "Compliance Inbox",
+      value: loading
+        ? "..."
+        : CONTINUOUS_COMPLIANCE_ITEMS,
+      icon: ShieldCheck,
+      color: "bg-purple-500",
+      link: "/campaigns/continuous-compliance",
+      description: "Items requiring compliance attention",
     },
     {
       title: "Active Reviews",
@@ -258,15 +301,23 @@ export default function Dashboard() {
       description: "Ongoing access reviews",
     },
     {
-      title: "Pending Requests",
-      value: loading ? "..." : (stats.pendingRequests || 0),
+      title: "My Approvals",
+      value: loading ? "..." : (stats.myApprovals || 0),
       icon: ClipboardList,
       color: "bg-orange-500",
-      link: "/access-request",
-      description: "Awaiting approval",
+      link: "/access-request/pending-approvals",
+      description: "Requests awaiting your approval",
     },
     {
-      title: "Total Users",
+      title: "Applications",
+      value: loading ? "..." : (stats.totalApplications || 0),
+      icon: LayoutPanelLeft,
+      color: "bg-blue-500",
+      link: "/applications",
+      description: "Integrated applications",
+    },
+    {
+      title: "Users",
       value: loading ? "..." : (stats.totalUsers || 0),
       icon: Users,
       color: "bg-indigo-500",
@@ -274,12 +325,12 @@ export default function Dashboard() {
       description: "Managed users",
     },
     {
-      title: "High Risk Items",
-      value: loading ? "..." : (stats.highRiskItems || 0),
-      icon: AlertCircle,
-      color: "bg-red-500",
-      link: "/reports",
-      description: "Requires attention",
+      title: "My Requests",
+      value: loading ? "..." : (stats.myRequests || 0),
+      icon: Clock,
+      color: "bg-teal-500",
+      link: "/track-request",
+      description: "Track your submitted requests",
     },
   ];
 
@@ -333,9 +384,11 @@ export default function Dashboard() {
               href="/risk-posture/orphan-exposure"
               className="bg-gray-50 border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow duration-200 block"
             >
-              <p className="text-sm font-medium text-gray-800 mb-3">
-                Orphan Exposure
-              </p>
+              <div className="mb-3">
+                <span className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 border border-blue-200">
+                  Orphan Exposure
+                </span>
+              </div>
               <div className="flex items-center justify-between gap-6 w-full min-h-[220px]">
                 <div className="flex items-center justify-center flex-1 h-[220px]">
                   <MultiSeriesPie
@@ -370,9 +423,11 @@ export default function Dashboard() {
               href="/risk-posture/user-access-drift"
               className="bg-gray-50 border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow duration-200 block"
             >
-              <p className="text-sm font-medium text-gray-800 mb-3">
-                User Access Drift
-              </p>
+              <div className="mb-3">
+                <span className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 border border-blue-200">
+                  User Access Drift
+                </span>
+              </div>
               <div className="flex items-center justify-between gap-6 w-full min-h-[220px]">
                 <div className="flex items-center justify-center flex-1 h-[220px]">
                   <PolarAreaRiskChart

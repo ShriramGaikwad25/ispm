@@ -82,6 +82,7 @@ export default function ContinuousComplianceEntitlementReviewPage() {
         {/* Entitlements grid */}
         <div className="ag-theme-alpine w-full">
           <AgGridReact
+            theme="legacy"
             rowData={rowData}
             columnDefs={entitlementColumns(reviewerId, certId)}
             domLayout="autoHeight"

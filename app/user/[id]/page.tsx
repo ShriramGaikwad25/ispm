@@ -50,6 +50,7 @@ type ProfileUser = {
   userType?: string;
   managerEmail?: string;
   tags: string[];
+  status?: string;
 };
 
 const buildUserFromStorage = (): ProfileUser => {
@@ -73,6 +74,12 @@ const buildUserFromStorage = (): ProfileUser => {
         userType: u.employeetype || u.customattributes?.userType || "",
         managerEmail: u.managername || u.customattributes?.enterpriseUser?.manager?.value || "",
         tags: [u.employeetype || u.customattributes?.userType || "User"].filter(Boolean),
+        status:
+          u.status ||
+          u.userstatus ||
+          u.accountstatus ||
+          u.customattributes?.status ||
+          "Active",
       };
     }
   } catch {}
@@ -96,6 +103,7 @@ const buildUserFromStorage = (): ProfileUser => {
         userType: s.tags || "",
         managerEmail: s.managerName || "",
         tags: [s.tags || "User"].filter(Boolean),
+        status: s.status || "Active",
       };
     }
   } catch {}
@@ -113,6 +121,7 @@ const buildUserFromStorage = (): ProfileUser => {
     userType: "",
     managerEmail: "",
     tags: ["User"],
+    status: "Active",
   };
 };
 
@@ -515,6 +524,34 @@ export default function UserDetailPage() {
       : colors[0];
     const displayedInitials = isMounted ? initials : "";
 
+    const [isEditingStatus, setIsEditingStatus] = useState(false);
+    const [statusDraft, setStatusDraft] = useState<string>(userData.status || "Active");
+
+    useEffect(() => {
+      setStatusDraft(userData.status || "Active");
+    }, [userData.status]);
+
+    const handleSaveStatus = () => {
+      const nextStatus = statusDraft || "Active";
+      setUserData((prev) => ({
+        ...prev,
+        status: nextStatus,
+      }));
+
+      try {
+        const fullStr = localStorage.getItem("selectedUserRawFull");
+        if (fullStr) {
+          const u = JSON.parse(fullStr);
+          u.status = nextStatus;
+          localStorage.setItem("selectedUserRawFull", JSON.stringify(u));
+        }
+      } catch {
+        // Non-fatal, UI state is still updated
+      }
+
+      setIsEditingStatus(false);
+    };
+
     return (
       <div className="bg-white rounded-lg shadow-md p-3">
         <div className="flex flex-col md:flex-row gap-8 items-center">
@@ -528,8 +565,8 @@ export default function UserDetailPage() {
             </div>
           </div>
           
-          {/* User Details - Right Side */}
-          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-1">
+        {/* User Details - Right Side */}
+        <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-1">
             <div>
               <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">First Name</label>
               <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.firstName}</p>
@@ -562,11 +599,6 @@ export default function UserDetailPage() {
             </div>
             
             <div>
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Phone Number</label>
-              <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.phone || "N/A"}</p>
-            </div>
-            
-            <div>
               <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Title</label>
               <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.title}</p>
             </div>
@@ -579,6 +611,64 @@ export default function UserDetailPage() {
             <div>
               <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Start Date</label>
               <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.startDate || "N/A"}</p>
+            </div>
+            
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Status</label>
+              {!isEditingStatus ? (
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span
+                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                      (userData.status || "Active") === "Active"
+                        ? "border border-green-500 text-green-700 bg-green-50"
+                        : "border border-gray-300 text-gray-800 bg-gray-50"
+                    }`}
+                  >
+                    {userData.status || "Active"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStatusDraft(userData.status || "Active");
+                      setIsEditingStatus(true);
+                    }}
+                    className="inline-flex items-center p-1 rounded-full text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                    title="Edit Status"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                  <select
+                    className="text-xs border border-gray-300 rounded px-2 py-1"
+                    value={statusDraft}
+                    onChange={(e) => setStatusDraft(e.target.value)}
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                    <option value="Disable">Disable</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleSaveStatus}
+                    className="inline-flex items-center justify-center w-7 h-7 bg-blue-600 hover:bg-blue-700 text-white rounded-full text-xs"
+                    title="Save"
+                    aria-label="Save status"
+                  >
+                    ✓
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingStatus(false)}
+                    className="inline-flex items-center justify-center w-7 h-7 border border-gray-300 rounded-full text-xs text-gray-600 hover:bg-gray-50"
+                    title="Cancel"
+                    aria-label="Cancel edit"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
             </div>
             
             <div>
