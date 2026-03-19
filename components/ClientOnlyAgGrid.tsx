@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
+import 'ag-grid-community/styles/ag-grid.css';
+import 'ag-grid-community/styles/ag-theme-alpine.css';
 
 // Create a client-only wrapper that completely isolates ag-grid
 const AgGridReact = dynamic(
@@ -17,15 +19,66 @@ interface ClientOnlyAgGridProps {
 }
 
 export default function ClientOnlyAgGrid(props: ClientOnlyAgGridProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const gridApiRef = useRef<any>(null);
+
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
   }, []);
 
+  const mergedProps = useMemo(() => {
+    return {
+      // Default to legacy theming since CSS-based themes are included globally.
+      theme: props.theme ?? "legacy",
+      ...props,
+      onGridReady: (params: any) => {
+        gridApiRef.current = params.api;
+
+        // If the sidebar changes width after first render, columns can go stale.
+        // We do an initial fit here and then again on container resize.
+        try {
+          params.api.sizeColumnsToFit();
+        } catch {
+          // ignore
+        }
+
+        if (typeof props.onGridReady === "function") {
+          props.onGridReady(params);
+        }
+      },
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props]);
+
+  useEffect(() => {
+    if (!isClient) return;
+    const el = containerRef.current;
+    if (!el) return;
+    if (typeof ResizeObserver === "undefined") return;
+
+    const ro = new ResizeObserver(() => {
+      const api = gridApiRef.current;
+      if (!api) return;
+      try {
+        api.sizeColumnsToFit();
+      } catch {
+        // ignore
+      }
+    });
+
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [isClient]);
+
   if (!isClient) {
     return <div className="flex items-center justify-center h-32 text-gray-500">Loading grid...</div>;
   }
 
-  return <AgGridReact {...props} />;
+  return (
+    <div ref={containerRef}>
+      <AgGridReact {...mergedProps} />
+    </div>
+  );
 }

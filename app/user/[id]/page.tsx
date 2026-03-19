@@ -1126,11 +1126,11 @@ export default function UserDetailPage() {
 
     const historyRows = [
       { 
-        date: todayFormatted, 
+        date: "02/12/2026", 
         requestedDuration: 4, 
-        startTime: "02:00 PM", 
-        endTime: null, 
-        status: "Active" 
+        startTime: "02:30 PM", 
+        endTime: "06:30 PM", 
+        status: "Completed" 
       },
       { 
         date: "09/24/2025", 

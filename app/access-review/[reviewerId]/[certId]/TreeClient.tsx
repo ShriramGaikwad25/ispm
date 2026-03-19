@@ -11,6 +11,8 @@ import dynamic from "next/dynamic";
 const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
 import { themeQuartz } from "ag-grid-community";
 import "@/lib/ag-grid-setup"; // Ensure Enterprise modules and license are loaded
+import "ag-grid-community/styles/ag-grid.css";
+import "ag-grid-community/styles/ag-theme-quartz.css";
 import Image from "next/image";
 import {
   ColDef,
@@ -2932,8 +2934,9 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       pageSizeOptions={pageSizeSelector}
                     />
                   </div>
-                <div className="w-full" style={{ width: '100%', maxWidth: '100%' }}>
+                <div className="ag-theme-quartz w-full" style={{ width: '100%', maxWidth: '100%' }}>
                 <AgGridReact
+                  theme="legacy"
                   rowData={entPaginatedData}
                   columnDefs={entitlementsColumnDefs}
                   defaultColDef={defaultColDef}
@@ -3155,8 +3158,9 @@ const TreeClient: React.FC<TreeClientProps> = ({
                 </div>
               ) : (
                 <>
-                  <div className="w-full">
+                  <div className="ag-theme-quartz w-full">
                     <AgGridReact
+                      theme="legacy"
                       rowData={guidedPathModalRows}
                       columnDefs={entitlementsColumnDefs}
                       defaultColDef={defaultColDef}

@@ -8,6 +8,8 @@ const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGrid
 // Type import only - component is dynamically loaded
 type AgGridReactType = any;
 import "@/lib/ag-grid-setup";
+import "ag-grid-community/styles/ag-grid.css";
+import "ag-grid-community/styles/ag-theme-alpine.css";
 import { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 import HorizontalTabs from "@/components/HorizontalTabs";
 import Accordion from "@/components/Accordion";
@@ -560,6 +562,7 @@ export default function ManageCampaigns() {
               </Accordion>
             </div>
             <AgGridReact
+              theme="legacy"
               ref={gridRef}
               rowData={reviewerRows}
               columnDefs={columnDefs}

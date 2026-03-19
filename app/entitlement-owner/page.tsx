@@ -1560,6 +1560,7 @@ const EntitlementOwnerPageContent = () => {
       </div>
       <div style={{ width: "100%" }}>
         <AgGridReact
+          theme="legacy"
           rowData={filteredRowData}
           columnDefs={underReviewColDefs}
           defaultColDef={defaultColDef}

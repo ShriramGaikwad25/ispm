@@ -959,7 +959,7 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
                           { widthPx: 460, title: "SOD Policy Details" }
                         );
                       }}
-                      className="inline-flex items-center px-4 py-1.5 rounded-md text-[11px] font-semibold border border-red-400 bg-red-50 text-red-600 underline underline-offset-2"
+                      className="inline-flex items-center px-4 py-1.5 rounded-md text-[11px] font-semibold border border-red-400 bg-red-50 text-red-600"
                     >
                       SOD Policy Violation Detected
                     </button>

@@ -9,6 +9,8 @@ import { executeQuery } from "@/lib/api";
 import { useRouter } from "next/navigation";
 
 import "@/lib/ag-grid-setup";
+import "ag-grid-community/styles/ag-grid.css";
+import "ag-grid-community/styles/ag-theme-alpine.css";
 
 const AgGridReact = dynamic(
   () => import("ag-grid-react").then((mod) => mod.AgGridReact),
@@ -210,8 +212,9 @@ export default function WorkflowBuilderPage() {
             {error}
           </div>
         ) : (
-          <div className="w-full workflow-builder-grid">
+          <div className="ag-theme-alpine w-full workflow-builder-grid">
             <AgGridReact
+              theme="legacy"
               rowData={rows}
               columnDefs={workflowColumnDefs}
               rowSelection="single"

@@ -2,6 +2,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AgGridReact from "@/components/ClientOnlyAgGrid";
 import "@/lib/ag-grid-setup";
+import "ag-grid-community/styles/ag-grid.css";
+import "ag-grid-community/styles/ag-theme-quartz.css";
 import { useRouter } from "next/navigation";
 import { formatDateMMDDYY as formatDateShared } from "@/utils/utils";
 import { defaultColDef } from "@/components/dashboard/columnDefs";
@@ -545,39 +547,41 @@ const CompleteTab: React.FC = () => {
       </div>
       
       <div className="w-full">
-        <AgGridReact
-          rowData={filteredRowData}
-          getRowId={(params: GetRowIdParams) => params.data.id}
-          columnDefs={completedColumnDefs}
-          defaultColDef={defaultColDef}
-          domLayout="autoHeight"
-          masterDetail={true}
-          detailCellRenderer={DetailCellRenderer}
-          detailRowAutoHeight={true}
-          detailRowHeight={80}
-          onGridReady={(params) => {
-            setGridApi(params.api);
-            params.api.sizeColumnsToFit();
-            const handleResize = () => {
-              try {
-                params.api.sizeColumnsToFit();
-              } catch {}
-            };
-            window.addEventListener("resize", handleResize);
-            // Clean up listener when grid is destroyed
-            params.api.addEventListener('gridPreDestroyed', () => {
-              window.removeEventListener("resize", handleResize);
-            });
-          }}
-          pagination={false}
-          paginationPageSize={pageSize}
-          paginationPageSizeSelector={pageSizeSelector}
-          cacheBlockSize={pageSize}
-          paginateChildRows={true}
-          overlayLoadingTemplate={`<span class="ag-overlay-loading-center">⏳ Loading certification data...</span>`}
-          overlayNoRowsTemplate={`<span class="ag-overlay-loading-center">No data to display.</span>`}
-          className="ag-main"
-        />
+        <div className="ag-theme-quartz ag-main">
+          <AgGridReact
+            theme="legacy"
+            rowData={filteredRowData}
+            getRowId={(params: GetRowIdParams) => params.data.id}
+            columnDefs={completedColumnDefs}
+            defaultColDef={defaultColDef}
+            domLayout="autoHeight"
+            masterDetail={true}
+            detailCellRenderer={DetailCellRenderer}
+            detailRowAutoHeight={true}
+            detailRowHeight={80}
+            onGridReady={(params) => {
+              setGridApi(params.api);
+              params.api.sizeColumnsToFit();
+              const handleResize = () => {
+                try {
+                  params.api.sizeColumnsToFit();
+                } catch {}
+              };
+              window.addEventListener("resize", handleResize);
+              // Clean up listener when grid is destroyed
+              params.api.addEventListener('gridPreDestroyed', () => {
+                window.removeEventListener("resize", handleResize);
+              });
+            }}
+            pagination={false}
+            paginationPageSize={pageSize}
+            paginationPageSizeSelector={pageSizeSelector}
+            cacheBlockSize={pageSize}
+            paginateChildRows={true}
+            overlayLoadingTemplate={`<span class="ag-overlay-loading-center">⏳ Loading certification data...</span>`}
+            overlayNoRowsTemplate={`<span class="ag-overlay-loading-center">No data to display.</span>`}
+          />
+        </div>
         <div className="flex justify-center">
           <CustomPagination
             totalItems={totalItems}

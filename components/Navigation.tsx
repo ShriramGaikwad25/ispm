@@ -178,6 +178,10 @@ export function Navigation() {
     if (pathname === '/entitlement-owner') {
       return { href: '/access-review', label: 'Back to Access Review' };
     }
+    // SoD Audit detail → back to SoD Audit list
+    if (pathname.startsWith('/reports/sod-audit/') && pathname !== '/reports/sod-audit') {
+      return { href: '/reports/sod-audit', label: 'Back to SoD Audit' };
+    }
     // Reports
     if (pathname === '/reports/filter') {
       return { href: '/reports', label: 'Back to Reports' };

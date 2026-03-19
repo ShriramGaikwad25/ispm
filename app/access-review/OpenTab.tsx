@@ -2,6 +2,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import AgGridReact from "@/components/ClientOnlyAgGrid";
 import "@/lib/ag-grid-setup";
+import "ag-grid-community/styles/ag-grid.css";
+import "ag-grid-community/styles/ag-theme-quartz.css";
 import { useRouter } from "next/navigation";
 import { formatDateMMDDYY as formatDateShared } from "@/utils/utils";
 import { defaultColDef } from "@/components/dashboard/columnDefs";
@@ -1050,8 +1052,10 @@ const OpenTab: React.FC = () => {
         />
       </div>
       
-      <div className="w-full" ref={gridContainerRef}>
+      <div className="w-full">
+        <div className="ag-theme-quartz ag-main" ref={gridContainerRef}>
         <AgGridReact
+          theme="legacy"
           rowData={filteredRowData}
           getRowId={(params: GetRowIdParams) => params.data.id}
           columnDefs={activeColumnDefs}
@@ -1095,8 +1099,8 @@ const OpenTab: React.FC = () => {
           paginateChildRows={true}
           overlayLoadingTemplate={`<span class="ag-overlay-loading-center">⏳ Loading certification data...</span>`}
           overlayNoRowsTemplate={`<span class="ag-overlay-loading-center">No data to display.</span>`}
-          className="ag-main"
         />
+        </div>
         <div className="flex justify-center">
           <CustomPagination
             totalItems={totalItems}
