@@ -93,7 +93,7 @@ export default function GatewaySettings() {
   return (
     <div className="h-full p-6">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Gateway</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-6">Generic</h1>
         
         {/* Search Bar */}
         <div className="mb-6">

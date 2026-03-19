@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useForm, Control, FieldValues, UseFormSetValue, UseFormWatch } from "react-hook-form";
-import { Check, ChevronLeft, ChevronRight, SquarePen } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, SquarePen, Eye } from "lucide-react";
 import { asterisk, downArrow } from "@/utils/utils";
 import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
 import ExpressionBuilder from "@/components/ExpressionBuilder";
@@ -44,10 +45,11 @@ interface WorkflowDefinition {
   id: string;
   name: string;
   description: string;
-  stages: number;
-  businessFunction: string;
-  tags: string[];
-  owner: string;
+  stages?: number;
+  businessFunction?: string;
+  tags?: string[];
+  owner?: string;
+  raw?: any;
 }
 
 const ATTRIBUTE_OPTIONS: Record<ConditionSubject, string[]> = {
@@ -103,42 +105,16 @@ const OPERAND_OPTIONS: { value: Operand; label: string }[] = [
   { value: "not_in", label: "Not in (comma separated)" },
 ];
 
-const WORKFLOWS: WorkflowDefinition[] = [
+// Fallback workflows used only if API call fails or returns no rows
+const FALLBACK_WORKFLOWS: WorkflowDefinition[] = [
   {
-    id: "wf-keyforge-standard",
-    name: "KeyForge Standard Access Workflow",
-    description: "Standard multi-stage manager and app-owner approval for access requests.",
-    stages: 4,
-    businessFunction: "Access Request",
-    tags: ["standard", "access", "keyforge"],
-    owner: "IAM Team",
-  },
-  {
-    id: "wf-high-risk-entitlements",
-    name: "High-Risk Entitlement Approval",
-    description: "Additional operational approval for high-risk or privileged entitlements.",
+    id: "wf-fallback-standard",
+    name: "Standard Access Workflow",
+    description: "Default multi-stage approval workflow.",
     stages: 3,
-    businessFunction: "Risk & Compliance",
-    tags: ["high-risk", "entitlements", "sox"],
-    owner: "Risk Office",
-  },
-  {
-    id: "wf-service-accounts",
-    name: "Service Account Access Workflow",
-    description: "Owner-based approvals and ticketing for service accounts.",
-    stages: 3,
-    businessFunction: "Service Accounts",
-    tags: ["service-account", "it-ops"],
-    owner: "IT Operations",
-  },
-  {
-    id: "wf-fast-track-low-risk",
-    name: "Fast Track Low-Risk Access",
-    description: "AI-assisted auto-approval for low-risk access requests.",
-    stages: 2,
-    businessFunction: "Access Request",
-    tags: ["low-risk", "ai", "auto-approve"],
-    owner: "IAM Engineering",
+    businessFunction: "ACCESS_REQUEST",
+    tags: ["fallback"],
+    owner: "System",
   },
 ];
 
@@ -159,7 +135,10 @@ interface ApprovalPolicyFormData {
   };
 }
 
+const APPROVAL_POLICY_VIEW_STORAGE_KEY = "approvalPolicyViewDraft";
+
 export default function ManageApprovalPoliciesPage() {
+  const router = useRouter();
   const [mode, setMode] = useState<"list" | "create">("list");
   const [policies, setPolicies] = useState<
     {
@@ -199,6 +178,7 @@ export default function ManageApprovalPoliciesPage() {
     },
   });
   const [workflowSearch, setWorkflowSearch] = useState("");
+  const [workflowRows, setWorkflowRows] = useState<WorkflowDefinition[]>([]);
   const { isVisible: isSidebarVisible, sidebarWidthPx } = useLeftSidebar();
 
   const AgGridReact = useMemo(
@@ -263,7 +243,7 @@ export default function ManageApprovalPoliciesPage() {
         flex: 2,
         minWidth: 260,
         colSpan: (params: any) =>
-          params.data?._rowType === "description" ? 4 : 1,
+          params.data?._rowType === "description" ? 5 : 1,
         cellRenderer: (params: any) => {
           const rowType = params.data?._rowType || "main";
           const name = params.data?.name || "";
@@ -288,20 +268,50 @@ export default function ManageApprovalPoliciesPage() {
       {
         headerName: "Action",
         field: "actions",
-        width: 100,
+        width: 140,
         cellRenderer: (params: any) => {
           if (params.data?._rowType === "description") {
             return null;
           }
           return (
-            <button
-              type="button"
-              className="p-1.5 rounded-md hover:bg-gray-100 transition-colors"
-              aria-label="Edit approval policy"
-              onClick={() => onEditPolicy(params.data)}
-            >
-              <SquarePen className="w-4 h-4 text-gray-700" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="p-1.5 rounded-md hover:bg-gray-100 transition-colors"
+                aria-label="View approval policy"
+                onClick={() => {
+                  const row = params.data;
+                  if (!row) return;
+                  try {
+                    localStorage.setItem(
+                      APPROVAL_POLICY_VIEW_STORAGE_KEY,
+                      JSON.stringify({
+                        id: row.id,
+                        name: row.name,
+                        owner: row.owner ?? "",
+                        description: row.description ?? "",
+                        priority: row.priority,
+                        status: row.status ?? "",
+                        raw: row,
+                      })
+                    );
+                  } catch (error) {
+                    console.error("Unable to save approval policy view draft:", error);
+                  }
+                  router.push("/settings/gateway/manage-approval-policies/review");
+                }}
+              >
+                <Eye className="w-4 h-4 text-gray-700" />
+              </button>
+              <button
+                type="button"
+                className="p-1.5 rounded-md hover:bg-gray-100 transition-colors"
+                aria-label="Edit approval policy"
+                onClick={() => onEditPolicy(params.data)}
+              >
+                <SquarePen className="w-4 h-4 text-gray-700" />
+              </button>
+            </div>
           );
         },
       },
@@ -419,26 +429,125 @@ export default function ManageApprovalPoliciesPage() {
   ];
 
   const currentWorkflow = useMemo(
-    () => WORKFLOWS.find((wf) => wf.id === formData.step3.selectedWorkflowId) || null,
-    [formData.step3.selectedWorkflowId]
+    () => {
+      const source = workflowRows.length ? workflowRows : FALLBACK_WORKFLOWS;
+      return source.find((wf) => wf.id === formData.step3.selectedWorkflowId) || null;
+    },
+    [formData.step3.selectedWorkflowId, workflowRows]
   );
 
   const filteredWorkflows = useMemo(() => {
+    const source = workflowRows.length ? workflowRows : FALLBACK_WORKFLOWS;
     const query = workflowSearch.trim().toLowerCase();
-    if (!query) return WORKFLOWS;
-    return WORKFLOWS.filter((wf) => {
+    if (!query) return source;
+    return source.filter((wf) => {
       const haystack = [
         wf.name,
         wf.description,
-        wf.businessFunction,
-        wf.owner,
-        wf.tags.join(" "),
+        wf.businessFunction ?? "",
+        wf.owner ?? "",
+        (wf.tags ?? []).join(" "),
       ]
         .join(" ")
         .toLowerCase();
       return haystack.includes(query);
     });
-  }, [workflowSearch]);
+  }, [workflowSearch, workflowRows]);
+
+  // Load workflow templates from API when on Step 3
+  useEffect(() => {
+    if (mode !== "create" || currentStep !== 3) return;
+
+    let cancelled = false;
+
+    const loadWorkflows = async () => {
+      try {
+        const query = "select * from public.kf_wf_template_t";
+        const parameters: any[] = [];
+        const response = await executeQuery<any>(query, parameters);
+        const rows: any[] = Array.isArray(response)
+          ? response
+          : Array.isArray((response as any).resultSet)
+          ? (response as any).resultSet
+          : Array.isArray((response as any).rows)
+          ? (response as any).rows
+          : [];
+
+        if (cancelled || !rows.length) {
+          if (!cancelled) setWorkflowRows([]);
+          return;
+        }
+
+        const mapped: WorkflowDefinition[] = rows.map((row, idx) => {
+          const id =
+            row.id ??
+            row.wftemplateid ??
+            row.template_id ??
+            row.code ??
+            `wf-${idx}`;
+
+          const name =
+            row.wftemplatename ??
+            row.wftemplate_name ??
+            row.name ??
+            row.code ??
+            `Workflow ${idx + 1}`;
+
+          const description =
+            row.wftemplatedescription ??
+            row.description ??
+            "";
+
+          // Derive stages count from definition_json.stages (preferred) or other hints
+          let stages: number | undefined;
+          try {
+            const def = row.definition_json;
+            const parsedDef =
+              typeof def === "string" && def
+                ? JSON.parse(def)
+                : def && typeof def === "object"
+                ? def
+                : null;
+
+            if (parsedDef && Array.isArray((parsedDef as any).stages)) {
+              stages = (parsedDef as any).stages.length;
+            }
+          } catch {
+            // ignore JSON parse errors, leave stages undefined
+          }
+
+          const businessFunction =
+            row.business_object_type ??
+            row.business_function ??
+            "";
+
+          const owner = row.created_by ?? row.owner ?? "";
+
+          return {
+            id: String(id),
+            name: String(name),
+            description: String(description),
+            stages,
+            businessFunction: businessFunction ? String(businessFunction) : undefined,
+            tags: undefined,
+            owner: owner ? String(owner) : undefined,
+            raw: row,
+          };
+        });
+
+        setWorkflowRows(mapped);
+      } catch (error) {
+        console.error("Failed to load workflow templates for Step 3:", error);
+        setWorkflowRows([]);
+      }
+    };
+
+    loadWorkflows();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, currentStep]);
 
   const addRule = () => {
     setFormData((prev) => ({
@@ -828,13 +937,13 @@ export default function ManageApprovalPoliciesPage() {
     if (currentStep === 3) {
       const rowData = filteredWorkflows.map((wf) => ({
         ...wf,
-        tagsDisplay: wf.tags.join(", "),
+        tagsDisplay: (wf.tags ?? []).join(", "),
       }));
 
       const columnDefs = [
         {
           headerName: "",
-          width: 50,
+          width: 60,
           maxWidth: 60,
           pinned: "left",
           cellRenderer: (params: any) => {
@@ -853,12 +962,24 @@ export default function ManageApprovalPoliciesPage() {
             );
           },
         },
-        { headerName: "Name", field: "name", flex: 1, minWidth: 160 },
-        { headerName: "Description", field: "description", flex: 2, minWidth: 220 },
-        { headerName: "Stages", field: "stages", width: 90 },
-        { headerName: "Business Function", field: "businessFunction", flex: 1, minWidth: 160 },
-        { headerName: "Tags", field: "tagsDisplay", flex: 1, minWidth: 160 },
-        { headerName: "Owner", field: "owner", flex: 1, minWidth: 140 },
+        { headerName: "Name", field: "name", flex: 1, minWidth: 220 },
+        { headerName: "Description", field: "description", flex: 2, minWidth: 260 },
+        {
+          headerName: "Stages",
+          field: "stages",
+          width: 110,
+          valueFormatter: (params: any) =>
+            params.value !== undefined && params.value !== null && params.value !== ""
+              ? String(params.value)
+              : "-",
+        },
+        {
+          headerName: "Business Object Type",
+          field: "businessFunction",
+          flex: 1,
+          minWidth: 180,
+        },
+        { headerName: "Owner", field: "owner", flex: 1, minWidth: 160 },
       ];
 
       const defaultColDef = {
@@ -1126,6 +1247,8 @@ export default function ManageApprovalPoliciesPage() {
                   sortable: true,
                   filter: true,
                   resizable: true,
+                  wrapHeaderText: true,
+                  autoHeaderHeight: true,
                 }}
                 theme="legacy"
                 domLayout="autoHeight"

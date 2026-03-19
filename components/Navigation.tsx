@@ -120,6 +120,9 @@ export function Navigation() {
     if (pathname === '/settings/gateway/sod/mitigating-controls') {
       return { href: '/settings/gateway/sod', label: 'Back to SoD' };
     }
+    if (pathname === '/settings/gateway/manage-approval-policies/review') {
+      return { href: '/settings/gateway/manage-approval-policies', label: 'Back to Manage Approval Policies' };
+    }
     if (pathname === '/settings/gateway/entitlement-management' || pathname === '/settings/gateway/workflow-builder' ||
         pathname === '/settings/gateway/sam' || pathname === '/settings/gateway/native-users' ||
         pathname === '/settings/gateway/admin-roles' || pathname === '/settings/gateway/custom-schema' ||
