@@ -666,7 +666,14 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
     : [];
   const topInstanceSteps =
     requestLevelSteps.length > 0 ? requestLevelSteps : lineLevelSteps;
-  const firstPendingIndex = topInstanceSteps.findIndex((step) =>
+
+  // Hide the "Assigned for SOD Approval" row since it represents the same
+  // logical event as the initial "Request Submitted" entry.
+  const visibleInstanceSteps = topInstanceSteps.filter(
+    (step) => step.action !== "Assigned for SOD Approval"
+  );
+
+  const firstPendingIndex = visibleInstanceSteps.findIndex((step) =>
     String(step.status ?? "").toLowerCase().includes("pending")
   );
 
@@ -721,7 +728,7 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
         </div>
       </div>
 
-      {topInstanceSteps.length > 0 && (
+      {visibleInstanceSteps.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
           <div className="overflow-x-auto">
             <table className="w-full border border-gray-200 text-xs">
@@ -745,7 +752,7 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {topInstanceSteps.map((step, idx) => {
+                {visibleInstanceSteps.map((step, idx) => {
                   const hideMetaColumns = firstPendingIndex !== -1 && idx >= firstPendingIndex;
                   return (
                     <tr key={`${step.action}-${step.date}-${idx}`}>

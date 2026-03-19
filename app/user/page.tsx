@@ -386,6 +386,7 @@ const columnDefs = useMemo<ColDef[]>(
       
       <div style={{ minHeight: '400px' }}>
         <AgGridReact
+          theme="legacy"
           columnDefs={columnDefs}
           rowData={paginatedData}
           domLayout="autoHeight"
@@ -785,6 +786,7 @@ function UserGroupsTab() {
         
         <div style={{ minHeight: '400px' }}>
           <AgGridReact
+            theme="legacy"
             columnDefs={columnDefs}
             rowData={paginatedData}
             domLayout="autoHeight"

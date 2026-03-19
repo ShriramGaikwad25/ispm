@@ -8,6 +8,18 @@ import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import AddDetailsSidebarContent, { getRiskColor, type Role } from "./AddDetailsSidebarContent";
 import { getLogoSrc } from "@/components/MsAsyncData";
 
+// Normalize catalog role type
+function roleType(role: Role): string {
+  return (
+    role.type ??
+    (role.catalogRow?.type as string | undefined) ??
+    ""
+  )
+    .toString()
+    .trim()
+    .toLowerCase();
+}
+
 function getApplicationName(role: Role): string {
   const row = role.catalogRow;
   if (!row || typeof row !== "object") return "";
@@ -255,9 +267,6 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
 
     // Catalog search is local to AllTab so typing doesn't remount the tab
     const [catalogSearchQuery, setCatalogSearchQuery] = useState("");
-
-    const roleType = (role: Role) =>
-      (role.type ?? (role.catalogRow?.type as string) ?? "").toString().trim().toLowerCase();
 
     const matchesCatalogTypeFilter = (role: Role): boolean => {
       if (catalogTypeFilter === "All" || catalogTypeFilter === "Tags") return true;
@@ -673,9 +682,139 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
   // Recommended Tab Component
   const RecommendedTab: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState("");
-    
-    // Filter recommended roles (for demo, showing first 3 as recommended)
-    const recommendedRoles = roles.slice(0, 3);
+
+    // Seed ~18 dummy recommended access items for demo purposes
+    const dummyRecommended: Role[] = [
+      {
+        id: "rec-001",
+        name: "SAP Finance Analyst",
+        risk: "Medium",
+        description: "Core finance operations access in SAP for journal entry processing.",
+        type: "Entitlement",
+      },
+      {
+        id: "rec-002",
+        name: "SAP AP Specialist",
+        risk: "Medium",
+        description: "Accounts payable processing access including invoice posting.",
+        type: "Entitlement",
+      },
+      {
+        id: "rec-003",
+        name: "SAP AR Specialist",
+        risk: "Low",
+        description: "Accounts receivable access for collections and cash application.",
+        type: "Entitlement",
+      },
+      {
+        id: "rec-004",
+        name: "Workday HR View Only",
+        risk: "Low",
+        description: "Read-only access to worker profiles and org structure in Workday.",
+        type: "Entitlement",
+      },
+      {
+        id: "rec-005",
+        name: "Workday HR Partner",
+        risk: "High",
+        description: "HR partner role with ability to update employee attributes.",
+        type: "Entitlement",
+      },
+      {
+        id: "rec-006",
+        name: "Salesforce Sales User",
+        risk: "Low",
+        description: "Standard sales cloud access to accounts, opportunities and reports.",
+        type: "Entitlement",
+      },
+      {
+        id: "rec-007",
+        name: "Salesforce Sales Manager",
+        risk: "Medium",
+        description: "Manager access including pipeline dashboards and team forecasts.",
+        type: "Entitlement",
+      },
+      {
+        id: "rec-008",
+        name: "Oracle Fusion GL Inquiry",
+        risk: "Low",
+        description: "Inquiry-only access to general ledger balances and journals.",
+        type: "Entitlement",
+      },
+      {
+        id: "rec-009",
+        name: "Oracle Fusion GL Accountant",
+        risk: "High",
+        description: "Posting and adjustment capabilities for general ledger.",
+        type: "Entitlement",
+      },
+      {
+        id: "rec-010",
+        name: "CornerStone LMS Learner",
+        risk: "Low",
+        description: "Standard learner access to assigned training and catalogs.",
+        type: "Entitlement",
+      },
+      {
+        id: "rec-011",
+        name: "CornerStone LMS Admin",
+        risk: "High",
+        description: "LMS administration including curriculum and user management.",
+        type: "Entitlement",
+      },
+      {
+        id: "rec-012",
+        name: "ServiceNow ITIL User",
+        risk: "Medium",
+        description: "ITIL access for incident, problem and change management.",
+        type: "Entitlement",
+      },
+      {
+        id: "rec-013",
+        name: "ServiceNow Request Approver",
+        risk: "Low",
+        description: "Approver access for service catalog requests.",
+        type: "Entitlement",
+      },
+      {
+        id: "rec-014",
+        name: "Okta App Administrator",
+        risk: "High",
+        description: "Application assignment and policy management in Okta.",
+        type: "Entitlement",
+      },
+      {
+        id: "rec-015",
+        name: "Okta Read Only Admin",
+        risk: "Low",
+        description: "Read-only access to Okta directory and application configuration.",
+        type: "Entitlement",
+      },
+      {
+        id: "rec-016",
+        name: "Jira Project Contributor",
+        risk: "Low",
+        description: "Issue create and transition access for software projects.",
+        type: "Entitlement",
+      },
+      {
+        id: "rec-017",
+        name: "Jira Project Administrator",
+        risk: "Medium",
+        description: "Project configuration and workflow management in Jira.",
+        type: "Entitlement",
+      },
+      {
+        id: "rec-018",
+        name: "Concur Expense User",
+        risk: "Low",
+        description: "Standard user access for expense report creation and submission.",
+        type: "Entitlement",
+      },
+    ];
+
+    // Combine dummy + any API-backed recommended roles, cap at ~18
+    const recommendedRoles: Role[] = [...dummyRecommended, ...roles].slice(0, 18);
     const filteredRoles = recommendedRoles.filter((role) =>
       role.name.toLowerCase().includes(searchQuery.toLowerCase())
     );

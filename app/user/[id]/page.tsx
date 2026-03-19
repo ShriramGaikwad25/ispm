@@ -13,6 +13,8 @@ const AgGridReact = dynamic(() => import("ag-grid-react").then((mod) => mod.AgGr
   ssr: false,
 });
 import "@/lib/ag-grid-setup";
+import "ag-grid-community/styles/ag-grid.css";
+import "ag-grid-community/styles/ag-theme-alpine.css";
 
 // Dynamically import Bar chart with SSR disabled
 const Bar = dynamic(() => import("react-chartjs-2").then((mod) => mod.Bar), {
@@ -641,6 +643,31 @@ export default function UserDetailPage() {
         return "0109868e-b00c-4f24-ae5f-258029cce1d6";
       };
 
+      // Identify the currently selected user for conditional entitlements
+      const currentUser = buildUserFromStorage();
+
+      const maybeAugmentWithTraining = (rows: any[]): any[] => {
+        if (
+          currentUser.displayName &&
+          currentUser.displayName.trim().toLowerCase() === "alexander lane"
+        ) {
+          const primaryAccount =
+            rows.find((r) => r.accountName)?.accountName ?? "";
+
+          return [
+            ...rows,
+            {
+              entitlementName: "SEC-101: Information Security Awareness 2025",
+              entitlementType: "Training",
+              application: "CornerStone LMS",
+              accountName: primaryAccount,
+              lastLogin: null,
+            },
+          ];
+        }
+        return rows;
+      };
+
       const fetchAllAccess = async () => {
         try {
           const userId = getUserIdFromStorage();
@@ -667,7 +694,9 @@ export default function UserDetailPage() {
               }
             }
 
-            setRowData(flatEntRows);
+            const finalRows = maybeAugmentWithTraining(flatEntRows);
+
+            setRowData(finalRows);
 
             const desiredCols: ColDef[] = [
               { headerName: "Entitlement ", field: "entitlementName", flex: 1.5 },
@@ -724,7 +753,8 @@ export default function UserDetailPage() {
             }
             return [];
           })();
-          setRowData(items);
+          const finalRows = maybeAugmentWithTraining(items);
+          setRowData(finalRows);
           // Helper to resolve a value from multiple possible key aliases on each row
           const valueByAliases = (data: any, aliases: string[]) => {
             for (const a of aliases) {
@@ -894,72 +924,8 @@ export default function UserDetailPage() {
       });
     }, [rowData, searchTerm, dynamicCols]);
 
-      // Print-friendly table version
-      const PrintTable = () => {
-        if (!filteredData || filteredData.length === 0) return null;
-      
-        const getCellValue = (row: any, col: ColDef) => {
-          if (col.field) return row[col.field] || '';
-          if ((col as any).valueGetter) {
-            try {
-              return (col as any).valueGetter({ data: row }) || '';
-            } catch {
-              return '';
-            }
-          }
-          if ((col as any).colId) {
-            const colId = (col as any).colId;
-            if (colId === 'entitlementName') {
-              return row.entitlementName || row.entitlementname || row.entitlement_name || '';
-            }
-            if (colId === 'entitlementType') {
-              return row.entitlementType || row.entitlementtype || row.entitlement_type || '';
-            }
-            if (colId === 'application') {
-              return row.application || row.applicationname || row.application_name || '';
-            }
-            if (colId === 'accountName') {
-              return row.accountName || row.accountname || row.account_name || '';
-            }
-            if (colId === 'lastLogin') {
-              const date = row.lastLogin || row.lastlogin || row.last_login || '';
-              return date ? require("@/utils/utils").formatDateMMDDYYSlashes(date) : '';
-            }
-            return row[colId] || '';
-          }
-          return '';
-        };
-
-        return (
-          <div className="print-table-only" style={{ display: 'none' }}>
-            <table className="w-full border-collapse border border-gray-300 text-sm">
-              <thead>
-                <tr className="bg-gray-100">
-                  {dynamicCols.map((col, idx) => (
-                    <th key={idx} className="border border-gray-300 px-3 py-2 text-left font-semibold">
-                      {col.headerName || ''}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredData.map((row, rowIdx) => (
-                  <tr key={rowIdx} className="hover:bg-gray-50">
-                    {dynamicCols.map((col, colIdx) => (
-                      <td key={colIdx} className="border border-gray-300 px-3 py-2">
-                        {getCellValue(row, col)}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        );
-      };
-
       return (
-        <div className="bg-white rounded-lg shadow-md p-3 print-ag-grid-container">
+        <div className="bg-white rounded-lg shadow-md p-3">
           {/* Search Box */}
           <div className="mb-4">
             <div className="relative max-w-md">
@@ -981,24 +947,20 @@ export default function UserDetailPage() {
             )}
           </div>
 
-          {/* AG Grid - hidden in print */}
-          <div className="screen-only">
+          {/* Simple AG Grid table */}
+          <div className="ag-theme-alpine" style={{ width: "100%", minHeight: 400 }}>
             {isMounted && (
-              <div className="ag-theme-alpine print-ag-grid" style={{ width: "100%" }}>
-                <AgGridReact
-                  ref={gridRef}
-                  rowData={filteredData}
-                  columnDefs={dynamicCols}
-                  defaultColDef={{ sortable: true, filter: true, resizable: true }}
-                  suppressRowVirtualisation={false}
-                  domLayout="autoHeight"
-                  theme="legacy"
-                />
-              </div>
+              <AgGridReact
+                ref={gridRef}
+                rowData={filteredData}
+                columnDefs={dynamicCols}
+                defaultColDef={{ sortable: true, filter: true, resizable: true }}
+                suppressRowVirtualisation={false}
+                domLayout="autoHeight"
+                theme="legacy"
+              />
             )}
           </div>
-          {/* Print-friendly table - visible only in print */}
-          <PrintTable />
         </div>
       );
   };

@@ -67,8 +67,7 @@ export const navLinks: NavItem[] = [
       { name: 'My Profile', href: '/profile', icon: UserCircle2Icon },
       { name: 'Users', href: '/user', icon: User2Icon },
       { name: 'Applications', href: '/applications', icon: LayoutPanelLeft },
-      { name: 'Catalog', href: '/catalog', icon: ScreenShareIcon },
-      { name: 'Service Account(s)', href: '/service-account', icon: Key }
+      { name: 'Catalog', href: '/catalog', icon: ScreenShareIcon }
     ]
   },
   {

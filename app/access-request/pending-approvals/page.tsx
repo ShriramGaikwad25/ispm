@@ -367,29 +367,6 @@ const PendingApprovalsPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<
     "All" | PendingApprovalStatus
   >("All");
-  const [hoveredCard, setHoveredCard] = useState<"card1" | "card2" | null>(null);
-
-  // Quick Win hover animation can change available grid width without a window resize event.
-  // Re-fit columns both immediately and after the transition completes.
-  useEffect(() => {
-    if (!gridApi) return;
-
-    const fitColumns = () => {
-      try {
-        gridApi.sizeColumnsToFit();
-      } catch {
-        // ignore
-      }
-    };
-
-    const rafId = window.requestAnimationFrame(fitColumns);
-    const timeoutId = window.setTimeout(fitColumns, 550);
-
-    return () => {
-      window.cancelAnimationFrame(rafId);
-      window.clearTimeout(timeoutId);
-    };
-  }, [hoveredCard, gridApi]);
 
   const parseInputDate = (value: string): Date | null => {
     if (!value) return null;
@@ -452,6 +429,7 @@ const PendingApprovalsPage: React.FC = () => {
         field: "createdOn",
         minWidth: 130,
         width: 140,
+        sort: "desc",
         valueFormatter: (params) => formatDateToMMDDYY(params.value ?? ""),
       },
       {
@@ -590,194 +568,67 @@ const PendingApprovalsPage: React.FC = () => {
                 )}
               </div>
 
-              {/* Filters row moved up into header area */}
-              <div className="flex flex-col gap-3">
-                {/* Row 1: Search + Status */}
-                <div className="flex flex-col gap-3 md:flex-row md:items-end">
-                  {/* 1) Free form search */}
-                  <div className="w-full md:w-96">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Search (Requester, Beneficiary)
-                    </label>
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Type a requester or beneficiary name"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                    />
-                  </div>
-                  {/* 3) Status filter */}
-                  <div className="w-full md:w-96">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Status
-                    </label>
-                    <select
-                      value={statusFilter}
-                      onChange={(e) =>
-                        setStatusFilter(e.target.value as typeof statusFilter)
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                    >
-                      <option value="All">All</option>
-                      <option value="Pending">Pending</option>
-                      <option value="Approved">Approved</option>
-                      <option value="Rejected">Rejected</option>
-                      <option value="Info Requested">Info Requested</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Row 2: Date Assigned (Range) */}
-                <div className="w-full">
+              {/* Filters row: Search, Status, Date From, Date To all in one row */}
+              <div className="flex flex-col gap-3 md:flex-row md:items-end">
+                {/* Search */}
+                <div className="w-full md:flex-1">
                   <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Date Assigned (Range)
+                    Search (Requester, Beneficiary)
                   </label>
-                  <div className="flex flex-col md:flex-row gap-2">
-                    <input
-                      type="date"
-                      value={fromDate}
-                      onChange={(e) => setFromDate(e.target.value)}
-                      className="w-full md:w-96 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                    />
-                    <input
-                      type="date"
-                      value={toDate}
-                      onChange={(e) => setToDate(e.target.value)}
-                      className="w-full md:w-96 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                    />
-                  </div>
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Type a requester or beneficiary name"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  />
+                </div>
+                {/* Status */}
+                <div className="w-full md:w-52">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Status
+                  </label>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) =>
+                      setStatusFilter(e.target.value as typeof statusFilter)
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  >
+                    <option value="All">All</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Approved">Approved</option>
+                    <option value="Rejected">Rejected</option>
+                    <option value="Info Requested">Info Requested</option>
+                  </select>
+                </div>
+                {/* Date Assigned From */}
+                <div className="w-full md:w-52">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Date Assigned (From)
+                  </label>
+                  <input
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  />
+                </div>
+                {/* Date Assigned To */}
+                <div className="w-full md:w-52">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Date Assigned (To)
+                  </label>
+                  <input
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => setToDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  />
                 </div>
               </div>
             </div>
 
-            {/* AI Insights: Quick Win – match Access Review / App Owner Quick Wins layout */}
-            <div className="w-full lg:w-1/3 flex">
-              <div className="bg-white border border-gray-200 rounded-lg px-3 py-3 shadow-sm w-full h-full flex flex-col">
-                <div className="flex justify-between items-center mb-3 flex-shrink-0">
-                  <h2 className="text-sm font-medium text-gray-800">
-                    AI Insights: Quick Win
-                  </h2>
-                </div>
-                <div className="flex flex-col gap-4 flex-1 min-h-0">
-                  {/* Card 1 */}
-                  <div
-                    className="relative flex-1 min-h-[5rem] cursor-pointer overflow-hidden rounded-lg border border-blue-200 bg-blue-50 shadow-sm"
-                    onMouseEnter={() => setHoveredCard("card1")}
-                    onMouseLeave={() =>
-                      setHoveredCard((prev) => (prev === "card1" ? null : prev))
-                    }
-                  >
-                    {/* First page (default) */}
-                    <div className="absolute inset-0 flex flex-col items-center justify-center px-3 text-center">
-                      <p className="text-sm font-semibold text-blue-800">Speed</p>
-                      <span className="mt-0.5 text-xs font-bold text-blue-600">
-                        35% Completion
-                      </span>
-                    </div>
-                    {/* Second page content on hover with diagonal sweep from top-right to bottom-left */}
-                    <div className="absolute inset-0 flex pointer-events-none">
-                      <div
-                        className="w-full h-full flex flex-col justify-between px-3 py-2 text-white rounded-lg shadow-sm"
-                        style={{
-                          background:
-                            "linear-gradient(135deg, rgba(37, 99, 235, 0.95), rgba(59, 130, 246, 0.9))",
-                          transform:
-                            hoveredCard === "card1"
-                              ? "translate(0, 0)"
-                              : "translate(120%, -120%)",
-                          transition: "transform 0.5s ease-out",
-                        }}
-                      >
-                        <p className="text-[11px] leading-snug">
-                          Quick review of recommended access through peer analysis with
-                          70% match. Reduce effort by 3 hours.
-                        </p>
-                        <div className="flex gap-2 mt-2">
-                          <button
-                            className="px-2 py-0.5 text-[10px] font-medium rounded bg-white/90 text-blue-700 pointer-events-auto"
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                            }}
-                          >
-                            Approve
-                          </button>
-                          <button
-                            className="px-2 py-0.5 text-[10px] font-medium rounded border border-white/80 text-white bg-transparent pointer-events-auto"
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                            }}
-                          >
-                            Review
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Card 2 */}
-                  <div
-                    className="relative flex-1 min-h-[5rem] cursor-pointer overflow-hidden rounded-lg border border-emerald-200 bg-emerald-50 shadow-sm"
-                    onMouseEnter={() => setHoveredCard("card2")}
-                    onMouseLeave={() =>
-                      setHoveredCard((prev) => (prev === "card2" ? null : prev))
-                    }
-                  >
-                    {/* First page (default) */}
-                    <div className="absolute inset-0 flex flex-col items-center justify-center px-3 text-center">
-                      <p className="text-sm font-semibold text-emerald-800">
-                        Low Risk
-                      </p>
-                      <span className="mt-0.5 text-xs font-bold text-emerald-600">
-                        25% Completion
-                      </span>
-                    </div>
-                    {/* Second page content on hover with diagonal sweep from top-right to bottom-left */}
-                    <div className="absolute inset-0 flex pointer-events-none">
-                      <div
-                        className="w-full h-full flex flex-col justify-between px-3 py-2 text-white rounded-lg shadow-sm"
-                        style={{
-                          background:
-                            "linear-gradient(135deg, rgba(5, 150, 105, 0.95), rgba(16, 185, 129, 0.9))",
-                          transform:
-                            hoveredCard === "card2"
-                              ? "translate(0, 0)"
-                              : "translate(120%, -120%)",
-                          transition: "transform 0.5s ease-out",
-                        }}
-                      >
-                        <p className="text-[11px] leading-snug">
-                          Quick review of existing access approved in previous cycles
-                          with low risk items. Reduce effort by 2 hours.
-                        </p>
-                        <div className="flex gap-2 mt-2">
-                          <button
-                            className="px-2 py-0.5 text-[10px] font-medium rounded bg-white/90 text-emerald-700 pointer-events-auto"
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                            }}
-                          >
-                            Approve
-                          </button>
-                          <button
-                            className="px-2 py-0.5 text-[10px] font-medium rounded border border-white/80 text-white bg-transparent pointer-events-auto"
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                            }}
-                          >
-                            Review
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
 
           <div className="ag-theme-quartz w-full" style={{ width: "100%", minWidth: 0 }}>

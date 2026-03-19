@@ -324,36 +324,10 @@ const AccessRequest: React.FC = () => {
   const handleSubmit = async () => {
     const payload = buildAccessRequestPayload();
     const resolveCurrentApiUserId = async (): Promise<string> => {
-      const loginId = String(getCurrentUser()?.email || "").trim();
-      if (!loginId) return "";
-
-      try {
-        const res = await fetch(
-          "https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              query:
-                "SELECT userid FROM usr WHERE lower(username) = lower(?) OR lower(email) = lower(?) LIMIT 1",
-              parameters: [loginId, loginId],
-            }),
-          }
-        );
-        if (!res.ok) return "";
-        const data = await res.json();
-        const rows = Array.isArray(data)
-          ? data
-          : Array.isArray(data?.resultSet)
-            ? data.resultSet
-            : Array.isArray(data?.rows)
-              ? data.rows
-              : [];
-        const row = rows[0] || {};
-        return String(row.userid || row.userId || "").trim();
-      } catch {
-        return "";
-      }
+      // For "Request for Self", use the logged-in user's ID
+      // stored as reviewerId in auth cookies.
+      const reviewerId = getReviewerId();
+      return reviewerId ? String(reviewerId).trim() : "";
     };
     const selfApiUserId =
       payload.requestFor === "self" ? await resolveCurrentApiUserId() : "";

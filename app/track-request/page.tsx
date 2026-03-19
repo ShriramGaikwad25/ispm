@@ -251,6 +251,8 @@ const TrackRequest: React.FC = () => {
         minWidth: 110,
         suppressSizeToFit: true,
         sortable: true,
+        sort: "desc",
+        sortIndex: 0,
         cellRenderer: (params: ICellRendererParams) => {
           const routeId = params.data?.routeId as string | number | undefined;
           if (!routeId) return params.value;

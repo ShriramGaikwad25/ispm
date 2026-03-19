@@ -1394,6 +1394,57 @@ export default function ApplicationDetailPage() {
   // Fetch service accounts data from API (same as service account page)
   useEffect(() => {
     const fetchServiceAccountsData = async () => {
+      // Helper to optionally append extra static rows for SAP to visually fill the page
+      const withSapStaticRows = (items: any[]): any[] => {
+        try {
+          const stored = typeof window !== "undefined"
+            ? window.localStorage.getItem("applicationDetails")
+            : null;
+          if (!stored) return items;
+          const parsed = JSON.parse(stored);
+          const appName = (parsed?.applicationName || "").toString();
+          if (!appName || !appName.toLowerCase().includes("sap")) {
+            return items;
+          }
+
+          const extraRowsCount = 10;
+          const sapStaticRows = Array.from({ length: extraRowsCount }).map((_, index) => {
+            const num = index + 1;
+            return {
+              accountName: `sap-svc-account-${num.toString().padStart(2, "0")}`,
+              entitlementName: num <= 3 ? "SAP Basis Admin" : num <= 6 ? "SAP Functional Owner" : "SAP Read-Only",
+              entitlementDescription:
+                "Static demo service account for SAP to visually fill the grid. This row is non-functional and used only for layout purposes in the prototype.",
+              description:
+                "Static SAP service account used to showcase how a full page of service accounts would look for this application.",
+              userManager: num <= 5 ? "SAP Operations" : "SAP Security",
+              lastlogindate: "2024-02-0" + ((num % 9) + 1).toString(),
+              businessService: "SAP",
+              backupOwner: num % 2 === 0 ? "Backup SAP Owner" : "Regional SAP Owner",
+              environment: num <= 4 ? "Production" : num <= 7 ? "QA" : "Development",
+              pamPolicy: num <= 5 ? "High Privilege PAM Policy" : "Standard SAP PAM Policy",
+              rotationPolicy: num % 2 === 0 ? "30 Days Rotation" : "45 Days Rotation",
+              smeUser: "sap-team@company.com",
+              continuousCompliance: true,
+              reviewCycle: "Quarterly",
+              entitlements: [
+                {
+                  entitlementName: "SAP Basis Admin",
+                  entitlementDescription: "Administrative access for SAP Basis operations.",
+                  lastlogindate: "2024-02-01",
+                  businessService: "SAP",
+                  userManager: "SAP Operations",
+                },
+              ],
+            };
+          });
+
+          return [...items, ...sapStaticRows];
+        } catch {
+          return items;
+        }
+      };
+
       try {
         // Use reviewerId if available, otherwise fallback to hardcoded value (same as service account page)
         const reviewerIdToUse = reviewerId || "430ea9e6-3cff-449c-a24e-59c057f81e3d";
@@ -1403,11 +1454,12 @@ export default function ApplicationDetailPage() {
         const data = await response.json();
         console.log("Service accounts data:", data);
         if (data.executionStatus === "success") {
-          setServiceAccountsRowData(data.items || []);
-          setFilteredServiceAccountsRowData(data.items || []);
+          const items = withSapStaticRows(data.items || []);
+          setServiceAccountsRowData(items);
+          setFilteredServiceAccountsRowData(items);
         } else {
           // Add dummy data if API doesn't return success
-          const dummyData = [
+          const dummyBaseData = [
             {
               accountName: "svc-app-account-01",
               entitlementName: "Administrator Access",
@@ -1498,13 +1550,14 @@ export default function ApplicationDetailPage() {
               ],
             },
           ];
-          setServiceAccountsRowData(dummyData);
-          setFilteredServiceAccountsRowData(dummyData);
+          const items = withSapStaticRows(dummyBaseData);
+          setServiceAccountsRowData(items);
+          setFilteredServiceAccountsRowData(items);
         }
       } catch (error) {
         console.error("Error fetching service accounts data:", error);
         // Add dummy data on error
-        const dummyData = [
+        const dummyBaseData = [
           {
             accountName: "svc-app-account-01",
             entitlementName: "Administrator Access",
@@ -1595,8 +1648,9 @@ export default function ApplicationDetailPage() {
             ],
           },
         ];
-        setServiceAccountsRowData(dummyData);
-        setFilteredServiceAccountsRowData(dummyData);
+        const items = withSapStaticRows(dummyBaseData);
+        setServiceAccountsRowData(items);
+        setFilteredServiceAccountsRowData(items);
       }
     };
     fetchServiceAccountsData();
