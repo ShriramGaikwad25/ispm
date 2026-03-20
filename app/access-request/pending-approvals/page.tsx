@@ -328,17 +328,18 @@ const InsightsCell: React.FC<{
   hasInsight?: boolean;
   hasViolation?: boolean;
 }> = ({ hasViolation }) => {
+  const wrap = "flex h-full min-h-[100%] w-full items-center justify-start pl-2";
   if (hasViolation) {
     return (
-      <div className="flex items-center justify-center" title="SOD Policy Violation Detected">
-        <span className="inline-flex items-center px-4 py-1.5 rounded-md text-[11px] font-semibold border border-red-400 bg-red-50 text-red-600">
+      <div className={wrap} title="SOD Policy Violation Detected">
+        <span className="inline-flex items-center px-4 py-1.5 rounded-md text-[11px] font-semibold border border-red-400 bg-red-50 text-red-600 text-left">
           SOD Policy Violation Detected
         </span>
       </div>
     );
   }
   return (
-    <div className="flex items-center justify-center" title="AI Insights">
+    <div className={wrap} title="AI Insights">
       <InsightsIcon size={24} className="shrink-0 text-amber-500" />
     </div>
   );
@@ -523,6 +524,7 @@ const PendingApprovalsPage: React.FC = () => {
         width: 300,
         wrapText: true,
         autoHeight: true,
+        cellClass: "pending-approvals-comments-cell",
         cellStyle: {
           whiteSpace: "normal",
           wordBreak: "break-word",
@@ -541,6 +543,7 @@ const PendingApprovalsPage: React.FC = () => {
         field: "insights",
         minWidth: 110,
         width: 110,
+        cellClass: "pending-approvals-insights-cell",
         cellRenderer: (params: ICellRendererParams) => {
           const data = params.data as PendingApproval | undefined;
           if (!data) return null;
@@ -725,6 +728,7 @@ const PendingApprovalsPage: React.FC = () => {
               rowModelType="clientSide"
               animateRows
               domLayout="autoHeight"
+              suppressRowTransform
               defaultColDef={{
                 sortable: true,
                 filter: false,
@@ -780,6 +784,14 @@ const PendingApprovalsPage: React.FC = () => {
               onFirstDataRendered={(params) => {
                 try {
                   params.api.sizeColumnsToFit();
+                  params.api.resetRowHeights();
+                } catch {
+                  // ignore
+                }
+              }}
+              onRowDataUpdated={(params) => {
+                try {
+                  params.api.resetRowHeights();
                 } catch {
                   // ignore
                 }

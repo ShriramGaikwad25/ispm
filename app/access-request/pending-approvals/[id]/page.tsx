@@ -1012,8 +1012,8 @@ const PendingApprovalDetailPage = ({
                   </button>
                   <button
                     type="button"
-                    title="Comment"
-                    aria-label="Comment"
+                    title="Requester comment"
+                    aria-label="Requester comment"
                     onClick={(e) => openCommentModal(e, lineItemKey, lineItem.comments)}
                     className="p-1 rounded flex items-center justify-center"
                   >
@@ -1062,10 +1062,10 @@ const PendingApprovalDetailPage = ({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">
-                        Comments
+                        Requester Comment
                       </div>
                       <div className="text-gray-900 whitespace-pre-wrap break-words">
-                        {effectiveComment || "No additional comments provided."}
+                        {effectiveComment || "No requester comment provided."}
                       </div>
                     </div>
                     <div className="space-y-1">
@@ -1089,7 +1089,7 @@ const PendingApprovalDetailPage = ({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Comment</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Requester Comment</h3>
             </div>
 
             <div className="mb-3">
@@ -1177,7 +1177,7 @@ const PendingApprovalDetailPage = ({
 
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Comment
+                Requester Comment
               </label>
               <textarea
                 value={commentDraft}

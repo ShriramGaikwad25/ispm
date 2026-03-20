@@ -2,12 +2,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { Search, Info } from "lucide-react";
+import { ChevronRight, Search } from "lucide-react";
 const AgGridReact = dynamic(() => import("ag-grid-react").then((mod) => mod.AgGridReact), { ssr: false });
-type AgGridReactType = any;
 import "@/lib/ag-grid-setup";
 import { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 import { getReviewerId } from "@/lib/auth";
+import CustomPagination from "@/components/agTable/CustomPagination";
 
 interface RequestHistory {
   action: string;
@@ -35,7 +35,6 @@ interface Request {
   entityType: string;
   daysOpen: number;
   status: string;
-  hasInfoIcon?: boolean;
   canWithdraw?: boolean;
   canProvideAdditionalDetails?: boolean;
   details?: RequestDetails;
@@ -44,8 +43,9 @@ interface Request {
 
 const TrackRequest: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
-  const gridRef = React.useRef<AgGridReactType>(null);
   const router = useRouter();
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number | "all">(20);
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -161,12 +161,6 @@ const TrackRequest: React.FC = () => {
 
           const startDate = entitlementMeta.startDate ? String(entitlementMeta.startDate) : raisedOn;
           const endDate = entitlementMeta.endDate ? String(entitlementMeta.endDate) : "";
-          const hasHighRiskOrPrivileged = accessItems.some((item) => {
-            const itemCatalog = item?.catalog ?? {};
-            const privileged = String(itemCatalog.privileged ?? "").toLowerCase() === "yes";
-            const riskLevel = String(itemCatalog.risk ?? item?.risk?.level ?? "").toLowerCase();
-            return privileged || riskLevel.startsWith("high");
-          });
           const workflowInstanceId = requestJson?.workflow_instance?.id;
 
           return {
@@ -190,7 +184,6 @@ const TrackRequest: React.FC = () => {
             entityType: String(entityTypeFromCatalog),
             daysOpen,
             status,
-            hasInfoIcon: hasHighRiskOrPrivileged,
             canWithdraw: status.toLowerCase().includes("awaiting") || status.toLowerCase().includes("pending"),
             canProvideAdditionalDetails: status.toLowerCase().includes("provide information"),
             details: {
@@ -251,6 +244,36 @@ const TrackRequest: React.FC = () => {
     return true;
   });
 
+  /** Newest / highest IDs first — matches default ID column sort and keeps pages aligned with slicing. */
+  const sortedFilteredRequests = useMemo(() => {
+    return [...filteredRequests].sort((a, b) =>
+      String(b.id).localeCompare(String(a.id), undefined, { numeric: true, sensitivity: "base" })
+    );
+  }, [filteredRequests]);
+
+  const totalPages = useMemo(() => {
+    if (pageSize === "all") return 1;
+    const ps = Math.max(1, Number(pageSize)) || 20;
+    return Math.max(1, Math.ceil(sortedFilteredRequests.length / ps));
+  }, [sortedFilteredRequests.length, pageSize]);
+
+  const paginatedRowData = useMemo(() => {
+    if (pageSize === "all") return sortedFilteredRequests;
+    const ps = Math.max(1, Number(pageSize)) || 20;
+    const start = (currentPage - 1) * ps;
+    return sortedFilteredRequests.slice(start, start + ps);
+  }, [sortedFilteredRequests, currentPage, pageSize]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
   const columnDefs = useMemo<ColDef[]>(
     () => [
       {
@@ -262,22 +285,6 @@ const TrackRequest: React.FC = () => {
         sortable: true,
         sort: "desc",
         sortIndex: 0,
-        cellRenderer: (params: ICellRendererParams) => {
-          const routeId = params.data?.routeId as string | number | undefined;
-          if (!routeId) return params.value;
-          return (
-            <button
-              type="button"
-              className="text-blue-600 hover:underline font-medium"
-              onClick={(e) => {
-                e.stopPropagation();
-                router.push(`/track-request/${encodeURIComponent(String(routeId))}`);
-              }}
-            >
-              {params.value}
-            </button>
-          );
-        },
       },
       {
         headerName: "Type",
@@ -309,11 +316,11 @@ const TrackRequest: React.FC = () => {
         valueGetter: (params) => params.data?.details?.dateCreated ?? "-",
       },
       {
-        headerName: "Expires On",
-        field: "expiresOn",
-        flex: 0.8,
-        minWidth: 140,
-        valueGetter: (params) => params.data?.details?.endDate || "-",
+        headerName: "Comments",
+        field: "comments",
+        flex: 4.5,
+        minWidth: 360,
+        valueGetter: (params) => params.data?.details?.globalComments ?? "-",
       },
       {
         headerName: "Status",
@@ -322,31 +329,45 @@ const TrackRequest: React.FC = () => {
         minWidth: 150,
         cellRenderer: (params: ICellRendererParams) => {
           const status = params.data?.status as string;
-          const hasInfoIcon = !!params.data?.hasInfoIcon;
           return (
-            <div className="flex items-center gap-1">
-              <span
-                className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(
-                  status
-                )}`}
-              >
-                {status}
-              </span>
-              {hasInfoIcon && (
-                <div className="w-4 h-4 rounded-full bg-blue-100 flex items-center justify-center">
-                  <Info className="w-3 h-3 text-blue-600" />
-                </div>
-              )}
-            </div>
+            <span
+              className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(
+                status
+              )}`}
+            >
+              {status}
+            </span>
           );
         },
       },
       {
-        headerName: "Comments",
-        field: "comments",
-        flex: 4.5,
-        minWidth: 360,
-        valueGetter: (params) => params.data?.details?.globalComments ?? "-",
+        headerName: "",
+        field: "_nav",
+        width: 52,
+        minWidth: 48,
+        maxWidth: 56,
+        suppressSizeToFit: true,
+        sortable: false,
+        resizable: false,
+        cellRenderer: (params: ICellRendererParams) => {
+          const routeId = params.data?.routeId as string | number | undefined;
+          if (!routeId) return null;
+          return (
+            <div className="flex h-full items-center justify-end pr-1">
+              <button
+                type="button"
+                className="inline-flex items-center justify-center rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                aria-label="Open request"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  router.push(`/track-request/${encodeURIComponent(String(routeId))}`);
+                }}
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </div>
+          );
+        },
       },
     ],
     [router]
@@ -382,13 +403,13 @@ const TrackRequest: React.FC = () => {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="ag-theme-quartz w-full" style={{ width: "100%", minWidth: 0 }}>
           <AgGridReact
-            ref={gridRef}
-            rowData={filteredRequests}
+            rowData={paginatedRowData}
             columnDefs={columnDefs}
             rowSelection="single"
             rowModelType="clientSide"
             animateRows={true}
             domLayout="autoHeight"
+            pagination={false}
             headerHeight={44}
             defaultColDef={{
               sortable: true,
@@ -422,6 +443,20 @@ const TrackRequest: React.FC = () => {
               params.api.sizeColumnsToFit();
             }}
             suppressSizeToFit={false}
+          />
+        </div>
+        <div className="mt-1">
+          <CustomPagination
+            totalItems={sortedFilteredRequests.length}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(newPageSize) => {
+              setPageSize(newPageSize);
+              setCurrentPage(1);
+            }}
+            pageSizeOptions={[10, 20, 50, 100, "all"]}
           />
         </div>
       </div>

@@ -325,3 +325,17 @@ textarea:focus-visible,
   outline: 2px solid #2563eb !important;
   outline-offset: -2px !important;
 }
+
+/* My Approvals: center vertically, align content left (Comments + Insights) */
+.ag-theme-quartz .pending-approvals-comments-cell,
+.ag-theme-quartz .pending-approvals-insights-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.ag-theme-quartz .pending-approvals-comments-cell .ag-cell-wrapper {
+  width: 100%;
+  min-width: 0;
+}

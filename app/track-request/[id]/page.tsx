@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Info, FileText, ChevronDown, ChevronUp } from "lucide-react";
+import { FileText, ChevronDown, ChevronUp } from "lucide-react";
 import { getReviewerId } from "@/lib/auth";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 
@@ -30,7 +30,6 @@ interface RequestLineItem {
   startDate: string;
   endDate: string;
   comments: string;
-  hasInfoIcon?: boolean;
   hasHighRisk?: boolean;
   hasTrainingCheck?: boolean;
   hasConflict?: boolean;
@@ -59,7 +58,6 @@ interface Request {
   entityType: string;
   daysOpen: number;
   status: string;
-  hasInfoIcon?: boolean;
   canWithdraw?: boolean;
   canProvideAdditionalDetails?: boolean;
   details?: RequestDetails;
@@ -490,9 +488,6 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
               comments: lineComments,
               hasTrainingCheck: lineHasTrainingCheck,
               hasConflict: lineHasConflict,
-              hasInfoIcon:
-                String(lineCatalog.privileged ?? "").toLowerCase() === "yes" ||
-                lineRisk.startsWith("high"),
               hasHighRisk: lineRisk.startsWith("high"),
               canWithdraw: status.toLowerCase().includes("awaiting") || status.toLowerCase().includes("pending"),
               canProvideAdditionalDetails: status.toLowerCase().includes("provide information"),
@@ -524,9 +519,6 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
                       const idKey = String(catalog.catalogId ?? catalog.catalogid ?? "").trim();
                       return nameKey === primaryConflictingRole || idKey === primaryConflictingRole;
                     })(),
-                    hasInfoIcon:
-                      String(catalog.privileged ?? "").toLowerCase() === "yes" ||
-                      String(catalog.risk ?? "").toLowerCase().startsWith("high"),
                     hasHighRisk: String(catalog.risk ?? "").toLowerCase().startsWith("high"),
                     canWithdraw:
                       status.toLowerCase().includes("awaiting") || status.toLowerCase().includes("pending"),
@@ -556,13 +548,13 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
           const wfInstanceIdFromRequestJson =
             requestJson?.workflow_instance?.id ??
             requestJson?.workflowInstance?.id;
+          // Same ID resolution as app/track-request/page.tsx (grid "ID" column)
           const requestDisplayId =
-            accessRequest.id ??
+            requestJson?.workflow_instance?.id ??
             row.request_id ??
+            accessRequest.id ??
             row.requestid ??
             row.id ??
-            wfInstanceIdFromRequestJson ??
-            wfInstanceIdFromItem ??
             "";
           const lookupKeys = [
             wfInstanceIdFromRequestJson,
@@ -598,9 +590,6 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
             entityType: String(entityTypeFromCatalog || "Entitlement"),
             daysOpen,
             status,
-            hasInfoIcon:
-              String(catalog.privileged ?? "").toLowerCase() === "yes" ||
-              String(catalog.risk ?? "").toLowerCase().startsWith("high"),
             canWithdraw: status.toLowerCase().includes("awaiting") || status.toLowerCase().includes("pending"),
             canProvideAdditionalDetails: status.toLowerCase().includes("provide information"),
             details: {
@@ -829,9 +818,6 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
         {request.lineItems.map((lineItem, index) => {
           const lineItemKey = String(index);
           const isItemExpanded = expandedLineItems[lineItemKey] ?? true;
-          const infoTooltip = lineItem.hasHighRisk
-            ? "High-risk or privileged access item"
-            : "Additional item information";
           const toggleTooltip = isItemExpanded ? "Collapse line item" : "Expand line item";
           return (
             <div key={lineItemKey} className="border border-gray-200 rounded-lg bg-gray-50">
@@ -961,16 +947,6 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
                 )}
 
                 <div className="flex items-center gap-2 shrink-0 ml-auto">
-                  {lineItem.hasInfoIcon && (
-                    <div
-                      className="ml-1 w-6 h-6 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600"
-                      title={infoTooltip}
-                      aria-label={infoTooltip}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Info className="w-3.5 h-3.5" />
-                    </div>
-                  )}
                   <span className="text-gray-500 ml-1" aria-hidden title={toggleTooltip}>
                     {isItemExpanded ? (
                       <ChevronUp className="w-4 h-4" />
