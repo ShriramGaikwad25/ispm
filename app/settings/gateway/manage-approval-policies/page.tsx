@@ -147,6 +147,10 @@ export default function ManageApprovalPoliciesPage() {
       owner: string | null;
       priority: number | null;
       status: string | null;
+      /** Carried through for Review page Conditions (selector_json from view/API) */
+      selector_json?: unknown;
+      /** FK to kf_wf_template_t for Review page Attached Workflow */
+      wftemplate_id?: string;
     }[]
   >([]);
   const [isLoadingList, setIsLoadingList] = useState<boolean>(false);
@@ -261,8 +265,8 @@ export default function ManageApprovalPoliciesPage() {
           );
         },
       },
-      { headerName: "Owner", field: "owner", flex: 1, minWidth: 160 },
-      { headerName: "Priority", field: "priority", width: 120 },
+      { headerName: "Owner", field: "owner", flex: 0.6, minWidth: 100, maxWidth: 200 },
+      { headerName: "Priority", field: "priority", width: 160, minWidth: 140 },
       { headerName: "Status", field: "status", width: 140 },
       {
         headerName: "Action",
@@ -282,6 +286,9 @@ export default function ManageApprovalPoliciesPage() {
                   const row = params.data;
                   if (!row) return;
                   try {
+                    const r = row as Record<string, unknown>;
+                    const selectorJson =
+                      r.selector_json ?? r.SELECTOR_JSON ?? r.selectorJson;
                     localStorage.setItem(
                       APPROVAL_POLICY_VIEW_STORAGE_KEY,
                       JSON.stringify({
@@ -291,6 +298,9 @@ export default function ManageApprovalPoliciesPage() {
                         description: row.description ?? "",
                         priority: row.priority,
                         status: row.status ?? "",
+                        ...(selectorJson !== undefined && selectorJson !== null
+                          ? { selector_json: selectorJson }
+                          : {}),
                         raw: row,
                       })
                     );
@@ -392,6 +402,20 @@ export default function ManageApprovalPoliciesPage() {
             row.STATE ??
             null;
 
+          const selectorJson =
+            row.selector_json ??
+            row.SELECTOR_JSON ??
+            row.selectorJson ??
+            null;
+
+          const wfTemplateId =
+            row.wftemplate_id ??
+            row.wftemplateid ??
+            row.WFTEMPLATE_ID ??
+            row.workflow_template_id ??
+            row.WORKFLOW_TEMPLATE_ID ??
+            null;
+
           return {
             id: String(id),
             name: String(name),
@@ -402,6 +426,14 @@ export default function ManageApprovalPoliciesPage() {
                 ? Number(priorityRaw)
                 : null,
             status: status ? String(status) : null,
+            ...(selectorJson !== undefined && selectorJson !== null
+              ? { selector_json: selectorJson }
+              : {}),
+            ...(wfTemplateId !== undefined &&
+            wfTemplateId !== null &&
+            String(wfTemplateId).trim() !== ""
+              ? { wftemplate_id: String(wfTemplateId) }
+              : {}),
           };
         });
 
