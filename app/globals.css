@@ -121,7 +121,7 @@ body::-webkit-scrollbar {
 /* AG Grid: white header area + bold green outer border only (not per-column) */
 .ag-header {
   @apply !bg-[#fff];
-  border: 2px solid #16a34a !important;
+  border: 1.5px solid #16a34a !important;
 }
 
 div[role="row"]:not(.ag-header-row) {
@@ -131,19 +131,19 @@ div[role="row"]:not(.ag-header-row) {
 /* Header cells: no green column borders; optional subtle separator */
 .ag-header-cell {
   background-color: #ffffff !important;
-  border-right: 2px solid #e5e7eb !important;
+  border-right: 1.5px solid #e5e7eb !important;
   border-bottom: none !important;
 }
 
 .ag-theme-quartz .ag-header-cell {
   background-color: #ffffff !important;
-  border-right: 2px solid #e5e7eb !important;
+  border-right: 1.5px solid #e5e7eb !important;
   border-bottom: none !important;
 }
 
 .ag-theme-alpine .ag-header-cell {
   background-color: #ffffff !important;
-  border-right: 2px solid #e5e7eb !important;
+  border-right: 1.5px solid #e5e7eb !important;
   border-bottom: none !important;
 }
 

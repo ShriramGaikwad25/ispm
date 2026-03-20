@@ -1,13 +1,28 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { useForm, Control, FieldValues, UseFormSetValue, UseFormWatch } from "react-hook-form";
-import { Trash2, Plus, ChevronLeft, ChevronRight, Check } from "lucide-react";
+import {
+  Trash2,
+  Plus,
+  ChevronLeft,
+  ChevronRight,
+  Check,
+  FileText,
+  KeyRound,
+  ListChecks,
+  ShieldCheck,
+  AlertCircle,
+  Users,
+} from "lucide-react";
 import ExpressionBuilder from "@/components/ExpressionBuilder";
+import { getRiskColor, type Role } from "@/app/access-request/AddDetailsSidebarContent";
+import { getLogoSrc } from "@/components/MsAsyncData";
 import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
 import SelectAccessTab from "@/app/access-request/SelectAccessTab";
 import { executeQuery } from "@/lib/api";
+import { ACCESS_POLICY_VIEW_STORAGE_KEY } from "@/lib/access-policy-view-storage";
 import { useCart } from "@/contexts/CartContext";
 
 type AccessProvision = {
@@ -16,6 +31,190 @@ type AccessProvision = {
   application: string;
   name: string;
 };
+
+const VW_CATALOG_BY_ID_QUERY =
+  "SELECT * FROM vw_catalog WHERE catalogid = ?::uuid";
+
+/** Catalog UUIDs from policy row `access_granted` (uses each entry's `value`). */
+function parseAccessGrantedCatalogIds(row: any): string[] {
+  const out: string[] = [];
+  const rawKeys = Object.keys(row || {});
+  const i = rawKeys.findIndex((k) => k.toLowerCase() === "access_granted");
+  if (i === -1) return out;
+  const raw = row[rawKeys[i]];
+  const push = (v: unknown) => {
+    if (typeof v === "string" && v.trim()) out.push(v.trim());
+  };
+  try {
+    let data: unknown = raw;
+    if (typeof raw === "string" && raw.trim()) {
+      data = JSON.parse(raw);
+    }
+    if (Array.isArray(data)) {
+      for (const item of data) {
+        if (item != null && typeof item === "object" && "value" in item) {
+          push((item as { value?: unknown }).value);
+        } else if (typeof item === "string") {
+          push(item);
+        }
+      }
+    } else if (data && typeof data === "object" && "value" in data) {
+      push((data as { value?: unknown }).value);
+    } else if (typeof data === "string") {
+      push(data);
+    }
+  } catch {
+    // ignore malformed access_granted
+  }
+  return [...new Set(out)];
+}
+
+function normalizeExecuteQueryRows(result: unknown): any[] {
+  if (Array.isArray(result)) return result;
+  if (result && typeof result === "object") {
+    const r = result as Record<string, unknown>;
+    if (Array.isArray(r.resultSet)) return r.resultSet as any[];
+    if (Array.isArray(r.rows)) return r.rows as any[];
+  }
+  return [];
+}
+
+function pickCatalogField(row: any, ...candidates: string[]): string {
+  if (!row || typeof row !== "object") return "—";
+  for (const c of candidates) {
+    const k = Object.keys(row).find((key) => key.toLowerCase() === c.toLowerCase());
+    if (k !== undefined && row[k] != null && String(row[k]).trim() !== "") {
+      return String(row[k]);
+    }
+  }
+  return "—";
+}
+
+function roleTypeFromCatalogRow(catalogRow: Record<string, unknown> | undefined): string {
+  const t = (catalogRow?.type as string) ?? "";
+  return String(t).trim().toLowerCase();
+}
+
+function getApplicationNameFromRow(catalogRow: Record<string, unknown> | undefined): string {
+  if (!catalogRow) return "";
+  const v =
+    (catalogRow.applicationname as string) ??
+    (catalogRow.applicationName as string) ??
+    (catalogRow.application_name as string) ??
+    (catalogRow.appname as string) ??
+    (catalogRow.appName as string) ??
+    "";
+  return typeof v === "string" ? v.trim() : "";
+}
+
+function vwCatalogRowToRole(row: any, index: number): Role {
+  const cr = (row || {}) as Record<string, unknown>;
+  const nameVal = pickCatalogField(row, "name", "entitlementname");
+  const idVal = pickCatalogField(row, "catalogid");
+  const riskStr = pickCatalogField(row, "risk");
+  let risk: Role["risk"] = "Low";
+  if (riskStr !== "—") {
+    const r = riskStr.toLowerCase();
+    if (r.startsWith("high")) risk = "High";
+    else if (r.startsWith("medium")) risk = "Medium";
+  }
+  const descVal = pickCatalogField(row, "description", "entitlementdescription");
+  const typeVal = pickCatalogField(row, "type");
+  return {
+    id: idVal !== "—" ? idVal : `catalog-${index}`,
+    name: nameVal !== "—" ? nameVal : "Unknown",
+    risk,
+    description: descVal !== "—" ? descVal : "",
+    type: typeVal !== "—" ? typeVal : undefined,
+    catalogRow: cr,
+  };
+}
+
+function cartItemToRole(item: {
+  id: string;
+  name: string;
+  risk?: "Low" | "Medium" | "High";
+}): Role {
+  return {
+    id: item.id,
+    name: item.name,
+    risk: item.risk ?? "Low",
+    description: "",
+    catalogRow: {},
+  };
+}
+
+/** Same card layout as Select Access step 3 (selected state). */
+function CatalogAccessCardView({ role }: { role: Role }) {
+  const row = role.catalogRow as Record<string, unknown> | undefined;
+  const rt = roleTypeFromCatalogRow(row);
+  const appName = getApplicationNameFromRow(row);
+  return (
+    <div className="flex items-center justify-between rounded-lg p-4 transition-colors bg-blue-50 ring-2 ring-blue-400">
+      <div className="flex items-center gap-4 flex-1 min-w-0">
+        <div className="flex items-center justify-center w-10 h-10 bg-gray-300 rounded overflow-hidden shrink-0">
+          {rt === "applicationinstance" ? (
+            <img
+              src={getLogoSrc(appName || role.name)}
+              alt=""
+              className="w-10 h-10 object-contain"
+            />
+          ) : (
+            <Users className="w-6 h-6 text-gray-600" />
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-3 mb-2 flex-wrap">
+            <span className="text-gray-800 font-medium">{role.name}</span>
+            <span
+              className={`px-2 py-1 rounded text-xs font-medium border ${getRiskColor(
+                role.risk
+              )}`}
+            >
+              {role.risk} Risk
+            </span>
+            {appName ? (
+              <span className="px-2 py-1 rounded text-xs font-medium border text-blue-700 bg-blue-50 border-blue-200">
+                {appName}
+              </span>
+            ) : null}
+            {(() => {
+              const jit =
+                (row?.jit_access as string | undefined) ??
+                (row?.jitAccess as string | undefined) ??
+                (row?.JIT_ACCESS as string | undefined);
+              return typeof jit === "string" && jit.toLowerCase() === "yes";
+            })() && (
+              <span className="px-2 py-1 rounded text-xs font-medium border text-[#E0745A] bg-[#E0745A]/15 border-[#E0745A]">
+                JIT Access
+              </span>
+            )}
+            {(() => {
+              const raw = row?.training_code as unknown;
+              const arr = Array.isArray(raw) ? raw : [];
+              if (arr.length === 0) return null;
+              const first = arr[0] as Record<string, unknown>;
+              const code = String(first.code ?? "").trim();
+              if (!code) return null;
+              return (
+                <span
+                  className={`px-2 py-1 rounded text-xs font-medium border ${getRiskColor(
+                    "Low"
+                  )}`}
+                >
+                  Training Check
+                </span>
+              );
+            })()}
+          </div>
+          {role.description ? (
+            <p className="text-sm text-gray-600">{role.description}</p>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function CreateAccessPolicyPage() {
   const { control, setValue, watch, register, handleSubmit, reset } = useForm<FieldValues>({
@@ -31,6 +230,8 @@ export default function CreateAccessPolicyPage() {
 
   const { isVisible: isSidebarVisible, sidebarWidthPx } = useLeftSidebar();
   const searchParams = useSearchParams();
+  const policyIdParam = searchParams.get("policyId");
+  const isViewMode = searchParams.get("view") === "1" && Boolean(policyIdParam);
   const { addToCart, clearCart, isInCart, items: cartItems } = useCart();
   const [currentStep, setCurrentStep] = useState(1);
   const [advanced, setAdvanced] = useState(false);
@@ -51,7 +252,27 @@ export default function CreateAccessPolicyPage() {
   const catalogFetchKeyRef = useRef<string | null>(null);
   const catalogPageRef = useRef(catalogPage);
 
+  /** Review page uses row from sessionStorage (list); no per-policy API call. */
+  const [viewHydrateStatus, setViewHydrateStatus] = useState<
+    "loading" | "ok" | "missing"
+  >(() => (isViewMode ? "loading" : "ok"));
+
+  /** From policy row `access_granted` — drives vw_catalog fetches for Selected Access. */
+  const [accessGrantedCatalogIds, setAccessGrantedCatalogIds] = useState<string[]>(
+    []
+  );
+  const [grantedCatalogRows, setGrantedCatalogRows] = useState<any[]>([]);
+  const [grantedCatalogLoading, setGrantedCatalogLoading] = useState(false);
+  const [grantedCatalogError, setGrantedCatalogError] = useState<string | null>(
+    null
+  );
+
   catalogPageRef.current = catalogPage;
+
+  const accessGrantedIdsKey = useMemo(
+    () => accessGrantedCatalogIds.join("|"),
+    [accessGrantedCatalogIds]
+  );
 
   const apiRoles = React.useMemo(() => {
     if (!catalogData || catalogData.length === 0) return [];
@@ -398,11 +619,269 @@ export default function CreateAccessPolicyPage() {
     }
   };
 
-  // Load existing policy into form when editing
+  const applyPolicyRowFromApi = useCallback(
+    (row: any) => {
+      clearCart();
+
+      // Try to hydrate ExpressionBuilder from any JSON condition / expression field on the row
+      let expressionConditions: any[] = [];
+      try {
+        const rawKeys = Object.keys(row || {});
+        const lowerKeys = rawKeys.map((k) => k.toLowerCase());
+
+        const candidateIndex = lowerKeys.findIndex((k) =>
+          ["condition", "expression", "rule"].some((needle) =>
+            k.includes(needle)
+          )
+        );
+
+        if (candidateIndex !== -1) {
+          const key = rawKeys[candidateIndex];
+          const rawVal = row[key];
+
+          if (typeof rawVal === "string" && rawVal.trim()) {
+            const parsed = JSON.parse(rawVal);
+            if (Array.isArray(parsed)) {
+              expressionConditions = parsed;
+            } else if (
+              parsed &&
+              typeof parsed === "object" &&
+              Array.isArray((parsed as any).conditions)
+            ) {
+              expressionConditions = (parsed as any).conditions;
+            }
+          } else if (Array.isArray(rawVal)) {
+            expressionConditions = rawVal;
+          } else if (
+            rawVal &&
+            typeof rawVal === "object" &&
+            Array.isArray((rawVal as any).conditions)
+          ) {
+            expressionConditions = (rawVal as any).conditions;
+          }
+        }
+
+        console.log("Loaded policy row for ExpressionBuilder", {
+          row,
+          expressionConditions,
+        });
+      } catch (e) {
+        console.warn("Failed to parse condition block from policy row:", e);
+        expressionConditions = [];
+      }
+
+      const mappedConditions =
+        Array.isArray(expressionConditions) && expressionConditions.length > 0
+          ? expressionConditions.map((cond: any, index: number) => ({
+              id:
+                cond.id ||
+                `cond-${index}-${Date.now()}`,
+              attribute:
+                cond.attribute && typeof cond.attribute === "object"
+                  ? cond.attribute
+                  : cond.attribute
+                  ? {
+                      label: cond.attributeLabel || cond.attribute,
+                      value: cond.attribute,
+                    }
+                  : null,
+              operator:
+                cond.operator && typeof cond.operator === "object"
+                  ? cond.operator
+                  : cond.operator
+                  ? {
+                      label: cond.operatorLabel || cond.operator,
+                      value: cond.operator,
+                    }
+                  : null,
+              value: cond.value ?? "",
+              logicalOp:
+                cond.logicalOp ||
+                cond.condition ||
+                "AND",
+            }))
+          : [];
+
+      try {
+        const rawKeys = Object.keys(row || {});
+        const lowerKeys = rawKeys.map((k) => k.toLowerCase());
+        const entIndex = lowerKeys.findIndex((k) =>
+          [
+            "entitlements_json",
+            "entitlement_json",
+            "entitlements",
+            "entitlements_granted",
+            "access_granted",
+            "access_json",
+            "granted_access",
+          ].some((needle) => k.includes(needle))
+        );
+        if (entIndex !== -1) {
+          const key = rawKeys[entIndex];
+          const rawEnt = row[key];
+          let entList: any[] = [];
+          if (typeof rawEnt === "string" && rawEnt.trim()) {
+            const parsed = JSON.parse(rawEnt);
+            if (Array.isArray(parsed)) entList = parsed;
+            else if (
+              parsed &&
+              typeof parsed === "object" &&
+              Array.isArray((parsed as any).items)
+            ) {
+              entList = (parsed as any).items;
+            }
+          } else if (Array.isArray(rawEnt)) {
+            entList = rawEnt;
+          } else if (
+            rawEnt &&
+            typeof rawEnt === "object" &&
+            Array.isArray((rawEnt as any).items)
+          ) {
+            entList = (rawEnt as any).items;
+          }
+
+          if (entList.length > 0) {
+            const grantedIds: string[] = [];
+            const grantedNames: string[] = [];
+
+            entList.forEach((ent, idx) => {
+              const id =
+                String(
+                  ent.id ??
+                    ent.entitlement_id ??
+                    ent.entitlementid ??
+                    ent.catalogid ??
+                    idx
+                ).trim() || String(idx);
+              const name =
+                ent.name ??
+                ent.entitlement_name ??
+                ent.entitlementName ??
+                ent.role_name ??
+                `Entitlement ${idx + 1}`;
+
+              let risk: "High" | "Medium" | "Low" | undefined;
+              const rawRisk = String(
+                ent.risk ?? ent.risk_level ?? ent.riskLevel ?? ""
+              ).toLowerCase();
+              if (rawRisk.startsWith("high")) risk = "High";
+              else if (rawRisk.startsWith("medium")) risk = "Medium";
+              else if (rawRisk.startsWith("low")) risk = "Low";
+
+              grantedIds.push(id);
+              if (name) {
+                grantedNames.push(String(name));
+              }
+
+              if (!isInCart(id)) {
+                addToCart({
+                  id,
+                  name,
+                  risk,
+                });
+              }
+            });
+
+            setPreselectedAccessIds(grantedIds);
+            setPreselectedAccessNames(grantedNames);
+            setCatalogPage(1);
+            setSelectedAppInstanceId(null);
+            setShowApplicationInstancesOnly(false);
+            setCatalogTypeFilter("All");
+            setTagFilter("");
+          }
+        }
+      } catch (e) {
+        console.warn(
+          "Failed to hydrate entitlements_json into cart from policy row:",
+          e
+        );
+      }
+
+      reset({
+        policyName:
+          row.policy_name ??
+          row.POLICY_NAME ??
+          row.name ??
+          "",
+        description:
+          row.policy_description ??
+          row.POLICY_DESCRIPTION ??
+          row.description ??
+          "",
+        owner:
+          row.created_by ??
+          row.CREATED_BY ??
+          row.owner ??
+          "",
+        priority:
+          row.priority !== undefined && row.priority !== null
+            ? String(row.priority)
+            : "",
+        enabled: Boolean(
+          row.enabled ??
+            (row.status &&
+              String(row.status).toLowerCase() === "enabled")
+        ),
+        userAttributeConditions: mappedConditions,
+      });
+      setAccessGrantedCatalogIds(parseAccessGrantedCatalogIds(row));
+    },
+    [
+      addToCart,
+      clearCart,
+      isInCart,
+      reset,
+      setAccessGrantedCatalogIds,
+      setCatalogPage,
+      setCatalogTypeFilter,
+      setPreselectedAccessIds,
+      setPreselectedAccessNames,
+      setSelectedAppInstanceId,
+      setShowApplicationInstancesOnly,
+      setTagFilter,
+    ]
+  );
+
+  // Cart callbacks change identity after updates; keep latest apply out of effect deps to avoid loops.
+  const applyPolicyRowFromApiRef = useRef(applyPolicyRowFromApi);
+  applyPolicyRowFromApiRef.current = applyPolicyRowFromApi;
+
+  // Load existing policy: edit uses API; review uses sessionStorage only (row from list).
   useEffect(() => {
-    const policyId = searchParams.get("policyId");
+    const policyId = policyIdParam;
     if (!policyId) return;
     setEditingPolicyId(policyId);
+
+    const apply = (row: Record<string, unknown>) =>
+      applyPolicyRowFromApiRef.current(row);
+
+    if (isViewMode) {
+      try {
+        const raw = sessionStorage.getItem(ACCESS_POLICY_VIEW_STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as {
+            policyId?: string;
+            row?: Record<string, unknown>;
+          };
+          if (
+            parsed.policyId === policyId &&
+            parsed.row &&
+            typeof parsed.row === "object" &&
+            Object.keys(parsed.row).length > 0
+          ) {
+            apply(parsed.row);
+            setCurrentStep(4);
+            setViewHydrateStatus("ok");
+            return;
+          }
+        }
+      } catch (e) {
+        console.error("Failed to read access policy review from storage:", e);
+      }
+      setViewHydrateStatus("missing");
+      return;
+    }
 
     const fetchPolicy = async () => {
       try {
@@ -420,223 +899,54 @@ export default function CreateAccessPolicyPage() {
           : [];
 
         if (!rows.length) return;
-        const row = rows[0];
-
-        // Try to hydrate ExpressionBuilder from any JSON condition / expression field on the row
-        let expressionConditions: any[] = [];
-        try {
-          const rawKeys = Object.keys(row || {});
-          const lowerKeys = rawKeys.map((k) => k.toLowerCase());
-
-          // Look for fields like condition_block, conditions_json, expression, membership_rule, etc.
-          const candidateIndex = lowerKeys.findIndex((k) =>
-            ["condition", "expression", "rule"].some((needle) =>
-              k.includes(needle)
-            )
-          );
-
-          if (candidateIndex !== -1) {
-            const key = rawKeys[candidateIndex];
-            const rawVal = row[key];
-
-            if (typeof rawVal === "string" && rawVal.trim()) {
-              const parsed = JSON.parse(rawVal);
-              if (Array.isArray(parsed)) {
-                expressionConditions = parsed;
-              } else if (
-                parsed &&
-                typeof parsed === "object" &&
-                Array.isArray((parsed as any).conditions)
-              ) {
-                expressionConditions = (parsed as any).conditions;
-              }
-            } else if (Array.isArray(rawVal)) {
-              expressionConditions = rawVal;
-            } else if (
-              rawVal &&
-              typeof rawVal === "object" &&
-              Array.isArray((rawVal as any).conditions)
-            ) {
-              expressionConditions = (rawVal as any).conditions;
-            }
-          }
-
-          // Helpful debug log so we can see what is actually coming back
-          console.log("Loaded policy row for ExpressionBuilder", {
-            row,
-            expressionConditions,
-          });
-        } catch (e) {
-          console.warn("Failed to parse condition block from policy row:", e);
-          expressionConditions = [];
-        }
-
-        const mappedConditions =
-          Array.isArray(expressionConditions) && expressionConditions.length > 0
-            ? expressionConditions.map((cond: any, index: number) => ({
-                id:
-                  cond.id ||
-                  `cond-${index}-${Date.now()}`,
-                attribute:
-                  cond.attribute && typeof cond.attribute === "object"
-                    ? cond.attribute
-                    : cond.attribute
-                    ? {
-                        label: cond.attributeLabel || cond.attribute,
-                        value: cond.attribute,
-                      }
-                    : null,
-                operator:
-                  cond.operator && typeof cond.operator === "object"
-                    ? cond.operator
-                    : cond.operator
-                    ? {
-                        label: cond.operatorLabel || cond.operator,
-                        value: cond.operator,
-                      }
-                    : null,
-                value: cond.value ?? "",
-                logicalOp:
-                  cond.logicalOp ||
-                  cond.condition ||
-                  "AND",
-              }))
-            : [];
-
-        // Map granted entitlements/access (JSON on the row) into cart (step 3)
-        try {
-          const rawKeys = Object.keys(row || {});
-          const lowerKeys = rawKeys.map((k) => k.toLowerCase());
-          const entIndex = lowerKeys.findIndex((k) =>
-            [
-              "entitlements_json",
-              "entitlement_json",
-              "entitlements",
-              "entitlements_granted",
-              "access_granted",
-              "access_json",
-              "granted_access",
-            ].some((needle) => k.includes(needle))
-          );
-            if (entIndex !== -1) {
-            const key = rawKeys[entIndex];
-            const rawEnt = row[key];
-            let entList: any[] = [];
-            if (typeof rawEnt === "string" && rawEnt.trim()) {
-              const parsed = JSON.parse(rawEnt);
-              if (Array.isArray(parsed)) entList = parsed;
-              else if (
-                parsed &&
-                typeof parsed === "object" &&
-                Array.isArray((parsed as any).items)
-              ) {
-                entList = (parsed as any).items;
-              }
-            } else if (Array.isArray(rawEnt)) {
-              entList = rawEnt;
-            } else if (
-              rawEnt &&
-              typeof rawEnt === "object" &&
-              Array.isArray((rawEnt as any).items)
-            ) {
-              entList = (rawEnt as any).items;
-            }
-
-            if (entList.length > 0) {
-              clearCart();
-              const grantedIds: string[] = [];
-              const grantedNames: string[] = [];
-
-              entList.forEach((ent, idx) => {
-                const id =
-                  String(
-                    ent.id ??
-                      ent.entitlement_id ??
-                      ent.entitlementid ??
-                      ent.catalogid ??
-                      idx
-                  ).trim() || String(idx);
-                const name =
-                  ent.name ??
-                  ent.entitlement_name ??
-                  ent.entitlementName ??
-                  ent.role_name ??
-                  `Entitlement ${idx + 1}`;
-
-                let risk: "High" | "Medium" | "Low" | undefined;
-                const rawRisk = String(
-                  ent.risk ?? ent.risk_level ?? ent.riskLevel ?? ""
-                ).toLowerCase();
-                if (rawRisk.startsWith("high")) risk = "High";
-                else if (rawRisk.startsWith("medium")) risk = "Medium";
-                else if (rawRisk.startsWith("low")) risk = "Low";
-
-                grantedIds.push(id);
-                if (name) {
-                  grantedNames.push(String(name));
-                }
-
-                if (!isInCart(id)) {
-                  addToCart({
-                    id,
-                    name,
-                    risk,
-                  });
-                }
-              });
-
-              // Used by Step 3 catalog list to show granted access first and selected
-              setPreselectedAccessIds(grantedIds);
-              setPreselectedAccessNames(grantedNames);
-              // Reset catalog filters so edit mode Step 3 starts from a clean view
-              setCatalogPage(1);
-              setSelectedAppInstanceId(null);
-              setShowApplicationInstancesOnly(false);
-              setCatalogTypeFilter("All");
-              setTagFilter("");
-            }
-          }
-        } catch (e) {
-          console.warn(
-            "Failed to hydrate entitlements_json into cart from policy row:",
-            e
-          );
-        }
-
-        reset({
-          policyName:
-            row.policy_name ??
-            row.POLICY_NAME ??
-            row.name ??
-            "",
-          description:
-            row.policy_description ??
-            row.POLICY_DESCRIPTION ??
-            row.description ??
-            "",
-          owner:
-            row.created_by ??
-            row.CREATED_BY ??
-            row.owner ??
-            "",
-          priority:
-            row.priority !== undefined && row.priority !== null
-              ? String(row.priority)
-              : "",
-          enabled: Boolean(
-            row.enabled ??
-              (row.status &&
-                String(row.status).toLowerCase() === "enabled")
-          ),
-          userAttributeConditions: mappedConditions,
-        });
+        apply(rows[0]);
       } catch (e) {
         console.error("Failed to load policy into form:", e);
       }
     };
 
     fetchPolicy();
-  }, [searchParams, reset]);
+  }, [isViewMode, policyIdParam]);
+
+  useEffect(() => {
+    if (!accessGrantedCatalogIds.length) {
+      setGrantedCatalogRows([]);
+      setGrantedCatalogError(null);
+      setGrantedCatalogLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setGrantedCatalogLoading(true);
+    setGrantedCatalogError(null);
+    (async () => {
+      try {
+        const rows = await Promise.all(
+          accessGrantedCatalogIds.map(async (catalogid) => {
+            const result = await executeQuery<any>(VW_CATALOG_BY_ID_QUERY, [
+              catalogid,
+            ]);
+            const list = normalizeExecuteQueryRows(result);
+            return list[0] ?? null;
+          })
+        );
+        if (!cancelled) {
+          setGrantedCatalogRows(rows.filter(Boolean));
+        }
+      } catch (e: unknown) {
+        if (!cancelled) {
+          setGrantedCatalogError(
+            e instanceof Error ? e.message : "Failed to load catalog"
+          );
+          setGrantedCatalogRows([]);
+        }
+      } finally {
+        if (!cancelled) setGrantedCatalogLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [accessGrantedIdsKey]);
 
   const handleNext = () => {
     if (currentStep < 4) {
@@ -849,12 +1159,170 @@ export default function CreateAccessPolicyPage() {
     </div>
   );
 
-  // Step 4 Component - Review/Additional Info
-  const Step4Content = () => {
+  // Step 4 Component - Review/Additional Info (wizard) or standalone review layout
+  const Step4Content = ({ variant = "wizard" }: { variant?: "wizard" | "review" }) => {
     const membershipConditions: any[] = watch("userAttributeConditions") || [];
 
     const hasConditions =
       Array.isArray(membershipConditions) && membershipConditions.length > 0;
+
+    if (variant === "review") {
+      const policyName = watch("policyName") || "";
+      const owner = watch("owner") || "";
+      const priority = watch("priority") || "";
+      const enabled = watch("enabled");
+      const description = watch("description") || "";
+
+      return (
+        <div className="space-y-4 text-xs">
+          <div className="bg-white rounded-lg p-4 border border-gray-200">
+            <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-blue-600 shrink-0" />
+              Access Policy
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+              <div>
+                <div className="font-medium text-gray-600 mb-1">Policy Name</div>
+                <div className="border border-gray-200 rounded-md px-3 py-2 bg-gray-50 text-gray-900">
+                  {policyName || <span className="text-gray-400">Not provided</span>}
+                </div>
+              </div>
+              <div>
+                <div className="font-medium text-gray-600 mb-1">Owner</div>
+                <div className="border border-gray-200 rounded-md px-3 py-2 bg-gray-50 text-gray-900">
+                  {owner || <span className="text-gray-400">Not provided</span>}
+                </div>
+              </div>
+              <div>
+                <div className="font-medium text-gray-600 mb-1">Priority</div>
+                <div className="border border-gray-200 rounded-md px-3 py-2 bg-gray-50 text-gray-900">
+                  {priority ? String(priority) : <span className="text-gray-400">—</span>}
+                </div>
+              </div>
+              <div>
+                <div className="font-medium text-gray-600 mb-1">Enabled</div>
+                <div className="border border-gray-200 rounded-md px-3 py-2 bg-gray-50 text-gray-900">
+                  {enabled ? "Yes" : "No"}
+                </div>
+              </div>
+              <div className="md:col-span-2">
+                <div className="font-medium text-gray-600 mb-1 flex items-center gap-2">
+                  <FileText className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                  Description
+                </div>
+                <div className="border border-gray-200 rounded-md px-3 py-2 bg-gray-50 text-gray-900 whitespace-pre-wrap">
+                  {description || <span className="text-gray-400">Not provided</span>}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg p-4 border border-gray-200">
+            <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <ListChecks className="h-4 w-4 text-blue-600 shrink-0" />
+              Membership Rule
+            </h4>
+            <p className="text-[11px] text-gray-500 mb-2">
+              All conditions are combined with <span className="font-semibold">AND</span>.
+            </p>
+            {!hasConditions ? (
+              <p className="text-xs text-gray-400">
+                No membership rule is defined. This policy will apply to all users in scope.
+              </p>
+            ) : (
+              <ol className="list-decimal list-inside space-y-2 border border-gray-200 rounded-md px-3 py-3 bg-gray-50 text-gray-900">
+                {membershipConditions.map((cond: any, index: number) => {
+                  const attributeLabel =
+                    cond?.attribute?.label ??
+                    cond?.attribute?.value ??
+                    cond?.attribute ??
+                    "";
+                  const operatorLabel =
+                    cond?.operator?.label ??
+                    cond?.operator?.value ??
+                    cond?.operator ??
+                    "";
+                  const valueLabel =
+                    cond?.value !== undefined && cond?.value !== null
+                      ? String(cond.value)
+                      : "";
+
+                  return (
+                    <li key={cond.id ?? index} className="text-xs leading-relaxed">
+                      <span className="font-medium">
+                        {attributeLabel || "(attribute)"}
+                      </span>{" "}
+                      <span className="text-gray-600">
+                        {operatorLabel || "(operator)"}
+                      </span>{" "}
+                      <span className="font-medium break-all">
+                        {valueLabel || "(value)"}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+          </div>
+
+          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 bg-gray-50/80">
+              <p className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                <KeyRound className="h-4 w-4 text-blue-600 shrink-0" />
+                Selected Access
+              </p>
+              <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 border border-blue-100">
+                {accessGrantedCatalogIds.length > 0
+                  ? `${accessGrantedCatalogIds.length} ${
+                      accessGrantedCatalogIds.length === 1 ? "item" : "items"
+                    }`
+                  : `${cartItems.length} ${cartItems.length === 1 ? "item" : "items"}`}
+              </span>
+            </div>
+            {accessGrantedCatalogIds.length > 0 ? (
+              <>
+                {grantedCatalogLoading && (
+                  <p className="px-4 py-4 text-xs text-gray-600">Loading catalog…</p>
+                )}
+                {grantedCatalogError && (
+                  <p className="px-4 py-4 text-xs text-red-600">{grantedCatalogError}</p>
+                )}
+                {!grantedCatalogLoading &&
+                  !grantedCatalogError &&
+                  grantedCatalogRows.length === 0 && (
+                    <p className="px-4 py-4 text-xs text-gray-400">
+                      No matching rows in vw_catalog for the granted access IDs.
+                    </p>
+                  )}
+                {!grantedCatalogLoading && grantedCatalogRows.length > 0 && (
+                  <div className="space-y-3 px-4 pb-4">
+                    {grantedCatalogRows.map((r, idx) => {
+                      const role = vwCatalogRowToRole(r, idx);
+                      return (
+                        <CatalogAccessCardView key={role.id} role={role} />
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            ) : cartItems.length === 0 ? (
+              <p className="px-4 py-4 text-xs text-gray-400">
+                No access items are associated with this policy.
+              </p>
+            ) : (
+              <div className="space-y-3 px-4 pb-4">
+                {cartItems.map((item) => (
+                  <CatalogAccessCardView
+                    key={item.id}
+                    role={cartItemToRole(item)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="space-y-6">
@@ -951,33 +1419,52 @@ export default function CreateAccessPolicyPage() {
         <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-3 text-sm">
           <div className="flex items-center justify-between">
             <h3 className="text-md font-semibold text-gray-900">
-              Selected Access ({cartItems.length})
+              Selected Access (
+              {accessGrantedCatalogIds.length > 0
+                ? accessGrantedCatalogIds.length
+                : cartItems.length}
+              )
             </h3>
           </div>
-          {cartItems.length === 0 ? (
+          {accessGrantedCatalogIds.length > 0 ? (
+            <>
+              {grantedCatalogLoading && (
+                <p className="text-xs text-gray-600">Loading catalog…</p>
+              )}
+              {grantedCatalogError && (
+                <p className="text-xs text-red-600">{grantedCatalogError}</p>
+              )}
+              {!grantedCatalogLoading &&
+                !grantedCatalogError &&
+                grantedCatalogRows.length === 0 && (
+                  <p className="text-xs text-gray-400">
+                    No matching rows in vw_catalog for the granted access IDs.
+                  </p>
+                )}
+              {!grantedCatalogLoading && grantedCatalogRows.length > 0 && (
+                <div className="space-y-3">
+                  {grantedCatalogRows.map((r, idx) => {
+                    const role = vwCatalogRowToRole(r, idx);
+                    return (
+                      <CatalogAccessCardView key={role.id} role={role} />
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          ) : cartItems.length === 0 ? (
             <p className="text-gray-500">
               No access items selected in Step 3.
             </p>
           ) : (
-            <ul className="space-y-1">
+            <div className="space-y-3">
               {cartItems.map((item) => (
-                <li
+                <CatalogAccessCardView
                   key={item.id}
-                  className="flex items-center justify-between border border-gray-200 rounded-md px-3 py-2 bg-white"
-                >
-                  <div className="flex flex-col">
-                    <span className="font-medium text-gray-900">
-                      {item.name}
-                    </span>
-                  </div>
-                  {item.risk && (
-                    <span className="text-xs font-medium px-2 py-1 rounded-full border border-gray-300 text-gray-700">
-                      {item.risk} Risk
-                    </span>
-                  )}
-                </li>
+                  role={cartItemToRole(item)}
+                />
               ))}
-            </ul>
+            </div>
           )}
         </div>
       </div>
@@ -990,6 +1477,44 @@ export default function CreateAccessPolicyPage() {
     { id: 3, title: "Select Access" },
     { id: 4, title: "Review" },
   ];
+
+  if (isViewMode) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-gray-100">
+        <div className="mx-auto w-full max-w-6xl space-y-4 py-3 px-6">
+          <div className="rounded-xl border border-blue-100 bg-white px-5 py-4 shadow-sm">
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold text-gray-900">
+                Review Access Policy
+              </h1>
+              <p className="mt-1 text-xs text-gray-600">
+                Review policy details before making updates.
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm space-y-4">
+            {viewHydrateStatus === "loading" && (
+              <p className="text-sm text-gray-600 text-center py-8">Loading…</p>
+            )}
+            {viewHydrateStatus === "missing" && (
+              <div className="flex items-start gap-2 text-sm text-gray-600">
+                <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                <p>
+                  No policy data found. Use the <strong>View</strong> action on the
+                  Access Policy list so this page can show the policy without a
+                  separate API call.
+                </p>
+              </div>
+            )}
+            {viewHydrateStatus === "ok" && (
+              <Step4Content variant="review" />
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

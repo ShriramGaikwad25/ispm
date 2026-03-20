@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { SquarePen } from "lucide-react";
+import { Eye, SquarePen } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
@@ -14,6 +14,7 @@ import { ColDef, ICellRendererParams, IDetailCellRendererParams, RowClickedEvent
 import { MasterDetailModule } from "ag-grid-enterprise";
 import { ModuleRegistry } from "ag-grid-community";
 import "./AccessPolicy.css";
+import { ACCESS_POLICY_VIEW_STORAGE_KEY } from "@/lib/access-policy-view-storage";
 
 // Register AG Grid Enterprise modules
 ModuleRegistry.registerModules([MasterDetailModule]);
@@ -25,6 +26,8 @@ type AccessPolicyRow = {
   priority: number | null;
   created_by: string | null;
   status: string | null;
+  /** Full row from `kf_ap_access_policies_vw` for review hydration (no second API). */
+  rawApiRow: Record<string, unknown>;
 };
 
 type PendingStatusChange = {
@@ -145,6 +148,7 @@ export default function ManageAccessPolicyPage() {
             row.policy_status ??
             row.state ??
             null,
+          rawApiRow: row as Record<string, unknown>,
         }));
 
         setRows(normalized);
@@ -225,14 +229,42 @@ export default function ManageAccessPolicyPage() {
       {
         field: "actions",
         headerName: "Actions",
-        width: 120,
-        minWidth: 120,
-        maxWidth: 120,
+        width: 160,
+        minWidth: 160,
+        maxWidth: 160,
         suppressSizeToFit: true,
         cellRenderer: (params: ICellRendererParams) => {
           return (
-            <div className="flex space-x-4 h-full items-center">
+            <div className="flex gap-2 h-full items-center">
               <button
+                type="button"
+                title="View Policy"
+                aria-label="View policy"
+                className="p-1 rounded transition-colors duration-200 hover:bg-gray-100"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const id = params.data?.id;
+                  if (!id) return;
+                  try {
+                    sessionStorage.setItem(
+                      ACCESS_POLICY_VIEW_STORAGE_KEY,
+                      JSON.stringify({
+                        policyId: id,
+                        row: params.data?.rawApiRow ?? {},
+                      })
+                    );
+                  } catch (err) {
+                    console.error("Unable to store policy for review:", err);
+                  }
+                  router.push(
+                    `/settings/gateway/manage-access-policy/new?policyId=${encodeURIComponent(id)}&view=1`
+                  );
+                }}
+              >
+                <Eye className="w-5 h-5 text-gray-700" />
+              </button>
+              <button
+                type="button"
                 title="Edit Policy"
                 aria-label="Edit policy"
                 className="p-1 rounded transition-colors duration-200 hover:bg-gray-100"

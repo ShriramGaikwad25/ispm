@@ -396,11 +396,11 @@
 
 /* AG Grid Customizations for Entitlements Table */
 .ag-main .ag-header-cell {
-  background-color: #d3d3d3 !important;
+  background-color: #ffffff !important;
 }
 
 .ag-main .ag-header-cell-label {
-  font-weight: 600;
+  font-weight: 700;
   color: #374151;
 }
 
