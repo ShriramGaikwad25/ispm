@@ -1,5 +1,6 @@
 "use client";
 import React, { useMemo, useState, useEffect } from "react";
+import { themeQuartz } from "ag-grid-community";
 import dynamic from "next/dynamic";
 const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
 import "@/lib/ag-grid-setup";
@@ -237,7 +238,7 @@ const Page = () => {
         }
       `}</style>
       <AgGridReact
-        theme="legacy"
+        theme={themeQuartz}
         rowData={filteredRowData}
         columnDefs={columnDefs}
         defaultColDef={defaultColDef}

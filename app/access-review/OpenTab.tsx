@@ -2,8 +2,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import AgGridReact from "@/components/ClientOnlyAgGrid";
 import "@/lib/ag-grid-setup";
-import "ag-grid-community/styles/ag-grid.css";
-import "ag-grid-community/styles/ag-theme-quartz.css";
 import { useRouter } from "next/navigation";
 import { formatDateMMDDYY as formatDateShared } from "@/utils/utils";
 import { defaultColDef } from "@/components/dashboard/columnDefs";
@@ -36,7 +34,7 @@ import {
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { MasterDetailModule } from "ag-grid-enterprise";
-import { ModuleRegistry } from "ag-grid-community";
+import { ModuleRegistry, themeQuartz } from "ag-grid-community";
 import HorizontalProgressBar from "@/components/HorizontalProgressBar";
 import { useLoading } from "@/contexts/LoadingContext";
 import ActionCompletedToast from "@/components/ActionCompletedToast";
@@ -1055,7 +1053,7 @@ const OpenTab: React.FC = () => {
       <div className="w-full">
         <div className="ag-theme-quartz ag-main" ref={gridContainerRef}>
         <AgGridReact
-          theme="legacy"
+          theme={themeQuartz}
           rowData={filteredRowData}
           getRowId={(params: GetRowIdParams) => params.data.id}
           columnDefs={activeColumnDefs}

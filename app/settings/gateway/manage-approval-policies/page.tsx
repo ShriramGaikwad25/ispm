@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { themeQuartz } from "ag-grid-community";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useForm, Control, FieldValues, UseFormSetValue, UseFormWatch } from "react-hook-form";
@@ -9,8 +10,6 @@ import { asterisk, downArrow } from "@/utils/utils";
 import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
 import ExpressionBuilder from "@/components/ExpressionBuilder";
 import { executeQuery } from "@/lib/api";
-import "ag-grid-community/styles/ag-grid.css";
-import "ag-grid-community/styles/ag-theme-alpine.css";
 import type { ColDef } from "ag-grid-community";
 
 type Status = "Staging" | "Active" | "Inactive";
@@ -1018,7 +1017,7 @@ export default function ManageApprovalPoliciesPage() {
             <div style={{ width: "100%", minHeight: 260 }}>
               {/* @ts-ignore - dynamic AgGridReact type */}
               <AgGridReact
-                theme="legacy"
+                theme={themeQuartz}
                 rowData={rowData}
                 columnDefs={columnDefs}
                 defaultColDef={defaultColDef}
@@ -1250,7 +1249,7 @@ export default function ManageApprovalPoliciesPage() {
                   wrapHeaderText: true,
                   autoHeaderHeight: true,
                 }}
-                theme="legacy"
+                theme={themeQuartz}
                 domLayout="autoHeight"
               />
             </div>

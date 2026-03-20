@@ -1,14 +1,13 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { themeQuartz } from "ag-grid-community";
 import Link from "next/link";
 import { Eye, Pencil, Plus } from "lucide-react";
 import SodTabs from "@/components/SodTabs";
 import dynamic from "next/dynamic";
 import type { ColDef } from "ag-grid-enterprise";
 import "@/lib/ag-grid-setup";
-import "ag-grid-community/styles/ag-grid.css";
-import "ag-grid-community/styles/ag-theme-alpine.css";
 import { useRouter } from "next/navigation";
 
 const AgGridReact = dynamic(
@@ -231,7 +230,7 @@ export default function SodMitigatingControlsPage() {
                 rowData={rowData}
                 columnDefs={columnDefs}
                 defaultColDef={defaultColDef}
-                theme="legacy"
+                theme={themeQuartz}
                 rowSelection="multiple"
                 rowModelType="clientSide"
                 animateRows={true}

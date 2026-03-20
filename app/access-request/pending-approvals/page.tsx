@@ -491,8 +491,8 @@ const PendingApprovalsPage: React.FC = () => {
       {
         headerName: "Requester",
         field: "requester",
-        minWidth: 140,
-        width: 160,
+        minWidth: 120,
+        width: 140,
       },
       {
         headerName: "Beneficiary",
@@ -503,16 +503,17 @@ const PendingApprovalsPage: React.FC = () => {
       {
         headerName: "Created On",
         field: "createdOn",
-        minWidth: 130,
-        width: 140,
+        minWidth: 140,
+        width: 150,
         sort: "desc",
+        cellClass: "text-center",
         valueFormatter: (params) => formatDateToMMDDYY(params.value ?? ""),
       },
       {
         headerName: "# Entity",
         field: "entityCount",
-        minWidth: 110,
-        width: 115,
+        minWidth: 90,
+        width: 100,
         cellClass: "text-center",
       },
       {
@@ -520,12 +521,20 @@ const PendingApprovalsPage: React.FC = () => {
         field: "comments",
         minWidth: 240,
         width: 300,
+        wrapText: true,
+        autoHeight: true,
+        cellStyle: {
+          whiteSpace: "normal",
+          wordBreak: "break-word",
+          lineHeight: "1.25",
+        },
       },
       {
         headerName: "Status",
         field: "status",
-        minWidth: 120,
-        width: 130,
+        minWidth: 110,
+        width: 120,
+        cellClass: "text-center",
       },
       {
         headerName: "Insights",
@@ -547,8 +556,9 @@ const PendingApprovalsPage: React.FC = () => {
       {
         headerName: "Actions",
         field: "actions",
-        minWidth: 130,
-        width: 140,
+        minWidth: 100,
+        width: 120,
+        cellClass: "center",
         cellRenderer: (params: ICellRendererParams) => (
           <ActionsCell
             node={params.node}

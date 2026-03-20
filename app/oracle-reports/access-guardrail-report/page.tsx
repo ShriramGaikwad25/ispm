@@ -2,11 +2,9 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { ColDef, GridApi } from "ag-grid-community";
+import { ColDef, GridApi, themeQuartz } from "ag-grid-community";
 import { Download } from "lucide-react";
 import "@/lib/ag-grid-setup";
-import "ag-grid-community/styles/ag-grid.css";
-import "ag-grid-community/styles/ag-theme-alpine.css";
 
 type GuardrailRow = Record<string, any>;
 
@@ -196,12 +194,12 @@ export default function AccessGuardrailReportPage() {
 
         {!loading && !error && rows.length > 0 && (
           <div className="mt-2">
-            <div className="ag-theme-alpine w-full">
+            <div className="sod-grid w-full">
               <AgGridReact
                 rowData={rows}
                 columnDefs={columnDefs}
                 defaultColDef={defaultColDef}
-                theme="legacy"
+                theme={themeQuartz}
                 pagination={true}
                 paginationPageSize={20}
                 paginationPageSizeSelector={[10, 20, 50, 100]}
@@ -216,7 +214,7 @@ export default function AccessGuardrailReportPage() {
         )}
       </div>
       <style jsx global>{`
-        .ag-theme-alpine .ag-header-cell-label .ag-header-cell-text {
+        .sod-grid .ag-header-cell-label .ag-header-cell-text {
           white-space: normal !important;
           line-height: 1.3;
         }

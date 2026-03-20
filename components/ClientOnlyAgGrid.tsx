@@ -2,8 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import 'ag-grid-community/styles/ag-grid.css';
-import 'ag-grid-community/styles/ag-theme-alpine.css';
+import { themeQuartz } from "ag-grid-community";
 
 // Create a client-only wrapper that completely isolates ag-grid
 const AgGridReact = dynamic(
@@ -30,8 +29,8 @@ export default function ClientOnlyAgGrid(props: ClientOnlyAgGridProps) {
 
   const mergedProps = useMemo(() => {
     return {
-      // Default to legacy theming since CSS-based themes are included globally.
-      theme: props.theme ?? "legacy",
+      // Default to AG Grid Theming API theme.
+      theme: props.theme ?? themeQuartz,
       ...props,
       onGridReady: (params: any) => {
         gridApiRef.current = params.api;

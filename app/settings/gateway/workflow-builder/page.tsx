@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { themeQuartz } from "ag-grid-community";
 import { Plus, SquarePen } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -9,8 +10,6 @@ import { executeQuery } from "@/lib/api";
 import { useRouter } from "next/navigation";
 
 import "@/lib/ag-grid-setup";
-import "ag-grid-community/styles/ag-grid.css";
-import "ag-grid-community/styles/ag-theme-alpine.css";
 
 const AgGridReact = dynamic(
   () => import("ag-grid-react").then((mod) => mod.AgGridReact),
@@ -214,7 +213,7 @@ export default function WorkflowBuilderPage() {
         ) : (
           <div className="ag-theme-alpine w-full workflow-builder-grid">
             <AgGridReact
-              theme="legacy"
+              theme={themeQuartz}
               rowData={rows}
               columnDefs={workflowColumnDefs}
               rowSelection="single"

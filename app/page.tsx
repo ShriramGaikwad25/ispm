@@ -432,9 +432,9 @@ export default function Dashboard() {
                 <div className="flex items-center justify-center flex-1 h-[220px]">
                   <PolarAreaRiskChart
                     data={[
-                      { label: "Low users", value: 170, color: "#34D399" },
-                      { label: "Medium users", value: 80, color: "#F87171" },
-                      { label: "High users", value: 10, color: "#FBBF24" },
+                      { label: "Low users", value: 827, color: "#34D399" },
+                      { label: "Medium users", value: 376, color: "#F87171" },
+                      { label: "High users", value: 73, color: "#FBBF24" },
                     ]}
                     width={220}
                     height={220}
@@ -443,15 +443,15 @@ export default function Dashboard() {
                 <div className="ml-auto flex flex-col gap-2 text-xs text-gray-700">
                   <div className="flex items-center gap-2">
                     <span className="inline-block h-2 w-4 rounded-full bg-emerald-400" />
-                    <span>Low users – 170</span>
+                      <span>Low users – 827</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="inline-block h-2 w-4 rounded-full bg-red-400" />
-                    <span>Medium users – 80</span>
+                      <span>Medium users – 376</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="inline-block h-2 w-4 rounded-full bg-amber-400" />
-                    <span>High users – 10</span>
+                      <span>High users – 73</span>
                   </div>
                 </div>
               </div>

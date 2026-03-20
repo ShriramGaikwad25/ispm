@@ -1,6 +1,7 @@
  "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { themeQuartz } from "ag-grid-community";
 import dynamic from "next/dynamic";
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
 import {
@@ -19,8 +20,6 @@ import {
   UserRoundCheckIcon,
 } from "lucide-react";
 import "@/lib/ag-grid-setup";
-import "ag-grid-community/styles/ag-grid.css";
-import "ag-grid-community/styles/ag-theme-alpine.css";
 import { useRouter } from "next/navigation";
 
 const AgGridReact = dynamic(
@@ -767,7 +766,7 @@ export default function ContinuousCompliancePage() {
 
                 <div className="ag-theme-alpine w-full">
                   <AgGridReact
-                    theme="legacy"
+                    theme={themeQuartz}
                     rowData={displayedRows}
                     columnDefs={columnDefs}
                     defaultColDef={{

@@ -3,13 +3,10 @@
 import React, { useEffect, useState } from "react";
 import { executeQuery } from "@/lib/api";
 import dynamic from "next/dynamic";
-import { ColDef, GridApi } from "ag-grid-community";
+import { ColDef, GridApi, themeQuartz } from "ag-grid-community";
 import { ChevronRight, Download } from "lucide-react";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import "@/lib/ag-grid-setup";
-import "ag-grid-community/styles/ag-grid.css";
-import "ag-grid-community/styles/ag-theme-alpine.css";
-
 type UserAccessRow = Record<string, any>;
 
 const AgGridReact = dynamic(
@@ -435,7 +432,7 @@ export default function UserAccessReportPage() {
                 rowData={rows}
                 columnDefs={columnDefs}
                 defaultColDef={defaultColDef}
-                theme="legacy"
+                theme={themeQuartz}
                 pagination={true}
                 paginationPageSize={20}
                 paginationPageSizeSelector={[10, 20, 50, 100]}

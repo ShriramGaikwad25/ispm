@@ -1,12 +1,11 @@
 "use client";
 
 import { useMemo, useState, useEffect, useCallback } from "react";
+import { themeQuartz } from "ag-grid-community";
 import { useRouter } from "next/navigation";
 import { Users, Plus, Search, Pencil } from "lucide-react";
 import { AgGridReact } from "ag-grid-react";
 import type { ColDef } from "ag-grid-community";
-import "ag-grid-community/styles/ag-grid.css";
-import "ag-grid-community/styles/ag-theme-alpine.css";
 import CustomPagination from "@/components/agTable/CustomPagination";
 import { executeQuery } from "@/lib/api";
 
@@ -388,7 +387,7 @@ export default function ManageBusinessRolesSettings() {
                   columnDefs={columnDefs}
                   rowData={paginatedRows}
                   domLayout="autoHeight"
-                  theme="legacy"
+                  theme={themeQuartz}
                   rowHeight={60}
                 />
               </div>

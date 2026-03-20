@@ -1,6 +1,7 @@
  "use client";
 
 import { useSearchParams } from "next/navigation";
+import { themeQuartz } from "ag-grid-community";
 import Image from "next/image";
 import { MoreVertical } from "lucide-react";
 import Filters from "@/components/agTable/Filters";
@@ -195,7 +196,7 @@ export default function ContinuousComplianceDummyReviewPage() {
 
         <div className="ag-theme-alpine w-full">
           <AgGridReact
-            theme="legacy"
+            theme={themeQuartz}
             rowData={dummyEntitlements}
             columnDefs={entitlementColumns}
             defaultColDef={{

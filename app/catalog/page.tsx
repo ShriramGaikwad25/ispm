@@ -2,9 +2,7 @@
 import React, { useMemo, useState, useEffect, Suspense } from "react";
 import dynamic from "next/dynamic";
 const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
-import { ColDef, ICellRendererParams, GridApi } from "ag-grid-community";
-import "ag-grid-community/styles/ag-grid.css";
-import "ag-grid-community/styles/ag-theme-alpine.css";
+import { ColDef, ICellRendererParams, GridApi, themeQuartz } from "ag-grid-community";
 import { useSearchParams } from "next/navigation";
 import { createPortal } from "react-dom";
 import "@/lib/ag-grid-setup";
@@ -1528,7 +1526,7 @@ const CatalogPageContent = () => {
       </div>
       <div style={{ width: "100%" }}>
         <AgGridReact
-          theme="legacy"
+          theme={themeQuartz}
           rowData={filteredRowData}
           columnDefs={entTabIndex === 0 ? colDefs : underReviewColDefs}
           defaultColDef={defaultColDef}

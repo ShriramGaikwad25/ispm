@@ -8,11 +8,8 @@ import { Play, Download } from "lucide-react";
 import { executeQuery } from "@/lib/api";
 import dynamic from "next/dynamic";
 const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
-import { ColDef, GridApi } from "ag-grid-community";
+import { ColDef, GridApi, themeQuartz } from "ag-grid-community";
 import "@/lib/ag-grid-setup";
-import "ag-grid-community/styles/ag-grid.css";
-import "ag-grid-community/styles/ag-theme-alpine.css";
-
 // Proxied report signatures API
 const GET_ALL_SIGNATURE_URL = "/api/reports/getallsignature";
 
@@ -713,7 +710,7 @@ export default function ReportFilterPage() {
                       rowData={results}
                       columnDefs={columnDefs}
                       defaultColDef={defaultColDef}
-                      theme="legacy"
+                      theme={themeQuartz}
                       pagination={true}
                       paginationPageSize={20}
                       paginationPageSizeSelector={[10, 20, 50, 100]}

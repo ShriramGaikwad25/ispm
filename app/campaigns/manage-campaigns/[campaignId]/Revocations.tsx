@@ -1,10 +1,9 @@
 "use-client";
 import React, { useMemo, useState } from "react";
+import { themeQuartz } from "ag-grid-community";
 import dynamic from "next/dynamic";
 const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
 import "@/lib/ag-grid-setup";
-import "ag-grid-community/styles/ag-grid.css";
-import "ag-grid-community/styles/ag-theme-alpine.css";
 import { BellIcon, DownloadIcon } from "lucide-react";
 import { IDetailCellRendererParams, ColDef } from "ag-grid-enterprise";
 import { formatDateMMDDYY } from "@/utils/utils";
@@ -425,7 +424,7 @@ const Revocations: React.FC = () => {
           >
             {}
             <AgGridReact
-              theme="legacy"
+              theme={themeQuartz}
               rowData={appRowData}
               columnDefs={appColumnDefs}
               defaultColDef={defaultColDef}

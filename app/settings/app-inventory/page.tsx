@@ -1,12 +1,11 @@
 "use client";
 
 import React, { useMemo, useState, useEffect, useCallback } from "react";
+import { themeQuartz } from "ag-grid-community";
 import dynamic from "next/dynamic";
 const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
 import "@/lib/ag-grid-setup";
 import { ColDef } from "ag-grid-enterprise";
-import "ag-grid-community/styles/ag-grid.css";
-import "ag-grid-community/styles/ag-theme-alpine.css";
 import { Search, Plus, Sparkles, Eye, X, Copy, RefreshCw, Settings, Pencil } from "lucide-react";
 import Filters from "@/components/agTable/Filters";
 import CustomPagination from "@/components/agTable/CustomPagination";
@@ -508,6 +507,11 @@ useEffect(() => {
         field: "status",
         flex: 0.75,
         minWidth: 110,
+        cellStyle: {
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        },
         cellRenderer: (params: any) => {
           if (params.data?.__isDescRow) return null;
           const status = params.value ?? params.data?.status ?? "";
@@ -531,6 +535,11 @@ useEffect(() => {
         field: "serviceUrl",
         flex: 0.9,
         minWidth: 90,
+        cellStyle: {
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        },
         cellRenderer: (params: any) => {
           if (params.data?.__isDescRow) return null;
           const url = params.value ?? "";
@@ -557,6 +566,11 @@ useEffect(() => {
         field: "apiToken",
         flex: 0.9,
         minWidth: 90,
+        cellStyle: {
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        },
         cellRenderer: (params: any) => {
           if (params.data?.__isDescRow) return null;
           const token = params.data?.apiToken ?? params.value ?? "";
@@ -599,6 +613,11 @@ useEffect(() => {
         field: "actions",
         flex: 0.6,
         minWidth: 100,
+        cellStyle: {
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        },
         sortable: false,
         filter: false,
         suppressMenu: true,
@@ -660,12 +679,18 @@ useEffect(() => {
         resizable: true,
         sortable: true,
         filter: true,
+        // Default: left aligned content, vertically centered
+        cellStyle: {
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-start",
+        },
       },
     };
     const GridTab = () => (
       <div className="w-full ag-theme-alpine">
         <AgGridReact
-          theme="legacy"
+          theme={themeQuartz}
           pagination={false}
           domLayout="autoHeight"
           style={{ width: "100%" }}
@@ -805,7 +830,7 @@ useEffect(() => {
         <div className="flex flex-col w-full px-6 py-4">
           <div className="w-full ag-theme-alpine">
             <AgGridReact
-              theme="legacy"
+              theme={themeQuartz}
               rowData={rowData}
               columnDefs={columnDefs}
               getRowHeight={getRowHeight}
@@ -816,6 +841,12 @@ useEffect(() => {
                 resizable: true,
                 sortable: true,
                 filter: true,
+                // Default: left aligned content, vertically centered
+                cellStyle: {
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "flex-start",
+                },
               }}
               pagination={false}
               domLayout="autoHeight"

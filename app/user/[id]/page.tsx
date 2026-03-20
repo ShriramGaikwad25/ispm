@@ -1,5 +1,6 @@
 "use client";
 import SegmentedControl from "@/components/SegmentedControl";
+import { themeQuartz } from "ag-grid-community";
 import { History, CircleX, CirclePlus, FileText, Search, Plus, Ban, Calendar, Edit, Trash2 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { executeQuery } from "@/lib/api";
@@ -13,8 +14,6 @@ const AgGridReact = dynamic(() => import("ag-grid-react").then((mod) => mod.AgGr
   ssr: false,
 });
 import "@/lib/ag-grid-setup";
-import "ag-grid-community/styles/ag-grid.css";
-import "ag-grid-community/styles/ag-theme-alpine.css";
 
 // Dynamically import Bar chart with SSR disabled
 const Bar = dynamic(() => import("react-chartjs-2").then((mod) => mod.Bar), {
@@ -1047,7 +1046,7 @@ export default function UserDetailPage() {
                 defaultColDef={{ sortable: true, filter: true, resizable: true }}
                 suppressRowVirtualisation={false}
                 domLayout="autoHeight"
-                theme="legacy"
+                theme={themeQuartz}
               />
             )}
           </div>
@@ -1654,7 +1653,7 @@ export default function UserDetailPage() {
                 columnDefs={columnDefs}
                 defaultColDef={{ sortable: true, filter: true, resizable: true }}
                 suppressRowVirtualisation={false}
-                theme="legacy"
+                theme={themeQuartz}
               />
             </div>
           )}

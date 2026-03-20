@@ -1,62 +1,77 @@
 'use client';
 
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ColDef } from "ag-grid-community";
 import AgGridReact from "@/components/AgGridWrapper";
 
+type UserAccessDriftRawRow = {
+  Identity: string;
+  Account: string;
+  Application: string;
+  Entitlement: string;
+  "Drift Aging (Days)": string;
+};
+
+type UserAccessDriftGridRow = {
+  identity: string;
+  account: string;
+  application: string;
+  entitlement: string;
+  driftAgingDays: number;
+};
+
 const UserAccessDriftPage = () => {
-  const rows = [
-    {
-      entitlement: "FIN_AP_APPROVER",
-      type: "Role",
-      application: "Oracle EBS",
-      account: "alice.williams",
-      lastLogin: "2026-03-12",
-    },
-    {
-      entitlement: "MM_CREATE_PO",
-      type: "Entitlement",
-      application: "SAP",
-      account: "bob.smith",
-      lastLogin: "2026-03-09",
-    },
-    {
-      entitlement: "FIN_REPORT_RUN",
-      type: "Entitlement",
-      application: "Workday",
-      account: "charlie.jones",
-      lastLogin: "2026-03-01",
-    },
-    {
-      entitlement: "HR_EMPLOYEE_READ",
-      type: "Role",
-      application: "SuccessFactors",
-      account: "diana.lee",
-      lastLogin: "2026-02-26",
-    },
-    {
-      entitlement: "GL_JOURNAL_POST",
-      type: "Entitlement",
-      application: "Oracle Fusion",
-      account: "ethan.miller",
-      lastLogin: "2026-02-21",
-    },
-    {
-      entitlement: "IT_TICKET_ADMIN",
-      type: "Role",
-      application: "ServiceNow",
-      account: "frank.wilson",
-      lastLogin: "2026-03-14",
-    },
-  ];
+  const [rows, setRows] = useState<UserAccessDriftGridRow[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadData = async () => {
+      try {
+        const res = await fetch("/UserAccessDrift.json");
+        if (!res.ok) {
+          throw new Error(`Failed to load /UserAccessDrift.json (${res.status})`);
+        }
+
+        const rawJson = (await res.json()) as unknown;
+        if (!Array.isArray(rawJson)) {
+          throw new Error("UserAccessDrift.json did not return an array");
+        }
+
+        const rawRows = rawJson as UserAccessDriftRawRow[];
+        const mapped: UserAccessDriftGridRow[] = rawRows.map((r) => ({
+          identity: r.Identity,
+          account: r.Account,
+          application: r.Application,
+          entitlement: r.Entitlement,
+          driftAgingDays: Number(r["Drift Aging (Days)"]) || 0,
+        }));
+
+        if (!cancelled) setRows(mapped);
+      } catch (err) {
+        // Keep the page usable even if the JSON fetch fails.
+        if (!cancelled) setRows([]);
+        // eslint-disable-next-line no-console
+        console.error(err);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+
+    loadData();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const columnDefs = useMemo<ColDef[]>(
     () => [
-      { headerName: "Entitlement", field: "entitlement", filter: true, sortable: true, flex: 1.3 },
-      { headerName: "Type", field: "type", filter: true, sortable: true, flex: 0.8 },
-      { headerName: "Application", field: "application", filter: true, sortable: true, flex: 1 },
+      { headerName: "Identity", field: "identity", filter: true, sortable: true, flex: 1 },
       { headerName: "Account", field: "account", filter: true, sortable: true, flex: 1 },
-      { headerName: "Last Login", field: "lastLogin", filter: "agDateColumnFilter", sortable: true, flex: 0.9 },
+      { headerName: "Application", field: "application", filter: true, sortable: true, flex: 1.1 },
+      { headerName: "Entitlement", field: "entitlement", filter: true, sortable: true, flex: 1.3 },
+      { headerName: "Drift Aging (Days)", field: "driftAgingDays", filter: true, sortable: true, flex: 1, valueFormatter: (p) => String(p.value ?? "") },
     ],
     []
   );
@@ -72,14 +87,20 @@ const UserAccessDriftPage = () => {
         </p>
       </div>
 
-      <div className="ag-theme-alpine h-[500px] w-full">
-        <AgGridReact
-          rowData={rows}
-          columnDefs={columnDefs}
-          suppressCellFocus={true}
-          domLayout="normal"
-        />
-      </div>
+      {isLoading ? (
+        <div className="ag-theme-alpine w-full flex items-center justify-center text-sm text-gray-600">
+          Loading drift data...
+        </div>
+      ) : (
+        <div className="ag-theme-alpine w-full">
+          <AgGridReact
+            rowData={rows}
+            columnDefs={columnDefs}
+            suppressCellFocus={true}
+            domLayout="autoHeight"
+          />
+        </div>
+      )}
     </div>
   );
 };

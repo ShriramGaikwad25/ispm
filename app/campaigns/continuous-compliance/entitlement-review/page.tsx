@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
+import { themeQuartz } from "ag-grid-community";
 import dynamic from "next/dynamic";
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
 import { useSearchParams } from "next/navigation";
@@ -82,7 +83,7 @@ export default function ContinuousComplianceEntitlementReviewPage() {
         {/* Entitlements grid */}
         <div className="ag-theme-alpine w-full">
           <AgGridReact
-            theme="legacy"
+            theme={themeQuartz}
             rowData={rowData}
             columnDefs={entitlementColumns(reviewerId, certId)}
             domLayout="autoHeight"

@@ -11,8 +11,6 @@ import dynamic from "next/dynamic";
 const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
 import { themeQuartz } from "ag-grid-community";
 import "@/lib/ag-grid-setup"; // Ensure Enterprise modules and license are loaded
-import "ag-grid-community/styles/ag-grid.css";
-import "ag-grid-community/styles/ag-theme-quartz.css";
 import Image from "next/image";
 import {
   ColDef,
@@ -2936,7 +2934,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                   </div>
                 <div className="ag-theme-quartz w-full" style={{ width: '100%', maxWidth: '100%' }}>
                 <AgGridReact
-                  theme="legacy"
+                  theme={themeQuartz}
                   rowData={entPaginatedData}
                   columnDefs={entitlementsColumnDefs}
                   defaultColDef={defaultColDef}
@@ -3045,7 +3043,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                   }}
                   pagination={false}
                   overlayLoadingTemplate={`<span class="ag-overlay-loading-center">⏳ Loading entitlements...</span>`}
-                  overlayNoRowsTemplate={`<span class="ag-overlay-loading-center">No entitlements found for this user.</span>`}
+                  overlayNoRowsTemplate={`<span class="ag-overlay-loading-center">All entitlements have been reviewed for this user.</span>`}
                   className="ag-main"
                 />
                 </div>
@@ -3160,7 +3158,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                 <>
                   <div className="ag-theme-quartz w-full">
                     <AgGridReact
-                      theme="legacy"
+                      theme={themeQuartz}
                       rowData={guidedPathModalRows}
                       columnDefs={entitlementsColumnDefs}
                       defaultColDef={defaultColDef}

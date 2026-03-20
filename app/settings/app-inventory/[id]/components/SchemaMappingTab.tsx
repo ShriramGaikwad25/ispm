@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation";
 import { Edit, Trash2, Info, ChevronDown, X, Search, Key } from "lucide-react";
 import CustomPagination from "@/components/agTable/CustomPagination";
-import { executeQuery } from "@/lib/api";
+import { executeQuery, getApplicationDetails } from "@/lib/api";
 
 type MappingRow = {
   id: string;
@@ -12,6 +12,7 @@ type MappingRow = {
   target: string;
   defaultValue: string;
   keyfieldMapping?: boolean;
+  maskMapping?: boolean;
 };
 
 interface SchemaMappingTabProps {
@@ -34,6 +35,7 @@ export default function SchemaMappingTab({ applicationId, onCancel }: SchemaMapp
   const [sourceAttribute, setSourceAttribute] = useState("");
   const [targetAttribute, setTargetAttribute] = useState("");
   const [keyfieldMapping, setKeyfieldMapping] = useState(false);
+  const [maskMapping, setMaskMapping] = useState(false);
   const [defaultValue, setDefaultValue] = useState("");
   const [sourceDropdownOpen, setSourceDropdownOpen] = useState(false);
   const [filteredSource, setFilteredSource] = useState<string[]>([]);
@@ -52,9 +54,11 @@ export default function SchemaMappingTab({ applicationId, onCancel }: SchemaMapp
   const [editTarget, setEditTarget] = useState("");
   const [editDefaultValue, setEditDefaultValue] = useState("");
   const [editKeyfield, setEditKeyfield] = useState(false);
+  const [editMaskMapping, setEditMaskMapping] = useState(false);
 
   /** Attribute names from applicationinstance.configuration (matchUserAttribute, identityMatchingAttribute, etc.) – show key icon next to these */
   const [configurationAttributes, setConfigurationAttributes] = useState<Set<string>>(new Set());
+  const [isPaycomApp, setIsPaycomApp] = useState(false);
 
   const buildMappingsFromApi = useCallback((json: any): MappingRow[] => {
     const rows: MappingRow[] = [];
@@ -72,6 +76,7 @@ export default function SchemaMappingTab({ applicationId, onCancel }: SchemaMapp
           target,
           defaultValue: "",
           keyfieldMapping: false,
+          maskMapping: false,
         });
       }
     });
@@ -86,6 +91,7 @@ export default function SchemaMappingTab({ applicationId, onCancel }: SchemaMapp
           target,
           defaultValue: "",
           keyfieldMapping: false,
+          maskMapping: false,
         });
       }
     });
@@ -102,7 +108,12 @@ export default function SchemaMappingTab({ applicationId, onCancel }: SchemaMapp
     setError(null);
     (async () => {
       try {
-        const [scimRes, mappedRes, configRes] = await Promise.all([
+        const apiToken =
+          typeof window !== "undefined"
+            ? sessionStorage.getItem(`app-inventory-token-${applicationId}`) ?? ""
+            : "";
+
+        const [scimRes, mappedRes, configRes, appDetails] = await Promise.all([
           fetch("https://preview.keyforge.ai/schemamapper/getscim/ACMECOM", {
             method: "GET",
             headers: { "Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest" },
@@ -114,6 +125,7 @@ export default function SchemaMappingTab({ applicationId, onCancel }: SchemaMapp
             "select configuration from applicationinstance where appid = ?",
             [applicationId]
           ),
+          getApplicationDetails(applicationId, apiToken).catch(() => null),
         ]);
 
         if (cancelled) return;
@@ -149,6 +161,18 @@ export default function SchemaMappingTab({ applicationId, onCancel }: SchemaMapp
           }
         }
         if (!cancelled) setConfigurationAttributes(configAttrs);
+
+        // Show Mask checkbox only for Paycom_HR_Portal app.
+        const app = appDetails?.Application ?? appDetails ?? {};
+        const appName = String(
+          app?.ApplicationName ?? app?.applicationName ?? app?.name ?? app?.Name ?? ""
+        )
+          .trim()
+          .toLowerCase();
+        const appId = String(applicationId ?? "").trim().toLowerCase();
+        if (!cancelled) {
+          setIsPaycomApp(appName === "paycom_hr_portal" || appId === "paycom_hr_portal");
+        }
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : "Failed to load schema");
@@ -179,12 +203,14 @@ export default function SchemaMappingTab({ applicationId, onCancel }: SchemaMapp
         target: targetAttribute.trim(),
         defaultValue: defaultValue.trim(),
         keyfieldMapping: keyfieldMapping,
+        maskMapping: maskMapping,
       },
     ]);
     setSourceAttribute("");
     setTargetAttribute("");
     setDefaultValue("");
     setKeyfieldMapping(false);
+    setMaskMapping(false);
   };
 
   const handleDelete = (id: string) => {
@@ -198,6 +224,7 @@ export default function SchemaMappingTab({ applicationId, onCancel }: SchemaMapp
     setEditTarget(row.target);
     setEditDefaultValue(row.defaultValue);
     setEditKeyfield(!!row.keyfieldMapping);
+    setEditMaskMapping(!!row.maskMapping);
   };
 
   const saveEdit = () => {
@@ -211,6 +238,7 @@ export default function SchemaMappingTab({ applicationId, onCancel }: SchemaMapp
               target: editTarget,
               defaultValue: editDefaultValue,
               keyfieldMapping: editKeyfield,
+              maskMapping: editMaskMapping,
             }
           : m
       )
@@ -402,6 +430,11 @@ export default function SchemaMappingTab({ applicationId, onCancel }: SchemaMapp
                       <td className="px-4 py-3 text-sm text-gray-900 align-top whitespace-pre-wrap break-words" style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}>
                         <span className="inline-flex items-center gap-1">
                           {m.target}
+                          {isPaycomApp && m.target?.trim().toLowerCase() === "dob" && (
+                            <span className="ml-1 inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700 border border-blue-200">
+                              Masked
+                            </span>
+                          )}
                           {configurationAttributes.has(m.target?.trim() ?? "") && (
                             <Key className="w-3.5 h-3.5 text-amber-500 shrink-0" aria-label="Configuration attribute" />
                           )}
@@ -555,15 +588,29 @@ export default function SchemaMappingTab({ applicationId, onCancel }: SchemaMapp
                     placeholder="Enter target attribute"
                   />
                   <div className="mt-2 flex justify-end">
-                    <label className="flex items-center gap-2 text-sm text-gray-700">
-                      <input
-                        type="checkbox"
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        checked={editKeyfield}
-                        onChange={(e) => setEditKeyfield(e.target.checked)}
-                      />
-                      Keyfield
-                    </label>
+                    <div className="flex items-center gap-4">
+                      {isPaycomApp && (
+                        <label className="flex items-center gap-2 text-sm text-gray-700">
+                          <input
+                            type="checkbox"
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            checked={editMaskMapping}
+                            onChange={(e) => setEditMaskMapping(e.target.checked)}
+                          />
+                          Mask
+                        </label>
+                      )}
+
+                      <label className="flex items-center gap-2 text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          checked={editKeyfield}
+                          onChange={(e) => setEditKeyfield(e.target.checked)}
+                        />
+                        Keyfield
+                      </label>
+                    </div>
                   </div>
                 </div>
                 <div>
@@ -687,15 +734,29 @@ export default function SchemaMappingTab({ applicationId, onCancel }: SchemaMapp
                     placeholder="Enter target attribute"
                   />
                   <div className="mt-2 flex justify-end">
-                    <label className="flex items-center gap-2 text-sm text-gray-700">
-                      <input
-                        type="checkbox"
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        checked={keyfieldMapping}
-                        onChange={(e) => setKeyfieldMapping(e.target.checked)}
-                      />
-                      Keyfield
-                    </label>
+                    <div className="flex items-center gap-4">
+                      {isPaycomApp && (
+                        <label className="flex items-center gap-2 text-sm text-gray-700">
+                          <input
+                            type="checkbox"
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            checked={maskMapping}
+                            onChange={(e) => setMaskMapping(e.target.checked)}
+                          />
+                          Mask
+                        </label>
+                      )}
+
+                      <label className="flex items-center gap-2 text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          checked={keyfieldMapping}
+                          onChange={(e) => setKeyfieldMapping(e.target.checked)}
+                        />
+                        Keyfield
+                      </label>
+                    </div>
                   </div>
                 </div>
                 <div>
@@ -725,6 +786,7 @@ export default function SchemaMappingTab({ applicationId, onCancel }: SchemaMapp
                     setTargetAttribute("");
                     setDefaultValue("");
                     setKeyfieldMapping(false);
+                    setMaskMapping(false);
                     setSourceDropdownOpen(false);
                   }}
                 >

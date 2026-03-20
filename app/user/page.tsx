@@ -1,13 +1,12 @@
 "use client";
 import { ColDef, GridApi } from "ag-grid-enterprise";
+import { themeQuartz } from "ag-grid-community";
 import dynamic from "next/dynamic";
 const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
 import { useRouter } from "next/navigation"; // Updated import
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import { executeQuery } from "@/lib/api";
 import "@/lib/ag-grid-setup";
-import "ag-grid-community/styles/ag-grid.css";
-import "ag-grid-community/styles/ag-theme-alpine.css";
 import CustomPagination from "@/components/agTable/CustomPagination";
 import { Plus, Search, Pencil } from "lucide-react";
 import HorizontalTabs from "@/components/HorizontalTabs";
@@ -399,7 +398,7 @@ const columnDefs = useMemo<ColDef[]>(
       
       <div style={{ minHeight: '400px' }}>
         <AgGridReact
-          theme="legacy"
+          theme={themeQuartz}
           columnDefs={columnDefs}
           rowData={paginatedData}
           domLayout="autoHeight"
@@ -799,7 +798,7 @@ function UserGroupsTab() {
         
         <div style={{ minHeight: '400px' }}>
           <AgGridReact
-            theme="legacy"
+            theme={themeQuartz}
             columnDefs={columnDefs}
             rowData={paginatedData}
             domLayout="autoHeight"
