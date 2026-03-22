@@ -136,6 +136,22 @@ interface ApprovalPolicyFormData {
 
 const APPROVAL_POLICY_VIEW_STORAGE_KEY = "approvalPolicyViewDraft";
 
+/** Match policy row FK to workflow grid row id (kf_wf_template_t) */
+function getWorkflowTemplateIdFromPolicyRow(row: unknown): string | null {
+  if (!row || typeof row !== "object") return null;
+  const r = row as Record<string, unknown>;
+  const v =
+    r.wftemplate_id ??
+    r.wftemplateid ??
+    r.WFTEMPLATE_ID ??
+    r.workflow_template_id ??
+    r.WORKFLOW_TEMPLATE_ID;
+  if (v !== undefined && v !== null && String(v).trim() !== "") {
+    return String(v).trim();
+  }
+  return null;
+}
+
 export default function ManageApprovalPoliciesPage() {
   const router = useRouter();
   const [mode, setMode] = useState<"list" | "create">("list");
@@ -207,6 +223,8 @@ export default function ManageApprovalPoliciesPage() {
     setMode("create");
     setCurrentStep(1);
 
+    const linkedWorkflowId = getWorkflowTemplateIdFromPolicyRow(row);
+
     setFormData({
       step1: {
         name: row.name || "",
@@ -227,7 +245,7 @@ export default function ManageApprovalPoliciesPage() {
         rules: [],
       },
       step3: {
-        selectedWorkflowId: null,
+        selectedWorkflowId: linkedWorkflowId,
       },
     });
 
@@ -579,6 +597,38 @@ export default function ManageApprovalPoliciesPage() {
       cancelled = true;
     };
   }, [mode, currentStep]);
+
+  // After templates load on step 3, align selection with grid row ids (edit flow)
+  useEffect(() => {
+    if (mode !== "create" || currentStep !== 3) return;
+    if (!workflowRows.length) return;
+
+    setFormData((prev) => {
+      const sel = prev.step3.selectedWorkflowId;
+      if (!sel) return prev;
+      if (workflowRows.some((w) => w.id === sel)) return prev;
+
+      const match = workflowRows.find((w) => {
+        const raw = w.raw as Record<string, unknown> | undefined;
+        const candidates = [
+          w.id,
+          raw?.id,
+          raw?.wftemplateid,
+          raw?.template_id,
+        ]
+          .filter((x) => x !== undefined && x !== null)
+          .map((x) => String(x).trim());
+        return candidates.some((c) => c === sel);
+      });
+
+      if (!match) return prev;
+      if (match.id === sel) return prev;
+      return {
+        ...prev,
+        step3: { selectedWorkflowId: match.id },
+      };
+    });
+  }, [mode, currentStep, workflowRows]);
 
   const addRule = () => {
     setFormData((prev) => ({

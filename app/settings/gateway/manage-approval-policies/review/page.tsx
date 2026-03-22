@@ -397,7 +397,7 @@ export default function ApprovalPolicyReviewPage() {
       <div className="mx-auto w-full max-w-6xl space-y-4 py-3 px-6">
         <div className="flex items-center justify-between mb-1">
           <h1 className="text-lg font-semibold text-gray-900">
-            Review Approval Policy
+            Review and Submit Approval Policy
           </h1>
           {hasData && (
             <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
@@ -490,92 +490,80 @@ export default function ApprovalPolicyReviewPage() {
               </div>
 
               {/* Attached workflow — loaded from kf_wf_template_t via API when possible */}
-<div className="bg-white rounded-lg p-4 border border-gray-200">
-  <h4 className="text-sm font-semibold text-gray-900 mb-3">
-    Attached Workflow
-  </h4>
-
-  {workflowLoading && !displayWorkflow ? (
-    <p className="text-xs text-gray-500">Loading workflow…</p>
-  ) : (
-    <>
-      {workflowError && (
-        <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5 mb-2">
-          {workflowError}
-        </p>
-      )}
-
-      {workflowLoading && displayWorkflow && (
-        <p className="text-xs text-gray-500 mb-2">Refreshing workflow…</p>
-      )}
-
-      {displayWorkflow ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-          
-          {/* Name */}
-          <div>
-            <div className="font-medium text-gray-600 mb-1">Name</div>
-            <div className="border border-gray-200 rounded-md px-3 py-2 bg-gray-50 text-gray-900">
-              {displayWorkflow.name || (
-                <span className="text-gray-400">Not provided</span>
-              )}
-            </div>
-          </div>
-
-          {/* Code */}
-          <div>
-            <div className="font-medium text-gray-600 mb-1">Workflow Code</div>
-            <div className="border border-gray-200 rounded-md px-3 py-2 bg-gray-50 text-gray-900">
-              {displayWorkflow.code || (
-                <span className="text-gray-400">Not provided</span>
-              )}
-            </div>
-          </div>
-
-          {/* Business Object Type */}
-          <div>
-            <div className="font-medium text-gray-600 mb-1">
-              Business Object Type
-            </div>
-            <div className="border border-gray-200 rounded-md px-3 py-2 bg-gray-50 text-gray-900">
-              {displayWorkflow.businessObjectType ??
-                data.businessObjectType ?? (
-                  <span className="text-gray-400">Not provided</span>
+              <div className="bg-white rounded-lg p-4 border border-gray-200">
+                <h4 className="text-sm font-semibold text-gray-900 mb-3">
+                  Attached Workflow
+                </h4>
+                {workflowLoading && !displayWorkflow ? (
+                  <p className="text-xs text-gray-500">Loading workflow…</p>
+                ) : (
+                  <>
+                    {workflowError && (
+                      <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5 mb-2">
+                        {workflowError}
+                      </p>
+                    )}
+                    {workflowLoading && displayWorkflow && (
+                      <p className="text-xs text-gray-500 mb-2">Refreshing workflow…</p>
+                    )}
+                    {displayWorkflow ? (
+                      <div className="space-y-1 text-xs text-gray-900">
+                        <div className="font-medium">
+                          {displayWorkflow.name}
+                          {displayWorkflow.code
+                            ? ` (${displayWorkflow.code})`
+                            : ""}
+                        </div>
+                        {displayWorkflow.description ? (
+                          <div className="text-gray-700 whitespace-pre-wrap">
+                            {displayWorkflow.description}
+                          </div>
+                        ) : null}
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {(displayWorkflow.businessObjectType ||
+                            data.businessObjectType) && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-[10px] text-gray-700">
+                              {displayWorkflow.businessObjectType ??
+                                data.businessObjectType}
+                            </span>
+                          )}
+                          {displayWorkflow.stages != null && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-[10px] text-gray-700">
+                              Stages: {displayWorkflow.stages}
+                            </span>
+                          )}
+                          {data.version != null && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-[10px] text-gray-700">
+                              Version: {data.version}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-400">
+                        No workflow template linked to this policy, or template id
+                        could not be resolved.
+                      </p>
+                    )}
+                  </>
                 )}
-            </div>
-          </div>
+              </div>
 
-          {/* Stages */}
-          <div>
-            <div className="font-medium text-gray-600 mb-1">Stages</div>
-            <div className="border border-gray-200 rounded-md px-3 py-2 bg-gray-50 text-gray-900">
-              {displayWorkflow.stages != null ? (
-                displayWorkflow.stages
-              ) : (
-                <span className="text-gray-400">Not provided</span>
-              )}
-            </div>
-          </div>
-
-          {/* Description (full width) */}
-          <div className="md:col-span-2">
-            <div className="font-medium text-gray-600 mb-1">Description</div>
-            <div className="border border-gray-200 rounded-md px-3 py-2 bg-gray-50 text-gray-900 whitespace-pre-wrap">
-              {displayWorkflow.description || (
-                <span className="text-gray-400">Not provided</span>
-              )}
-            </div>
-          </div>
-
-        </div>
-      ) : (
-        <p className="text-xs text-gray-400">
-          No workflow template linked to this policy, or template id could not be resolved.
-        </p>
-      )}
-    </>
-  )}
-</div>
+              {/* Technical details banner, similar to info box */}
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                <p className="text-xs text-blue-900">
+                  <span className="font-semibold">Technical Details:</span>{" "}
+                  Created by {data.createdBy || "N/A"} on{" "}
+                  {data.createdAt || "N/A"}. Valid from{" "}
+                  {data.validFrom || "N/A"}. Active flag:{" "}
+                  {data.isActive == null
+                    ? "N/A"
+                    : data.isActive
+                    ? "true"
+                    : "false"}
+                  .
+                </p>
+              </div>
             </div>
           )}
         </div>

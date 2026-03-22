@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { ChevronLeft, ChevronRight, Check, ChevronDown, Edit, Trash2, Info, X, GripVertical } from "lucide-react";
+import { ChevronLeft, ChevronRight, Check, ChevronDown, ChevronUp, Edit, Trash2, Info, X, GripVertical, Eye, EyeOff } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getAllSupportedApplicationTypesViaProxy, executeQuery, submitItAssetRequest, getInProgressApplications, getItAssetApp, getFlatfileAppMetadataUsers, getAppMetadataUsers, uploadAndGetSchemaUsers, uploadAndGetSchemaForField, saveBaseMetadataUsers, saveBaseMetadataForField, saveAppDetails, onboardApp, updateAppConfig } from "@/lib/api";
 import AdvanceSettingTab, { type AdvanceSettingTabRef } from "../[id]/components/AdvanceSettingTab";
@@ -95,6 +95,13 @@ export default function AddApplicationPage() {
   // Edit mode: application details from IT Asset getapp (shown in card at top)
   const [appDetails, setAppDetails] = useState<Record<string, unknown> | null>(null);
   const [appDetailsLoading, setAppDetailsLoading] = useState(false);
+
+  const [as400JdbcReadChannelExpanded, setAs400JdbcReadChannelExpanded] = useState(false);
+  const [as400ToolboxReadChannelExpanded, setAs400ToolboxReadChannelExpanded] = useState(false);
+  const [jdbcReadPasswordVisible, setJdbcReadPasswordVisible] = useState(false);
+  const [ibmToolboxPasswordVisible, setIbmToolboxPasswordVisible] = useState(false);
+  const [as400WriteRemoteCommandExpanded, setAs400WriteRemoteCommandExpanded] = useState(false);
+  const [as400WriteApiProgramCallExpanded, setAs400WriteApiProgramCallExpanded] = useState(false);
 
   // When opening from Settings for a non-integrated app, start at step 3 (Integration Setting)
   useEffect(() => {
@@ -2462,6 +2469,940 @@ export default function AddApplicationPage() {
                   )}
                 </div>
                 </div>
+            );
+          }
+
+          // AS400 / IBM i: always use static integration fields (not API-driven)
+          if (selectedAppType === "AS400" || selectedAppType === "AS/400") {
+            const raw = formData.step3.integrationSettings;
+            const integrationSettingsVal =
+              raw === "Read Operations" || raw === "Write Operations" ? raw : "";
+            return (
+              <div className="space-y-6">
+                <div className="flex rounded-md border border-gray-300 bg-white shadow-sm min-h-[52px] focus-within:border-blue-500 focus-within:shadow-[inset_0_0_0_1px_rgb(59_130_246_/_0.35)]">
+                  <div
+                    className="w-1.5 shrink-0 bg-gradient-to-b from-blue-500 to-indigo-600 self-stretch rounded-l-md"
+                    aria-hidden
+                  />
+                  <div className="flex-1 relative min-w-0">
+                    <select
+                      value={integrationSettingsVal}
+                      onChange={(e) => handleInputChange("step3", "integrationSettings", e.target.value)}
+                      className="w-full px-4 pt-5 pb-1.5 border-0 rounded-none focus:outline-none focus:ring-0 no-underline appearance-none bg-white text-gray-900"
+                    >
+                      <option value="" />
+                      <option value="Read Operations">Read Operations</option>
+                      <option value="Write Operations">Write Operations</option>
+                    </select>
+                    <label
+                      className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                        integrationSettingsVal
+                          ? "top-0.5 text-xs text-blue-600"
+                          : "top-3.5 text-sm text-gray-500"
+                      }`}
+                    >
+                      Integration settings *
+                    </label>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" aria-hidden />
+                  </div>
+                </div>
+                {integrationSettingsVal === "Read Operations" && (
+                  <div className="space-y-3">
+                    <div className="border border-gray-200 rounded-lg bg-white shadow-sm overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setAs400JdbcReadChannelExpanded((e) => !e)}
+                        className="flex items-center justify-between gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                        aria-expanded={as400JdbcReadChannelExpanded}
+                      >
+                        <span className="text-base font-semibold text-gray-900 min-w-0 pr-2">JDBC-Based Read Channel</span>
+                        {as400JdbcReadChannelExpanded ? (
+                          <ChevronUp className="w-5 h-5 text-blue-600 shrink-0" aria-hidden />
+                        ) : (
+                          <ChevronDown className="w-5 h-5 text-blue-600 shrink-0" aria-hidden />
+                        )}
+                      </button>
+                      {as400JdbcReadChannelExpanded && (
+                        <div className="px-4 pb-4 pt-3 border-t border-gray-100 space-y-4">
+                          <div
+                            className="flex flex-nowrap items-center gap-2.5 overflow-x-auto min-w-0 pb-0.5 [-ms-overflow-style:none] [scrollbar-width:thin]"
+                            role="list"
+                            aria-label="JDBC read channel capabilities"
+                          >
+                            {["Account aggregation", "Entitlement extraction", "Reporting"].map((label) => (
+                              <span
+                                key={label}
+                                role="listitem"
+                                className="inline-flex shrink-0 items-center px-4 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800 border border-blue-200 whitespace-nowrap"
+                              >
+                                {label}
+                              </span>
+                            ))}
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={(formData.step3 as any).jdbcReadConnectorType ?? ""}
+                                onChange={(e) => handleInputChange("step3", "jdbcReadConnectorType", e.target.value)}
+                                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                placeholder=" "
+                              />
+                              <label
+                                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                  (formData.step3 as any).jdbcReadConnectorType
+                                    ? "top-0.5 text-xs text-blue-600"
+                                    : "top-3.5 text-sm text-gray-500"
+                                }`}
+                              >
+                                Connector Type
+                              </label>
+                            </div>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={(formData.step3 as any).jdbcReadDriverClass ?? ""}
+                                onChange={(e) => handleInputChange("step3", "jdbcReadDriverClass", e.target.value)}
+                                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                placeholder=" "
+                              />
+                              <label
+                                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                  (formData.step3 as any).jdbcReadDriverClass
+                                    ? "top-0.5 text-xs text-blue-600"
+                                    : "top-3.5 text-sm text-gray-500"
+                                }`}
+                              >
+                                Driver Class
+                              </label>
+                            </div>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={(formData.step3 as any).jdbcReadJdbcUrl ?? ""}
+                              onChange={(e) => handleInputChange("step3", "jdbcReadJdbcUrl", e.target.value)}
+                              className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                              placeholder=" "
+                            />
+                            <label
+                              className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                (formData.step3 as any).jdbcReadJdbcUrl
+                                  ? "top-0.5 text-xs text-blue-600"
+                                  : "top-3.5 text-sm text-gray-500"
+                              }`}
+                            >
+                              JDBC URL
+                            </label>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={(formData.step3 as any).jdbcReadHost ?? ""}
+                                onChange={(e) => handleInputChange("step3", "jdbcReadHost", e.target.value)}
+                                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                placeholder=" "
+                              />
+                              <label
+                                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                  (formData.step3 as any).jdbcReadHost
+                                    ? "top-0.5 text-xs text-blue-600"
+                                    : "top-3.5 text-sm text-gray-500"
+                                }`}
+                              >
+                                Host
+                              </label>
+                            </div>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={(formData.step3 as any).jdbcReadPort ?? ""}
+                                onChange={(e) => handleInputChange("step3", "jdbcReadPort", e.target.value)}
+                                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                placeholder=" "
+                              />
+                              <label
+                                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                  (formData.step3 as any).jdbcReadPort
+                                    ? "top-0.5 text-xs text-blue-600"
+                                    : "top-3.5 text-sm text-gray-500"
+                                }`}
+                              >
+                                Port
+                              </label>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={(formData.step3 as any).jdbcReadDatabaseName ?? ""}
+                                onChange={(e) => handleInputChange("step3", "jdbcReadDatabaseName", e.target.value)}
+                                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                placeholder=" "
+                              />
+                              <label
+                                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                  (formData.step3 as any).jdbcReadDatabaseName
+                                    ? "top-0.5 text-xs text-blue-600"
+                                    : "top-3.5 text-sm text-gray-500"
+                                }`}
+                              >
+                                Database Name
+                              </label>
+                            </div>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={(formData.step3 as any).jdbcReadNamingConvention ?? ""}
+                                onChange={(e) => handleInputChange("step3", "jdbcReadNamingConvention", e.target.value)}
+                                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                placeholder=" "
+                              />
+                              <label
+                                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                  (formData.step3 as any).jdbcReadNamingConvention
+                                    ? "top-0.5 text-xs text-blue-600"
+                                    : "top-3.5 text-sm text-gray-500"
+                                }`}
+                              >
+                                Naming Convention
+                              </label>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={(formData.step3 as any).jdbcReadDefaultLibraries ?? ""}
+                                onChange={(e) => handleInputChange("step3", "jdbcReadDefaultLibraries", e.target.value)}
+                                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                placeholder=" "
+                              />
+                              <label
+                                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                  (formData.step3 as any).jdbcReadDefaultLibraries
+                                    ? "top-0.5 text-xs text-blue-600"
+                                    : "top-3.5 text-sm text-gray-500"
+                                }`}
+                              >
+                                Default Libraries
+                              </label>
+                            </div>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={(formData.step3 as any).jdbcReadUserId ?? ""}
+                                onChange={(e) => handleInputChange("step3", "jdbcReadUserId", e.target.value)}
+                                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                placeholder=" "
+                                autoComplete="off"
+                              />
+                              <label
+                                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                  (formData.step3 as any).jdbcReadUserId
+                                    ? "top-0.5 text-xs text-blue-600"
+                                    : "top-3.5 text-sm text-gray-500"
+                                }`}
+                              >
+                                User ID
+                              </label>
+                            </div>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type={jdbcReadPasswordVisible ? "text" : "password"}
+                              value={(formData.step3 as any).jdbcReadPassword ?? ""}
+                              onChange={(e) => handleInputChange("step3", "jdbcReadPassword", e.target.value)}
+                              className="w-full pl-4 pr-11 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                              placeholder=" "
+                              autoComplete="off"
+                            />
+                            <label
+                              className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                (formData.step3 as any).jdbcReadPassword
+                                  ? "top-0.5 text-xs text-blue-600"
+                                  : "top-3.5 text-sm text-gray-500"
+                              }`}
+                            >
+                              Password
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => setJdbcReadPasswordVisible((v) => !v)}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-gray-500 hover:text-gray-800 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              aria-label={jdbcReadPasswordVisible ? "Hide password" : "Show password"}
+                            >
+                              {jdbcReadPasswordVisible ? (
+                                <EyeOff className="w-4 h-4" aria-hidden />
+                              ) : (
+                                <Eye className="w-4 h-4" aria-hidden />
+                              )}
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={(formData.step3 as any).jdbcReadConnectionTimeout ?? ""}
+                                onChange={(e) => handleInputChange("step3", "jdbcReadConnectionTimeout", e.target.value)}
+                                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                placeholder=" "
+                              />
+                              <label
+                                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                  (formData.step3 as any).jdbcReadConnectionTimeout
+                                    ? "top-0.5 text-xs text-blue-600"
+                                    : "top-3.5 text-sm text-gray-500"
+                                }`}
+                              >
+                                Connection Timeout
+                              </label>
+                            </div>
+                            <div className="flex items-center gap-2 pb-2 sm:pb-1.5">
+                              <input
+                                type="checkbox"
+                                id="jdbcReadSslEnabled"
+                                checked={Boolean((formData.step3 as any).jdbcReadSslEnabled)}
+                                onChange={(e) => handleInputChange("step3", "jdbcReadSslEnabled", e.target.checked)}
+                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                              />
+                              <label htmlFor="jdbcReadSslEnabled" className="text-sm font-medium text-gray-700 cursor-pointer">
+                                SSL Enabled
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="border border-gray-200 rounded-lg bg-white shadow-sm overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setAs400ToolboxReadChannelExpanded((e) => !e)}
+                        className="flex items-center justify-between gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                        aria-expanded={as400ToolboxReadChannelExpanded}
+                      >
+                        <span className="text-base font-semibold text-gray-900 min-w-0 pr-2">IBM Toolbox API-Based Read Channel</span>
+                        {as400ToolboxReadChannelExpanded ? (
+                          <ChevronUp className="w-5 h-5 text-blue-600 shrink-0" aria-hidden />
+                        ) : (
+                          <ChevronDown className="w-5 h-5 text-blue-600 shrink-0" aria-hidden />
+                        )}
+                      </button>
+                      {as400ToolboxReadChannelExpanded && (
+                        <div className="px-4 pb-4 pt-3 border-t border-gray-100 space-y-4">
+                          <div
+                            className="flex flex-nowrap items-center gap-2.5 overflow-x-auto min-w-0 pb-0.5 [-ms-overflow-style:none] [scrollbar-width:thin]"
+                            role="list"
+                            aria-label="IBM Toolbox read channel capabilities"
+                          >
+                            {[
+                              "Real-time reads",
+                              "Deep system-level attributes",
+                              "When SQL services are insufficient",
+                              "Legacy environments",
+                            ].map((label) => (
+                              <span
+                                key={label}
+                                role="listitem"
+                                className="inline-flex shrink-0 items-center px-4 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800 border border-blue-200 whitespace-nowrap"
+                              >
+                                {label}
+                              </span>
+                            ))}
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={(formData.step3 as any).ibmToolboxConnectorType ?? ""}
+                                onChange={(e) => handleInputChange("step3", "ibmToolboxConnectorType", e.target.value)}
+                                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                placeholder=" "
+                              />
+                              <label
+                                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                  (formData.step3 as any).ibmToolboxConnectorType
+                                    ? "top-0.5 text-xs text-blue-600"
+                                    : "top-3.5 text-sm text-gray-500"
+                                }`}
+                              >
+                                Connector Type
+                              </label>
+                            </div>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={(formData.step3 as any).ibmToolboxHost ?? ""}
+                                onChange={(e) => handleInputChange("step3", "ibmToolboxHost", e.target.value)}
+                                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                placeholder=" "
+                              />
+                              <label
+                                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                  (formData.step3 as any).ibmToolboxHost
+                                    ? "top-0.5 text-xs text-blue-600"
+                                    : "top-3.5 text-sm text-gray-500"
+                                }`}
+                              >
+                                Host
+                              </label>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={(formData.step3 as any).ibmToolboxUserId ?? ""}
+                                onChange={(e) => handleInputChange("step3", "ibmToolboxUserId", e.target.value)}
+                                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                placeholder=" "
+                                autoComplete="off"
+                              />
+                              <label
+                                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                  (formData.step3 as any).ibmToolboxUserId
+                                    ? "top-0.5 text-xs text-blue-600"
+                                    : "top-3.5 text-sm text-gray-500"
+                                }`}
+                              >
+                                User ID
+                              </label>
+                            </div>
+                            <div className="relative">
+                              <input
+                                type={ibmToolboxPasswordVisible ? "text" : "password"}
+                                value={(formData.step3 as any).ibmToolboxPassword ?? ""}
+                                onChange={(e) => handleInputChange("step3", "ibmToolboxPassword", e.target.value)}
+                                className="w-full pl-4 pr-11 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                placeholder=" "
+                                autoComplete="off"
+                              />
+                              <label
+                                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                  (formData.step3 as any).ibmToolboxPassword
+                                    ? "top-0.5 text-xs text-blue-600"
+                                    : "top-3.5 text-sm text-gray-500"
+                                }`}
+                              >
+                                Password
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => setIbmToolboxPasswordVisible((v) => !v)}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-gray-500 hover:text-gray-800 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                aria-label={ibmToolboxPasswordVisible ? "Hide password" : "Show password"}
+                              >
+                                {ibmToolboxPasswordVisible ? (
+                                  <EyeOff className="w-4 h-4" aria-hidden />
+                                ) : (
+                                  <Eye className="w-4 h-4" aria-hidden />
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={(formData.step3 as any).ibmToolboxPort ?? ""}
+                                onChange={(e) => handleInputChange("step3", "ibmToolboxPort", e.target.value)}
+                                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                placeholder=" "
+                              />
+                              <label
+                                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                  (formData.step3 as any).ibmToolboxPort
+                                    ? "top-0.5 text-xs text-blue-600"
+                                    : "top-3.5 text-sm text-gray-500"
+                                }`}
+                              >
+                                Port
+                              </label>
+                            </div>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={(formData.step3 as any).ibmToolboxTransportProtocol ?? ""}
+                                onChange={(e) => handleInputChange("step3", "ibmToolboxTransportProtocol", e.target.value)}
+                                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                placeholder=" "
+                              />
+                              <label
+                                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                  (formData.step3 as any).ibmToolboxTransportProtocol
+                                    ? "top-0.5 text-xs text-blue-600"
+                                    : "top-3.5 text-sm text-gray-500"
+                                }`}
+                              >
+                                Transport Protocol
+                              </label>
+                            </div>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={(formData.step3 as any).ibmToolboxCcsid ?? ""}
+                              onChange={(e) => handleInputChange("step3", "ibmToolboxCcsid", e.target.value)}
+                              className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                              placeholder=" "
+                            />
+                            <label
+                              className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                (formData.step3 as any).ibmToolboxCcsid
+                                  ? "top-0.5 text-xs text-blue-600"
+                                  : "top-3.5 text-sm text-gray-500"
+                              }`}
+                            >
+                              CCSID
+                            </label>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+                            <div className="flex items-center gap-2 pb-2 sm:pb-1.5">
+                              <input
+                                type="checkbox"
+                                id="ibmToolboxUseSsl"
+                                checked={Boolean((formData.step3 as any).ibmToolboxUseSsl)}
+                                onChange={(e) => handleInputChange("step3", "ibmToolboxUseSsl", e.target.checked)}
+                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                              />
+                              <label htmlFor="ibmToolboxUseSsl" className="text-sm font-medium text-gray-700 cursor-pointer">
+                                Use SSL
+                              </label>
+                            </div>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={(formData.step3 as any).ibmToolboxSocketTimeout ?? ""}
+                                onChange={(e) => handleInputChange("step3", "ibmToolboxSocketTimeout", e.target.value)}
+                                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                placeholder=" "
+                              />
+                              <label
+                                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                  (formData.step3 as any).ibmToolboxSocketTimeout
+                                    ? "top-0.5 text-xs text-blue-600"
+                                    : "top-3.5 text-sm text-gray-500"
+                                }`}
+                              >
+                                Socket Timeout
+                              </label>
+                            </div>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={(formData.step3 as any).ibmToolboxRetryCount ?? ""}
+                              onChange={(e) => handleInputChange("step3", "ibmToolboxRetryCount", e.target.value)}
+                              className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                              placeholder=" "
+                            />
+                            <label
+                              className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                (formData.step3 as any).ibmToolboxRetryCount
+                                  ? "top-0.5 text-xs text-blue-600"
+                                  : "top-3.5 text-sm text-gray-500"
+                              }`}
+                            >
+                              Retry Count
+                            </label>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {integrationSettingsVal === "Write Operations" && (
+                  <div className="space-y-3">
+                    <div className="border border-gray-200 rounded-lg bg-white shadow-sm overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setAs400WriteRemoteCommandExpanded((e) => !e)}
+                        className="flex items-center justify-between gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                        aria-expanded={as400WriteRemoteCommandExpanded}
+                      >
+                        <span className="text-base font-semibold text-gray-900 min-w-0 pr-2">Write via Remote Command</span>
+                        {as400WriteRemoteCommandExpanded ? (
+                          <ChevronUp className="w-5 h-5 text-blue-600 shrink-0" aria-hidden />
+                        ) : (
+                          <ChevronDown className="w-5 h-5 text-blue-600 shrink-0" aria-hidden />
+                        )}
+                      </button>
+                      {as400WriteRemoteCommandExpanded && (
+                        <div className="px-4 pb-4 pt-3 border-t border-gray-100 space-y-4">
+                          <div
+                            className="flex flex-nowrap items-center gap-2.5 overflow-x-auto min-w-0 pb-0.5 [scrollbar-width:thin]"
+                            role="list"
+                            aria-label="Remote command operations"
+                          >
+                            {["CRTUSRPRF", "CHGUSRPRF", "DLTUSRPRF"].map((label) => (
+                              <span
+                                key={label}
+                                role="listitem"
+                                className="inline-flex shrink-0 items-center px-4 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800 border border-blue-200 whitespace-nowrap"
+                              >
+                                {label}
+                              </span>
+                            ))}
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={(formData.step3 as any).writeRemoteChannelType ?? ""}
+                                onChange={(e) => handleInputChange("step3", "writeRemoteChannelType", e.target.value)}
+                                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                placeholder=" "
+                              />
+                              <label
+                                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                  (formData.step3 as any).writeRemoteChannelType
+                                    ? "top-0.5 text-xs text-blue-600"
+                                    : "top-3.5 text-sm text-gray-500"
+                                }`}
+                              >
+                                Write Channel Type
+                              </label>
+                            </div>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={(formData.step3 as any).writeRemoteConnectorLabel ?? ""}
+                                onChange={(e) => handleInputChange("step3", "writeRemoteConnectorLabel", e.target.value)}
+                                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                placeholder=" "
+                              />
+                              <label
+                                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                  (formData.step3 as any).writeRemoteConnectorLabel
+                                    ? "top-0.5 text-xs text-blue-600"
+                                    : "top-3.5 text-sm text-gray-500"
+                                }`}
+                              >
+                                Connector Label
+                              </label>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={(formData.step3 as any).writeRemoteHostName ?? ""}
+                                onChange={(e) => handleInputChange("step3", "writeRemoteHostName", e.target.value)}
+                                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                placeholder=" "
+                              />
+                              <label
+                                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                  (formData.step3 as any).writeRemoteHostName
+                                    ? "top-0.5 text-xs text-blue-600"
+                                    : "top-3.5 text-sm text-gray-500"
+                                }`}
+                              >
+                                Host Name
+                              </label>
+                            </div>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={(formData.step3 as any).writeRemotePort ?? ""}
+                                onChange={(e) => handleInputChange("step3", "writeRemotePort", e.target.value)}
+                                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                placeholder=" "
+                              />
+                              <label
+                                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                  (formData.step3 as any).writeRemotePort
+                                    ? "top-0.5 text-xs text-blue-600"
+                                    : "top-3.5 text-sm text-gray-500"
+                                }`}
+                              >
+                                Port
+                              </label>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={(formData.step3 as any).writeRemoteServiceType ?? ""}
+                                onChange={(e) => handleInputChange("step3", "writeRemoteServiceType", e.target.value)}
+                                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                placeholder=" "
+                              />
+                              <label
+                                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                  (formData.step3 as any).writeRemoteServiceType
+                                    ? "top-0.5 text-xs text-blue-600"
+                                    : "top-3.5 text-sm text-gray-500"
+                                }`}
+                              >
+                                Service Type
+                              </label>
+                            </div>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={(formData.step3 as any).writeRemoteTransportProtocol ?? ""}
+                                onChange={(e) => handleInputChange("step3", "writeRemoteTransportProtocol", e.target.value)}
+                                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                placeholder=" "
+                              />
+                              <label
+                                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                  (formData.step3 as any).writeRemoteTransportProtocol
+                                    ? "top-0.5 text-xs text-blue-600"
+                                    : "top-3.5 text-sm text-gray-500"
+                                }`}
+                              >
+                                Transport Protocol
+                              </label>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+                            <div className="flex items-center gap-2 pb-2 sm:pb-1.5">
+                              <input
+                                type="checkbox"
+                                id="writeRemoteUseSsl"
+                                checked={Boolean((formData.step3 as any).writeRemoteUseSsl)}
+                                onChange={(e) => handleInputChange("step3", "writeRemoteUseSsl", e.target.checked)}
+                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                              />
+                              <label htmlFor="writeRemoteUseSsl" className="text-sm font-medium text-gray-700 cursor-pointer">
+                                Use SSL
+                              </label>
+                            </div>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={(formData.step3 as any).writeRemoteUserId ?? ""}
+                                onChange={(e) => handleInputChange("step3", "writeRemoteUserId", e.target.value)}
+                                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                placeholder=" "
+                                autoComplete="off"
+                              />
+                              <label
+                                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                  (formData.step3 as any).writeRemoteUserId
+                                    ? "top-0.5 text-xs text-blue-600"
+                                    : "top-3.5 text-sm text-gray-500"
+                                }`}
+                              >
+                                User ID
+                              </label>
+                            </div>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={(formData.step3 as any).writeRemotePasswordReference ?? ""}
+                              onChange={(e) => handleInputChange("step3", "writeRemotePasswordReference", e.target.value)}
+                              className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                              placeholder=" "
+                              autoComplete="off"
+                            />
+                            <label
+                              className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                (formData.step3 as any).writeRemotePasswordReference
+                                  ? "top-0.5 text-xs text-blue-600"
+                                  : "top-3.5 text-sm text-gray-500"
+                              }`}
+                            >
+                              Password Reference
+                            </label>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="border border-gray-200 rounded-lg bg-white shadow-sm overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setAs400WriteApiProgramCallExpanded((e) => !e)}
+                        className="flex items-center justify-between gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                        aria-expanded={as400WriteApiProgramCallExpanded}
+                      >
+                        <span className="text-base font-semibold text-gray-900 min-w-0 pr-2">Write via API / Program Call</span>
+                        {as400WriteApiProgramCallExpanded ? (
+                          <ChevronUp className="w-5 h-5 text-blue-600 shrink-0" aria-hidden />
+                        ) : (
+                          <ChevronDown className="w-5 h-5 text-blue-600 shrink-0" aria-hidden />
+                        )}
+                      </button>
+                      {as400WriteApiProgramCallExpanded && (
+                        <div className="px-4 pb-4 pt-3 border-t border-gray-100 space-y-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={(formData.step3 as any).writeApiChannelType ?? ""}
+                                onChange={(e) => handleInputChange("step3", "writeApiChannelType", e.target.value)}
+                                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                placeholder=" "
+                              />
+                              <label
+                                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                  (formData.step3 as any).writeApiChannelType
+                                    ? "top-0.5 text-xs text-blue-600"
+                                    : "top-3.5 text-sm text-gray-500"
+                                }`}
+                              >
+                                Write Channel Type
+                              </label>
+                            </div>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={(formData.step3 as any).writeApiConnectorLabel ?? ""}
+                                onChange={(e) => handleInputChange("step3", "writeApiConnectorLabel", e.target.value)}
+                                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                placeholder=" "
+                              />
+                              <label
+                                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                  (formData.step3 as any).writeApiConnectorLabel
+                                    ? "top-0.5 text-xs text-blue-600"
+                                    : "top-3.5 text-sm text-gray-500"
+                                }`}
+                              >
+                                Connector Label
+                              </label>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={(formData.step3 as any).writeApiHostName ?? ""}
+                                onChange={(e) => handleInputChange("step3", "writeApiHostName", e.target.value)}
+                                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                placeholder=" "
+                              />
+                              <label
+                                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                  (formData.step3 as any).writeApiHostName
+                                    ? "top-0.5 text-xs text-blue-600"
+                                    : "top-3.5 text-sm text-gray-500"
+                                }`}
+                              >
+                                Host Name
+                              </label>
+                            </div>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={(formData.step3 as any).writeApiPort ?? ""}
+                                onChange={(e) => handleInputChange("step3", "writeApiPort", e.target.value)}
+                                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                placeholder=" "
+                              />
+                              <label
+                                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                  (formData.step3 as any).writeApiPort
+                                    ? "top-0.5 text-xs text-blue-600"
+                                    : "top-3.5 text-sm text-gray-500"
+                                }`}
+                              >
+                                Port
+                              </label>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={(formData.step3 as any).writeApiServiceType ?? ""}
+                                onChange={(e) => handleInputChange("step3", "writeApiServiceType", e.target.value)}
+                                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                placeholder=" "
+                              />
+                              <label
+                                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                  (formData.step3 as any).writeApiServiceType
+                                    ? "top-0.5 text-xs text-blue-600"
+                                    : "top-3.5 text-sm text-gray-500"
+                                }`}
+                              >
+                                Service Type
+                              </label>
+                            </div>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={(formData.step3 as any).writeApiTransportProtocol ?? ""}
+                                onChange={(e) => handleInputChange("step3", "writeApiTransportProtocol", e.target.value)}
+                                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                placeholder=" "
+                              />
+                              <label
+                                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                  (formData.step3 as any).writeApiTransportProtocol
+                                    ? "top-0.5 text-xs text-blue-600"
+                                    : "top-3.5 text-sm text-gray-500"
+                                }`}
+                              >
+                                Transport Protocol
+                              </label>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+                            <div className="flex items-center gap-2 pb-2 sm:pb-1.5">
+                              <input
+                                type="checkbox"
+                                id="writeApiUseSsl"
+                                checked={Boolean((formData.step3 as any).writeApiUseSsl)}
+                                onChange={(e) => handleInputChange("step3", "writeApiUseSsl", e.target.checked)}
+                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                              />
+                              <label htmlFor="writeApiUseSsl" className="text-sm font-medium text-gray-700 cursor-pointer">
+                                Use SSL
+                              </label>
+                            </div>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={(formData.step3 as any).writeApiUserId ?? ""}
+                                onChange={(e) => handleInputChange("step3", "writeApiUserId", e.target.value)}
+                                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                                placeholder=" "
+                                autoComplete="off"
+                              />
+                              <label
+                                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                  (formData.step3 as any).writeApiUserId
+                                    ? "top-0.5 text-xs text-blue-600"
+                                    : "top-3.5 text-sm text-gray-500"
+                                }`}
+                              >
+                                User ID
+                              </label>
+                            </div>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={(formData.step3 as any).writeApiPasswordReference ?? ""}
+                              onChange={(e) => handleInputChange("step3", "writeApiPasswordReference", e.target.value)}
+                              className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                              placeholder=" "
+                              autoComplete="off"
+                            />
+                            <label
+                              className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                                (formData.step3 as any).writeApiPasswordReference
+                                  ? "top-0.5 text-xs text-blue-600"
+                                  : "top-3.5 text-sm text-gray-500"
+                              }`}
+                            >
+                              Password Reference
+                            </label>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             );
           }
 
@@ -7488,6 +8429,11 @@ export default function AddApplicationPage() {
                 jdbcUrl: "JDBC connection URL for ATG database",
                 username: "Database username for ATG authentication",
                 password: "Database password for ATG authentication"
+              };
+            case "AS400":
+            case "AS/400":
+              return {
+                integrationSettings: "Whether the integration is limited to read operations or may perform write operations"
               };
             default:
               return {};
