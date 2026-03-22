@@ -1,5 +1,6 @@
- "use client";
+"use client";
 
+import React, { useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { themeQuartz } from "ag-grid-community";
 import Image from "next/image";
@@ -10,6 +11,74 @@ import type { ColDef } from "ag-grid-community";
 import { Lightbulb } from "lucide-react";
 import ActionButtons from "@/components/agTable/ActionButtons";
 
+/** User manager change (default) – multiple accounts / apps; privileged & new-account use one of each. */
+const MANAGER_CHANGE_ENTITLEMENTS = [
+  {
+    entitlement: "Z_FI_HR_PAYROLL",
+    entitlementDescription:
+      "Executes financial postings, inquiries, and period controls. Ensures balance integrity, reconciliations, and approvals under governed workflows.",
+    type: "Group",
+    account: "svc_payroll_01",
+    application: "SAP_S4",
+    lastLogin: "03/21/25",
+  },
+  {
+    entitlement: "ZNEW_FICA_MGR_REV_ACC",
+    entitlementDescription:
+      "Supports financial postings, inquiries, and period controls. Ensures balance integrity, reconciliations, and approvals under governed workflows.",
+    type: "Group",
+    account: "svc_fica_mgr_01",
+    application: "SAP_S4",
+    lastLogin: "03/21/25",
+  },
+  {
+    entitlement: "ZNEW_DM_REVENUE_ACC",
+    entitlementDescription:
+      "Executes directory group membership for routing access. Ensures SSO mapping and least-privilege entitlement under governed workflows.",
+    type: "Group",
+    account: "svc_revenue_01",
+    application: "SAP_S4",
+    lastLogin: "03/21/25",
+  },
+];
+
+const SHARED_ACCOUNT = "Ssharma_SAP01";
+const SHARED_APPLICATION = "SAP_S4";
+
+/** Privileged Access assigned & New Account assigned: one account, one application, multiple entitlements. */
+const SINGLE_ACCOUNT_ENTITLEMENT_ROWS = [
+  {
+    entitlement: "ZPRIV_GL_BREAKGLASS",
+    entitlementDescription:
+      "Emergency privileged break-glass access for controlled financial close and reconciliation windows.",
+    type: "Role",
+  },
+  {
+    entitlement: "ZADMIN_FI_POSTING_CTRL",
+    entitlementDescription:
+      "Posts journal entries and manages period-end controls under dual-control policy.",
+    type: "Group",
+  },
+  {
+    entitlement: "ZPRIV_PAYROLL_APPROVE",
+    entitlementDescription:
+      "Approves payroll runs and sensitive compensation adjustments within HR/payroll module.",
+    type: "Role",
+  },
+  {
+    entitlement: "ZSEC_USER_ADMIN_EXT",
+    entitlementDescription:
+      "Extended user administration for application security roles and emergency access requests.",
+    type: "Group",
+  },
+  {
+    entitlement: "ZAUDIT_SOX_EXTRACT",
+    entitlementDescription:
+      "Read-only extraction and reporting for SOX-relevant audit trails and configuration snapshots.",
+    type: "Group",
+  },
+];
+
 export default function ContinuousComplianceDummyReviewPage() {
   const searchParams = useSearchParams();
 
@@ -18,36 +87,31 @@ export default function ContinuousComplianceDummyReviewPage() {
   const jobTitle = "Senior Operations Analyst";
   const department = "IT Operations";
   const completionPercent = 92;
-  // Base dummy entitlements – one logical row each
-  const baseDummyEntitlements = [
-    {
-      entitlement: "Z_FI_HR_PAYROLL",
-      entitlementDescription:
-        "Executes financial postings, inquiries, and period controls. Ensures balance integrity, reconciliations, and approvals under governed workflows.",
-      type: "Group",
-      account: "svc_payroll_01",
-      application: "SAP_S4",
-      lastLogin: "03/21/25",
-    },
-    {
-      entitlement: "ZNEW_FICA_MGR_REV_ACC",
-      entitlementDescription:
-        "Supports financial postings, inquiries, and period controls. Ensures balance integrity, reconciliations, and approvals under governed workflows.",
-      type: "Group",
-      account: "svc_fica_mgr_01",
-      application: "SAP_S4",
-      lastLogin: "03/21/25",
-    },
-    {
-      entitlement: "ZNEW_DM_REVENUE_ACC",
-      entitlementDescription:
-        "Executes directory group membership for routing access. Ensures SSO mapping and least-privilege entitlement under governed workflows.",
-      type: "Group",
-      account: "svc_revenue_01",
-      application: "SAP_S4",
-      lastLogin: "03/21/25",
-    },
-  ];
+
+  const triggerEvent = searchParams.get("triggerEvent") ?? "";
+  const isPrivilegedAccessAssigned =
+    /privileged\s*access\s*assigned/i.test(triggerEvent);
+  const isNewAccountAssigned =
+    /new\s*account\s*(discovered|assigned)/i.test(triggerEvent);
+
+  const baseDummyEntitlements = useMemo(() => {
+    if (isPrivilegedAccessAssigned || isNewAccountAssigned) {
+      return SINGLE_ACCOUNT_ENTITLEMENT_ROWS.map((row) => ({
+        ...row,
+        account: SHARED_ACCOUNT,
+        application: SHARED_APPLICATION,
+        ...(isNewAccountAssigned
+          ? {}
+          : { lastLogin: "03/21/25" as const }),
+      }));
+    }
+    return MANAGER_CHANGE_ENTITLEMENTS;
+  }, [isPrivilegedAccessAssigned, isNewAccountAssigned]);
+
+  const entitlementColumns = useMemo(
+    () => buildEntitlementColumns(!isNewAccountAssigned),
+    [isNewAccountAssigned]
+  );
 
   // Expand into main + description rows, like TreeClient does
   const dummyEntitlements = baseDummyEntitlements.flatMap((row, index) => [
@@ -182,18 +246,6 @@ export default function ContinuousComplianceDummyReviewPage() {
 
       {/* Entitlements grid section – reuse AgGrid like TreeClient */}
       <div className="mt-4 w-full bg-white rounded-xl shadow-sm border border-gray-200 p-3">
-        {/* Top prev control inside the card, like other pages */}
-        <div className="mb-2 text-[11px] text-gray-500">
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 hover:text-gray-800"
-            onClick={() => window.history.back()}
-          >
-            <span className="text-sm">&lt;</span>
-            <span>Prev</span>
-          </button>
-        </div>
-
         <div className="ag-theme-alpine w-full">
           <AgGridReact
             theme={themeQuartz}
@@ -213,100 +265,109 @@ export default function ContinuousComplianceDummyReviewPage() {
   );
 }
 
-const entitlementColumns: ColDef[] = [
-  {
-    headerName: "Entitlement",
-    field: "entitlement",
-    flex: 2,
-    minWidth: 300,
-    wrapText: true,
-    autoHeight: true,
-    cellRenderer: (params) => {
-      const { entitlement, entitlementDescription, __isDescRow } = params.data || {};
+function buildEntitlementColumns(includeLastLogin: boolean): ColDef[] {
+  const descColSpan = includeLastLogin ? 7 : 6;
 
-      // Description row spans the whole table width
-      if (__isDescRow) {
-        const desc = entitlementDescription || "No description available";
-        const isEmpty =
-          !entitlementDescription ||
-          entitlementDescription.trim().length === 0;
+  return [
+    {
+      headerName: "Entitlement",
+      field: "entitlement",
+      flex: 2,
+      minWidth: 260,
+      wrapText: true,
+      autoHeight: true,
+      cellRenderer: (params) => {
+        const { entitlement, entitlementDescription, __isDescRow } =
+          params.data || {};
+
+        if (__isDescRow) {
+          const desc = entitlementDescription || "No description available";
+          const isEmpty =
+            !entitlementDescription ||
+            entitlementDescription.trim().length === 0;
+          return (
+            <div
+              className={`text-xs md:text-sm w-full break-words whitespace-pre-wrap ${
+                isEmpty ? "text-gray-400 italic" : "text-gray-600"
+              }`}
+            >
+              {isEmpty ? "No description available" : desc}
+            </div>
+          );
+        }
+
         return (
-          <div
-            className={`text-xs md:text-sm w-full break-words whitespace-pre-wrap ${
-              isEmpty ? "text-gray-400 italic" : "text-gray-600"
-            }`}
-          >
-            {isEmpty ? "No description available" : desc}
+          <div className="flex flex-col py-1">
+            <span className="text-xs md:text-sm font-medium text-gray-900">
+              {entitlement}
+            </span>
           </div>
         );
-      }
-
-      return (
-        <div className="flex flex-col py-1">
-          <span className="text-xs md:text-sm font-medium text-gray-900">
-            {entitlement}
-          </span>
+      },
+      colSpan: (params) => {
+        if (!params.data?.__isDescRow) return 1;
+        return descColSpan;
+      },
+    },
+    {
+      headerName: "Type",
+      field: "type",
+      width: 120,
+      flex: 0,
+    },
+    {
+      headerName: "Account",
+      field: "account",
+      width: 160,
+      flex: 0,
+    },
+    {
+      headerName: "Application",
+      field: "application",
+      width: 140,
+      flex: 0,
+    },
+    ...(includeLastLogin
+      ? ([
+          {
+            headerName: "Last Login",
+            field: "lastLogin",
+            width: 140,
+            flex: 0,
+          },
+        ] as ColDef[])
+      : []),
+    {
+      headerName: "Insights",
+      field: "insights",
+      minWidth: 140,
+      width: 140,
+      flex: 0,
+      wrapHeaderText: true,
+      autoHeaderHeight: true,
+      cellRenderer: () => (
+        <div className="flex items-center justify-center text-amber-500">
+          <Lightbulb size={20} />
         </div>
-      );
+      ),
     },
-    // Make description row span all columns, similar to TreeClient behavior
-    colSpan: (params) => {
-      if (!params.data?.__isDescRow) return 1;
-      // We have Entitlement, Type, Account, Application, Last Login, Insights, Actions = 7 columns
-      return 7;
+    {
+      headerName: "Actions",
+      field: "actions",
+      width: 260,
+      minWidth: 260,
+      flex: 0,
+      cellRenderer: (params) => (
+        <ActionButtons
+          api={params.api}
+          selectedRows={[params.data]}
+          context="entitlement"
+          reviewerId="DUMMY_REVIEWER"
+          certId="DUMMY_CERT"
+          hideTeamsIcon={false}
+        />
+      ),
     },
-  },
-  {
-    headerName: "Type",
-    field: "type",
-    width: 120,
-    flex: 0,
-  },
-  {
-    headerName: "Account",
-    field: "account",
-    width: 160,
-    flex: 0,
-  },
-  {
-    headerName: "Application",
-    field: "application",
-    width: 140,
-    flex: 0,
-  },
-  {
-    headerName: "Last Login",
-    field: "lastLogin",
-    width: 140,
-    flex: 0,
-  },
-  {
-    headerName: "Insights",
-    field: "insights",
-    width: 70,
-    flex: 0,
-    cellRenderer: () => (
-      <div className="flex items-center justify-center text-amber-500">
-        <Lightbulb size={20} />
-      </div>
-    ),
-  },
-  {
-    headerName: "Actions",
-    field: "actions",
-    width: 260,
-    minWidth: 260,
-    flex: 0,
-    cellRenderer: (params) => (
-      <ActionButtons
-        api={params.api}
-        selectedRows={[params.data]}
-        context="entitlement"
-        reviewerId="DUMMY_REVIEWER"
-        certId="DUMMY_CERT"
-        hideTeamsIcon={false}
-      />
-    ),
-  },
-];
+  ];
+}
 

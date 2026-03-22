@@ -1,4 +1,4 @@
- "use client";
+"use client";
 
 import React, { useEffect, useMemo, useState } from "react";
 import { themeQuartz } from "ag-grid-community";
@@ -21,177 +21,111 @@ import {
 } from "lucide-react";
 import "@/lib/ag-grid-setup";
 import { useRouter } from "next/navigation";
+import sodViolations from "@/public/SodVoilations.json";
+import continuousComplianceJson from "@/public/ContinousCompliance.json";
+
+type CcJsonRow = {
+  Entity?: string;
+  Details?: string;
+  "Trigger Event"?: string;
+  "Event Type"?: string;
+  "Assigned To"?: string;
+  "Expires On"?: string;
+  Actions?: string;
+};
+
+function formatExpiresOnDisplay(value: string): string {
+  const s = value.trim();
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) {
+    const [, y, m, d] = iso;
+    return `${m}/${d}/${y}`;
+  }
+  return s;
+}
+
+function mapContinuousComplianceRow(item: CcJsonRow) {
+  const actionsText = item?.Actions ?? "";
+  const actions =
+    typeof actionsText === "string"
+      ? actionsText.split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
+  const expiresRaw = String(item?.["Expires On"] ?? "").trim();
+  const dueDisplay = formatExpiresOnDisplay(expiresRaw);
+  return {
+    ...item,
+    entity: String(item?.Entity ?? ""),
+    details: String(item?.Details ?? ""),
+    triggerEvent: String(item?.["Trigger Event"] ?? ""),
+    eventType: String(item?.["Event Type"] ?? ""),
+    actionType: String(item?.["Event Type"] ?? ""),
+    assignedTo: String(item?.["Assigned To"] ?? ""),
+    dueOn: dueDisplay,
+    expiresOn: dueDisplay,
+    actions,
+  };
+}
+
+function parseDateForCompliance(value: unknown): Date | null {
+  const s = String(value ?? "").trim();
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) {
+    const y = Number(iso[1]);
+    const m = Number(iso[2]);
+    const d = Number(iso[3]);
+    if (!y || !m || !d) return null;
+    const dt = new Date(y, m - 1, d);
+    dt.setHours(0, 0, 0, 0);
+    return dt;
+  }
+  const mmdd = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!mmdd) return null;
+  const mm = Number(mmdd[1]);
+  const dd = Number(mmdd[2]);
+  const yyyy = Number(mmdd[3]);
+  if (!mm || !dd || !yyyy) return null;
+  const dt = new Date(yyyy, mm - 1, dd);
+  dt.setHours(0, 0, 0, 0);
+  return dt;
+}
+
+const ccPayload = continuousComplianceJson as { data?: CcJsonRow[] };
+const ccRowsFromJson = Array.isArray(ccPayload.data)
+  ? ccPayload.data.map(mapContinuousComplianceRow)
+  : [];
+
+function resolveSodViolationIdForCcRow(rowData: any): string {
+  const list = Array.isArray(sodViolations) ? sodViolations : [];
+  const details = String(rowData?.details ?? "").trim();
+  const d = details.toLowerCase();
+  if (d) {
+    const byUser = list.find(
+      (v: any) =>
+        String(v.Identity ?? "").toLowerCase() === d ||
+        String(v.Username ?? "").toLowerCase() === d ||
+        String(v.Identity ?? "").toLowerCase().includes(d) ||
+        String(v.Username ?? "").toLowerCase().includes(d)
+    );
+    if (byUser?.Violation_ID) return String(byUser.Violation_ID);
+    const byPolicy = list.find(
+      (v: any) => String(v.Policy_ID ?? "").toLowerCase() === d
+    );
+    if (byPolicy?.Violation_ID) return String(byPolicy.Violation_ID);
+  }
+  const first = list[0] as { Violation_ID?: string } | undefined;
+  return first?.Violation_ID ? String(first.Violation_ID) : "V0001";
+}
 
 const AgGridReact = dynamic(
   () => import("ag-grid-react").then((mod) => mod.AgGridReact),
   { ssr: false }
 );
 
-const mockRows = [
-  // User events
-  {
-    entity: "User",
-    details: "Ssharma",
-    eventType: "Job Title Change",
-    actionType: "Access Review",
-    dueOn: "03/15/2026",
-    actions: ["Review", "Reassign"],
-  },
-  {
-    entity: "User",
-    details: "Ssharma",
-    eventType: "Manager Change",
-    actionType: "Access Review",
-    dueOn: "03/15/2026",
-    actions: ["Review", "Reassign"],
-  },
-  {
-    entity: "User",
-    details: "Ssharma",
-    eventType: "Privileged Access Assigned (Directly)",
-    actionType: "Access Review",
-    dueOn: "03/15/2026",
-    actions: ["Review", "Reassign"],
-  },
-  {
-    entity: "User",
-    details: "Ssharma",
-    eventType: "New Account Discovered (Directly/Target System recon)",
-    actionType: "Access Review",
-    dueOn: "03/15/2026",
-    actions: ["Review", "Reassign"],
-  },
-  {
-    entity: "User",
-    details: "Ssharma",
-    eventType: "SoD Violation Detected",
-    actionType: "Access Review",
-    dueOn: "03/15/2026",
-    actions: ["Review", "Reassign"],
-  },
-  {
-    entity: "User",
-    details: "Ssharma",
-    eventType: "Account Inactive (>90 days)",
-    actionType: "Access Review",
-    dueOn: "03/15/2026",
-    actions: ["Review", "Reassign"],
-  },
-  {
-    entity: "User",
-    details: "Ssharma",
-    eventType: "Conditional Access Expiry (in 7 days)",
-    actionType: "Access Review",
-    dueOn: "03/15/2026",
-    actions: ["Review", "Reassign"],
-  },
-  {
-    entity: "User",
-    details: "Ssharma",
-    eventType: "Manager Inactive",
-    actionType: "Reassign",
-    dueOn: "03/15/2026",
-    actions: ["Review", "Reassign"],
-  },
-  {
-    entity: "User",
-    details: "Ssharma",
-    eventType: "Contractor Expiring in 7 days",
-    actionType: "Reassign",
-    dueOn: "03/15/2026",
-    actions: ["Review", "Reassign"],
-  },
-  {
-    entity: "User",
-    details: "Ssharma",
-    eventType: "Sensitive Data Access (Advanced, for later phases)",
-    actionType: "Reassign",
-    dueOn: "03/15/2026",
-    actions: ["Review", "Reassign"],
-  },
-  {
-    entity: "User",
-    details: "Ssharma",
-    eventType:
-      "User Risk Score Breach (Advanced, can we integrated with SIEM/UEBA for input, later phases)",
-    actionType: "Reassign",
-    dueOn: "03/15/2026",
-    actions: ["Review", "Reassign"],
-  },
-  {
-    entity: "User",
-    details: "Ssharma",
-    eventType:
-      "Privilege Escalation Chain Detection (user acquires multiple privilege accesses through either request or directly in end system)",
-    actionType: "Reassign",
-    dueOn: "03/15/2026",
-    actions: ["Review", "Reassign"],
-  },
-  // Entitlement events
-  {
-    entity: "Entitlement",
-    details: "ZNew_Comp_PP4",
-    eventType: "Newly Discovered Entitlement",
-    actionType: "Review Details",
-    dueOn: "03/15/2026",
-    actions: ["Review", "Reassign"],
-  },
-  {
-    entity: "Entitlement",
-    details: "ZNew_Comp_PP4",
-    eventType: "Owner Inactive",
-    actionType: "Reassign",
-    dueOn: "03/15/2026",
-    actions: ["Review", "Reassign"],
-  },
-  {
-    entity: "Entitlement",
-    details: "No assigned user for more than X days",
-    eventType: "No Assigned User",
-    actionType: "Review",
-    dueOn: "03/15/2026",
-    actions: ["Review", "Reassign"],
-  },
-  // Service account events
-  {
-    entity: "Service Account",
-    details: "svc_148",
-    eventType: "Owner Inactive",
-    actionType: "Reassign",
-    dueOn: "03/15/2026",
-    actions: ["Review", "Reassign"],
-  },
-  // Account events
-  {
-    entity: "Account",
-    details: "Multiple",
-    eventType: "Newly Discovered Unlinked Accounts",
-    actionType: "Classify",
-    dueOn: "03/15/2026",
-    actions: ["Review", "Reassign"],
-  },
-];
-
 export default function ContinuousCompliancePage() {
   const router = useRouter();
-  const [rows, setRows] = useState<any[]>(mockRows);
+  const rows = ccRowsFromJson;
   const [activeTab, setActiveTab] = useState(0); // 0 = Open, 1 = Complete
   const [searchTerm, setSearchTerm] = useState<string>("");
-
-  const parseMMDDYYYY = (value: unknown): Date | null => {
-    const s = String(value ?? "").trim();
-    const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-    if (!m) return null;
-
-    const mm = Number(m[1]);
-    const dd = Number(m[2]);
-    const yyyy = Number(m[3]);
-    if (!mm || !dd || !yyyy) return null;
-
-    const d = new Date(yyyy, mm - 1, dd);
-    d.setHours(0, 0, 0, 0);
-    return d;
-  };
 
   const today = useMemo(() => {
     const t = new Date();
@@ -200,13 +134,13 @@ export default function ContinuousCompliancePage() {
   }, []);
 
   const { openRows, completeRows } = useMemo(() => {
-    // Open tab should always show all rows coming from ContinousComplience.json.
+    // Open tab shows all rows from public/ContinousCompliance.json.
     const open = rows;
 
     // Keep Complete as an optional subset of expired rows.
     const complete = rows.filter((r) => {
       const expiresOn = r?.expiresOn ?? r?.dueOn ?? "";
-      const d = parseMMDDYYYY(expiresOn);
+      const d = parseDateForCompliance(expiresOn);
       return !!d && d < today;
     });
 
@@ -290,91 +224,6 @@ export default function ContinuousCompliancePage() {
 
   const displayedRows = activeTab === 0 ? filteredOpenRows : filteredCompleteRows;
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const mapJsonRow = (item: any) => {
-      const entity = String(item?.["Entitlement"] ?? "");
-      const assignedTo = String(item?.["Hudson.White"] ?? "");
-      const triggerEvent = String(item?.["Newly Discovered Entitlement"] ?? "");
-      const eventType = String(item?.["Review Details"] ?? "");
-      const actionType = String(item?.["Review Details"] ?? "");
-
-      // Date key is dynamic (e.g. "03/25/2026") - pick the first DD/MM/YYYY-like key.
-      const dateKey =
-        Object.keys(item || {}).find((k) => /^\d{2}\/\d{2}\/\d{4}$/.test(k)) ?? "";
-      const dueOn = dateKey ? String(item?.[dateKey] ?? "") : "";
-
-      // Details are the remaining attribute in the JSON payload (often like "ZNew_Comp_PP4").
-      // We exclude known structural keys and the dynamic date key.
-      const reservedKeys = new Set([
-        "Entitlement",
-        "Hudson.White",
-        "Newly Discovered Entitlement",
-        "Review Details",
-        "Review, Reassign",
-      ]);
-      const detailsKey =
-        Object.keys(item || {}).find(
-          (k) => !reservedKeys.has(k) && k !== dateKey
-        ) ?? "";
-      const details =
-        detailsKey
-          ? String(item?.[detailsKey] ?? "")
-          : String(item?.["ZNew_Comp_PP4"] ?? "");
-
-      const actionsText = item?.["Review, Reassign"];
-      const actions =
-        typeof actionsText === "string"
-          ? actionsText
-              .split(",")
-              .map((s: string) => s.trim())
-              .filter(Boolean)
-          : [];
-
-      // Keep the original JSON properties so the UI/actions can use the full dataset.
-      // (We still add normalized fields for the existing AgGrid columns.)
-      return {
-        ...item,
-        entity,
-        details,
-        triggerEvent,
-        eventType,
-        assignedTo,
-        actionType,
-        dueOn,
-        expiresOn: dueOn,
-        actions,
-      };
-    };
-
-    const load = async () => {
-      try {
-        const res = await fetch("/ContinousComplience.json", {
-          cache: "no-store",
-        });
-        if (!res.ok) throw new Error(`Failed to load JSON (${res.status})`);
-        const data = await res.json();
-
-        if (cancelled) return;
-        if (!Array.isArray(data)) {
-          setRows(mockRows);
-          return;
-        }
-
-        setRows(data.map(mapJsonRow));
-      } catch (e) {
-        // Fallback to mock rows if JSON is missing/malformed.
-        if (!cancelled) setRows(mockRows);
-      }
-    };
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   // Keep Open as the safe default view when data loads.
   useEffect(() => {
     if (rows.length > 0) {
@@ -397,6 +246,72 @@ export default function ContinuousCompliancePage() {
   const handleReviewClick = (rowData: any) => {
     const triggerEventValue =
       rowData?.triggerEvent ?? rowData?.eventType ?? "";
+    const triggerEventStr = String(triggerEventValue ?? "");
+    const isSodViolationDetected = /sod\s*violation\s*detected/i.test(
+      triggerEventStr
+    );
+    const entityStr = String(rowData?.entity ?? "");
+    const isSodCcEntity =
+      entityStr === "User" || entityStr === "SoD Policy";
+
+    // SoD violation from Continuous Compliance → SoD audit review (detail) with CC row context
+    if (isSodViolationDetected && isSodCcEntity) {
+      const violationId =
+        String(rowData?.violationId ?? "").trim() ||
+        resolveSodViolationIdForCcRow(rowData);
+      const params = new URLSearchParams({
+        source: "continuous-compliance",
+        ccEntity: entityStr,
+        ccDetails: String(rowData?.details ?? ""),
+        ccTriggerEvent: triggerEventStr,
+        ccActionType: String(
+          rowData?.actionType ?? rowData?.eventType ?? ""
+        ),
+        ccDueOn: String(rowData?.expiresOn ?? rowData?.dueOn ?? ""),
+        ccAssignedTo: String(rowData?.assignedTo ?? ""),
+      });
+      router.push(
+        `/reports/sod-audit/${encodeURIComponent(violationId)}?${params.toString()}`
+      );
+      return;
+    }
+
+    const isManagerInactive = /manager\s*inactive/i.test(triggerEventStr);
+
+    // Manager inactive → /user-style table with 5 direct reports, reassignment + Teams
+    if (rowData?.entity === "User" && isManagerInactive) {
+      const params = new URLSearchParams({
+        triggerEvent: triggerEventStr,
+        entity: rowData.entity ?? "",
+        details: String(rowData?.details ?? ""),
+        inactiveManager: String(rowData?.details ?? ""),
+        assignedTo: String(rowData?.assignedTo ?? ""),
+        dueOn: String(rowData?.expiresOn ?? rowData?.dueOn ?? ""),
+        actionType: String(rowData?.actionType ?? rowData?.eventType ?? ""),
+      });
+      router.push(
+        `/campaigns/continuous-compliance/manager-inactive-review?${params.toString()}`
+      );
+      return;
+    }
+
+    const isAccountInactive = /account\s*inactive/i.test(triggerEventStr);
+
+    // Account inactive (user) → accounts on top with entitlements nested; actions on account row
+    if (rowData?.entity === "User" && isAccountInactive) {
+      const params = new URLSearchParams({
+        triggerEvent: triggerEventStr,
+        entity: rowData.entity ?? "",
+        details: String(rowData?.details ?? ""),
+        assignedTo: String(rowData?.assignedTo ?? ""),
+        dueOn: String(rowData?.expiresOn ?? rowData?.dueOn ?? ""),
+        actionType: String(rowData?.actionType ?? rowData?.eventType ?? ""),
+      });
+      router.push(
+        `/campaigns/continuous-compliance/account-inactive-review?${params.toString()}`
+      );
+      return;
+    }
 
     // User lifecycle events → open dummy Continuous Compliance review page
     if (rowData?.entity === "User") {
@@ -408,6 +323,70 @@ export default function ContinuousCompliancePage() {
 
       router.push(
         `/campaigns/continuous-compliance/review?${params.toString()}`
+      );
+      return;
+    }
+
+    const isNewlyDiscoveredEntitlement =
+      /newly\s*discovered\s*entitlement/i.test(triggerEventStr);
+
+    // Newly discovered entitlement → entitlements table (3 rows), Application + edit/approve/reassign
+    if (rowData?.entity === "Entitlement" && isNewlyDiscoveredEntitlement) {
+      const params = new URLSearchParams({
+        triggerEvent: triggerEventStr,
+        entity: rowData.entity ?? "",
+        details: String(rowData?.details ?? ""),
+        assignedTo: String(rowData?.assignedTo ?? ""),
+        dueOn: String(rowData?.expiresOn ?? rowData?.dueOn ?? ""),
+        actionType: String(rowData?.actionType ?? rowData?.eventType ?? ""),
+      });
+      router.push(
+        `/campaigns/continuous-compliance/newly-discovered-entitlement-review?${params.toString()}`
+      );
+      return;
+    }
+
+    const isEntitlementOwnerInactive =
+      rowData?.entity === "Entitlement" &&
+      (/owner\s*inactive/i.test(triggerEventStr) ||
+        /entitlement\s+owner\s*inactive/i.test(triggerEventStr));
+
+    // Entitlement owner inactive → same entitlement-owner review grid, single row
+    if (isEntitlementOwnerInactive) {
+      const params = new URLSearchParams({
+        reviewerId: "DUMMY_REVIEWER",
+        certificationId: "DUMMY_CERT",
+        appinstanceid: "DUMMY_APP_INSTANCE",
+        triggerEvent: triggerEventStr,
+        details: String(rowData?.details ?? ""),
+        assignedTo: String(rowData?.assignedTo ?? ""),
+        dueOn: String(rowData?.expiresOn ?? rowData?.dueOn ?? ""),
+        actionType: String(rowData?.actionType ?? rowData?.eventType ?? ""),
+        singleEntitlement: "1",
+      });
+      router.push(
+        `/campaigns/continuous-compliance/entitlement-review?${params.toString()}`
+      );
+      return;
+    }
+
+    const isServiceAccountOwnerInactive =
+      rowData?.entity === "Service Account" &&
+      (/owner\s*inactive/i.test(triggerEventStr) ||
+        /service\s*account\s+owner\s*inactive/i.test(triggerEventStr));
+
+    // Service account owner inactive → Applications Accounts service-account grid (View + Reassign only)
+    if (isServiceAccountOwnerInactive) {
+      const params = new URLSearchParams({
+        triggerEvent: triggerEventStr,
+        entity: rowData.entity ?? "",
+        details: String(rowData?.details ?? ""),
+        assignedTo: String(rowData?.assignedTo ?? ""),
+        dueOn: String(rowData?.expiresOn ?? rowData?.dueOn ?? ""),
+        actionType: String(rowData?.actionType ?? rowData?.eventType ?? ""),
+      });
+      router.push(
+        `/campaigns/continuous-compliance/service-account-owner-inactive-review?${params.toString()}`
       );
       return;
     }

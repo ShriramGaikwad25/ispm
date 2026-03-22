@@ -2,7 +2,8 @@
 
 import React, { useMemo, useState } from "react";
 import Image from "next/image";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { ArrowLeft, Shield, AlertTriangle, FileText, CheckCircle2, Undo2, Scale } from "lucide-react";
 import sodViolations from "@/public/SodVoilations.json";
 import sodPolicies from "@/public/SODPolicy.json";
@@ -49,7 +50,20 @@ function IdNameLine({
 export default function SodViolationDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
+
+  const ccFromSource = useMemo(() => {
+    if (searchParams.get("source") !== "continuous-compliance") return null;
+    return {
+      entity: searchParams.get("ccEntity") ?? "",
+      details: searchParams.get("ccDetails") ?? "",
+      triggerEvent: searchParams.get("ccTriggerEvent") ?? "",
+      actionType: searchParams.get("ccActionType") ?? "",
+      dueOn: searchParams.get("ccDueOn") ?? "",
+      assignedTo: searchParams.get("ccAssignedTo") ?? "",
+    };
+  }, [searchParams]);
 
   const violation: Violation | undefined = useMemo(
     () => (Array.isArray(sodViolations) ? sodViolations.find((v) => v.Violation_ID === id) : undefined),
@@ -173,16 +187,22 @@ export default function SodViolationDetailPage() {
   };
 
   if (!violation) {
+    const backToContinuousCompliance =
+      searchParams.get("source") === "continuous-compliance";
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="w-full max-w-5xl mx-auto py-8 px-4">
           <button
             type="button"
-            onClick={() => router.back()}
+            onClick={() =>
+              backToContinuousCompliance
+                ? router.push("/campaigns/continuous-compliance")
+                : router.back()
+            }
             className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4"
           >
             <ArrowLeft className="w-4 h-4 mr-1" />
-            Back
+            {backToContinuousCompliance ? "Back to Continuous Compliance" : "Back"}
           </button>
           <div className="bg-white border border-gray-200 rounded-lg p-6">
             <p className="text-sm text-gray-700">Violation not found.</p>
@@ -191,6 +211,11 @@ export default function SodViolationDetailPage() {
       </div>
     );
   }
+
+  const displayIdentity =
+    ccFromSource?.details?.trim() || violation.Identity;
+  const displayUsername =
+    ccFromSource?.details?.trim() || violation.Username;
 
   const masterEntitlement = violation["Master_Entitlement"];
   const conflictingEntitlement = violation["Conflicting_Entitlement"];
@@ -244,7 +269,11 @@ export default function SodViolationDetailPage() {
           <div className="flex items-start justify-between gap-6">
             <div className="h-14 w-14 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden shrink-0">
               {(() => {
-                const userKey = getUserKey(violation);
+                const userKey = getUserKey({
+                  ...violation,
+                  Identity: displayIdentity,
+                  Username: displayUsername,
+                } as Violation);
                 const candidates = getAvatarCandidates();
                 const index = Math.max(0, avatarErrorIndexByKey[userKey] ?? 0);
                 const src = candidates[Math.min(index, candidates.length - 1)];
@@ -252,7 +281,7 @@ export default function SodViolationDetailPage() {
                 if (!src || index >= candidates.length - 1) {
                   return (
                     <span className="text-sm font-semibold text-white bg-gray-400 w-full h-full flex items-center justify-center">
-                      {getInitials(violation.Identity)}
+                      {getInitials(displayIdentity)}
                     </span>
                   );
                 }
@@ -260,7 +289,7 @@ export default function SodViolationDetailPage() {
                 return (
                   <Image
                     src={src}
-                    alt={`Profile picture of ${violation.Identity}`}
+                    alt={`Profile picture of ${displayIdentity}`}
                     width={56}
                     height={56}
                     className="h-full w-full object-cover"
@@ -283,7 +312,7 @@ export default function SodViolationDetailPage() {
               <div className="flex items-center gap-2 min-w-0">
                 <span className="h-2.5 w-2.5 rounded-full bg-green-500 shrink-0" aria-hidden />
                 <div className="text-sm md:text-base font-semibold text-gray-900 truncate">
-                  {violation.Identity}
+                  {displayIdentity}
                 </div>
               </div>
 
@@ -328,6 +357,44 @@ export default function SodViolationDetailPage() {
               </span>
             </div>
           </div>
+
+          {ccFromSource && (
+            <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-gray-800">
+                  Continuous Compliance — source event
+                </p>
+                <Link
+                  href="/campaigns/continuous-compliance"
+                  className="text-xs font-medium text-emerald-700 hover:text-emerald-900"
+                >
+                  Back to queue
+                </Link>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs">
+                {[
+                  ["Entity", ccFromSource.entity],
+                  ["Details", ccFromSource.details],
+                  ["Trigger event", ccFromSource.triggerEvent],
+                  ["Review / action type", ccFromSource.actionType],
+                  ["Due / expires on", ccFromSource.dueOn],
+                  ["Assigned to", ccFromSource.assignedTo],
+                ]
+                  .filter(([, v]) => String(v ?? "").trim().length > 0)
+                  .map(([label, value]) => (
+                    <div
+                      key={String(label)}
+                      className="rounded-md border border-gray-100 bg-gray-50/80 px-3 py-2"
+                    >
+                      <div className="text-[10px] font-medium uppercase tracking-wide text-gray-500">
+                        {label}
+                      </div>
+                      <div className="mt-0.5 text-gray-900 break-words">{value}</div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* SoD Policy details */}

@@ -15,7 +15,7 @@ const AgGridReact = dynamic(
   { ssr: false }
 );
 
-const dummyRows = [
+const defaultRows = [
   {
     id: "1",
     entitlement: "ZNEW_FI_BUDGET_PLANNING",
@@ -38,19 +38,42 @@ const dummyRows = [
   },
 ];
 
+const OWNER_INACTIVE_DESCRIPTION =
+  "Entitlement ownership requires review because the designated owner is inactive. Reassign or certify the entitlement to restore governed ownership.";
+
 export default function ContinuousComplianceEntitlementReviewPage() {
   const searchParams = useSearchParams();
   const reviewerId = searchParams.get("reviewerId") || "DUMMY_REVIEWER";
   const certId = searchParams.get("certificationId") || "DUMMY_CERT";
+  const singleEntitlement = searchParams.get("singleEntitlement") === "1";
+  const detailsFromCc = searchParams.get("details")?.trim() ?? "";
+
+  const baseRows = useMemo(() => {
+    if (!singleEntitlement) return defaultRows;
+    const name =
+      detailsFromCc ||
+      defaultRows[0].entitlement;
+    return [
+      {
+        id: "owner-inactive-1",
+        entitlement: name,
+        entitlementDescription: OWNER_INACTIVE_DESCRIPTION,
+        entitlementType: "Group",
+        account: "svc_entitlement_01",
+        applicationName: "SAP_S4",
+        lastLogin: "03/21/25",
+      },
+    ];
+  }, [singleEntitlement, detailsFromCc]);
 
   // Expand each row into main + description row, like Entitlement Owner
   const rowData = useMemo(
     () =>
-      dummyRows.flatMap((item) => [
+      baseRows.flatMap((item) => [
         item,
         { ...item, __isDescRow: true, id: `${item.id}-desc` },
       ]),
-    []
+    [baseRows]
   );
 
   return (
@@ -111,7 +134,7 @@ function entitlementColumns(
       headerName: "Entitlement",
       field: "entitlement",
       flex: 2,
-      minWidth: 300,
+      minWidth: 260,
       wrapText: true,
       autoHeight: true,
       colSpan: (params) => (params.data?.__isDescRow ? 7 : 1),
@@ -171,8 +194,11 @@ function entitlementColumns(
     {
       headerName: "Insights",
       field: "insights",
-      width: 70,
+      minWidth: 140,
+      width: 140,
       flex: 0,
+      wrapHeaderText: true,
+      autoHeaderHeight: true,
       cellRenderer: () => (
         <div className="flex items-center justify-center text-amber-500">
           <Lightbulb size={20} />

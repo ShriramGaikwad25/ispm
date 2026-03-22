@@ -166,7 +166,10 @@ export function Navigation() {
     if (
       pathname === '/campaigns/continuous-compliance/review' ||
       pathname === '/campaigns/continuous-compliance/entitlement-review' ||
-      pathname === '/campaigns/continuous-compliance/unlinked-accounts'
+      pathname === '/campaigns/continuous-compliance/unlinked-accounts' ||
+      pathname === '/campaigns/continuous-compliance/account-inactive-review' ||
+      pathname === '/campaigns/continuous-compliance/manager-inactive-review' ||
+      pathname === '/campaigns/continuous-compliance/newly-discovered-entitlement-review'
     ) {
       return { href: '/campaigns/continuous-compliance', label: 'Back to Continuous Compliance' };
     }
@@ -177,6 +180,14 @@ export function Navigation() {
     // Entitlement Owner
     if (pathname === '/entitlement-owner') {
       return { href: '/access-review', label: 'Back to Access Review' };
+    }
+    // SoD Audit detail opened from Continuous Compliance → back to CC (not SoD list)
+    if (
+      pathname.startsWith('/reports/sod-audit/') &&
+      pathname !== '/reports/sod-audit' &&
+      searchParams?.get('source') === 'continuous-compliance'
+    ) {
+      return { href: '/campaigns/continuous-compliance', label: 'Back to Continuous Compliance' };
     }
     // SoD Audit detail → back to SoD Audit list
     if (pathname.startsWith('/reports/sod-audit/') && pathname !== '/reports/sod-audit') {
