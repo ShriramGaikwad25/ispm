@@ -488,10 +488,15 @@ export async function apiRequestWithAuth<T>(
     const responseText = await response.clone().text();
     console.log('Raw API Response text (first 500 chars):', responseText.substring(0, 500));
     
-    // Parse response as JSON - handle any type issues
+    // Parse response as JSON; some endpoints return plain text on success (e.g. scheduler POST /trigger)
+    let data: any;
     try {
-      const data = JSON.parse(responseText);
-      
+      data = JSON.parse(responseText);
+    } catch {
+      return (responseText === '' ? undefined : responseText) as T;
+    }
+
+    try {
       // Check for token expired in response body: refresh JWT using access token, then retry once; if refresh fails, logout
       if (data && typeof data === 'object') {
         const status = data.status || data.Status || data.STATUS;
@@ -610,9 +615,12 @@ export async function apiRequestWithAuth<T>(
             }
           }
         } catch {}
-        
-        const parsed = JSON.parse(text);
-        return parsed as any;
+
+        try {
+          return JSON.parse(text) as any;
+        } catch {
+          return text as T;
+        }
       } catch (e) {
         console.error('Failed to parse as text or JSON:', e);
         throw new Error(`Invalid JSON response: ${e instanceof Error ? e.message : 'Unknown error'}`);

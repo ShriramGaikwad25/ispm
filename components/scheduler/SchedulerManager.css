@@ -2119,6 +2119,18 @@
   background: #e0a800;
 }
 
+/* Must follow generic .job-controls .control-btn above — otherwise resume looks like a white-on-white header button */
+.job-controls .resume-btn {
+  background: #17a2b8;
+  color: #ffffff;
+  border-color: #117a8b;
+}
+
+.job-controls .resume-btn:hover:not(:disabled) {
+  background: #138496;
+  box-shadow: 0 2px 4px rgba(23, 162, 184, 0.3);
+}
+
 .job-controls .stop-btn {
   background: #dc3545;
   color: white;
