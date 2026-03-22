@@ -6,7 +6,7 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 import {
-  ArrowRight,
+  ChevronRight,
   Clock3,
   Info,
   Paperclip,
@@ -14,6 +14,13 @@ import {
 import { getReviewerId } from "@/lib/auth";
 import "@/lib/ag-grid-setup";
 import InsightsIcon from "@/components/InsightsIcon";
+import { getAccessRequestStatusBadgeClasses } from "@/lib/access-request-status-badge";
+import {
+  type MyApprovalsStatusFilter,
+  type PendingApprovalStatus,
+  MY_APPROVALS_STATUS_SELECT_OPTIONS,
+} from "@/lib/my-approvals-status-filters";
+import CustomPagination from "@/components/agTable/CustomPagination";
 
 const AgGridReact = dynamic(
   () => import("ag-grid-react").then((mod) => mod.AgGridReact),
@@ -30,12 +37,6 @@ type NestedItem = {
   hasRisk?: boolean;
   hasViolation?: boolean;
 };
-
-type PendingApprovalStatus =
-  | "Pending"
-  | "Approved"
-  | "Rejected"
-  | "Info Requested";
 
 type PendingApproval = {
   id: string;
@@ -366,7 +367,7 @@ const ActionsCell: React.FC<ActionsCellProps> = ({ node, onDetailedReview }) => 
           onDetailedReview?.();
         }}
       >
-        <ArrowRight className="h-4 w-4 text-gray-700" />
+        <ChevronRight className="h-5 w-5 text-gray-500" />
       </button>
     </div>
   );
@@ -441,9 +442,10 @@ const PendingApprovalsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
-  const [statusFilter, setStatusFilter] = useState<
-    "All" | PendingApprovalStatus
-  >("All");
+  const [statusFilter, setStatusFilter] =
+    useState<MyApprovalsStatusFilter>("All");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number | "all">(20);
 
   const parseInputDate = (value: string): Date | null => {
     if (!value) return null;
@@ -480,6 +482,36 @@ const PendingApprovalsPage: React.FC = () => {
       return true;
     });
   }, [pendingApprovals, searchQuery, fromDate, toDate, statusFilter]);
+
+  /** Newest Req ID first — aligns with grid default sort and pagination slicing. */
+  const sortedFilteredData = useMemo(() => {
+    return [...filteredData].sort((a, b) =>
+      String(b.id).localeCompare(String(a.id), undefined, { numeric: true, sensitivity: "base" })
+    );
+  }, [filteredData]);
+
+  const totalPages = useMemo(() => {
+    if (pageSize === "all") return 1;
+    const ps = Math.max(1, Number(pageSize)) || 20;
+    return Math.max(1, Math.ceil(sortedFilteredData.length / ps));
+  }, [sortedFilteredData.length, pageSize]);
+
+  const paginatedRowData = useMemo(() => {
+    if (pageSize === "all") return sortedFilteredData;
+    const ps = Math.max(1, Number(pageSize)) || 20;
+    const start = (currentPage - 1) * ps;
+    return sortedFilteredData.slice(start, start + ps);
+  }, [sortedFilteredData, currentPage, pageSize]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, fromDate, toDate, statusFilter]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const columnDefs = useMemo<ColDef[]>(
     () => [
@@ -529,14 +561,11 @@ const PendingApprovalsPage: React.FC = () => {
           whiteSpace: "normal",
           wordBreak: "break-word",
           lineHeight: "1.25",
+          textAlign: "left",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-start",
         },
-      },
-      {
-        headerName: "Status",
-        field: "status",
-        minWidth: 110,
-        width: 120,
-        cellClass: "text-center",
       },
       {
         headerName: "Insights",
@@ -557,25 +586,45 @@ const PendingApprovalsPage: React.FC = () => {
         },
       },
       {
-        headerName: "Actions",
-        field: "actions",
-        minWidth: 100,
-        width: 120,
-        cellClass: "center",
-        cellRenderer: (params: ICellRendererParams) => (
-          <ActionsCell
-            node={params.node}
-            onDetailedReview={() => {
-              const requestId = params.data?.id;
-              if (!requestId) return;
-              router.push(
-                `/access-request/pending-approvals/${encodeURIComponent(
-                  String(requestId)
-                )}`
-              );
-            }}
-          />
-        ),
+        headerName: "Status",
+        field: "status",
+        minWidth: 180,
+        width: 190,
+        cellClass: "pending-approvals-status-cell",
+        cellRenderer: (params: ICellRendererParams) => {
+          const data = params.data as PendingApproval | undefined;
+          if (!data) return null;
+          const requestId = data.id;
+          return (
+            <div className="flex w-full min-w-0 items-center justify-between gap-2 py-0.5">
+              <span
+                className={`min-w-0 flex-1 whitespace-normal break-words px-2 py-1 text-xs font-semibold leading-snug rounded-md ${getAccessRequestStatusBadgeClasses(
+                  data.status
+                )}`}
+              >
+                {data.status}
+              </span>
+              {requestId ? (
+                <button
+                  type="button"
+                  className="inline-flex shrink-0 items-center justify-center rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                  title="Detailed Review"
+                  aria-label="Detailed Review"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(
+                      `/access-request/pending-approvals/${encodeURIComponent(
+                        String(requestId)
+                      )}`
+                    );
+                  }}
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+              ) : null}
+            </div>
+          );
+        },
       },
     ],
     [router]
@@ -633,101 +682,116 @@ const PendingApprovalsPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="w-full">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-2">
-          <div className="mb-4 flex flex-col lg:flex-row gap-4">
-            <div className="flex-1 flex flex-col gap-3">
-              <div>
-                <h1 className="text-2xl font-semibold text-gray-900">
-                  My Approvals
-                </h1>
-                <p className="text-gray-600 text-sm mt-1">
-                  Review and act on pending access requests. Use Quick View to see
-                  and act on individual line items.
-                </p>
-                {isLoading && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    Loading pending approvals from server...
-                  </p>
-                )}
-                {isError && (
-                  <p className="text-xs text-red-500 mt-1">
-                    Failed to load pending approvals
-                    {error?.message ? `: ${error.message}` : ""}
-                  </p>
-                )}
-              </div>
+        <div className="mb-4">
+          <h1 className="text-2xl font-semibold text-gray-900">
+            My Approvals
+          </h1>
+          <p className="text-gray-600 text-sm mt-1">
+            Review and act on pending access requests. Use Quick View to see
+            and act on individual line items.
+          </p>
+          {isLoading && (
+            <p className="text-xs text-gray-500 mt-1">
+              Loading pending approvals from server...
+            </p>
+          )}
+          {isError && (
+            <p className="text-xs text-red-500 mt-1">
+              Failed to load pending approvals
+              {error?.message ? `: ${error.message}` : ""}
+            </p>
+          )}
+        </div>
 
-              {/* Filters row: Search, Status, Date From, Date To all in one row */}
-              <div className="flex flex-col gap-3 md:flex-row md:items-end">
-                {/* Search */}
-                <div className="w-full md:flex-1">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Search (Requester, Beneficiary)
-                  </label>
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Type a requester or beneficiary name"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                  />
-                </div>
-                {/* Status */}
-                <div className="w-full md:w-52">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Status
-                  </label>
-                  <select
-                    value={statusFilter}
-                    onChange={(e) =>
-                      setStatusFilter(e.target.value as typeof statusFilter)
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                  >
-                    <option value="All">All</option>
-                    <option value="Pending">Pending</option>
-                    <option value="Approved">Approved</option>
-                    <option value="Rejected">Rejected</option>
-                    <option value="Info Requested">Info Requested</option>
-                  </select>
-                </div>
-                {/* Date Assigned From */}
-                <div className="w-full md:w-52">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Date Assigned (From)
-                  </label>
-                  <input
-                    type="date"
-                    value={fromDate}
-                    onChange={(e) => setFromDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                  />
-                </div>
-                {/* Date Assigned To */}
-                <div className="w-full md:w-52">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Date Assigned (To)
-                  </label>
-                  <input
-                    type="date"
-                    value={toDate}
-                    onChange={(e) => setToDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                  />
-                </div>
-              </div>
+        {/* White box: Search, Status, Date From, Date To — one row on lg */}
+        <div className="mb-4 w-full rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="grid w-full max-w-7xl grid-cols-1 gap-3 md:grid-cols-2 md:items-end lg:grid-cols-5">
+            <div className="min-w-0 lg:col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Search (Requester, Beneficiary)
+              </label>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Type a requester or beneficiary name"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:max-w-none"
+              />
             </div>
-
+            <div className="min-w-0 w-full">
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Status
+              </label>
+              <select
+                value={statusFilter}
+                onChange={(e) =>
+                  setStatusFilter(e.target.value as MyApprovalsStatusFilter)
+                }
+                className="w-full min-w-0 px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              >
+                {MY_APPROVALS_STATUS_SELECT_OPTIONS.map(({ value, label }) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="min-w-0 w-full">
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Date Assigned (From)
+              </label>
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="w-full min-w-0 px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              />
+            </div>
+            <div className="min-w-0 w-full">
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Date Assigned (To)
+              </label>
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="w-full min-w-0 px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              />
+            </div>
           </div>
+        </div>
 
-          <div className="ag-theme-quartz w-full" style={{ width: "100%", minWidth: 0 }}>
-            <AgGridReact
-              rowData={filteredData}
-              columnDefs={columnDefs}
+        <div className="mt-2 overflow-hidden rounded-lg border border-gray-200 bg-white">
+            <div className="mb-1 border-b border-gray-100">
+              <CustomPagination
+                totalItems={sortedFilteredData.length}
+                currentPage={currentPage}
+                totalPages={totalPages}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={(newPageSize) => {
+                  setPageSize(newPageSize);
+                  setCurrentPage(1);
+                }}
+                pageSizeOptions={[10, 20, 50, 100, "all"]}
+              />
+            </div>
+            <div
+              className="ag-theme-quartz my-approvals-grid w-full"
+              style={{ width: "100%", minWidth: 0 }}
+            >
+              <AgGridReact
+                rowData={paginatedRowData}
+                columnDefs={columnDefs}
+              rowClassRules={{
+                "my-approvals-row-striped": (params) =>
+                  (params.node.rowIndex ?? 0) % 2 === 1,
+              }}
               rowSelection="single"
               rowModelType="clientSide"
               animateRows
               domLayout="autoHeight"
+              pagination={false}
               suppressRowTransform
               defaultColDef={{
                 sortable: true,
@@ -765,6 +829,7 @@ const PendingApprovalsPage: React.FC = () => {
                 const handleResize = () => {
                   try {
                     params.api.sizeColumnsToFit();
+                    params.api.resetRowHeights();
                   } catch {
                     // ignore
                   }
@@ -777,6 +842,7 @@ const PendingApprovalsPage: React.FC = () => {
               onGridSizeChanged={(params) => {
                 try {
                   params.api.sizeColumnsToFit();
+                  params.api.resetRowHeights();
                 } catch {
                   // ignore
                 }
@@ -796,10 +862,24 @@ const PendingApprovalsPage: React.FC = () => {
                   // ignore
                 }
               }}
-            />
+              />
+            </div>
+            <div className="mt-1">
+              <CustomPagination
+                totalItems={sortedFilteredData.length}
+                currentPage={currentPage}
+                totalPages={totalPages}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={(newPageSize) => {
+                  setPageSize(newPageSize);
+                  setCurrentPage(1);
+                }}
+                pageSizeOptions={[10, 20, 50, 100, "all"]}
+              />
+            </div>
           </div>
         </div>
-      </div>
     </div>
   );
 };

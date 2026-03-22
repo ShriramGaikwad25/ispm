@@ -7,6 +7,12 @@ const AgGridReact = dynamic(() => import("ag-grid-react").then((mod) => mod.AgGr
 import "@/lib/ag-grid-setup";
 import { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 import { getReviewerId } from "@/lib/auth";
+import { getAccessRequestStatusBadgeClasses } from "@/lib/access-request-status-badge";
+import {
+  type MyApprovalsStatusFilter,
+  MY_APPROVALS_STATUS_SELECT_OPTIONS,
+  mapAccessRequestStatusToMyApprovalsFilter,
+} from "@/lib/my-approvals-status-filters";
 import CustomPagination from "@/components/agTable/CustomPagination";
 
 interface RequestHistory {
@@ -41,8 +47,21 @@ interface Request {
   history?: RequestHistory[];
 }
 
+/** Any column that may wrap uses this so the row grows to fit (with domLayout autoHeight + resetRowHeights). */
+const wrappedTextCol: Partial<ColDef> = {
+  wrapText: true,
+  autoHeight: true,
+  cellStyle: {
+    whiteSpace: "normal",
+    wordBreak: "break-word",
+    lineHeight: "1.35",
+  },
+};
+
 const TrackRequest: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] =
+    useState<MyApprovalsStatusFilter>("All");
   const router = useRouter();
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState<number | "all">(20);
@@ -211,23 +230,12 @@ const TrackRequest: React.FC = () => {
       });
   }, []);
 
-  const getStatusColor = (status: string) => {
-    if (status.includes("Completed") || status.includes("Approved")) {
-      return "bg-green-100 text-green-800";
-    }
-    if (status.includes("Closed")) {
-      return "bg-gray-100 text-gray-800";
-    }
-    if (status.includes("Awaiting") || status.includes("Pending")) {
-      return "bg-yellow-100 text-yellow-800";
-    }
-    if (status.includes("Provide Information")) {
-      return "bg-orange-100 text-orange-800";
-    }
-    return "bg-blue-100 text-blue-800";
-  };
-
   const filteredRequests = requests.filter((request) => {
+    if (statusFilter !== "All") {
+      const bucket = mapAccessRequestStatusToMyApprovalsFilter(request.status);
+      if (bucket !== statusFilter) return false;
+    }
+
     const query = searchQuery.trim().toLowerCase();
 
     if (query) {
@@ -266,7 +274,7 @@ const TrackRequest: React.FC = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery]);
+  }, [searchQuery, statusFilter]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -285,12 +293,14 @@ const TrackRequest: React.FC = () => {
         sortable: true,
         sort: "desc",
         sortIndex: 0,
+        ...wrappedTextCol,
       },
       {
         headerName: "Type",
         field: "requestType",
         flex: 0.65,
         minWidth: 120,
+        ...wrappedTextCol,
         valueGetter: (params) =>
           params.data?.details?.type ?? params.data?.entityType ?? "-",
       },
@@ -300,6 +310,7 @@ const TrackRequest: React.FC = () => {
         flex: 0.75,
         minWidth: 130,
         sortable: true,
+        ...wrappedTextCol,
       },
       {
         headerName: "Beneficiary",
@@ -307,12 +318,14 @@ const TrackRequest: React.FC = () => {
         flex: 0.75,
         minWidth: 130,
         sortable: true,
+        ...wrappedTextCol,
       },
       {
         headerName: "Raised On",
         field: "raisedOn",
         flex: 0.8,
         minWidth: 140,
+        ...wrappedTextCol,
         valueGetter: (params) => params.data?.details?.dateCreated ?? "-",
       },
       {
@@ -320,51 +333,42 @@ const TrackRequest: React.FC = () => {
         field: "comments",
         flex: 4.5,
         minWidth: 360,
+        ...wrappedTextCol,
         valueGetter: (params) => params.data?.details?.globalComments ?? "-",
       },
       {
         headerName: "Status",
         field: "status",
         flex: 0.85,
-        minWidth: 150,
+        minWidth: 180,
+        ...wrappedTextCol,
         cellRenderer: (params: ICellRendererParams) => {
           const status = params.data?.status as string;
-          return (
-            <span
-              className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(
-                status
-              )}`}
-            >
-              {status}
-            </span>
-          );
-        },
-      },
-      {
-        headerName: "",
-        field: "_nav",
-        width: 52,
-        minWidth: 48,
-        maxWidth: 56,
-        suppressSizeToFit: true,
-        sortable: false,
-        resizable: false,
-        cellRenderer: (params: ICellRendererParams) => {
           const routeId = params.data?.routeId as string | number | undefined;
-          if (!routeId) return null;
           return (
-            <div className="flex h-full items-center justify-end pr-1">
-              <button
-                type="button"
-                className="inline-flex items-center justify-center rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-900"
-                aria-label="Open request"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  router.push(`/track-request/${encodeURIComponent(String(routeId))}`);
-                }}
+            <div className="flex w-full min-w-0 items-center justify-between gap-2 py-0.5">
+              <span
+                className={`min-w-0 flex-1 whitespace-normal break-words px-2 py-1 text-xs font-semibold leading-snug rounded-md ${getAccessRequestStatusBadgeClasses(
+                  status
+                )}`}
               >
-                <ChevronRight className="h-5 w-5" />
-              </button>
+                {status}
+              </span>
+              {routeId ? (
+                <button
+                  type="button"
+                  className="inline-flex shrink-0 items-center justify-center rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                  aria-label="Open request"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(
+                      `/track-request/${encodeURIComponent(String(routeId))}`
+                    );
+                  }}
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+              ) : null}
             </div>
           );
         },
@@ -379,36 +383,77 @@ const TrackRequest: React.FC = () => {
         Track requests
       </h1>
 
-      {/* Search and Filter Section */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
-          {/* Search by ID / Requester / Beneficiary */}
-          <div className="relative">
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              Search
-            </label>
-            <Search className="absolute left-3 top-9 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input
-              type="text"
-              placeholder="Request ID, Requester, Beneficiary"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-            />
+      {/* Search and Filter Section — full-width white box; controls keep original max width */}
+      <div className="mb-6 w-full rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="max-w-xl md:max-w-2xl">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:gap-4">
+            <div className="relative min-w-0 md:flex-1">
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Search
+              </label>
+              <Search className="absolute left-3 top-9 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Request ID, Requester, Beneficiary"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              />
+            </div>
+            <div className="w-full shrink-0 md:w-52">
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Status
+              </label>
+              <select
+                value={statusFilter}
+                onChange={(e) =>
+                  setStatusFilter(e.target.value as MyApprovalsStatusFilter)
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              >
+                {MY_APPROVALS_STATUS_SELECT_OPTIONS.map(({ value, label }) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Requests Table (AG Grid) */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="ag-theme-quartz w-full" style={{ width: "100%", minWidth: 0 }}>
+        <div className="mb-1 border-b border-gray-100">
+          <CustomPagination
+            totalItems={sortedFilteredRequests.length}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(newPageSize) => {
+              setPageSize(newPageSize);
+              setCurrentPage(1);
+            }}
+            pageSizeOptions={[10, 20, 50, 100, "all"]}
+          />
+        </div>
+        <div
+          className="ag-theme-quartz track-request-grid w-full"
+          style={{ width: "100%", minWidth: 0 }}
+        >
           <AgGridReact
             rowData={paginatedRowData}
             columnDefs={columnDefs}
+            rowClassRules={{
+              "track-request-row-striped": (params) =>
+                (params.node.rowIndex ?? 0) % 2 === 1,
+            }}
             rowSelection="single"
             rowModelType="clientSide"
             animateRows={true}
             domLayout="autoHeight"
+            suppressRowTransform={true}
             pagination={false}
             headerHeight={44}
             defaultColDef={{
@@ -419,10 +464,15 @@ const TrackRequest: React.FC = () => {
               autoHeaderHeight: true,
             }}
             onGridReady={(params) => {
-              params.api.sizeColumnsToFit();
+              try {
+                params.api.sizeColumnsToFit();
+              } catch {
+                // ignore
+              }
               const handleResize = () => {
                 try {
                   params.api.sizeColumnsToFit();
+                  params.api.resetRowHeights();
                 } catch {
                   // ignore
                 }
@@ -435,12 +485,25 @@ const TrackRequest: React.FC = () => {
             onGridSizeChanged={(params) => {
               try {
                 params.api.sizeColumnsToFit();
+                params.api.resetRowHeights();
               } catch {
                 // ignore
               }
             }}
             onFirstDataRendered={(params) => {
-              params.api.sizeColumnsToFit();
+              try {
+                params.api.sizeColumnsToFit();
+                params.api.resetRowHeights();
+              } catch {
+                // ignore
+              }
+            }}
+            onRowDataUpdated={(params) => {
+              try {
+                params.api.resetRowHeights();
+              } catch {
+                // ignore
+              }
             }}
             suppressSizeToFit={false}
           />

@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from 'next/navigation';
 import { useState, useMemo } from 'react';
-import { Settings, FileText, Users, Shield, Mail, ShieldCheck, Clock, Lock, Search, Workflow, GraduationCap } from 'lucide-react';
+import { Settings, FileText, Users, Shield, Mail, ShieldCheck, Clock, Lock, Search, GraduationCap } from 'lucide-react';
 
 export default function GatewaySettings() {
   const router = useRouter();
@@ -50,13 +50,6 @@ export default function GatewaySettings() {
       subtitle: 'Service Account Management settings and configuration.',
       href: '/settings/gateway/sam',
       icon: <ShieldCheck className="w-5 h-5 text-gray-600" />,
-    },
-    {
-      id: 'manage-approval-policies',
-      title: 'Manage Approval Policies',
-      subtitle: 'Define approval policies and attach workflows.',
-      href: '/settings/gateway/manage-approval-policies',
-      icon: <Workflow className="w-5 h-5 text-gray-600" />,
     },
     {
       id: 'training-lms',

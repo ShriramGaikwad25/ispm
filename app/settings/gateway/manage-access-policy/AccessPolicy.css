@@ -18,6 +18,23 @@
   padding-left: 0px !important;
 }
 
+/* Description column: allow multi-line wrap within max width */
+.access-policy-page .ag-cell.access-policy-desc-wrap {
+  white-space: normal !important;
+  word-break: break-word;
+  line-height: 1.35;
+  align-items: flex-start !important;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.access-policy-page .ag-cell.access-policy-desc-wrap .ag-cell-wrapper,
+.access-policy-page .ag-cell.access-policy-desc-wrap .ag-cell-value {
+  min-width: 0;
+  white-space: normal !important;
+  word-break: break-word;
+}
+
 /* Access Policy page specific styling */
 .ag-theme-quartz {
   border: 1px solid #e5e7eb;

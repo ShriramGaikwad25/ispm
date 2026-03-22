@@ -89,6 +89,7 @@ export const navLinks: NavItem[] = [
       { name: 'Roles', href: '/settings/gateway/manage-business-roles', icon: Shield },
       { name: 'Scheduler', href: '/settings/gateway/scheduler', icon: Clock },
       { name: 'Access Policy', href: '/settings/gateway/manage-access-policy', icon: Lock },
+      { name: 'Approval Policy', href: '/settings/gateway/manage-approval-policies', icon: Workflow },
       { name: 'Workflow', href: '/settings/gateway/workflow-builder', icon: Workflow },
       { name: 'SoD', href: '/settings/gateway/sod', icon: Shield },
       { name: 'Generic', href: '/settings/gateway', icon: Server }

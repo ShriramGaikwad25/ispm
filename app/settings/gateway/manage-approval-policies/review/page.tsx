@@ -422,7 +422,7 @@ export default function ApprovalPolicyReviewPage() {
           {!hasData ? (
             <div className="flex items-center gap-2 text-sm text-gray-600">
               <AlertCircle className="h-4 w-4 text-amber-500" />
-              <p>No approval policy selected. Please use the View action from the Manage Approval Policies page.</p>
+              <p>No approval policy selected. Please use the View action from the Approval Policy page.</p>
             </div>
           ) : (
             <div className="space-y-4 text-xs">

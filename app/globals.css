@@ -326,9 +326,10 @@ textarea:focus-visible,
   outline-offset: -2px !important;
 }
 
-/* My Approvals: center vertically, align content left (Comments + Insights) */
+/* My Approvals: center vertically, align content left (Comments + Insights + Status) */
 .ag-theme-quartz .pending-approvals-comments-cell,
-.ag-theme-quartz .pending-approvals-insights-cell {
+.ag-theme-quartz .pending-approvals-insights-cell,
+.ag-theme-quartz .pending-approvals-status-cell {
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -338,4 +339,50 @@ textarea:focus-visible,
 .ag-theme-quartz .pending-approvals-comments-cell .ag-cell-wrapper {
   width: 100%;
   min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.ag-theme-quartz .pending-approvals-comments-cell .ag-cell-value {
+  width: 100%;
+  text-align: left;
+}
+
+.ag-theme-quartz .pending-approvals-status-cell .ag-cell-wrapper {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Track requests: zebra rows (overrides global white row bg for this grid only) */
+.track-request-grid div[role="row"]:not(.ag-header-row).track-request-row-striped {
+  background-color: #f9fafb !important;
+}
+.track-request-grid .track-request-row-striped .ag-cell {
+  background-color: transparent !important;
+}
+
+/* My Approvals: same alternating gray rows as Track requests */
+.my-approvals-grid div[role="row"]:not(.ag-header-row).my-approvals-row-striped {
+  background-color: #f9fafb !important;
+}
+.my-approvals-grid .my-approvals-row-striped .ag-cell {
+  background-color: transparent !important;
+}
+
+/* Track requests: start (left) horizontally, centered vertically */
+.track-request-grid .ag-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: left;
+}
+.track-request-grid .ag-cell-wrapper {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: left;
 }

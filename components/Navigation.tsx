@@ -121,7 +121,7 @@ export function Navigation() {
       return { href: '/settings/gateway/sod', label: 'Back to SoD' };
     }
     if (pathname === '/settings/gateway/manage-approval-policies/review') {
-      return { href: '/settings/gateway/manage-approval-policies', label: 'Back to Manage Approval Policies' };
+      return { href: '/settings/gateway/manage-approval-policies', label: 'Back to Approval Policy' };
     }
     if (pathname === '/settings/gateway/entitlement-management' || pathname === '/settings/gateway/workflow-builder' ||
         pathname === '/settings/gateway/sam' || pathname === '/settings/gateway/native-users' ||

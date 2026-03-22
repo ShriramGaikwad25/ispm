@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, SquarePen } from "lucide-react";
+import { Eye, Search, SquarePen } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
@@ -15,6 +15,7 @@ import { MasterDetailModule } from "ag-grid-enterprise";
 import { ModuleRegistry } from "ag-grid-community";
 import "./AccessPolicy.css";
 import { ACCESS_POLICY_VIEW_STORAGE_KEY } from "@/lib/access-policy-view-storage";
+import CustomPagination from "@/components/agTable/CustomPagination";
 
 // Register AG Grid Enterprise modules
 ModuleRegistry.registerModules([MasterDetailModule]);
@@ -48,12 +49,18 @@ const DetailCellRenderer = (props: IDetailCellRendererParams) => {
   );
 };
 
+type StatusFilter = "all" | "active" | "inactive";
+
 export default function ManageAccessPolicyPage() {
   const gridRef = useRef<AgGridReactType>(null);
   const router = useRouter();
   const [rows, setRows] = useState<AccessPolicyRow[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number | "all">(20);
   const [pendingStatusChange, setPendingStatusChange] =
     useState<PendingStatusChange | null>(null);
 
@@ -165,20 +172,86 @@ export default function ManageAccessPolicyPage() {
     fetchPolicies();
   }, []);
 
+  const filteredRows = useMemo(() => {
+    let list = rows;
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      list = list.filter((r) => {
+        const name = (r.policy_name || "").toLowerCase();
+        const desc = (r.policy_description || "").toLowerCase();
+        const by = (r.created_by || "").toLowerCase();
+        const st = (r.status || "").toLowerCase();
+        return (
+          name.includes(q) ||
+          desc.includes(q) ||
+          by.includes(q) ||
+          st.includes(q)
+        );
+      });
+    }
+    if (statusFilter === "active") {
+      list = list.filter((r) => isRowActive(r.status));
+    } else if (statusFilter === "inactive") {
+      list = list.filter((r) => !isRowActive(r.status));
+    }
+    return list;
+  }, [rows, searchQuery, statusFilter, isRowActive]);
+
+  const totalPages = useMemo(() => {
+    if (pageSize === "all") return 1;
+    const ps = Math.max(1, Number(pageSize)) || 20;
+    return Math.max(1, Math.ceil(filteredRows.length / ps));
+  }, [filteredRows.length, pageSize]);
+
+  const paginatedRowData = useMemo(() => {
+    if (pageSize === "all") return filteredRows;
+    const ps = Math.max(1, Number(pageSize)) || 20;
+    const start = (currentPage - 1) * ps;
+    return filteredRows.slice(start, start + ps);
+  }, [filteredRows, currentPage, pageSize]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
   const columnDefs = useMemo<ColDef[]>(
     () => [
       {
         headerName: "Policy Name",
         field: "policy_name",
-        width: 300,
+        flex: 1.2,
+        minWidth: 180,
+        maxWidth: 320,
       },
       {
         headerName: "Description",
         field: "policy_description",
         flex: 2,
+        minWidth: 200,
+        maxWidth: 480,
         hide: false,
+        wrapText: true,
+        autoHeight: true,
+        cellClass: "access-policy-desc-wrap",
+        cellStyle: {
+          whiteSpace: "normal",
+          wordBreak: "break-word",
+          lineHeight: "1.35",
+        },
       },
-      { headerName: "Created By", field: "created_by", flex: 1 },
+      {
+        headerName: "Created By",
+        field: "created_by",
+        flex: 1,
+        minWidth: 120,
+        maxWidth: 220,
+      },
       {
         headerName: "Status",
         field: "status",
@@ -309,6 +382,46 @@ export default function ManageAccessPolicyPage() {
             Create New
           </Link>
         </div>
+
+        {!isLoading && !error && rows.length > 0 && (
+          <div className="mb-4 flex flex-wrap items-end gap-3">
+            <div className="flex flex-col gap-1 min-w-0 flex-1 max-w-md">
+              <label htmlFor="access-policy-search" className="text-sm font-medium text-gray-700">
+                Search
+              </label>
+              <div className="relative">
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                  <Search className="h-4 w-4 text-gray-400" aria-hidden />
+                </div>
+                <input
+                  id="access-policy-search"
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search by name, description, created by, status…"
+                  autoComplete="off"
+                  className="w-full rounded-md border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-1 shrink-0 w-full sm:w-44">
+              <label htmlFor="access-policy-status" className="text-sm font-medium text-gray-700">
+                Status
+              </label>
+              <select
+                id="access-policy-status"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+                className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              >
+                <option value="all">All</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+          </div>
+        )}
+
         
         {isLoading ? (
           <div>Loading...</div>
@@ -316,18 +429,34 @@ export default function ManageAccessPolicyPage() {
           <div className="text-red-600">{error}</div>
         ) : (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div className="mb-1 border-b border-gray-100">
+              <CustomPagination
+                totalItems={filteredRows.length}
+                currentPage={currentPage}
+                totalPages={totalPages}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={(newPageSize) => {
+                  setPageSize(newPageSize);
+                  setCurrentPage(1);
+                }}
+                pageSizeOptions={[10, 20, 50, 100, "all"]}
+              />
+            </div>
             <div
               className="ag-theme-quartz w-full"
               style={{ width: "100%", minWidth: 0 }}
             >
               <AgGridReact
                 ref={gridRef}
-                rowData={rows}
+                rowData={paginatedRowData}
                 columnDefs={columnDefs}
                 rowSelection="multiple"
                 context={{ gridRef }}
                 rowModelType="clientSide"
                 animateRows={true}
+                pagination={false}
+                suppressRowTransform={true}
                 defaultColDef={{
                   sortable: true,
                   filter: false,
@@ -348,6 +477,7 @@ export default function ManageAccessPolicyPage() {
                   const handleResize = () => {
                     try {
                       params.api.sizeColumnsToFit();
+                      params.api.resetRowHeights();
                     } catch {
                       // ignore
                     }
@@ -360,13 +490,40 @@ export default function ManageAccessPolicyPage() {
                 onGridSizeChanged={(params) => {
                   try {
                     params.api.sizeColumnsToFit();
+                    params.api.resetRowHeights();
                   } catch {
                     // ignore
                   }
                 }}
                 onFirstDataRendered={(params) => {
-                  params.api.sizeColumnsToFit();
+                  try {
+                    params.api.sizeColumnsToFit();
+                    params.api.resetRowHeights();
+                  } catch {
+                    // ignore
+                  }
                 }}
+                onRowDataUpdated={(params) => {
+                  try {
+                    params.api.resetRowHeights();
+                  } catch {
+                    // ignore
+                  }
+                }}
+              />
+            </div>
+            <div className="mt-1">
+              <CustomPagination
+                totalItems={filteredRows.length}
+                currentPage={currentPage}
+                totalPages={totalPages}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={(newPageSize) => {
+                  setPageSize(newPageSize);
+                  setCurrentPage(1);
+                }}
+                pageSizeOptions={[10, 20, 50, 100, "all"]}
               />
             </div>
           </div>

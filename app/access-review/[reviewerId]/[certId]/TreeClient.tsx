@@ -132,6 +132,21 @@ const DetailCellRenderer = (props: ICellRendererParams) => {
   );
 };
 
+function normalizeExecuteQueryRows(response: unknown): any[] {
+  if (Array.isArray(response)) return response;
+  if (response && typeof response === "object") {
+    const o = response as Record<string, unknown>;
+    if (Array.isArray(o.resultSet)) return o.resultSet as any[];
+    if (Array.isArray(o.rows)) return o.rows as any[];
+    if (Array.isArray(o.data)) return o.data as any[];
+    if (Array.isArray(o.items)) return o.items as any[];
+  }
+  return [];
+}
+
+const SPEED_PEER_TASK_DETAILS_QUERY =
+  "SELECT t.* FROM taskdetails t WHERE EXISTS ( SELECT 1 FROM jsonb_array_elements(t.aiassist -> 'kf_insights') AS insight, jsonb_array_elements(insight -> 'peer_analysis') AS pa WHERE (pa ->> 'percentage')::int > ? AND insight -> 'user_context' ->> 'manager_displayname' = ? )";
+
 interface TreeClientProps {
   reviewerId: string;
   certId: string;
@@ -629,6 +644,15 @@ const TreeClient: React.FC<TreeClientProps> = ({
 
   // Guided Path modal state
   const [guidedPathModalOpen, setGuidedPathModalOpen] = useState(false);
+  const [guidedPathModalSource, setGuidedPathModalSource] = useState<"entitlements" | "speedPeer">(
+    "entitlements"
+  );
+  const [speedPeerTaskRows, setSpeedPeerTaskRows] = useState<any[]>([]);
+  const [speedPeerTaskRowsLoading, setSpeedPeerTaskRowsLoading] = useState(false);
+  const [speedPeerTaskRowsError, setSpeedPeerTaskRowsError] = useState<string | null>(null);
+  const [speedPeerModalSearch, setSpeedPeerModalSearch] = useState("");
+  const [guidedPathModalPageNumber, setGuidedPathModalPageNumber] = useState(1);
+  const [guidedPathModalPageSize, setGuidedPathModalPageSize] = useState<number | "all">(10);
   const [guidedPathModalFilter, setGuidedPathModalFilter] = useState<"Dormant" | "Access">(
     "Dormant"
   );
@@ -642,6 +666,47 @@ const TreeClient: React.FC<TreeClientProps> = ({
     card1: false,
     card2: false,
   });
+  const [speedQuickWinPercent, setSpeedQuickWinPercent] = useState<number | null>(null);
+  const [loadingSpeedQuickWin, setLoadingSpeedQuickWin] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadSpeedQuickWinPercent = async () => {
+      setLoadingSpeedQuickWin(true);
+      try {
+        const query =
+          "SELECT SUM(CASE WHEN (pa ->> 'percentage')::int > ? THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*),0) AS percentage FROM taskdetails t, jsonb_array_elements(t.aiassist -> 'kf_insights') AS insight, jsonb_array_elements(insight -> 'peer_analysis') AS pa WHERE insight -> 'user_context' ->> 'manager_displayname' = ?";
+        const parameters = [70, "Jessica Camacho"];
+        const response = await executeQuery<{ resultSet?: Array<{ percentage?: number | string | null }> }>(
+          query,
+          parameters
+        );
+        const raw = response?.resultSet?.[0]?.percentage;
+        if (cancelled) return;
+        if (raw === null || raw === undefined) {
+          setSpeedQuickWinPercent(null);
+          return;
+        }
+        const num = typeof raw === "string" ? parseFloat(raw) : Number(raw);
+        if (!Number.isFinite(num)) {
+          setSpeedQuickWinPercent(null);
+          return;
+        }
+        // API returns a small ratio (e.g. 0.777956…); show as percent truncated to 2 decimals (0.77%)
+        setSpeedQuickWinPercent(Math.floor(num * 100) / 100);
+      } catch (e) {
+        console.error("Error fetching AI Quick Win Speed percentage:", e);
+        if (!cancelled) setSpeedQuickWinPercent(null);
+      } finally {
+        if (!cancelled) setLoadingSpeedQuickWin(false);
+      }
+    };
+    loadSpeedQuickWinPercent();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     try {
       const raw = localStorage.getItem("selectedCampaignSummary");
@@ -2294,6 +2359,72 @@ const TreeClient: React.FC<TreeClientProps> = ({
     []
   );
 
+  // Speed modal: columns & cells = raw executeQuery resultSet (taskdetails), one column per returned field
+  const speedPeerExecuteQueryColumnDefs = useMemo<ColDef[]>(() => {
+    if (!speedPeerTaskRows.length) return [];
+    const first = speedPeerTaskRows[0] as Record<string, unknown>;
+    return Object.keys(first).map((field) => ({
+      field,
+      headerName: field.replace(/_/g, " "),
+      flex: 1,
+      minWidth: 100,
+      sortable: true,
+      filter: true,
+      valueFormatter: (p: { value: unknown }) => {
+        const v = p.value;
+        if (v === null || v === undefined) return "";
+        if (typeof v === "object") return JSON.stringify(v);
+        return String(v);
+      },
+    }));
+  }, [speedPeerTaskRows]);
+
+  const guidedPathModalRowsForGrid = useMemo(() => {
+    if (guidedPathModalSource === "speedPeer") {
+      const rows = speedPeerTaskRows;
+      const q = speedPeerModalSearch.trim().toLowerCase();
+      if (!q) return rows;
+      return rows.filter((row: any) => {
+        try {
+          return JSON.stringify(row).toLowerCase().includes(q);
+        } catch {
+          return false;
+        }
+      });
+    }
+    return guidedPathModalRows;
+  }, [guidedPathModalSource, speedPeerTaskRows, speedPeerModalSearch, guidedPathModalRows]);
+
+  const guidedPathModalGridColumnDefs = useMemo<ColDef[]>(() => {
+    if (guidedPathModalSource === "speedPeer") return speedPeerExecuteQueryColumnDefs;
+    return entitlementsColumnDefs;
+  }, [guidedPathModalSource, speedPeerExecuteQueryColumnDefs, entitlementsColumnDefs]);
+
+  const guidedPathModalTotalPages = useMemo(() => {
+    const total = guidedPathModalRowsForGrid.length;
+    if (guidedPathModalPageSize === "all") return 1;
+    const size = guidedPathModalPageSize as number;
+    return Math.max(1, Math.ceil(total / size) || 1);
+  }, [guidedPathModalRowsForGrid.length, guidedPathModalPageSize]);
+
+  const guidedPathModalPagedRows = useMemo(() => {
+    const all = guidedPathModalRowsForGrid;
+    if (guidedPathModalPageSize === "all") return all;
+    const size = guidedPathModalPageSize as number;
+    const start = (guidedPathModalPageNumber - 1) * size;
+    return all.slice(start, start + size);
+  }, [guidedPathModalRowsForGrid, guidedPathModalPageNumber, guidedPathModalPageSize]);
+
+  useEffect(() => {
+    if (!guidedPathModalOpen) return;
+    setGuidedPathModalPageNumber(1);
+  }, [guidedPathModalOpen, guidedPathModalFilter, speedPeerModalSearch, guidedPathModalSource]);
+
+  useEffect(() => {
+    if (!guidedPathModalOpen) return;
+    setGuidedPathModalPageNumber((p) => Math.min(p, guidedPathModalTotalPages));
+  }, [guidedPathModalOpen, guidedPathModalTotalPages]);
+
   return (
     <div className="flex flex-row relative h-screen">
       {error && (
@@ -2766,7 +2897,11 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       <div className="absolute inset-0 flex flex-col items-center justify-center px-3 text-center">
                         <p className="text-sm font-semibold text-blue-800">Speed</p>
                         <span className="mt-0.5 text-xs font-bold text-blue-600">
-                          35% Completion
+                          {loadingSpeedQuickWin
+                            ? "…"
+                            : speedQuickWinPercent != null
+                              ? `${speedQuickWinPercent.toFixed(2)}% Completion`
+                              : "—"}
                         </span>
                       </div>
                       {/* Second page content on hover with diagonal sweep from top-right to bottom-left */}
@@ -2807,8 +2942,29 @@ const TreeClient: React.FC<TreeClientProps> = ({
                                 guidedPathGridApiRef.current?.deselectAll();
                                 setGuidedPathSelectedCount(0);
                                 setGuidedPathSelectedRows([]);
-                                setGuidedPathModalFilter("Access");
+                                setGuidedPathModalSource("speedPeer");
+                                setSpeedPeerModalSearch("");
+                                setSpeedPeerTaskRows([]);
+                                setSpeedPeerTaskRowsError(null);
+                                setSpeedPeerTaskRowsLoading(true);
                                 setGuidedPathModalOpen(true);
+                                void (async () => {
+                                  try {
+                                    const response = await executeQuery<any>(
+                                      SPEED_PEER_TASK_DETAILS_QUERY,
+                                      [70, "Jessica Camacho"]
+                                    );
+                                    const rows = normalizeExecuteQueryRows(response);
+                                    setSpeedPeerTaskRows(rows);
+                                  } catch (err) {
+                                    setSpeedPeerTaskRowsError(
+                                      err instanceof Error ? err.message : "Failed to load task details"
+                                    );
+                                    setSpeedPeerTaskRows([]);
+                                  } finally {
+                                    setSpeedPeerTaskRowsLoading(false);
+                                  }
+                                })();
                               }}
                             >
                               Review
@@ -2880,6 +3036,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                                 guidedPathGridApiRef.current?.deselectAll();
                                 setGuidedPathSelectedCount(0);
                                 setGuidedPathSelectedRows([]);
+                                setGuidedPathModalSource("entitlements");
                                 setGuidedPathModalFilter("Access");
                                 setGuidedPathModalOpen(true);
                               }}
@@ -3091,20 +3248,28 @@ const TreeClient: React.FC<TreeClientProps> = ({
       </div>
       {/* AI Assist - Quick Wins modal for Dormant / Access table */}
       {guidedPathModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3">
           <div
-            className="bg-white rounded-lg shadow-xl mx-auto flex flex-col"
-            style={{ width: "90vw", maxHeight: "90vh" }}
+            className="bg-white rounded-lg shadow-xl mx-auto flex flex-col min-h-0 w-[92vw] max-w-[1600px] shrink-0"
+            style={{ height: "92vh", minHeight: "78vh", maxHeight: "96vh" }}
           >
-            <div className="flex items-center justify-between border-b px-4 py-3">
+            <div className="flex items-center justify-between border-b px-4 py-3 shrink-0">
               <h3 className="text-sm font-semibold text-gray-800">
                 AI Assist - Quick Wins –{" "}
-                {guidedPathModalFilter === "Dormant" ? "Dormant Accounts" : "All Access"}
+                {guidedPathModalSource === "speedPeer"
+                  ? "Peer match (executeQuery result)"
+                  : guidedPathModalFilter === "Dormant"
+                    ? "Dormant Accounts"
+                    : "All Access"}
               </h3>
               <button
                 className="text-gray-400 hover:text-gray-600 text-lg leading-none"
                 onClick={() => {
                   setGuidedPathModalOpen(false);
+                  setGuidedPathModalSource("entitlements");
+                  setSpeedPeerModalSearch("");
+                  setGuidedPathModalPageNumber(1);
+                  setGuidedPathModalPageSize(10);
                   guidedPathGridApiRef.current?.deselectAll();
                   setGuidedPathSelectedCount(0);
                   setGuidedPathSelectedRows([]);
@@ -3113,57 +3278,102 @@ const TreeClient: React.FC<TreeClientProps> = ({
                 ×
               </button>
             </div>
-            <div className="flex items-center gap-2 px-4 py-2 border-b">
-              <span className="text-xs font-medium text-gray-500">Filter:</span>
-              <button
-                className={`px-3 py-1 text-xs rounded-full border ${
-                  guidedPathModalFilter === "Dormant"
-                    ? "bg-blue-600 text-white border-blue-600"
-                    : "bg-white text-gray-700 border-gray-300"
-                }`}
-                onClick={() => {
-                  guidedPathGridApiRef.current?.deselectAll();
-                  setGuidedPathSelectedCount(0);
-                  setGuidedPathSelectedRows([]);
-                  setGuidedPathModalFilter("Dormant");
-                }}
-              >
-                Dormant Accounts
-              </button>
-              <button
-                className={`px-3 py-1 text-xs rounded-full border ${
-                  guidedPathModalFilter === "Access"
-                    ? "bg-blue-600 text-white border-blue-600"
-                    : "bg-white text-gray-700 border-gray-300"
-                }`}
-                onClick={() => {
-                  guidedPathGridApiRef.current?.deselectAll();
-                  setGuidedPathSelectedCount(0);
-                  setGuidedPathSelectedRows([]);
-                  setGuidedPathModalFilter("Access");
-                }}
-              >
-                All Access
-              </button>
-              <span className="ml-auto text-[11px] text-gray-500">
-                {guidedPathModalRows.length} item{guidedPathModalRows.length === 1 ? "" : "s"}
+            <div className="flex items-center gap-2 px-4 py-2 border-b shrink-0">
+              {guidedPathModalSource === "entitlements" ? (
+                <>
+                  <span className="text-xs font-medium text-gray-500">Filter:</span>
+                  <button
+                    className={`px-3 py-1 text-xs rounded-full border ${
+                      guidedPathModalFilter === "Dormant"
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "bg-white text-gray-700 border-gray-300"
+                    }`}
+                    onClick={() => {
+                      guidedPathGridApiRef.current?.deselectAll();
+                      setGuidedPathSelectedCount(0);
+                      setGuidedPathSelectedRows([]);
+                      setGuidedPathModalFilter("Dormant");
+                    }}
+                  >
+                    Dormant Accounts
+                  </button>
+                  <button
+                    className={`px-3 py-1 text-xs rounded-full border ${
+                      guidedPathModalFilter === "Access"
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "bg-white text-gray-700 border-gray-300"
+                    }`}
+                    onClick={() => {
+                      guidedPathGridApiRef.current?.deselectAll();
+                      setGuidedPathSelectedCount(0);
+                      setGuidedPathSelectedRows([]);
+                      setGuidedPathModalFilter("Access");
+                    }}
+                  >
+                    All Access
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className="text-xs font-medium text-gray-500 shrink-0">Search:</span>
+                  <input
+                    type="text"
+                    placeholder="Search entitlements..."
+                    className="border border-gray-300 rounded px-3 py-1 text-xs flex-1 min-w-0 max-w-md"
+                    value={speedPeerModalSearch}
+                    onChange={(e) => setSpeedPeerModalSearch(e.target.value)}
+                  />
+                </>
+              )}
+              <span className="ml-auto text-[11px] text-gray-500 shrink-0">
+                {guidedPathModalSource === "speedPeer"
+                  ? speedPeerTaskRowsLoading
+                    ? "…"
+                    : `${guidedPathModalRowsForGrid.length} item${guidedPathModalRowsForGrid.length === 1 ? "" : "s"}`
+                  : `${guidedPathModalRows.length} item${guidedPathModalRows.length === 1 ? "" : "s"}`}
               </span>
             </div>
-            <div className="px-4 py-3 overflow-auto relative">
-              {guidedPathModalRows.length === 0 ? (
+            <div className="flex-1 flex flex-col min-h-0 px-4 py-3 overflow-hidden relative">
+              {guidedPathModalSource === "speedPeer" && speedPeerTaskRowsLoading ? (
+                <div className="text-xs text-gray-500 py-6 text-center">Loading task details…</div>
+              ) : guidedPathModalSource === "speedPeer" && speedPeerTaskRowsError ? (
+                <div className="text-xs text-red-600 py-6 text-center">{speedPeerTaskRowsError}</div>
+              ) : guidedPathModalRowsForGrid.length === 0 ? (
                 <div className="text-xs text-gray-500 py-6 text-center">
-                  No data available for the selected filter.
+                  {guidedPathModalSource === "speedPeer"
+                    ? speedPeerModalSearch.trim() && speedPeerTaskRows.length > 0
+                      ? "No rows match your search."
+                      : "No rows returned from executeQuery for this peer match."
+                    : "No data available for the selected filter."}
                 </div>
               ) : (
                 <>
-                  <div className="ag-theme-quartz w-full">
+                  <div className="flex justify-center shrink-0 mb-2 [&>div]:w-full [&>div]:rounded-b-none [&>div]:border-b-0">
+                    <CustomPagination
+                      totalItems={guidedPathModalRowsForGrid.length}
+                      currentPage={guidedPathModalPageNumber}
+                      totalPages={guidedPathModalTotalPages}
+                      pageSize={guidedPathModalPageSize}
+                      onPageChange={setGuidedPathModalPageNumber}
+                      onPageSizeChange={(newSize) => {
+                        setGuidedPathModalPageSize(newSize);
+                        setGuidedPathModalPageNumber(1);
+                      }}
+                      pageSizeOptions={[...pageSizeSelector, "all"]}
+                    />
+                  </div>
+                  <div className="ag-theme-quartz w-full flex-1 min-h-[52vh] overflow-auto">
                     <AgGridReact
                       theme={themeQuartz}
-                      rowData={guidedPathModalRows}
-                      columnDefs={entitlementsColumnDefs}
+                      rowData={guidedPathModalPagedRows}
+                      columnDefs={guidedPathModalGridColumnDefs}
                       defaultColDef={defaultColDef}
                       domLayout="autoHeight"
-                      rowSelection={{ mode: "multiRow" }}
+                      rowSelection={
+                        guidedPathModalSource === "speedPeer"
+                          ? undefined
+                          : { mode: "multiRow" }
+                      }
                       suppressSizeToFit={false}
                       style={{ width: "100%", minWidth: 0 }}
                       isRowSelectable={(node) => !node?.data?.__isDescRow}
@@ -3181,6 +3391,22 @@ const TreeClient: React.FC<TreeClientProps> = ({
                         }
                       }}
                       getRowId={(params: GetRowIdParams) => {
+                        if (guidedPathModalSource === "speedPeer") {
+                          const d = params.data as Record<string, unknown>;
+                          const id =
+                            d?.taskid ??
+                            d?.task_id ??
+                            d?.TaskId ??
+                            d?.taskId ??
+                            d?.lineitemid ??
+                            d?.line_item_id ??
+                            d?.id;
+                          const base =
+                            id != null && String(id).trim() !== ""
+                              ? `eq-${String(id)}`
+                              : `eq-idx-${params.node?.rowIndex ?? 0}`;
+                          return base;
+                        }
                         const baseId =
                           params.data.lineItemId ||
                           params.data.accountLineItemId ||
@@ -3197,7 +3423,10 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       className="ag-main"
                     />
                   </div>
-                  {guidedPathSelectedCount > 1 && guidedPathSelectedRows.length > 1 && entitlementsColumnDefs && (
+                  {guidedPathModalSource === "entitlements" &&
+                    guidedPathSelectedCount > 1 &&
+                    guidedPathSelectedRows.length > 1 &&
+                    entitlementsColumnDefs && (
                     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-100 border border-gray-200 rounded-full shadow-lg px-3 py-1.5 flex items-center gap-2">
                       <span className="text-[11px] text-gray-600">
                         {guidedPathSelectedCount} selected

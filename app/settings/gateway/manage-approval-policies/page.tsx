@@ -1288,7 +1288,7 @@ export default function ManageApprovalPoliciesPage() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-2xl font-semibold text-gray-900">
-                Manage Approval Policies
+                Approval Policy
               </h1>
               <p className="text-sm text-gray-600 mt-1">
                 View and manage approval policies. Click &quot;Create&quot; to configure a new policy.
