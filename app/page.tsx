@@ -404,15 +404,15 @@ export default function Dashboard() {
                 <div className="ml-auto flex flex-col gap-2 text-xs text-gray-700">
                   <div className="flex items-center gap-2">
                     <span className="inline-block h-2 w-4 rounded-full bg-emerald-400" />
-                    <span>Low Apps – 3</span>
+                    <span>Low Risk – 3 Apps</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="inline-block h-2 w-4 rounded-full bg-yellow-400" />
-                    <span>Medium Apps – 2</span>
+                    <span>Medium Risk – 2 Apps</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="inline-block h-2 w-4 rounded-full bg-red-400" />
-                    <span>High Apps – 1</span>
+                    <span>High Risk – 1 Apps</span>
                   </div>
                 </div>
               </div>
@@ -433,8 +433,8 @@ export default function Dashboard() {
                   <PolarAreaRiskChart
                     data={[
                       { label: "Low users", value: 827, color: "#34D399" },
-                      { label: "Medium users", value: 376, color: "#F87171" },
-                      { label: "High users", value: 73, color: "#FBBF24" },
+                      { label: "Medium users", value: 376, color: "#FBBF24"},
+                      { label: "High users", value: 73, color: "#f73939"  },
                     ]}
                     width={220}
                     height={220}
@@ -442,16 +442,16 @@ export default function Dashboard() {
                 </div>
                 <div className="ml-auto flex flex-col gap-2 text-xs text-gray-700">
                   <div className="flex items-center gap-2">
-                    <span className="inline-block h-2 w-4 rounded-full bg-emerald-400" />
-                      <span>Low users – 827</span>
+                    <span className="inline-block h-2 w-4 rounded-full bg-green-400" />
+                      <span>Low Risk – 827 users</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block h-2 w-4 rounded-full bg-yellow-400" />
+                      <span>Medium Risk – 376 users</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="inline-block h-2 w-4 rounded-full bg-red-400" />
-                      <span>Medium users – 376</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="inline-block h-2 w-4 rounded-full bg-amber-400" />
-                      <span>High users – 73</span>
+                      <span>High  – 73 users</span>
                   </div>
                 </div>
               </div>

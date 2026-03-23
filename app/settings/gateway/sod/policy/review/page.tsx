@@ -4,14 +4,6 @@ import React, { useEffect, useState } from "react";
 import { CalendarDays, FileText, FolderTree, ShieldCheck, UserRound } from "lucide-react";
 
 const SOD_POLICY_VIEW_STORAGE_KEY = "sodPolicyViewDraft";
-const BUSINESS_PROCESS_NAME_BY_ID: Record<string, string> = {
-  BP1: "Procure to Pay",
-  BP2: "Revenue and Credit Management",
-  BP3: "Directory Access Administration",
-  BP4: "Identity Governance and Access App",
-  BP5: "HR Lifecycle Management",
-  BP6: "HCM Platform Operations",
-};
 
 type PolicyViewData = {
   policyId: string;
@@ -25,8 +17,6 @@ type PolicyViewData = {
 type SodRuleJson = {
   Rule_ID?: string;
   Rule_Name?: string;
-  "Business Process ID"?: string;
-  "Business Process Name"?: string;
 };
 
 type PolicyStatementRow = {
@@ -34,6 +24,17 @@ type PolicyStatementRow = {
   statementType: "MASTER" | "CONFLICT";
   ruleId: string;
   ruleName: string;
+  entitlements: string[];
+};
+
+type PolicyRulePair = {
+  statementType: "MASTER" | "CONFLICT";
+  ruleId: string;
+};
+
+type RuleEntitlementJson = {
+  Rule_ID?: string;
+  Entitlement_Name?: string;
 };
 
 const EMPTY_DATA: PolicyViewData = {
@@ -43,6 +44,76 @@ const EMPTY_DATA: PolicyViewData = {
   owner: "",
   riskDefinition: "",
   businessProcess: "",
+};
+
+const POLICY_STATEMENT_MAPPING_BY_POLICY_ID: Record<string, PolicyRulePair[]> = {
+  P1: [
+    { statementType: "MASTER", ruleId: "R3" },
+    { statementType: "CONFLICT", ruleId: "R1" },
+    { statementType: "CONFLICT", ruleId: "R2" },
+  ],
+  P2: [
+    { statementType: "MASTER", ruleId: "R2" },
+    { statementType: "CONFLICT", ruleId: "R3" },
+  ],
+  P3: [
+    { statementType: "MASTER", ruleId: "R1" },
+    { statementType: "CONFLICT", ruleId: "R2" },
+  ],
+  P4: [
+    { statementType: "MASTER", ruleId: "R5" },
+    { statementType: "CONFLICT", ruleId: "R4" },
+  ],
+  P5: [
+    { statementType: "MASTER", ruleId: "R6" },
+    { statementType: "CONFLICT", ruleId: "R7" },
+  ],
+  P6: [
+    { statementType: "MASTER", ruleId: "R8" },
+    { statementType: "CONFLICT", ruleId: "R9" },
+    { statementType: "CONFLICT", ruleId: "R7" },
+  ],
+  P7: [
+    { statementType: "MASTER", ruleId: "R10" },
+    { statementType: "CONFLICT", ruleId: "R11" },
+  ],
+  P8: [
+    { statementType: "MASTER", ruleId: "R11" },
+    { statementType: "CONFLICT", ruleId: "R12" },
+  ],
+  P9: [
+    { statementType: "MASTER", ruleId: "R13" },
+    { statementType: "CONFLICT", ruleId: "R12" },
+    { statementType: "CONFLICT", ruleId: "R10" },
+  ],
+  P10: [
+    { statementType: "MASTER", ruleId: "R6" },
+    { statementType: "CONFLICT", ruleId: "R7" },
+  ],
+  P11: [
+    { statementType: "MASTER", ruleId: "R7" },
+    { statementType: "CONFLICT", ruleId: "R3" },
+    { statementType: "CONFLICT", ruleId: "R5" },
+  ],
+  P12: [
+    { statementType: "MASTER", ruleId: "R3" },
+    { statementType: "CONFLICT", ruleId: "R8" },
+    { statementType: "CONFLICT", ruleId: "R9" },
+  ],
+  P13: [
+    { statementType: "MASTER", ruleId: "R10" },
+    { statementType: "CONFLICT", ruleId: "R6" },
+    { statementType: "CONFLICT", ruleId: "R7" },
+  ],
+  P14: [
+    { statementType: "MASTER", ruleId: "R12" },
+    { statementType: "CONFLICT", ruleId: "R7" },
+  ],
+  P15: [
+    { statementType: "MASTER", ruleId: "R13" },
+    { statementType: "CONFLICT", ruleId: "R3" },
+    { statementType: "CONFLICT", ruleId: "R7" },
+  ],
 };
 
 export default function SodPolicyReviewPage() {
@@ -71,7 +142,7 @@ export default function SodPolicyReviewPage() {
   }, []);
 
   useEffect(() => {
-    if (!hasData || !data.policyId || !data.businessProcess) {
+    if (!hasData || !data.policyId) {
       setPolicyStatements([]);
       return;
     }
@@ -80,54 +151,51 @@ export default function SodPolicyReviewPage() {
 
     const loadPolicyStatements = async () => {
       try {
-        const rulesRes = await fetch("/SOdRules.json");
-        if (!rulesRes.ok) return;
+        const [rulesRes, ruleEntitlementsRes] = await Promise.all([
+          fetch("/SOdRules.json"),
+          fetch("/RuleEntitlement.json"),
+        ]);
+        if (!rulesRes.ok || !ruleEntitlementsRes.ok) return;
 
-        const rulesJson = (await rulesRes.json()) as SodRuleJson[];
+        const [rulesJson, ruleEntitlementsJson] = (await Promise.all([
+          rulesRes.json(),
+          ruleEntitlementsRes.json(),
+        ])) as [SodRuleJson[], RuleEntitlementJson[]];
         if (cancelled) return;
 
-        const relevantRules = rulesJson
-          .map((rule) => {
-            const ruleId = (rule.Rule_ID ?? "").trim();
-            const ruleName = (rule.Rule_Name ?? "").trim();
-            const bpName =
-              (rule["Business Process Name"] ?? "").trim() ||
-              BUSINESS_PROCESS_NAME_BY_ID[(rule["Business Process ID"] ?? "").trim()] ||
-              "";
-            if (!ruleId || bpName !== data.businessProcess) return null;
-            return { ruleId, ruleName };
-          })
-          .filter((item): item is { ruleId: string; ruleName: string } => item !== null);
+        const ruleNameById: Record<string, string> = {};
+        rulesJson.forEach((rule) => {
+          const ruleId = (rule.Rule_ID ?? "").trim();
+          if (!ruleId) return;
+          ruleNameById[ruleId] = (rule.Rule_Name ?? "").trim();
+        });
 
-        const uniqueRules = relevantRules.filter(
-          (rule, index, arr) => arr.findIndex((r) => r.ruleId === rule.ruleId) === index
-        );
+        const entitlementsByRuleId: Record<string, string[]> = {};
+        ruleEntitlementsJson.forEach((item) => {
+          const ruleId = (item.Rule_ID ?? "").trim();
+          const entitlementName = (item.Entitlement_Name ?? "").trim();
+          if (!ruleId || !entitlementName) return;
+          if (!entitlementsByRuleId[ruleId]) {
+            entitlementsByRuleId[ruleId] = [];
+          }
+          if (!entitlementsByRuleId[ruleId].includes(entitlementName)) {
+            entitlementsByRuleId[ruleId].push(entitlementName);
+          }
+        });
 
-        if (uniqueRules.length === 0) {
+        const mappedRules = POLICY_STATEMENT_MAPPING_BY_POLICY_ID[data.policyId] ?? [];
+        if (mappedRules.length === 0) {
           setPolicyStatements([]);
           return;
         }
 
-        // Keep previous-tab relationship logic:
-        // Business Process -> ordered Rules list from SOdRules.json.
-        // Use the last mapped rule as MASTER and the remaining as CONFLICT.
-        const masterRule = uniqueRules[uniqueRules.length - 1];
-        const conflictRules = uniqueRules.slice(0, -1);
-
-        const mapped: PolicyStatementRow[] = [
-          {
-            policyId: data.policyId,
-            statementType: "MASTER",
-            ruleId: masterRule.ruleId,
-            ruleName: masterRule.ruleName,
-          },
-          ...conflictRules.map((rule) => ({
-            policyId: data.policyId,
-            statementType: "CONFLICT" as const,
-            ruleId: rule.ruleId,
-            ruleName: rule.ruleName,
-          })),
-        ];
+        const mapped: PolicyStatementRow[] = mappedRules.map((item) => ({
+          policyId: data.policyId,
+          statementType: item.statementType,
+          ruleId: item.ruleId,
+          ruleName: ruleNameById[item.ruleId] ?? "",
+          entitlements: entitlementsByRuleId[item.ruleId] ?? [],
+        }));
 
         setPolicyStatements(mapped);
       } catch (error) {
@@ -140,7 +208,7 @@ export default function SodPolicyReviewPage() {
     return () => {
       cancelled = true;
     };
-  }, [data.businessProcess, data.policyId, hasData]);
+  }, [data.policyId, hasData]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-gray-100">
@@ -245,10 +313,17 @@ export default function SodPolicyReviewPage() {
                           <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
                             Rule
                           </th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
+                            Entitlements
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-100">
-                        {policyStatements.map((row) => (
+                        {policyStatements.map((row) => {
+                          const entitlements = Array.isArray(row.entitlements)
+                            ? row.entitlements
+                            : [];
+                          return (
                           <tr key={`${row.policyId}-${row.statementType}-${row.ruleId}`}>
                             <td className="px-3 py-2 text-xs text-gray-900">
                               {data.name ? `${row.policyId} - ${data.name}` : row.policyId}
@@ -257,8 +332,24 @@ export default function SodPolicyReviewPage() {
                             <td className="px-3 py-2 text-xs text-gray-900">
                               {row.ruleName ? `${row.ruleId} - ${row.ruleName}` : row.ruleId}
                             </td>
+                            <td className="px-3 py-2 text-xs text-gray-900">
+                              {entitlements.length > 0 ? (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {entitlements.map((entitlement) => (
+                                    <span
+                                      key={`${row.policyId}-${row.ruleId}-${entitlement}`}
+                                      className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-800"
+                                    >
+                                      {entitlement}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                "-"
+                              )}
+                            </td>
                           </tr>
-                        ))}
+                        )})}
                       </tbody>
                     </table>
                   </div>
