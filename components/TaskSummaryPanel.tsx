@@ -163,7 +163,7 @@ const TaskSummaryPanel: React.FC<TaskSummaryPanelProps> = ({
             </svg>
           </div>
           <div className="flex-1 min-w-0 rounded bg-gray-50/80 px-1.5 py-1">
-            <p className="text-[10px] font-medium uppercase tracking-wide text-gray-500">IAM role</p>
+            {/* <p className="text-[10px] font-medium uppercase tracking-wide text-gray-500">IAM role</p> */}
             <p className="text-xs font-semibold text-gray-900 break-words leading-tight">{headerRight.primary}</p>
             <p className="text-[10px] text-gray-500 truncate">{applicationName || headerRight.secondary}</p>
           </div>

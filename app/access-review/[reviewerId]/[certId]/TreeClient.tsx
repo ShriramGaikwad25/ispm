@@ -144,8 +144,154 @@ function normalizeExecuteQueryRows(response: unknown): any[] {
   return [];
 }
 
-const SPEED_PEER_TASK_DETAILS_QUERY =
-  "SELECT t.* FROM taskdetails t WHERE EXISTS ( SELECT 1 FROM jsonb_array_elements(t.aiassist -> 'kf_insights') AS insight, jsonb_array_elements(insight -> 'peer_analysis') AS pa WHERE (pa ->> 'percentage')::int > ? AND insight -> 'user_context' ->> 'manager_displayname' = ? )";
+function getInsightUserContext(insight: unknown): Record<string, unknown> | null {
+  if (!insight || typeof insight !== "object") return null;
+  const uc = (insight as Record<string, unknown>).user_context;
+  if (uc && typeof uc === "object" && !Array.isArray(uc)) return uc as Record<string, unknown>;
+  return null;
+}
+
+function firstNonEmptyString(...vals: unknown[]): string {
+  for (const v of vals) {
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return "";
+}
+
+/** e.g. aiassist payload: `entitlement: { entitlement_name, application }` */
+function getInsightEntitlementBlock(insight: unknown): Record<string, unknown> | null {
+  if (!insight || typeof insight !== "object") return null;
+  const e = (insight as Record<string, unknown>).entitlement;
+  if (e && typeof e === "object" && !Array.isArray(e)) return e as Record<string, unknown>;
+  return null;
+}
+
+/** Map kf_insight (entitlement block, user_context) for the Speed peer grid. Intentionally ignores latest_decision.status for row/action UI. */
+function extractSpeedPeerInsightFields(insight: unknown): {
+  peerEntitlement: string;
+  peerApplication: string;
+  peerAction: string;
+} {
+  const uc = getInsightUserContext(insight);
+  const ins = insight && typeof insight === "object" ? (insight as Record<string, unknown>) : null;
+  const entBlock = getInsightEntitlementBlock(insight);
+
+  const entitlement = firstNonEmptyString(
+    entBlock?.entitlement_name,
+    entBlock?.entitlementName,
+    uc?.entitlement_name,
+    uc?.entitlementName,
+    uc?.entitlement_displayname,
+    uc?.entitlement_display_name,
+    typeof uc?.entitlement === "string" ? uc.entitlement : undefined,
+    ins?.entitlement_name,
+    ins?.entitlementName,
+  );
+  const application = firstNonEmptyString(
+    entBlock?.application,
+    entBlock?.application_name,
+    entBlock?.applicationName,
+    uc?.application_name,
+    uc?.applicationName,
+    uc?.application_displayname,
+    typeof uc?.application === "string" ? uc.application : undefined,
+    ins?.application_name,
+    ins?.applicationName,
+    typeof ins?.application === "string" ? ins.application : undefined,
+  );
+
+  return {
+    peerEntitlement: entitlement,
+    peerApplication: application,
+    peerAction: "",
+  };
+}
+
+/** Shape a Speed peer grid row for ActionButtons (entitlement context). Does not set status/action from latest_decision (avoids prefilled Approve/Reject). */
+function mapSpeedPeerRowForActionButtons(row: Record<string, unknown>): Record<string, unknown> {
+  const insight = row.insight as Record<string, unknown> | undefined;
+  const lineItemId = firstNonEmptyString(
+    insight?.line_item_id as string | undefined,
+    insight?.lineItemId as string | undefined,
+    insight?.lineitemid as string | undefined
+  );
+
+  return {
+    ...row,
+    lineItemId: lineItemId || "",
+    accountLineItemId:
+      (insight?.account_line_item_id as string) ?? (insight?.accountLineItemId as string) ?? "",
+    status: "",
+    action: "",
+    entitlementName: row.peerEntitlement,
+    entitlementDescription: "",
+    applicationName: row.peerApplication,
+    recommendation: "",
+  };
+}
+
+/** Review button: API returns one row with `result` = { resultSet: { [user_displayname]: insight[] } }. */
+function normalizeSpeedPeerReviewRows(response: unknown): any[] {
+  if (!response || typeof response !== "object") return [];
+  const o = response as Record<string, unknown>;
+  const top = (Array.isArray(o.resultSet) ? o.resultSet : Array.isArray(o.rows) ? o.rows : null) as
+    | unknown[]
+    | null;
+
+  let payload: unknown = undefined;
+  if (top?.length) {
+    const row0 = top[0] as Record<string, unknown>;
+    payload = row0?.result ?? row0;
+  } else if (o.result != null) {
+    payload = o.result;
+  } else {
+    return [];
+  }
+
+  if (typeof payload === "string") {
+    try {
+      payload = JSON.parse(payload);
+    } catch {
+      return [];
+    }
+  }
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return [];
+  const inner = payload as Record<string, unknown>;
+  const map = inner.resultSet;
+  if (!map || typeof map !== "object" || Array.isArray(map)) return [];
+
+  const rows: any[] = [];
+  for (const [userKey, items] of Object.entries(map as Record<string, unknown>)) {
+    const arr = Array.isArray(items) ? items : [];
+    arr.forEach((insight, idx) => {
+      const { peerEntitlement, peerApplication, peerAction } = extractSpeedPeerInsightFields(insight);
+      rows.push({
+        user_displayname: userKey,
+        insight_index: idx,
+        insight,
+        peerEntitlement: peerEntitlement || "—",
+        peerApplication: peerApplication || "—",
+        peerAction: peerAction || "—",
+      });
+    });
+  }
+  return rows;
+}
+
+/** Peer match + Speed card %: filter by reviewer on latest_decision (see kf_insights). */
+const SPEED_QUICK_WIN_PERCENT_QUERY =
+  "SELECT SUM(CASE WHEN (pa ->> 'percentage')::int > ? THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*),0) AS percentage FROM taskdetails t, jsonb_array_elements(t.aiassist -> 'kf_insights') AS insight, jsonb_array_elements(insight -> 'peer_analysis') AS pa WHERE insight -> 'latest_decision' ->> 'reviewer' = ?";
+
+const SPEED_QUICK_WIN_PERCENT_THRESHOLD = 70;
+/** Must match `latest_decision ->> 'reviewer'` values in taskdetails JSON. */
+const SPEED_QUICK_WIN_REVIEWER_PARAM = "Jessica Camacho";
+
+/** Speed card Review: grouped insights by user_displayname (LIMIT/OFFSET paginated server-side). */
+const SPEED_PEER_REVIEW_QUERY =
+  "SELECT jsonb_build_object('resultSet', COALESCE(jsonb_object_agg(user_displayname, user_items), '{}'::jsonb)) AS result FROM ( SELECT COALESCE(insight -> 'user_context' ->> 'user_displayname','Unknown User') AS user_displayname, jsonb_agg(insight) AS user_items FROM taskdetails t, jsonb_array_elements(COALESCE(t.aiassist -> 'kf_insights','[]'::jsonb)) AS insight WHERE insight -> 'latest_decision' ->> 'reviewer' = ? AND EXISTS ( SELECT 1 FROM jsonb_array_elements(COALESCE(insight -> 'peer_analysis','[]'::jsonb)) AS pa WHERE (pa ->> 'percentage') ~ '^\\d+$' AND (pa ->> 'percentage')::int > ? ) GROUP BY COALESCE(insight -> 'user_context' ->> 'user_displayname','Unknown User') ORDER BY user_displayname LIMIT ? OFFSET ? ) s";
+
+const SPEED_PEER_REVIEW_PAGE_SIZE = 50;
+const SPEED_PEER_REVIEW_OFFSET = 0;
 
 interface TreeClientProps {
   reviewerId: string;
@@ -651,6 +797,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const [speedPeerTaskRowsLoading, setSpeedPeerTaskRowsLoading] = useState(false);
   const [speedPeerTaskRowsError, setSpeedPeerTaskRowsError] = useState<string | null>(null);
   const [speedPeerModalSearch, setSpeedPeerModalSearch] = useState("");
+  /** Insights use `openSidebar` only; state kept so any stale references / HMR don’t throw. */
+  const [speedPeerInsightDetail, setSpeedPeerInsightDetail] = useState<unknown | null>(null);
   const [guidedPathModalPageNumber, setGuidedPathModalPageNumber] = useState(1);
   const [guidedPathModalPageSize, setGuidedPathModalPageSize] = useState<number | "all">(10);
   const [guidedPathModalFilter, setGuidedPathModalFilter] = useState<"Dormant" | "Access">(
@@ -674,11 +822,9 @@ const TreeClient: React.FC<TreeClientProps> = ({
     const loadSpeedQuickWinPercent = async () => {
       setLoadingSpeedQuickWin(true);
       try {
-        const query =
-          "SELECT SUM(CASE WHEN (pa ->> 'percentage')::int > ? THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*),0) AS percentage FROM taskdetails t, jsonb_array_elements(t.aiassist -> 'kf_insights') AS insight, jsonb_array_elements(insight -> 'peer_analysis') AS pa WHERE insight -> 'user_context' ->> 'manager_displayname' = ?";
-        const parameters = [70, "Jessica Camacho"];
+        const parameters = [SPEED_QUICK_WIN_PERCENT_THRESHOLD, SPEED_QUICK_WIN_REVIEWER_PARAM];
         const response = await executeQuery<{ resultSet?: Array<{ percentage?: number | string | null }> }>(
-          query,
+          SPEED_QUICK_WIN_PERCENT_QUERY,
           parameters
         );
         const raw = response?.resultSet?.[0]?.percentage;
@@ -2366,25 +2512,123 @@ const TreeClient: React.FC<TreeClientProps> = ({
     []
   );
 
-  // Speed modal: columns & cells = raw executeQuery resultSet (taskdetails), one column per returned field
-  const speedPeerExecuteQueryColumnDefs = useMemo<ColDef[]>(() => {
-    if (!speedPeerTaskRows.length) return [];
-    const first = speedPeerTaskRows[0] as Record<string, unknown>;
-    return Object.keys(first).map((field) => ({
-      field,
-      headerName: field.replace(/_/g, " "),
-      flex: 1,
-      minWidth: 100,
-      sortable: true,
-      filter: true,
-      valueFormatter: (p: { value: unknown }) => {
-        const v = p.value;
-        if (v === null || v === undefined) return "";
-        if (typeof v === "object") return JSON.stringify(v);
-        return String(v);
+  const speedPeerModalColumnDefs = useMemo<ColDef[]>(
+    () => [
+      {
+        field: "user_displayname",
+        headerName: "User",
+        flex: 1,
+        minWidth: 120,
+        sortable: true,
+        filter: true,
       },
-    }));
-  }, [speedPeerTaskRows]);
+      {
+        field: "peerEntitlement",
+        headerName: "Entitlement",
+        flex: 1.15,
+        minWidth: 140,
+        sortable: true,
+        filter: true,
+      },
+      {
+        field: "peerApplication",
+        headerName: "Application",
+        flex: 1.15,
+        minWidth: 140,
+        sortable: true,
+        filter: true,
+      },
+      {
+        colId: "insights_icon",
+        headerName: "Insights",
+        width: 112,
+        maxWidth: 130,
+        sortable: false,
+        filter: false,
+        resizable: false,
+        cellRenderer: (params: ICellRendererParams) => {
+          return (
+            <div className="flex items-center justify-center h-full min-h-[36px] py-1">
+              <button
+                type="button"
+                className="inline-flex items-center justify-center rounded-md p-1.5 text-amber-600 hover:bg-amber-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/80"
+                aria-label="View insights"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const row = params.data as Record<string, unknown> | undefined;
+                  const insight = row?.insight;
+                  if (!insight || typeof insight !== "object") return;
+                  const userDisplay = String(row?.user_displayname ?? "");
+                  const entName = String(row?.peerEntitlement ?? "");
+                  const appName = String(row?.peerApplication ?? "");
+                  const ra = (insight as Record<string, unknown>).risk_assessment as
+                    | { overall_risk?: string }
+                    | undefined;
+                  const selectedRow = {
+                    aiassist: { kf_insights: [insight] },
+                    entitlementName: entName,
+                    applicationName: appName,
+                  };
+                  openSidebar(
+                    <div>
+                      <TaskSummaryPanel
+                        headerLeft={{
+                          primary: userDisplay,
+                          secondary: userDisplay,
+                        }}
+                        headerRight={{
+                          primary: entName,
+                          secondary: appName,
+                        }}
+                        riskLabel={ra?.overall_risk ?? "—"}
+                        applicationName={appName}
+                        reviewerId={reviewerId}
+                        certId={certId}
+                        selectedRow={selectedRow}
+                      />
+                    </div>,
+                    { widthPx: 500, title: "Insights" }
+                  );
+                }}
+              >
+                <InsightsIcon size={20} className="text-amber-500" />
+              </button>
+            </div>
+          );
+        },
+      },
+      {
+        colId: "peer_actions",
+        headerName: "Action",
+        flex: 1.25,
+        minWidth: 220,
+        sortable: false,
+        filter: false,
+        cellRenderer: (params: ICellRendererParams) => {
+          const row = params.data as Record<string, unknown> | undefined;
+          if (!row) return null;
+          const mapped = mapSpeedPeerRowForActionButtons(row);
+          return (
+            <div
+              className="flex items-center h-full min-h-[40px] py-0.5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ActionButtons
+                api={params.api as GridApi}
+                selectedRows={[mapped] as any}
+                context="entitlement"
+                reviewerId={reviewerId}
+                certId={certId}
+                selectedFilters={selectedFilters}
+                hideTeamsIcon
+              />
+            </div>
+          );
+        },
+      },
+    ],
+    [openSidebar, reviewerId, certId, selectedFilters]
+  );
 
   const guidedPathModalRowsForGrid = useMemo(() => {
     if (guidedPathModalSource === "speedPeer") {
@@ -2403,9 +2647,9 @@ const TreeClient: React.FC<TreeClientProps> = ({
   }, [guidedPathModalSource, speedPeerTaskRows, speedPeerModalSearch, guidedPathModalRows]);
 
   const guidedPathModalGridColumnDefs = useMemo<ColDef[]>(() => {
-    if (guidedPathModalSource === "speedPeer") return speedPeerExecuteQueryColumnDefs;
+    if (guidedPathModalSource === "speedPeer") return speedPeerModalColumnDefs;
     return entitlementsColumnDefs;
-  }, [guidedPathModalSource, speedPeerExecuteQueryColumnDefs, entitlementsColumnDefs]);
+  }, [guidedPathModalSource, speedPeerModalColumnDefs, entitlementsColumnDefs]);
 
   const guidedPathModalTotalPages = useMemo(() => {
     const total = guidedPathModalRowsForGrid.length;
@@ -2886,8 +3130,11 @@ const TreeClient: React.FC<TreeClientProps> = ({
               {/* AI Assist - Quick Wins - separate element, 1/3, same height as User card */}
               <div className="w-full lg:w-1/3 flex">
                 <div className="bg-white border border-gray-200 rounded-lg px-3 py-3 shadow-sm w-full h-full flex flex-col">
-                  <div className="flex justify-between items-center mb-3 flex-shrink-0">
+                  <div className="flex justify-between items-center gap-2 mb-3 flex-shrink-0">
                     <h2 className="text-sm font-medium text-gray-800">AI Assist - Quick Wins</h2>
+                    <span className="flex-shrink-0 text-[10px] sm:text-xs font-semibold text-violet-900 bg-gradient-to-r from-violet-100 to-purple-100 border border-violet-300/90 rounded-md px-2 py-0.5 shadow-sm">
+                      Campaign Data Analysis
+                    </span>
                   </div>
                   <div className="flex flex-col gap-4 flex-1 min-h-0">
                     {/* Card 1 */}
@@ -2957,12 +3204,13 @@ const TreeClient: React.FC<TreeClientProps> = ({
                                 setGuidedPathModalOpen(true);
                                 void (async () => {
                                   try {
-                                    const response = await executeQuery<any>(
-                                      SPEED_PEER_TASK_DETAILS_QUERY,
-                                      [70, "Jessica Camacho"]
-                                    );
-                                    const rows = normalizeExecuteQueryRows(response);
-                                    setSpeedPeerTaskRows(rows);
+                                    const response = await executeQuery<any>(SPEED_PEER_REVIEW_QUERY, [
+                                      SPEED_QUICK_WIN_REVIEWER_PARAM,
+                                      SPEED_QUICK_WIN_PERCENT_THRESHOLD,
+                                      SPEED_PEER_REVIEW_PAGE_SIZE,
+                                      SPEED_PEER_REVIEW_OFFSET,
+                                    ]);
+                                    setSpeedPeerTaskRows(normalizeSpeedPeerReviewRows(response));
                                   } catch (err) {
                                     setSpeedPeerTaskRowsError(
                                       err instanceof Error ? err.message : "Failed to load task details"
@@ -3275,6 +3523,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                   setGuidedPathModalOpen(false);
                   setGuidedPathModalSource("entitlements");
                   setSpeedPeerModalSearch("");
+                  setSpeedPeerInsightDetail(null);
                   setGuidedPathModalPageNumber(1);
                   setGuidedPathModalPageSize(10);
                   guidedPathGridApiRef.current?.deselectAll();
@@ -3376,11 +3625,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       columnDefs={guidedPathModalGridColumnDefs}
                       defaultColDef={defaultColDef}
                       domLayout="autoHeight"
-                      rowSelection={
-                        guidedPathModalSource === "speedPeer"
-                          ? undefined
-                          : { mode: "multiRow" }
-                      }
+                      rowSelection={{ mode: "multiRow" }}
                       suppressSizeToFit={false}
                       style={{ width: "100%", minWidth: 0 }}
                       isRowSelectable={(node) => !node?.data?.__isDescRow}
@@ -3408,11 +3653,15 @@ const TreeClient: React.FC<TreeClientProps> = ({
                             d?.lineitemid ??
                             d?.line_item_id ??
                             d?.id;
-                          const base =
-                            id != null && String(id).trim() !== ""
-                              ? `eq-${String(id)}`
-                              : `eq-idx-${params.node?.rowIndex ?? 0}`;
-                          return base;
+                          if (id != null && String(id).trim() !== "") {
+                            return `eq-${String(id)}`;
+                          }
+                          const u = d?.user_displayname;
+                          const ix = d?.insight_index;
+                          if (u != null || ix != null) {
+                            return `eq-sp-${String(u ?? "")}-${String(ix ?? params.node?.rowIndex ?? 0)}`;
+                          }
+                          return `eq-idx-${params.node?.rowIndex ?? 0}`;
                         }
                         const baseId =
                           params.data.lineItemId ||
@@ -3430,17 +3679,23 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       className="ag-main"
                     />
                   </div>
-                  {guidedPathModalSource === "entitlements" &&
+                  {((guidedPathModalSource === "entitlements" && entitlementsColumnDefs) ||
+                    guidedPathModalSource === "speedPeer") &&
                     guidedPathSelectedCount > 1 &&
-                    guidedPathSelectedRows.length > 1 &&
-                    entitlementsColumnDefs && (
-                    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-100 border border-gray-200 rounded-full shadow-lg px-3 py-1.5 flex items-center gap-2">
+                    guidedPathSelectedRows.length > 1 && (
+                    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] bg-gray-100 border border-gray-200 rounded-full shadow-lg px-3 py-1.5 flex items-center gap-2">
                       <span className="text-[11px] text-gray-600">
                         {guidedPathSelectedCount} selected
                       </span>
                       <ActionButtons
-                        api={entitlementsGridApiRef.current as any}
-                        selectedRows={guidedPathSelectedRows}
+                        api={guidedPathGridApiRef.current as any}
+                        selectedRows={
+                          guidedPathModalSource === "speedPeer"
+                            ? (guidedPathSelectedRows.map((r) =>
+                                mapSpeedPeerRowForActionButtons(r as Record<string, unknown>)
+                              ) as any)
+                            : guidedPathSelectedRows
+                        }
                         context="entitlement"
                         reviewerId={reviewerId}
                         certId={certId}
