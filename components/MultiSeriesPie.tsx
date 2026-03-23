@@ -15,6 +15,8 @@ interface MultiSeriesPieProps {
   series: MultiSeriesPieItem[];
   width?: number;
   height?: number;
+  /** When false (default), numeric labels are not drawn on chart slices. */
+  showDataLabels?: boolean;
 }
 
 const FALLBACK_REMAINDER_COLOR = "#E5E7EB";
@@ -34,6 +36,7 @@ export default function MultiSeriesPie({
   series,
   width = 180,
   height = 180,
+  showDataLabels = false,
 }: MultiSeriesPieProps) {
   const total = Math.max(
     series.reduce((sum, item) => sum + Math.max(0, item.value), 0),
@@ -62,7 +65,9 @@ export default function MultiSeriesPie({
       legend: { display: false },
       tooltip: { enabled: false },
       datalabels: {
-        display: (context: any) => context.dataIndex === 0,
+        display: showDataLabels
+          ? (context: { dataIndex: number }) => context.dataIndex === 0
+          : false,
         formatter: (value: number) => value,
         color: "#111827",
         font: {
