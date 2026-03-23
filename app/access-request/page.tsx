@@ -335,16 +335,18 @@ const AccessRequest: React.FC = () => {
       if (!dateStr) return "";
       const d = new Date(dateStr);
       if (Number.isNaN(d.getTime())) return dateStr;
-      const dd = String(d.getDate()).padStart(2, "0");
-      const mm = String(d.getMonth() + 1).padStart(2, "0");
       const yyyy = d.getFullYear();
-      return `${dd}-${mm}-${yyyy}`;
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      const hh = String(d.getHours()).padStart(2, "0");
+      const min = String(d.getMinutes()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd} ${hh}:${min}`;
     };
-
     const apiPayload = {
       requestParameter: {
         isJit: false,
-        justification: payload.globalSettings.comment || "Emergency access",
+        startDate: formatDateForApi(payload.globalSettings.startDate),
+        justification: payload.globalSettings.comment || "",
         requestType: payload.requestType === "Urgent" ? "URGENT" : "REGULAR",
       },
       benificiary: (() => {
@@ -359,7 +361,7 @@ const AccessRequest: React.FC = () => {
         catalogId: item.id,
         startDate: formatDateForApi(item.startDate),
         endDate: formatDateForApi(item.endDate),
-        comments: item.comment || "Needed for Job Role",
+        comments: item.comment || "",
       })),
     };
 

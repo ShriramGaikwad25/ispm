@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   FileText,
   ChevronDown,
@@ -9,12 +10,12 @@ import {
   CircleX,
   RotateCcw,
 } from "lucide-react";
-import { updateAction } from "@/lib/api";
 import { getReviewerId } from "@/lib/auth";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 
 interface RequestLineItem {
   lineItemId: string;
+  catalogId?: string;
   entitlementId: string;
   name: string;
   displayName: string;
@@ -45,6 +46,7 @@ interface SodPolicyDetails {
 
 interface PendingApprovalDetail {
   id: string;
+  taskId?: number | string;
   reviewerId: string;
   fallbackEntitlementId: string;
   beneficiaryName: string;
@@ -52,6 +54,7 @@ interface PendingApprovalDetail {
   durationDays?: number;
   details: RequestDetails;
   lineItems: RequestLineItem[];
+  initialLineItemActions?: Record<string, "approve" | "reject" | null>;
   sodPolicyDetails?: SodPolicyDetails | null;
   sodSeverity?: string | null;
   sodConflictingRoles?: string[];
@@ -121,6 +124,7 @@ const PendingApprovalDetailPage = ({
   params: Promise<{ id: string }>;
 }) => {
   const { id } = React.use(params);
+  const router = useRouter();
   const { openSidebar } = useRightSidebar();
   const [request, setRequest] = useState<PendingApprovalDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -150,6 +154,11 @@ const PendingApprovalDetailPage = ({
   const [infoRequestItemKey, setInfoRequestItemKey] = useState<string | null>(null);
   const [infoRequestMessage, setInfoRequestMessage] = useState("");
   const [infoRequestLoading, setInfoRequestLoading] = useState(false);
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [baselineLineItemActions, setBaselineLineItemActions] = useState<
+    Record<string, "approve" | "reject" | null>
+  >({});
 
   const commentOptions: Record<string, string[]> = {
     Approve: [
@@ -436,6 +445,7 @@ const PendingApprovalDetailPage = ({
 
             return {
               lineItemId: requestedItemId || catalogId || entitlementId,
+              catalogId,
               entitlementId,
               name: lineName,
               displayName: lineName,
@@ -460,6 +470,17 @@ const PendingApprovalDetailPage = ({
               row.reviewerId ??
               "f558e3b2-348b-4ff3-be4c-a3c5dc8b5a91"
           );
+          const taskIdRaw =
+            row.task_id ??
+            row.taskId ??
+            row.taskid ??
+            row.id ??
+            requestId;
+          const numericTaskId = Number(taskIdRaw);
+          const taskId =
+            Number.isFinite(numericTaskId) && taskIdRaw !== ""
+              ? numericTaskId
+              : toStringSafe(taskIdRaw);
           const fallbackEntitlementId = toStringSafe(
             row.entitlement_id ??
               row.entitlementId ??
@@ -489,6 +510,13 @@ const PendingApprovalDetailPage = ({
                         row.lineItemId ??
                         row.line_item_id ??
                         row.item_id ??
+                        ""
+                    ),
+                    catalogId: toStringSafe(
+                      row.catalog_id ??
+                        row.catalogId ??
+                        row.catalogid ??
+                        row.id ??
                         ""
                     ),
                     entitlementId: toStringSafe(
@@ -539,6 +567,51 @@ const PendingApprovalDetailPage = ({
                   },
                 ];
 
+          // Read server decisions so refreshed page can render filled action buttons.
+          const decisionJson = toObjectSafe(
+            row.decision_json ?? row.decisionJson ?? row.decisionjson ?? {}
+          );
+          const decisionLineItems = toArraySafe(
+            decisionJson.lineItems ?? decisionJson.lineitems
+          );
+
+          const decisionActionByLineItemId: Record<string, "approve" | "reject"> = {};
+          const decisionActionByCatalogId: Record<string, "approve" | "reject"> = {};
+
+          decisionLineItems.forEach((item) => {
+            const actionRaw = toStringSafe(
+              item?.ACTION ?? item?.action ?? item?.Action
+            )
+              .trim()
+              .toUpperCase();
+            const mappedAction =
+              actionRaw === "APPROVE"
+                ? "approve"
+                : actionRaw === "REJECT" || actionRaw === "REVOKE"
+                ? "reject"
+                : null;
+            if (!mappedAction) return;
+
+            const decisionLineItemId = normalizeId(item?.lineItemId ?? item?.line_item_id);
+            const decisionCatalogId = normalizeId(
+              item?.catalogId ?? item?.catalogid ?? item?.catalog_id
+            );
+
+            if (decisionLineItemId) {
+              decisionActionByLineItemId[decisionLineItemId] = mappedAction;
+            }
+            if (decisionCatalogId) {
+              decisionActionByCatalogId[decisionCatalogId] = mappedAction;
+            }
+          });
+
+          const initialLineItemActions: Record<string, "approve" | "reject" | null> = {};
+          normalizedLineItems.forEach((lineItem, idx) => {
+            const byLineItemId = decisionActionByLineItemId[normalizeId(lineItem.lineItemId)];
+            const byCatalogId = decisionActionByCatalogId[normalizeId(lineItem.catalogId)];
+            initialLineItemActions[String(idx)] = byLineItemId ?? byCatalogId ?? null;
+          });
+
           const durationDays = createdOnRaw
             ? Math.max(
                 0,
@@ -551,6 +624,7 @@ const PendingApprovalDetailPage = ({
 
           return {
             id: requestId,
+            taskId,
             reviewerId,
             fallbackEntitlementId: fallbackEntitlementId || requestId,
             requesterName,
@@ -562,6 +636,7 @@ const PendingApprovalDetailPage = ({
               justification,
             },
             lineItems: normalizedLineItems,
+            initialLineItemActions,
             sodPolicyDetails,
             sodSeverity,
             sodConflictingRoles,
@@ -586,6 +661,9 @@ const PendingApprovalDetailPage = ({
       defaults[String(idx)] = true;
     });
     setExpandedLineItems(defaults);
+    const initialActions = request.initialLineItemActions ?? {};
+    setLineItemActions(initialActions);
+    setBaselineLineItemActions(initialActions);
   }, [request]);
 
   const openCommentModal = (
@@ -627,32 +705,14 @@ const PendingApprovalDetailPage = ({
     setLineItemError((prev) => ({ ...prev, [lineItemKey]: null }));
 
     try {
-      const actionType = action === "approve" ? "Approve" : "Revoke";
       const justification =
         lineItemComments[lineItemKey] ||
         (action === "approve" ? "Approved via UI" : "Revoked via UI");
-      const entitlementIdForUpdate =
-        lineItem.entitlementId || request.fallbackEntitlementId;
-
-      if (!entitlementIdForUpdate) {
-        throw new Error("Missing entitlement ID for updateAction call.");
-      }
-
-      const payload: any = {
-        useraction: [],
-        accountAction: [],
-        entitlementAction: [
-          {
-            actionType,
-            lineItemIds: [lineItem.lineItemId],
-            justification,
-          },
-        ],
-      };
-
-      await updateAction(request.reviewerId, entitlementIdForUpdate, payload);
       setLineItemActions((prev) => ({ ...prev, [lineItemKey]: action }));
-      window.location.reload();
+      setLineItemComments((prev) => ({
+        ...prev,
+        [lineItemKey]: justification,
+      }));
     } catch (err: any) {
       console.error(`Failed to ${action} line item:`, err);
       setLineItemError((prev) => ({
@@ -667,41 +727,17 @@ const PendingApprovalDetailPage = ({
   const saveComment = async () => {
     if (!commentModalItemKey || !commentDraft.trim() || !request) return;
 
-    const lineItem = request.lineItems[Number(commentModalItemKey)];
-    if (!lineItem) return;
+    if (!request.lineItems[Number(commentModalItemKey)]) return;
 
     setLineItemLoading((prev) => ({ ...prev, [commentModalItemKey]: true }));
     setLineItemError((prev) => ({ ...prev, [commentModalItemKey]: null }));
 
     try {
-      const actionType = "";
-      const entitlementIdForUpdate =
-        lineItem.entitlementId || request.fallbackEntitlementId;
-
-      if (!entitlementIdForUpdate) {
-        throw new Error("Missing entitlement ID for updateAction call.");
-      }
-
-      const payload: any = {
-        useraction: [],
-        accountAction: [],
-        entitlementAction: [
-          {
-            actionType,
-            lineItemIds: [lineItem.lineItemId],
-            justification: commentDraft.trim(),
-          },
-        ],
-      };
-
-      await updateAction(request.reviewerId, entitlementIdForUpdate, payload);
-
       setLineItemComments((prev) => ({
         ...prev,
         [commentModalItemKey]: commentDraft.trim(),
       }));
       closeCommentModal();
-      window.location.reload();
     } catch (err: any) {
       console.error("Failed to save comment:", err);
       setLineItemError((prev) => ({
@@ -713,6 +749,94 @@ const PendingApprovalDetailPage = ({
         ...prev,
         [commentModalItemKey!]: false,
       }));
+    }
+  };
+
+  const pendingActionEntries = useMemo(
+    () =>
+      Object.entries(lineItemActions).filter(
+        ([lineItemKey, action]) =>
+          (action === "approve" || action === "reject") &&
+          action !== (baselineLineItemActions[lineItemKey] ?? null)
+      ) as Array<[string, "approve" | "reject"]>,
+    [lineItemActions, baselineLineItemActions]
+  );
+
+  const pendingActionCount = pendingActionEntries.length;
+
+  const handleSubmitActions = async () => {
+    if (!request || pendingActionCount === 0 || submitLoading) return;
+
+    setSubmitLoading(true);
+    setSubmitError(null);
+
+    try {
+      const selectedActionByKey = new Map<string, "approve" | "reject">(
+        pendingActionEntries
+      );
+
+      const lineItemsPayload = request.lineItems.map((lineItem, idx) => {
+        const key = String(idx);
+        const selectedAction = selectedActionByKey.get(key);
+        const baselineAction = baselineLineItemActions[key] ?? null;
+        const effectiveAction = selectedAction ?? baselineAction;
+        const parsedLineItemId = Number(lineItem.lineItemId);
+
+        return {
+          catalogId: lineItem.catalogId || lineItem.entitlementId || null,
+          lineItemId: Number.isFinite(parsedLineItemId)
+            ? parsedLineItemId
+            : lineItem.lineItemId,
+          ...(effectiveAction
+            ? { ACTION: effectiveAction === "approve" ? "APPROVE" : "REVOKE" }
+            : {}),
+          entitlementName: null,
+        };
+      });
+
+      const allItemsActioned = request.lineItems.every((_, idx) => {
+        const key = String(idx);
+        const currentAction = selectedActionByKey.get(key);
+        const baselineAction = baselineLineItemActions[key] ?? null;
+        return Boolean(currentAction ?? baselineAction);
+      });
+
+      const primaryComment =
+        pendingActionEntries
+          .map(([key]) => lineItemComments[key]?.trim())
+          .find((value) => Boolean(value)) || "Approved per policy";
+
+      const payload = {
+        taskid: request.taskId ?? request.id,
+        overallAction: allItemsActioned ? "APPROVE" : "",
+        comments: primaryComment,
+        lineItems: lineItemsPayload,
+      };
+
+      const response = await fetch(
+        `https://preview.keyforge.ai/workflow/api/v1/ACMECOM/approveraction/${request.reviewerId}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Approver action failed (${response.status})`);
+      }
+
+      setLineItemActions({});
+      if (allItemsActioned) {
+        router.push("/access-request/pending-approvals");
+        return;
+      }
+      window.location.reload();
+    } catch (err: any) {
+      console.error("Failed to submit staged actions:", err);
+      setSubmitError(err?.message || "Failed to submit actions");
+    } finally {
+      setSubmitLoading(false);
     }
   };
 
@@ -798,9 +922,12 @@ const PendingApprovalDetailPage = ({
           const actionBtnClass =
             "inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-colors";
           const selectedAction = lineItemActions[lineItemKey] ?? null;
+          const isLockedByServer =
+            (baselineLineItemActions[lineItemKey] ?? null) !== null;
           const approveFilled = selectedAction === "approve";
           const rejectFilled = selectedAction === "reject";
           const isItemLoading = lineItemLoading[lineItemKey] ?? false;
+          const isActionsDisabled = isItemLoading || isLockedByServer;
           const itemError = lineItemError[lineItemKey] ?? null;
           const effectiveComment =
             lineItemComments[lineItemKey] ?? lineItem.comments;
@@ -936,12 +1063,12 @@ const PendingApprovalDetailPage = ({
                     type="button"
                     title={approveFilled ? "Undo Approve" : "Approve"}
                     aria-label="Approve"
-                    disabled={isItemLoading}
+                    disabled={isActionsDisabled}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleLineItemAction(lineItemKey, "approve");
                     }}
-                    className={`p-1 rounded flex items-center justify-center ${isItemLoading ? "opacity-60 cursor-not-allowed" : ""}`}
+                    className={`p-1 rounded flex items-center justify-center ${isActionsDisabled ? "opacity-60 cursor-not-allowed" : ""}`}
                   >
                     <div className="relative inline-flex items-center justify-center w-8 h-8">
                       <CircleCheck
@@ -975,12 +1102,12 @@ const PendingApprovalDetailPage = ({
                     type="button"
                     title={rejectFilled ? "Undo Reject" : "Reject"}
                     aria-label="Reject"
-                    disabled={isItemLoading}
+                    disabled={isActionsDisabled}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleLineItemAction(lineItemKey, "reject");
                     }}
-                    className={`p-1 rounded flex items-center justify-center ${isItemLoading ? "opacity-60 cursor-not-allowed" : ""}`}
+                    className={`p-1 rounded flex items-center justify-center ${isActionsDisabled ? "opacity-60 cursor-not-allowed" : ""}`}
                   >
                     <div className="relative inline-flex items-center justify-center w-8 h-8">
                       <CircleX
@@ -1014,8 +1141,9 @@ const PendingApprovalDetailPage = ({
                     type="button"
                     title="Requester comment"
                     aria-label="Requester comment"
+                    disabled={isActionsDisabled}
                     onClick={(e) => openCommentModal(e, lineItemKey, lineItem.comments)}
-                    className="p-1 rounded flex items-center justify-center"
+                    className={`p-1 rounded flex items-center justify-center ${isActionsDisabled ? "opacity-60 cursor-not-allowed" : ""}`}
                   >
                     <svg
                       width="30"
@@ -1033,12 +1161,13 @@ const PendingApprovalDetailPage = ({
                     type="button"
                     title="Request more information"
                     aria-label="Request more information"
+                    disabled={isActionsDisabled}
                     onClick={(e) => {
                       e.stopPropagation();
                       setInfoRequestItemKey(lineItemKey);
                       setInfoRequestMessage("");
                     }}
-                    className={actionBtnClass}
+                    className={`${actionBtnClass} ${isActionsDisabled ? "opacity-60 cursor-not-allowed" : ""}`}
                   >
                     <RotateCcw className="h-4 w-4 text-blue-600" />
                   </button>
@@ -1081,6 +1210,33 @@ const PendingApprovalDetailPage = ({
           );
         })}
       </div>
+
+      {pendingActionCount > 0 && (
+        <div className="fixed bottom-4 left-1/2 z-40 -translate-x-1/2">
+          <div className="flex items-center gap-3 rounded-full border border-gray-200 bg-white px-4 py-2 shadow-lg">
+            <span className="text-sm font-medium text-gray-700">
+              {pendingActionCount} action{pendingActionCount === 1 ? "" : "s"} selected
+            </span>
+            <button
+              type="button"
+              onClick={handleSubmitActions}
+              disabled={submitLoading}
+              className={`rounded-full px-4 py-1.5 text-sm font-semibold text-white transition-colors ${
+                submitLoading
+                  ? "cursor-not-allowed bg-blue-400"
+                  : "bg-blue-600 hover:bg-blue-700"
+              }`}
+            >
+              {submitLoading ? "Submitting..." : "Submit"}
+            </button>
+          </div>
+          {submitError && (
+            <div className="mt-2 rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs text-red-700">
+              {submitError}
+            </div>
+          )}
+        </div>
+      )}
 
       {commentModalItemKey !== null && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-3">
@@ -1293,31 +1449,12 @@ const PendingApprovalDetailPage = ({
                   }));
 
                   try {
-                    const entitlementIdForUpdate =
-                      lineItem.entitlementId ||
-                      request.fallbackEntitlementId;
-
-                    const payload: any = {
-                      useraction: [],
-                      accountAction: [],
-                      entitlementAction: [
-                        {
-                          actionType: "Approve",
-                          lineItemIds: [lineItem.lineItemId],
-                          justification: infoRequestMessage.trim(),
-                        },
-                      ],
-                    };
-
-                    await updateAction(
-                      request.reviewerId,
-                      entitlementIdForUpdate,
-                      payload
-                    );
-
+                    setLineItemComments((prev) => ({
+                      ...prev,
+                      [infoRequestItemKey]: infoRequestMessage.trim(),
+                    }));
                     setInfoRequestItemKey(null);
                     setInfoRequestMessage("");
-                    window.location.reload();
                   } catch (err: any) {
                     console.error("Failed to send info request:", err);
                     setLineItemError((prev) => ({

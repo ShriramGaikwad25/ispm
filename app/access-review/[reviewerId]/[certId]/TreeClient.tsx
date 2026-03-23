@@ -2154,13 +2154,20 @@ const TreeClient: React.FC<TreeClientProps> = ({
         headerName: "Account",
         width: 150,
         cellRenderer: (params: ICellRendererParams) => {
-          const { user, accountType, SoDConflicts, itemRisk } = params.data || {};
+          const { user, accountName, accountname, username, accountType, SoDConflicts, itemRisk } = params.data || {};
           const typeLabel = accountType || "Regular";
           const hasViolation = SoDConflicts && SoDConflicts.length > 0;
           const risk = String(itemRisk || "").toLowerCase().trim();
           const isHighRisk = risk === "high" || risk === "critical";
           const textColor = isHighRisk ? "#dc2626" : undefined;
-          const lines = user?.split?.("\n") ?? ["", ""];
+          const displayAccount =
+            user ||
+            accountName ||
+            accountname ||
+            username ||
+            "";
+          const lines = String(displayAccount).split("\n");
+          if (!lines[1]) lines[1] = typeLabel;
           return (
             <div className="flex items-center gap-4 font-normal text-sm mt-2">
               <div className="flex items-center gap-2">
