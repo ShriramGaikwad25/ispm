@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm, Control, FieldValues, UseFormSetValue, UseFormWatch } from "react-hook-form";
 import {
   Trash2,
@@ -14,6 +14,7 @@ import {
   ListChecks,
   ShieldCheck,
   AlertCircle,
+  CheckCircle2,
   Users,
 } from "lucide-react";
 import ExpressionBuilder from "@/components/ExpressionBuilder";
@@ -229,6 +230,7 @@ export default function CreateAccessPolicyPage() {
   });
 
   const { isVisible: isSidebarVisible, sidebarWidthPx } = useLeftSidebar();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const policyIdParam = searchParams.get("policyId");
   const isViewMode = searchParams.get("view") === "1" && Boolean(policyIdParam);
@@ -266,6 +268,22 @@ export default function CreateAccessPolicyPage() {
   const [grantedCatalogError, setGrantedCatalogError] = useState<string | null>(
     null
   );
+
+  const [feedbackModal, setFeedbackModal] = useState<null | {
+    type: "success" | "error";
+    title: string;
+    message: string;
+    /** When true, primary action navigates to the access policies list */
+    navigateToList: boolean;
+  }>(null);
+
+  const dismissFeedbackModal = () => {
+    const shouldNavigate = feedbackModal?.navigateToList === true;
+    setFeedbackModal(null);
+    if (shouldNavigate) {
+      router.push("/settings/gateway/manage-access-policy");
+    }
+  };
 
   catalogPageRef.current = catalogPage;
 
@@ -585,7 +603,12 @@ export default function CreateAccessPolicyPage() {
         );
 
         console.log("Update policy result:", result);
-        alert("Policy updated successfully!");
+        setFeedbackModal({
+          type: "success",
+          title: "Policy updated",
+          message: "Your access policy was saved successfully.",
+          navigateToList: true,
+        });
       } else {
         // CREATE mode: existing PUT behavior
         const parameters = [
@@ -611,11 +634,25 @@ export default function CreateAccessPolicyPage() {
         );
 
         console.log("Create policy result:", result);
-        alert("Policy created successfully!");
+        setFeedbackModal({
+          type: "success",
+          title: "Policy created",
+          message: "Your new access policy was created successfully.",
+          navigateToList: true,
+        });
       }
     } catch (error) {
       console.error("Failed to create policy:", error);
-      alert("Failed to create policy. Please check console for details.");
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Something went wrong. Please try again or check the console for details.";
+      setFeedbackModal({
+        type: "error",
+        title: "Could not save policy",
+        message,
+        navigateToList: false,
+      });
     }
   };
 
@@ -1607,6 +1644,71 @@ export default function CreateAccessPolicyPage() {
           </div>
         </div>
       </div>
+
+      {feedbackModal && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 px-4"
+          role="presentation"
+          onClick={(e) => {
+            if (e.target !== e.currentTarget) return;
+            // Success flow: only the primary button navigates to the list
+            if (feedbackModal?.navigateToList) return;
+            dismissFeedbackModal();
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="access-policy-feedback-title"
+            className="w-full max-w-md rounded-lg bg-white shadow-xl border border-gray-200 p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex gap-4">
+              {feedbackModal.type === "success" ? (
+                <CheckCircle2
+                  className="h-11 w-11 text-green-600 shrink-0"
+                  aria-hidden
+                />
+              ) : (
+                <AlertCircle
+                  className="h-11 w-11 text-red-600 shrink-0"
+                  aria-hidden
+                />
+              )}
+              <div className="min-w-0 flex-1">
+                <h2
+                  id="access-policy-feedback-title"
+                  className="text-lg font-semibold text-gray-900"
+                >
+                  {feedbackModal.title}
+                </h2>
+                <p className="mt-2 text-sm text-gray-600 whitespace-pre-wrap">
+                  {feedbackModal.message}
+                </p>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              {feedbackModal.navigateToList ? (
+                <button
+                  type="button"
+                  onClick={dismissFeedbackModal}
+                  className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 text-sm font-medium"
+                >
+                  View all policies
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={dismissFeedbackModal}
+                  className="px-4 py-2 rounded-md bg-gray-900 text-white hover:bg-gray-800 text-sm font-medium"
+                >
+                  OK
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

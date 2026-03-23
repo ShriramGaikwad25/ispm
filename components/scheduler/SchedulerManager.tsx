@@ -43,6 +43,7 @@ interface JobSchedule {
   intervalMs?: number;
   previousFireTime?: string;
   nextFireTime?: string;
+  cronExpression?: string;
 }
 
 interface JobLog {
@@ -74,6 +75,15 @@ const MISFIRE_INSTRUCTIONS = [
 const DEFAULT_JOB_CLASS = "com.keyforge.quartz.schedular.jobs.SCIMGatewayJob";
 
 export default function SchedulerManager() {
+  const [popup, setPopup] = useState<{
+    isOpen: boolean;
+    message: string;
+    type: "success" | "error" | "info";
+  }>({
+    isOpen: false,
+    message: "",
+    type: "info",
+  });
   const [selectedSchedule, setSelectedSchedule] = useState<JobSchedule | null>(
     null
   );
@@ -92,6 +102,7 @@ export default function SchedulerManager() {
   const [isUpdatingJson, setIsUpdatingJson] = useState(false);
   const [showNewJobForm, setShowNewJobForm] = useState(false);
   const [showMiddlePanel, setShowMiddlePanel] = useState(false);
+  const [jobSearchTerm, setJobSearchTerm] = useState("");
   const [newJobType, setNewJobType] = useState<"simple" | "cron">("simple");
   const [newJobData, setNewJobData] = useState({
     jobClass: "com.keyforge.quartz.schedular.jobs.SCIMGatewayJob",
@@ -119,6 +130,29 @@ export default function SchedulerManager() {
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const [isGlobalRunning, setIsGlobalRunning] = useState(false);
+
+  const showPopup = (message: string, type: "success" | "error" | "info") => {
+    setPopup({
+      isOpen: true,
+      message,
+      type,
+    });
+  };
+
+  useEffect(() => {
+    if (!popup.isOpen) {
+      return;
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setPopup((prev) => ({ ...prev, isOpen: false }));
+      }
+    };
+
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [popup.isOpen]);
 
   // API call to fetch jobs
   const fetchJobs = async () => {
@@ -282,6 +316,10 @@ export default function SchedulerManager() {
             data.nextFireTime ||
             data.triggers?.[0]?.nextFireTime ||
             selectedSchedule.nextFireTime,
+          cronExpression:
+            data.cronExpression ||
+            data.triggers?.[0]?.cronExpression ||
+            selectedSchedule.cronExpression,
         };
 
         // Only apply if still the selected job
@@ -368,14 +406,15 @@ export default function SchedulerManager() {
       );
       console.log("Job resumed successfully:", resumeResult);
 
-      alert("Job resumed successfully!");
+      showPopup("Job resumed successfully!", "success");
       refreshSelectedJobData();
     } catch (error) {
       console.error("Error resuming job:", error);
-      alert(
+      showPopup(
         `Failed to resume job: ${
           error instanceof Error ? error.message : "Unknown error"
-        }`
+        }`,
+        "error"
       );
     } finally {
       setIsUpdatingJson(false);
@@ -395,14 +434,15 @@ export default function SchedulerManager() {
       );
       console.log("Job paused successfully:", pauseResult);
 
-      alert("Job paused successfully!");
+      showPopup("Job paused successfully!", "success");
       refreshSelectedJobData();
     } catch (error) {
       console.error("Error pausing job:", error);
-      alert(
+      showPopup(
         `Failed to pause job: ${
           error instanceof Error ? error.message : "Unknown error"
-        }`
+        }`,
+        "error"
       );
     } finally {
       setIsUpdatingJson(false);
@@ -423,14 +463,15 @@ export default function SchedulerManager() {
       console.log("Job triggered successfully:", triggerResult);
 
       // Show success message
-      alert("Job triggered successfully!");
+      showPopup("Job triggered successfully!", "success");
       refreshSelectedJobData();
     } catch (error) {
       console.error("Error triggering job:", error);
-      alert(
+      showPopup(
         `Failed to trigger job: ${
           error instanceof Error ? error.message : "Unknown error"
-        }`
+        }`,
+        "error"
       );
     } finally {
       setIsUpdatingJson(false);
@@ -451,7 +492,7 @@ export default function SchedulerManager() {
       try {
         parsedData = JSON.parse(editableJsonData);
       } catch (parseError) {
-        alert("Invalid JSON format. Please check your syntax.");
+        showPopup("Invalid JSON format. Please check your syntax.", "error");
         return;
       }
 
@@ -474,13 +515,14 @@ export default function SchedulerManager() {
       setOriginalJsonData(editableJsonData);
 
       // Show success message
-      alert("JSON data updated successfully!");
+      showPopup("JSON data updated successfully!", "success");
     } catch (error) {
       console.error("Error updating JSON data:", error);
-      alert(
+      showPopup(
         `Failed to update JSON data: ${
           error instanceof Error ? error.message : "Unknown error"
-        }`
+        }`,
+        "error"
       );
     } finally {
       setIsUpdatingJson(false);
@@ -525,7 +567,7 @@ export default function SchedulerManager() {
       console.log("=== JOB CREATED SUCCESSFULLY ===");
       console.log("Response:", createResult);
 
-      alert("Job created successfully!");
+      showPopup("Job created successfully!", "success");
       setShowNewJobForm(false);
       setShowMiddlePanel(false);
       // Reset form
@@ -548,10 +590,11 @@ export default function SchedulerManager() {
         stack: error instanceof Error ? error.stack : undefined,
         error: error,
       });
-      alert(
+      showPopup(
         `Failed to create job: ${
           error instanceof Error ? error.message : "Unknown error"
-        }`
+        }`,
+        "error"
       );
     } finally {
       setIsUpdatingJson(false);
@@ -811,7 +854,7 @@ export default function SchedulerManager() {
         });
         setShowStartDatePicker(false);
       } else {
-        alert("Start date must be before end date");
+        showPopup("Start date must be before end date", "error");
       }
     } else {
       if (validateDateRange(selectedSchedule?.startDate || "", newDateTime)) {
@@ -821,7 +864,7 @@ export default function SchedulerManager() {
         });
         setShowEndDatePicker(false);
       } else {
-        alert("End date must be after start date");
+        showPopup("End date must be after start date", "error");
       }
     }
   };
@@ -844,7 +887,7 @@ export default function SchedulerManager() {
           startDate: newDateTime,
         });
       } else {
-        alert("Start date must be before end date");
+        showPopup("Start date must be before end date", "error");
       }
     } else {
       if (validateDateRange(selectedSchedule?.startDate || "", newDateTime)) {
@@ -853,7 +896,7 @@ export default function SchedulerManager() {
           endDate: newDateTime,
         });
       } else {
-        alert("End date must be after start date");
+        showPopup("End date must be after start date", "error");
       }
     }
   };
@@ -912,7 +955,10 @@ export default function SchedulerManager() {
 
       // If start date is in the future, don't start immediately
       if (startTime > now) {
-        alert(`Campaign will start at ${startTime.toLocaleString()}`);
+        showPopup(
+          `Campaign will start at ${startTime.toLocaleString()}`,
+          "info"
+        );
         return;
       }
 
@@ -1012,8 +1058,55 @@ export default function SchedulerManager() {
     }
   };
 
+  const formatIntervalHours = (intervalMs?: number): string => {
+    if (typeof intervalMs !== "number" || Number.isNaN(intervalMs)) {
+      return "N/A";
+    }
+
+    const hours = intervalMs / (1000 * 60 * 60);
+    // Keep whole hours clean, otherwise show up to 2 decimals
+    return Number.isInteger(hours) ? `${hours}` : `${hours.toFixed(2)}`;
+  };
+
+  const filteredSchedules = schedules.filter((schedule) => {
+    const term = jobSearchTerm.trim().toLowerCase();
+    if (!term) return true;
+
+    return (
+      schedule.name.toLowerCase().includes(term) ||
+      (schedule.groupName || "").toLowerCase().includes(term)
+    );
+  });
+
   return (
     <div className="scheduler-manager">
+      {popup.isOpen && (
+        <div
+          className="scheduler-modal-overlay"
+          onClick={() => setPopup((prev) => ({ ...prev, isOpen: false }))}
+        >
+          <div
+            className="scheduler-modal"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Scheduler notification"
+          >
+            <div className={`scheduler-modal-badge scheduler-modal-${popup.type}`}>
+              {popup.type.toUpperCase()}
+            </div>
+            <p className="scheduler-modal-message">{popup.message}</p>
+            <div className="scheduler-modal-actions">
+              <button
+                className="scheduler-modal-btn"
+                onClick={() => setPopup((prev) => ({ ...prev, isOpen: false }))}
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="scheduler-header">
         {selectedSchedule ? (
@@ -1146,6 +1239,15 @@ export default function SchedulerManager() {
               {showNewJobForm ? "Cancel" : "New"}
             </button>
           </div>
+          <div className="job-search-wrapper">
+            <input
+              type="text"
+              className="job-search-input"
+              placeholder="Search jobs..."
+              value={jobSearchTerm}
+              onChange={(e) => setJobSearchTerm(e.target.value)}
+            />
+          </div>
 
           {loading ? (
             <div className="loading-container">
@@ -1171,8 +1273,12 @@ export default function SchedulerManager() {
                     Create First Job
                   </button>
                 </div>
+              ) : filteredSchedules.length === 0 ? (
+                <div className="no-jobs">
+                  <p>No jobs match your search</p>
+                </div>
               ) : (
-                schedules.map((schedule) => (
+                filteredSchedules.map((schedule) => (
                   <div
                     key={schedule.id}
                     className={`trigger-item ${
@@ -1546,9 +1652,9 @@ export default function SchedulerManager() {
                             </span>
                           </div>
                           <div className="info-item">
-                            <span className="info-label">Interval (ms):</span>
+                            <span className="info-label">Interval (hours):</span>
                             <span className="info-value">
-                              {selectedSchedule.intervalMs || "N/A"}
+                              {formatIntervalHours(selectedSchedule.intervalMs)}
                             </span>
                           </div>
                         </div>
@@ -1573,6 +1679,18 @@ export default function SchedulerManager() {
                               {selectedSchedule.nextFireTime || "N/A"}
                             </span>
                           </div>
+                          {(selectedSchedule.type || "")
+                            .toUpperCase()
+                            .includes("CRON") && (
+                            <div className="info-item">
+                              <span className="info-label">
+                                Cron Expression:
+                              </span>
+                              <span className="info-value">
+                                {selectedSchedule.cronExpression || "N/A"}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>

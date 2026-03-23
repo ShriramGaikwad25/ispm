@@ -5,6 +5,75 @@
   flex-direction: column;
   background-color: #f8f9fa;
   font-family: Arial, Helvetica, sans-serif;
+  position: relative;
+}
+
+.scheduler-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.scheduler-modal {
+  width: 100%;
+  max-width: 460px;
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  padding: 20px;
+}
+
+.scheduler-modal-badge {
+  display: inline-block;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  border-radius: 999px;
+  padding: 5px 10px;
+}
+
+.scheduler-modal-success {
+  background-color: #198754;
+}
+
+.scheduler-modal-error {
+  background-color: #dc3545;
+}
+
+.scheduler-modal-info {
+  background-color: #0d6efd;
+}
+
+.scheduler-modal-message {
+  margin: 14px 0 20px;
+  color: #212529;
+  line-height: 1.5;
+}
+
+.scheduler-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.scheduler-modal-btn {
+  min-width: 90px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: none;
+  background: #0d6efd;
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.scheduler-modal-btn:hover {
+  background: #0b5ed7;
 }
 
 /* Header Styles */
@@ -257,6 +326,7 @@
 /* Main Content */
 .scheduler-content {
   flex: 1;
+  min-height: 0;
   display: flex;
   height: calc(100vh - 100px);
 }
@@ -264,14 +334,16 @@
 /* Left Panel - Triggers List Only */
 .triggers-panel {
   width: 25%;
+  min-height: 0;
   background-color: #ffffff;
   border-right: 2px solid #e9ecef;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .triggers-header {
+  flex-shrink: 0;
   padding: 20px;
   border-bottom: 1px solid #e9ecef;
   display: flex;
@@ -286,6 +358,36 @@
   margin: 0;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.job-search-wrapper {
+  flex-shrink: 0;
+  padding: 12px 20px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+/* Scroll only the jobs list (loading/error live in same scroll region) */
+.triggers-panel > :last-child {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.job-search-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #495057;
+  background-color: #ffffff;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.job-search-input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.2);
 }
 
 .new-trigger-btn {

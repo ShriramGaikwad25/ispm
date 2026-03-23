@@ -924,6 +924,7 @@ const PendingApprovalDetailPage = ({
           const selectedAction = lineItemActions[lineItemKey] ?? null;
           const isLockedByServer =
             (baselineLineItemActions[lineItemKey] ?? null) !== null;
+          const lockedAction = baselineLineItemActions[lineItemKey] ?? null;
           const approveFilled = selectedAction === "approve";
           const rejectFilled = selectedAction === "reject";
           const isItemLoading = lineItemLoading[lineItemKey] ?? false;
@@ -1059,6 +1060,32 @@ const PendingApprovalDetailPage = ({
                 )}
 
                 <div className="flex items-center gap-2 shrink-0">
+                  {isLockedByServer ? (
+                    <div className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-1">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                          lockedAction === "approve"
+                            ? "bg-green-100 text-green-700"
+                            : "bg-rose-100 text-rose-700"
+                        }`}
+                      >
+                        {lockedAction === "approve" ? "Approved" : "Rejected"}
+                      </span>
+                      <button
+                        type="button"
+                        title="View comment"
+                        aria-label="View comment"
+                        disabled={isItemLoading}
+                        onClick={(e) => openCommentModal(e, lineItemKey, lineItem.comments)}
+                        className={`text-xs font-medium text-blue-600 hover:text-blue-700 ${
+                          isItemLoading ? "cursor-not-allowed opacity-60" : ""
+                        }`}
+                      >
+                        View comment
+                      </button>
+                    </div>
+                  ) : (
+                  <>
                   <button
                     type="button"
                     title={approveFilled ? "Undo Approve" : "Approve"}
@@ -1141,9 +1168,9 @@ const PendingApprovalDetailPage = ({
                     type="button"
                     title="Requester comment"
                     aria-label="Requester comment"
-                    disabled={isActionsDisabled}
+                    disabled={isItemLoading}
                     onClick={(e) => openCommentModal(e, lineItemKey, lineItem.comments)}
-                    className={`p-1 rounded flex items-center justify-center ${isActionsDisabled ? "opacity-60 cursor-not-allowed" : ""}`}
+                    className={`p-1 rounded flex items-center justify-center ${isItemLoading ? "opacity-60 cursor-not-allowed" : ""}`}
                   >
                     <svg
                       width="30"
@@ -1171,6 +1198,8 @@ const PendingApprovalDetailPage = ({
                   >
                     <RotateCcw className="h-4 w-4 text-blue-600" />
                   </button>
+                  </>
+                  )}
                   <span className="text-gray-500 ml-1" aria-hidden>
                     {isItemExpanded ? (
                       <ChevronUp className="w-4 h-4" />
@@ -1196,6 +1225,19 @@ const PendingApprovalDetailPage = ({
                       <div className="text-gray-900 whitespace-pre-wrap break-words">
                         {effectiveComment || "No requester comment provided."}
                       </div>
+                      {isLockedByServer && (
+                        <div className="pt-1">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                              lockedAction === "approve"
+                                ? "bg-green-100 text-green-700"
+                                : "bg-rose-100 text-rose-700"
+                            }`}
+                          >
+                            {lockedAction === "approve" ? "Approved" : "Rejected"}
+                          </span>
+                        </div>
+                      )}
                     </div>
                     <div className="space-y-1">
                       <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">
@@ -1244,10 +1286,17 @@ const PendingApprovalDetailPage = ({
             className="bg-white p-4 rounded-lg shadow-lg max-w-md w-full mx-4"
             onClick={(e) => e.stopPropagation()}
           >
+            {(() => {
+              const isCommentReadOnly =
+                commentModalItemKey !== null &&
+                (baselineLineItemActions[commentModalItemKey] ?? null) !== null;
+              return (
+                <>
             <div className="mb-4">
               <h3 className="text-lg font-semibold text-gray-900">Requester Comment</h3>
             </div>
 
+            {!isCommentReadOnly && (
             <div className="mb-3">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Comment Suggestions
@@ -1330,6 +1379,7 @@ const PendingApprovalDetailPage = ({
                 )}
               </div>
             </div>
+            )}
 
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1345,6 +1395,7 @@ const PendingApprovalDetailPage = ({
                 }
                 className="w-full h-24 px-3 py-2 border border-gray-300 rounded-md resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 autoFocus
+                readOnly={isCommentReadOnly}
               />
             </div>
 
@@ -1359,28 +1410,33 @@ const PendingApprovalDetailPage = ({
                 onClick={closeCommentModal}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors min-w-[72px]"
               >
-                Cancel
+                {isCommentReadOnly ? "Close" : "Cancel"}
               </button>
-              <button
-                onClick={saveComment}
-                disabled={
-                  !commentDraft.trim() ||
-                  (commentModalItemKey
-                    ? lineItemLoading[commentModalItemKey] ?? false
-                    : false)
-                }
-                className={`px-4 py-2 text-sm font-medium rounded-md focus:outline-none focus:ring-2 transition-colors min-w-[72px] ${
-                  commentDraft.trim()
-                    ? "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500"
-                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                }`}
-              >
-                {commentModalItemKey &&
-                (lineItemLoading[commentModalItemKey] ?? false)
-                  ? "Saving..."
-                  : "Save"}
-              </button>
+              {!isCommentReadOnly && (
+                <button
+                  onClick={saveComment}
+                  disabled={
+                    !commentDraft.trim() ||
+                    (commentModalItemKey
+                      ? lineItemLoading[commentModalItemKey] ?? false
+                      : false)
+                  }
+                  className={`px-4 py-2 text-sm font-medium rounded-md focus:outline-none focus:ring-2 transition-colors min-w-[72px] ${
+                    commentDraft.trim()
+                      ? "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500"
+                      : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                  }`}
+                >
+                  {commentModalItemKey &&
+                  (lineItemLoading[commentModalItemKey] ?? false)
+                    ? "Saving..."
+                    : "Save"}
+                </button>
+              )}
             </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}
