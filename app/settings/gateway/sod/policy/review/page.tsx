@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { CalendarDays, FileText, FolderTree, ShieldCheck, UserRound } from "lucide-react";
+import { CalendarDays, FileText, FolderTree, ShieldCheck, UserRound, Printer } from "lucide-react";
 
 const SOD_POLICY_VIEW_STORAGE_KEY = "sodPolicyViewDraft";
 
@@ -211,8 +211,20 @@ export default function SodPolicyReviewPage() {
   }, [data.policyId, hasData]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-gray-100">
-      <div className="mx-auto w-full max-w-7xl space-y-4">
+    <div className="relative min-h-screen bg-gradient-to-b from-slate-50 to-gray-100">
+      <div className="absolute top-0 right-0 z-20 print:hidden p-0 m-0">
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="inline-flex items-center justify-center p-0 m-0 border-0 bg-transparent text-gray-600 shadow-none hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 rounded"
+          title="Print page"
+          aria-label="Print page"
+        >
+          <Printer className="h-5 w-5" />
+        </button>
+      </div>
+      <div className="mx-auto w-full max-w-7xl">
+        <div className="space-y-4">
         <div className="rounded-xl border border-blue-100 bg-white px-5 py-4 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -222,7 +234,7 @@ export default function SodPolicyReviewPage() {
               </p>
             </div>
             {hasData && (
-              <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+              <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 shrink-0">
                 {data.policyId || "Policy"}
               </span>
             )}
@@ -304,9 +316,9 @@ export default function SodPolicyReviewPage() {
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
+                          {/* <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
                             Policy
-                          </th>
+                          </th> */}
                           <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
                             Statement_Type
                           </th>
@@ -325,9 +337,9 @@ export default function SodPolicyReviewPage() {
                             : [];
                           return (
                           <tr key={`${row.policyId}-${row.statementType}-${row.ruleId}`}>
-                            <td className="px-3 py-2 text-xs text-gray-900">
+                            {/* <td className="px-3 py-2 text-xs text-gray-900">
                               {data.name ? `${row.policyId} - ${data.name}` : row.policyId}
-                            </td>
+                            </td> */}
                             <td className="px-3 py-2 text-xs text-gray-900">{row.statementType}</td>
                             <td className="px-3 py-2 text-xs text-gray-900">
                               {row.ruleName ? `${row.ruleId} - ${row.ruleName}` : row.ruleId}
@@ -357,6 +369,7 @@ export default function SodPolicyReviewPage() {
               </div>
             </div>
           )}
+        </div>
         </div>
       </div>
     </div>

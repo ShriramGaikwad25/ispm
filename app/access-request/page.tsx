@@ -13,7 +13,6 @@ import { useCart } from "@/contexts/CartContext";
 import { useItemDetails } from "@/contexts/ItemDetailsContext";
 import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
 import { getCurrentUser, getReviewerId } from "@/lib/auth";
-import ActionCompletedToast from "@/components/ActionCompletedToast";
 
 function clearAccessRequestSelections(
   clearCart: () => void,
@@ -118,7 +117,7 @@ const AccessRequest: React.FC = () => {
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const pendingNavigateUrlRef = useRef<string | null>(null);
 
-  const [showSubmitSuccessToast, setShowSubmitSuccessToast] = useState(false);
+  const [showSubmitSuccessPopup, setShowSubmitSuccessPopup] = useState(false);
   const [submitRequestId, setSubmitRequestId] = useState<string | null>(null);
 
   // Browser leave (refresh, close tab, external link): show native confirm
@@ -417,7 +416,7 @@ const AccessRequest: React.FC = () => {
     }
 
     setSubmitRequestId(extractedRequestId);
-    setShowSubmitSuccessToast(true);
+    setShowSubmitSuccessPopup(true);
 
     // Keep existing debug logging / clipboard copy of full internal payload
     console.log("Access Request Payload:", JSON.stringify(payload, null, 2));
@@ -692,17 +691,58 @@ const AccessRequest: React.FC = () => {
         </>
       )}
 
-      {/* Submission success toast */}
-      <ActionCompletedToast
-        isVisible={showSubmitSuccessToast}
-        messages={
-          submitRequestId
-            ? ["Request submitted successfully", `Request ID: ${submitRequestId}`]
-            : ["Request submitted successfully", "Request ID has been generated."]
-        }
-        onClose={() => setShowSubmitSuccessToast(false)}
-        messageDuration={1500}
-      />
+      {/* Submission success popup */}
+      {showSubmitSuccessPopup && (
+        <div
+          className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="submit-success-title"
+        >
+          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
+            <h2 id="submit-success-title" className="text-xl font-semibold text-gray-900">
+              Request submitted successfully
+            </h2>
+            <p className="mt-3 text-sm text-gray-600">Your Request ID is:</p>
+            <div className="mt-2 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-lg font-semibold text-blue-900">
+              {submitRequestId || "Generated successfully"}
+            </div>
+
+            <div className="mt-6 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSubmitSuccessPopup(false);
+                  router.push("/");
+                }}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+              >
+                Home
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSubmitSuccessPopup(false);
+                  router.push("/access-request");
+                }}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+              >
+                Request Access
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSubmitSuccessPopup(false);
+                  router.push("/track-request");
+                }}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                Track Request
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Step 2 Content */}
       {currentStep === 2 && (

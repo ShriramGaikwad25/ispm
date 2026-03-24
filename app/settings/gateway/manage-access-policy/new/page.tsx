@@ -16,6 +16,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Users,
+  Printer,
 } from "lucide-react";
 import ExpressionBuilder from "@/components/ExpressionBuilder";
 import { getRiskColor, type Role } from "@/app/access-request/AddDetailsSidebarContent";
@@ -1517,8 +1518,20 @@ export default function CreateAccessPolicyPage() {
 
   if (isViewMode) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-gray-100">
-        <div className="mx-auto w-full max-w-6xl space-y-4 py-3 px-6">
+      <div className="relative min-h-screen bg-gradient-to-b from-slate-50 to-gray-100">
+        <div className="absolute top-0 right-0 z-20 print:hidden p-0 m-0">
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="inline-flex items-center justify-center p-0 m-0 border-0 bg-transparent text-gray-600 shadow-none hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 rounded"
+            title="Print page"
+            aria-label="Print page"
+          >
+            <Printer className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="mx-auto w-full max-w-6xl">
+          <div className="space-y-4 py-3 px-6">
           <div className="rounded-xl border border-blue-100 bg-white px-5 py-4 shadow-sm">
             <div className="min-w-0">
               <h1 className="text-2xl font-bold text-gray-900">
@@ -1547,6 +1560,7 @@ export default function CreateAccessPolicyPage() {
             {viewHydrateStatus === "ok" && (
               <Step4Content variant="review" />
             )}
+          </div>
           </div>
         </div>
       </div>

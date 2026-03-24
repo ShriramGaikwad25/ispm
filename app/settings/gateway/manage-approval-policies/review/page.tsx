@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Printer } from "lucide-react";
 import { executeQuery } from "@/lib/api";
 
 const APPROVAL_POLICY_VIEW_STORAGE_KEY = "approvalPolicyViewDraft";
@@ -393,14 +393,26 @@ export default function ApprovalPolicyReviewPage() {
       : null);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-gray-100">
-      <div className="mx-auto w-full max-w-6xl space-y-4 py-3 px-6">
-        <div className="flex items-center justify-between mb-1">
+    <div className="relative min-h-screen bg-gradient-to-b from-slate-50 to-gray-100">
+      <div className="absolute top-0 right-0 z-20 print:hidden p-0 m-0">
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="inline-flex items-center justify-center p-0 m-0 border-0 bg-transparent text-gray-600 shadow-none hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 rounded"
+          title="Print page"
+          aria-label="Print page"
+        >
+          <Printer className="h-5 w-5" />
+        </button>
+      </div>
+      <div className="mx-auto w-full max-w-6xl">
+        <div className="space-y-4 py-3 px-6">
+        <div className="flex items-center justify-between gap-2 mb-1">
           <h1 className="text-lg font-semibold text-gray-900">
             Review and Submit Approval Policy
           </h1>
           {hasData && (
-            <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+            <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 shrink-0">
               {data.id || "Policy"}
             </span>
           )}
@@ -566,6 +578,7 @@ export default function ApprovalPolicyReviewPage() {
               </div>
             </div>
           )}
+        </div>
         </div>
       </div>
     </div>

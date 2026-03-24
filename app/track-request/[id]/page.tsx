@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { FileText, ChevronDown, ChevronUp } from "lucide-react";
+import { FileText, ChevronDown, ChevronUp, Printer } from "lucide-react";
 import { getReviewerId } from "@/lib/auth";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 
@@ -715,7 +715,19 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
   );
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="relative">
+      <div className="absolute top-0 right-0 z-10 print:hidden p-0 m-0">
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="inline-flex items-center justify-center pr-8 m-0 border-0 bg-transparent text-gray-600 shadow-none hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 rounded"
+          title="Print page"
+          aria-label="Print page"
+        >
+          <Printer className="h-5 w-5" />
+        </button>
+      </div>
+      <div className="p-6 space-y-6">
       {/* Request Header Section */}
       <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
         {/* Row 1: Request ID + Request Type */}
@@ -726,7 +738,7 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
               Request ID: {request.id}
             </h2>
           </div>
-          <div className="inline-flex items-center px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-xs font-medium text-blue-700">
+          <div className="inline-flex items-center px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-xs font-medium text-blue-700 self-end sm:self-auto">
             Request Type:{" "}
             <span className="ml-1 font-semibold">
               {request.details.type || request.entityType}
@@ -998,6 +1010,7 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
             </div>
           );
         })}
+      </div>
       </div>
     </div>
   );

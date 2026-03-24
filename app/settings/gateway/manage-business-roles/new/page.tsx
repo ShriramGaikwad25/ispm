@@ -1,11 +1,13 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { ChevronLeft, ChevronRight, Check, ChevronDown } from "lucide-react";
+import { ChevronLeft, ChevronRight, Check, ChevronDown, Printer, Eye } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
 import { useCart } from "@/contexts/CartContext";
 import SelectAccessTab from "@/app/access-request/SelectAccessTab";
+
+const BUSINESS_ROLE_VIEW_STORAGE_KEY = "businessRoleViewDraft";
 
 interface Step1Data {
   roleName: string;
@@ -616,6 +618,54 @@ export default function NewBusinessRoleWizard() {
 
       {/* Spacer so content is not hidden under fixed step bar */}
       <div className="h-[72px]" aria-hidden />
+
+      {currentStep === 3 && (
+        <div className="flex w-full justify-end print:hidden gap-3 p-0 m-0 items-center">
+          <button
+            type="button"
+            onClick={() => {
+              try {
+                localStorage.setItem(
+                  BUSINESS_ROLE_VIEW_STORAGE_KEY,
+                  JSON.stringify({
+                    businessRoleId: businessRoleId.trim() || undefined,
+                    roleName: formData.step1.roleName,
+                    roleCode: formData.step1.roleCode,
+                    description: formData.step1.description,
+                    owner: selectedOwnerLabel || selectedOwnerUserName || formData.step1.owner,
+                    ownerId: formData.step1.owner,
+                    tags: formData.step1.tags.join(", "),
+                    tagsArray: formData.step1.tags,
+                    selectedAccessIds: cartItems.map((c) => c.id),
+                    accessItems: cartItems.map((c) => ({
+                      id: c.id,
+                      name: c.name,
+                      risk: c.risk,
+                    })),
+                    raw: null,
+                  })
+                );
+              } catch (e) {
+                console.error("Unable to save business role view draft:", e);
+              }
+              router.push("/settings/gateway/manage-business-roles/review");
+            }}
+            className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+          >
+            <Eye className="h-4 w-4" />
+            Open review page
+          </button>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="inline-flex items-center justify-center p-0 m-0 border-0 bg-transparent text-gray-600 shadow-none hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 rounded"
+            title="Print page"
+            aria-label="Print page"
+          >
+            <Printer className="h-5 w-5" />
+          </button>
+        </div>
+      )}
 
       <div className="w-full py-2 px-4">
         <div className="w-full">

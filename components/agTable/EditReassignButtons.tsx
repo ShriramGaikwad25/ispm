@@ -224,9 +224,6 @@ const EditReassignButtons = <T extends { status?: string }>({
       <div className="p-4 border-b bg-gray-50">
         <div className="flex justify-between items-start">
           <div className="flex-1">
-            <h2 className="text-lg font-semibold mb-8 ">
-              {isEditModeLocal ? "Edit Entitlement" : "Entitlement Details"}
-            </h2>
             {errorMessage ? (
               <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
                 <p className="text-sm text-red-600">{errorMessage}</p>
@@ -641,7 +638,7 @@ const EditReassignButtons = <T extends { status?: string }>({
           alert("Changes saved successfully");
         }}
       />,
-      { widthPx: 500 }
+      { widthPx: 500, title: "Edit Entitlement" }
     );
 
     // Initialize editable fields with most recent node data
@@ -730,7 +727,7 @@ const EditReassignButtons = <T extends { status?: string }>({
           alert("Changes saved successfully");
         }}
       />,
-      { widthPx: 500 }
+      { widthPx: 500, title: "Entitlement Details" }
     );
   };
 

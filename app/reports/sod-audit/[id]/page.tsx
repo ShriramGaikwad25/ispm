@@ -9,10 +9,12 @@ import sodViolations from "@/public/SodVoilations.json";
 import sodPolicies from "@/public/SODPolicy.json";
 import sodRules from "@/public/SOdRules.json";
 import ruleEntitlementRows from "@/public/RuleEntitlement.json";
+import mitigatingControlCatalog from "@/public/MitigatingControl.json";
 import { useAuth } from "@/contexts/AuthContext";
 import { getReviewerId } from "@/lib/auth";
 
 type Violation = (typeof sodViolations)[number];
+type MitigatingControlCatalogRow = (typeof mitigatingControlCatalog)[number];
 
 /** Renders `id` in bold and `name` in normal weight (e.g. **R3** — Payment Release). */
 function IdNameLine({
@@ -155,10 +157,26 @@ export default function SodViolationDetailPage() {
 
   const mitigatingControls = useMemo(() => {
     if (!policy || !policy["Mitigating Control ID"]) return [];
+    const catalogMap = new Map(
+      (Array.isArray(mitigatingControlCatalog) ? mitigatingControlCatalog : []).map(
+        (row: MitigatingControlCatalogRow) => [
+          String(row["Control ID"] ?? "").trim(),
+          String(row.Name ?? "").trim(),
+        ]
+      )
+    );
+
     return String(policy["Mitigating Control ID"])
       .split("\n")
-      .map((id: string) => id.trim())
-      .filter(Boolean);
+      .map((controlId: string) => {
+        const id = controlId.trim();
+        if (!id) return null;
+        return {
+          id,
+          name: catalogMap.get(id) || "",
+        };
+      })
+      .filter((mc): mc is { id: string; name: string } => Boolean(mc));
   }, [policy]);
 
   const [activeTab, setActiveTab] = useState<"accept" | "remediate" | "mitigate">("accept");
@@ -750,8 +768,8 @@ export default function SodViolationDetailPage() {
                         Select a mitigating control
                       </option>
                       {mitigatingControls.map((mc) => (
-                        <option key={mc} value={mc}>
-                          {mc}
+                        <option key={mc.id} value={mc.id}>
+                          {mc.name ? `${mc.id} - ${mc.name}` : mc.id}
                         </option>
                       ))}
                     </select>

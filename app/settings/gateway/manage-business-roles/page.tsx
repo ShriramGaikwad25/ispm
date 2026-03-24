@@ -3,11 +3,13 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
 import { themeQuartz } from "ag-grid-community";
 import { useRouter } from "next/navigation";
-import { Users, Plus, Search, Pencil } from "lucide-react";
+import { Plus, Search, Pencil, Eye } from "lucide-react";
 import { AgGridReact } from "ag-grid-react";
 import type { ColDef } from "ag-grid-community";
 import CustomPagination from "@/components/agTable/CustomPagination";
 import { executeQuery } from "@/lib/api";
+
+const BUSINESS_ROLE_VIEW_STORAGE_KEY = "businessRoleViewDraft";
 
 interface BusinessRoleRow {
   businessRoleId?: string;
@@ -240,6 +242,34 @@ export default function ManageBusinessRolesSettings() {
     [router]
   );
 
+  const handleView = useCallback(
+    (row: BusinessRoleRow) => {
+      try {
+        const r = row as unknown as Record<string, unknown>;
+        localStorage.setItem(
+          BUSINESS_ROLE_VIEW_STORAGE_KEY,
+          JSON.stringify({
+            businessRoleId: row.businessRoleId ?? "",
+            roleName: row.roleName ?? "",
+            roleCode: row.roleCode ?? "",
+            description: row.description ?? "",
+            owner: row.owner ?? "",
+            ownerId: row.ownerId ?? "",
+            tags: row.tags ?? "",
+            noOfUsers: row.noOfUsers,
+            noOfPermissions: row.noOfPermissions,
+            selectedAccessIds: row.selectedAccessIds ?? [],
+            raw: r,
+          })
+        );
+      } catch (error) {
+        console.error("Unable to save business role view draft:", error);
+      }
+      router.push("/settings/gateway/manage-business-roles/review");
+    },
+    [router]
+  );
+
   const columnDefs = useMemo<ColDef[]>(
     () => [
       {
@@ -294,18 +324,31 @@ export default function ManageBusinessRolesSettings() {
         flex: 1,
         cellRenderer: (params: any) => {
           return (
-            <button
-              type="button"
-              onClick={() => handleEdit(params.data as BusinessRoleRow)}
-              className="inline-flex items-center justify-center px-2 py-1 text-sm rounded-md border border-gray-300 text-blue-600 hover:bg-blue-50"
-            >
-              <Pencil className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleView(params.data as BusinessRoleRow)}
+                className="inline-flex items-center justify-center p-1.5 rounded-md hover:bg-gray-100 transition-colors"
+                aria-label="View business role"
+                title="View"
+              >
+                <Eye className="w-4 h-4 text-gray-700" />
+              </button>
+              <button
+                type="button"
+                onClick={() => handleEdit(params.data as BusinessRoleRow)}
+                className="inline-flex items-center justify-center p-1.5 rounded-md hover:bg-gray-100 transition-colors"
+                aria-label="Edit business role"
+                title="Edit"
+              >
+                <Pencil className="w-4 h-4 text-gray-700" />
+              </button>
+            </div>
           );
         },
       },
     ],
-    [handleEdit]
+    [handleEdit, handleView]
   );
 
   const handlePageChange = (newPage: number) => {

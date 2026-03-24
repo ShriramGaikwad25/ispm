@@ -123,11 +123,15 @@ export function Navigation() {
     if (pathname === '/settings/gateway/manage-approval-policies/review') {
       return { href: '/settings/gateway/manage-approval-policies', label: 'Back to Approval Policy' };
     }
+    if (pathname === '/settings/gateway/manage-business-roles/review') {
+      return { href: '/settings/gateway/manage-business-roles', label: 'Back to Manage Business Roles' };
+    }
     if (pathname === '/settings/gateway/entitlement-management' || pathname === '/settings/gateway/workflow-builder' ||
         pathname === '/settings/gateway/sam' || pathname === '/settings/gateway/native-users' ||
         pathname === '/settings/gateway/admin-roles' || pathname === '/settings/gateway/custom-schema' ||
         pathname === '/settings/gateway/general' || pathname === '/settings/gateway/scheduler' ||
-        pathname === '/settings/gateway/manage-business-roles' || pathname === '/settings/gateway/manage-approval-policies') {
+        pathname === '/settings/gateway/manage-business-roles' || pathname === '/settings/gateway/manage-approval-policies' ||
+        pathname === '/settings/gateway/ai-insights-configuration') {
       return { href: '/settings/gateway', label: 'Back to Gateway' };
     }
     if (pathname.startsWith('/settings/gateway/manage-access-policy')) {

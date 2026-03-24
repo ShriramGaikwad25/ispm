@@ -13,11 +13,17 @@ export default function SodAuditPage() {
   const columnDefs = useMemo<AgGridReactProps["columnDefs"]>(
     () => [
       { headerName: "ID", field: "Violation_ID", sortable: true, width: 90 },
-      { headerName: "Identity", field: "Identity", sortable: true },
-      { headerName: "Department", field: "Department", sortable: true, width: 140 },
-      { headerName: "SOD Policy Name", field: "SOD_Policy_Name", sortable: true, flex: 2.5 },
+      { headerName: "Identity", field: "Identity", sortable: true, width: 140 },
+      { headerName: "Department", field: "Department", sortable: true, width: 130 },
+      {
+        headerName: "SOD Policy Name",
+        field: "SOD_Policy_Name",
+        sortable: true,
+        flex: 4,
+        minWidth: 320,
+      },
       { headerName: "Risk", field: "Risk_Level", sortable: true, width: 110 },
-      { headerName: "Detection Date", field: "Detection Date", sortable: true, width: 140 },
+      { headerName: "Detection Date", field: "Detection Date", sortable: true, width: 130 },
       {
         headerName: "Status",
         field: "Status",

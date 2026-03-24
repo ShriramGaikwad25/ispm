@@ -27,6 +27,7 @@ import {
   Info,
   HelpCircle,
   Search,
+  Printer,
 } from "lucide-react";
 import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
@@ -1407,16 +1408,79 @@ export default function ApplicationDetailPage() {
             return items;
           }
 
-          const extraRowsCount = 10;
+          const orphanSummarySeed = [
+            {
+              accountName: "svc_fin_batch01",
+              entitlementName: "ZISU_CS_DISPLAY_NOTIFICATION",
+              description:
+                "Oversees end-to-end payroll flows, validations, and costing. Ensures secure handling of sensitive pay data and approvals under governed workflows.",
+            },
+            {
+              accountName: "svc_ap_integration",
+              entitlementName: "ZNEW_CS_ACC_OFFICER",
+              description:
+                "Supervises utilities billing, invoicing, and collections. Ensures regulated workflows, dispute handling, and evidence under governed workflows.",
+            },
+            {
+              accountName: "svc_hr_sync",
+              entitlementName: "ZNEW_DM_REVENUE_ACC",
+              description:
+                "Executes directory group membership for routing access. Ensures SSO mapping and least-privilege enablement under governed workflows.",
+            },
+            {
+              accountName: "svc_payroll_job",
+              entitlementName: "ZISU_BILLING_INVOICE_DISPLAY",
+              description:
+                "Handles core SAP business activities. Ensures policy-aligned execution and oversight under governed workflows.",
+            },
+            {
+              accountName: "svc_mm_interface",
+              entitlementName: "ZNEW_WORKFLOW_FI_RETENTION",
+              description:
+                "Leads financial postings, inquiries, and period controls. Ensures balance integrity, reconciliations, and approvals under governed workflows.",
+            },
+            {
+              accountName: "svc_sd_pricing",
+              entitlementName: "Z_FI_GL_POST_ENTRY",
+              description:
+                "Executes powerful technical functions and integrations. Ensures change control, monitoring, and traceability under governed workflows.",
+            },
+            {
+              accountName: "svc_fi_closing",
+              entitlementName: "ZEWE_MM_REPORTS",
+              description:
+                "Supports utilities billing, invoicing, and collections. Ensures regulated workflows, dispute handling, and evidence under governed workflows.",
+            },
+            {
+              accountName: "svc_audit_extract",
+              entitlementName: "ZEWE:ACCOUNTING_ANALYST",
+              description:
+                "Directs HR transactions and worker data maintenance. Ensures accuracy, approvals, and privacy safeguards under governed workflows.",
+            },
+            {
+              accountName: "svc_basis_monitor",
+              entitlementName: "ZNEW_FICA_GEN_ENQ",
+              description:
+                "Executes core SAP business activities. Ensures policy-aligned execution and oversight under governed workflows.",
+            },
+            {
+              accountName: "svc_vendor_sync",
+              entitlementName: "SAP_FI_AR_CASH_POSTING",
+              description:
+                "Post AR cash receipts and related customer account transactions.",
+            },
+          ];
+
+          const extraRowsCount = 20;
           const sapStaticRows = Array.from({ length: extraRowsCount }).map((_, index) => {
             const num = index + 1;
+            const seed = orphanSummarySeed[index % orphanSummarySeed.length];
             return {
-              accountName: `sap-svc-account-${num.toString().padStart(2, "0")}`,
-              entitlementName: num <= 3 ? "SAP Basis Admin" : num <= 6 ? "SAP Functional Owner" : "SAP Read-Only",
+              accountName: `${seed.accountName}-${num.toString().padStart(2, "0")}`,
+              entitlementName: seed.entitlementName,
               entitlementDescription:
                 "Static demo service account for SAP to visually fill the grid. This row is non-functional and used only for layout purposes in the prototype.",
-              description:
-                "Static SAP service account used to showcase how a full page of service accounts would look for this application.",
+              description: seed.description,
               userManager: num <= 5 ? "SAP Operations" : "SAP Security",
               lastlogindate: "2024-02-0" + ((num % 9) + 1).toString(),
               businessService: "SAP",
@@ -3755,7 +3819,7 @@ export default function ApplicationDetailPage() {
           />
         )}
         {mounted && accountsTabIndex === 1 && (
-          <div style={{ height: 600, width: "100%" }}>
+          <div style={{ width: "100%" }}>
             <AgGridReact
               key={`service-accounts-grid-${filteredServiceAccountsRowData.length}-${currentPage}-${pageSize}`}
               rowData={filteredServiceAccountsRowData.slice((currentPage - 1) * pageSize, currentPage * pageSize)}
@@ -3764,6 +3828,7 @@ export default function ApplicationDetailPage() {
               masterDetail={true}
               detailCellRendererParams={serviceAccountsDetailCellRendererParams}
               detailRowHeight={300}
+              domLayout="autoHeight"
               onGridReady={(params: any) => {
                 serviceAccountsGridApiRef.current = params.api;
               }}
@@ -4133,7 +4198,18 @@ export default function ApplicationDetailPage() {
         };
 
         return (
-          <div className="sampling-tab-content">
+          <div className="sampling-tab-content relative">
+            <div className="absolute top-0 right-0 z-10 print:hidden p-0 m-0">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="inline-flex items-center justify-center pr-8 m-0 border-0 bg-transparent text-gray-600 shadow-none hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 rounded"
+                title="Print page"
+                aria-label="Print page"
+              >
+                <Printer className="h-5 w-5" />
+              </button>
+            </div>
             <div
               className="search-container"
               style={{

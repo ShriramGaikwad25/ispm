@@ -287,9 +287,9 @@ const TrackRequest: React.FC = () => {
       {
         headerName: "ID",
         field: "id",
-        width: 120,
+        flex: 0.55,
         minWidth: 110,
-        suppressSizeToFit: true,
+        maxWidth: 140,
         sortable: true,
         sort: "desc",
         sortIndex: 0,
@@ -331,8 +331,9 @@ const TrackRequest: React.FC = () => {
       {
         headerName: "Comments",
         field: "comments",
-        flex: 4.5,
-        minWidth: 360,
+        // Keep comments as the dominant column when grid auto-adjusts.
+        flex: 6.5,
+        minWidth: 460,
         ...wrappedTextCol,
         valueGetter: (params) => params.data?.details?.globalComments ?? "-",
       },

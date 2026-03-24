@@ -1348,7 +1348,10 @@ const CatalogPageContent = () => {
                     );
                   };
                   
-                  openSidebar(<InfoSidebar />, { widthPx: 500 });
+                  openSidebar(<InfoSidebar />, {
+                    widthPx: 500,
+                    title: "Entitlement Details",
+                  });
                 }}
                 title="Info"
                 className="cursor-pointer rounded-sm hover:opacity-80"

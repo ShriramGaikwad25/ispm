@@ -1,7 +1,7 @@
 "use client";
 import SegmentedControl from "@/components/SegmentedControl";
 import { themeQuartz } from "ag-grid-community";
-import { History, CircleX, CirclePlus, FileText, Search, Plus, Ban, Calendar, Edit, Trash2 } from "lucide-react";
+import { History, CircleX, CirclePlus, Search, Plus, Ban, Calendar, Edit, Trash2, Printer } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { executeQuery } from "@/lib/api";
 import type { ColDef } from "ag-grid-enterprise";
@@ -210,7 +210,11 @@ const AddProxyUserSidebar = ({ onClose }: { onClose: () => void }) => {
                   emailValue = primaryEmail?.value || "";
                 }
               }
+              const internalId =
+                user.userid ?? user.id ?? user.userUniqueID ?? "";
               return {
+                userid: internalId,
+                id: internalId,
                 username: user.username || "",
                 email: emailValue,
               };
@@ -270,10 +274,18 @@ const AddProxyUserSidebar = ({ onClose }: { onClose: () => void }) => {
       return;
     }
 
+    const proxyUserId =
+      selectedUser.userid ?? selectedUser.id ?? selectedUser.userUniqueID ?? "";
+    if (!proxyUserId) {
+      alert("Could not resolve the selected user's id. Please pick another user or try again.");
+      return;
+    }
+
+    // identity must be the proxy target user's UUID (usr.userid), not email/username
     const proxyUserData = {
-      identity: selectedUser.email || selectedUser.username,
       startDate,
       endDate,
+      identity: proxyUserId,
       justification,
       capabilities: [
         capabilities.requestAccess && "Request Access",
@@ -359,7 +371,7 @@ const AddProxyUserSidebar = ({ onClose }: { onClose: () => void }) => {
           <div className="mt-2 border border-gray-200 rounded-lg max-h-60 overflow-y-auto">
             {filteredUsers.map((user, index) => (
               <div
-                key={index}
+                key={String(user.id ?? user.userid ?? user.username ?? index)}
                 onClick={() => {
                   setSelectedUser(user);
                   setSearchValue(user.email || user.username);
@@ -1812,8 +1824,18 @@ export default function UserDetailPage() {
 
   return (
     <>
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="relative mb-4 p-0 m-0">
+        <div className="absolute top-0 right-0 z-10 print:hidden p-0 m-0">
+          <button
+            onClick={handlePrint}
+            className="inline-flex items-center justify-center p-0 m-0 border-0 bg-transparent text-gray-600 shadow-none hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 rounded"
+            title="Print page"
+            aria-label="Print page"
+          >
+            <Printer size={20} />
+          </button>
+        </div>
+        <div className="flex items-center gap-3 no-print">
           <button
             onClick={() => {
               openSidebar(
@@ -1821,18 +1843,11 @@ export default function UserDetailPage() {
                 { widthPx: 480, title: "Add Proxy User" }
               );
             }}
-            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 text-sm rounded-md font-medium transition-colors no-print"
+            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 text-sm rounded-md font-medium transition-colors"
             title="Add Proxy User"
           >
             <Plus className="w-4 h-4" />
             Add Proxy User
-          </button>
-          <button
-            onClick={handlePrint}
-            className="flex items-center justify-center text-red-600 hover:text-red-700 transition-colors no-print"
-            title="Export to PDF"
-          >
-            <FileText size={20} />
           </button>
         </div>
       </div>

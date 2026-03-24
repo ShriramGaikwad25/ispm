@@ -501,7 +501,7 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
         <div className="flex justify-between items-center gap-2 mb-3">
           <h2 className="text-base font-medium text-gray-800">AI Assist - Quick Wins</h2>
           <span className="flex-shrink-0 text-[10px] sm:text-xs font-semibold text-violet-900 bg-gradient-to-r from-violet-100 to-purple-100 border border-violet-300/90 rounded-md px-2 py-0.5 shadow-sm">
-            Campaign Data Analysis
+            Campaign Data Insights
           </span>
         </div>
 

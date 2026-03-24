@@ -2251,7 +2251,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
       {
         field: "entitlementName",
         headerName: "Entitlement",
-        flex: 1,
+        flex: 2.2,
         minWidth: 300,
         autoHeight: true,
         wrapText: true,
@@ -2334,12 +2334,12 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     <Flag height={10} color="red" className="text-sm" />
                   </div>
                 )}
-                <span 
+                {/* <span 
                   className="font-normal text-sm"
                   style={textColor ? { color: textColor } : {}}
                 >
                   {lines[1]}
-                </span>
+                </span> */}
               </div>
             </div>
           );
@@ -2436,6 +2436,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
         cols.push({
           headerName: "Actions",
           width: 250,
+          minWidth: 230,
+          maxWidth: 290,
           cellRenderer: (params: ICellRendererParams) => {
           // Check if current row is selected
           const isCurrentRowSelected = params.node?.isSelected() || false;
@@ -2525,8 +2527,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
       {
         field: "peerEntitlement",
         headerName: "Entitlement",
-        flex: 1.15,
-        minWidth: 140,
+        flex: 2.4,
+        minWidth: 260,
         sortable: true,
         filter: true,
       },
@@ -2600,8 +2602,9 @@ const TreeClient: React.FC<TreeClientProps> = ({
       {
         colId: "peer_actions",
         headerName: "Action",
-        flex: 1.25,
+        width: 240,
         minWidth: 220,
+        maxWidth: 280,
         sortable: false,
         filter: false,
         cellRenderer: (params: ICellRendererParams) => {
@@ -3089,7 +3092,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     <input
                       type="text"
                       placeholder="Search entitlements..."
-                      className="border rounded px-3 py-1 w-64"
+                      className="border rounded px-3 py-2 w-64"
                       value={entitlementSearch}
                       onChange={(e) => {
                         setEntitlementSearch(e.target.value);
@@ -3133,7 +3136,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                   <div className="flex justify-between items-center gap-2 mb-3 flex-shrink-0">
                     <h2 className="text-sm font-medium text-gray-800">AI Assist - Quick Wins</h2>
                     <span className="flex-shrink-0 text-[10px] sm:text-xs font-semibold text-violet-900 bg-gradient-to-r from-violet-100 to-purple-100 border border-violet-300/90 rounded-md px-2 py-0.5 shadow-sm">
-                      Campaign Data Analysis
+                      Campaign Data Insights
                     </span>
                   </div>
                   <div className="flex flex-col gap-4 flex-1 min-h-0">
@@ -3371,6 +3374,11 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       window.removeEventListener("resize", handleResize);
                     });
                   }}
+                  onGridSizeChanged={(params) => {
+                    try {
+                      params.api.sizeColumnsToFit();
+                    } catch {}
+                  }}
                   isRowSelectable={(node) => !node?.data?.__isDescRow}
                   getRowId={(params: GetRowIdParams) => {
                     const baseId = params.data.lineItemId || params.data.accountLineItemId || params.data.taskId || `${params.data.applicationName}-${params.data.entitlementName}`;
@@ -3509,13 +3517,17 @@ const TreeClient: React.FC<TreeClientProps> = ({
             style={{ height: "92vh", minHeight: "78vh", maxHeight: "96vh" }}
           >
             <div className="flex items-center justify-between border-b px-4 py-3 shrink-0">
-              <h3 className="text-sm font-semibold text-gray-800">
-                AI Assist - Quick Wins –{" "}
-                {guidedPathModalSource === "speedPeer"
-                  ? "Peer match (executeQuery result)"
-                  : guidedPathModalFilter === "Dormant"
-                    ? "Dormant Accounts"
-                    : "All Access"}
+              <h3 className="text-sm font-semibold text-gray-800 inline-flex items-center gap-2">
+                <span>AI Assist - Quick Wins</span>
+                <span className="text-[10px] font-semibold text-violet-900 bg-violet-100 border border-violet-300 rounded px-1.5 py-0.5">
+                  Sample data
+                </span>
+                {guidedPathModalSource !== "speedPeer" && (
+                  <>
+                    {" "}
+                    - {guidedPathModalFilter === "Dormant" ? "Dormant Accounts" : "All Access"}
+                  </>
+                )}
               </h3>
               <button
                 className="text-gray-400 hover:text-gray-600 text-lg leading-none"
@@ -3534,7 +3546,11 @@ const TreeClient: React.FC<TreeClientProps> = ({
                 ×
               </button>
             </div>
-            <div className="flex items-center gap-2 px-4 py-2 border-b shrink-0">
+            <div
+              className={`flex items-center gap-2 px-4 py-2 shrink-0 ${
+                guidedPathModalSource === "speedPeer" ? "" : "border-b"
+              }`}
+            >
               {guidedPathModalSource === "entitlements" ? (
                 <>
                   <span className="text-xs font-medium text-gray-500">Filter:</span>
@@ -3575,19 +3591,26 @@ const TreeClient: React.FC<TreeClientProps> = ({
                   <input
                     type="text"
                     placeholder="Search entitlements..."
-                    className="border border-gray-300 rounded px-3 py-1 text-xs flex-1 min-w-0 max-w-md"
+                    className="border border-gray-300 rounded px-3 py-2 text-xs flex-1 min-w-0 max-w-md"
                     value={speedPeerModalSearch}
                     onChange={(e) => setSpeedPeerModalSearch(e.target.value)}
                   />
                 </>
               )}
-              <span className="ml-auto text-[11px] text-gray-500 shrink-0">
-                {guidedPathModalSource === "speedPeer"
-                  ? speedPeerTaskRowsLoading
-                    ? "…"
-                    : `${guidedPathModalRowsForGrid.length} item${guidedPathModalRowsForGrid.length === 1 ? "" : "s"}`
-                  : `${guidedPathModalRows.length} item${guidedPathModalRows.length === 1 ? "" : "s"}`}
-              </span>
+              <button
+                className="ml-auto px-3 py-1.5 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                disabled={
+                  guidedPathModalSource === "speedPeer"
+                    ? speedPeerTaskRowsLoading || quickWinsApprovedCards.card1
+                    : quickWinsApprovedCards.card2
+                }
+                onClick={() => {
+                  setQuickWinsPendingCard(guidedPathModalSource === "speedPeer" ? "card1" : "card2");
+                  setQuickWinsApproveConfirmOpen(true);
+                }}
+              >
+                Approve All
+              </button>
             </div>
             <div className="flex-1 flex flex-col min-h-0 px-4 py-3 overflow-hidden relative">
               {guidedPathModalSource === "speedPeer" && speedPeerTaskRowsLoading ? (
@@ -3631,6 +3654,14 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       isRowSelectable={(node) => !node?.data?.__isDescRow}
                       onGridReady={(params) => {
                         guidedPathGridApiRef.current = params.api;
+                        try {
+                          params.api.sizeColumnsToFit();
+                        } catch {}
+                      }}
+                      onGridSizeChanged={(params) => {
+                        try {
+                          params.api.sizeColumnsToFit();
+                        } catch {}
                       }}
                       onSelectionChanged={(event) => {
                         try {
