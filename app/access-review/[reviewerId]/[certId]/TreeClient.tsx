@@ -293,6 +293,25 @@ const SPEED_PEER_REVIEW_QUERY =
 const SPEED_PEER_REVIEW_PAGE_SIZE = 50;
 const SPEED_PEER_REVIEW_OFFSET = 0;
 
+/** Low Risk card %: share of kf_insights rows where entitlement_risk_level is Low for this reviewer. */
+const LOW_RISK_QUICK_WIN_PERCENT_QUERY =
+  "SELECT SUM(CASE WHEN insight -> 'risk_assessment' -> 'details' ->> 'entitlement_risk_level' = ? THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*),0) AS percentage FROM taskdetails t, jsonb_array_elements(COALESCE(t.aiassist -> 'kf_insights','[]'::jsonb)) AS insight WHERE insight -> 'latest_decision' ->> 'reviewer' = ? LIMIT ? OFFSET ?";
+
+const LOW_RISK_ENTITLEMENT_RISK_LEVEL = "Low";
+const LOW_RISK_PERCENT_LIMIT = 50;
+const LOW_RISK_PERCENT_OFFSET = 0;
+
+/** Low Risk card Review table: grouped by user; parameters `["Low", "Jessica Camacho", 50, 0]`. */
+const LOW_RISK_PEER_REVIEW_QUERY =
+  "SELECT jsonb_build_object('resultSet', COALESCE(jsonb_object_agg(user_displayname, user_items), '{}'::jsonb)) AS result FROM ( SELECT COALESCE(insight -> 'user_context' ->> 'user_displayname','Unknown User') AS user_displayname, jsonb_agg(insight) AS user_items FROM taskdetails t, jsonb_array_elements(COALESCE(t.aiassist -> 'kf_insights','[]'::jsonb)) AS insight WHERE insight -> 'risk_assessment' -> 'details' ->> 'entitlement_risk_level' = ? AND insight -> 'latest_decision' ->> 'reviewer' = ? GROUP BY COALESCE(insight -> 'user_context' ->> 'user_displayname','Unknown User') ORDER BY user_displayname LIMIT ? OFFSET ? ) s";
+
+const LOW_RISK_PEER_REVIEW_PARAMETERS: [string, string, number, number] = [
+  LOW_RISK_ENTITLEMENT_RISK_LEVEL,
+  SPEED_QUICK_WIN_REVIEWER_PARAM,
+  LOW_RISK_PERCENT_LIMIT,
+  LOW_RISK_PERCENT_OFFSET,
+];
+
 interface TreeClientProps {
   reviewerId: string;
   certId: string;
@@ -797,6 +816,10 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const [speedPeerTaskRowsLoading, setSpeedPeerTaskRowsLoading] = useState(false);
   const [speedPeerTaskRowsError, setSpeedPeerTaskRowsError] = useState<string | null>(null);
   const [speedPeerModalSearch, setSpeedPeerModalSearch] = useState("");
+  /** Which Quick Wins card opened the peer Review modal (for Approve All / approve state). */
+  const [peerQuickWinReviewSource, setPeerQuickWinReviewSource] = useState<"card1" | "card2" | null>(
+    null
+  );
   /** Insights use `openSidebar` only; state kept so any stale references / HMR don’t throw. */
   const [speedPeerInsightDetail, setSpeedPeerInsightDetail] = useState<unknown | null>(null);
   const [guidedPathModalPageNumber, setGuidedPathModalPageNumber] = useState(1);
@@ -804,8 +827,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const [guidedPathModalFilter, setGuidedPathModalFilter] = useState<"Dormant" | "Access">(
     "Dormant"
   );
-  const [guidedPathSelectedCount, setGuidedPathSelectedCount] = useState(0);
-  const [guidedPathSelectedRows, setGuidedPathSelectedRows] = useState<any[]>([]);
   const guidedPathGridApiRef = useRef<GridApi | null>(null);
   // Quick Wins Approve confirmation state (track per card)
   const [quickWinsApproveConfirmOpen, setQuickWinsApproveConfirmOpen] = useState(false);
@@ -816,6 +837,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
   });
   const [speedQuickWinPercent, setSpeedQuickWinPercent] = useState<number | null>(null);
   const [loadingSpeedQuickWin, setLoadingSpeedQuickWin] = useState(false);
+  const [lowRiskQuickWinPercent, setLowRiskQuickWinPercent] = useState<number | null>(null);
+  const [loadingLowRiskQuickWin, setLoadingLowRiskQuickWin] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -851,6 +874,82 @@ const TreeClient: React.FC<TreeClientProps> = ({
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadLowRiskQuickWinPercent = async () => {
+      setLoadingLowRiskQuickWin(true);
+      try {
+        const parameters = [
+          LOW_RISK_ENTITLEMENT_RISK_LEVEL,
+          SPEED_QUICK_WIN_REVIEWER_PARAM,
+          LOW_RISK_PERCENT_LIMIT,
+          LOW_RISK_PERCENT_OFFSET,
+        ];
+        const response = await executeQuery<{ resultSet?: Array<{ percentage?: number | string | null }> }>(
+          LOW_RISK_QUICK_WIN_PERCENT_QUERY,
+          parameters
+        );
+        const raw = response?.resultSet?.[0]?.percentage;
+        if (cancelled) return;
+        if (raw === null || raw === undefined) {
+          setLowRiskQuickWinPercent(null);
+          return;
+        }
+        const num = typeof raw === "string" ? parseFloat(raw) : Number(raw);
+        if (!Number.isFinite(num)) {
+          setLowRiskQuickWinPercent(null);
+          return;
+        }
+        setLowRiskQuickWinPercent(Math.floor(num * 100) / 100);
+      } catch (e) {
+        console.error("Error fetching AI Quick Win Low Risk percentage:", e);
+        if (!cancelled) setLowRiskQuickWinPercent(null);
+      } finally {
+        if (!cancelled) setLoadingLowRiskQuickWin(false);
+      }
+    };
+    loadLowRiskQuickWinPercent();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const openPeerReviewQuickWinModal = useCallback((openedFromCard: "card1" | "card2") => {
+    setPeerQuickWinReviewSource(openedFromCard);
+    guidedPathGridApiRef.current?.deselectAll();
+    setGuidedPathModalSource("speedPeer");
+    setSpeedPeerModalSearch("");
+    setSpeedPeerTaskRows([]);
+    setSpeedPeerTaskRowsError(null);
+    setSpeedPeerTaskRowsLoading(true);
+    setGuidedPathModalOpen(true);
+    void (async () => {
+      try {
+        const response = await executeQuery<any>(
+          openedFromCard === "card2"
+            ? LOW_RISK_PEER_REVIEW_QUERY
+            : SPEED_PEER_REVIEW_QUERY,
+          openedFromCard === "card2"
+            ? LOW_RISK_PEER_REVIEW_PARAMETERS
+            : [
+                SPEED_QUICK_WIN_REVIEWER_PARAM,
+                SPEED_QUICK_WIN_PERCENT_THRESHOLD,
+                SPEED_PEER_REVIEW_PAGE_SIZE,
+                SPEED_PEER_REVIEW_OFFSET,
+              ]
+        );
+        setSpeedPeerTaskRows(normalizeSpeedPeerReviewRows(response));
+      } catch (err) {
+        setSpeedPeerTaskRowsError(
+          err instanceof Error ? err.message : "Failed to load task details"
+        );
+        setSpeedPeerTaskRows([]);
+      } finally {
+        setSpeedPeerTaskRowsLoading(false);
+      }
+    })();
   }, []);
 
   useEffect(() => {
@@ -1787,11 +1886,9 @@ const TreeClient: React.FC<TreeClientProps> = ({
       if (filters.length > 0 && filters[0] !== "All") {
         setSelectedFilters(filters);
       } else {
-        // Clear status filters and any Guided Path selections / floating actions
+        // Clear status filters and any Guided Path grid selection state
         setSelectedFilters([]);
         guidedPathGridApiRef.current?.deselectAll();
-        setGuidedPathSelectedCount(0);
-        setGuidedPathSelectedRows([]);
       }
 
       // Only reset to page 1 when filter changes; do NOT refetch - we already have full
@@ -2650,8 +2747,14 @@ const TreeClient: React.FC<TreeClientProps> = ({
   }, [guidedPathModalSource, speedPeerTaskRows, speedPeerModalSearch, guidedPathModalRows]);
 
   const guidedPathModalGridColumnDefs = useMemo<ColDef[]>(() => {
-    if (guidedPathModalSource === "speedPeer") return speedPeerModalColumnDefs;
-    return entitlementsColumnDefs;
+    if (guidedPathModalSource === "speedPeer") {
+      return speedPeerModalColumnDefs.filter(
+        (col) => col.colId !== "peer_actions" && col.colId !== "insights_icon"
+      );
+    }
+    return entitlementsColumnDefs.filter(
+      (col) => col.headerName !== "Actions" && col.headerName !== "Insights"
+    );
   }, [guidedPathModalSource, speedPeerModalColumnDefs, entitlementsColumnDefs]);
 
   const guidedPathModalTotalPages = useMemo(() => {
@@ -3196,33 +3299,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                               disabled={quickWinsApprovedCards.card1}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                guidedPathGridApiRef.current?.deselectAll();
-                                setGuidedPathSelectedCount(0);
-                                setGuidedPathSelectedRows([]);
-                                setGuidedPathModalSource("speedPeer");
-                                setSpeedPeerModalSearch("");
-                                setSpeedPeerTaskRows([]);
-                                setSpeedPeerTaskRowsError(null);
-                                setSpeedPeerTaskRowsLoading(true);
-                                setGuidedPathModalOpen(true);
-                                void (async () => {
-                                  try {
-                                    const response = await executeQuery<any>(SPEED_PEER_REVIEW_QUERY, [
-                                      SPEED_QUICK_WIN_REVIEWER_PARAM,
-                                      SPEED_QUICK_WIN_PERCENT_THRESHOLD,
-                                      SPEED_PEER_REVIEW_PAGE_SIZE,
-                                      SPEED_PEER_REVIEW_OFFSET,
-                                    ]);
-                                    setSpeedPeerTaskRows(normalizeSpeedPeerReviewRows(response));
-                                  } catch (err) {
-                                    setSpeedPeerTaskRowsError(
-                                      err instanceof Error ? err.message : "Failed to load task details"
-                                    );
-                                    setSpeedPeerTaskRows([]);
-                                  } finally {
-                                    setSpeedPeerTaskRowsLoading(false);
-                                  }
-                                })();
+                                openPeerReviewQuickWinModal("card1");
                               }}
                             >
                               Review
@@ -3253,7 +3330,11 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       <div className="absolute inset-0 flex flex-col items-center justify-center px-3 text-center">
                         <p className="text-sm font-semibold text-emerald-800">Low Risk</p>
                         <span className="mt-0.5 text-xs font-bold text-emerald-600">
-                          25% Completion
+                          {loadingLowRiskQuickWin
+                            ? "…"
+                            : lowRiskQuickWinPercent != null
+                              ? `${lowRiskQuickWinPercent.toFixed(2)}% Completion`
+                              : "—"}
                         </span>
                       </div>
                       {/* Second page content on hover with diagonal sweep from top-right to bottom-left */}
@@ -3291,12 +3372,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                               disabled={quickWinsApprovedCards.card2}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                guidedPathGridApiRef.current?.deselectAll();
-                                setGuidedPathSelectedCount(0);
-                                setGuidedPathSelectedRows([]);
-                                setGuidedPathModalSource("entitlements");
-                                setGuidedPathModalFilter("Access");
-                                setGuidedPathModalOpen(true);
+                                openPeerReviewQuickWinModal("card2");
                               }}
                             >
                               Review
@@ -3534,13 +3610,12 @@ const TreeClient: React.FC<TreeClientProps> = ({
                 onClick={() => {
                   setGuidedPathModalOpen(false);
                   setGuidedPathModalSource("entitlements");
+                  setPeerQuickWinReviewSource(null);
                   setSpeedPeerModalSearch("");
                   setSpeedPeerInsightDetail(null);
                   setGuidedPathModalPageNumber(1);
                   setGuidedPathModalPageSize(10);
                   guidedPathGridApiRef.current?.deselectAll();
-                  setGuidedPathSelectedCount(0);
-                  setGuidedPathSelectedRows([]);
                 }}
               >
                 ×
@@ -3562,8 +3637,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     }`}
                     onClick={() => {
                       guidedPathGridApiRef.current?.deselectAll();
-                      setGuidedPathSelectedCount(0);
-                      setGuidedPathSelectedRows([]);
                       setGuidedPathModalFilter("Dormant");
                     }}
                   >
@@ -3577,8 +3650,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     }`}
                     onClick={() => {
                       guidedPathGridApiRef.current?.deselectAll();
-                      setGuidedPathSelectedCount(0);
-                      setGuidedPathSelectedRows([]);
                       setGuidedPathModalFilter("Access");
                     }}
                   >
@@ -3601,11 +3672,20 @@ const TreeClient: React.FC<TreeClientProps> = ({
                 className="ml-auto px-3 py-1.5 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                 disabled={
                   guidedPathModalSource === "speedPeer"
-                    ? speedPeerTaskRowsLoading || quickWinsApprovedCards.card1
+                    ? speedPeerTaskRowsLoading ||
+                      (peerQuickWinReviewSource === "card2"
+                        ? quickWinsApprovedCards.card2
+                        : quickWinsApprovedCards.card1)
                     : quickWinsApprovedCards.card2
                 }
                 onClick={() => {
-                  setQuickWinsPendingCard(guidedPathModalSource === "speedPeer" ? "card1" : "card2");
+                  setQuickWinsPendingCard(
+                    guidedPathModalSource === "speedPeer"
+                      ? peerQuickWinReviewSource === "card2"
+                        ? "card2"
+                        : "card1"
+                      : "card2"
+                  );
                   setQuickWinsApproveConfirmOpen(true);
                 }}
               >
@@ -3648,10 +3728,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       columnDefs={guidedPathModalGridColumnDefs}
                       defaultColDef={defaultColDef}
                       domLayout="autoHeight"
-                      rowSelection={{ mode: "multiRow" }}
                       suppressSizeToFit={false}
                       style={{ width: "100%", minWidth: 0 }}
-                      isRowSelectable={(node) => !node?.data?.__isDescRow}
                       onGridReady={(params) => {
                         guidedPathGridApiRef.current = params.api;
                         try {
@@ -3662,16 +3740,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
                         try {
                           params.api.sizeColumnsToFit();
                         } catch {}
-                      }}
-                      onSelectionChanged={(event) => {
-                        try {
-                          const selectedNodes = event.api.getSelectedNodes().filter((n) => !n.data?.__isDescRow);
-                          setGuidedPathSelectedCount(selectedNodes.length);
-                          setGuidedPathSelectedRows(selectedNodes.map((n) => n.data));
-                        } catch {
-                          setGuidedPathSelectedCount(0);
-                          setGuidedPathSelectedRows([]);
-                        }
                       }}
                       getRowId={(params: GetRowIdParams) => {
                         if (guidedPathModalSource === "speedPeer") {
@@ -3710,36 +3778,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       className="ag-main"
                     />
                   </div>
-                  {((guidedPathModalSource === "entitlements" && entitlementsColumnDefs) ||
-                    guidedPathModalSource === "speedPeer") &&
-                    guidedPathSelectedCount > 1 &&
-                    guidedPathSelectedRows.length > 1 && (
-                    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] bg-gray-100 border border-gray-200 rounded-full shadow-lg px-3 py-1.5 flex items-center gap-2">
-                      <span className="text-[11px] text-gray-600">
-                        {guidedPathSelectedCount} selected
-                      </span>
-                      <ActionButtons
-                        api={guidedPathGridApiRef.current as any}
-                        selectedRows={
-                          guidedPathModalSource === "speedPeer"
-                            ? (guidedPathSelectedRows.map((r) =>
-                                mapSpeedPeerRowForActionButtons(r as Record<string, unknown>)
-                              ) as any)
-                            : guidedPathSelectedRows
-                        }
-                        context="entitlement"
-                        reviewerId={reviewerId}
-                        certId={certId}
-                        selectedFilters={selectedFilters}
-                        hideTeamsIcon
-                        onActionSuccess={() => {
-                          guidedPathGridApiRef.current?.deselectAll();
-                          setGuidedPathSelectedCount(0);
-                          setGuidedPathSelectedRows([]);
-                        }}
-                      />
-                    </div>
-                  )}
                 </>
               )}
             </div>
