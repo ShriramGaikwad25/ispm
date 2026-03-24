@@ -4,8 +4,6 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm, Control, FieldValues, UseFormSetValue, UseFormWatch } from "react-hook-form";
 import {
-  Trash2,
-  Plus,
   ChevronLeft,
   ChevronRight,
   Check,
@@ -27,15 +25,22 @@ import { executeQuery } from "@/lib/api";
 import { ACCESS_POLICY_VIEW_STORAGE_KEY } from "@/lib/access-policy-view-storage";
 import { useCart } from "@/contexts/CartContext";
 
-type AccessProvision = {
-  id: string;
-  type: string;
-  application: string;
-  name: string;
-};
+const ENTITLEMENT_UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const VW_CATALOG_BY_ID_QUERY =
-  "SELECT * FROM vw_catalog WHERE catalogid = ?::uuid";
+function sanitizeEntitlementUuid(id: string): string | null {
+  const t = String(id).trim();
+  return ENTITLEMENT_UUID_RE.test(t) ? t : null;
+}
+
+/**
+ * Builds entitlement lookup query with empty parameters array (matches executeQuery API shape).
+ * IDs must be pre-sanitized UUIDs only.
+ */
+function buildEntitlementSelectByIdsQuery(entitlementIds: string[]): string {
+  const quoted = entitlementIds.map((id) => `'${id}'`).join(",");
+  return `SELECT * FROM entitlement WHERE entitlementid in (${quoted})`;
+}
 
 /** Catalog UUIDs from policy row `access_granted` (uses each entry's `value`). */
 function parseAccessGrantedCatalogIds(row: any): string[] {
@@ -112,7 +117,7 @@ function getApplicationNameFromRow(catalogRow: Record<string, unknown> | undefin
 function vwCatalogRowToRole(row: any, index: number): Role {
   const cr = (row || {}) as Record<string, unknown>;
   const nameVal = pickCatalogField(row, "name", "entitlementname");
-  const idVal = pickCatalogField(row, "catalogid");
+  const idVal = pickCatalogField(row, "catalogid", "entitlementid");
   const riskStr = pickCatalogField(row, "risk");
   let risk: Role["risk"] = "Low";
   if (riskStr !== "—") {
@@ -240,7 +245,6 @@ export default function CreateAccessPolicyPage() {
   const [advanced, setAdvanced] = useState(false);
   // If policyId is present, we are editing an existing policy
   const [editingPolicyId, setEditingPolicyId] = useState<string | null>(null);
-  const [accessProvisions, setAccessProvisions] = useState<AccessProvision[]>([]);
   // In edit mode, keep track of granted access ids and names so Step 3 list can preselect/match them
   const [preselectedAccessIds, setPreselectedAccessIds] = useState<string[]>([]);
   const [preselectedAccessNames, setPreselectedAccessNames] = useState<string[]>([]);
@@ -260,7 +264,7 @@ export default function CreateAccessPolicyPage() {
     "loading" | "ok" | "missing"
   >(() => (isViewMode ? "loading" : "ok"));
 
-  /** From policy row `access_granted` — drives vw_catalog fetches for Selected Access. */
+  /** From policy row `access_granted` — entitlement IDs; drives entitlement table fetch for Selected Access. */
   const [accessGrantedCatalogIds, setAccessGrantedCatalogIds] = useState<string[]>(
     []
   );
@@ -502,39 +506,6 @@ export default function CreateAccessPolicyPage() {
     { label: "Status", value: "status" },
     { label: "Access Level", value: "access_level" },
   ];
-
-  const typeOptions = ["Business Role", "Entitlement", "Role", "Permission", "Profile"];
-  const applicationOptions = ["(N/A)", "Salesforce", "SAP", "Active Directory", "ServiceNow"];
-
-  const addAccess = () => {
-    const newAccess: AccessProvision = {
-      id: Date.now().toString(),
-      type: typeOptions[0],
-      application: typeOptions[0] === "Business Role" ? "(N/A)" : applicationOptions[1],
-      name: "",
-    };
-    setAccessProvisions([...accessProvisions, newAccess]);
-  };
-
-  const removeAccess = (id: string) => {
-    setAccessProvisions(accessProvisions.filter((a) => a.id !== id));
-  };
-
-  const updateAccess = (id: string, field: keyof AccessProvision, value: string) => {
-    setAccessProvisions(
-      accessProvisions.map((a) => {
-        if (a.id === id) {
-          const updated = { ...a, [field]: value };
-          // If type is changed to Business Role, set application to (N/A)
-          if (field === "type" && value === "Business Role") {
-            updated.application = "(N/A)";
-          }
-          return updated;
-        }
-        return a;
-      })
-    );
-  };
 
   const onSubmit = async (data: any) => {
     try {
@@ -953,27 +924,47 @@ export default function CreateAccessPolicyPage() {
       setGrantedCatalogLoading(false);
       return;
     }
+    const sanitizedIds = [
+      ...new Set(
+        accessGrantedCatalogIds
+          .map((id) => sanitizeEntitlementUuid(id))
+          .filter((id): id is string => Boolean(id))
+      ),
+    ];
+    if (!sanitizedIds.length) {
+      setGrantedCatalogRows([]);
+      setGrantedCatalogError(null);
+      setGrantedCatalogLoading(false);
+      return;
+    }
     let cancelled = false;
     setGrantedCatalogLoading(true);
     setGrantedCatalogError(null);
     (async () => {
       try {
-        const rows = await Promise.all(
-          accessGrantedCatalogIds.map(async (catalogid) => {
-            const result = await executeQuery<any>(VW_CATALOG_BY_ID_QUERY, [
-              catalogid,
-            ]);
-            const list = normalizeExecuteQueryRows(result);
-            return list[0] ?? null;
+        const query = buildEntitlementSelectByIdsQuery(sanitizedIds);
+        const result = await executeQuery<any>(query, []);
+        const list = normalizeExecuteQueryRows(result);
+        const byEntitlementId = new Map<string, any>();
+        for (const row of list) {
+          if (!row || typeof row !== "object") continue;
+          const idVal = pickCatalogField(row, "entitlementid", "entitlement_id");
+          if (idVal !== "—") byEntitlementId.set(String(idVal).trim().toLowerCase(), row);
+        }
+        const ordered = accessGrantedCatalogIds
+          .map((raw) => {
+            const sid = sanitizeEntitlementUuid(raw);
+            if (!sid) return null;
+            return byEntitlementId.get(sid.toLowerCase()) ?? null;
           })
-        );
+          .filter(Boolean) as any[];
         if (!cancelled) {
-          setGrantedCatalogRows(rows.filter(Boolean));
+          setGrantedCatalogRows(ordered);
         }
       } catch (e: unknown) {
         if (!cancelled) {
           setGrantedCatalogError(
-            e instanceof Error ? e.message : "Failed to load catalog"
+            e instanceof Error ? e.message : "Failed to load selected access"
           );
           setGrantedCatalogRows([]);
         }
@@ -1125,75 +1116,6 @@ export default function CreateAccessPolicyPage() {
           preselectedAccessNames={preselectedAccessNames}
         />
       </div>
-
-      {/* Optional manual access definitions */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">Additional Access</h2>
-        <p className="text-sm text-gray-600 mb-4">
-          Optionally define additional access that will be provisioned when the policy applies.
-        </p>
-
-        <div className="space-y-3">
-          {accessProvisions.map((access) => (
-            <div key={access.id} className="flex items-center gap-3">
-              <select
-                value={access.type}
-                onChange={(e) => updateAccess(access.id, "type", e.target.value)}
-                className="w-40 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {typeOptions.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {opt}
-                  </option>
-                ))}
-              </select>
-              {access.type === "Business Role" ? (
-                <input
-                  type="text"
-                  value={access.application}
-                  readOnly
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500"
-                />
-              ) : (
-                <select
-                  value={access.application}
-                  onChange={(e) => updateAccess(access.id, "application", e.target.value)}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  {applicationOptions.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <input
-                type="text"
-                value={access.name}
-                onChange={(e) => updateAccess(access.id, "name", e.target.value)}
-                placeholder="NAME (ROLE, ENTITLEMENT, ETC.)"
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <button
-                type="button"
-                onClick={() => removeAccess(access.id)}
-                className="p-2 text-red-600 hover:bg-red-50 rounded-md transition-colors"
-              >
-                <Trash2 className="w-5 h-5" />
-              </button>
-            </div>
-          ))}
-        </div>
-
-        <button
-          type="button"
-          onClick={addAccess}
-          className="mt-4 text-blue-600 hover:text-blue-800 font-medium text-sm flex items-center gap-1"
-        >
-          <Plus className="w-4 h-4" />
-          <span>ADD ACCESS</span>
-        </button>
-      </div>
     </div>
   );
 
@@ -1329,7 +1251,7 @@ export default function CreateAccessPolicyPage() {
                   !grantedCatalogError &&
                   grantedCatalogRows.length === 0 && (
                     <p className="px-4 py-4 text-xs text-gray-400">
-                      No matching rows in vw_catalog for the granted access IDs.
+                      No matching rows in entitlement for the granted access IDs.
                     </p>
                   )}
                 {!grantedCatalogLoading && grantedCatalogRows.length > 0 && (
@@ -1476,7 +1398,7 @@ export default function CreateAccessPolicyPage() {
                 !grantedCatalogError &&
                 grantedCatalogRows.length === 0 && (
                   <p className="text-xs text-gray-400">
-                    No matching rows in vw_catalog for the granted access IDs.
+                    No matching rows in entitlement for the granted access IDs.
                   </p>
                 )}
               {!grantedCatalogLoading && grantedCatalogRows.length > 0 && (
