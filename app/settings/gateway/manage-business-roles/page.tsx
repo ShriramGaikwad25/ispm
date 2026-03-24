@@ -134,6 +134,8 @@ export default function ManageBusinessRolesSettings() {
           const noOfUsersRaw =
             row.no_of_users ?? row.noofusers ?? row.usercount ?? row.users_count;
           const noOfPermissionsRaw =
+            row.access_count ??
+            row.accesscount ??
             row.no_of_permissions ??
             row.noofpermissions ??
             row.permissioncount ??

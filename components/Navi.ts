@@ -23,9 +23,7 @@ import {
   Workflow,
   Users,
   ShieldCheck,
-  FileBarChart,
-  Eye,
-  Brain
+  FileBarChart
 } from 'lucide-react';
 
 export interface NavItem {
@@ -89,14 +87,12 @@ export const navLinks: NavItem[] = [
     subItems: [
       { name: 'Integrations', href: '/settings/app-inventory', icon: Package },
       { name: 'Roles', href: '/settings/gateway/manage-business-roles', icon: Shield },
-      { name: 'Review Business Role', href: '/settings/gateway/manage-business-roles/review', icon: Eye },
       { name: 'Scheduler', href: '/settings/gateway/scheduler', icon: Clock },
       { name: 'Access Policy', href: '/settings/gateway/manage-access-policy', icon: Lock },
       { name: 'Approval Policy', href: '/settings/gateway/manage-approval-policies', icon: Workflow },
       { name: 'Workflow', href: '/settings/gateway/workflow-builder', icon: Workflow },
       { name: 'SoD', href: '/settings/gateway/sod', icon: Shield },
-      { name: 'Generic', href: '/settings/gateway', icon: Server },
-      { name: 'AI Insights Configuration', href: '/settings/gateway/ai-insights-configuration', icon: Brain }
+      { name: 'Generic', href: '/settings/gateway', icon: Server }
     ]
   }
 ];

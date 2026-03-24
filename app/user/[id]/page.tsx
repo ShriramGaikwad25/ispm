@@ -32,6 +32,7 @@ import {
 import ChartDataLabels from "chartjs-plugin-datalabels";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import UserDisplayName from "@/components/UserDisplayName";
+import ActionCompletedToast from "@/components/ActionCompletedToast";
 
 // Register Chart.js components and plugin
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend, ChartDataLabels);
@@ -168,11 +169,18 @@ const accountData = [
 ];
 
 // Add Proxy User Sidebar Component
-const AddProxyUserSidebar = ({ onClose }: { onClose: () => void }) => {
+const AddProxyUserSidebar = ({
+  onClose,
+  onProxyUserCreated,
+}: {
+  onClose: () => void;
+  onProxyUserCreated: () => Promise<void>;
+}) => {
   const [searchValue, setSearchValue] = useState("");
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [apiUsers, setApiUsers] = useState<any[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [showResults, setShowResults] = useState(false);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [justification, setJustification] = useState("");
@@ -189,11 +197,11 @@ const AddProxyUserSidebar = ({ onClose }: { onClose: () => void }) => {
       clearTimeout(debounceTimerRef.current);
     }
 
-    if (searchValue.trim() !== "") {
+    if (searchValue.trim().length >= 2) {
       setIsLoadingUsers(true);
       debounceTimerRef.current = setTimeout(async () => {
         try {
-          const query = `SELECT * FROM usr WHERE username ILIKE ? OR email::text ILIKE ?`;
+          const query = `SELECT * FROM usr WHERE username ILIKE ? OR email::text ILIKE ? ORDER BY username ASC LIMIT 25`;
           const response = await executeQuery(query, [`%${searchValue}%`, `%${searchValue}%`]);
           
           let usersData: any[] = [];
@@ -220,7 +228,25 @@ const AddProxyUserSidebar = ({ onClose }: { onClose: () => void }) => {
               };
             });
           }
-          setApiUsers(usersData);
+          // Remove duplicates by userid/id and hide the currently selected profile user
+          const currentProfileUserId = (() => {
+            try {
+              const raw = localStorage.getItem("selectedUserRawFull");
+              if (!raw) return "";
+              const parsed = JSON.parse(raw);
+              return parsed?.userid ?? parsed?.id ?? parsed?.userId ?? "";
+            } catch {
+              return "";
+            }
+          })();
+          const seen = new Set<string>();
+          const deduped = usersData.filter((u) => {
+            const id = String(u.userid ?? u.id ?? "");
+            if (!id || id === currentProfileUserId || seen.has(id)) return false;
+            seen.add(id);
+            return true;
+          });
+          setApiUsers(deduped);
         } catch (error) {
           console.error("Error fetching users:", error);
           setApiUsers([]);
@@ -286,6 +312,7 @@ const AddProxyUserSidebar = ({ onClose }: { onClose: () => void }) => {
       startDate,
       endDate,
       identity: proxyUserId,
+      userName: selectedUser.username || "",
       justification,
       capabilities: [
         capabilities.requestAccess && "Request Access",
@@ -323,10 +350,31 @@ const AddProxyUserSidebar = ({ onClose }: { onClose: () => void }) => {
 
     const userid = getUserIdForProxy();
 
+    const existingProxyUsers = (() => {
+      try {
+        const fullStr = localStorage.getItem("selectedUserRawFull");
+        if (!fullStr) return [];
+        const parsed = JSON.parse(fullStr);
+        const current = Array.isArray(parsed?.proxy_user) ? parsed.proxy_user : [];
+        return current.map((p: any) => ({
+          startDate: p?.startDate || p?.startdate || "",
+          endDate: p?.endDate || p?.enddate || "",
+          identity: p?.identity || "",
+          userName: p?.userName || p?.username || "",
+          justification: p?.justification || "",
+          capabilities: p?.capabilities || "",
+        }));
+      } catch {
+        return [];
+      }
+    })();
+
+    const mergedProxyUsers = [...existingProxyUsers, proxyUserData];
+
     // Build payload for kf_apply_object_change('identity', 'PATCH', ?::jsonb)
     const proxyPayload = {
       userid,
-      proxy_user: [proxyUserData],
+      proxy_user: mergedProxyUsers,
     };
 
     try {
@@ -335,7 +383,7 @@ const AddProxyUserSidebar = ({ onClose }: { onClose: () => void }) => {
         // The entities API accepts arbitrary JSON for parameters, including objects
         [proxyPayload as any]
       );
-      alert("Proxy user added successfully!");
+      await onProxyUserCreated();
       onClose();
     } catch (error) {
       console.error("Error adding proxy user:", error);
@@ -358,27 +406,33 @@ const AddProxyUserSidebar = ({ onClose }: { onClose: () => void }) => {
             type="text"
             placeholder="Search by username or email..."
             value={searchValue}
-            onChange={(e) => setSearchValue(e.target.value)}
+            onFocus={() => setShowResults(true)}
+            onChange={(e) => {
+              setSearchValue(e.target.value);
+              setShowResults(true);
+              setSelectedUser(null);
+            }}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
           />
         </div>
         
         {/* User Results */}
-        {isLoadingUsers && (
+        {isLoadingUsers && showResults && (
           <div className="mt-2 text-sm text-gray-500">Searching...</div>
         )}
-        {!isLoadingUsers && searchValue.trim() && filteredUsers.length > 0 && (
+        {!isLoadingUsers && showResults && searchValue.trim().length >= 2 && filteredUsers.length > 0 && (
           <div className="mt-2 border border-gray-200 rounded-lg max-h-60 overflow-y-auto">
             {filteredUsers.map((user, index) => (
               <div
                 key={String(user.id ?? user.userid ?? user.username ?? index)}
                 onClick={() => {
                   setSelectedUser(user);
-                  setSearchValue(user.email || user.username);
+                  setSearchValue(user.username || user.email);
                   setApiUsers([]);
+                  setShowResults(false);
                 }}
                 className={`p-3 cursor-pointer hover:bg-gray-50 border-b border-gray-100 last:border-b-0 ${
-                  selectedUser?.email === user.email ? "bg-blue-50 border-blue-200" : ""
+                  (selectedUser?.userid ?? selectedUser?.id) === (user.userid ?? user.id) ? "bg-blue-50 border-blue-200" : ""
                 }`}
               >
                 <div className="font-medium text-gray-900">{user.username || "N/A"}</div>
@@ -387,16 +441,23 @@ const AddProxyUserSidebar = ({ onClose }: { onClose: () => void }) => {
             ))}
           </div>
         )}
+        {!isLoadingUsers && showResults && searchValue.trim().length >= 2 && filteredUsers.length === 0 && (
+          <div className="mt-2 text-sm text-gray-500">No users found.</div>
+        )}
+        {!isLoadingUsers && showResults && searchValue.trim().length > 0 && searchValue.trim().length < 2 && (
+          <div className="mt-2 text-sm text-gray-500">Type at least 2 characters to search.</div>
+        )}
         {selectedUser && (
           <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded">
             <span className="text-sm font-medium text-blue-700">
-              Selected: {selectedUser.email || selectedUser.username}
+              Selected: {selectedUser.username || selectedUser.email}
             </span>
             <button
               type="button"
               onClick={() => {
                 setSelectedUser(null);
                 setSearchValue("");
+                setShowResults(true);
               }}
               className="ml-2 text-blue-600 hover:text-blue-800 text-sm"
             >
@@ -494,13 +555,6 @@ const AddProxyUserSidebar = ({ onClose }: { onClose: () => void }) => {
       {/* Submit Buttons */}
       <div className="flex justify-end gap-3 pt-4 border-t">
         <button
-          type="button"
-          onClick={onClose}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-        >
-          Cancel
-        </button>
-        <button
           type="submit"
           className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
         >
@@ -514,7 +568,50 @@ const AddProxyUserSidebar = ({ onClose }: { onClose: () => void }) => {
 export default function UserDetailPage() {
   const [isMounted, setIsMounted] = useState(false);
   const [userData, setUserData] = useState<ProfileUser>(() => buildUserFromStorage());
+  const [showProxyCreatedToast, setShowProxyCreatedToast] = useState(false);
+  const [proxyUsersRefreshKey, setProxyUsersRefreshKey] = useState(0);
   const { openSidebar, closeSidebar } = useRightSidebar();
+
+  const getUserIdFromStorage = (): string => {
+    try {
+      const fullStr = localStorage.getItem("selectedUserRawFull");
+      if (fullStr) {
+        const u = JSON.parse(fullStr);
+        return (
+          u.userid ||
+          u.id ||
+          u.userId ||
+          u.customattributes?.id ||
+          "0109868e-b00c-4f24-ae5f-258029cce1d6"
+        );
+      }
+    } catch {}
+    try {
+      const sel = localStorage.getItem("selectedUserRaw");
+      if (sel) {
+        const s = JSON.parse(sel);
+        return s.id || s.userId || "0109868e-b00c-4f24-ae5f-258029cce1d6";
+      }
+    } catch {}
+    return "0109868e-b00c-4f24-ae5f-258029cce1d6";
+  };
+
+  const refreshSelectedUserData = async () => {
+    const userid = getUserIdFromStorage();
+    try {
+      const res: any = await executeQuery("select * from usr where userid = ?::uuid", [userid]);
+      const latestUser = Array.isArray(res?.resultSet) ? res.resultSet[0] : null;
+      if (latestUser) {
+        localStorage.setItem("selectedUserRawFull", JSON.stringify(latestUser));
+      }
+    } catch (error) {
+      console.error("Error refreshing selected user data:", error);
+    } finally {
+      setUserData(buildUserFromStorage());
+      setProxyUsersRefreshKey((prev) => prev + 1);
+      setShowProxyCreatedToast(true);
+    }
+  };
 
   // Ensure chart and grid render only on client
   useEffect(() => {
@@ -603,6 +700,13 @@ export default function UserDetailPage() {
                 />
               </div>
             </div>
+
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">DOB</label>
+              <p className="text-xs font-semibold text-gray-900 mt-0.5 tracking-widest" aria-label="Date of birth hidden">
+                *****
+              </p>
+            </div>
             
             <div>
               <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Alias</label>
@@ -622,6 +726,32 @@ export default function UserDetailPage() {
             <div>
               <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Start Date</label>
               <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.startDate || "N/A"}</p>
+            </div>
+            
+            {userData.tags && userData.tags.length > 0 && (
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Tags</label>
+                <div className="flex flex-wrap gap-1 mt-0.5">
+                  {userData.tags.map((tag, index) => (
+                    <span
+                      key={index}
+                      className="inline-block bg-blue-100 border border-blue-300 text-blue-800 text-xs px-2 py-0.5 rounded-full"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">User Type</label>
+              <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.userType}</p>
+            </div>
+            
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Manager Email</label>
+              <p className="text-xs font-semibold text-blue-600 mt-0.5">{userData.managerEmail}</p>
             </div>
             
             <div>
@@ -681,32 +811,6 @@ export default function UserDetailPage() {
                 </div>
               )}
             </div>
-            
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">User Type</label>
-              <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.userType}</p>
-            </div>
-            
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Manager Email</label>
-              <p className="text-xs font-semibold text-blue-600 mt-0.5">{userData.managerEmail}</p>
-            </div>
-            
-            {userData.tags && userData.tags.length > 0 && (
-              <div>
-                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Tags</label>
-                <div className="flex flex-wrap gap-1 mt-0.5">
-                  {userData.tags.map((tag, index) => (
-                    <span
-                      key={index}
-                      className="inline-block bg-blue-100 border border-blue-300 text-blue-800 text-xs px-2 py-0.5 rounded-full"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -1460,7 +1564,7 @@ export default function UserDetailPage() {
     );
   };
 
-  const ProxyUsersTab = () => {
+  const ProxyUsersTab = ({ refreshTrigger }: { refreshTrigger: number }) => {
     const [proxyUsers, setProxyUsers] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState<string>("");
@@ -1515,7 +1619,7 @@ export default function UserDetailPage() {
       };
 
       loadProxyUsersFromSelectedUser();
-    }, []);
+    }, [refreshTrigger]);
 
     // Filter data based on search term
     const filteredData = useMemo(() => {
@@ -1688,7 +1792,7 @@ export default function UserDetailPage() {
       },
       {
         label: "Proxy Users",
-        component: ProxyUsersTab,
+        component: () => <ProxyUsersTab refreshTrigger={proxyUsersRefreshKey} />,
       },
     ];
 
@@ -1839,8 +1943,8 @@ export default function UserDetailPage() {
           <button
             onClick={() => {
               openSidebar(
-                <AddProxyUserSidebar onClose={closeSidebar} />,
-                { widthPx: 480, title: "Add Proxy User" }
+                <AddProxyUserSidebar onClose={closeSidebar} onProxyUserCreated={refreshSelectedUserData} />,
+                { widthPx: 480, title: "Add Proxy User", closeOnOutsideClick: false }
               );
             }}
             className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 text-sm rounded-md font-medium transition-colors"
@@ -1852,6 +1956,11 @@ export default function UserDetailPage() {
         </div>
       </div>
       <CombinedView printRef={printRef} />
+      <ActionCompletedToast
+        isVisible={showProxyCreatedToast}
+        message="Proxy user created"
+        onClose={() => setShowProxyCreatedToast(false)}
+      />
     </>
   );
 }

@@ -92,6 +92,86 @@ function loadSavedRoleDetails(itemId: string): { fieldValues?: Record<number, st
   }
 }
 
+/** Priority order: request/workflow identifiers before a generic nested `id`. */
+const SUBMIT_SUCCESS_ID_KEYS = [
+  "requestId",
+  "requestID",
+  "requestid",
+  "requestNo",
+  "requestNumber",
+  "workflowInstanceId",
+  "workflow_instance_id",
+  "Id",
+  "id",
+] as const;
+
+function extractSubmitRequestIdFromResponse(body: unknown): string | null {
+  if (body == null) return null;
+
+  const seen = new WeakSet<object>();
+
+  const visit = (node: unknown, depth: number): string | null => {
+    if (depth > 8) return null;
+
+    if (Array.isArray(node)) {
+      for (const item of node) {
+        const found = visit(item, depth + 1);
+        if (found) return found;
+      }
+      return null;
+    }
+
+    if (typeof node !== "object") return null;
+    if (seen.has(node as object)) return null;
+    seen.add(node as object);
+
+    const rec = node as Record<string, unknown>;
+    for (const key of SUBMIT_SUCCESS_ID_KEYS) {
+      if (!Object.prototype.hasOwnProperty.call(rec, key)) continue;
+      const val = rec[key];
+      if (val !== undefined && val !== null && String(val).trim() !== "") {
+        return String(val).trim();
+      }
+    }
+
+    for (const child of Object.values(rec)) {
+      if (child != null && (typeof child === "object" || Array.isArray(child))) {
+        const found = visit(child, depth + 1);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
+  return visit(body, 0);
+}
+
+function extractRequestIdFromText(rawText: string): string | null {
+  const text = rawText.trim();
+  if (!text) return null;
+
+  const patterns = [
+    /"requestId"\s*:\s*"([^"]+)"/i,
+    /"requestID"\s*:\s*"([^"]+)"/i,
+    /"requestNo"\s*:\s*"([^"]+)"/i,
+    /"requestNumber"\s*:\s*"([^"]+)"/i,
+    /"workflowInstanceId"\s*:\s*"([^"]+)"/i,
+    /"workflow_instance_id"\s*:\s*"([^"]+)"/i,
+    /"Id"\s*:\s*"([^"]+)"/i,
+    /"id"\s*:\s*"([^"]+)"/i,
+    /request\s*id\s*[:=]\s*([A-Za-z0-9-]+)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1] && String(match[1]).trim()) {
+      return String(match[1]).trim();
+    }
+  }
+
+  return null;
+}
+
 const AccessRequest: React.FC = () => {
   const router = useRouter();
   const { selectedUsers, removeUser, clearUsers } = useSelectedUsers();
@@ -371,6 +451,7 @@ const AccessRequest: React.FC = () => {
     }
 
     let responseBody: any = null;
+    let responseText = "";
 
     try {
       const res = await fetch(
@@ -389,31 +470,23 @@ const AccessRequest: React.FC = () => {
         return;
       }
 
-      responseBody = await res.json().catch(() => null);
-      console.log("Submit request succeeded:", responseBody);
+      responseText = await res.text();
+      if (responseText) {
+        try {
+          responseBody = JSON.parse(responseText);
+        } catch {
+          responseBody = null;
+        }
+      }
+      console.log("Submit request succeeded:", responseBody ?? responseText);
     } catch (err) {
       console.error("Error calling submitrequest API:", err);
       return;
     }
 
-    // Try to extract a request ID from the response (best-effort)
-    let extractedRequestId: string | null = null;
-    if (responseBody && typeof responseBody === "object") {
-      const candidateKeys = [
-        "requestId",
-        "requestID",
-        "requestid",
-        "id",
-        "requestNo",
-        "requestNumber",
-      ];
-      for (const key of candidateKeys) {
-        if (responseBody[key]) {
-          extractedRequestId = String(responseBody[key]);
-          break;
-        }
-      }
-    }
+    const extractedRequestId =
+      extractSubmitRequestIdFromResponse(responseBody) ||
+      extractRequestIdFromText(responseText);
 
     setSubmitRequestId(extractedRequestId);
     setShowSubmitSuccessPopup(true);

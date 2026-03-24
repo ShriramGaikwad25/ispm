@@ -352,8 +352,7 @@ export default function ServiceAccountPage() {
                         <div className="p-4 border-b bg-gray-50">
                           <div className="flex justify-between items-start">
                             <div className="flex-1">
-                              <h2 className="text-lg font-semibold">Service Account Details</h2>
-                              <div className="mt-2">
+                              <div className="mt-0">
                                 <span className="text-xs uppercase text-gray-500">
                                   Account:
                                 </span>
@@ -477,7 +476,10 @@ export default function ServiceAccountPage() {
                   );
                 };
                 
-                openSidebar(<InfoSidebar />, { widthPx: 500 });
+                openSidebar(<InfoSidebar />, {
+                  widthPx: 500,
+                  title: "Service Account Details",
+                });
               }}
               className="p-1.5 rounded hover:bg-gray-100 text-gray-600 hover:text-gray-900"
               title="Info"

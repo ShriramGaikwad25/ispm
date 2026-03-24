@@ -7,6 +7,7 @@ interface RightSidebarProps {
   isOpen: boolean;
   widthPx?: number; // default will be 600
   onClose: () => void;
+  closeOnOutsideClick?: boolean;
   children?: React.ReactNode;
   topOffsetPx?: number; // space below fixed header when navbar visible; default 60
   title?: string; // optional title for the sidebar header
@@ -15,7 +16,15 @@ interface RightSidebarProps {
 const DEFAULT_WIDTH = 500;
 const DEFAULT_TOP_OFFSET = 60;
 
-const RightSidebar = ({ isOpen, widthPx = DEFAULT_WIDTH, onClose, children, topOffsetPx = DEFAULT_TOP_OFFSET, title }: RightSidebarProps) => {
+const RightSidebar = ({
+  isOpen,
+  widthPx = DEFAULT_WIDTH,
+  onClose,
+  closeOnOutsideClick = true,
+  children,
+  topOffsetPx = DEFAULT_TOP_OFFSET,
+  title,
+}: RightSidebarProps) => {
   const sidebarRef = useRef<HTMLDivElement>(null);
   const scrollableMainRef = useRef<Element | null>(null);
   const [effectiveTop, setEffectiveTop] = useState(topOffsetPx);
@@ -54,14 +63,14 @@ const RightSidebar = ({ isOpen, widthPx = DEFAULT_WIDTH, onClose, children, topO
       }
     };
 
-    if (isOpen) {
+    if (isOpen && closeOnOutsideClick) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, closeOnOutsideClick]);
 
   return (
     <>

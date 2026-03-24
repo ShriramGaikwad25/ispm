@@ -119,6 +119,38 @@ const toObjectSafe = (value: unknown): Record<string, any> => {
   return {};
 };
 
+const APPROVER_COMMENTS_STORAGE_PREFIX = "ispm:pending-approval-approver-comments";
+
+function loadApproverCommentsFromStorage(requestId: string): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(`${APPROVER_COMMENTS_STORAGE_PREFIX}:${requestId}`);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, string>;
+    }
+  } catch {
+    // ignore invalid JSON
+  }
+  return {};
+}
+
+function saveApproverCommentsToStorage(
+  requestId: string,
+  map: Record<string, string>
+): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(
+      `${APPROVER_COMMENTS_STORAGE_PREFIX}:${requestId}`,
+      JSON.stringify(map)
+    );
+  } catch {
+    // ignore quota / private mode
+  }
+}
+
 const PendingApprovalDetailPage = ({
   params,
 }: {
@@ -143,8 +175,14 @@ const PendingApprovalDetailPage = ({
     {}
   );
   const [lineItemComments, setLineItemComments] = useState<Record<string, string>>(
-    {}
+    () => loadApproverCommentsFromStorage(id)
   );
+
+  useEffect(() => {
+    if (!id) return;
+    setLineItemComments(loadApproverCommentsFromStorage(id));
+  }, [id]);
+
   const [commentModalItemKey, setCommentModalItemKey] = useState<string | null>(
     null
   );
@@ -345,13 +383,6 @@ const PendingApprovalDetailPage = ({
                 item?.application_name ??
                 item?.applicationName
             );
-            const lineComments = toStringSafe(
-              item?.item_comments ??
-                item?.comments ??
-                item?.comment ??
-                row.requester_justification ??
-                ""
-            );
             const startDate = formatDate(toStringSafe(item?.item_startdate));
             const endDate = formatDate(toStringSafe(item?.item_enddate));
             const riskLevel = String(catalog.risk ?? "").toLowerCase();
@@ -454,7 +485,7 @@ const PendingApprovalDetailPage = ({
               type: lineType,
               startDate,
               endDate,
-              comments: lineComments,
+              comments: "",
               hasConflict: lineHasConflict,
               hasInfoIcon:
                 String(catalog.privileged ?? "").toLowerCase() === "yes" ||
@@ -541,7 +572,7 @@ const PendingApprovalDetailPage = ({
                     ),
                     startDate: "",
                     endDate: "",
-                    comments: justification,
+                    comments: "",
                     hasConflict: (() => {
                       if (!hasGlobalSodConflict || !primaryConflictingRole) return false;
                       const nameKey = toStringSafe(
@@ -667,14 +698,10 @@ const PendingApprovalDetailPage = ({
     setBaselineLineItemActions(initialActions);
   }, [request]);
 
-  const openCommentModal = (
-    e: React.MouseEvent,
-    lineItemKey: string,
-    existingComment: string
-  ) => {
+  const openCommentModal = (e: React.MouseEvent, lineItemKey: string) => {
     e.stopPropagation();
     setCommentModalItemKey(lineItemKey);
-    setCommentDraft(lineItemComments[lineItemKey] ?? existingComment ?? "");
+    setCommentDraft(lineItemComments[lineItemKey] ?? "");
     setCommentCategory("");
     setCommentSubcategory("");
     setIsCommentDropdownOpen(false);
@@ -710,10 +737,11 @@ const PendingApprovalDetailPage = ({
         lineItemComments[lineItemKey] ||
         (action === "approve" ? "Approved via UI" : "Revoked via UI");
       setLineItemActions((prev) => ({ ...prev, [lineItemKey]: action }));
-      setLineItemComments((prev) => ({
-        ...prev,
-        [lineItemKey]: justification,
-      }));
+      setLineItemComments((prev) => {
+        const next = { ...prev, [lineItemKey]: justification };
+        if (id) saveApproverCommentsToStorage(id, next);
+        return next;
+      });
     } catch (err: any) {
       console.error(`Failed to ${action} line item:`, err);
       setLineItemError((prev) => ({
@@ -734,10 +762,11 @@ const PendingApprovalDetailPage = ({
     setLineItemError((prev) => ({ ...prev, [commentModalItemKey]: null }));
 
     try {
-      setLineItemComments((prev) => ({
-        ...prev,
-        [commentModalItemKey]: commentDraft.trim(),
-      }));
+      setLineItemComments((prev) => {
+        const next = { ...prev, [commentModalItemKey]: commentDraft.trim() };
+        saveApproverCommentsToStorage(id, next);
+        return next;
+      });
       closeCommentModal();
     } catch (err: any) {
       console.error("Failed to save comment:", err);
@@ -783,13 +812,24 @@ const PendingApprovalDetailPage = ({
         const effectiveAction = selectedAction ?? baselineAction;
         const parsedLineItemId = Number(lineItem.lineItemId);
 
+        const lineComment =
+          lineItemComments[key]?.trim() ||
+          (effectiveAction === "approve"
+            ? "Approved via UI"
+            : effectiveAction === "reject"
+              ? "Revoked via UI"
+              : "");
+
         return {
           catalogId: lineItem.catalogId || lineItem.entitlementId || null,
           lineItemId: Number.isFinite(parsedLineItemId)
             ? parsedLineItemId
             : lineItem.lineItemId,
           ...(effectiveAction
-            ? { ACTION: effectiveAction === "approve" ? "APPROVE" : "REVOKE" }
+            ? {
+                ACTION: effectiveAction === "approve" ? "APPROVE" : "REVOKE",
+                comments: lineComment,
+              }
             : {}),
           entitlementName: null,
         };
@@ -802,15 +842,10 @@ const PendingApprovalDetailPage = ({
         return Boolean(currentAction ?? baselineAction);
       });
 
-      const primaryComment =
-        pendingActionEntries
-          .map(([key]) => lineItemComments[key]?.trim())
-          .find((value) => Boolean(value)) || "Approved per policy";
-
       const payload = {
         taskid: request.taskId ?? request.id,
         overallAction: allItemsActioned ? "APPROVE" : "",
-        comments: primaryComment,
+        comments: "",
         lineItems: lineItemsPayload,
       };
 
@@ -943,8 +978,7 @@ const PendingApprovalDetailPage = ({
           const isItemLoading = lineItemLoading[lineItemKey] ?? false;
           const isActionsDisabled = isItemLoading || isLockedByServer;
           const itemError = lineItemError[lineItemKey] ?? null;
-          const effectiveComment =
-            lineItemComments[lineItemKey] ?? lineItem.comments;
+          const effectiveComment = lineItemComments[lineItemKey] ?? "";
 
           return (
             <div key={lineItemKey} className="border border-gray-200 rounded-lg bg-gray-50">
@@ -1089,7 +1123,7 @@ const PendingApprovalDetailPage = ({
                         title="View comment"
                         aria-label="View comment"
                         disabled={isItemLoading}
-                        onClick={(e) => openCommentModal(e, lineItemKey, lineItem.comments)}
+                        onClick={(e) => openCommentModal(e, lineItemKey)}
                         className={`text-xs font-medium text-blue-600 hover:text-blue-700 ${
                           isItemLoading ? "cursor-not-allowed opacity-60" : ""
                         }`}
@@ -1179,10 +1213,10 @@ const PendingApprovalDetailPage = ({
                   </button>
                   <button
                     type="button"
-                    title="Requester comment"
-                    aria-label="Requester comment"
+                    title="Approver comment"
+                    aria-label="Approver comment"
                     disabled={isItemLoading}
-                    onClick={(e) => openCommentModal(e, lineItemKey, lineItem.comments)}
+                    onClick={(e) => openCommentModal(e, lineItemKey)}
                     className={`p-1 rounded flex items-center justify-center ${isItemLoading ? "opacity-60 cursor-not-allowed" : ""}`}
                   >
                     <svg
@@ -1233,10 +1267,10 @@ const PendingApprovalDetailPage = ({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">
-                        Requester Comment
+                        Approver Comment
                       </div>
                       <div className="text-gray-900 whitespace-pre-wrap break-words">
-                        {effectiveComment || "No requester comment provided."}
+                        {effectiveComment || "No approver comment provided."}
                       </div>
                       {isLockedByServer && (
                         <div className="pt-1">
@@ -1306,7 +1340,7 @@ const PendingApprovalDetailPage = ({
               return (
                 <>
             <div className="mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Requester Comment</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Approver Comment</h3>
             </div>
 
             {!isCommentReadOnly && (
@@ -1396,7 +1430,7 @@ const PendingApprovalDetailPage = ({
 
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Requester Comment
+                Approver Comment
               </label>
               <textarea
                 value={commentDraft}
@@ -1518,18 +1552,67 @@ const PendingApprovalDetailPage = ({
                   }));
 
                   try {
-                    setLineItemComments((prev) => ({
-                      ...prev,
-                      [infoRequestItemKey]: infoRequestMessage.trim(),
-                    }));
+                    const message = infoRequestMessage.trim();
+                    const lineItemsPayload = request.lineItems.map(
+                      (lineItem, idx) => {
+                        const key = String(idx);
+                        const parsedLineItemId = Number(lineItem.lineItemId);
+                        const base = {
+                          catalogId:
+                            lineItem.catalogId || lineItem.entitlementId || null,
+                          lineItemId: Number.isFinite(parsedLineItemId)
+                            ? parsedLineItemId
+                            : lineItem.lineItemId,
+                          entitlementName: null,
+                        };
+                        if (key !== infoRequestItemKey) return base;
+                        return {
+                          ...base,
+                          ACTION: "CONSULTED",
+                          comments: message,
+                        };
+                      }
+                    );
+
+                    const payload = {
+                      taskid: request.taskId ?? request.id,
+                      comments: "",
+                      lineItems: lineItemsPayload,
+                    };
+
+                    const response = await fetch(
+                      `https://preview.keyforge.ai/workflow/api/v1/ACMECOM/approveraction/${request.reviewerId}`,
+                      {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(payload),
+                      }
+                    );
+
+                    if (!response.ok) {
+                      throw new Error(
+                        `Approver action failed (${response.status})`
+                      );
+                    }
+
+                    setLineItemComments((prev) => {
+                      const next = {
+                        ...prev,
+                        [infoRequestItemKey]: message,
+                      };
+                      if (id) saveApproverCommentsToStorage(id, next);
+                      return next;
+                    });
                     setInfoRequestItemKey(null);
                     setInfoRequestMessage("");
-                  } catch (err: any) {
+                  } catch (err: unknown) {
                     console.error("Failed to send info request:", err);
                     setLineItemError((prev) => ({
                       ...prev,
                       [infoRequestItemKey]:
-                        err?.message || "Failed to send request",
+                        err instanceof Error
+                          ? err.message
+                          : "Failed to send request",
                     }));
                   } finally {
                     setInfoRequestLoading(false);

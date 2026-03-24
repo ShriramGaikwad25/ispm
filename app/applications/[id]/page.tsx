@@ -2481,8 +2481,7 @@ export default function ApplicationDetailPage() {
                         <div className="p-4 border-b bg-gray-50">
                           <div className="flex justify-between items-start">
                             <div className="flex-1">
-                              <h2 className="text-lg font-semibold">Service Account Details</h2>
-                              <div className="mt-2">
+                              <div className="mt-0">
                                 <span className="text-xs uppercase text-gray-500">
                                   Account:
                                 </span>
@@ -2605,7 +2604,10 @@ export default function ApplicationDetailPage() {
                   );
                 };
                 
-                openSidebar(<InfoSidebar />, { widthPx: 500 });
+                openSidebar(<InfoSidebar />, {
+                  widthPx: 500,
+                  title: "Service Account Details",
+                });
               }}
               className="p-1.5 rounded hover:bg-gray-100 text-gray-600 hover:text-gray-900"
               title="Info"
@@ -2692,9 +2694,11 @@ export default function ApplicationDetailPage() {
           filter: true,
           resizable: true,
           flex: 1,
+          wrapText: true,
+          autoHeight: true,
         },
+        domLayout: "autoHeight" as const,
         headerHeight: 40,
-        rowHeight: 50,
       },
       getDetailRowData: (params: any) => {
         // Each service account row has entitlement data
@@ -3601,7 +3605,10 @@ export default function ApplicationDetailPage() {
     return (
       <div
         className="ag-theme-alpine"
-        style={{ height: 500, width: "100%" }}
+        style={{
+          width: "100%",
+          height: accountsTabIndex === 1 ? "auto" : 500,
+        }}
       >
         <div className="relative mb-2">
           <div className="flex items-center justify-between border-b border-gray-300 pb-2">
@@ -3827,7 +3834,7 @@ export default function ApplicationDetailPage() {
               defaultColDef={defaultColDef}
               masterDetail={true}
               detailCellRendererParams={serviceAccountsDetailCellRendererParams}
-              detailRowHeight={300}
+              detailRowAutoHeight
               domLayout="autoHeight"
               onGridReady={(params: any) => {
                 serviceAccountsGridApiRef.current = params.api;

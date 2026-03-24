@@ -683,22 +683,22 @@ export default function ApprovalPolicyReviewPage() {
                           )}
                         </div>
                         {groupedWorkflowSteps.length > 0 && (
-                          <div className="mt-2 rounded-md border border-gray-200 bg-gray-50 p-2.5">
+                          <div className="mt-2 w-full rounded-md border border-gray-200 bg-gray-50 p-2.5">
                             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-gray-600">
                               Workflow Steps
                             </p>
-                            <div className="w-full overflow-hidden">
-                              <div className="w-full flex items-center gap-2">
+                            <div className="w-full min-w-0 overflow-hidden">
+                              <div className="w-full flex flex-nowrap items-center gap-1.5 sm:gap-2">
                                 <div className="h-18 w-18 shrink-0 rounded-full border-2 border-slate-200 bg-white text-center flex items-center justify-center px-1.5">
                                   <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-700 leading-tight">
                                     Request Submitted
                                   </span>
                                 </div>
-                                <span className="text-slate-400 text-base">→</span>
+                                <span className="text-slate-400 text-base shrink-0 self-center">→</span>
 
                                 {groupedWorkflowSteps.map((group, groupIdx) => (
                                   <React.Fragment key={`${group.stageName}-${groupIdx}`}>
-                                    <div className="w-48 min-w-0">
+                                    <div className="min-w-0 flex-1">
                                       <div
                                         className={`rounded-md px-2.5 py-2 text-center text-[11px] font-semibold ${
                                           stageHeaderColorClasses[
@@ -721,7 +721,7 @@ export default function ApprovalPolicyReviewPage() {
                                             <div className="text-xs font-semibold text-slate-700 leading-tight">
                                               {step.stepLabel}
                                             </div>
-                                            <div className="mt-1 inline-flex rounded-full border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-rose-700">
+                                            <div className="mt-1 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-800">
                                               {step.stepTypeCode}
                                             </div>
                                           </div>
@@ -729,20 +729,16 @@ export default function ApprovalPolicyReviewPage() {
                                       </div>
                                     </div>
                                     {groupIdx < groupedWorkflowSteps.length - 1 && (
-                                      <span className="text-slate-400 text-base">→</span>
+                                      <span className="text-slate-400 text-base shrink-0 self-center">→</span>
                                     )}
                                   </React.Fragment>
                                 ))}
 
-                                <span className="text-slate-400 text-base">→</span>
-                                <div className="h-36 w-44 shrink-0 rounded-xl border-2 border-emerald-200 bg-emerald-50/40 p-2.5 flex items-center justify-center text-center">
-                                  <div className="text-xs font-semibold text-emerald-800 leading-snug">
-                                    Fulfillment
-                                    <br />
-                                    Evidence Capture &
-                                    <br />
-                                    Continuous Monitoring
-                                  </div>
+                                <span className="text-slate-400 text-base shrink-0 self-center">→</span>
+                                <div className="h-18 w-18 shrink-0 rounded-full border-2 border-slate-200 bg-white text-center flex items-center justify-center px-1.5">
+                                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-700 leading-tight">
+                                    Request Completed
+                                  </span>
                                 </div>
                               </div>
                             </div>

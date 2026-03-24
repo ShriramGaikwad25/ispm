@@ -44,6 +44,7 @@ interface JobSchedule {
   previousFireTime?: string;
   nextFireTime?: string;
   cronExpression?: string;
+  cronStatement?: string;
 }
 
 interface JobLog {
@@ -320,6 +321,10 @@ export default function SchedulerManager() {
             data.cronExpression ||
             data.triggers?.[0]?.cronExpression ||
             selectedSchedule.cronExpression,
+          cronStatement:
+            data.cronStatement ||
+            data.triggers?.[0]?.cronStatement ||
+            selectedSchedule.cronStatement,
         };
 
         // Only apply if still the selected job
@@ -1682,14 +1687,24 @@ export default function SchedulerManager() {
                           {(selectedSchedule.type || "")
                             .toUpperCase()
                             .includes("CRON") && (
-                            <div className="info-item">
-                              <span className="info-label">
-                                Cron Expression:
-                              </span>
-                              <span className="info-value">
-                                {selectedSchedule.cronExpression || "N/A"}
-                              </span>
-                            </div>
+                            <>
+                              <div className="info-item">
+                                <span className="info-label">
+                                  Cron Expression:
+                                </span>
+                                <span className="info-value">
+                                  {selectedSchedule.cronExpression || "N/A"}
+                                </span>
+                              </div>
+                              <div className="info-item">
+                                <span className="info-label">
+                                  Cron Statement:
+                                </span>
+                                <span className="info-value">
+                                  {selectedSchedule.cronStatement || "N/A"}
+                                </span>
+                              </div>
+                            </>
                           )}
                         </div>
                       </div>

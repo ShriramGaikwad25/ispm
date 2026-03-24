@@ -96,12 +96,11 @@ export default function AddApplicationPage() {
   const [appDetails, setAppDetails] = useState<Record<string, unknown> | null>(null);
   const [appDetailsLoading, setAppDetailsLoading] = useState(false);
 
-  const [as400JdbcReadChannelExpanded, setAs400JdbcReadChannelExpanded] = useState(false);
-  const [as400ToolboxReadChannelExpanded, setAs400ToolboxReadChannelExpanded] = useState(false);
   const [jdbcReadPasswordVisible, setJdbcReadPasswordVisible] = useState(false);
   const [ibmToolboxPasswordVisible, setIbmToolboxPasswordVisible] = useState(false);
-  const [as400WriteRemoteCommandExpanded, setAs400WriteRemoteCommandExpanded] = useState(false);
-  const [as400WriteApiProgramCallExpanded, setAs400WriteApiProgramCallExpanded] = useState(false);
+  /** AS400 main cards: expand/collapse independently (not tied to step3.integrationSettings). */
+  const [as400ReadOperationsExpanded, setAs400ReadOperationsExpanded] = useState(false);
+  const [as400WriteOperationsExpanded, setAs400WriteOperationsExpanded] = useState(false);
 
   // When opening from Settings for a non-integrated app, start at step 3 (Integration Setting)
   useEffect(() => {
@@ -2474,56 +2473,57 @@ export default function AddApplicationPage() {
 
           // AS400 / IBM i: always use static integration fields (not API-driven)
           if (selectedAppType === "AS400" || selectedAppType === "AS/400") {
-            const raw = formData.step3.integrationSettings;
-            const integrationSettingsVal =
-              raw === "Read Operations" || raw === "Write Operations" ? raw : "";
+            const readChannelRaw = (formData.step3 as any).as400ReadChannel as string | undefined;
+            const readChannelVal =
+              readChannelRaw === "toolbox" ? "toolbox" : readChannelRaw === "jdbc" ? "jdbc" : "";
+            const writeChannelRaw = (formData.step3 as any).as400WriteChannel as string | undefined;
+            const writeChannelVal =
+              writeChannelRaw === "api" ? "api" : writeChannelRaw === "remote" ? "remote" : "";
             return (
               <div className="space-y-6">
-                <div className="flex rounded-md border border-gray-300 bg-white shadow-sm min-h-[52px] focus-within:border-blue-500 focus-within:shadow-[inset_0_0_0_1px_rgb(59_130_246_/_0.35)]">
-                  <div
-                    className="w-1.5 shrink-0 bg-gradient-to-b from-blue-500 to-indigo-600 self-stretch rounded-l-md"
-                    aria-hidden
-                  />
-                  <div className="flex-1 relative min-w-0">
-                    <select
-                      value={integrationSettingsVal}
-                      onChange={(e) => handleInputChange("step3", "integrationSettings", e.target.value)}
-                      className="w-full px-4 pt-5 pb-1.5 border-0 rounded-none focus:outline-none focus:ring-0 no-underline appearance-none bg-white text-gray-900"
+                <p className="text-sm font-medium text-gray-900">
+                  Integration settings <span className="text-red-500">*</span>
+                </p>
+                <div className="space-y-3">
+                  <div className="border border-gray-200 rounded-lg bg-white shadow-sm overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setAs400ReadOperationsExpanded((e) => !e)}
+                      className="flex items-center justify-between gap-3 w-full px-4 py-4 min-h-[3.5rem] text-left bg-gray-50 hover:bg-gray-100 transition-colors"
+                      aria-expanded={as400ReadOperationsExpanded}
                     >
-                      <option value="" />
-                      <option value="Read Operations">Read Operations</option>
-                      <option value="Write Operations">Write Operations</option>
-                    </select>
-                    <label
-                      className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                        integrationSettingsVal
-                          ? "top-0.5 text-xs text-blue-600"
-                          : "top-3.5 text-sm text-gray-500"
-                      }`}
-                    >
-                      Integration settings *
-                    </label>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" aria-hidden />
-                  </div>
-                </div>
-                {integrationSettingsVal === "Read Operations" && (
-                  <div className="space-y-3">
-                    <div className="border border-gray-200 rounded-lg bg-white shadow-sm overflow-hidden">
-                      <button
-                        type="button"
-                        onClick={() => setAs400JdbcReadChannelExpanded((e) => !e)}
-                        className="flex items-center justify-between gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors"
-                        aria-expanded={as400JdbcReadChannelExpanded}
-                      >
-                        <span className="text-base font-semibold text-gray-900 min-w-0 pr-2">JDBC-Based Read Channel</span>
-                        {as400JdbcReadChannelExpanded ? (
-                          <ChevronUp className="w-5 h-5 text-blue-600 shrink-0" aria-hidden />
-                        ) : (
-                          <ChevronDown className="w-5 h-5 text-blue-600 shrink-0" aria-hidden />
-                        )}
-                      </button>
-                      {as400JdbcReadChannelExpanded && (
-                        <div className="px-4 pb-4 pt-3 border-t border-gray-100 space-y-4">
+                      <span className="text-base font-semibold text-gray-900 min-w-0 pr-2">Read Operations</span>
+                      {as400ReadOperationsExpanded ? (
+                        <ChevronUp className="w-5 h-5 text-blue-600 shrink-0" aria-hidden />
+                      ) : (
+                        <ChevronDown className="w-5 h-5 text-blue-600 shrink-0" aria-hidden />
+                      )}
+                    </button>
+                    {as400ReadOperationsExpanded && (
+                      <div className="px-4 pb-4 pt-3 border-t border-gray-100 space-y-3">
+                    <div className="w-1/2 max-w-full mb-5">
+                      <label htmlFor="as400-read-channel" className="block text-xs font-medium text-gray-600 mb-1">
+                        Read channel
+                      </label>
+                      <div className="relative">
+                        <select
+                          id="as400-read-channel"
+                          value={readChannelVal}
+                          onChange={(e) => handleInputChange("step3", "as400ReadChannel", e.target.value)}
+                          className="w-full h-9 text-sm rounded-md border border-gray-300 bg-white pl-3 pr-8 py-1.5 text-gray-900 shadow-sm appearance-none focus:outline-none focus:ring-0 focus:border-gray-400"
+                        >
+                          <option value="" />
+                          <option value="jdbc">JDBC-Based Read Channel</option>
+                          <option value="toolbox">IBM Toolbox API-Based Read Channel</option>
+                        </select>
+                        <ChevronDown
+                          className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none"
+                          aria-hidden
+                        />
+                      </div>
+                    </div>
+                    {readChannelVal === "jdbc" && (
+                        <div className="space-y-4">
                           <div
                             className="flex flex-nowrap items-center gap-2.5 overflow-x-auto min-w-0 pb-0.5 [-ms-overflow-style:none] [scrollbar-width:thin]"
                             role="list"
@@ -2774,24 +2774,9 @@ export default function AddApplicationPage() {
                             </div>
                           </div>
                         </div>
-                      )}
-                    </div>
-                    <div className="border border-gray-200 rounded-lg bg-white shadow-sm overflow-hidden">
-                      <button
-                        type="button"
-                        onClick={() => setAs400ToolboxReadChannelExpanded((e) => !e)}
-                        className="flex items-center justify-between gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors"
-                        aria-expanded={as400ToolboxReadChannelExpanded}
-                      >
-                        <span className="text-base font-semibold text-gray-900 min-w-0 pr-2">IBM Toolbox API-Based Read Channel</span>
-                        {as400ToolboxReadChannelExpanded ? (
-                          <ChevronUp className="w-5 h-5 text-blue-600 shrink-0" aria-hidden />
-                        ) : (
-                          <ChevronDown className="w-5 h-5 text-blue-600 shrink-0" aria-hidden />
-                        )}
-                      </button>
-                      {as400ToolboxReadChannelExpanded && (
-                        <div className="px-4 pb-4 pt-3 border-t border-gray-100 space-y-4">
+                    )}
+                    {readChannelVal === "toolbox" && (
+                        <div className="space-y-4">
                           <div
                             className="flex flex-nowrap items-center gap-2.5 overflow-x-auto min-w-0 pb-0.5 [-ms-overflow-style:none] [scrollbar-width:thin]"
                             role="list"
@@ -3009,28 +2994,49 @@ export default function AddApplicationPage() {
                             </label>
                           </div>
                         </div>
-                      )}
+                    )}
                     </div>
+                    )}
                   </div>
-                )}
-                {integrationSettingsVal === "Write Operations" && (
-                  <div className="space-y-3">
-                    <div className="border border-gray-200 rounded-lg bg-white shadow-sm overflow-hidden">
-                      <button
-                        type="button"
-                        onClick={() => setAs400WriteRemoteCommandExpanded((e) => !e)}
-                        className="flex items-center justify-between gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors"
-                        aria-expanded={as400WriteRemoteCommandExpanded}
-                      >
-                        <span className="text-base font-semibold text-gray-900 min-w-0 pr-2">Write via Remote Command</span>
-                        {as400WriteRemoteCommandExpanded ? (
-                          <ChevronUp className="w-5 h-5 text-blue-600 shrink-0" aria-hidden />
-                        ) : (
-                          <ChevronDown className="w-5 h-5 text-blue-600 shrink-0" aria-hidden />
-                        )}
-                      </button>
-                      {as400WriteRemoteCommandExpanded && (
-                        <div className="px-4 pb-4 pt-3 border-t border-gray-100 space-y-4">
+                  <div className="border border-gray-200 rounded-lg bg-white shadow-sm overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setAs400WriteOperationsExpanded((e) => !e)}
+                      className="flex items-center justify-between gap-3 w-full px-4 py-4 min-h-[3.5rem] text-left bg-gray-50 hover:bg-gray-100 transition-colors"
+                      aria-expanded={as400WriteOperationsExpanded}
+                    >
+                      <span className="text-base font-semibold text-gray-900 min-w-0 pr-2">Write Operations</span>
+                      {as400WriteOperationsExpanded ? (
+                        <ChevronUp className="w-5 h-5 text-blue-600 shrink-0" aria-hidden />
+                      ) : (
+                        <ChevronDown className="w-5 h-5 text-blue-600 shrink-0" aria-hidden />
+                      )}
+                    </button>
+                    {as400WriteOperationsExpanded && (
+                      <div className="px-4 pb-4 pt-3 border-t border-gray-100 space-y-3">
+                    <div className="w-1/2 max-w-full mb-5">
+                      <label htmlFor="as400-write-channel" className="block text-xs font-medium text-gray-600 mb-1">
+                        Write channel
+                      </label>
+                      <div className="relative">
+                        <select
+                          id="as400-write-channel"
+                          value={writeChannelVal}
+                          onChange={(e) => handleInputChange("step3", "as400WriteChannel", e.target.value)}
+                          className="w-full h-9 text-sm rounded-md border border-gray-300 bg-white pl-3 pr-8 py-1.5 text-gray-900 shadow-sm appearance-none focus:outline-none focus:ring-0 focus:border-gray-400"
+                        >
+                          <option value="" />
+                          <option value="remote">Write via Remote Command</option>
+                          <option value="api">Write via API / Program Call</option>
+                        </select>
+                        <ChevronDown
+                          className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none"
+                          aria-hidden
+                        />
+                      </div>
+                    </div>
+                    {writeChannelVal === "remote" && (
+                        <div className="space-y-4">
                           <div
                             className="flex flex-nowrap items-center gap-2.5 overflow-x-auto min-w-0 pb-0.5 [scrollbar-width:thin]"
                             role="list"
@@ -3213,24 +3219,9 @@ export default function AddApplicationPage() {
                             </label>
                           </div>
                         </div>
-                      )}
-                    </div>
-                    <div className="border border-gray-200 rounded-lg bg-white shadow-sm overflow-hidden">
-                      <button
-                        type="button"
-                        onClick={() => setAs400WriteApiProgramCallExpanded((e) => !e)}
-                        className="flex items-center justify-between gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors"
-                        aria-expanded={as400WriteApiProgramCallExpanded}
-                      >
-                        <span className="text-base font-semibold text-gray-900 min-w-0 pr-2">Write via API / Program Call</span>
-                        {as400WriteApiProgramCallExpanded ? (
-                          <ChevronUp className="w-5 h-5 text-blue-600 shrink-0" aria-hidden />
-                        ) : (
-                          <ChevronDown className="w-5 h-5 text-blue-600 shrink-0" aria-hidden />
-                        )}
-                      </button>
-                      {as400WriteApiProgramCallExpanded && (
-                        <div className="px-4 pb-4 pt-3 border-t border-gray-100 space-y-4">
+                    )}
+                    {writeChannelVal === "api" && (
+                        <div className="space-y-4">
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="relative">
                               <input
@@ -3398,10 +3389,11 @@ export default function AddApplicationPage() {
                             </label>
                           </div>
                         </div>
-                      )}
+                    )}
                     </div>
+                    )}
                   </div>
-                )}
+                </div>
               </div>
             );
           }
@@ -8433,7 +8425,9 @@ export default function AddApplicationPage() {
             case "AS400":
             case "AS/400":
               return {
-                integrationSettings: "Whether the integration is limited to read operations or may perform write operations"
+                integrationSettings: "Whether the integration is limited to read operations or may perform write operations",
+                as400ReadChannel: "Read integration path: JDBC or IBM Toolbox API",
+                as400WriteChannel: "Write integration path: remote command or API/program call"
               };
             default:
               return {};

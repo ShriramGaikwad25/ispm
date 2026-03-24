@@ -4,6 +4,8 @@ import { useCart } from "@/contexts/CartContext";
 import { useItemDetails } from "@/contexts/ItemDetailsContext";
 import { Calendar, Edit, Save, X, Paperclip, ChevronDown, ChevronUp } from "lucide-react";
 
+const getTodayDateString = () => new Date().toISOString().split("T")[0];
+
 interface ItemDates {
   [itemId: string]: {
     startDate: string;
@@ -51,8 +53,7 @@ const DetailsTab: React.FC = () => {
 
         newDates[item.id] = {
           startDate:
-            existingDetail?.startDate ||
-            (isIndefinite ? "" : globalSettings.startDate),
+            existingDetail?.startDate || globalSettings.startDate,
           endDate:
             existingDetail?.endDate ||
             (isIndefinite ? "" : globalSettings.endDate),
@@ -75,8 +76,7 @@ const DetailsTab: React.FC = () => {
         existingDetail?.isIndefinite ?? globalSettings.isIndefinite;
       setItemDetail(item.id, {
         startDate:
-          existingDetail?.startDate ||
-          (isIndefinite ? "" : globalSettings.startDate),
+          existingDetail?.startDate || globalSettings.startDate,
         endDate:
           existingDetail?.endDate ||
           (isIndefinite ? "" : globalSettings.endDate),
@@ -117,9 +117,7 @@ const DetailsTab: React.FC = () => {
       if (detail?.useGlobalSettings) {
         setItemDates((prev) => {
           const current = prev[item.id];
-          const targetStartDate = globalSettings.isIndefinite
-            ? ""
-            : globalSettings.startDate;
+          const targetStartDate = globalSettings.startDate;
           const targetEndDate = globalSettings.isIndefinite
             ? ""
             : globalSettings.endDate;
@@ -148,7 +146,7 @@ const DetailsTab: React.FC = () => {
         });
 
         setItemDetail(item.id, {
-          startDate: globalSettings.isIndefinite ? "" : globalSettings.startDate,
+          startDate: globalSettings.startDate,
           endDate: globalSettings.isIndefinite ? "" : globalSettings.endDate,
           isIndefinite: globalSettings.isIndefinite,
           comment: globalSettings.comment,
@@ -169,7 +167,7 @@ const DetailsTab: React.FC = () => {
       setGlobalSettings({
         accessType: type,
         isIndefinite: true,
-        startDate: "",
+        startDate: getTodayDateString(),
         endDate: "",
       });
     } else {
@@ -214,6 +212,7 @@ const DetailsTab: React.FC = () => {
     type: "indefinite" | "duration"
   ) => {
     const isIndefinite = type === "indefinite";
+    const today = getTodayDateString();
 
     setItemDates((prev) => {
       const updated = {
@@ -221,7 +220,7 @@ const DetailsTab: React.FC = () => {
         [itemId]: {
           ...prev[itemId],
           isIndefinite,
-          startDate: isIndefinite ? "" : prev[itemId]?.startDate,
+          startDate: isIndefinite ? today : prev[itemId]?.startDate,
           endDate: isIndefinite ? "" : prev[itemId]?.endDate,
           useGlobalSettings: false, // Mark as custom when user changes
         },
@@ -234,7 +233,7 @@ const DetailsTab: React.FC = () => {
     setTimeout(() => {
       setItemDetail(itemId, {
         isIndefinite,
-        startDate: isIndefinite ? "" : undefined,
+        startDate: isIndefinite ? today : undefined,
         endDate: isIndefinite ? "" : undefined,
         useGlobalSettings: false,
       });

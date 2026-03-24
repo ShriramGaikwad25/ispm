@@ -7,7 +7,11 @@ type SidebarContent = React.ReactNode;
 interface RightSidebarContextValue {
 	isOpen: boolean;
 	widthPx: number;
-	openSidebar: (content: SidebarContent, options?: { widthPx?: number; title?: string }) => void;
+	closeOnOutsideClick: boolean;
+	openSidebar: (
+		content: SidebarContent,
+		options?: { widthPx?: number; title?: string; closeOnOutsideClick?: boolean }
+	) => void;
 	closeSidebar: () => void;
 	setWidth: (widthPx: number) => void;
 	content: SidebarContent;
@@ -21,10 +25,15 @@ export const RightSidebarProvider = ({ children }: { children: React.ReactNode }
 	const [widthPx, setWidthPx] = useState(500);
 	const [content, setContent] = useState<SidebarContent>(null);
 	const [title, setTitle] = useState<string | undefined>(undefined);
+	const [closeOnOutsideClick, setCloseOnOutsideClick] = useState(true);
 
-	const openSidebar = useCallback((newContent: SidebarContent, options?: { widthPx?: number; title?: string }) => {
+	const openSidebar = useCallback((
+		newContent: SidebarContent,
+		options?: { widthPx?: number; title?: string; closeOnOutsideClick?: boolean }
+	) => {
 		if (options?.widthPx) setWidthPx(options.widthPx);
-		if (options?.title) setTitle(options.title);
+		setTitle(options?.title);
+		setCloseOnOutsideClick(options?.closeOnOutsideClick ?? true);
 		setContent(newContent);
 		setIsOpen(true);
 	}, []);
@@ -33,6 +42,7 @@ export const RightSidebarProvider = ({ children }: { children: React.ReactNode }
 		setIsOpen(false);
 		setContent(null);
 		setTitle(undefined);
+		setCloseOnOutsideClick(true);
 	}, []);
 
 	const setWidth = useCallback((newWidth: number) => {
@@ -42,12 +52,13 @@ export const RightSidebarProvider = ({ children }: { children: React.ReactNode }
 	const value = useMemo<RightSidebarContextValue>(() => ({
 		isOpen,
 		widthPx,
+		closeOnOutsideClick,
 		openSidebar,
 		closeSidebar,
 		setWidth,
 		content,
 		title,
-	}), [isOpen, widthPx, openSidebar, closeSidebar, setWidth, content, title]);
+	}), [isOpen, widthPx, closeOnOutsideClick, openSidebar, closeSidebar, setWidth, content, title]);
 
 	return (
 		<RightSidebarContext.Provider value={value}>
