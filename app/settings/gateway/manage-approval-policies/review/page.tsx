@@ -145,6 +145,14 @@ type WorkflowFromApi = {
   code: string;
   description: string;
   stages?: number;
+  steps?: Array<{
+    stageName: string;
+    stageOrder: number | null;
+    stepLabel: string;
+    stepTypeCode: string;
+    stepKind: string;
+    stepType: string;
+  }>;
   businessObjectType?: string;
 };
 
@@ -162,6 +170,16 @@ function mapTemplateRowToWorkflow(row: Record<string, unknown>): WorkflowFromApi
     row.wftemplatedescription ?? row.description ?? ""
   );
   let stages: number | undefined;
+  let steps:
+    | Array<{
+        stageName: string;
+        stageOrder: number | null;
+        stepLabel: string;
+        stepTypeCode: string;
+        stepKind: string;
+        stepType: string;
+      }>
+    | undefined;
   try {
     const def = row.definition_json;
     const parsedDef =
@@ -171,7 +189,70 @@ function mapTemplateRowToWorkflow(row: Record<string, unknown>): WorkflowFromApi
           ? def
           : null;
     if (parsedDef && Array.isArray((parsedDef as { stages?: unknown }).stages)) {
-      stages = (parsedDef as { stages: unknown[] }).stages.length;
+      const parsedStages = (parsedDef as { stages: unknown[] }).stages;
+      stages = parsedStages.length;
+      steps = [];
+      parsedStages.forEach((stage, stageIndex) => {
+        if (!stage || typeof stage !== "object") return;
+        const stageObj = stage as Record<string, unknown>;
+        const stageName = String(stageObj.name ?? `Stage ${stageIndex + 1}`);
+        const parsedOrder =
+          stageObj.order !== undefined && stageObj.order !== null
+            ? Number(stageObj.order)
+            : null;
+        const stageOrder = Number.isFinite(parsedOrder) ? parsedOrder : null;
+        const stageSteps = Array.isArray(stageObj.steps)
+          ? (stageObj.steps as unknown[])
+          : [];
+
+        stageSteps.forEach((step, stepIndex) => {
+          if (!step || typeof step !== "object") return;
+          const stepObj = step as Record<string, unknown>;
+          const rawCode = String(
+            stepObj.code ?? stepObj.stepTypeCode ?? stepObj.id ?? stepObj.type ?? ""
+          ).toUpperCase();
+          const rawType = String(stepObj.type ?? "").toUpperCase();
+          const inferKindAndType = (): { kind: string; type: string } => {
+            if (rawType === "AI_AGENT" || rawCode.startsWith("AI_")) {
+              return { kind: "AI", type: "AI AGENT" };
+            }
+            if (
+              rawType === "APPROVAL" ||
+              rawCode.startsWith("APPROVAL_") ||
+              rawCode === "HUMAN_APPROVAL"
+            ) {
+              return { kind: "HUMAN", type: "APPROVAL" };
+            }
+            if (
+              rawType === "FULFILL" ||
+              rawType === "FULFILLMENT" ||
+              rawCode.endsWith("FULFILLMENT") ||
+              rawCode.startsWith("SCIM_")
+            ) {
+              return { kind: "SYSTEM", type: "FULFILLMENT" };
+            }
+            if (rawType === "CUSTOM") {
+              return { kind: "SYSTEM", type: "CUSTOM" };
+            }
+            return { kind: "SYSTEM", type: "LOGIC" };
+          };
+          const inferred = inferKindAndType();
+          steps!.push({
+            stageName,
+            stageOrder,
+            stepLabel: String(
+              stepObj.label ??
+                stepObj.name ??
+                stepObj.id ??
+                stepObj.code ??
+                `Step ${stepIndex + 1}`
+            ),
+            stepTypeCode: rawCode || "N/A",
+            stepKind: String(stepObj.kind ?? inferred.kind),
+            stepType: String(stepObj.type ?? inferred.type).replaceAll("_", " "),
+          });
+        });
+      });
     }
   } catch {
     // ignore
@@ -184,6 +265,7 @@ function mapTemplateRowToWorkflow(row: Record<string, unknown>): WorkflowFromApi
     code,
     description,
     ...(stages !== undefined ? { stages } : {}),
+    ...(steps && steps.length > 0 ? { steps } : {}),
     ...(businessObjectType ? { businessObjectType } : {}),
   };
 }
@@ -392,6 +474,56 @@ export default function ApprovalPolicyReviewPage() {
         }
       : null);
 
+  const groupedWorkflowSteps = (displayWorkflow?.steps ?? []).reduce<
+    Array<{
+      stageName: string;
+      stageOrder: number | null;
+      steps: Array<{
+        stepLabel: string;
+        stepTypeCode: string;
+        stepKind: string;
+        stepType: string;
+      }>;
+    }>
+  >((acc, step) => {
+    const key = `${step.stageName}::${step.stageOrder ?? "na"}`;
+    const existing = acc.find(
+      (group) => `${group.stageName}::${group.stageOrder ?? "na"}` === key
+    );
+    const stepData = {
+      stepLabel: step.stepLabel,
+      stepTypeCode: step.stepTypeCode,
+      stepKind: step.stepKind,
+      stepType: step.stepType,
+    };
+    if (existing) {
+      existing.steps.push(stepData);
+      return acc;
+    }
+    acc.push({
+      stageName: step.stageName,
+      stageOrder: step.stageOrder,
+      steps: [stepData],
+    });
+    return acc;
+  }, []);
+
+  groupedWorkflowSteps.sort((a, b) => {
+    if (a.stageOrder == null && b.stageOrder == null) return 0;
+    if (a.stageOrder == null) return 1;
+    if (b.stageOrder == null) return -1;
+    return a.stageOrder - b.stageOrder;
+  });
+
+  const stageHeaderColorClasses = [
+    "bg-slate-800 text-white",
+    "bg-amber-500 text-white",
+    "bg-blue-600 text-white",
+    "bg-emerald-600 text-white",
+    "bg-violet-600 text-white",
+    "bg-rose-600 text-white",
+  ];
+
   return (
     <div className="relative min-h-screen bg-gradient-to-b from-slate-50 to-gray-100">
       <div className="absolute top-0 right-0 z-20 print:hidden p-0 m-0">
@@ -550,6 +682,72 @@ export default function ApprovalPolicyReviewPage() {
                             </span>
                           )}
                         </div>
+                        {groupedWorkflowSteps.length > 0 && (
+                          <div className="mt-2 rounded-md border border-gray-200 bg-gray-50 p-2.5">
+                            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-gray-600">
+                              Workflow Steps
+                            </p>
+                            <div className="w-full overflow-hidden">
+                              <div className="w-full flex items-center gap-2">
+                                <div className="h-18 w-18 shrink-0 rounded-full border-2 border-slate-200 bg-white text-center flex items-center justify-center px-1.5">
+                                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-700 leading-tight">
+                                    Request Submitted
+                                  </span>
+                                </div>
+                                <span className="text-slate-400 text-base">→</span>
+
+                                {groupedWorkflowSteps.map((group, groupIdx) => (
+                                  <React.Fragment key={`${group.stageName}-${groupIdx}`}>
+                                    <div className="w-48 min-w-0">
+                                      <div
+                                        className={`rounded-md px-2.5 py-2 text-center text-[11px] font-semibold ${
+                                          stageHeaderColorClasses[
+                                            groupIdx % stageHeaderColorClasses.length
+                                          ]
+                                        }`}
+                                      >
+                                        {group.stageName}
+                                      </div>
+                                      <div className="mt-2 space-y-2">
+                                        {group.steps.map((step, stepIdx) => (
+                                          <div
+                                            key={`${group.stageName}-${step.stepLabel}-${stepIdx}`}
+                                            className={`rounded-md border px-2.5 py-2 text-center ${
+                                              groupIdx % 2 === 0
+                                                ? "border-slate-200 bg-white"
+                                                : "border-amber-200 bg-amber-50/40"
+                                            }`}
+                                          >
+                                            <div className="text-xs font-semibold text-slate-700 leading-tight">
+                                              {step.stepLabel}
+                                            </div>
+                                            <div className="mt-1 inline-flex rounded-full border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-rose-700">
+                                              {step.stepTypeCode}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                    {groupIdx < groupedWorkflowSteps.length - 1 && (
+                                      <span className="text-slate-400 text-base">→</span>
+                                    )}
+                                  </React.Fragment>
+                                ))}
+
+                                <span className="text-slate-400 text-base">→</span>
+                                <div className="h-36 w-44 shrink-0 rounded-xl border-2 border-emerald-200 bg-emerald-50/40 p-2.5 flex items-center justify-center text-center">
+                                  <div className="text-xs font-semibold text-emerald-800 leading-snug">
+                                    Fulfillment
+                                    <br />
+                                    Evidence Capture &
+                                    <br />
+                                    Continuous Monitoring
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <p className="text-xs text-gray-400">
@@ -561,21 +759,6 @@ export default function ApprovalPolicyReviewPage() {
                 )}
               </div>
 
-              {/* Technical details banner, similar to info box */}
-              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                <p className="text-xs text-blue-900">
-                  <span className="font-semibold">Technical Details:</span>{" "}
-                  Created by {data.createdBy || "N/A"} on{" "}
-                  {data.createdAt || "N/A"}. Valid from{" "}
-                  {data.validFrom || "N/A"}. Active flag:{" "}
-                  {data.isActive == null
-                    ? "N/A"
-                    : data.isActive
-                    ? "true"
-                    : "false"}
-                  .
-                </p>
-              </div>
             </div>
           )}
         </div>
