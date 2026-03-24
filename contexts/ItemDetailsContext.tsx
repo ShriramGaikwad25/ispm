@@ -141,6 +141,27 @@ export function ItemDetailsProvider({ children }: { children: ReactNode }) {
     setAttachmentEmailByItemState({});
     setAttachmentFileByItemState({});
     setRequestTypeState('Regular');
+    setGlobalAccessTypeState('duration');
+    const { today, defaultEndDate } = getDefaultDates();
+    setGlobalSettingsState({
+      startDate: today,
+      endDate: defaultEndDate,
+      isIndefinite: false,
+      comment: '',
+      accessType: 'duration',
+    });
+    if (typeof window !== 'undefined') {
+      try {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key?.startsWith('accessRoleDetails:')) keysToRemove.push(key);
+        }
+        keysToRemove.forEach((k) => localStorage.removeItem(k));
+      } catch {
+        /* ignore */
+      }
+    }
   }, []);
 
   const setRequestType = useCallback((type: 'Regular' | 'Urgent') => {

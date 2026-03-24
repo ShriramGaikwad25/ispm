@@ -1,7 +1,7 @@
 "use client";
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronLeft, ChevronRight, X, ShoppingCart } from "lucide-react";
+import { AlertTriangle, Check, ChevronLeft, ChevronRight, X, ShoppingCart } from "lucide-react";
 import HorizontalTabs from "@/components/HorizontalTabs";
 import UserSearchTab from "./UserSearchTab";
 import UserGroupTab from "./UserGroupTab";
@@ -26,12 +26,6 @@ function clearAccessRequestSelections(
     try {
       localStorage.removeItem("mirrorAccessState");
       localStorage.removeItem("selectAccessActiveTab");
-      const keysToRemove: string[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key?.startsWith("accessRoleDetails:")) keysToRemove.push(key);
-      }
-      keysToRemove.forEach((k) => localStorage.removeItem(k));
     } catch (_) {}
   }
 }
@@ -172,6 +166,83 @@ function extractRequestIdFromText(rawText: string): string | null {
   return null;
 }
 
+/** Workflow submit can return HTTP 200 with business failure in the body. */
+type TrainingValidationErrorRow = {
+  catalogId: string;
+  requestedForUserId?: string;
+  trainingCode: string | null;
+  message: string;
+};
+
+type SubmitFailureDialog =
+  | {
+      variant: "training";
+      code: string;
+      lines: Array<{ entName: string; trainingCode: string | null; message: string }>;
+    }
+  | { variant: "generic"; title: string; message: string };
+
+function normalizeCatalogId(s: unknown): string {
+  return String(s ?? "").trim();
+}
+
+function isSubmitBusinessFailure(body: unknown): boolean {
+  if (body == null || typeof body !== "object") return false;
+  const rec = body as Record<string, unknown>;
+  if (rec.executionStatus === "FAILED") return true;
+  const em = rec.errorMessage;
+  if (typeof em === "string" && em.trim() !== "") return true;
+  const db = rec.dbResponse;
+  if (db && typeof db === "object") {
+    const err = (db as Record<string, unknown>).error;
+    if (typeof err === "string" && err.trim() !== "") return true;
+  }
+  return false;
+}
+
+function parseTrainingValidationErrors(body: unknown): TrainingValidationErrorRow[] {
+  if (body == null || typeof body !== "object") return [];
+  const rec = body as Record<string, unknown>;
+  const db = rec.dbResponse;
+  if (!db || typeof db !== "object") return [];
+  const errors = (db as Record<string, unknown>).errors;
+  if (!Array.isArray(errors)) return [];
+  const out: TrainingValidationErrorRow[] = [];
+  for (const e of errors) {
+    if (!e || typeof e !== "object") continue;
+    const o = e as Record<string, unknown>;
+    out.push({
+      catalogId: normalizeCatalogId(o.catalogId),
+      requestedForUserId:
+        o.requestedForUserId != null ? normalizeCatalogId(o.requestedForUserId) : undefined,
+      trainingCode:
+        o.trainingCode === undefined || o.trainingCode === null
+          ? null
+          : String(o.trainingCode).trim() || null,
+      message: typeof o.message === "string" ? o.message : String(o.message ?? ""),
+    });
+  }
+  return out;
+}
+
+function resolveEntitlementNameForCatalogId(
+  catalogId: string,
+  accessItems: AccessRequestPayload["accessItems"]
+): string {
+  const target = normalizeCatalogId(catalogId).toLowerCase();
+  const hit = accessItems.find((a) => normalizeCatalogId(a.id).toLowerCase() === target);
+  const name = hit?.name?.trim();
+  return name || catalogId;
+}
+
+/** Normalize SCREAMING_SNAKE and kebab-case labels for display. */
+function formatEntitlementDisplayName(raw: string): string {
+  const s = raw.trim();
+  if (!s) return s;
+  const words = s.replace(/_/g, " ").split(/[\s-]+/).filter(Boolean);
+  return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+}
+
 const AccessRequest: React.FC = () => {
   const router = useRouter();
   const { selectedUsers, removeUser, clearUsers } = useSelectedUsers();
@@ -199,6 +270,7 @@ const AccessRequest: React.FC = () => {
 
   const [showSubmitSuccessPopup, setShowSubmitSuccessPopup] = useState(false);
   const [submitRequestId, setSubmitRequestId] = useState<string | null>(null);
+  const [submitFailureDialog, setSubmitFailureDialog] = useState<SubmitFailureDialog | null>(null);
 
   // Browser leave (refresh, close tab, external link): show native confirm
   useEffect(() => {
@@ -359,6 +431,15 @@ const AccessRequest: React.FC = () => {
     }
   };
 
+  const handleCloseSubmitFailureDialog = useCallback(() => {
+    setSubmitFailureDialog(null);
+    clearAccessRequestSelections(clearCart, clearUsers, clearItemDetails);
+    setSelectedGroups([]);
+    setCurrentStep(1);
+    setSelectedOption("self");
+    setActiveTab(0);
+  }, [clearCart, clearUsers, clearItemDetails]);
+
   const buildAccessRequestPayload = (): AccessRequestPayload => {
     const norm = (x: unknown) => String(x ?? "").trim();
     const accessItems = cartItems.map((item) => {
@@ -465,11 +546,6 @@ const AccessRequest: React.FC = () => {
         }
       );
 
-      if (!res.ok) {
-        console.error("Submit request failed:", res.status, await res.text());
-        return;
-      }
-
       responseText = await res.text();
       if (responseText) {
         try {
@@ -478,9 +554,63 @@ const AccessRequest: React.FC = () => {
           responseBody = null;
         }
       }
+
+      const failed =
+        !res.ok || (responseBody != null && isSubmitBusinessFailure(responseBody));
+
+      if (failed) {
+        const rec = responseBody && typeof responseBody === "object" ? (responseBody as Record<string, unknown>) : null;
+        const errMsg = typeof rec?.errorMessage === "string" ? rec.errorMessage.trim() : "";
+        const dbResp = rec?.dbResponse;
+        const dbErr =
+          dbResp && typeof dbResp === "object" && typeof (dbResp as Record<string, unknown>).error === "string"
+            ? String((dbResp as Record<string, unknown>).error).trim()
+            : "";
+        const code = errMsg || dbErr || "UNKNOWN_ERROR";
+        const trainingRows = parseTrainingValidationErrors(responseBody);
+        const isTrainingFailure =
+          (code === "TRAINING_VALIDATION_FAILED" || dbErr === "TRAINING_VALIDATION_FAILED") &&
+          trainingRows.length > 0;
+
+        if (isTrainingFailure) {
+          setSubmitFailureDialog({
+            variant: "training",
+            code: "TRAINING_VALIDATION_FAILED",
+            lines: trainingRows.map((row) => ({
+              entName: resolveEntitlementNameForCatalogId(row.catalogId, payload.accessItems),
+              trainingCode: row.trainingCode,
+              message: row.message,
+            })),
+          });
+        } else {
+          setSubmitFailureDialog({
+            variant: "generic",
+            title: "Request Failed...",
+            message:
+              errMsg ||
+              dbErr ||
+              (!res.ok ? `HTTP ${res.status}` : "") ||
+              (responseText ? responseText.slice(0, 500) : "") ||
+              "Unknown error",
+          });
+        }
+
+        if (!res.ok) {
+          console.error("Submit request failed:", res.status, responseText);
+        } else {
+          console.warn("Submit request business failure:", responseBody);
+        }
+        return;
+      }
+
       console.log("Submit request succeeded:", responseBody ?? responseText);
     } catch (err) {
       console.error("Error calling submitrequest API:", err);
+      setSubmitFailureDialog({
+        variant: "generic",
+        title: "Request Failed...",
+        message: err instanceof Error ? err.message : String(err),
+      });
       return;
     }
 
@@ -776,9 +906,11 @@ const AccessRequest: React.FC = () => {
             <h2 id="submit-success-title" className="text-xl font-semibold text-gray-900">
               Request submitted successfully
             </h2>
-            <p className="mt-3 text-sm text-gray-600">Your Request ID is:</p>
-            <div className="mt-2 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-lg font-semibold text-blue-900">
-              {submitRequestId || "Generated successfully"}
+            <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="text-sm text-gray-600">Your Request ID is:</span>
+              <span className="rounded-md border border-blue-200 bg-blue-50 px-3 py-1 text-lg font-semibold text-blue-900">
+                {submitRequestId || "Generated successfully"}
+              </span>
             </div>
 
             <div className="mt-6 flex flex-wrap justify-end gap-2">
@@ -813,6 +945,102 @@ const AccessRequest: React.FC = () => {
                 Track Request
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Submit failure (e.g. TRAINING_VALIDATION_FAILED) */}
+      {submitFailureDialog && (
+        <div
+          className="fixed inset-0 z-[111] flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="submit-failure-title"
+        >
+          <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/5">
+            {submitFailureDialog.variant === "training" ? (
+              <>
+                <div className="flex gap-3 border-b border-amber-200/80 bg-gradient-to-br from-amber-50 via-white to-white px-5 py-4">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                    <AlertTriangle className="h-5 w-5" strokeWidth={2} aria-hidden />
+                  </div>
+                  <div className="min-w-0 pt-0.5">
+                    <h2 id="submit-failure-title" className="text-lg font-semibold tracking-tight text-gray-900">
+                      Request Failed...
+                    </h2>
+                    <p className="mt-1 font-mono text-[11px] leading-snug text-amber-900/70">
+                      {submitFailureDialog.code}
+                    </p>
+                  </div>
+                </div>
+                <div className="px-5 pt-4">
+                  <p className="text-sm leading-relaxed text-gray-700">
+                    These entitlements need completed training before you can submit this request.
+                  </p>
+                </div>
+                <div className="flex-1 overflow-y-auto px-5 pb-1">
+                  <ul className="space-y-3">
+                    {submitFailureDialog.lines.map((line, idx) => (
+                      <li
+                        key={`${line.entName}-${idx}`}
+                        className="rounded-xl border border-gray-200 bg-gray-50/90 p-3.5 shadow-sm"
+                      >
+                        <p className="text-[15px] font-semibold leading-snug text-gray-900">
+                          {formatEntitlementDisplayName(line.entName)}
+                        </p>
+                        <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                          <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                            Training code
+                          </span>
+                          <span className="font-mono text-sm font-medium text-gray-900">
+                            {line.trainingCode?.trim() ? line.trainingCode : "Not specified"}
+                          </span>
+                        </div>
+                        <p className="mt-2 border-t border-gray-200/90 pt-2 text-sm leading-relaxed text-gray-700">
+                          {line.message}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="flex justify-end border-t border-gray-200 bg-gray-50/90 px-5 py-3">
+                  <button
+                    type="button"
+                    onClick={handleCloseSubmitFailureDialog}
+                    className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+                  >
+                    Close
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex gap-3 border-b border-gray-200 bg-gray-50 px-5 py-4">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-700">
+                    <AlertTriangle className="h-5 w-5" strokeWidth={2} aria-hidden />
+                  </div>
+                  <div className="min-w-0 pt-0.5">
+                    <h2 id="submit-failure-title" className="text-lg font-semibold text-gray-900">
+                      {submitFailureDialog.title}
+                    </h2>
+                  </div>
+                </div>
+                <div className="max-h-[min(50vh,320px)] overflow-y-auto px-5 py-4">
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-700">
+                    {submitFailureDialog.message}
+                  </p>
+                </div>
+                <div className="flex justify-end border-t border-gray-200 bg-gray-50/90 px-5 py-3">
+                  <button
+                    type="button"
+                    onClick={handleCloseSubmitFailureDialog}
+                    className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+                  >
+                    Close
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
