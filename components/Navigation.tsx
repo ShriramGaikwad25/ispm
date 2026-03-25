@@ -408,6 +408,7 @@ export function Navigation() {
                           onClick={handleLinkClick}
                           role="menuitem"
                           aria-current={isSubActive ? 'page' : undefined}
+                          aria-label={subItem.beta ? `${subItem.name} (Beta)` : undefined}
                           className={`flex items-center gap-2 px-2 py-1.25 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
                             isSubActive 
                               ? 'bg-green-50 text-green-700 border-l-2 border-green-600' 
@@ -429,7 +430,17 @@ export function Navigation() {
                             }}
                             aria-hidden="true"
                           />
-                          <span className="whitespace-normal">{subItem.name}</span>
+                          <span className="whitespace-normal inline-flex items-baseline gap-0.5">
+                            {subItem.name}
+                            {subItem.beta && (
+                              <span
+                                className="text-[11px] font-semibold text-amber-600 leading-none ml-0.5"
+                                aria-hidden
+                              >
+                                β
+                              </span>
+                            )}
+                          </span>
                         </Link>
                       </li>
                     );

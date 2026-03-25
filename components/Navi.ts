@@ -31,6 +31,8 @@ export interface NavItem {
   href: string;
   icon: any;
   subItems?: NavItem[];
+  /** Show β next to the label (e.g. pre-release features) */
+  beta?: boolean;
 }
 
 export const navLinks: NavItem[] = [
@@ -71,13 +73,14 @@ export const navLinks: NavItem[] = [
     ]
   },
   {
-    name: 'Compliance/Audit',
+    name: 'Audit and Compliance',
     href: '/reports',
     icon: Shield,
     subItems: [
       { name: 'Reporting', href: '/oracle-reports', icon: FileText },
       { name: 'Profiles', href: '/profiles', icon: UserCircle2Icon },
-      { name: 'SoD Audit', href: '/reports/sod-audit', icon: AlertCircle }
+      { name: 'SoD Audit', href: '/reports/sod-audit', icon: AlertCircle },
+      { name: 'NHI Dashboard', href: '/reports/nhi-dashboard', icon: LayoutDashboard, beta: true }
     ]
   },
   {
@@ -90,7 +93,7 @@ export const navLinks: NavItem[] = [
       { name: 'Scheduler', href: '/settings/gateway/scheduler', icon: Clock },
       { name: 'Access Policy', href: '/settings/gateway/manage-access-policy', icon: Lock },
       { name: 'Approval Policy', href: '/settings/gateway/manage-approval-policies', icon: Workflow },
-      { name: 'Workflow', href: '/settings/gateway/workflow-builder', icon: Workflow },
+      { name: 'Workflow Builder', href: '/settings/gateway/workflow-builder', icon: Workflow },
       { name: 'SoD', href: '/settings/gateway/sod', icon: Shield },
       { name: 'Generic', href: '/settings/gateway', icon: Server }
     ]

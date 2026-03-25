@@ -10,6 +10,7 @@ import ExpressionBuilder from "@/components/ExpressionBuilder";
 import ToggleSwitch from "@/components/ToggleSwitch";
 import FileDropzone from "@/components/FileDropzone";
 import { useSearchParams } from "next/navigation";
+import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
 
 // Step Palette Categories
 const STEP_PALETTE = {
@@ -44,7 +45,7 @@ const STAGE_COLUMN_HEADING_CLASS = [
 
 /** Stage title pill color by normalized stage name (overrides index-based color). */
 const STAGE_HEADING_BY_NAME: Record<string, string> = {
-  validate: "bg-fuchsia-100 text-fuchsia-900",
+  validate: "bg-blue-100 text-blue-900",
 };
 
 /** Slightly narrower stage columns + matching “Add Stage” control */
@@ -183,6 +184,11 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
     setSelectedStepId(step.id);
     setStepConfig(step);
     setActiveTab("General");
+  };
+
+  const closeStepConfiguration = () => {
+    setSelectedStepId(null);
+    setStepConfig(null);
   };
 
   const updateStepConfig = (field: string, value: any) => {
@@ -350,7 +356,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
         <div className="flex-1 bg-gradient-to-b from-white via-gray-50 to-gray-100 border border-gray-200 rounded-xl p-5 overflow-x-auto shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-blue-900 px-3 py-1.5 rounded-lg bg-blue-100 inline-block">
+              <h3 className="text-lg font-semibold text-gray-900">
                 Approval Workflow Template
               </h3>
               <p className="text-sm text-gray-600">
@@ -515,9 +521,19 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
 
         {selectedStep && (
         <div className="w-80 bg-gray-50 border border-gray-200 rounded-lg p-4 overflow-y-auto shrink-0">
-          <h3 className="text-sm font-semibold text-slate-900 mb-4 px-2 py-1.5 rounded-md bg-slate-200">
-            Step Configuration
-          </h3>
+          <div className="flex items-center justify-between gap-2 mb-4">
+            <h3 className="text-sm font-semibold text-slate-900 px-2 py-1.5 rounded-md bg-slate-200">
+              Step Configuration
+            </h3>
+            <button
+              type="button"
+              onClick={closeStepConfiguration}
+              className="p-1.5 rounded-md text-gray-500 hover:text-gray-900 hover:bg-gray-200 transition-colors shrink-0"
+              aria-label="Close step configuration"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
             <div>
               <div className="mb-4">
                 <h4 className="font-semibold text-gray-900 px-2 py-1 rounded-md bg-gray-100 inline-block max-w-full">
@@ -1368,6 +1384,7 @@ export default function WorkflowBuilderCreatePage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState(getInitialFormData);
   const searchParams = useSearchParams();
+  const { isVisible: isSidebarVisible, sidebarWidthPx } = useLeftSidebar();
 
   const steps = [
     { id: 1, title: "Basic Information" },
@@ -1822,7 +1839,10 @@ export default function WorkflowBuilderCreatePage() {
   return (
     <div className="h-full pt-16">
       {/* Fixed Step Bar */}
-      <div className="fixed top-16 left-0 right-0 z-20 bg-white shadow-sm border-b border-gray-200 px-4 py-3">
+      <div
+        className="fixed top-16 right-0 z-20 bg-white shadow-sm border-b border-gray-200 px-4 py-3"
+        style={{ left: isSidebarVisible ? sidebarWidthPx : 0 }}
+      >
         <div className="max-w-6xl mx-auto flex items-center gap-6">
           <button
             onClick={handlePrevious}

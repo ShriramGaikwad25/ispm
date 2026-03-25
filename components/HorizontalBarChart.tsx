@@ -29,7 +29,7 @@ const HorizontalBarChart = ({ analyticsData }: HorizontalBarChartProps) => {
     datasets: [
       {
         data: [totalEntitlements, newAccess, directAssignment, groupAssignment, lowRisk, highRisk],
-        backgroundColor: ["#1F485B", "#50BFA5", "#6EC6FF", "#5E99CC", "#E6A23C", "#E74C3C"],
+        backgroundColor: ["#2979FF", "#00BFA5", "#9933FF", "#11C65E", "#F9B824", "#00BCD4"],
         borderRadius: 4,
         barThickness: 32, // Adjust bar height
       },

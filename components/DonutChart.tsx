@@ -29,7 +29,7 @@ const DonutChart = ({ analyticsData }: DonutChartProps) => {
     datasets: [
       {
         data: [totalAccess, lowRisk, roles, users, sodViolations, inactiveAccounts],
-        backgroundColor: ["#4C81F1", "#50BFA5", "#6C63FF", "#E54C86", "#E6A23C", "#F6C342"],
+        backgroundColor: ["#2979FF", "#00BFA5", "#9933FF", "#11C65E", "#F9B824", "#00BCD4"],
         borderWidth: 2,
       },
     ],
