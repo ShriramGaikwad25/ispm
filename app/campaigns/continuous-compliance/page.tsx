@@ -319,6 +319,7 @@ export default function ContinuousCompliancePage() {
         triggerEvent: triggerEventValue,
         entity: rowData.entity ?? "",
         details: rowData.details ?? "",
+        actionType: String(rowData?.actionType ?? rowData?.eventType ?? ""),
       });
 
       router.push(
@@ -351,22 +352,20 @@ export default function ContinuousCompliancePage() {
       (/owner\s*inactive/i.test(triggerEventStr) ||
         /entitlement\s+owner\s*inactive/i.test(triggerEventStr));
 
-    // Entitlement owner inactive → same entitlement-owner review grid, single row
+    // Entitlement owner inactive → catalog grid (single entitlement row, edit + reassign)
     if (isEntitlementOwnerInactive) {
       const params = new URLSearchParams({
-        reviewerId: "DUMMY_REVIEWER",
-        certificationId: "DUMMY_CERT",
-        appinstanceid: "DUMMY_APP_INSTANCE",
+        ccOwnerInactive: "1",
         triggerEvent: triggerEventStr,
+        entity: rowData.entity ?? "",
         details: String(rowData?.details ?? ""),
         assignedTo: String(rowData?.assignedTo ?? ""),
         dueOn: String(rowData?.expiresOn ?? rowData?.dueOn ?? ""),
         actionType: String(rowData?.actionType ?? rowData?.eventType ?? ""),
-        singleEntitlement: "1",
       });
-      router.push(
-        `/campaigns/continuous-compliance/entitlement-review?${params.toString()}`
-      );
+      const reviewer = String(rowData?.assignedTo ?? "").trim();
+      if (reviewer) params.set("reviewerId", reviewer);
+      router.push(`/catalog?${params.toString()}`);
       return;
     }
 

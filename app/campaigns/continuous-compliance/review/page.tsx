@@ -43,7 +43,21 @@ const MANAGER_CHANGE_ENTITLEMENTS = [
 ];
 
 const SHARED_ACCOUNT = "Ssharma_SAP01";
+const PRIVILEGED_FLOW_ACCOUNT = "john.kelly";
 const SHARED_APPLICATION = "SAP_S4";
+
+/** Display name on user card: "john.kelly" → "John Kelly" */
+function formatDetailsDisplayName(raw: string): string {
+  const s = raw.trim();
+  if (!s) return "John Kelly";
+  if (s.includes(".")) {
+    return s
+      .split(".")
+      .map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
+      .join(" ");
+  }
+  return s;
+}
 
 /** Privileged Access assigned & New Account assigned: one account, one application, multiple entitlements. */
 const SINGLE_ACCOUNT_ENTITLEMENT_ROWS = [
@@ -82,23 +96,33 @@ const SINGLE_ACCOUNT_ENTITLEMENT_ROWS = [
 export default function ContinuousComplianceDummyReviewPage() {
   const searchParams = useSearchParams();
 
-  // Map existing params into something close to the mock
-  const name = searchParams.get("details") || "Timothy King";
+  const detailsParam = searchParams.get("details") ?? "";
+  const name = formatDetailsDisplayName(detailsParam);
   const jobTitle = "Senior Operations Analyst";
   const department = "IT Operations";
   const completionPercent = 92;
 
   const triggerEvent = searchParams.get("triggerEvent") ?? "";
+  const actionType = (searchParams.get("actionType") ?? "").trim();
   const isPrivilegedAccessAssigned =
-    /privileged\s*access\s*assigned/i.test(triggerEvent);
+    /privelege\s*access\s*assigned|privileged\s*access\s*assigned/i.test(
+      triggerEvent
+    );
+  const hideUserCardProgress =
+    /^access\s*review$/i.test(actionType) || isPrivilegedAccessAssigned;
   const isNewAccountAssigned =
     /new\s*account\s*(discovered|assigned)/i.test(triggerEvent);
 
   const baseDummyEntitlements = useMemo(() => {
     if (isPrivilegedAccessAssigned || isNewAccountAssigned) {
-      return SINGLE_ACCOUNT_ENTITLEMENT_ROWS.map((row) => ({
+      const rows = isPrivilegedAccessAssigned
+        ? SINGLE_ACCOUNT_ENTITLEMENT_ROWS.slice(0, 3)
+        : SINGLE_ACCOUNT_ENTITLEMENT_ROWS;
+      return rows.map((row) => ({
         ...row,
-        account: SHARED_ACCOUNT,
+        account: isPrivilegedAccessAssigned
+          ? PRIVILEGED_FLOW_ACCOUNT
+          : SHARED_ACCOUNT,
         application: SHARED_APPLICATION,
         ...(isNewAccountAssigned
           ? {}
@@ -157,18 +181,20 @@ export default function ContinuousComplianceDummyReviewPage() {
                   </p>
                 </div>
 
-                {/* Progress */}
-                <div className="flex items-center gap-2">
-                  <div className="w-24 md:w-32 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-[#2563eb] rounded-full"
-                      style={{ width: `${completionPercent}%` }}
-                    />
+                {/* Progress (hidden for Event Type = Access Review) */}
+                {!hideUserCardProgress && (
+                  <div className="flex items-center gap-2">
+                    <div className="w-24 md:w-32 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[#2563eb] rounded-full"
+                        style={{ width: `${completionPercent}%` }}
+                      />
+                    </div>
+                    <span className="text-[11px] md:text-xs font-medium text-gray-700">
+                      {completionPercent}%
+                    </span>
                   </div>
-                  <span className="text-[11px] md:text-xs font-medium text-gray-700">
-                    {completionPercent}%
-                  </span>
-                </div>
+                )}
 
                 {/* Job title + department chips – larger and inline */}
                 <div className="flex flex-wrap items-center gap-2 text-[11px] md:text-xs">

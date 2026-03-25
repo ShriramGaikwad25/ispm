@@ -25,7 +25,7 @@ const DonutChart = ({ analyticsData }: DonutChartProps) => {
   const inactiveAccounts = analyticsData?.inactiveAccounts || 0;
 
   const chartData = {
-    labels: ["Access", "Low Risk", "Roles", "User", "SOD Violations", "Inactive Accounts"],
+    labels: ["Access", "Low Risk", "Roles", "John Kelly", "SOD Violations", "Inactive Accounts"],
     datasets: [
       {
         data: [totalAccess, lowRisk, roles, users, sodViolations, inactiveAccounts],

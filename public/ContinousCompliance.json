@@ -45,7 +45,7 @@
 },
 {
   "Entity" : "User",
-  "Details" : "Maya.Patel",
+  "Details" : "john.kelly",
   "Trigger Event" : "Privelege Access Assigned",
   "Event Type" : "Elevated Access Review",
   "Assigned To" : "Elena.Rossi",
@@ -66,7 +66,7 @@
   "Details" : "svc_api_hrsync",
   "Trigger Event" : "Owner Inactive",
   "Event Type" : "Reassign Owner",
-  "Assigned To" : "Kavya.Iyer",
+  "Assigned To" : "Jessica Camacho",
   "Expires On" : "2026-03-22",
   "Actions" : "Rotate, Review"
 },
@@ -103,7 +103,7 @@
   "Trigger Event" : "Account Inactive",
   "Event Type" : "Suspend User Access",
   "Assigned To" : "Aisha.Hassan",
-  "Expires On" : "2026-03-23",
+  "Expires On" : "2026-03-30",
   "Actions" : "Review, Enforce MFA"
 },
 {
@@ -120,7 +120,7 @@
   "Details" : "svc_etl_payroll",
   "Trigger Event" : "Owner Inactive",
   "Event Type" : "Reassign Owner",
-  "Assigned To" : "Mark.Ellison",
+  "Assigned To" : "Jessica Camacho",
   "Expires On" : "2026-03-27",
   "Actions" : "Review, Reassign"
 },

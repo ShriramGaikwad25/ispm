@@ -166,6 +166,10 @@ export function Navigation() {
       }
       return { href: '/campaigns', label: 'Back to Campaigns' };
     }
+    // Catalog opened from CC (owner inactive) → back to Continuous Compliance list
+    if (pathname === '/catalog' && searchParams?.get('ccOwnerInactive') === '1') {
+      return { href: '/campaigns/continuous-compliance', label: 'Back to Continuous Compliance' };
+    }
     // Continuous Compliance campaign details → back to Continuous Compliance list
     if (
       pathname === '/campaigns/continuous-compliance/review' ||
@@ -173,6 +177,7 @@ export function Navigation() {
       pathname === '/campaigns/continuous-compliance/unlinked-accounts' ||
       pathname === '/campaigns/continuous-compliance/account-inactive-review' ||
       pathname === '/campaigns/continuous-compliance/manager-inactive-review' ||
+      pathname === '/campaigns/continuous-compliance/service-account-owner-inactive-review' ||
       pathname === '/campaigns/continuous-compliance/newly-discovered-entitlement-review'
     ) {
       return { href: '/campaigns/continuous-compliance', label: 'Back to Continuous Compliance' };

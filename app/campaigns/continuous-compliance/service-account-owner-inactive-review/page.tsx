@@ -10,27 +10,86 @@ import "@/lib/ag-grid-setup";
 import { formatDateMMDDYY } from "@/utils/utils";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import CustomPagination from "@/components/agTable/CustomPagination";
+import { executeQuery } from "@/lib/api";
 
 const AgGridReact = dynamic(
   () => import("ag-grid-react").then((mod) => mod.AgGridReact),
   { ssr: false }
 );
 
+type ServiceAccountEntitlement = {
+  entitlementName: string;
+  entitlementDescription: string;
+  lastlogindate: string;
+  businessService: string;
+  userManager: string;
+};
+
+/** Same entitlement names + copy as service accounts dummy data (`app/service-account/page.tsx`, `app/applications/[id]/page.tsx`). */
+const SERVICE_ACCOUNT_ENTITLEMENT_SEED: Omit<
+  ServiceAccountEntitlement,
+  "userManager"
+>[] = [
+  {
+    entitlementName: "Administrator Access",
+    entitlementDescription:
+      "Full administrative access to the production database system. This entitlement grants the ability to create, modify, and delete database objects, manage user permissions, and configure system settings.",
+    lastlogindate: "2024-01-15",
+    businessService: "Production Database",
+  },
+  {
+    entitlementName: "Backup Operator",
+    entitlementDescription: "Access to perform database backup operations.",
+    lastlogindate: "2024-01-14",
+    businessService: "Production Database",
+  },
+  {
+    entitlementName: "Read-Only Access",
+    entitlementDescription:
+      "Read-only access to API gateway services and configuration. This entitlement allows viewing of API endpoints, monitoring metrics, and accessing logs without the ability to modify settings.",
+    lastlogindate: "2024-01-20",
+    businessService: "API Gateway Service",
+  },
+  {
+    entitlementName: "Monitoring Access",
+    entitlementDescription:
+      "Access to monitoring and alerting systems for infrastructure health checks.",
+    lastlogindate: "2024-01-18",
+    businessService: "Infrastructure Monitoring",
+  },
+  {
+    entitlementName: "Alert Management",
+    entitlementDescription: "Ability to manage and configure alerting rules.",
+    lastlogindate: "2024-01-17",
+    businessService: "Infrastructure Monitoring",
+  },
+];
+
+function buildDefaultEntitlements(assignedTo: string): ServiceAccountEntitlement[] {
+  const custodian = assignedTo || "N/A";
+  return SERVICE_ACCOUNT_ENTITLEMENT_SEED.map((row) => ({
+    ...row,
+    userManager: custodian,
+  }));
+}
+
 function buildServiceAccountRow(params: {
   accountName: string;
   assignedTo: string;
 }) {
   const { accountName, assignedTo } = params;
+  const entitlements = buildDefaultEntitlements(assignedTo);
+  const primary = entitlements[0];
   return {
     accountName,
-    entitlementName: "Administrator Access",
-    entitlementDescription:
-      "Full administrative access for integration and batch operations. Review custodian while owner is inactive.",
+    entitlements,
+    entitlementName: primary.entitlementName,
+    entitlementDescription: primary.entitlementDescription,
     description:
-      "Service account for API integration with elevated privileges. Used for automated sync and system administration.",
+      "Service account for production database management with elevated privileges. Used for automated maintenance tasks and system administration.",
     userManager: assignedTo || "N/A",
-    lastlogindate: "2024-01-15",
-    businessService: "Production Integration",
+    lastlogindate: primary.lastlogindate,
+    businessService: primary.businessService,
     backupOwner: "Jane Smith",
     environment: "Production",
     pamPolicy: "Standard PAM Policy",
@@ -50,11 +109,18 @@ export default function ServiceAccountOwnerInactiveReviewPage() {
 
   const accountName =
     searchParams.get("details")?.trim() || "svc_api_hrsync";
-  const assignedTo = searchParams.get("assignedTo")?.trim() || "Kavya.Iyer";
+  const assignedFromUrl =
+    searchParams.get("assignedTo")?.trim() || "Jessica Camacho";
+  const [custodianOverride, setCustodianOverride] = useState<string | null>(null);
+  const effectiveAssignedTo = custodianOverride ?? assignedFromUrl;
+
+  useEffect(() => {
+    setCustodianOverride(null);
+  }, [accountName, assignedFromUrl]);
 
   const rowData = useMemo(
-    () => [buildServiceAccountRow({ accountName, assignedTo })],
-    [accountName, assignedTo]
+    () => [buildServiceAccountRow({ accountName, assignedTo: effectiveAssignedTo })],
+    [accountName, effectiveAssignedTo]
   );
 
   const paginatedData = useMemo(() => {
@@ -99,22 +165,50 @@ export default function ServiceAccountOwnerInactiveReviewPage() {
                     {String(row.accountName ?? "-")}
                   </div>
                 </div>
-                <div className="mt-2">
-                  <span className="text-xs uppercase text-gray-500">Entitlement:</span>
-                  <div className="text-md font-medium break-words">
-                    {String(row.entitlementName ?? "-")}
+                {Array.isArray(row.entitlements) &&
+                (row.entitlements as unknown[]).length > 0 ? (
+                  <div className="mt-2">
+                    <span className="text-xs uppercase text-gray-500">
+                      Entitlements ({(row.entitlements as unknown[]).length})
+                    </span>
+                    <ul className="mt-2 space-y-3 list-none">
+                      {(row.entitlements as ServiceAccountEntitlement[]).map(
+                        (ent, idx) => (
+                          <li
+                            key={`${ent.entitlementName}-${idx}`}
+                            className="border border-gray-200 rounded-md p-2 bg-white min-w-0"
+                          >
+                            <div className="text-md font-medium break-words">
+                              {ent.entitlementName}
+                            </div>
+                            <p className="text-sm text-gray-700 break-words whitespace-normal mt-1">
+                              {ent.entitlementDescription}
+                            </p>
+                          </li>
+                        )
+                      )}
+                    </ul>
                   </div>
-                </div>
-                <div className="mt-2">
-                  <span className="text-xs uppercase text-gray-500">Description:</span>
-                  <p className="text-sm text-gray-700 break-words whitespace-pre-wrap">
-                    {String(
-                      row.entitlementDescription ||
-                        row.description ||
-                        "-"
-                    )}
-                  </p>
-                </div>
+                ) : (
+                  <>
+                    <div className="mt-2">
+                      <span className="text-xs uppercase text-gray-500">Entitlement:</span>
+                      <div className="text-md font-medium break-words">
+                        {String(row.entitlementName ?? "-")}
+                      </div>
+                    </div>
+                    <div className="mt-2">
+                      <span className="text-xs uppercase text-gray-500">Description:</span>
+                      <p className="text-sm text-gray-700 break-words whitespace-normal">
+                        {String(
+                          row.entitlementDescription ||
+                            row.description ||
+                            "-"
+                        )}
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
               <div className="p-4 space-y-4">
                 <div className="bg-white border border-gray-200 rounded-md shadow-sm">
@@ -250,8 +344,83 @@ export default function ServiceAccountOwnerInactiveReviewPage() {
 
   const openReassignSidebar = useCallback(
     (row: Record<string, unknown>) => {
+      const resolveOwnerLabel = (owner: Record<string, unknown>) => {
+        const fn = String(owner.firstname ?? "").trim();
+        const ln = String(owner.lastname ?? "").trim();
+        const full = [fn, ln].filter(Boolean).join(" ").trim();
+        if (full) return full;
+        const u = String(owner.username ?? "").trim();
+        if (u) return u;
+        const em = String(owner.email ?? "").trim();
+        return em || "Unknown";
+      };
+
       const ReassignPanel = () => {
         const [search, setSearch] = useState("");
+        const [results, setResults] = useState<Record<string, unknown>[]>([]);
+        const [selected, setSelected] = useState<Record<string, unknown> | null>(null);
+        const [loading, setLoading] = useState(false);
+        const [error, setError] = useState<string | null>(null);
+        const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+        useEffect(() => {
+          return () => {
+            if (debounceRef.current) clearTimeout(debounceRef.current);
+          };
+        }, []);
+
+        useEffect(() => {
+          if (debounceRef.current) clearTimeout(debounceRef.current);
+          const q = search.trim();
+          if (q.length < 2) {
+            setResults([]);
+            setError(null);
+            setLoading(false);
+            return;
+          }
+          setLoading(true);
+          setError(null);
+          debounceRef.current = setTimeout(async () => {
+            try {
+              const query = `SELECT * FROM usr WHERE username ILIKE ? OR email::text ILIKE ? ORDER BY username ASC LIMIT 25`;
+              const response = await executeQuery<{ resultSet?: unknown[] }>(query, [
+                `%${q}%`,
+                `%${q}%`,
+              ]);
+              let rows: Record<string, unknown>[] = [];
+              if (response?.resultSet && Array.isArray(response.resultSet)) {
+                rows = response.resultSet.map((user: Record<string, unknown>) => {
+                  let emailValue = "";
+                  const em = user.email;
+                  if (typeof em === "string") emailValue = em;
+                  else if (em && typeof em === "object" && "work" in (em as object))
+                    emailValue = String((em as { work?: string }).work ?? "");
+                  else if (Array.isArray(em) && em.length > 0) {
+                    const primary =
+                      (em as { primary?: boolean; value?: string }[]).find((e) => e.primary) ||
+                      (em as { value?: string }[])[0];
+                    emailValue = primary?.value ?? "";
+                  }
+                  const internalId =
+                    user.userid ?? user.id ?? user.userUniqueID ?? "";
+                  return {
+                    ...user,
+                    userid: internalId,
+                    username: user.username ?? "",
+                    email: emailValue,
+                  };
+                });
+              }
+              setResults(rows);
+            } catch (e) {
+              setError(e instanceof Error ? e.message : "Search failed");
+              setResults([]);
+            } finally {
+              setLoading(false);
+            }
+          }, 300);
+        }, [search]);
+
         return (
           <div className="flex flex-col h-full">
             <p className="text-sm text-gray-600 mb-3">
@@ -265,10 +434,53 @@ export default function ServiceAccountOwnerInactiveReviewPage() {
             <input
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setSelected(null);
+              }}
               placeholder="Name or email"
               className="mt-1 border border-gray-300 rounded-md px-3 py-2 text-sm w-full"
+              autoComplete="off"
             />
+            {search.trim().length >= 2 && (
+              <div className="mt-2 max-h-36 overflow-auto border border-gray-200 rounded-md p-2 text-sm bg-gray-50">
+                {loading ? (
+                  <p className="text-gray-500 text-center py-2">Searching…</p>
+                ) : error ? (
+                  <p className="text-red-600 text-xs">{error}</p>
+                ) : results.length === 0 ? (
+                  <p className="text-gray-500 italic">No users found.</p>
+                ) : (
+                  <ul className="space-y-1">
+                    {results.map((u, idx) => {
+                      const label =
+                        resolveOwnerLabel(u) +
+                        (String(u.email || "").trim() ? ` · ${String(u.email)}` : "");
+                      const key = String(u.userid ?? u.username ?? idx);
+                      const isSel =
+                        !!selected &&
+                        String(selected.userid ?? "") === String(u.userid ?? "") &&
+                        String(selected.username ?? "") === String(u.username ?? "");
+                      return (
+                        <li key={key}>
+                          <button
+                            type="button"
+                            className={`w-full text-left px-2 py-1.5 rounded border text-xs ${
+                              isSel
+                                ? "bg-blue-100 border-blue-300"
+                                : "border-transparent hover:bg-gray-100"
+                            }`}
+                            onClick={() => setSelected(u)}
+                          >
+                            {label}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            )}
             <div className="mt-4 flex justify-end gap-2">
               <button
                 type="button"
@@ -279,7 +491,13 @@ export default function ServiceAccountOwnerInactiveReviewPage() {
               </button>
               <button
                 type="button"
-                className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700"
+                className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                disabled={!selected}
+                onClick={() => {
+                  if (!selected) return;
+                  setCustodianOverride(resolveOwnerLabel(selected));
+                  closeSidebar();
+                }}
               >
                 Reassign
               </button>
@@ -308,9 +526,12 @@ export default function ServiceAccountOwnerInactiveReviewPage() {
         field: "entitlementDescription",
         headerName: "Description",
         flex: 3,
+        wrapText: true,
+        autoHeight: true,
+        cellClass: "whitespace-normal",
         cellRenderer: (params: ICellRendererParams) => (
-          <div className="flex flex-col gap-0">
-            <span className="text-sm text-gray-700 break-words">
+          <div className="flex flex-col gap-0 min-w-0 py-1">
+            <span className="text-sm text-gray-700 break-words whitespace-normal leading-snug">
               {params.value || params.data?.description || "-"}
             </span>
           </div>
@@ -360,9 +581,11 @@ export default function ServiceAccountOwnerInactiveReviewPage() {
           filter: true,
           resizable: true,
           flex: 1,
+          wrapText: true,
+          autoHeight: true,
         },
+        // Normal layout inside a fixed-height detail row so the nested grid scrolls when content is tall.
         headerHeight: 40,
-        rowHeight: 50,
       },
       getDetailRowData: (params: {
         data: Record<string, unknown>;
@@ -496,7 +719,7 @@ export default function ServiceAccountOwnerInactiveReviewPage() {
     <div className="min-h-screen bg-[#f4f5f8] py-5 px-0 md:px-0">
       <div className="w-full bg-white rounded-xl shadow-sm border border-gray-200 p-4">
         {mounted && (
-          <div style={{ height: 600, width: "100%" }}>
+          <div className="w-full min-h-[600px]">
             <AgGridReact
               theme={themeQuartz}
               rowData={paginatedData}
@@ -504,7 +727,8 @@ export default function ServiceAccountOwnerInactiveReviewPage() {
               defaultColDef={defaultColDef}
               masterDetail
               detailCellRendererParams={detailCellRendererParams}
-              detailRowHeight={300}
+              detailRowHeight={560}
+              domLayout="autoHeight"
             />
           </div>
         )}

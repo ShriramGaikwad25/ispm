@@ -22,6 +22,8 @@ type ReportRow = {
   email: string;
   title: string;
   department: string;
+  /** Inactive manager corporate / account id (e.g. emma.lewis) */
+  managerId: string;
   managerName: string;
   managerStatus: string;
   status: string;
@@ -30,6 +32,7 @@ type ReportRow = {
 
 function buildMockReports(inactiveManagerLabel: string): ReportRow[] {
   const mgr = inactiveManagerLabel || "Inactive manager";
+  const mgrId = (inactiveManagerLabel || "manager.id").trim().toLowerCase();
   return [
     {
       id: "mi-1",
@@ -38,6 +41,7 @@ function buildMockReports(inactiveManagerLabel: string): ReportRow[] {
       email: "jordan.hayes@example.com",
       title: "Senior Analyst",
       department: "Finance",
+      managerId: mgrId,
       managerName: mgr,
       managerStatus: "Inactive",
       status: "Active",
@@ -50,6 +54,7 @@ function buildMockReports(inactiveManagerLabel: string): ReportRow[] {
       email: "priya.nair@example.com",
       title: "Operations Lead",
       department: "Operations",
+      managerId: mgrId,
       managerName: mgr,
       managerStatus: "Inactive",
       status: "Active",
@@ -62,6 +67,7 @@ function buildMockReports(inactiveManagerLabel: string): ReportRow[] {
       email: "marcus.lee@example.com",
       title: "IT Specialist",
       department: "IT",
+      managerId: mgrId,
       managerName: mgr,
       managerStatus: "Inactive",
       status: "Active",
@@ -74,6 +80,7 @@ function buildMockReports(inactiveManagerLabel: string): ReportRow[] {
       email: "elena.rossi@example.com",
       title: "Finance Partner",
       department: "Finance",
+      managerId: mgrId,
       managerName: mgr,
       managerStatus: "Inactive",
       status: "Active",
@@ -86,6 +93,7 @@ function buildMockReports(inactiveManagerLabel: string): ReportRow[] {
       email: "noah.bennett@example.com",
       title: "Support Engineer",
       department: "Support",
+      managerId: mgrId,
       managerName: mgr,
       managerStatus: "Inactive",
       status: "Active",
@@ -182,11 +190,6 @@ function TeamsIconButton({ email, userName }: { email: string; userName: string 
 export default function ManagerInactiveReviewPage() {
   const searchParams = useSearchParams();
 
-  const triggerEvent =
-    searchParams.get("triggerEvent") || "Manager Inactive";
-  const assignedTo = searchParams.get("assignedTo") || "";
-  const dueOn = searchParams.get("dueOn") || "";
-  const actionType = searchParams.get("actionType") || "";
   const inactiveManager =
     searchParams.get("inactiveManager") ||
     searchParams.get("details") ||
@@ -210,6 +213,7 @@ export default function ManagerInactiveReviewPage() {
         r.email.toLowerCase().includes(q) ||
         r.title.toLowerCase().includes(q) ||
         r.department.toLowerCase().includes(q) ||
+        r.managerId.toLowerCase().includes(q) ||
         r.tags.toLowerCase().includes(q)
     );
   }, [rowData, searchTerm]);
@@ -278,19 +282,21 @@ export default function ManagerInactiveReviewPage() {
         minWidth: 140,
       },
       {
-        headerName: "Manager (Assigned but disabled)",
+        headerName: "Manager",
         field: "managerName",
         flex: 2,
         minWidth: 220,
         wrapHeaderText: true,
         autoHeaderHeight: true,
         cellRenderer: (params: { value?: string; data?: ReportRow }) => {
-          const managerName = params.value || "N/A";
-          const managerStatus = params.data?.managerStatus || "Unknown";
+          const managerId = params.data?.managerId?.trim() || String(params.value || "").trim() || "—";
           return (
-            <span>
-              {managerName} ({managerStatus})
-            </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-medium text-gray-900">{managerId}</span>
+              <span className="inline-flex items-center rounded bg-amber-50 px-1 py-px text-[9px] font-medium leading-none text-amber-800 border border-amber-200/80">
+                Inactive
+              </span>
+            </div>
           );
         },
       },
@@ -337,12 +343,6 @@ export default function ManagerInactiveReviewPage() {
           <p className="text-sm text-gray-600 mt-1">
             Manager inactive — direct reports under review ({filteredRows.length} of{" "}
             {rowData.length} shown).
-          </p>
-          <p className="text-xs text-gray-500 mt-1">
-            {triggerEvent}
-            {actionType ? ` · ${actionType}` : ""}
-            {dueOn ? ` · Due ${dueOn}` : ""}
-            {assignedTo ? ` · Reviewer queue: ${assignedTo}` : ""}
           </p>
         </div>
 

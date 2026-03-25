@@ -56,6 +56,10 @@ interface PendingApprovalDetail {
   details: RequestDetails;
   lineItems: RequestLineItem[];
   initialLineItemActions?: Record<string, "approve" | "reject" | null>;
+  baselineLineItemActions?: Record<
+    string,
+    "approve" | "reject" | "consulted" | null
+  >;
   sodPolicyDetails?: SodPolicyDetails | null;
   sodSeverity?: string | null;
   sodConflictingRoles?: string[];
@@ -196,7 +200,7 @@ const PendingApprovalDetailPage = ({
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [baselineLineItemActions, setBaselineLineItemActions] = useState<
-    Record<string, "approve" | "reject" | null>
+    Record<string, "approve" | "reject" | "consulted" | null>
   >({});
 
   const commentOptions: Record<string, string[]> = {
@@ -607,8 +611,14 @@ const PendingApprovalDetailPage = ({
             decisionJson.lineItems ?? decisionJson.lineitems
           );
 
-          const decisionActionByLineItemId: Record<string, "approve" | "reject"> = {};
-          const decisionActionByCatalogId: Record<string, "approve" | "reject"> = {};
+          const decisionActionByLineItemId: Record<
+            string,
+            "approve" | "reject" | "consulted"
+          > = {};
+          const decisionActionByCatalogId: Record<
+            string,
+            "approve" | "reject" | "consulted"
+          > = {};
 
           decisionLineItems.forEach((item) => {
             const actionRaw = toStringSafe(
@@ -621,6 +631,8 @@ const PendingApprovalDetailPage = ({
                 ? "approve"
                 : actionRaw === "REJECT" || actionRaw === "REVOKE"
                 ? "reject"
+                : actionRaw === "CONSULTED"
+                ? "consulted"
                 : null;
             if (!mappedAction) return;
 
@@ -638,10 +650,19 @@ const PendingApprovalDetailPage = ({
           });
 
           const initialLineItemActions: Record<string, "approve" | "reject" | null> = {};
+          const baselineLineItemActions: Record<
+            string,
+            "approve" | "reject" | "consulted" | null
+          > = {};
           normalizedLineItems.forEach((lineItem, idx) => {
             const byLineItemId = decisionActionByLineItemId[normalizeId(lineItem.lineItemId)];
             const byCatalogId = decisionActionByCatalogId[normalizeId(lineItem.catalogId)];
-            initialLineItemActions[String(idx)] = byLineItemId ?? byCatalogId ?? null;
+            const baselineAction = byLineItemId ?? byCatalogId ?? null;
+            baselineLineItemActions[String(idx)] = baselineAction;
+            initialLineItemActions[String(idx)] =
+              baselineAction === "approve" || baselineAction === "reject"
+                ? baselineAction
+                : null;
           });
 
           const durationDays = createdOnRaw
@@ -669,6 +690,7 @@ const PendingApprovalDetailPage = ({
             },
             lineItems: normalizedLineItems,
             initialLineItemActions,
+            baselineLineItemActions,
             sodPolicyDetails,
             sodSeverity,
             sodConflictingRoles,
@@ -695,7 +717,7 @@ const PendingApprovalDetailPage = ({
     setExpandedLineItems(defaults);
     const initialActions = request.initialLineItemActions ?? {};
     setLineItemActions(initialActions);
-    setBaselineLineItemActions(initialActions);
+    setBaselineLineItemActions(request.baselineLineItemActions ?? {});
   }, [request]);
 
   const openCommentModal = (e: React.MouseEvent, lineItemKey: string) => {
@@ -787,7 +809,11 @@ const PendingApprovalDetailPage = ({
       Object.entries(lineItemActions).filter(
         ([lineItemKey, action]) =>
           (action === "approve" || action === "reject") &&
-          action !== (baselineLineItemActions[lineItemKey] ?? null)
+          action !==
+            (baselineLineItemActions[lineItemKey] === "approve" ||
+            baselineLineItemActions[lineItemKey] === "reject"
+              ? baselineLineItemActions[lineItemKey]
+              : null)
       ) as Array<[string, "approve" | "reject"]>,
     [lineItemActions, baselineLineItemActions]
   );
@@ -812,14 +838,6 @@ const PendingApprovalDetailPage = ({
         const effectiveAction = selectedAction ?? baselineAction;
         const parsedLineItemId = Number(lineItem.lineItemId);
 
-        const lineComment =
-          lineItemComments[key]?.trim() ||
-          (effectiveAction === "approve"
-            ? "Approved via UI"
-            : effectiveAction === "reject"
-              ? "Revoked via UI"
-              : "");
-
         return {
           catalogId: lineItem.catalogId || lineItem.entitlementId || null,
           lineItemId: Number.isFinite(parsedLineItemId)
@@ -827,8 +845,23 @@ const PendingApprovalDetailPage = ({
             : lineItem.lineItemId,
           ...(effectiveAction
             ? {
-                ACTION: effectiveAction === "approve" ? "APPROVE" : "REVOKE",
-                comments: lineComment,
+                ACTION:
+                  effectiveAction === "approve"
+                    ? "APPROVE"
+                    : effectiveAction === "reject"
+                    ? "REJECT"
+                    : "CONSULTED",
+                // Only send comments when the user explicitly staged a new action
+                // for this line item, so existing server comments are preserved.
+                ...(selectedAction
+                  ? {
+                      comments:
+                        lineItemComments[key]?.trim() ||
+                        (effectiveAction === "approve"
+                          ? "Approved via UI"
+                          : "Revoked via UI"),
+                    }
+                  : {}),
               }
             : {}),
           entitlementName: null,
@@ -1113,10 +1146,16 @@ const PendingApprovalDetailPage = ({
                         className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${
                           lockedAction === "approve"
                             ? "bg-green-100 text-green-700"
-                            : "bg-rose-100 text-rose-700"
+                            : lockedAction === "reject"
+                            ? "bg-rose-100 text-rose-700"
+                            : "bg-sky-100 text-sky-700"
                         }`}
                       >
-                        {lockedAction === "approve" ? "Approved" : "Rejected"}
+                        {lockedAction === "approve"
+                          ? "Approved"
+                          : lockedAction === "reject"
+                          ? "Rejected"
+                          : "Consulted"}
                       </span>
                       <button
                         type="button"
@@ -1278,10 +1317,16 @@ const PendingApprovalDetailPage = ({
                             className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${
                               lockedAction === "approve"
                                 ? "bg-green-100 text-green-700"
-                                : "bg-rose-100 text-rose-700"
+                                : lockedAction === "reject"
+                                ? "bg-rose-100 text-rose-700"
+                                : "bg-sky-100 text-sky-700"
                             }`}
                           >
-                            {lockedAction === "approve" ? "Approved" : "Rejected"}
+                            {lockedAction === "approve"
+                              ? "Approved"
+                              : lockedAction === "reject"
+                              ? "Rejected"
+                              : "Consulted"}
                           </span>
                         </div>
                       )}
@@ -1557,6 +1602,7 @@ const PendingApprovalDetailPage = ({
                       (lineItem, idx) => {
                         const key = String(idx);
                         const parsedLineItemId = Number(lineItem.lineItemId);
+
                         const base = {
                           catalogId:
                             lineItem.catalogId || lineItem.entitlementId || null,
@@ -1565,11 +1611,28 @@ const PendingApprovalDetailPage = ({
                             : lineItem.lineItemId,
                           entitlementName: null,
                         };
-                        if (key !== infoRequestItemKey) return base;
+
+                        if (key === infoRequestItemKey) {
+                          return {
+                            ...base,
+                            ACTION: "CONSULTED",
+                            comments: message,
+                          };
+                        }
+
+                        const effectiveAction =
+                          lineItemActions[key] ?? baselineLineItemActions[key] ?? null;
+
+                        if (!effectiveAction) return base;
+
                         return {
                           ...base,
-                          ACTION: "CONSULTED",
-                          comments: message,
+                          ACTION:
+                            effectiveAction === "approve"
+                              ? "APPROVE"
+                              : effectiveAction === "reject"
+                              ? "REJECT"
+                              : "CONSULTED",
                         };
                       }
                     );
@@ -1605,6 +1668,7 @@ const PendingApprovalDetailPage = ({
                     });
                     setInfoRequestItemKey(null);
                     setInfoRequestMessage("");
+                    window.location.reload();
                   } catch (err: unknown) {
                     console.error("Failed to send info request:", err);
                     setLineItemError((prev) => ({

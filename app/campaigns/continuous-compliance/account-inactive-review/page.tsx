@@ -3,7 +3,7 @@
 import { useMemo, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { ChevronRight, Lightbulb, MoreVertical } from "lucide-react";
+import { ChevronRight, MoreVertical } from "lucide-react";
 import type { ColDef } from "ag-grid-community";
 import type { GridApi } from "ag-grid-enterprise";
 import { themeQuartz } from "ag-grid-community";
@@ -36,63 +36,74 @@ type AccountBlock = {
 
 function buildMockAccounts(userKey: string): AccountBlock[] {
   const base = userKey.replace(/[^a-z0-9]/gi, "_").toLowerCase() || "user";
+  const sapLast = "09/12/2025";
+  const sfdcLast = "08/01/2025";
+
+  const entWithAccountLast = (
+    rows: Omit<EntitlementRow, "lastLogin">[],
+    accountLast: string
+  ): EntitlementRow[] =>
+    rows.map((r) => ({ ...r, lastLogin: accountLast }));
+
   return [
     {
       id: `${base}-acc-1`,
       lineItemId: `li-acc-${base}-1`,
       accountName: `${base}_sap_prod`,
       application: "SAP_S4",
-      lastLogin: "09/12/2025",
+      lastLogin: sapLast,
       daysInactive: 112,
       status: "Inactive",
-      entitlements: [
-        {
-          id: `${base}-e1`,
-          entitlement: "Z_FI_GL_POSTING",
-          entitlementDescription:
-            "Financial posting and period close activities for assigned company codes.",
-          type: "Role",
-          application: "SAP_S4",
-          lastLogin: "09/10/2025",
-        },
-        {
-          id: `${base}-e2`,
-          entitlement: "ZNEW_FICA_MGR_REV_ACC",
-          entitlementDescription:
-            "Manager review access for fiscal account structures and accruals.",
-          type: "Group",
-          application: "SAP_S4",
-          lastLogin: "09/08/2025",
-        },
-      ],
+      entitlements: entWithAccountLast(
+        [
+          {
+            id: `${base}-e1`,
+            entitlement: "Z_FI_GL_POSTING",
+            entitlementDescription:
+              "Financial posting and period close activities for assigned company codes.",
+            type: "Role",
+            application: "SAP_S4",
+          },
+          {
+            id: `${base}-e2`,
+            entitlement: "ZNEW_FICA_MGR_REV_ACC",
+            entitlementDescription:
+              "Manager review access for fiscal account structures and accruals.",
+            type: "Group",
+            application: "SAP_S4",
+          },
+        ],
+        sapLast
+      ),
     },
     {
       id: `${base}-acc-2`,
       lineItemId: `li-acc-${base}-2`,
       accountName: `${base}_salesforce`,
       application: "Salesforce",
-      lastLogin: "08/01/2025",
+      lastLogin: sfdcLast,
       daysInactive: 164,
       status: "Inactive",
-      entitlements: [
-        {
-          id: `${base}-e3`,
-          entitlement: "SFDC_FINANCE_ADMIN",
-          entitlementDescription:
-            "Finance configuration and reporting objects in Salesforce.",
-          type: "Permission Set",
-          application: "Salesforce",
-          lastLogin: "07/28/2025",
-        },
-        {
-          id: `${base}-e4`,
-          entitlement: "SFDC_CASE_APPROVER",
-          entitlementDescription: "Case approval queues for regional operations.",
-          type: "Permission Set",
-          application: "Salesforce",
-          lastLogin: "07/30/2025",
-        },
-      ],
+      entitlements: entWithAccountLast(
+        [
+          {
+            id: `${base}-e3`,
+            entitlement: "SFDC_FINANCE_ADMIN",
+            entitlementDescription:
+              "Finance configuration and reporting objects in Salesforce.",
+            type: "Permission Set",
+            application: "Salesforce",
+          },
+          {
+            id: `${base}-e4`,
+            entitlement: "SFDC_CASE_APPROVER",
+            entitlementDescription: "Case approval queues for regional operations.",
+            type: "Permission Set",
+            application: "Salesforce",
+          },
+        ],
+        sfdcLast
+      ),
     },
   ];
 }
@@ -107,7 +118,6 @@ export default function AccountInactiveReviewPage() {
 
   const jobTitle = "Senior Operations Analyst";
   const department = "IT Operations";
-  const completionPercent = 88;
 
   const accounts = useMemo(() => buildMockAccounts(name), [name]);
 
@@ -150,18 +160,6 @@ export default function AccountInactiveReviewPage() {
                   <p className="font-semibold text-gray-900 text-sm md:text-base truncate">
                     {name}
                   </p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <div className="w-24 md:w-32 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-[#2563eb] rounded-full"
-                      style={{ width: `${completionPercent}%` }}
-                    />
-                  </div>
-                  <span className="text-[11px] md:text-xs font-medium text-gray-700">
-                    {completionPercent}%
-                  </span>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 text-[11px] md:text-xs">
@@ -336,13 +334,10 @@ export default function AccountInactiveReviewPage() {
                   role="region"
                   aria-labelledby={`account-toggle-${account.id}`}
                 >
-                  <div className="text-[11px] font-medium text-gray-500 mb-2 px-1">
-                    Entitlements for this account
-                  </div>
                   <div className="ag-theme-alpine w-full">
                     <AgGridReact
                       theme={themeQuartz}
-                      rowData={expandEntitlementRows(account.entitlements)}
+                      rowData={account.entitlements}
                       columnDefs={nestedEntitlementColumns}
                       defaultColDef={{
                         sortable: true,
@@ -364,51 +359,39 @@ export default function AccountInactiveReviewPage() {
   );
 }
 
-function expandEntitlementRows(rows: EntitlementRow[]) {
-  return rows.flatMap((row, index) => [
-    { ...row, __isDescRow: false as const },
-    {
-      id: `${row.id}-desc`,
-      entitlement: row.entitlement,
-      entitlementDescription: row.entitlementDescription,
-      type: "",
-      application: "",
-      lastLogin: "",
-      __isDescRow: true as const,
-    },
-  ]);
-}
-
 const nestedEntitlementColumns: ColDef[] = [
   {
     headerName: "Entitlement",
     field: "entitlement",
-    flex: 2,
+    flex: 1.2,
+    minWidth: 200,
+    wrapText: true,
+    autoHeight: true,
+    cellRenderer: (params: { value?: string }) => (
+      <div className="py-1 text-xs md:text-sm font-medium text-gray-900">
+        {params.value || "—"}
+      </div>
+    ),
+  },
+  {
+    headerName: "Description",
+    field: "entitlementDescription",
+    flex: 2.2,
     minWidth: 260,
     wrapText: true,
     autoHeight: true,
-    cellRenderer: (params: { data?: EntitlementRow & { __isDescRow?: boolean } }) => {
-      const { entitlement, entitlementDescription, __isDescRow } = params.data || {};
-      if (__isDescRow) {
-        const desc = entitlementDescription || "No description available";
-        const isEmpty = !entitlementDescription?.trim();
-        return (
-          <div
-            className={`text-xs md:text-sm w-full break-words whitespace-pre-wrap py-1 ${
-              isEmpty ? "text-gray-400 italic" : "text-gray-600"
-            }`}
-          >
-            {isEmpty ? "No description available" : desc}
-          </div>
-        );
-      }
+    cellRenderer: (params: { value?: string }) => {
+      const v = params.value?.trim();
       return (
-        <div className="flex flex-col py-1">
-          <span className="text-xs md:text-sm font-medium text-gray-900">{entitlement}</span>
+        <div
+          className={`py-1 text-xs md:text-sm break-words whitespace-normal leading-snug ${
+            v ? "text-gray-700" : "text-gray-400 italic"
+          }`}
+        >
+          {v || "No description available"}
         </div>
       );
     },
-    colSpan: (params) => (params.data?.__isDescRow ? 5 : 1),
   },
   {
     headerName: "Type",
@@ -427,24 +410,5 @@ const nestedEntitlementColumns: ColDef[] = [
     field: "lastLogin",
     width: 120,
     flex: 0,
-  },
-  {
-    headerName: "Insights",
-    field: "insights",
-    minWidth: 140,
-    width: 140,
-    flex: 0,
-    wrapHeaderText: true,
-    autoHeaderHeight: true,
-    sortable: false,
-    filter: false,
-    cellRenderer: (params: { data?: { __isDescRow?: boolean } }) => {
-      if (params.data?.__isDescRow) return null;
-      return (
-        <div className="flex items-center justify-center text-amber-500">
-          <Lightbulb size={20} />
-        </div>
-      );
-    },
   },
 ];

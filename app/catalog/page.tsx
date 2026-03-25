@@ -23,9 +23,61 @@ import PolicyRiskDetails from "@/components/PolicyRiskDetails";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import CustomPagination from "@/components/agTable/CustomPagination";
 
+/** Continuous Compliance → Owner inactive: one catalog row (matches transformed catalog shape). */
+const CC_OWNER_INACTIVE_DESCRIPTION =
+  "Entitlement ownership requires review because the designated owner is inactive. Reassign or certify the entitlement to restore governed ownership.";
+
+const CC_OWNER_INACTIVE_ROW = {
+  entitlementName: "ZNEW_MGT_ACCOUNTS_FMEDFAMNR",
+  description: CC_OWNER_INACTIVE_DESCRIPTION,
+  type: "Group",
+  risk: "Medium",
+  applicationName: "SAP_S4",
+  assignment: "N/A",
+  "Last Sync": "2026-03-15",
+  "Last Reviewed on": "N/A",
+  "Total Assignments": 0,
+  Requestable: "Yes",
+  Certifiable: "Yes",
+  "SOD Check": "N/A",
+  Hierarchy: "N/A",
+  "Pre- Requisite": "No",
+  "Pre-Requisite Details": "N/A",
+  "Revoke on Disable": "Yes",
+  "Shared Pwd": "No",
+  "Capability/Technical Scope": "N/A",
+  "Business Objective": "N/A",
+  "Compliance Type": "N/A",
+  "Access Scope": "N/A",
+  Reviewed: "No",
+  "Dynamic Tag": "",
+  "MFA Status": "N/A",
+  "Review Schedule": "N/A",
+  "Ent Owner": "Inactive Owner",
+  "App Owner": "N/A",
+  "Created On": "2026-01-01",
+  Privileged: "No",
+  "Audit Comments": "",
+  "Ent Name": "ZNEW_MGT_ACCOUNTS_FMEDFAMNR",
+  "App Name": "SAP_S4",
+  "Ent Description": CC_OWNER_INACTIVE_DESCRIPTION,
+  "Business Unit": "N/A",
+  "Data Classification": "N/A",
+  "License Type": "N/A",
+  "Provisioner Group": "N/A",
+  "Provisioning Steps": "N/A",
+  "Provisioning Mechanism": "N/A",
+  "Auto Assign Access Policy": "N/A",
+  "Action on Native Change": "N/A",
+  "Account Type Restriction": "N/A",
+  "Non Persistent Access": "N/A",
+  entitlementId: "cc-owner-inactive-ent",
+};
+
 const CatalogPageContent = () => {
   const { openSidebar, closeSidebar } = useRightSidebar();
   const searchParams = useSearchParams();
+  const ccOwnerInactive = searchParams.get("ccOwnerInactive") === "1";
   const [gridApi, setGridApi] = useState<GridApi | null>(null);
   const [rowData, setRowData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -152,8 +204,15 @@ const CatalogPageContent = () => {
   };
 
 
-  // Fetch data from API
+  // Fetch data from API (skipped for Continuous Compliance owner-inactive deep link)
   useEffect(() => {
+    if (ccOwnerInactive) {
+      setRowData([CC_OWNER_INACTIVE_ROW as any]);
+      setLoading(false);
+      setApiError(null);
+      return;
+    }
+
     const fetchData = async () => {
       try {
         setLoading(true);
@@ -525,7 +584,7 @@ const CatalogPageContent = () => {
     };
 
     fetchData();
-  }, [appInstanceId, reviewerId]);
+  }, [ccOwnerInactive, appInstanceId, reviewerId]);
 
   // Sync grid pagination with entitlement-based pagination
   useEffect(() => {
@@ -1467,44 +1526,51 @@ const CatalogPageContent = () => {
       <div className="relative mb-4 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold pb-2 text-blue-950">Entitlements</h1>
+          {ccOwnerInactive && (
+            <p className="text-sm text-gray-600 -mt-1">
+              Owner inactive — review required (Continuous Compliance).
+            </p>
+          )}
         </div>
-        <div className="flex items-center gap-3">
-          <input
-            value={searchText}
-            onChange={(e) => {
-              const val = e.target.value;
-              setSearchText(val);
-              gridApi?.setGridOption("quickFilterText", val);
-              // Show all search results from all pages
-              if (gridApi) {
-                gridApi.setGridOption("paginationPageSize", val.trim() ? 100000 : pageSize * 2);
-              }
-            }}
-            placeholder="Search..."
-            className="border border-gray-300 rounded px-3 h-9 text-sm w-64"
-          />
-          <select
-            value={selectedAppFilter}
-            onChange={(e) => {
-              const val = e.target.value;
-              setSelectedAppFilter(val);
-              // App dropdown filtering is applied in React state to avoid
-              // grid model shape mismatches across AG Grid versions.
-              if (gridApi) {
-                gridApi.paginationGoToPage(0);
-                updatePaginationState(gridApi);
-              }
-            }}
-            className="border border-gray-300 rounded px-3 h-9 text-sm w-64"
-          >
-            {applicationOptions.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
-          </select>
-          {/* Page size selector intentionally removed to match provided design */}
-        </div>
+        {!ccOwnerInactive && (
+          <div className="flex items-center gap-3">
+            <input
+              value={searchText}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSearchText(val);
+                gridApi?.setGridOption("quickFilterText", val);
+                // Show all search results from all pages
+                if (gridApi) {
+                  gridApi.setGridOption("paginationPageSize", val.trim() ? 100000 : pageSize * 2);
+                }
+              }}
+              placeholder="Search..."
+              className="border border-gray-300 rounded px-3 h-9 text-sm w-64"
+            />
+            <select
+              value={selectedAppFilter}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedAppFilter(val);
+                // App dropdown filtering is applied in React state to avoid
+                // grid model shape mismatches across AG Grid versions.
+                if (gridApi) {
+                  gridApi.paginationGoToPage(0);
+                  updatePaginationState(gridApi);
+                }
+              }}
+              className="border border-gray-300 rounded px-3 h-9 text-sm w-64"
+            >
+              {applicationOptions.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+            {/* Page size selector intentionally removed to match provided design */}
+          </div>
+        )}
       </div>
       {/* Top pagination - minimal gap to table */}
       <div className="mb-2">
