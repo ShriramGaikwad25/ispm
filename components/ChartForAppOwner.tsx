@@ -4,12 +4,152 @@ import ProgressDonutChart from "./ProgressDonutChart";
 import ActionButtons from "./agTable/ActionButtons";
 import AgGridReact from "./ClientOnlyAgGrid";
 import type { ColDef } from "ag-grid-community";
+import { executeQuery } from "@/lib/api";
+import CustomPagination from "./agTable/CustomPagination";
 
 interface DataItem {
   label: string;
   value: number;
   color?: string;
 }
+
+function firstNonEmptyString(...vals: unknown[]): string {
+  for (const v of vals) {
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return "";
+}
+
+function getInsightUserContext(insight: unknown): Record<string, unknown> | null {
+  if (!insight || typeof insight !== "object") return null;
+  const uc = (insight as Record<string, unknown>).user_context;
+  if (uc && typeof uc === "object" && !Array.isArray(uc)) return uc as Record<string, unknown>;
+  return null;
+}
+
+/** e.g. kf_insights payload may have `entitlement: { entitlement_name, application }` */
+function getInsightEntitlementBlock(insight: unknown): Record<string, unknown> | null {
+  if (!insight || typeof insight !== "object") return null;
+  const e = (insight as Record<string, unknown>).entitlement;
+  if (e && typeof e === "object" && !Array.isArray(e)) return e as Record<string, unknown>;
+  return null;
+}
+
+function extractSpeedPeerInsightFields(
+  insight: unknown
+): { peerEntitlement: string; peerApplication: string } {
+  const uc = getInsightUserContext(insight);
+  const ins = insight && typeof insight === "object" ? (insight as Record<string, unknown>) : null;
+  const entBlock = getInsightEntitlementBlock(insight);
+
+  const entitlement = firstNonEmptyString(
+    entBlock?.entitlement_name,
+    entBlock?.entitlementName,
+    uc?.entitlement_name,
+    uc?.entitlementName,
+    uc?.entitlement_displayname,
+    uc?.entitlement_display_name,
+    typeof (uc as any)?.entitlement === "string" ? (uc as any).entitlement : undefined,
+    ins?.entitlement_name,
+    (ins as any)?.entitlementName
+  );
+
+  const application = firstNonEmptyString(
+    entBlock?.application,
+    entBlock?.application_name,
+    entBlock?.applicationName,
+    uc?.application_name,
+    uc?.applicationName,
+    uc?.application_displayname,
+    typeof (uc as any)?.application === "string" ? (uc as any).application : undefined,
+    ins?.application_name,
+    (ins as any)?.applicationName,
+    typeof (ins as any)?.application === "string" ? (ins as any).application : undefined
+  );
+
+  return {
+    peerEntitlement: entitlement || "—",
+    peerApplication: application || "—",
+  };
+}
+
+function normalizeSpeedPeerReviewRows(response: unknown): any[] {
+  if (!response || typeof response !== "object") return [];
+  const o = response as Record<string, unknown>;
+
+  let payload: unknown = undefined;
+
+  // Common shape: { resultSet: [ { result: {...} } ] }
+  if (Array.isArray(o.resultSet) && o.resultSet.length > 0) {
+    const row0 = o.resultSet[0] as Record<string, unknown>;
+    payload = row0?.result ?? row0;
+  } else if (Array.isArray(o.rows) && o.rows.length > 0) {
+    // Alternate shape: { rows: [ {...} ] }
+    const row0 = o.rows[0] as Record<string, unknown>;
+    payload = row0?.result ?? row0;
+  } else if (o.resultSet && typeof o.resultSet === "object") {
+    // Some backends may return resultSet as an object directly
+    payload = o.resultSet;
+  } else if (o.result != null) {
+    payload = o.result;
+  } else {
+    return [];
+  }
+
+  if (typeof payload === "string") {
+    try {
+      payload = JSON.parse(payload);
+    } catch {
+      return [];
+    }
+  }
+
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return [];
+  const inner = payload as Record<string, unknown>;
+  // Some payloads wrap the user->insights map under `resultSet`,
+  // others return the map directly.
+  const mapCandidate = (inner as any).resultSet ?? inner;
+  if (!mapCandidate || typeof mapCandidate !== "object" || Array.isArray(mapCandidate)) return [];
+
+  const rows: any[] = [];
+  for (const [userKey, items] of Object.entries(mapCandidate as Record<string, unknown>)) {
+    const arr = Array.isArray(items) ? items : [];
+    arr.forEach((insight, idx) => {
+      const { peerEntitlement, peerApplication } = extractSpeedPeerInsightFields(insight);
+      rows.push({
+        user_displayname: userKey,
+        insight_index: idx,
+        insight,
+        peerEntitlement,
+        peerApplication,
+      });
+    });
+  }
+
+  return rows;
+}
+
+/** AppOwner Speed card Review: grouped insights by user_displayname. */
+const APP_OWNER_SPEED_PEER_REVIEW_QUERY =
+  "SELECT jsonb_build_object('resultSet', COALESCE(jsonb_object_agg(user_displayname, user_items), '{}'::jsonb)) AS result FROM ( SELECT COALESCE(insight -> 'user_context' ->> 'user_displayname','Unknown User') AS user_displayname, jsonb_agg(insight) AS user_items FROM app_owner_taskdetails t, jsonb_array_elements(COALESCE(t.aiassist -> 'kf_insights','[]'::jsonb)) AS insight WHERE insight -> 'latest_decision' ->> 'reviewer' = ? AND EXISTS ( SELECT 1 FROM jsonb_array_elements(COALESCE(insight -> 'peer_analysis','[]'::jsonb)) AS pa WHERE (pa ->> 'percentage') ~ '^\\d+$' AND (pa ->> 'percentage')::int > ? ) GROUP BY COALESCE(insight -> 'user_context' ->> 'user_displayname','Unknown User') ORDER BY user_displayname LIMIT ? OFFSET ? ) s";
+
+const APP_OWNER_SPEED_PEER_REVIEW_PARAMETERS: [string, number, number, number] = [
+  "Jessica Camacho",
+  70,
+  50,
+  0,
+];
+
+/** AppOwner Low Risk card Review: grouped insights by user_displayname (risk level filtered). */
+const APP_OWNER_LOW_RISK_REVIEW_QUERY =
+  "SELECT jsonb_build_object('resultSet', COALESCE(jsonb_object_agg(user_displayname, user_items), '{}'::jsonb)) AS result FROM ( SELECT COALESCE(insight -> 'user_context' ->> 'user_displayname','Unknown User') AS user_displayname, jsonb_agg(insight) AS user_items FROM app_owner_taskdetails t, jsonb_array_elements(COALESCE(t.aiassist -> 'kf_insights','[]'::jsonb)) AS insight WHERE insight -> 'risk_assessment' -> 'details' ->> 'entitlement_risk_level' = ? AND insight -> 'latest_decision' ->> 'reviewer' = ? GROUP BY COALESCE(insight -> 'user_context' ->> 'user_displayname','Unknown User') ORDER BY user_displayname LIMIT ? OFFSET ? ) s";
+
+const APP_OWNER_LOW_RISK_REVIEW_PARAMETERS: [string, string, number, number] = [
+  "Low",
+  "Jessica Camacho",
+  50,
+  0,
+];
 
 interface ChartAppOwnerComponentProps {
   rowData?: any[];
@@ -40,6 +180,94 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
   entitlementsDefaultColDef,
   entitlementsAutoGroupColumnDef,
 }) => {
+  // AI Assist - Quick Wins Speed card %: ratio of peer matches above threshold
+  const APP_OWNER_SPEED_QUICK_WIN_PERCENT_QUERY =
+    "SELECT SUM(CASE WHEN (pa ->> 'percentage') ~ '^\\d+$' AND (pa ->> 'percentage')::int > ? THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*),0) AS percentage FROM app_owner_taskdetails t, jsonb_array_elements(COALESCE(t.aiassist -> 'kf_insights','[]'::jsonb)) AS insight, jsonb_array_elements(COALESCE(insight -> 'peer_analysis','[]'::jsonb)) AS pa WHERE insight -> 'latest_decision' ->> 'reviewer' = ? LIMIT ? OFFSET ?";
+
+  const [speedQuickWinPercent, setSpeedQuickWinPercent] = useState<number | null>(null);
+  const [loadingSpeedQuickWin, setLoadingSpeedQuickWin] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadSpeedQuickWinPercent = async () => {
+      setLoadingSpeedQuickWin(true);
+      try {
+        const response = await executeQuery<{ resultSet?: Array<{ percentage?: number | string | null }> }>(
+          APP_OWNER_SPEED_QUICK_WIN_PERCENT_QUERY,
+          [70, "Jessica Camacho", 50, 0]
+        );
+        const raw = response?.resultSet?.[0]?.percentage;
+        if (cancelled) return;
+        if (raw === null || raw === undefined) {
+          setSpeedQuickWinPercent(null);
+          return;
+        }
+        const num = typeof raw === "string" ? parseFloat(raw) : Number(raw);
+        if (!Number.isFinite(num)) {
+          setSpeedQuickWinPercent(null);
+          return;
+        }
+        // Query already returns a percentage-like number (e.g. 0.936 => show 0.93%).
+        setSpeedQuickWinPercent(Math.floor(num * 100) / 100);
+      } catch (e) {
+        console.error("Error fetching AppOwner AI Quick Win Speed percentage:", e);
+        if (!cancelled) setSpeedQuickWinPercent(null);
+      } finally {
+        if (!cancelled) setLoadingSpeedQuickWin(false);
+      }
+    };
+
+    loadSpeedQuickWinPercent();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // AI Assist - Quick Wins Low Risk card %: ratio of kf_insights rows with entitlement_risk_level = Low
+  const APP_OWNER_LOW_RISK_QUICK_WIN_PERCENT_QUERY =
+    "SELECT SUM(CASE WHEN insight -> 'risk_assessment' -> 'details' ->> 'entitlement_risk_level' = ? THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*),0) AS percentage FROM app_owner_taskdetails t, jsonb_array_elements(COALESCE(t.aiassist -> 'kf_insights','[]'::jsonb)) AS insight WHERE insight -> 'latest_decision' ->> 'reviewer' = ? LIMIT ? OFFSET ?";
+
+  const [lowRiskQuickWinPercent, setLowRiskQuickWinPercent] = useState<number | null>(null);
+  const [loadingLowRiskQuickWin, setLoadingLowRiskQuickWin] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadLowRiskQuickWinPercent = async () => {
+      setLoadingLowRiskQuickWin(true);
+      try {
+        const response = await executeQuery<{
+          resultSet?: Array<{ percentage?: number | string | null }>;
+        }>(APP_OWNER_LOW_RISK_QUICK_WIN_PERCENT_QUERY, ["Low", "Jessica Camacho", 50, 0]);
+
+        const raw = response?.resultSet?.[0]?.percentage;
+        if (cancelled) return;
+        if (raw === null || raw === undefined) {
+          setLowRiskQuickWinPercent(null);
+          return;
+        }
+
+        const num = typeof raw === "string" ? parseFloat(raw) : Number(raw);
+        if (!Number.isFinite(num)) {
+          setLowRiskQuickWinPercent(null);
+          return;
+        }
+
+        // API returns ratio-like float (e.g. 0.936...), and UI expects 0.xx displayed as "%".
+        setLowRiskQuickWinPercent(Math.floor(num * 100) / 100);
+      } catch (e) {
+        console.error("Error fetching AppOwner AI Quick Win Low Risk percentage:", e);
+        if (!cancelled) setLowRiskQuickWinPercent(null);
+      } finally {
+        if (!cancelled) setLoadingLowRiskQuickWin(false);
+      }
+    };
+
+    loadLowRiskQuickWinPercent();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Colors tuned to match the screenshot
   const allData: DataItem[] = [
     { label: "Elevated Accounts", value: 0, color: "#6EC6FF" },
@@ -180,12 +408,25 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
 
   // Guided Path modal state
   const [guidedPathModalOpen, setGuidedPathModalOpen] = useState(false);
+  const [guidedPathModalSource, setGuidedPathModalSource] = useState<"entitlements" | "speedPeer">(
+    "entitlements"
+  );
+  const [peerQuickWinReviewSource, setPeerQuickWinReviewSource] = useState<"card1" | "card2" | null>(
+    null
+  );
   const [guidedPathModalFilter, setGuidedPathModalFilter] = useState<"Dormant" | "Access">(
     "Dormant"
   );
   const [guidedPathSelectedCount, setGuidedPathSelectedCount] = useState(0);
   const [guidedPathSelectedRows, setGuidedPathSelectedRows] = useState<any[]>([]);
   const guidedPathGridApiRef = useRef<any | null>(null);
+  // Speed peer match (AI Assist - Quick Wins -> Speed -> Review)
+  const [speedPeerTaskRows, setSpeedPeerTaskRows] = useState<any[]>([]);
+  const [speedPeerTaskRowsLoading, setSpeedPeerTaskRowsLoading] = useState(false);
+  const [speedPeerTaskRowsError, setSpeedPeerTaskRowsError] = useState<string | null>(null);
+  const [speedPeerModalSearch, setSpeedPeerModalSearch] = useState("");
+  const [speedPeerPageNumber, setSpeedPeerPageNumber] = useState(1);
+  const [speedPeerPageSize, setSpeedPeerPageSize] = useState<number | "all">(10);
   // Quick Wins Approve confirmation state (per card)
   const [quickWinsApproveConfirmOpen, setQuickWinsApproveConfirmOpen] = useState(false);
   const [quickWinsPendingCard, setQuickWinsPendingCard] = useState<"card1" | "card2" | null>(null);
@@ -206,6 +447,62 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
     // Access = show all rows
     return base;
   }, [rowData, entitlementsData, guidedPathModalFilter]);
+
+  const speedPeerModalRowsForGrid = useMemo(() => {
+    const q = speedPeerModalSearch.trim().toLowerCase();
+    if (!q) return speedPeerTaskRows;
+    return speedPeerTaskRows.filter((row) => {
+      try {
+        return JSON.stringify(row).toLowerCase().includes(q);
+      } catch {
+        return false;
+      }
+    });
+  }, [speedPeerTaskRows, speedPeerModalSearch]);
+
+  const speedPeerModalTotalPages = useMemo(() => {
+    const total = speedPeerModalRowsForGrid.length;
+    if (speedPeerPageSize === "all") return 1;
+    const size = speedPeerPageSize as number;
+    return Math.max(1, Math.ceil(total / (size || 1)));
+  }, [speedPeerModalRowsForGrid.length, speedPeerPageSize]);
+
+  const speedPeerModalPagedRows = useMemo(() => {
+    if (speedPeerPageSize === "all") return speedPeerModalRowsForGrid;
+    const size = speedPeerPageSize as number;
+    const start = (speedPeerPageNumber - 1) * size;
+    return speedPeerModalRowsForGrid.slice(start, start + size);
+  }, [speedPeerModalRowsForGrid, speedPeerPageNumber, speedPeerPageSize]);
+
+  const speedPeerModalColumnDefs = useMemo<ColDef[]>(
+    () => [
+      {
+        field: "user_displayname",
+        headerName: "User",
+        flex: 1,
+        minWidth: 140,
+        sortable: true,
+        filter: true,
+      },
+      {
+        field: "peerEntitlement",
+        headerName: "Entitlement",
+        flex: 1.2,
+        minWidth: 180,
+        sortable: true,
+        filter: true,
+      },
+      {
+        field: "peerApplication",
+        headerName: "Application",
+        flex: 1.2,
+        minWidth: 180,
+        sortable: true,
+        filter: true,
+      },
+    ],
+    []
+  );
 
   // Column defs for Guided Path modal: add leading checkbox column for selection
   const guidedPathColumnDefs = useMemo(() => {
@@ -517,7 +814,13 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
             {/* First page (default) */}
             <div className="absolute inset-0 flex flex-col items-center justify-center px-4 text-center">
               <p className="text-sm font-semibold text-blue-800">Speed</p>
-              <span className="mt-1 text-xs font-bold text-blue-600">35% Completion</span>
+              <span className="mt-1 text-xs font-bold text-blue-600">
+                {loadingSpeedQuickWin
+                  ? "…"
+                  : speedQuickWinPercent != null
+                    ? `${speedQuickWinPercent.toFixed(2)}% Completion`
+                    : "—"}
+              </span>
             </div>
             {/* Second page content on hover with diagonal sweep from top-right to bottom-left */}
             <div className="absolute inset-0 flex pointer-events-none">
@@ -555,8 +858,30 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
                       guidedPathGridApiRef.current?.deselectAll();
                       setGuidedPathSelectedCount(0);
                       setGuidedPathSelectedRows([]);
+                      setGuidedPathModalSource("speedPeer");
+                      setPeerQuickWinReviewSource("card1");
+                      setSpeedPeerModalSearch("");
+                      setSpeedPeerTaskRows([]);
+                      setSpeedPeerTaskRowsError(null);
+                      setSpeedPeerTaskRowsLoading(true);
                       setGuidedPathModalFilter("Access");
                       setGuidedPathModalOpen(true);
+                      void (async () => {
+                        try {
+                          const response = await executeQuery<any>(
+                            APP_OWNER_SPEED_PEER_REVIEW_QUERY,
+                            APP_OWNER_SPEED_PEER_REVIEW_PARAMETERS
+                          );
+                          setSpeedPeerTaskRows(normalizeSpeedPeerReviewRows(response));
+                        } catch (err) {
+                          setSpeedPeerTaskRowsError(
+                            err instanceof Error ? err.message : "Failed to load peer match"
+                          );
+                          setSpeedPeerTaskRows([]);
+                        } finally {
+                          setSpeedPeerTaskRowsLoading(false);
+                        }
+                      })();
                     }}
                   >
                     Review
@@ -596,7 +921,13 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
             {/* First page (default) */}
             <div className="absolute inset-0 flex flex-col items-center justify-center px-4 text-center">
               <p className="text-sm font-semibold text-emerald-800">Low Risk</p>
-              <span className="mt-1 text-xs font-bold text-emerald-600">25% Completion</span>
+              <span className="mt-1 text-xs font-bold text-emerald-600">
+                {loadingLowRiskQuickWin
+                  ? "…"
+                  : lowRiskQuickWinPercent != null
+                    ? `${lowRiskQuickWinPercent.toFixed(2)}% Completion`
+                    : "—"}
+              </span>
             </div>
             {/* Second page content on hover with diagonal sweep from top-right to bottom-left */}
             <div className="absolute inset-0 flex pointer-events-none">
@@ -634,8 +965,31 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
                       guidedPathGridApiRef.current?.deselectAll();
                       setGuidedPathSelectedCount(0);
                       setGuidedPathSelectedRows([]);
-                      setGuidedPathModalFilter("Access");
+                      setGuidedPathModalSource("speedPeer");
+                      setPeerQuickWinReviewSource("card2");
+                      setSpeedPeerModalSearch("");
+                      setSpeedPeerPageNumber(1);
+                      setSpeedPeerPageSize(10);
+                      setSpeedPeerTaskRows([]);
+                      setSpeedPeerTaskRowsError(null);
+                      setSpeedPeerTaskRowsLoading(true);
                       setGuidedPathModalOpen(true);
+                      void (async () => {
+                        try {
+                          const response = await executeQuery<any>(
+                            APP_OWNER_LOW_RISK_REVIEW_QUERY,
+                            APP_OWNER_LOW_RISK_REVIEW_PARAMETERS
+                          );
+                          setSpeedPeerTaskRows(normalizeSpeedPeerReviewRows(response));
+                        } catch (err) {
+                          setSpeedPeerTaskRowsError(
+                            err instanceof Error ? err.message : "Failed to load low risk review"
+                          );
+                          setSpeedPeerTaskRows([]);
+                        } finally {
+                          setSpeedPeerTaskRowsLoading(false);
+                        }
+                      })();
                     }}
                   >
                     Review
@@ -671,118 +1025,219 @@ const ChartAppOwnerComponent: React.FC<ChartAppOwnerComponentProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div
             className="bg-white rounded-lg shadow-xl mx-auto flex flex-col"
-            style={{ width: "90vw", maxWidth: "1600px", maxHeight: "95vh" }}
+            style={{ width: "96vw", maxWidth: "1800px", maxHeight: "98vh", height: "96vh" }}
           >
             <div className="flex items-center justify-between border-b px-4 py-3">
               <h3 className="text-sm font-semibold text-gray-800">
-                AI Assist - Quick Wins –{" "}
-                {guidedPathModalFilter === "Dormant" ? "Dormant Access" : "All Access"}
+                <span className="inline-flex items-center gap-2">
+                  <span>AI Assist - Quick Wins</span>
+                  <span className="text-[10px] font-semibold text-violet-900 bg-violet-100 border border-violet-300 rounded px-1.5 py-0.5">
+                    Sample data
+                  </span>
+                </span>
+                {guidedPathModalSource !== "speedPeer" && (
+                  <>
+                    {" – "}
+                    {guidedPathModalFilter === "Dormant" ? "Dormant Access" : "All Access"}
+                  </>
+                )}
               </h3>
               <button
                 className="text-gray-400 hover:text-gray-600 text-lg leading-none"
                 onClick={() => {
                   setGuidedPathModalOpen(false);
+                  setGuidedPathModalSource("entitlements");
+                  setPeerQuickWinReviewSource(null);
                   guidedPathGridApiRef.current?.deselectAll();
                   setGuidedPathSelectedCount(0);
                   setGuidedPathSelectedRows([]);
+                  setSpeedPeerModalSearch("");
+                  setSpeedPeerTaskRows([]);
+                  setSpeedPeerTaskRowsError(null);
+                  setSpeedPeerTaskRowsLoading(false);
+                  setSpeedPeerPageNumber(1);
+                  setSpeedPeerPageSize(10);
                 }}
               >
                 ×
               </button>
             </div>
-            <div className="flex items-center gap-2 px-4 py-2 border-b">
-              <span className="text-xs font-medium text-gray-500">Filter:</span>
-              <button
-                className={`px-3 py-1 text-xs rounded-full border ${
-                  guidedPathModalFilter === "Dormant"
-                    ? "bg-blue-600 text-white border-blue-600"
-                    : "bg-white text-gray-700 border-gray-300"
-                }`}
-                onClick={() => {
-                  guidedPathGridApiRef.current?.deselectAll();
-                  setGuidedPathSelectedCount(0);
-                  setGuidedPathSelectedRows([]);
-                  setGuidedPathModalFilter("Dormant");
-                }}
-              >
-                Dormant Access
-              </button>
-              <button
-                className={`px-3 py-1 text-xs rounded-full border ${
-                  guidedPathModalFilter === "Access"
-                    ? "bg-blue-600 text-white border-blue-600"
-                    : "bg-white text-gray-700 border-gray-300"
-                }`}
-                onClick={() => {
-                  guidedPathGridApiRef.current?.deselectAll();
-                  setGuidedPathSelectedCount(0);
-                  setGuidedPathSelectedRows([]);
-                  setGuidedPathModalFilter("Access");
-                }}
-              >
-                All Access
-              </button>
-              <span className="ml-auto text-[11px] text-gray-500">
-                {guidedPathModalRows.length} item{guidedPathModalRows.length === 1 ? "" : "s"}
-              </span>
-            </div>
-            <div className="px-4 py-3 overflow-auto relative">
-              {guidedPathModalRows.length === 0 ? (
+            {guidedPathModalSource === "speedPeer" ? (
+              <div className="flex items-center gap-2 px-4 py-2 border-b">
+                <span className="text-xs font-medium text-gray-500 shrink-0">Search:</span>
+                <input
+                  type="text"
+                  placeholder="Search peer match..."
+                  className="border border-gray-300 rounded px-3 py-2 text-xs flex-1 min-w-0 max-w-md"
+                  value={speedPeerModalSearch}
+                  onChange={(e) => {
+                    setSpeedPeerModalSearch(e.target.value);
+                    setSpeedPeerPageNumber(1);
+                  }}
+                />
+                  <button
+                    className="ml-auto px-3 py-1.5 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                    disabled={
+                      speedPeerTaskRowsLoading ||
+                      (peerQuickWinReviewSource === "card2"
+                        ? quickWinsApprovedCards.card2
+                        : quickWinsApprovedCards.card1)
+                    }
+                    onClick={() => {
+                      setQuickWinsPendingCard(peerQuickWinReviewSource === "card2" ? "card2" : "card1");
+                      setQuickWinsApproveConfirmOpen(true);
+                    }}
+                  >
+                    Approve All
+                  </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 px-4 py-2 border-b">
+                <span className="text-xs font-medium text-gray-500">Filter:</span>
+                <button
+                  className={`px-3 py-1 text-xs rounded-full border ${
+                    guidedPathModalFilter === "Dormant"
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "bg-white text-gray-700 border-gray-300"
+                  }`}
+                  onClick={() => {
+                    guidedPathGridApiRef.current?.deselectAll();
+                    setGuidedPathSelectedCount(0);
+                    setGuidedPathSelectedRows([]);
+                    setGuidedPathModalFilter("Dormant");
+                  }}
+                >
+                  Dormant Access
+                </button>
+                <button
+                  className={`px-3 py-1 text-xs rounded-full border ${
+                    guidedPathModalFilter === "Access"
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "bg-white text-gray-700 border-gray-300"
+                  }`}
+                  onClick={() => {
+                    guidedPathGridApiRef.current?.deselectAll();
+                    setGuidedPathSelectedCount(0);
+                    setGuidedPathSelectedRows([]);
+                    setGuidedPathModalFilter("Access");
+                  }}
+                >
+                  All Access
+                </button>
+                  <button
+                    className="ml-auto px-3 py-1.5 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                    disabled={quickWinsApprovedCards.card2}
+                    onClick={() => {
+                      setQuickWinsPendingCard("card2");
+                      setQuickWinsApproveConfirmOpen(true);
+                    }}
+                  >
+                    Approve All
+                  </button>
+              </div>
+            )}
+            <div className="flex-1 min-h-0 px-4 py-3 overflow-hidden relative">
+              {guidedPathModalSource === "speedPeer" ? (
+                <>
+                  {speedPeerTaskRowsLoading ? (
+                    <div className="text-xs text-gray-500 py-6 text-center">Loading peer match…</div>
+                  ) : speedPeerTaskRowsError ? (
+                    <div className="text-xs text-red-600 py-6 text-center">{speedPeerTaskRowsError}</div>
+                  ) : speedPeerModalRowsForGrid.length === 0 ? (
+                    <div className="text-xs text-gray-500 py-6 text-center">
+                      No peer match data available.
+                    </div>
+                  ) : (
+                    <div className="w-full ag-theme-alpine flex flex-col h-full min-h-0">
+                      <div className="flex justify-center shrink-0 mb-2 [&>div]:w-full [&>div]:rounded-b-none [&>div]:border-b-0">
+                        <CustomPagination
+                          totalItems={speedPeerModalRowsForGrid.length}
+                          currentPage={speedPeerPageNumber}
+                          totalPages={speedPeerModalTotalPages}
+                          pageSize={speedPeerPageSize}
+                          onPageChange={(newPage) => setSpeedPeerPageNumber(newPage)}
+                          onPageSizeChange={(newSize) => {
+                            setSpeedPeerPageSize(newSize);
+                            setSpeedPeerPageNumber(1);
+                          }}
+                          pageSizeOptions={[10, 25, 50, 100, "all"]}
+                        />
+                      </div>
+                      <div className="flex-1 min-h-0">
+                        <AgGridReact
+                          rowData={speedPeerModalPagedRows}
+                          columnDefs={speedPeerModalColumnDefs}
+                          defaultColDef={entitlementsDefaultColDef}
+                          domLayout="normal"
+                          suppressSizeToFit={false}
+                          suppressRowClickSelection={true}
+                          style={{ width: "100%", minWidth: 0, height: "100%" }}
+                          pagination={false}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : guidedPathModalRows.length === 0 ? (
                 <div className="text-xs text-gray-500 py-6 text-center">
                   No data available for the selected filter.
                 </div>
               ) : (
                 <>
-                  <div className="w-full ag-theme-alpine" style={{ height: "70vh" }}>
-                    <AgGridReact
-                      rowData={guidedPathModalRows}
-                      columnDefs={guidedPathColumnDefs}
-                      defaultColDef={entitlementsDefaultColDef}
-                      autoGroupColumnDef={guidedPathAutoGroupColumnDef}
-                      domLayout="normal"
-                      suppressSizeToFit={false}
-                      suppressRowClickSelection={true}
-                      rowSelection={{
-                        mode: "multiRow",
-                        checkboxLocation: "primaryColumn",
-                        headerCheckboxSelection: true,
-                      }}
-                      onGridReady={(params) => {
-                        guidedPathGridApiRef.current = params.api;
-                      }}
-                      onSelectionChanged={(event) => {
-                        try {
-                          const selectedNodes = event.api.getSelectedNodes();
-                          setGuidedPathSelectedCount(selectedNodes.length);
-                          setGuidedPathSelectedRows(selectedNodes.map((n) => n.data));
-                        } catch {
-                          setGuidedPathSelectedCount(0);
-                          setGuidedPathSelectedRows([]);
-                        }
-                      }}
-                    />
-                  </div>
-                  {guidedPathSelectedCount > 1 && guidedPathSelectedRows.length > 1 && entitlementsColumnDefs && (
-                    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-100 border border-gray-200 rounded-full shadow-lg px-3 py-1.5 flex items-center gap-2">
-                      <span className="text-[11px] text-gray-600">
-                        {guidedPathSelectedCount} selected
-                      </span>
-                      <ActionButtons
-                        // For AppOwner, we don't have reviewerId/certId context here, so pass empty strings
-                        api={guidedPathGridApiRef.current as any}
-                        selectedRows={guidedPathSelectedRows}
-                        context="entitlement"
-                        reviewerId={String(certificationId || "")}
-                        certId={String(certificationId || "")}
-                        hideTeamsIcon
-                        onActionSuccess={() => {
-                          guidedPathGridApiRef.current?.deselectAll();
-                          setGuidedPathSelectedCount(0);
-                          setGuidedPathSelectedRows([]);
+                  <div className="w-full ag-theme-alpine flex flex-col h-full min-h-0">
+                    <div className="flex-1 min-h-0">
+                      <AgGridReact
+                        rowData={guidedPathModalRows}
+                        columnDefs={guidedPathColumnDefs}
+                        defaultColDef={entitlementsDefaultColDef}
+                        autoGroupColumnDef={guidedPathAutoGroupColumnDef}
+                        domLayout="normal"
+                        suppressSizeToFit={false}
+                        suppressRowClickSelection={true}
+                        rowSelection={{
+                          mode: "multiRow",
+                          checkboxLocation: "primaryColumn",
+                          headerCheckboxSelection: true,
+                        }}
+                        onGridReady={(params) => {
+                          guidedPathGridApiRef.current = params.api;
+                        }}
+                        onSelectionChanged={(event) => {
+                          try {
+                            const selectedNodes = event.api.getSelectedNodes();
+                            setGuidedPathSelectedCount(selectedNodes.length);
+                            setGuidedPathSelectedRows(selectedNodes.map((n) => n.data));
+                          } catch {
+                            setGuidedPathSelectedCount(0);
+                            setGuidedPathSelectedRows([]);
+                          }
                         }}
                       />
                     </div>
-                  )}
+                  </div>
+                  {guidedPathSelectedCount > 1 &&
+                    guidedPathSelectedRows.length > 1 &&
+                    entitlementsColumnDefs && (
+                      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-100 border border-gray-200 rounded-full shadow-lg px-3 py-1.5 flex items-center gap-2">
+                        <span className="text-[11px] text-gray-600">
+                          {guidedPathSelectedCount} selected
+                        </span>
+                        <ActionButtons
+                          // For AppOwner, we don't have reviewerId/certId context here, so pass empty strings
+                          api={guidedPathGridApiRef.current as any}
+                          selectedRows={guidedPathSelectedRows}
+                          context="entitlement"
+                          reviewerId={String(certificationId || "")}
+                          certId={String(certificationId || "")}
+                          hideTeamsIcon
+                          onActionSuccess={() => {
+                            guidedPathGridApiRef.current?.deselectAll();
+                            setGuidedPathSelectedCount(0);
+                            setGuidedPathSelectedRows([]);
+                          }}
+                        />
+                      </div>
+                    )}
                 </>
               )}
             </div>

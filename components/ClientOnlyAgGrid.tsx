@@ -76,7 +76,13 @@ export default function ClientOnlyAgGrid(props: ClientOnlyAgGridProps) {
   }
 
   return (
-    <div ref={containerRef}>
+    <div
+      ref={containerRef}
+      style={{
+        width: "100%",
+        height: "100%",
+      }}
+    >
       <AgGridReact {...mergedProps} />
     </div>
   );
