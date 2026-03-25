@@ -34,6 +34,22 @@ const STEP_PALETTE = {
   ],
 };
 
+const STAGE_COLUMN_HEADING_CLASS = [
+  "bg-sky-100 text-sky-900",
+  "bg-indigo-100 text-indigo-900",
+  "bg-teal-100 text-teal-900",
+  "bg-rose-100 text-rose-900",
+  "bg-orange-100 text-orange-900",
+];
+
+/** Stage title pill color by normalized stage name (overrides index-based color). */
+const STAGE_HEADING_BY_NAME: Record<string, string> = {
+  validate: "bg-fuchsia-100 text-fuchsia-900",
+};
+
+/** Slightly narrower stage columns + matching “Add Stage” control */
+const STAGE_COLUMN_MIN = "min-w-[252px]";
+
 interface PolicyBuilderProps {
   formData: any;
   setFormData: any;
@@ -293,7 +309,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
       <div className="flex h-[600px] gap-4 w-full mb-4">
         {/* Left Panel - Step Palette */}
         <div className="w-64 bg-gray-50 border border-gray-200 rounded-lg p-3 flex flex-col h-full">
-          <h3 className="text-xs font-semibold text-gray-900 mb-2">STEP PALETTE</h3>
+          <h3 className="text-xs font-semibold text-gray-900 mb-2 tracking-wide">STEP PALETTE</h3>
           <div className="flex-1 grid grid-cols-1 gap-3 overflow-hidden">
             {Object.entries(STEP_PALETTE).map(([category, steps]) => (
               <div key={category} className="flex flex-col min-h-0">
@@ -334,18 +350,20 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
         <div className="flex-1 bg-gradient-to-b from-white via-gray-50 to-gray-100 border border-gray-200 rounded-xl p-5 overflow-x-auto shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Approval Workflow Template</h3>
+              <h3 className="text-lg font-semibold text-blue-900 px-3 py-1.5 rounded-lg bg-blue-100 inline-block">
+                Approval Workflow Template
+              </h3>
               <p className="text-sm text-gray-600">
                 Design KeyForge approval stages, steps, and AI agents for a given use case.
               </p>
             </div>
           </div>
 
-          <div className="flex gap-5 min-w-max pb-2">
-            {stages.map((stage: any) => (
+          <div className="flex gap-4 min-w-max pb-2">
+            {stages.map((stage: any, stageIndex: number) => (
               <div
                 key={stage.id}
-                className={`min-w-[300px] bg-white rounded-xl p-4 border transition-all duration-200 shadow-sm ${
+                className={`${STAGE_COLUMN_MIN} bg-gray-50 rounded-xl p-3 border transition-all duration-200 shadow-sm ${
                   selectedStageId === stage.id
                     ? "border-blue-500 ring-1 ring-blue-100 shadow-md"
                     : "border-gray-200 hover:border-blue-300 hover:shadow-md hover:-translate-y-0.5"
@@ -386,7 +404,14 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                       />
                     ) : (
                       <>
-                        <h4 className="font-semibold text-gray-900">{stage.name.toUpperCase()}</h4>
+                        <h4
+                          className={`font-semibold text-sm px-2 py-1 rounded-md inline-block max-w-full ${
+                            STAGE_HEADING_BY_NAME[stage.name.trim().toLowerCase()] ??
+                            STAGE_COLUMN_HEADING_CLASS[stageIndex % STAGE_COLUMN_HEADING_CLASS.length]
+                          }`}
+                        >
+                          {stage.name.toUpperCase()}
+                        </h4>
                         <p className="text-xs text-gray-500">Order {stage.order}</p>
                       </>
                     )}
@@ -421,10 +446,10 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                     <div
                       key={step.id}
                       onClick={() => selectStep(stage.id, step)}
-                      className={`min-w-0 p-3 border rounded cursor-pointer transition-colors ${
+                      className={`min-w-0 p-2.5 border rounded cursor-pointer transition-colors ${
                         selectedStepId === step.id
                           ? "border-blue-500 bg-blue-50"
-                          : "border-gray-200 hover:border-gray-300"
+                          : "border-gray-200 bg-white hover:border-gray-300 hover:bg-white"
                       }`}
                     >
                       <div className="flex items-center justify-between mb-2">
@@ -441,30 +466,15 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                         </button>
                       </div>
                       <div className="flex gap-2 mb-2">
-                        <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-700 rounded">
-                          {step.kind}
-                        </span>
-                        <span
-                          className={`text-xs px-2 py-0.5 rounded font-medium ${
-                            step.type === "APPROVAL"
-                              ? "bg-blue-100 text-blue-700"
-                              : step.type === "FULFILLMENT"
-                              ? "bg-green-100 text-green-700"
-                              : step.type === "AI AGENT"
-                              ? "bg-purple-100 text-purple-700"
-                              : "bg-gray-100 text-gray-700"
-                          }`}
-                        >
-                          {step.type === "FULFILLMENT" ? "FULFILL" : step.type}
-                        </span>
-                      </div>
-                      <div className="text-xs text-gray-600 min-w-0">
-                        <span className="font-medium">Condition:</span>
-                        <div className="mt-0.5 px-2 py-1 rounded bg-gray-100 border border-gray-200 text-gray-800 font-mono text-[11px] whitespace-normal break-all max-h-16 overflow-y-auto w-full min-w-0">
-                          {typeof step.condition === "string"
-                            ? step.condition
-                            : step.condition?.expression ?? step.condition?.expr ?? "true"}
-                        </div>
+                        {step.type === "AI AGENT" ? (
+                          <span className="text-xs px-2 py-0.5 rounded font-medium bg-purple-100 text-purple-700">
+                            AI AGENT
+                          </span>
+                        ) : (
+                          <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-700 rounded">
+                            {step.kind}
+                          </span>
+                        )}
                       </div>
                       <button
                         type="button"
@@ -482,7 +492,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                     <button
                       type="button"
                       onClick={() => addCustomStep(stage.id)}
-                      className="w-full py-2 text-xs text-gray-500 border-2 border-dashed border-gray-300 rounded hover:border-blue-400 hover:text-blue-600"
+                      className="w-full py-2 text-xs text-gray-500 border-2 border-dashed border-gray-300 rounded bg-white hover:border-blue-400 hover:text-blue-600"
                     >
                       + Add Step
                     </button>
@@ -495,7 +505,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
             <button
               type="button"
               onClick={addStage}
-              className="min-w-[280px] h-fit px-4 py-8 bg-white border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 flex flex-col items-center justify-center gap-2 transition-colors"
+              className={`${STAGE_COLUMN_MIN} h-fit px-3 py-8 bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 hover:bg-gray-100 flex flex-col items-center justify-center gap-2 transition-colors`}
             >
               <Plus className="w-6 h-6 text-gray-400" />
               <span className="text-sm font-medium text-gray-600">Add Stage</span>
@@ -503,13 +513,16 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
           </div>
         </div>
 
-        {/* Right Panel - Step Configuration */}
-        <div className="w-80 bg-gray-50 border border-gray-200 rounded-lg p-4 overflow-y-auto">
-          <h3 className="text-sm font-semibold text-gray-900 mb-4">Step Configuration</h3>
-          {selectedStep ? (
+        {selectedStep && (
+        <div className="w-80 bg-gray-50 border border-gray-200 rounded-lg p-4 overflow-y-auto shrink-0">
+          <h3 className="text-sm font-semibold text-slate-900 mb-4 px-2 py-1.5 rounded-md bg-slate-200">
+            Step Configuration
+          </h3>
             <div>
               <div className="mb-4">
-                <h4 className="font-semibold text-gray-900">{selectedStep.label}</h4>
+                <h4 className="font-semibold text-gray-900 px-2 py-1 rounded-md bg-gray-100 inline-block max-w-full">
+                  {selectedStep.label}
+                </h4>
                 <p className="text-xs text-gray-600">
                   Stage: {stages.find((s: any) => s.id === selectedStep.stageId)?.name} · Kind: {selectedStep.kind} · Type:{" "}
                   {selectedStep.type === "AI AGENT" ? "AI_AGENT" : selectedStep.type}
@@ -1229,18 +1242,16 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                   )}
               </div>
             </div>
-          ) : (
-            <p className="text-sm text-gray-500">
-              Select a stage and step to configure its behavior. You can configure approvers, conditions, and AI analysis for each step.
-            </p>
-          )}
         </div>
+        )}
       </div>
 
       {/* JSON Preview Section */}
       <div className="w-full mt-4">
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">Workflow-as-Code Preview (read-only)</h3>
+          <h3 className="text-sm font-semibold text-gray-900 mb-3 px-2 py-1.5 rounded-md bg-gray-200 inline-block">
+            Workflow-as-Code Preview (read-only)
+          </h3>
           <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-auto text-xs font-mono max-h-64">
             {JSON.stringify(generateWorkflowJSON(), null, 2)}
           </pre>
