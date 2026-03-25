@@ -1,7 +1,20 @@
 "use client";
 import SegmentedControl from "@/components/SegmentedControl";
 import { themeQuartz } from "ag-grid-community";
-import { History, CircleX, CirclePlus, Search, Plus, Ban, Calendar, Edit, Trash2, Printer } from "lucide-react";
+import {
+  History,
+  CircleX,
+  CirclePlus,
+  Search,
+  Plus,
+  Ban,
+  Calendar,
+  Edit,
+  Trash2,
+  Printer,
+  Eye,
+  EyeOff,
+} from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { executeQuery } from "@/lib/api";
 import type { ColDef } from "ag-grid-enterprise";
@@ -51,6 +64,8 @@ type ProfileUser = {
   managerEmail?: string;
   tags: string[];
   status?: string;
+  /** ISO date string yyyy-mm-dd when known */
+  dob?: string;
 };
 
 const buildUserFromStorage = (): ProfileUser => {
@@ -73,6 +88,7 @@ const buildUserFromStorage = (): ProfileUser => {
         startDate: u.startdate || u.customattributes?.["urn:ietf:params:scim:schemas:extension:custom"]?.startdate || "",
         userType: u.employeetype || u.customattributes?.userType || "",
         managerEmail: u.managername || u.customattributes?.enterpriseUser?.manager?.value || "",
+        dob: u.dob || u.customattributes?.birthdate || "",
         tags: [u.employeetype || u.customattributes?.userType || "User"].filter(Boolean),
         status:
           u.status ||
@@ -102,6 +118,7 @@ const buildUserFromStorage = (): ProfileUser => {
         startDate: "",
         userType: s.tags || "",
         managerEmail: s.managerName || "",
+        dob: "",
         tags: [s.tags || "User"].filter(Boolean),
         status: s.status || "Active",
       };
@@ -120,10 +137,59 @@ const buildUserFromStorage = (): ProfileUser => {
     startDate: "",
     userType: "",
     managerEmail: "",
+    dob: "",
     tags: ["User"],
     status: "Active",
   };
 };
+
+function persistProfileUserToStorage(profile: ProfileUser) {
+  try {
+    const fullStr = localStorage.getItem("selectedUserRawFull");
+    if (fullStr) {
+      const u = JSON.parse(fullStr);
+      u.firstname = profile.firstName;
+      u.lastname = profile.lastName;
+      if (typeof u.email === "object" && u.email !== null && "work" in u.email) {
+        u.email = { ...u.email, work: profile.email };
+      } else {
+        u.email = profile.email;
+      }
+      u.displayname = profile.displayName;
+      u.displayName = profile.displayName;
+      u.username = profile.alias;
+      u.title = profile.title;
+      u.department = profile.department;
+      u.startdate = profile.startDate;
+      u.employeetype = profile.userType;
+      u.managername = profile.managerEmail;
+      u.status = profile.status;
+      u.userstatus = profile.status;
+      if (profile.dob) {
+        u.dob = profile.dob;
+      }
+      localStorage.setItem("selectedUserRawFull", JSON.stringify(u));
+    }
+  } catch {
+    // ignore
+  }
+  try {
+    const sel = localStorage.getItem("selectedUserRaw");
+    if (sel) {
+      const s = JSON.parse(sel);
+      s.name = profile.displayName;
+      s.email = profile.email;
+      s.title = profile.title;
+      s.department = profile.department;
+      s.tags = profile.tags?.[0] ?? profile.userType ?? "";
+      s.managerName = profile.managerEmail;
+      s.status = profile.status;
+      localStorage.setItem("selectedUserRaw", JSON.stringify(s));
+    }
+  } catch {
+    // ignore
+  }
+}
 
 // Sample access data
 const accessData = {
@@ -632,37 +698,119 @@ export default function UserDetailPage() {
       : colors[0];
     const displayedInitials = isMounted ? initials : "";
 
-    const [isEditingStatus, setIsEditingStatus] = useState(false);
-    const [statusDraft, setStatusDraft] = useState<string>(userData.status || "Active");
+    const [isEditingProfile, setIsEditingProfile] = useState(false);
+    const [profileDraft, setProfileDraft] = useState<ProfileUser>(() => ({ ...userData }));
+    const [newPassword, setNewPassword] = useState("");
+    const [confirmPassword, setConfirmPassword] = useState("");
+    const [passwordFeedback, setPasswordFeedback] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+    const [showPasswordResetFields, setShowPasswordResetFields] = useState(false);
+    const [showNewPasswordPlain, setShowNewPasswordPlain] = useState(false);
+    const [showConfirmPasswordPlain, setShowConfirmPasswordPlain] = useState(false);
 
     useEffect(() => {
-      setStatusDraft(userData.status || "Active");
-    }, [userData.status]);
-
-    const handleSaveStatus = () => {
-      const nextStatus = statusDraft || "Active";
-      setUserData((prev) => ({
-        ...prev,
-        status: nextStatus,
-      }));
-
-      try {
-        const fullStr = localStorage.getItem("selectedUserRawFull");
-        if (fullStr) {
-          const u = JSON.parse(fullStr);
-          u.status = nextStatus;
-          localStorage.setItem("selectedUserRawFull", JSON.stringify(u));
-        }
-      } catch {
-        // Non-fatal, UI state is still updated
+      if (!isEditingProfile) {
+        setProfileDraft({ ...userData });
       }
+    }, [userData, isEditingProfile]);
 
-      setIsEditingStatus(false);
+    const enterProfileEdit = () => {
+      setProfileDraft({
+        ...userData,
+        tags: [...(userData.tags || [])],
+        dob: userData.dob || "",
+      });
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordFeedback(null);
+      setShowPasswordResetFields(false);
+      setShowNewPasswordPlain(false);
+      setShowConfirmPasswordPlain(false);
+      setIsEditingProfile(true);
     };
 
+    const cancelProfileEdit = () => {
+      setIsEditingProfile(false);
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordFeedback(null);
+      setShowPasswordResetFields(false);
+      setShowNewPasswordPlain(false);
+      setShowConfirmPasswordPlain(false);
+    };
+
+    const saveProfile = () => {
+      const next: ProfileUser = {
+        ...profileDraft,
+        firstName: profileDraft.firstName?.trim() ?? "",
+        lastName: profileDraft.lastName?.trim() ?? "",
+        email: profileDraft.email?.trim() || "no-email@example.com",
+        displayName: (profileDraft.displayName || "").trim() || "Unknown",
+        alias: profileDraft.alias?.trim() ?? "",
+        title: profileDraft.title?.trim() ?? "",
+        department: profileDraft.department?.trim() ?? "",
+        startDate: profileDraft.startDate?.trim() ?? "",
+        userType: profileDraft.userType?.trim() ?? "",
+        managerEmail: profileDraft.managerEmail?.trim() ?? "",
+        status: profileDraft.status || "Active",
+        tags: (profileDraft.tags || []).map((t) => String(t).trim()).filter(Boolean),
+        dob: profileDraft.dob?.trim() || "",
+      };
+      if (!next.tags.length) {
+        next.tags = ["User"];
+      }
+      setUserData(next);
+      persistProfileUserToStorage(next);
+      setIsEditingProfile(false);
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordFeedback(null);
+      setShowPasswordResetFields(false);
+      setShowNewPasswordPlain(false);
+      setShowConfirmPasswordPlain(false);
+    };
+
+    const handleResetPassword = () => {
+      setPasswordFeedback(null);
+      if (!newPassword && !confirmPassword) {
+        setPasswordFeedback({ type: "err", text: "Enter a new password and confirmation." });
+        return;
+      }
+      if (newPassword.length < 8) {
+        setPasswordFeedback({ type: "err", text: "Password must be at least 8 characters." });
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        setPasswordFeedback({ type: "err", text: "Passwords do not match." });
+        return;
+      }
+      setPasswordFeedback({ type: "ok", text: "Password reset completed successfully." });
+      setNewPassword("");
+      setConfirmPassword("");
+      setShowPasswordResetFields(false);
+      setShowNewPasswordPlain(false);
+      setShowConfirmPasswordPlain(false);
+    };
+
+    const inputClass =
+      "mt-0.5 w-full text-xs border border-gray-300 rounded px-2 py-1 text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none";
+
     return (
-      <div className="bg-white rounded-lg shadow-md p-3">
-        <div className="flex flex-col md:flex-row gap-8 items-center">
+      <div className="relative bg-white rounded-lg shadow-md p-3">
+        {!isEditingProfile && (
+          <div className="no-print absolute top-3 right-3 z-10 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={enterProfileEdit}
+              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-md text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200"
+              title="Edit profile"
+              aria-label="Edit profile"
+            >
+              <Edit className="w-4 h-4" />
+              Edit
+            </button>
+          </div>
+        )}
+        <div className="flex flex-col md:flex-row gap-8 items-start md:items-center">
           {/* Profile Picture - Centered */}
           <div className="flex-shrink-0 flex justify-center">
             <div
@@ -672,147 +820,370 @@ export default function UserDetailPage() {
               {displayedInitials}
             </div>
           </div>
-          
-        {/* User Details - Right Side */}
-        <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-1">
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">First Name</label>
-              <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.firstName}</p>
-            </div>
-            
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Last Name</label>
-              <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.lastName}</p>
-            </div>
-            
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Email</label>
-              <p className="text-xs font-semibold text-blue-600 mt-0.5">{userData.email}</p>
-            </div>
-            
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Display Name</label>
-              <div className="text-xs font-semibold text-gray-900 mt-0.5">
-                <UserDisplayName
-                  displayName={userData.displayName}
-                  userType={userData.userType}
-                  tags={userData.tags}
-                />
-              </div>
-            </div>
 
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">DOB</label>
-              <p className="text-xs font-semibold text-gray-900 mt-0.5 tracking-widest" aria-label="Date of birth hidden">
-                *****
-              </p>
-            </div>
-            
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Alias</label>
-              <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.alias}</p>
-            </div>
-            
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Title</label>
-              <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.title}</p>
-            </div>
-            
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Department</label>
-              <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.department}</p>
-            </div>
-            
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Start Date</label>
-              <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.startDate || "N/A"}</p>
-            </div>
-            
-            {userData.tags && userData.tags.length > 0 && (
+          {/* User Details - Right Side */}
+          <div className={`flex-1 w-full min-w-0 space-y-4 ${!isEditingProfile ? "sm:pr-9" : ""}`}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3">
               <div>
-                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Tags</label>
-                <div className="flex flex-wrap gap-1 mt-0.5">
-                  {userData.tags.map((tag, index) => (
-                    <span
-                      key={index}
-                      className="inline-block bg-blue-100 border border-blue-300 text-blue-800 text-xs px-2 py-0.5 rounded-full"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">First Name</label>
+                {isEditingProfile ? (
+                  <input
+                    className={inputClass}
+                    value={profileDraft.firstName}
+                    onChange={(e) => setProfileDraft((d) => ({ ...d, firstName: e.target.value }))}
+                    aria-label="First name"
+                  />
+                ) : (
+                  <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.firstName}</p>
+                )}
               </div>
-            )}
-            
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">User Type</label>
-              <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.userType}</p>
-            </div>
-            
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Manager Email</label>
-              <p className="text-xs font-semibold text-blue-600 mt-0.5">{userData.managerEmail}</p>
-            </div>
-            
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Status</label>
-              {!isEditingStatus ? (
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span
-                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                      (userData.status || "Active") === "Active"
-                        ? "border border-green-500 text-green-700 bg-green-50"
-                        : "border border-gray-300 text-gray-800 bg-gray-50"
-                    }`}
+
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Last Name</label>
+                {isEditingProfile ? (
+                  <input
+                    className={inputClass}
+                    value={profileDraft.lastName}
+                    onChange={(e) => setProfileDraft((d) => ({ ...d, lastName: e.target.value }))}
+                    aria-label="Last name"
+                  />
+                ) : (
+                  <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.lastName}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Email</label>
+                {isEditingProfile ? (
+                  <input
+                    type="email"
+                    className={inputClass}
+                    value={profileDraft.email}
+                    onChange={(e) => setProfileDraft((d) => ({ ...d, email: e.target.value }))}
+                    aria-label="Email"
+                  />
+                ) : (
+                  <p className="text-xs font-semibold text-blue-600 mt-0.5">{userData.email}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Display Name</label>
+                {isEditingProfile ? (
+                  <input
+                    className={inputClass}
+                    value={profileDraft.displayName}
+                    onChange={(e) => setProfileDraft((d) => ({ ...d, displayName: e.target.value }))}
+                    aria-label="Display name"
+                  />
+                ) : (
+                  <div className="text-xs font-semibold text-gray-900 mt-0.5">
+                    <UserDisplayName
+                      displayName={userData.displayName}
+                      userType={userData.userType}
+                      tags={userData.tags}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">DOB</label>
+                {isEditingProfile ? (
+                  <input
+                    type="date"
+                    className={inputClass}
+                    value={profileDraft.dob || ""}
+                    onChange={(e) => setProfileDraft((d) => ({ ...d, dob: e.target.value }))}
+                    aria-label="Date of birth"
+                  />
+                ) : (
+                  <p
+                    className="text-xs font-semibold text-gray-900 mt-0.5 tracking-widest"
+                    aria-label="Date of birth hidden"
                   >
-                    {userData.status || "Active"}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setStatusDraft(userData.status || "Active");
-                      setIsEditingStatus(true);
-                    }}
-                    className="inline-flex items-center p-1 rounded-full text-gray-500 hover:text-gray-700 hover:bg-gray-100"
-                    title="Edit Status"
-                  >
-                    <Edit className="w-4 h-4" />
-                  </button>
+                    *****
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Alias</label>
+                {isEditingProfile ? (
+                  <input
+                    className={inputClass}
+                    value={profileDraft.alias}
+                    onChange={(e) => setProfileDraft((d) => ({ ...d, alias: e.target.value }))}
+                    aria-label="Alias"
+                  />
+                ) : (
+                  <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.alias}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Title</label>
+                {isEditingProfile ? (
+                  <input
+                    className={inputClass}
+                    value={profileDraft.title ?? ""}
+                    onChange={(e) => setProfileDraft((d) => ({ ...d, title: e.target.value }))}
+                    aria-label="Title"
+                  />
+                ) : (
+                  <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.title}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Department</label>
+                {isEditingProfile ? (
+                  <input
+                    className={inputClass}
+                    value={profileDraft.department ?? ""}
+                    onChange={(e) => setProfileDraft((d) => ({ ...d, department: e.target.value }))}
+                    aria-label="Department"
+                  />
+                ) : (
+                  <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.department}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Start Date</label>
+                {isEditingProfile ? (
+                  <input
+                    type="date"
+                    className={inputClass}
+                    value={profileDraft.startDate || ""}
+                    onChange={(e) => setProfileDraft((d) => ({ ...d, startDate: e.target.value }))}
+                    aria-label="Start date"
+                  />
+                ) : (
+                  <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.startDate || "N/A"}</p>
+                )}
+              </div>
+
+              {(!!userData.tags?.length || isEditingProfile) && (
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Tags</label>
+                  {isEditingProfile ? (
+                    <input
+                      className={inputClass}
+                      value={(profileDraft.tags || []).join(", ")}
+                      onChange={(e) =>
+                        setProfileDraft((d) => ({
+                          ...d,
+                          tags: e.target.value
+                            .split(",")
+                            .map((t) => t.trim())
+                            .filter(Boolean),
+                        }))
+                      }
+                      placeholder="e.g. Employee, Contractor"
+                      aria-label="Tags, comma-separated"
+                    />
+                  ) : (
+                    <div className="flex flex-wrap gap-1 mt-0.5">
+                      {userData.tags.map((tag, index) => (
+                        <span
+                          key={index}
+                          className="inline-block bg-blue-100 border border-blue-300 text-blue-800 text-xs px-2 py-0.5 rounded-full"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="flex flex-wrap items-center gap-2 mt-0.5">
+              )}
+
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">User Type</label>
+                {isEditingProfile ? (
+                  <input
+                    className={inputClass}
+                    value={profileDraft.userType ?? ""}
+                    onChange={(e) => setProfileDraft((d) => ({ ...d, userType: e.target.value }))}
+                    aria-label="User type"
+                  />
+                ) : (
+                  <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.userType}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Manager Email</label>
+                {isEditingProfile ? (
+                  <input
+                    type="email"
+                    className={inputClass}
+                    value={profileDraft.managerEmail ?? ""}
+                    onChange={(e) => setProfileDraft((d) => ({ ...d, managerEmail: e.target.value }))}
+                    aria-label="Manager email"
+                  />
+                ) : (
+                  <p className="text-xs font-semibold text-blue-600 mt-0.5">{userData.managerEmail}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Status</label>
+                {isEditingProfile ? (
                   <select
-                    className="text-xs border border-gray-300 rounded px-2 py-1"
-                    value={statusDraft}
-                    onChange={(e) => setStatusDraft(e.target.value)}
+                    className={inputClass}
+                    value={profileDraft.status || "Active"}
+                    onChange={(e) => setProfileDraft((d) => ({ ...d, status: e.target.value }))}
+                    aria-label="Status"
                   >
                     <option value="Active">Active</option>
                     <option value="Inactive">Inactive</option>
                     <option value="Disable">Disable</option>
                   </select>
-                  <button
-                    type="button"
-                    onClick={handleSaveStatus}
-                    className="inline-flex items-center justify-center w-7 h-7 bg-blue-600 hover:bg-blue-700 text-white rounded-full text-xs"
-                    title="Save"
-                    aria-label="Save status"
-                  >
-                    ✓
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsEditingStatus(false)}
-                    className="inline-flex items-center justify-center w-7 h-7 border border-gray-300 rounded-full text-xs text-gray-600 hover:bg-gray-50"
-                    title="Cancel"
-                    aria-label="Cancel edit"
-                  >
-                    ✕
-                  </button>
-                </div>
-              )}
+                ) : (
+                  <div className="mt-0.5">
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                        (userData.status || "Active") === "Active"
+                          ? "border border-green-500 text-green-700 bg-green-50"
+                          : "border border-gray-300 text-gray-800 bg-gray-50"
+                      }`}
+                    >
+                      {userData.status || "Active"}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
+
+            {isEditingProfile && (
+              <div className="border border-gray-200 rounded-md px-2.5 py-2 bg-gray-50/90 no-print">
+                {!showPasswordResetFields ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPasswordResetFields(true);
+                      setPasswordFeedback(null);
+                    }}
+                    className="inline-flex items-center px-3 py-1.5 rounded-md text-[11px] font-medium text-white bg-gray-800 hover:bg-gray-900"
+                  >
+                    Reset password
+                  </button>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <span className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide">
+                        Reset password
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowPasswordResetFields(false);
+                          setNewPassword("");
+                          setConfirmPassword("");
+                          setPasswordFeedback(null);
+                          setShowNewPasswordPlain(false);
+                          setShowConfirmPasswordPlain(false);
+                        }}
+                        className="text-[11px] font-medium text-gray-500 hover:text-gray-800"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    <div className="flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-end sm:gap-x-3 sm:gap-y-1.5">
+                      <div className="flex flex-1 flex-wrap items-end gap-2 min-w-0 sm:max-w-xl">
+                        <div className="flex-1 min-w-[8rem]">
+                          <label className="text-[10px] font-medium text-gray-500">New</label>
+                          <div className="relative mt-0.5">
+                            <input
+                              type={showNewPasswordPlain ? "text" : "password"}
+                              autoComplete="new-password"
+                              className="w-full bg-white text-xs border border-gray-300 rounded pl-2 pr-9 py-1 text-gray-900 focus:ring-1 focus:ring-blue-500 focus:border-transparent outline-none"
+                              value={newPassword}
+                              onChange={(e) => setNewPassword(e.target.value)}
+                              aria-label="New password"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowNewPasswordPlain((v) => !v)}
+                              className="absolute inset-y-0 right-0 flex items-center justify-center px-1.5 text-gray-500 hover:text-gray-800"
+                              aria-label={showNewPasswordPlain ? "Hide new password" : "Show new password"}
+                            >
+                              {showNewPasswordPlain ? (
+                                <EyeOff className="w-4 h-4" strokeWidth={1.75} />
+                              ) : (
+                                <Eye className="w-4 h-4" strokeWidth={1.75} />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-[8rem]">
+                          <label className="text-[10px] font-medium text-gray-500">Confirm</label>
+                          <div className="relative mt-0.5">
+                            <input
+                              type={showConfirmPasswordPlain ? "text" : "password"}
+                              autoComplete="new-password"
+                              className="w-full bg-white text-xs border border-gray-300 rounded pl-2 pr-9 py-1 text-gray-900 focus:ring-1 focus:ring-blue-500 focus:border-transparent outline-none"
+                              value={confirmPassword}
+                              onChange={(e) => setConfirmPassword(e.target.value)}
+                              aria-label="Confirm password"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowConfirmPasswordPlain((v) => !v)}
+                              className="absolute inset-y-0 right-0 flex items-center justify-center px-1.5 text-gray-500 hover:text-gray-800"
+                              aria-label={showConfirmPasswordPlain ? "Hide confirm password" : "Show confirm password"}
+                            >
+                              {showConfirmPasswordPlain ? (
+                                <EyeOff className="w-4 h-4" strokeWidth={1.75} />
+                              ) : (
+                                <Eye className="w-4 h-4" strokeWidth={1.75} />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleResetPassword}
+                          className="inline-flex items-center px-3 py-1 rounded-md text-[11px] font-medium text-white bg-gray-800 hover:bg-gray-900 sm:mb-0.5"
+                        >
+                          Apply
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+                {passwordFeedback && (
+                  <p
+                    className={`text-[11px] mt-1.5 ${
+                      passwordFeedback.type === "ok" ? "text-green-700" : "text-red-600"
+                    }`}
+                  >
+                    {passwordFeedback.text}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
+        {isEditingProfile && (
+          <div className="no-print flex justify-end gap-2 mt-4 pt-3 border-t border-gray-100">
+            <button
+              type="button"
+              onClick={cancelProfileEdit}
+              className="inline-flex items-center px-5 py-2.5 rounded-md text-xs font-medium border border-gray-300 text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={saveProfile}
+              className="inline-flex items-center px-5 py-2.5 rounded-md text-xs font-medium text-white bg-blue-600 hover:bg-blue-700"
+            >
+              Save
+            </button>
+          </div>
+        )}
       </div>
     );
   };

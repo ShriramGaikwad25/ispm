@@ -44,12 +44,16 @@ type PendingApproval = {
   beneficiary: string;
   createdOn: string;
   lastActedOn: string;
+  /** ISO date string: creation date + 14 days (for Expiry Date column). */
+  expiryDate: string;
   entityCount: number;
   comments: string;
   status: PendingApprovalStatus;
   hasInsight?: boolean;
   hasRisk?: boolean;
   hasViolation?: boolean;
+  /** True when API / SOD evaluation reports a segregation-of-duties conflict for this request. */
+  hasConflict?: boolean;
   items: NestedItem[];
 };
 
@@ -88,6 +92,18 @@ const formatDateToMMDDYY = (value: string): string => {
 
   return value;
 };
+
+/** Calendar days after creation (used for approval expiry display). */
+const APPROVAL_EXPIRY_DAYS = 14;
+
+function addDaysToCreatedOn(createdOn: string, days: number): string {
+  if (!createdOn) return "";
+  const d = new Date(createdOn);
+  if (Number.isNaN(d.getTime())) return "";
+  const out = new Date(d);
+  out.setDate(out.getDate() + days);
+  return out.toISOString();
+}
 
 async function fetchPendingApprovals(): Promise<PendingApproval[]> {
   const reviewerId = getReviewerId();
@@ -204,8 +220,23 @@ async function fetchPendingApprovals(): Promise<PendingApproval[]> {
       row?.data ??
       {};
 
-    // Mirror Track Request: violation signal lives in workflow_instance.context_json.sodResults.
+    // Task rows often expose sodResults on context_json (approval API). Also support workflow payload shape.
+    const contextJsonFromRow = row?.context_json ?? row?.contextJson ?? null;
+    const contextJsonFromWorkflow =
+      requestJson?.workflow_instance?.context_json ??
+      requestJson?.workflowInstance?.context_json ??
+      requestJson?.workflow_instance?.contextJson ??
+      requestJson?.workflowInstance?.contextJson ??
+      null;
+
+    // Mirror Track Request: sodResults may live on task context_json or workflow_instance.context_json.
     const sodResults =
+      contextJsonFromRow?.sodResults ??
+      contextJsonFromRow?.sod_results ??
+      contextJsonFromRow?.sodresults ??
+      contextJsonFromWorkflow?.sodResults ??
+      contextJsonFromWorkflow?.sod_results ??
+      contextJsonFromWorkflow?.sodresults ??
       requestJson?.workflow_instance?.context_json?.sodResults ??
       requestJson?.workflow_instance?.context_json?.sod_results ??
       requestJson?.workflow_instance?.context_json?.sodresults ??
@@ -269,6 +300,9 @@ async function fetchPendingApprovals(): Promise<PendingApproval[]> {
       };
     });
     const hasViolationFromItems = items.some((item: any) => Boolean(item?.hasViolation));
+    const hasConflictFromItems = items.some((item: any) =>
+      Boolean(item?.hasConflict ?? item?.has_conflict)
+    );
     const itemDetails = row.itemdetails ?? row.itemDetails;
     const itemDetailsCount = Array.isArray(itemDetails)
       ? itemDetails.length
@@ -293,6 +327,7 @@ async function fetchPendingApprovals(): Promise<PendingApproval[]> {
       beneficiary,
       createdOn,
       lastActedOn,
+      expiryDate: addDaysToCreatedOn(createdOn, APPROVAL_EXPIRY_DAYS),
       entityCount:
         itemDetailsCount ||
         Number(
@@ -318,7 +353,14 @@ async function fetchPendingApprovals(): Promise<PendingApproval[]> {
       status: normalizedStatus,
       hasInsight: Boolean(row.hasInsight ?? row.has_insight),
       hasRisk: Boolean(row.hasRisk ?? row.has_risk),
-      hasViolation: Boolean(row.hasViolation ?? row.has_violation) || hasViolationFromItems,
+      hasViolation:
+        Boolean(row.hasViolation ?? row.has_violation) ||
+        hasViolationFromItems ||
+        hasGlobalSodConflict,
+      hasConflict:
+        Boolean(row.hasConflict ?? row.has_conflict) ||
+        hasGlobalSodConflict ||
+        hasConflictFromItems,
       items,
     };
   });
@@ -518,8 +560,26 @@ const PendingApprovalsPage: React.FC = () => {
       {
         headerName: "Req ID",
         field: "id",
-        minWidth: 90,
-        width: 100,
+        minWidth: 96,
+        width: 108,
+        cellClass: "pending-approvals-req-id-cell",
+        cellRenderer: (params: ICellRendererParams) => {
+          const data = params.data as PendingApproval | undefined;
+          if (!data) return null;
+          return (
+            <div className="flex h-full w-full min-w-0 items-center gap-1.5">
+              <span className="tabular-nums">{data.id}</span>
+              {data.hasConflict ? (
+                <span
+                  className="inline-flex shrink-0 items-center rounded border border-red-400 bg-red-50 px-1 py-0.5 text-[10px] font-normal uppercase leading-none text-red-600"
+                  title="Segregation of duties (SOD) conflict"
+                >
+                  SOD
+                </span>
+              ) : null}
+            </div>
+          );
+        },
       },
       {
         headerName: "Requester",
@@ -530,8 +590,8 @@ const PendingApprovalsPage: React.FC = () => {
       {
         headerName: "Beneficiary",
         field: "beneficiary",
-        minWidth: 140,
-        width: 160,
+        minWidth: 128,
+        width: 145,
       },
       {
         headerName: "Created On",
@@ -539,21 +599,24 @@ const PendingApprovalsPage: React.FC = () => {
         minWidth: 140,
         width: 150,
         sort: "desc",
-        cellClass: "text-center",
+        cellClass: "text-left",
+        headerClass: "text-left",
         valueFormatter: (params) => formatDateToMMDDYY(params.value ?? ""),
       },
       {
-        headerName: "# Entity",
-        field: "entityCount",
-        minWidth: 90,
-        width: 100,
-        cellClass: "text-center",
+        headerName: "Expiry Date",
+        field: "expiryDate",
+        minWidth: 118,
+        width: 128,
+        cellClass: "text-left",
+        headerClass: "text-left",
+        valueFormatter: (params) => formatDateToMMDDYY(params.value ?? ""),
       },
       {
         headerName: "Comments",
         field: "comments",
-        minWidth: 240,
-        width: 300,
+        minWidth: 380,
+        width: 440,
         wrapText: true,
         autoHeight: true,
         cellClass: "pending-approvals-comments-cell",
@@ -565,24 +628,6 @@ const PendingApprovalsPage: React.FC = () => {
           display: "flex",
           alignItems: "center",
           justifyContent: "flex-start",
-        },
-      },
-      {
-        headerName: "Insights",
-        field: "insights",
-        minWidth: 110,
-        width: 110,
-        cellClass: "pending-approvals-insights-cell",
-        cellRenderer: (params: ICellRendererParams) => {
-          const data = params.data as PendingApproval | undefined;
-          if (!data) return null;
-          return (
-            <InsightsCell
-              hasRisk={data.hasRisk}
-              hasInsight={data.hasInsight}
-              hasViolation={data.hasViolation}
-            />
-          );
         },
       },
       {

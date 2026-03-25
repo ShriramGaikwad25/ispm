@@ -43,8 +43,33 @@ interface Request {
   status: string;
   canWithdraw?: boolean;
   canProvideAdditionalDetails?: boolean;
+  /** True when API / SOD evaluation reports a segregation-of-duties conflict for this request. */
+  hasConflict?: boolean;
+  /** ISO date string: creation date + 14 days (aligned with My Approvals). */
+  expiryDate: string;
   details?: RequestDetails;
   history?: RequestHistory[];
+}
+
+const TRACK_REQUEST_EXPIRY_DAYS = 14;
+
+function formatTrackDate(value: string | null | undefined): string {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const yyyy = String(d.getFullYear());
+  return `${mm}/${dd}/${yyyy}`;
+}
+
+function addDaysToCreatedOn(createdOn: string, days: number): string {
+  if (!createdOn) return "";
+  const d = new Date(createdOn);
+  if (Number.isNaN(d.getTime())) return "";
+  const out = new Date(d);
+  out.setDate(out.getDate() + days);
+  return out.toISOString();
 }
 
 /** Any column that may wrap uses this so the row grows to fit (with domLayout autoHeight + resetRowHeights). */
@@ -87,16 +112,6 @@ const TrackRequest: React.FC = () => {
       parameters: [String(reviewerId).trim()],
     };
 
-    const formatDate = (value: string | null | undefined): string => {
-      if (!value) return "";
-      const d = new Date(value);
-      if (Number.isNaN(d.getTime())) return value;
-      const mm = String(d.getMonth() + 1).padStart(2, "0");
-      const dd = String(d.getDate()).padStart(2, "0");
-      const yyyy = String(d.getFullYear());
-      return `${mm}/${dd}/${yyyy}`;
-    };
-
     fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -125,11 +140,48 @@ const TrackRequest: React.FC = () => {
             return workflowInstanceId !== null && workflowInstanceId !== undefined && String(workflowInstanceId).trim() !== "";
           })
           .map((row) => {
-          const requestJson = row.request_json ?? {};
+          const requestJson =
+            row?.request_json ??
+            row?.requestJson ??
+            row?.request ??
+            row?.data ??
+            {};
+
+          const contextJsonFromRow = row?.context_json ?? row?.contextJson ?? null;
+          const contextJsonFromWorkflow =
+            requestJson?.workflow_instance?.context_json ??
+            requestJson?.workflowInstance?.context_json ??
+            requestJson?.workflow_instance?.contextJson ??
+            requestJson?.workflowInstance?.contextJson ??
+            null;
+
+          const sodResults =
+            contextJsonFromRow?.sodResults ??
+            contextJsonFromRow?.sod_results ??
+            contextJsonFromRow?.sodresults ??
+            contextJsonFromWorkflow?.sodResults ??
+            contextJsonFromWorkflow?.sod_results ??
+            contextJsonFromWorkflow?.sodresults ??
+            requestJson?.workflow_instance?.context_json?.sodResults ??
+            requestJson?.workflow_instance?.context_json?.sod_results ??
+            requestJson?.workflow_instance?.context_json?.sodresults ??
+            requestJson?.workflowInstance?.context_json?.sodResults ??
+            requestJson?.workflowInstance?.context_json?.sod_results ??
+            requestJson?.workflowInstance?.context_json?.sodresults ??
+            requestJson?.workflow_instance?.contextJson?.sodResults ??
+            requestJson?.workflow_instance?.contextJson?.sod_results ??
+            requestJson?.workflow_instance?.contextJson?.sodresults ??
+            requestJson?.workflowInstance?.contextJson?.sodResults;
+
+          const hasGlobalSodConflict = Boolean(sodResults?.hasConflict);
+
           const accessRequest = requestJson.access_request ?? {};
           const requestedBy = accessRequest.requested_by ?? {};
           const requestedFor = accessRequest.requested_for ?? {};
           const accessItems: any[] = Array.isArray(requestJson.access_items) ? requestJson.access_items : [];
+          const hasConflictFromItems = accessItems.some((item: any) =>
+            Boolean(item?.hasConflict ?? item?.has_conflict)
+          );
           const firstItem = accessItems[0] ?? {};
           const catalog = firstItem.catalog ?? {};
           const entitlementMeta = firstItem.entitlement_metadata ?? {};
@@ -157,7 +209,7 @@ const TrackRequest: React.FC = () => {
             catalog.type || catalog.entitlementtype || (catalog.metadata?.entitlementType as string) || "Entitlement";
 
           const requestedOn: string | undefined = accessRequest.created_at;
-          const raisedOn = formatDate(requestedOn);
+          const raisedOn = formatTrackDate(requestedOn);
 
           let daysOpen = 0;
           if (requestedOn) {
@@ -203,6 +255,11 @@ const TrackRequest: React.FC = () => {
             entityType: String(entityTypeFromCatalog),
             daysOpen,
             status,
+            hasConflict:
+              Boolean(row.hasConflict ?? row.has_conflict) ||
+              hasGlobalSodConflict ||
+              hasConflictFromItems,
+            expiryDate: addDaysToCreatedOn(requestedOn ?? "", TRACK_REQUEST_EXPIRY_DAYS),
             canWithdraw: status.toLowerCase().includes("awaiting") || status.toLowerCase().includes("pending"),
             canProvideAdditionalDetails: status.toLowerCase().includes("provide information"),
             details: {
@@ -288,12 +345,29 @@ const TrackRequest: React.FC = () => {
         headerName: "ID",
         field: "id",
         flex: 0.55,
-        minWidth: 110,
-        maxWidth: 140,
+        minWidth: 120,
+        maxWidth: 160,
         sortable: true,
         sort: "desc",
         sortIndex: 0,
-        ...wrappedTextCol,
+        cellClass: "track-request-id-cell",
+        cellRenderer: (params: ICellRendererParams) => {
+          const data = params.data as Request | undefined;
+          if (!data) return null;
+          return (
+            <div className="flex h-full w-full min-w-0 items-center gap-1.5">
+              <span className="tabular-nums">{data.id}</span>
+              {data.hasConflict ? (
+                <span
+                  className="inline-flex shrink-0 items-center rounded border border-red-400 bg-red-50 px-1 py-0.5 text-[10px] font-normal uppercase leading-none text-red-600"
+                  title="Segregation of duties (SOD) conflict"
+                >
+                  SOD
+                </span>
+              ) : null}
+            </div>
+          );
+        },
       },
       {
         headerName: "Type",
@@ -315,8 +389,8 @@ const TrackRequest: React.FC = () => {
       {
         headerName: "Beneficiary",
         field: "beneficiaryName",
-        flex: 0.75,
-        minWidth: 130,
+        flex: 0.88,
+        minWidth: 150,
         sortable: true,
         ...wrappedTextCol,
       },
@@ -325,15 +399,32 @@ const TrackRequest: React.FC = () => {
         field: "raisedOn",
         flex: 0.8,
         minWidth: 140,
+        cellClass: "text-left",
+        headerClass: "text-left",
         ...wrappedTextCol,
         valueGetter: (params) => params.data?.details?.dateCreated ?? "-",
+      },
+      {
+        headerName: "Expiry Date",
+        field: "expiryDate",
+        flex: 0.8,
+        minWidth: 140,
+        cellClass: "text-left",
+        headerClass: "text-left",
+        ...wrappedTextCol,
+        valueGetter: (params) => {
+          const iso = params.data?.expiryDate as string | undefined;
+          if (!iso) return "-";
+          const formatted = formatTrackDate(iso);
+          return formatted || "-";
+        },
       },
       {
         headerName: "Comments",
         field: "comments",
         // Keep comments as the dominant column when grid auto-adjusts.
-        flex: 6.5,
-        minWidth: 460,
+        flex: 5.75,
+        minWidth: 400,
         ...wrappedTextCol,
         valueGetter: (params) => params.data?.details?.globalComments ?? "-",
       },
@@ -349,7 +440,7 @@ const TrackRequest: React.FC = () => {
           return (
             <div className="flex w-full min-w-0 items-center justify-between gap-2 py-0.5">
               <span
-                className={`min-w-0 flex-1 whitespace-normal break-words px-2 py-1 text-xs font-semibold leading-snug rounded-md ${getAccessRequestStatusBadgeClasses(
+                className={`min-w-0 flex-1 whitespace-normal break-words px-2 py-1 text-xs font-normal leading-snug rounded-md ${getAccessRequestStatusBadgeClasses(
                   status
                 )}`}
               >

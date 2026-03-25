@@ -326,9 +326,9 @@ textarea:focus-visible,
   outline-offset: -2px !important;
 }
 
-/* My Approvals: center vertically, align content left (Comments + Insights + Status) */
+/* My Approvals: center vertically, align content left (Req ID + Comments + Status) */
+.ag-theme-quartz .pending-approvals-req-id-cell,
 .ag-theme-quartz .pending-approvals-comments-cell,
-.ag-theme-quartz .pending-approvals-insights-cell,
 .ag-theme-quartz .pending-approvals-status-cell {
   display: flex;
   align-items: center;
@@ -353,6 +353,36 @@ textarea:focus-visible,
 .ag-theme-quartz .pending-approvals-status-cell .ag-cell-wrapper {
   width: 100%;
   min-width: 0;
+}
+
+/* My Approvals: date columns — values and headers start at the left */
+.ag-theme-quartz.my-approvals-grid .ag-cell.text-left {
+  justify-content: flex-start;
+  text-align: left;
+}
+.ag-theme-quartz.my-approvals-grid .ag-cell.text-left .ag-cell-wrapper,
+.ag-theme-quartz.my-approvals-grid .ag-cell.text-left .ag-cell-value {
+  justify-content: flex-start;
+  text-align: left;
+}
+.ag-theme-quartz.my-approvals-grid .ag-header-cell.text-left .ag-header-cell-label {
+  justify-content: flex-start;
+  text-align: left;
+  margin-left: 0;
+  margin-right: auto;
+  width: 100%;
+}
+
+/* Track requests: date columns — explicit left alignment (headers + cells) */
+.track-request-grid .ag-cell.text-left .ag-cell-value {
+  text-align: left;
+}
+.track-request-grid .ag-header-cell.text-left .ag-header-cell-label {
+  justify-content: flex-start;
+  text-align: left;
+  margin-left: 0;
+  margin-right: auto;
+  width: 100%;
 }
 
 /* Track requests: zebra rows (overrides global white row bg for this grid only) */
