@@ -700,10 +700,12 @@ export default function UserDetailPage() {
 
     const [isEditingProfile, setIsEditingProfile] = useState(false);
     const [profileDraft, setProfileDraft] = useState<ProfileUser>(() => ({ ...userData }));
+    const [oldPassword, setOldPassword] = useState("");
     const [newPassword, setNewPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     const [passwordFeedback, setPasswordFeedback] = useState<{ type: "ok" | "err"; text: string } | null>(null);
     const [showPasswordResetFields, setShowPasswordResetFields] = useState(false);
+    const [showOldPasswordPlain, setShowOldPasswordPlain] = useState(false);
     const [showNewPasswordPlain, setShowNewPasswordPlain] = useState(false);
     const [showConfirmPasswordPlain, setShowConfirmPasswordPlain] = useState(false);
 
@@ -719,10 +721,12 @@ export default function UserDetailPage() {
         tags: [...(userData.tags || [])],
         dob: userData.dob || "",
       });
+      setOldPassword("");
       setNewPassword("");
       setConfirmPassword("");
       setPasswordFeedback(null);
       setShowPasswordResetFields(false);
+      setShowOldPasswordPlain(false);
       setShowNewPasswordPlain(false);
       setShowConfirmPasswordPlain(false);
       setIsEditingProfile(true);
@@ -730,10 +734,12 @@ export default function UserDetailPage() {
 
     const cancelProfileEdit = () => {
       setIsEditingProfile(false);
+      setOldPassword("");
       setNewPassword("");
       setConfirmPassword("");
       setPasswordFeedback(null);
       setShowPasswordResetFields(false);
+      setShowOldPasswordPlain(false);
       setShowNewPasswordPlain(false);
       setShowConfirmPasswordPlain(false);
     };
@@ -761,16 +767,22 @@ export default function UserDetailPage() {
       setUserData(next);
       persistProfileUserToStorage(next);
       setIsEditingProfile(false);
+      setOldPassword("");
       setNewPassword("");
       setConfirmPassword("");
       setPasswordFeedback(null);
       setShowPasswordResetFields(false);
+      setShowOldPasswordPlain(false);
       setShowNewPasswordPlain(false);
       setShowConfirmPasswordPlain(false);
     };
 
     const handleResetPassword = () => {
       setPasswordFeedback(null);
+      if (!oldPassword.trim()) {
+        setPasswordFeedback({ type: "err", text: "Enter your current password." });
+        return;
+      }
       if (!newPassword && !confirmPassword) {
         setPasswordFeedback({ type: "err", text: "Enter a new password and confirmation." });
         return;
@@ -783,10 +795,16 @@ export default function UserDetailPage() {
         setPasswordFeedback({ type: "err", text: "Passwords do not match." });
         return;
       }
+      if (oldPassword === newPassword) {
+        setPasswordFeedback({ type: "err", text: "New password must be different from the current password." });
+        return;
+      }
       setPasswordFeedback({ type: "ok", text: "Password reset completed successfully." });
+      setOldPassword("");
       setNewPassword("");
       setConfirmPassword("");
       setShowPasswordResetFields(false);
+      setShowOldPasswordPlain(false);
       setShowNewPasswordPlain(false);
       setShowConfirmPasswordPlain(false);
     };
@@ -854,17 +872,7 @@ export default function UserDetailPage() {
 
               <div>
                 <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Email</label>
-                {isEditingProfile ? (
-                  <input
-                    type="email"
-                    className={inputClass}
-                    value={profileDraft.email}
-                    onChange={(e) => setProfileDraft((d) => ({ ...d, email: e.target.value }))}
-                    aria-label="Email"
-                  />
-                ) : (
-                  <p className="text-xs font-semibold text-blue-600 mt-0.5">{userData.email}</p>
-                )}
+                <p className="text-xs font-semibold text-blue-600 mt-0.5">{userData.email}</p>
               </div>
 
               <div>
@@ -889,36 +897,17 @@ export default function UserDetailPage() {
 
               <div>
                 <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">DOB</label>
-                {isEditingProfile ? (
-                  <input
-                    type="date"
-                    className={inputClass}
-                    value={profileDraft.dob || ""}
-                    onChange={(e) => setProfileDraft((d) => ({ ...d, dob: e.target.value }))}
-                    aria-label="Date of birth"
-                  />
-                ) : (
-                  <p
-                    className="text-xs font-semibold text-gray-900 mt-0.5 tracking-widest"
-                    aria-label="Date of birth hidden"
-                  >
-                    *****
-                  </p>
-                )}
+                <p
+                  className="text-xs font-semibold text-gray-900 mt-0.5 tracking-widest"
+                  aria-label="Date of birth hidden"
+                >
+                  *****
+                </p>
               </div>
 
               <div>
-                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Alias</label>
-                {isEditingProfile ? (
-                  <input
-                    className={inputClass}
-                    value={profileDraft.alias}
-                    onChange={(e) => setProfileDraft((d) => ({ ...d, alias: e.target.value }))}
-                    aria-label="Alias"
-                  />
-                ) : (
-                  <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.alias}</p>
-                )}
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Username</label>
+                <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.alias}</p>
               </div>
 
               <div>
@@ -1000,16 +989,7 @@ export default function UserDetailPage() {
 
               <div>
                 <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">User Type</label>
-                {isEditingProfile ? (
-                  <input
-                    className={inputClass}
-                    value={profileDraft.userType ?? ""}
-                    onChange={(e) => setProfileDraft((d) => ({ ...d, userType: e.target.value }))}
-                    aria-label="User type"
-                  />
-                ) : (
-                  <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.userType}</p>
-                )}
+                <p className="text-xs font-semibold text-gray-900 mt-0.5">{userData.userType}</p>
               </div>
 
               <div>
@@ -1079,9 +1059,11 @@ export default function UserDetailPage() {
                         type="button"
                         onClick={() => {
                           setShowPasswordResetFields(false);
+                          setOldPassword("");
                           setNewPassword("");
                           setConfirmPassword("");
                           setPasswordFeedback(null);
+                          setShowOldPasswordPlain(false);
                           setShowNewPasswordPlain(false);
                           setShowConfirmPasswordPlain(false);
                         }}
@@ -1091,7 +1073,32 @@ export default function UserDetailPage() {
                       </button>
                     </div>
                     <div className="flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-end sm:gap-x-3 sm:gap-y-1.5">
-                      <div className="flex flex-1 flex-wrap items-end gap-2 min-w-0 sm:max-w-xl">
+                      <div className="flex flex-1 flex-wrap items-end gap-2 min-w-0 sm:max-w-4xl">
+                        <div className="flex-1 min-w-[8rem]">
+                          <label className="text-[10px] font-medium text-gray-500">Old password</label>
+                          <div className="relative mt-0.5">
+                            <input
+                              type={showOldPasswordPlain ? "text" : "password"}
+                              autoComplete="current-password"
+                              className="w-full bg-white text-xs border border-gray-300 rounded pl-2 pr-9 py-1 text-gray-900 focus:ring-1 focus:ring-blue-500 focus:border-transparent outline-none"
+                              value={oldPassword}
+                              onChange={(e) => setOldPassword(e.target.value)}
+                              aria-label="Old password"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowOldPasswordPlain((v) => !v)}
+                              className="absolute inset-y-0 right-0 flex items-center justify-center px-1.5 text-gray-500 hover:text-gray-800"
+                              aria-label={showOldPasswordPlain ? "Hide old password" : "Show old password"}
+                            >
+                              {showOldPasswordPlain ? (
+                                <EyeOff className="w-4 h-4" strokeWidth={1.75} />
+                              ) : (
+                                <Eye className="w-4 h-4" strokeWidth={1.75} />
+                              )}
+                            </button>
+                          </div>
+                        </div>
                         <div className="flex-1 min-w-[8rem]">
                           <label className="text-[10px] font-medium text-gray-500">New</label>
                           <div className="relative mt-0.5">
