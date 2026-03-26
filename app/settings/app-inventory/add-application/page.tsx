@@ -483,9 +483,7 @@ export default function AddApplicationPage() {
 
     for (let i = 0; i < progressMessages.length; i += 1) {
       setSubmitProgressToast(progressMessages[i]);
-      if (i < progressMessages.length - 1) {
-        await wait(5000);
-      }
+      await wait(5000);
     }
   };
 
@@ -801,7 +799,6 @@ export default function AddApplicationPage() {
       }
 
       console.log("Form submitted:", formData);
-      alert("Application added successfully!");
       router.push("/settings/app-inventory");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to submit application";
@@ -10388,9 +10385,16 @@ export default function AddApplicationPage() {
           </div>
         </div>
 
-        {submitProgressToast && (
-          <div className="fixed top-6 right-6 z-50 max-w-sm bg-slate-900 text-white px-4 py-3 rounded-lg shadow-xl border border-slate-700">
-            {submitProgressToast}
+        {submitRequestLoading && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+            <div className="flex flex-col items-center gap-4">
+              {submitProgressToast && (
+                <div className="max-w-sm bg-green-100 text-green-900 px-4 py-3 rounded-lg shadow-xl border border-green-300 text-sm">
+                  {submitProgressToast}
+                </div>
+              )}
+              <div className="w-12 h-12 rounded-full border-4 border-white/40 border-t-white animate-spin" />
+            </div>
           </div>
         )}
 

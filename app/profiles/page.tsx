@@ -654,7 +654,8 @@ function ClusterTab() {
         valueFormatter: (p) => {
           const v = p.value;
           if (v == null || typeof v !== "number") return "—";
-          return `${v.toFixed(2)}%`;
+          const percent = v <= 1 ? v * 100 : v;
+          return `${percent.toFixed(2)}%`;
         },
       },
       {
