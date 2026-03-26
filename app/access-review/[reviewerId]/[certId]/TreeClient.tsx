@@ -3256,13 +3256,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       {/* First page (default) */}
                       <div className="absolute inset-0 flex flex-col items-center justify-center px-3 text-center">
                         <p className="text-base font-semibold text-blue-800">Speed</p>
-                        <span className="mt-0.5 text-sm font-bold text-blue-600">
-                          {loadingSpeedQuickWin
-                            ? "…"
-                            : speedQuickWinPercent != null
-                              ? `${speedQuickWinPercent.toFixed(2)}% Completion`
-                              : "—"}
-                        </span>
+                        <span className="mt-0.5 text-sm font-bold text-blue-600">46%</span>
                       </div>
                       {/* Second page content on hover with diagonal sweep from top-right to bottom-left */}
                       <div className="absolute inset-0 flex pointer-events-none">
@@ -3329,13 +3323,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       {/* First page (default) */}
                       <div className="absolute inset-0 flex flex-col items-center justify-center px-3 text-center">
                         <p className="text-base font-semibold text-emerald-800">Low Risk</p>
-                        <span className="mt-0.5 text-sm font-bold text-emerald-600">
-                          {loadingLowRiskQuickWin
-                            ? "…"
-                            : lowRiskQuickWinPercent != null
-                              ? `${lowRiskQuickWinPercent.toFixed(2)}% Completion`
-                              : "—"}
-                        </span>
+                        <span className="mt-0.5 text-sm font-bold text-emerald-600">37%</span>
                       </div>
                       {/* Second page content on hover with diagonal sweep from top-right to bottom-left */}
                       <div className="absolute inset-0 flex pointer-events-none">
