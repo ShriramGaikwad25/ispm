@@ -442,6 +442,7 @@ const CatalogPageContent = () => {
               "Ent Description": description,
               "Business Unit": businessUnit,
               "Data Classification": dataClassification,
+              "Cost Center": costCenter,
               "License Type": licenseType,
               "Provisioner Group": provisionerGroup,
               "Provisioning Steps": provisioningSteps,

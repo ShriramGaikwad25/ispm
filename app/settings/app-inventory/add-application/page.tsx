@@ -42,6 +42,13 @@ interface FormData {
   };
 }
 
+/** Backend uses "IBM AS 400"; older aliases kept for compatibility. */
+function isAs400ApplicationType(type: string | undefined): boolean {
+  if (!type?.trim()) return false;
+  const t = type.trim();
+  return t === "AS400" || t === "AS/400" || t === "IBM AS 400";
+}
+
   const steps = [
     { id: 1, title: "Select System", description: "" },
     { id: 2, title: "Add Details", description: "" },
@@ -2472,7 +2479,7 @@ export default function AddApplicationPage() {
           }
 
           // AS400 / IBM i: always use static integration fields (not API-driven)
-          if (selectedAppType === "AS400" || selectedAppType === "AS/400") {
+          if (isAs400ApplicationType(selectedAppType)) {
             const readChannelRaw = (formData.step3 as any).as400ReadChannel as string | undefined;
             const readChannelVal =
               readChannelRaw === "toolbox" ? "toolbox" : readChannelRaw === "jdbc" ? "jdbc" : "";
@@ -8424,6 +8431,7 @@ export default function AddApplicationPage() {
               };
             case "AS400":
             case "AS/400":
+            case "IBM AS 400":
               return {
                 integrationSettings: "Whether the integration is limited to read operations or may perform write operations",
                 as400ReadChannel: "Read integration path: JDBC or IBM Toolbox API",

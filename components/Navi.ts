@@ -62,7 +62,7 @@ export const navLinks: NavItem[] = [
     ]
   },
   {
-    name: 'My Details',
+    name: 'My Workspace',
     href: '/profile',
     icon: User,
     subItems: [

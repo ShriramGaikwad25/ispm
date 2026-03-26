@@ -757,8 +757,11 @@ export default function SodViolationDetailPage() {
               <div className="space-y-4 text-sm">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Mitigating Control
+                    <label className="mb-1 flex items-center gap-2 text-xs font-medium text-gray-700">
+                      <span>Mitigating Control</span>
+                      <span className="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-purple-700">
+                        AI
+                      </span>
                     </label>
                     <select
                       className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500"

@@ -3245,7 +3245,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                   <div className="flex flex-col gap-4 flex-1 min-h-0">
                     {/* Card 1 */}
                     <div
-                      className={`relative flex-1 min-h-[5rem] cursor-pointer overflow-hidden rounded-lg border border-blue-200 bg-blue-50 shadow-sm ${
+                      className={`relative flex-1 min-h-[5.5rem] cursor-pointer overflow-hidden rounded-lg border border-blue-200 bg-blue-50 shadow-sm ${
                         quickWinsApprovedCards.card1 ? "opacity-60" : ""
                       }`}
                       onMouseEnter={() => setGuidedPathHovered("card1")}
@@ -3255,8 +3255,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     >
                       {/* First page (default) */}
                       <div className="absolute inset-0 flex flex-col items-center justify-center px-3 text-center">
-                        <p className="text-sm font-semibold text-blue-800">Speed</p>
-                        <span className="mt-0.5 text-xs font-bold text-blue-600">
+                        <p className="text-base font-semibold text-blue-800">Speed</p>
+                        <span className="mt-0.5 text-sm font-bold text-blue-600">
                           {loadingSpeedQuickWin
                             ? "…"
                             : speedQuickWinPercent != null
@@ -3278,13 +3278,13 @@ const TreeClient: React.FC<TreeClientProps> = ({
                             transition: "transform 0.5s ease-out",
                           }}
                         >
-                          <p className="text-[11px] leading-snug">
+                          <p className="text-sm leading-snug">
                             Quick review of recommended access through peer analysis with 70% match.
                             Reduce effort by 3 hours.
                           </p>
                           <div className="flex gap-2 mt-2">
                             <button
-                              className="px-2 py-0.5 text-[10px] font-medium rounded bg-white/90 text-blue-700 pointer-events-auto"
+                              className="px-2 pt-0.5 pb-1 text-xs font-medium rounded bg-white/90 text-blue-700 pointer-events-auto"
                               disabled={quickWinsApprovedCards.card1}
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -3295,7 +3295,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                               Approve
                             </button>
                             <button
-                              className="px-2 py-0.5 text-[10px] font-medium rounded border border-white/80 text-white bg-transparent pointer-events-auto"
+                              className="px-2 pt-0.5 pb-1 text-xs font-medium rounded border border-white/80 text-white bg-transparent pointer-events-auto"
                               disabled={quickWinsApprovedCards.card1}
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -3318,7 +3318,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     </div>
                     {/* Card 2 */}
                     <div
-                      className={`relative flex-1 min-h-[5rem] cursor-pointer overflow-hidden rounded-lg border border-emerald-200 bg-emerald-50 shadow-sm ${
+                      className={`relative flex-1 min-h-[5.5rem] cursor-pointer overflow-hidden rounded-lg border border-emerald-200 bg-emerald-50 shadow-sm ${
                         quickWinsApprovedCards.card2 ? "opacity-60" : ""
                       }`}
                       onMouseEnter={() => setGuidedPathHovered("card2")}
@@ -3328,8 +3328,8 @@ const TreeClient: React.FC<TreeClientProps> = ({
                     >
                       {/* First page (default) */}
                       <div className="absolute inset-0 flex flex-col items-center justify-center px-3 text-center">
-                        <p className="text-sm font-semibold text-emerald-800">Low Risk</p>
-                        <span className="mt-0.5 text-xs font-bold text-emerald-600">
+                        <p className="text-base font-semibold text-emerald-800">Low Risk</p>
+                        <span className="mt-0.5 text-sm font-bold text-emerald-600">
                           {loadingLowRiskQuickWin
                             ? "…"
                             : lowRiskQuickWinPercent != null
@@ -3351,13 +3351,13 @@ const TreeClient: React.FC<TreeClientProps> = ({
                             transition: "transform 0.5s ease-out",
                           }}
                         >
-                          <p className="text-[11px] leading-snug">
+                          <p className="text-sm leading-snug">
                             Quick review of existing access approved in previous cycles with low
                             risk items. Reduce effort by 2 hours.
                           </p>
                           <div className="flex gap-2 mt-2">
                             <button
-                              className="px-2 py-0.5 text-[10px] font-medium rounded bg-white/90 text-emerald-700 pointer-events-auto"
+                              className="px-2 pt-0.5 pb-1 text-xs font-medium rounded bg-white/90 text-emerald-700 pointer-events-auto"
                               disabled={quickWinsApprovedCards.card2}
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -3368,7 +3368,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                               Approve
                             </button>
                             <button
-                              className="px-2 py-0.5 text-[10px] font-medium rounded border border-white/80 text-white bg-transparent pointer-events-auto"
+                              className="px-2 pt-0.5 pb-1 text-xs font-medium rounded border border-white/80 text-white bg-transparent pointer-events-auto"
                               disabled={quickWinsApprovedCards.card2}
                               onClick={(e) => {
                                 e.stopPropagation();

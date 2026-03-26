@@ -24,6 +24,16 @@ function formatDate(date: string | undefined) {
   return date ? formatDateMMDDYY(date) || "N/A" : "N/A";
 }
 
+function pickValue(record: any, keys: string[]) {
+  for (const key of keys) {
+    const value = record?.[key];
+    if (value !== undefined && value !== null && value !== "") {
+      return value;
+    }
+  }
+  return undefined;
+}
+
 export default function EntitlementDetailsSidebar({
   data,
   errorMessage,
@@ -213,17 +223,17 @@ export default function EntitlementDetailsSidebar({
           {expandedFramesLocal.general && (
             <div className="p-4 space-y-2">
               {renderSideBySideFieldLocal(
+                "Entitlement Type",
                 "Ent Type",
-                "Ent Type",
-                (data as any)?.["Ent Type"],
+                pickValue(data, ["Ent Type", "type", "entitlementType", "entitlementtype"]),
                 "#Assignments",
                 "Total Assignments",
                 (data as any)?.["Total Assignments"]
               )}
               {renderSideBySideFieldLocal(
+                "Application",
                 "App Name",
-                "App Name",
-                (data as any)?.["App Name"],
+                pickValue(data, ["App Name", "applicationName", "applicationname", "appName"]),
                 "Tag(s)",
                 "Dynamic Tag",
                 (data as any)?.["Dynamic Tag"]
@@ -275,7 +285,7 @@ export default function EntitlementDetailsSidebar({
                 (data as any)?.["Data Classification"],
                 "Cost Center",
                 "Cost Center",
-                (data as any)?.["Cost Center"]
+                pickValue(data, ["Cost Center", "cost_center", "costCenter"])
               )}
             </div>
           )}
@@ -308,7 +318,7 @@ export default function EntitlementDetailsSidebar({
                 formatDate((data as any)?.["Last Sync"])
               )}
               {renderSideBySideFieldLocal(
-                "App Name",
+                "Application",
                 "App Name",
                 (data as any)?.["App Name"],
                 "App Instance",
@@ -366,7 +376,7 @@ export default function EntitlementDetailsSidebar({
               {renderSideBySideFieldLocal(
                 "Risk",
                 "Risk",
-                (data as any)?.["Risk"],
+                pickValue(data, ["Risk", "risk", "riskLevel"]),
                 "Certifiable",
                 "Certifiable",
                 (data as any)?.["Certifiable"]

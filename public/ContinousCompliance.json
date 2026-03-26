@@ -46,7 +46,7 @@
 {
   "Entity" : "User",
   "Details" : "john.kelly",
-  "Trigger Event" : "Privelege Access Assigned",
+  "Trigger Event" : "Privilege Access Assigned",
   "Event Type" : "Elevated Access Review",
   "Assigned To" : "Elena.Rossi",
   "Expires On" : "2026-03-20",

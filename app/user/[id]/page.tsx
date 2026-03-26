@@ -896,12 +896,12 @@ export default function UserDetailPage() {
               </div>
 
               <div>
-                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">DOB</label>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Date Of Birth</label>
                 <p
                   className="text-xs font-semibold text-gray-900 mt-0.5 tracking-widest"
                   aria-label="Date of birth hidden"
                 >
-                  *****
+                  xx-xx-xxxx
                 </p>
               </div>
 
