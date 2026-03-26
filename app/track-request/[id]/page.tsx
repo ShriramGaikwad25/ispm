@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { FileText, ChevronDown, ChevronUp, Printer } from "lucide-react";
 import { getReviewerId } from "@/lib/auth";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
+import InsightsIcon from "@/components/InsightsIcon";
 
 interface InstanceStep {
   action: string;
@@ -36,6 +37,10 @@ interface RequestLineItem {
   canWithdraw?: boolean;
   canProvideAdditionalDetails?: boolean;
   instanceSteps: InstanceStep[];
+  beneficiaryAnalysis?: string;
+  contextualRisk?: string;
+  riskSensitivityAnalysis?: string;
+  peerAnalysis?: string;
 }
 
 interface SodPolicyDetails {
@@ -67,6 +72,44 @@ interface Request {
   sodSeverity?: string | null;
   sodConflictingRoles?: string[];
 }
+
+const toInsightMessage = (value: unknown): string | null => {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed || null;
+  }
+  if (value && typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    const fromMessage = String(obj.message ?? obj.value ?? "").trim();
+    if (fromMessage) return fromMessage;
+  }
+  if (Array.isArray(value)) {
+    const parts = value
+      .map((entry) => {
+        if (typeof entry === "string") return entry.trim();
+        if (entry && typeof entry === "object") {
+          const obj = entry as Record<string, unknown>;
+          return String(obj.message ?? obj.value ?? "").trim();
+        }
+        return "";
+      })
+      .filter(Boolean);
+    return parts.length ? parts.join(" ") : null;
+  }
+  return null;
+};
+
+const toAiRecommendationArray = (value: unknown): Record<string, any>[] => {
+  if (Array.isArray(value)) {
+    return value.filter((entry) => entry && typeof entry === "object") as Record<string, any>[];
+  }
+  if (value && typeof value === "object") {
+    return [value as Record<string, any>];
+  }
+  return [];
+};
+
+const normalizeId = (value: unknown): string => String(value ?? "").trim().toLowerCase();
 const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> }) => {
   const { id } = React.use(params);
   const { openSidebar } = useRightSidebar();
@@ -442,6 +485,16 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
             requestJson,
             row
           );
+          const rowLevelAiRecommendations = toAiRecommendationArray(
+            row.ai_recommendation ??
+              row.aiRecommendation ??
+              requestJson?.ai_recommendation ??
+              requestJson?.aiRecommendation ??
+              requestJson?.workflow_instance?.context_json?.ai_recommendation ??
+              requestJson?.workflowInstance?.context_json?.ai_recommendation ??
+              requestJson?.workflow_instance?.contextJson?.ai_recommendation ??
+              requestJson?.workflowInstance?.contextJson?.ai_recommendation
+          );
           const lineItems: RequestLineItem[] = accessItems.map((item) => {
             const lineCatalog = item?.catalog ?? {};
             const instanceSteps = mapInstanceSteps(toStepsArray(item?.instance_steps));
@@ -477,6 +530,75 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
               const code = String(first?.code ?? "").trim();
               return !!code;
             })();
+            const requestedItemId = String(
+              item?.requested_itemid ??
+                item?.requestedItemId ??
+                item?.requesteditemid ??
+                ""
+            ).trim();
+            const catalogId = String(
+              lineCatalog?.catalogId ??
+                lineCatalog?.catalogid ??
+                lineCatalog?.catalog_id ??
+                lineCatalog?.id ??
+                ""
+            ).trim();
+            const lineItemId = String(item?.lineitemid ?? item?.lineItemId ?? "").trim();
+            const entitlementId = String(
+              lineCatalog?.entitlementid ??
+                lineCatalog?.entitlementId ??
+                item?.entitlement_id ??
+                item?.entitlementId ??
+                ""
+            ).trim();
+            const itemLevelAiRecommendations = toAiRecommendationArray(
+              item?.ai_recommendation ?? item?.aiRecommendation
+            );
+            const allAiRecommendations = [
+              ...itemLevelAiRecommendations,
+              ...rowLevelAiRecommendations,
+            ];
+            const matchedAiRecommendation =
+              allAiRecommendations.find((rec) => {
+                const recRequestedItemId = String(
+                  rec?.requested_itemid ?? rec?.requestedItemId ?? ""
+                ).trim();
+                const recLineItemId = String(
+                  rec?.lineitemid ?? rec?.lineItemId ?? ""
+                ).trim();
+                const recEntitlementId = String(
+                  rec?.entitlement?.entitlement_id ?? rec?.entitlement?.entitlementId ?? ""
+                ).trim();
+                const recRequestId = String(rec?.request_id ?? rec?.requestId ?? "").trim();
+                const rowRequestId = String(
+                  accessRequest.id ?? row.request_id ?? row.requestid ?? row.id ?? ""
+                ).trim();
+                return (
+                  (normalizeId(requestedItemId) &&
+                    normalizeId(recRequestedItemId) &&
+                    normalizeId(requestedItemId) === normalizeId(recRequestedItemId)) ||
+                  (normalizeId(lineItemId) &&
+                    normalizeId(recLineItemId) &&
+                    normalizeId(lineItemId) === normalizeId(recLineItemId)) ||
+                  (normalizeId(catalogId) &&
+                    normalizeId(recLineItemId) &&
+                    normalizeId(catalogId) === normalizeId(recLineItemId)) ||
+                  (normalizeId(entitlementId) &&
+                    normalizeId(recEntitlementId) &&
+                    normalizeId(entitlementId) === normalizeId(recEntitlementId)) ||
+                  (normalizeId(rowRequestId) &&
+                    normalizeId(recRequestId) &&
+                    normalizeId(rowRequestId) === normalizeId(recRequestId))
+                );
+              }) ?? allAiRecommendations[0];
+            const peerSummaryMessages = Array.isArray(
+              matchedAiRecommendation?.peer_analysis?.summary
+            )
+              ? matchedAiRecommendation.peer_analysis.summary
+                  .map((entry: any) => toInsightMessage(entry?.message))
+                  .filter(Boolean)
+                  .join(" ")
+              : null;
 
             return {
               name: String(lineDisplayName || ""),
@@ -492,6 +614,24 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
               canWithdraw: status.toLowerCase().includes("awaiting") || status.toLowerCase().includes("pending"),
               canProvideAdditionalDetails: status.toLowerCase().includes("provide information"),
               instanceSteps,
+              beneficiaryAnalysis: toInsightMessage(
+                matchedAiRecommendation?.beneficiary_analysis?.message ??
+                  matchedAiRecommendation?.beneficiary_analysis
+              ) ?? undefined,
+              contextualRisk: toInsightMessage(
+                matchedAiRecommendation?.contextual_risk?.message ??
+                  matchedAiRecommendation?.contextual_risk
+              ) ?? undefined,
+              riskSensitivityAnalysis: toInsightMessage(
+                matchedAiRecommendation?.risk_sensitivity_analysis?.message ??
+                  matchedAiRecommendation?.risk_sensitivity_analysis ??
+                  lineCatalog?.risk
+              ) ?? undefined,
+              peerAnalysis: toInsightMessage(
+                peerSummaryMessages ??
+                  matchedAiRecommendation?.peer_analysis?.message ??
+                  matchedAiRecommendation?.peer_analysis
+              ) ?? undefined,
             };
           });
           const normalizedLineItems =
@@ -876,87 +1016,148 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
                   </div>
                 </div>
 
-                {lineItem.hasConflict && request.sodPolicyDetails && (
-                  <div className="flex-1 flex justify-center">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const details = request.sodPolicyDetails || {};
-                        const severity = (request.sodSeverity || "").toUpperCase();
-                        const conflictingRoles = request.sodConflictingRoles || [];
-                        const severityColorClasses =
-                          severity === "HIGH"
-                            ? "bg-red-100 text-red-800 border-red-300"
-                            : severity === "MEDIUM"
-                              ? "bg-amber-50 text-amber-800 border-amber-300"
-                              : "bg-gray-100 text-gray-800 border-gray-300";
-                        openSidebar(
-                          <div className="space-y-4 text-sm text-gray-900 bg-slate-50 -m-4 p-4 min-h-full">
-                            {/* Stacked policy fields */}
-                            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm space-y-3 text-sm">
-                              <div className="space-y-1">
-                                <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
-                                  Policy Name
-                                </span>
-                                <span className="font-semibold">
-                                  {String(details["Policy Name"] ?? details["SOD Policy ID"] ?? "-")}
-                                </span>
-                              </div>
-
-                              {severity && (
+                <div className="flex-1 relative">
+                  {lineItem.hasConflict && request.sodPolicyDetails && (
+                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const details = request.sodPolicyDetails || {};
+                          const severity = (request.sodSeverity || "").toUpperCase();
+                          const severityColorClasses =
+                            severity === "HIGH"
+                              ? "bg-red-100 text-red-800 border-red-300"
+                              : severity === "MEDIUM"
+                                ? "bg-amber-50 text-amber-800 border-amber-300"
+                                : "bg-gray-100 text-gray-800 border-gray-300";
+                          openSidebar(
+                            <div className="space-y-4 text-sm text-gray-900 bg-slate-50 -m-4 p-4 min-h-full">
+                              <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm space-y-3 text-sm">
                                 <div className="space-y-1">
                                   <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
-                                    Severity
+                                    Policy Name
                                   </span>
-                                  <span
-                                    className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wide ${severityColorClasses}`}
-                                  >
-                                    {severity}
+                                  <span className="font-semibold">
+                                    {String(details["Policy Name"] ?? details["SOD Policy ID"] ?? "-")}
                                   </span>
                                 </div>
-                              )}
-
-                              <div className="space-y-1">
-                                <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
-                                  SOD Policy ID
-                                </span>
-                                <span>{String(details["SOD Policy ID"] ?? "-")}</span>
+                                {severity && (
+                                  <div className="space-y-1">
+                                    <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
+                                      Severity
+                                    </span>
+                                    <span
+                                      className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wide ${severityColorClasses}`}
+                                    >
+                                      {severity}
+                                    </span>
+                                  </div>
+                                )}
+                                <div className="space-y-1">
+                                  <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
+                                    SOD Policy ID
+                                  </span>
+                                  <span>{String(details["SOD Policy ID"] ?? "-")}</span>
+                                </div>
+                                <div className="space-y-1">
+                                  <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
+                                    Owner
+                                  </span>
+                                  <span>{String(details["Owner"] ?? "-")}</span>
+                                </div>
+                                <div className="space-y-1">
+                                  <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
+                                    Business Process
+                                  </span>
+                                  <span>{String(details["Business Process"] ?? "-")}</span>
+                                </div>
+                                <div className="space-y-1">
+                                  <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
+                                    Description
+                                  </span>
+                                  <p className="leading-relaxed text-gray-800 whitespace-pre-wrap break-words">
+                                    {String(details["Description"] ?? "-")}
+                                  </p>
+                                </div>
                               </div>
-
-                              <div className="space-y-1">
-                                <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
-                                  Owner
-                                </span>
-                                <span>{String(details["Owner"] ?? "-")}</span>
-                              </div>
-
-                              <div className="space-y-1">
-                                <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
-                                  Business Process
-                                </span>
-                                <span>{String(details["Business Process"] ?? "-")}</span>
-                              </div>
-
-                              <div className="space-y-1">
-                                <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
-                                  Description
-                                </span>
-                                <p className="leading-relaxed text-gray-800 whitespace-pre-wrap break-words">
-                                  {String(details["Description"] ?? "-")}
-                                </p>
-                              </div>
+                            </div>,
+                            { widthPx: 460, title: "SOD Policy Details" }
+                          );
+                        }}
+                        className="inline-flex items-center px-3 py-1.5 rounded-md text-[11px] font-semibold border border-red-400 bg-red-50 text-red-600"
+                      >
+                        SOD Policy Violation Detected
+                      </button>
+                    </div>
+                  )}
+                  <div className="flex justify-end pr-10">
+                    <button
+                      type="button"
+                      title="AI Insights"
+                      aria-label="AI Insights"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openSidebar(
+                          <div className="space-y-2">
+                            <div className="rounded border border-gray-200 border-l-4 border-l-sky-500 bg-sky-50/40 p-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-800">
+                                Beneficiary Analysis
+                              </p>
+                              <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">
+                                {lineItem.beneficiaryAnalysis ? (
+                                  lineItem.beneficiaryAnalysis
+                                ) : (
+                                  <span className="italic text-gray-500">No beneficiary analysis available.</span>
+                                )}
+                              </p>
+                            </div>
+                            <div className="rounded border border-gray-200 border-l-4 border-l-rose-600 bg-rose-50/50 p-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-800">
+                                Contextual Risk
+                              </p>
+                              <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">
+                                {lineItem.contextualRisk ? (
+                                  lineItem.contextualRisk
+                                ) : (
+                                  <span className="italic text-gray-500">No contextual risk details available.</span>
+                                )}
+                              </p>
+                            </div>
+                            <div className="rounded border border-gray-200 border-l-4 border-l-amber-500 bg-amber-50/40 p-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-800">
+                                Risk Sensitivity Analysis
+                              </p>
+                              <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">
+                                {lineItem.riskSensitivityAnalysis ? (
+                                  lineItem.riskSensitivityAnalysis
+                                ) : (
+                                  <span className="italic text-gray-500">No risk sensitivity analysis available.</span>
+                                )}
+                              </p>
+                            </div>
+                            <div className="rounded border border-gray-200 border-l-4 border-l-indigo-500 bg-indigo-50/40 p-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-indigo-700">
+                                Peer Analysis
+                              </p>
+                              <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">
+                                {lineItem.peerAnalysis ? (
+                                  lineItem.peerAnalysis
+                                ) : (
+                                  <span className="italic text-gray-500">No peer analysis available.</span>
+                                )}
+                              </p>
                             </div>
                           </div>,
-                          { widthPx: 460, title: "SOD Policy Details" }
+                          { widthPx: 500, title: "Insights" }
                         );
                       }}
-                      className="inline-flex items-center px-4 py-1.5 rounded-md text-[11px] font-semibold border border-red-400 bg-red-50 text-red-600"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100 transition-colors"
                     >
-                      SOD Policy Violation Detected
+                      <InsightsIcon size={18} className="shrink-0 text-amber-500" />
                     </button>
                   </div>
-                )}
+                </div>
 
                 <div className="flex items-center gap-2 shrink-0 ml-auto">
                   <span className="text-gray-500 ml-1" aria-hidden title={toggleTooltip}>

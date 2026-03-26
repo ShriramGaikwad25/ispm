@@ -298,9 +298,6 @@ const TaskSummaryPanel: React.FC<TaskSummaryPanelProps> = ({
             onActionSuccess={onActionSuccess}
           />
         </div>
-        <p className="text-[11px] text-gray-500">
-          Certify or recommend removal. <a href="#" className="text-blue-600 hover:underline">More about decisions</a>
-        </p>
       </div>
     </div>
   );

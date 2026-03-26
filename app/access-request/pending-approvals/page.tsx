@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 import {
   ChevronRight,
@@ -470,6 +470,7 @@ const DetailsCell: React.FC = () => {
 const PendingApprovalsPage: React.FC = () => {
   const [gridApi, setGridApi] = useState<any | null>(null);
   const router = useRouter();
+  const pathname = usePathname();
 
   const {
     data: pendingApprovals = mockDataFallback,
@@ -723,6 +724,43 @@ const PendingApprovalsPage: React.FC = () => {
     ],
     []
   );
+
+  const fitGrid = useCallback(() => {
+    if (!gridApi) return;
+    try {
+      gridApi.sizeColumnsToFit();
+      gridApi.resetRowHeights();
+    } catch {
+      // ignore
+    }
+  }, [gridApi]);
+
+  useEffect(() => {
+    fitGrid();
+  }, [fitGrid, pathname, currentPage, pageSize, paginatedRowData.length]);
+
+  useEffect(() => {
+    const refitSoon = () => {
+      requestAnimationFrame(() => {
+        fitGrid();
+        setTimeout(fitGrid, 50);
+      });
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") refitSoon();
+    };
+
+    window.addEventListener("pageshow", refitSoon);
+    window.addEventListener("focus", refitSoon);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      window.removeEventListener("pageshow", refitSoon);
+      window.removeEventListener("focus", refitSoon);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [fitGrid]);
 
   return (
     <div className="min-h-screen bg-gray-50">

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   FileText,
@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { getReviewerId } from "@/lib/auth";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
+import InsightsIcon from "@/components/InsightsIcon";
 
 interface RequestLineItem {
   lineItemId: string;
@@ -28,6 +29,10 @@ interface RequestLineItem {
   hasInfoIcon?: boolean;
   hasHighRisk?: boolean;
   hasTrainingCheck?: boolean;
+  beneficiaryAnalysis?: string;
+  contextualRisk?: string;
+  riskSensitivityAnalysis?: string;
+  peerAnalysis?: string;
 }
 
 interface RequestDetails {
@@ -106,6 +111,45 @@ const toArraySafe = (value: unknown): any[] => {
   return [];
 };
 
+const toInsightMessage = (value: unknown): string | null => {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed || null;
+  }
+  if (value && typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    const fromMessage = toStringSafe(obj.message ?? obj.value ?? "").trim();
+    if (fromMessage) return fromMessage;
+  }
+  if (Array.isArray(value)) {
+    const parts = value
+      .map((entry) => {
+        if (typeof entry === "string") return entry.trim();
+        if (entry && typeof entry === "object") {
+          const obj = entry as Record<string, unknown>;
+          return toStringSafe(obj.message ?? obj.value ?? "").trim();
+        }
+        return "";
+      })
+      .filter(Boolean);
+    return parts.length ? parts.join(" ") : null;
+  }
+  return null;
+};
+
+const toAiRecommendationArray = (value: unknown): Record<string, any>[] => {
+  if (Array.isArray(value)) {
+    return value.filter((entry) => entry && typeof entry === "object") as Record<
+      string,
+      any
+    >[];
+  }
+  if (value && typeof value === "object") {
+    return [value as Record<string, any>];
+  }
+  return [];
+};
+
 const toObjectSafe = (value: unknown): Record<string, any> => {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     return value as Record<string, any>;
@@ -162,7 +206,7 @@ const PendingApprovalDetailPage = ({
 }) => {
   const { id } = React.use(params);
   const router = useRouter();
-  const { openSidebar } = useRightSidebar();
+  const { openSidebar, isOpen: isRightSidebarOpen, title: rightSidebarTitle } = useRightSidebar();
   const [request, setRequest] = useState<PendingApprovalDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -199,6 +243,9 @@ const PendingApprovalDetailPage = ({
   const [infoRequestLoading, setInfoRequestLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [activeInsightsLineItemKey, setActiveInsightsLineItemKey] = useState<string | null>(
+    null
+  );
   const [baselineLineItemActions, setBaselineLineItemActions] = useState<
     Record<string, "approve" | "reject" | "consulted" | null>
   >({});
@@ -358,6 +405,15 @@ const PendingApprovalDetailPage = ({
             row.itemdetails ?? row.itemDetails
           );
 
+          const aiRecommendations = toAiRecommendationArray(
+            row.ai_recommendation ??
+              row.aiRecommendation ??
+              requestJson?.ai_recommendation ??
+              requestJson?.aiRecommendation ??
+              contextJson?.ai_recommendation ??
+              contextJson?.aiRecommendation
+          );
+
           const lineItems: RequestLineItem[] = itemDetails.map((item, itemIdx) => {
             const catalog = item?.catalog ?? {};
             if (itemIdx === 0) {
@@ -479,6 +535,34 @@ const PendingApprovalDetailPage = ({
                 ""
             );
 
+            const matchedAiRecommendation =
+              aiRecommendations.find((rec) => {
+                const recRequestedItemId = toStringSafe(
+                  rec?.requested_itemid ?? rec?.requestedItemId
+                ).trim();
+                const recLineItemId = toStringSafe(
+                  rec?.lineitemid ?? rec?.lineItemId
+                ).trim();
+                const recEntitlementId = toStringSafe(
+                  rec?.entitlement?.entitlement_id ??
+                    rec?.entitlement?.entitlementId
+                ).trim();
+                return (
+                  (requestedItemId && recRequestedItemId && requestedItemId === recRequestedItemId) ||
+                  (catalogId && recLineItemId && catalogId === recLineItemId) ||
+                  (entitlementId && recEntitlementId && entitlementId === recEntitlementId)
+                );
+              }) ?? aiRecommendations[0];
+
+            const peerSummaryMessages = Array.isArray(
+              matchedAiRecommendation?.peer_analysis?.summary
+            )
+              ? matchedAiRecommendation.peer_analysis.summary
+                  .map((entry: any) => toInsightMessage(entry?.message))
+                  .filter(Boolean)
+                  .join(" ")
+              : null;
+
             return {
               lineItemId: requestedItemId || catalogId || entitlementId,
               catalogId,
@@ -496,6 +580,40 @@ const PendingApprovalDetailPage = ({
                 riskLevel.startsWith("high"),
               hasHighRisk: riskLevel.startsWith("high"),
               hasTrainingCheck,
+              beneficiaryAnalysis: toInsightMessage(
+                matchedAiRecommendation?.beneficiary_analysis?.message ??
+                  matchedAiRecommendation?.beneficiary_analysis ??
+                  item?.beneficiary_analysis ??
+                  item?.beneficiaryAnalysis ??
+                  catalog?.beneficiary_analysis ??
+                  catalog?.beneficiaryAnalysis
+              ) ?? undefined,
+              contextualRisk: toInsightMessage(
+                matchedAiRecommendation?.contextual_risk?.message ??
+                  matchedAiRecommendation?.contextual_risk ??
+                  item?.contextual_risk ??
+                  item?.contextualRisk ??
+                  catalog?.contextual_risk ??
+                  catalog?.contextualRisk
+              ) ?? undefined,
+              riskSensitivityAnalysis: toInsightMessage(
+                matchedAiRecommendation?.risk_sensitivity_analysis?.message ??
+                  matchedAiRecommendation?.risk_sensitivity_analysis ??
+                  item?.risk_sensitivity_analysis ??
+                  item?.riskSensitivityAnalysis ??
+                  catalog?.risk_sensitivity_analysis ??
+                  catalog?.riskSensitivityAnalysis ??
+                  catalog?.risk
+              ) ?? undefined,
+              peerAnalysis: toInsightMessage(
+                peerSummaryMessages ??
+                  matchedAiRecommendation?.peer_analysis?.message ??
+                  matchedAiRecommendation?.peer_analysis ??
+                  item?.peer_analysis ??
+                  item?.peerAnalysis ??
+                  catalog?.peer_analysis ??
+                  catalog?.peerAnalysis
+              ) ?? undefined,
             };
           });
 
@@ -720,8 +838,8 @@ const PendingApprovalDetailPage = ({
     setBaselineLineItemActions(request.baselineLineItemActions ?? {});
   }, [request]);
 
-  const openCommentModal = (e: React.MouseEvent, lineItemKey: string) => {
-    e.stopPropagation();
+  const openCommentModal = (e: React.MouseEvent | null, lineItemKey: string) => {
+    e?.stopPropagation();
     setCommentModalItemKey(lineItemKey);
     setCommentDraft(lineItemComments[lineItemKey] ?? "");
     setCommentCategory("");
@@ -909,6 +1027,201 @@ const PendingApprovalDetailPage = ({
     }
   };
 
+  const openInsightsSidebarForLineItem = useCallback(
+    (lineItemKey: string) => {
+      if (!request) return;
+      const lineItem = request.lineItems[Number(lineItemKey)];
+      if (!lineItem) return;
+
+      const selectedAction = lineItemActions[lineItemKey] ?? null;
+      const isLockedByServer = (baselineLineItemActions[lineItemKey] ?? null) !== null;
+      const approveFilled = selectedAction === "approve";
+      const rejectFilled = selectedAction === "reject";
+      const isItemLoading = lineItemLoading[lineItemKey] ?? false;
+      const isActionsDisabled = isItemLoading || isLockedByServer;
+
+      openSidebar(
+        <div className="space-y-2">
+          <div className="rounded border border-gray-200 border-l-4 border-l-sky-500 bg-sky-50/40 p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-800">
+              Beneficiary Analysis
+            </p>
+            <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">
+              {lineItem.beneficiaryAnalysis ? (
+                lineItem.beneficiaryAnalysis
+              ) : (
+                <span className="italic text-gray-500">No beneficiary analysis available.</span>
+              )}
+            </p>
+          </div>
+
+          <div className="rounded border border-gray-200 border-l-4 border-l-rose-600 bg-rose-50/50 p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-800">
+              Contextual Risk
+            </p>
+            <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">
+              {lineItem.contextualRisk ? (
+                lineItem.contextualRisk
+              ) : (
+                <span className="italic text-gray-500">No contextual risk details available.</span>
+              )}
+            </p>
+          </div>
+
+          <div className="rounded border border-gray-200 border-l-4 border-l-amber-500 bg-amber-50/40 p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-800">
+              Risk Sensitivity Analysis
+            </p>
+            <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">
+              {lineItem.riskSensitivityAnalysis ? (
+                lineItem.riskSensitivityAnalysis
+              ) : (
+                <span className="italic text-gray-500">
+                  No risk sensitivity analysis available.
+                </span>
+              )}
+            </p>
+          </div>
+
+          <div className="rounded border border-gray-200 border-l-4 border-l-indigo-500 bg-indigo-50/40 p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-indigo-700">
+              Peer Analysis
+            </p>
+            <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">
+              {lineItem.peerAnalysis ? (
+                lineItem.peerAnalysis
+              ) : (
+                <span className="italic text-gray-500">No peer analysis available.</span>
+              )}
+            </p>
+          </div>
+
+          <div className="rounded border border-gray-200 border-l-4 border-l-blue-600 bg-blue-50/50 p-2">
+            <h3 className="text-xs font-semibold text-gray-800">
+              Should this user have this access?
+            </h3>
+            <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
+              <button
+                type="button"
+                title={approveFilled ? "Undo Approve" : "Approve"}
+                aria-label="Approve"
+                disabled={isActionsDisabled}
+                onClick={() => handleLineItemAction(lineItemKey, "approve")}
+                className={`p-1 rounded flex items-center justify-center ${isActionsDisabled ? "opacity-60 cursor-not-allowed" : ""}`}
+              >
+                <div className="relative inline-flex items-center justify-center w-8 h-8">
+                  <CircleCheck
+                    color="#1c821cff"
+                    strokeWidth="1"
+                    size="32"
+                    fill={approveFilled ? "#1c821cff" : "none"}
+                  />
+                  {approveFilled && (
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      className="absolute pointer-events-none"
+                      style={{
+                        left: "50%",
+                        top: "50%",
+                        transform: "translate(-50%, -50%)",
+                      }}
+                    >
+                      <path
+                        d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"
+                        fill="#ffffff"
+                      />
+                    </svg>
+                  )}
+                </div>
+              </button>
+              <button
+                type="button"
+                title={rejectFilled ? "Undo Reject" : "Reject"}
+                aria-label="Reject"
+                disabled={isActionsDisabled}
+                onClick={() => handleLineItemAction(lineItemKey, "reject")}
+                className={`p-1 rounded flex items-center justify-center ${isActionsDisabled ? "opacity-60 cursor-not-allowed" : ""}`}
+              >
+                <div className="relative inline-flex items-center justify-center w-8 h-8">
+                  <CircleX
+                    color="#FF2D55"
+                    strokeWidth="1"
+                    size="32"
+                    fill={rejectFilled ? "#FF2D55" : "none"}
+                  />
+                  {rejectFilled && (
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      className="absolute pointer-events-none"
+                      style={{
+                        left: "50%",
+                        top: "50%",
+                        transform: "translate(-50%, -50%)",
+                      }}
+                    >
+                      <path
+                        d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                        fill="#ffffff"
+                      />
+                    </svg>
+                  )}
+                </div>
+              </button>
+              <button
+                type="button"
+                title="Approver comment"
+                aria-label="Approver comment"
+                disabled={isItemLoading}
+                onClick={() => openCommentModal(null, lineItemKey)}
+                className={`p-1 rounded flex items-center justify-center ${isItemLoading ? "opacity-60 cursor-not-allowed" : ""}`}
+              >
+                <svg width="30" height="30" viewBox="0 0 32 32" className="cursor-pointer hover:opacity-80">
+                  <path
+                    d="M0.700195 0V19.5546H3.5802V25.7765C3.57994 25.9525 3.62203 26.1247 3.70113 26.2711C3.78022 26.4176 3.89277 26.5318 4.02449 26.5992C4.15621 26.6666 4.30118 26.6842 4.44101 26.6498C4.58085 26.6153 4.70926 26.5304 4.80996 26.4058C6.65316 24.1232 10.3583 19.5546 10.3583 19.5546H25.1802V0H0.700195ZM2.1402 1.77769H23.7402V17.7769H9.76212L5.0202 23.6308V17.7769H2.1402V1.77769ZM5.0202 5.33307V7.11076H16.5402V5.33307H5.0202ZM26.6202 5.33307V7.11076H28.0602V23.11H25.1802V28.9639L20.4383 23.11H9.34019L7.9002 24.8877H19.8421C19.8421 24.8877 23.5472 29.4563 25.3904 31.7389C25.4911 31.8635 25.6195 31.9484 25.7594 31.9828C25.8992 32.0173 26.0442 31.9997 26.1759 31.9323C26.3076 31.8648 26.4202 31.7507 26.4993 31.6042C26.5784 31.4578 26.6204 31.2856 26.6202 31.1096V24.8877H29.5002V5.33307H26.6202ZM5.0202 8.88845V10.6661H10.7802V8.88845H5.0202ZM5.0202 12.4438V14.2215H19.4202V12.4438H5.0202Z"
+                    fill="#2684FF"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                title="Request more information"
+                aria-label="Request more information"
+                disabled={isActionsDisabled}
+                onClick={() => {
+                  setInfoRequestItemKey(lineItemKey);
+                  setInfoRequestMessage("");
+                }}
+                className={`inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-colors ${isActionsDisabled ? "opacity-60 cursor-not-allowed" : ""}`}
+              >
+                <RotateCcw className="h-4 w-4 text-blue-600" />
+              </button>
+            </div>
+          </div>
+        </div>,
+        { widthPx: 500, title: "Insights" }
+      );
+    },
+    [request, lineItemActions, baselineLineItemActions, lineItemLoading, openSidebar]
+  );
+
+  useEffect(() => {
+    if (!activeInsightsLineItemKey) return;
+    if (!isRightSidebarOpen || rightSidebarTitle !== "Insights") return;
+    openInsightsSidebarForLineItem(activeInsightsLineItemKey);
+  }, [
+    activeInsightsLineItemKey,
+    isRightSidebarOpen,
+    rightSidebarTitle,
+    lineItemActions,
+    baselineLineItemActions,
+    lineItemLoading,
+    openInsightsSidebarForLineItem,
+  ]);
+
   if (loading) {
     return (
       <div className="p-6">
@@ -1059,85 +1372,102 @@ const PendingApprovalDetailPage = ({
                   </div>
                 </div>
 
-                {lineItem.hasConflict && request.sodPolicyDetails && (
-                  <div className="flex-1 flex justify-center">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const details = request.sodPolicyDetails || {};
-                        const severity = (request.sodSeverity || "").toUpperCase();
-                        const severityColorClasses =
-                          severity === "HIGH"
-                            ? "bg-red-100 text-red-800 border-red-300"
-                            : severity === "MEDIUM"
-                              ? "bg-amber-50 text-amber-800 border-amber-300"
-                              : "bg-gray-100 text-gray-800 border-gray-300";
-                        openSidebar(
-                          <div className="space-y-4 text-sm text-gray-900 bg-slate-50 -m-4 p-4 min-h-full">
-                            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm space-y-3 text-sm">
-                              <div className="space-y-1">
-                                <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
-                                  Policy Name
-                                </span>
-                                <span className="font-semibold">
-                                  {String(details["Policy Name"] ?? details["SOD Policy ID"] ?? "-")}
-                                </span>
-                              </div>
-
-                              {severity && (
+                <div className="flex-1 relative">
+                  {lineItem.hasConflict && request.sodPolicyDetails && (
+                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const details = request.sodPolicyDetails || {};
+                          const severity = (request.sodSeverity || "").toUpperCase();
+                          const severityColorClasses =
+                            severity === "HIGH"
+                              ? "bg-red-100 text-red-800 border-red-300"
+                              : severity === "MEDIUM"
+                                ? "bg-amber-50 text-amber-800 border-amber-300"
+                                : "bg-gray-100 text-gray-800 border-gray-300";
+                          openSidebar(
+                            <div className="space-y-4 text-sm text-gray-900 bg-slate-50 -m-4 p-4 min-h-full">
+                              <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm space-y-3 text-sm">
                                 <div className="space-y-1">
                                   <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
-                                    Severity
+                                    Policy Name
                                   </span>
-                                  <span
-                                    className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wide ${severityColorClasses}`}
-                                  >
-                                    {severity}
+                                  <span className="font-semibold">
+                                    {String(details["Policy Name"] ?? details["SOD Policy ID"] ?? "-")}
                                   </span>
                                 </div>
-                              )}
 
-                              <div className="space-y-1">
-                                <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
-                                  SOD Policy ID
-                                </span>
-                                <span>{String(details["SOD Policy ID"] ?? "-")}</span>
-                              </div>
+                                {severity && (
+                                  <div className="space-y-1">
+                                    <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
+                                      Severity
+                                    </span>
+                                    <span
+                                      className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wide ${severityColorClasses}`}
+                                    >
+                                      {severity}
+                                    </span>
+                                  </div>
+                                )}
 
-                              <div className="space-y-1">
-                                <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
-                                  Owner
-                                </span>
-                                <span>{String(details["Owner"] ?? "-")}</span>
-                              </div>
+                                <div className="space-y-1">
+                                  <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
+                                    SOD Policy ID
+                                  </span>
+                                  <span>{String(details["SOD Policy ID"] ?? "-")}</span>
+                                </div>
 
-                              <div className="space-y-1">
-                                <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
-                                  Business Process
-                                </span>
-                                <span>{String(details["Business Process"] ?? "-")}</span>
-                              </div>
+                                <div className="space-y-1">
+                                  <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
+                                    Owner
+                                  </span>
+                                  <span>{String(details["Owner"] ?? "-")}</span>
+                                </div>
 
-                              <div className="space-y-1">
-                                <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
-                                  Description
-                                </span>
-                                <p className="leading-relaxed text-gray-800 whitespace-pre-wrap break-words">
-                                  {String(details["Description"] ?? "-")}
-                                </p>
+                                <div className="space-y-1">
+                                  <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
+                                    Business Process
+                                  </span>
+                                  <span>{String(details["Business Process"] ?? "-")}</span>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 block">
+                                    Description
+                                  </span>
+                                  <p className="leading-relaxed text-gray-800 whitespace-pre-wrap break-words">
+                                    {String(details["Description"] ?? "-")}
+                                  </p>
+                                </div>
                               </div>
-                            </div>
-                          </div>,
-                          { widthPx: 460, title: "SOD Policy Details" }
-                        );
+                            </div>,
+                            { widthPx: 460, title: "SOD Policy Details" }
+                          );
+                        }}
+                        className="inline-flex items-center px-3 py-1.5 rounded-md text-[11px] font-semibold border border-red-400 bg-red-50 text-red-600"
+                      >
+                        SOD Policy Violation Detected
+                      </button>
+                    </div>
+                  )}
+                  <div className="flex justify-end pr-10">
+                    <button
+                      type="button"
+                      title="AI Insights"
+                      aria-label="AI Insights"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveInsightsLineItemKey(lineItemKey);
+                        openInsightsSidebarForLineItem(lineItemKey);
                       }}
-                      className="inline-flex items-center px-4 py-1.5 rounded-md text-[11px] font-semibold border border-red-400 bg-red-50 text-red-600"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100 transition-colors"
                     >
-                      SOD Policy Violation Detected
+                      <InsightsIcon size={18} className="shrink-0 text-amber-500" />
                     </button>
                   </div>
-                )}
+                </div>
 
                 <div className="flex items-center gap-2 shrink-0">
                   {isLockedByServer ? (
