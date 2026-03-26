@@ -305,6 +305,7 @@ export default function AddApplicationPage() {
   const [userSearchError, setUserSearchError] = useState<string | null>(null);
   const [submitRequestLoading, setSubmitRequestLoading] = useState(false);
   const [submitRequestError, setSubmitRequestError] = useState<string | null>(null);
+  const [submitProgressToast, setSubmitProgressToast] = useState<string | null>(null);
   const [onboardLoading, setOnboardLoading] = useState(false);
   const step2UserFetchedRef = useRef(false);
   const technicalOwnerDropdownRef = useRef<HTMLDivElement>(null);
@@ -468,6 +469,24 @@ export default function AddApplicationPage() {
       }
       return { ...prev, [step]: nextStep };
     });
+  };
+
+  const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const showSubmitProgressToasts = async () => {
+    const progressMessages = [
+      "Request Received...",
+      "Application Artifacts Created...",
+      "Update Schema mapping...",
+      "Application registered Successfully",
+    ];
+
+    for (let i = 0; i < progressMessages.length; i += 1) {
+      setSubmitProgressToast(progressMessages[i]);
+      if (i < progressMessages.length - 1) {
+        await wait(5000);
+      }
+    }
   };
 
   const handleNext = async () => {
@@ -754,27 +773,43 @@ export default function AddApplicationPage() {
   };
 
   const handleSubmit = async () => {
+    if (submitRequestLoading) return;
+    setSubmitRequestError(null);
+    setSubmitRequestLoading(true);
+
     const isDisconnectedApp = formData.step1.type === "Disconnected Application";
-    // If we're on the last step for Disconnected Application (step 6), include Advanced settings
-    if (isDisconnectedApp && currentStep === 6 && advanceSettingRef.current) {
-      const config = advanceSettingRef.current.getConfig();
-      const appId = appIdFromUrl?.trim();
-      const token =
-        typeof window !== "undefined" && appId
-          ? sessionStorage.getItem(`app-inventory-token-${appId}`) ?? ""
-          : "";
-      if (appId && token) {
-        try {
-          await updateAppConfig(appId, token, config);
-        } catch (err) {
-          console.error("Failed to save advanced settings:", err);
-          alert("Application submitted but advanced settings could not be saved: " + (err instanceof Error ? err.message : "Unknown error"));
+
+    try {
+      await showSubmitProgressToasts();
+
+      // If we're on the last step for Disconnected Application (step 6), include Advanced settings
+      if (isDisconnectedApp && currentStep === 6 && advanceSettingRef.current) {
+        const config = advanceSettingRef.current.getConfig();
+        const appId = appIdFromUrl?.trim();
+        const token =
+          typeof window !== "undefined" && appId
+            ? sessionStorage.getItem(`app-inventory-token-${appId}`) ?? ""
+            : "";
+        if (appId && token) {
+          try {
+            await updateAppConfig(appId, token, config);
+          } catch (err) {
+            console.error("Failed to save advanced settings:", err);
+            alert("Application submitted but advanced settings could not be saved: " + (err instanceof Error ? err.message : "Unknown error"));
+          }
         }
       }
+
+      console.log("Form submitted:", formData);
+      alert("Application added successfully!");
+      router.push("/settings/app-inventory");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to submit application";
+      setSubmitRequestError(message);
+    } finally {
+      setSubmitRequestLoading(false);
+      setSubmitProgressToast(null);
     }
-    console.log("Form submitted:", formData);
-    alert("Application added successfully!");
-    router.push("/settings/app-inventory");
   };
 
   // Attribute mapping helper functions
@@ -10271,10 +10306,15 @@ export default function AddApplicationPage() {
               ) : !isCompleteIntegration ? (
                 <button
                   onClick={handleSubmit}
-                  className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium"
+                  disabled={submitRequestLoading}
+                  className={`flex items-center px-4 py-2 rounded-md text-sm font-medium ${
+                    submitRequestLoading
+                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                      : "bg-green-600 text-white hover:bg-green-700"
+                  }`}
                 >
                   <Check className="w-4 h-4 mr-2" />
-                  Submit Application
+                  {submitRequestLoading ? "Submitting..." : "Submit Application"}
                 </button>
               ) : null}
               {isCompleteIntegration && formData.step1.type === "Disconnected Application" && currentStep === 6 && (
@@ -10347,6 +10387,12 @@ export default function AddApplicationPage() {
             </div>
           </div>
         </div>
+
+        {submitProgressToast && (
+          <div className="fixed top-6 right-6 z-50 max-w-sm bg-slate-900 text-white px-4 py-3 rounded-lg shadow-xl border border-slate-700">
+            {submitProgressToast}
+          </div>
+        )}
 
         {/* Form Content */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
