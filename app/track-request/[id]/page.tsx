@@ -624,9 +624,8 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
               ) ?? undefined,
               riskSensitivityAnalysis: toInsightMessage(
                 matchedAiRecommendation?.risk_sensitivity_analysis?.message ??
-                  matchedAiRecommendation?.risk_sensitivity_analysis ??
-                  lineCatalog?.risk
-              ) ?? undefined,
+                  matchedAiRecommendation?.risk_sensitivity_analysis
+                              ) ?? undefined,
               peerAnalysis: toInsightMessage(
                 peerSummaryMessages ??
                   matchedAiRecommendation?.peer_analysis?.message ??
