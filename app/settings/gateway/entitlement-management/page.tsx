@@ -118,8 +118,9 @@ export default function EntitlementManagementSettings() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState<number | 'all'>(10);
+  const [pageSize, setPageSize] = useState<number | 'all'>(25);
   const [dataLoaded, setDataLoaded] = useState<boolean>(false);
+  const [isEditing, setIsEditing] = useState(false);
   const gridApiRef = useRef<any>(null);
   const [renderKey, setRenderKey] = useState(0);
 
@@ -132,7 +133,7 @@ export default function EntitlementManagementSettings() {
           id: `${ent.id}-${field}`,
           entitlementId: ent.id,
           fieldName: field,
-          selection: ent.fieldSelection?.[field] || false,
+          selection: ent.fieldSelection?.[field] ?? true,
           genAI: ent.fieldGenAI?.[field] || false,
           editOnReview: ent.fieldEditOnReview?.[field] || false
         });
@@ -270,24 +271,47 @@ export default function EntitlementManagementSettings() {
     return fieldRows.slice(start, end);
   }, [fieldRows, currentPage, pageSize]);
 
+  const handleSave = () => {
+    // TODO: Persist changes once save endpoint is available.
+    setIsEditing(false);
+  };
+
   return (
     <div className="h-full p-6">
       <div className="mx-auto min-h-[calc(100vh-120px)]">
         <div className="bg-white rounded-md shadow overflow-hidden">
           {/* Header bar */}
-          <div className="flex items-center justify-between px-5 py-3 text-white" style={{ backgroundColor: '#27B973' }}>
+          <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 bg-white">
             <div className="flex items-center gap-3">
-              <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: 'rgba(39, 185, 115, 0.6)' }}>
-                <ShieldCheck className="w-4 h-4" />
+              <div className="w-6 h-6 rounded-full flex items-center justify-center bg-gray-100">
+                <ShieldCheck className="w-4 h-4 text-gray-700" />
               </div>
-              <h2 className="font-semibold">Entitlement Management</h2>
+              <h2 className="font-semibold text-gray-900">Entitlement Management</h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsEditing(true)}
+                className="px-3 py-1.5 text-sm font-medium rounded border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                className="px-3 py-1.5 text-sm font-medium rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!isEditing}
+              >
+                Save
+              </button>
             </div>
           </div>
 
-          <div className="overflow-x-auto mt-3">
+          <div className="mt-3 px-5 pb-4">
             {isLoading && <div className="px-5 py-3 text-sm text-gray-600">Loading...</div>}
             {error && <div className="px-5 py-3 text-sm text-red-600">{error}</div>}
-            <div className="ag-theme-alpine w-full">
+            <div className="ag-theme-alpine w-full overflow-x-auto">
+              <div className="min-w-[720px] w-full">
               <ClientOnlyAgGrid
                 key={renderKey}
                 rowData={paginatedRows}
@@ -300,6 +324,7 @@ export default function EntitlementManagementSettings() {
                     headerName: 'Entitlement Meta Data', 
                     field: 'fieldName',
                     flex: 2,
+                    minWidth: 320,
                     sortable: true,
                     filter: true,
                     cellRenderer: (params: any) => {
@@ -313,15 +338,19 @@ export default function EntitlementManagementSettings() {
                   { 
                     headerName: 'Selection', 
                     field: 'selection',
-                    width: 120,
+                    flex: 1,
+                    minWidth: 120,
                     cellRenderer: (params: any) => {
                       return (
                         <div className="h-6 flex items-center justify-center">
                           <input
                             type="checkbox"
                             checked={params.value || false}
-                            onChange={(e) => handleSelectionChange(params.data.entitlementId, params.data.fieldName, e.target.checked)}
-                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            onChange={(e) => {
+                              if (!isEditing) return;
+                              handleSelectionChange(params.data.entitlementId, params.data.fieldName, e.target.checked);
+                            }}
+                            className={`w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 ${!isEditing ? 'cursor-not-allowed' : ''}`}
                           />
                         </div>
                       );
@@ -332,15 +361,19 @@ export default function EntitlementManagementSettings() {
                   { 
                     headerName: 'GenAI', 
                     field: 'genAI',
-                    width: 120,
+                    flex: 1,
+                    minWidth: 120,
                     cellRenderer: (params: any) => {
                       return (
                         <div className="h-6 flex items-center justify-center">
                           <input
                             type="checkbox"
                             checked={params.value || false}
-                            onChange={(e) => handleGenAIChange(params.data.entitlementId, params.data.fieldName, e.target.checked)}
-                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            onChange={(e) => {
+                              if (!isEditing) return;
+                              handleGenAIChange(params.data.entitlementId, params.data.fieldName, e.target.checked);
+                            }}
+                            className={`w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 ${!isEditing ? 'cursor-not-allowed' : ''}`}
                           />
                         </div>
                       );
@@ -351,15 +384,19 @@ export default function EntitlementManagementSettings() {
                   { 
                     headerName: 'Edit on Review', 
                     field: 'editOnReview',
-                    width: 140,
+                    flex: 1,
+                    minWidth: 140,
                     cellRenderer: (params: any) => {
                       return (
                         <div className="h-6 flex items-center justify-center">
                           <input
                             type="checkbox"
                             checked={params.value || false}
-                            onChange={(e) => handleEditOnReviewChange(params.data.entitlementId, params.data.fieldName, e.target.checked)}
-                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            onChange={(e) => {
+                              if (!isEditing) return;
+                              handleEditOnReviewChange(params.data.entitlementId, params.data.fieldName, e.target.checked);
+                            }}
+                            className={`w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 ${!isEditing ? 'cursor-not-allowed' : ''}`}
                           />
                         </div>
                       );
@@ -370,6 +407,7 @@ export default function EntitlementManagementSettings() {
                 ]}
                 domLayout="autoHeight"
               />
+              </div>
             </div>
             <div className="mt-1">
               <CustomPagination

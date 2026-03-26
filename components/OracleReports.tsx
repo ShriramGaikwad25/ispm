@@ -245,7 +245,9 @@ function ComplianceReportsView() {
                       <td className="border-b border-gray-200 px-3 py-2 whitespace-pre-wrap break-words">
                         AC-2(2), AC-2(4)
                       </td>
-                      <td className="border-b border-gray-200 px-3 py-2"></td>
+                      <td className="border-b border-gray-200 px-3 py-2">
+                        Removal/disabling of temporary and emergency accounts with full lifecycle auditing
+                      </td>
                       <td className="border-b border-gray-200 px-3 py-2">
                         <ReportLink label="Deleted Application Accounts Report" />
                       </td>
@@ -254,7 +256,9 @@ function ComplianceReportsView() {
                       <td className="border-b border-gray-200 px-3 py-2 whitespace-pre-wrap break-words">
                         AU-2, AU-6, AC-2
                       </td>
-                      <td className="border-b border-gray-200 px-3 py-2"></td>
+                      <td className="border-b border-gray-200 px-3 py-2">
+                        Governs full account lifecycle management including provisioning, reviews, and deprovisioning
+                      </td>
                       <td className="border-b border-gray-200 px-3 py-2">
                         <ReportLink label="User Access History Report" />
                       </td>
@@ -263,7 +267,9 @@ function ComplianceReportsView() {
                       <td className="border-b border-gray-200 px-3 py-2 whitespace-pre-wrap break-words">
                         AC-2, IA-4
                       </td>
-                      <td className="border-b border-gray-200 px-3 py-2"></td>
+                      <td className="border-b border-gray-200 px-3 py-2">
+                        Centrally manage user/system accounts and identify and disable inactive ones for clean identity governance
+                      </td>
                       <td className="border-b border-gray-200 px-3 py-2">
                         <ReportLink label="Orphan Account Report" />
                       </td>
@@ -272,7 +278,9 @@ function ComplianceReportsView() {
                       <td className="border-b border-gray-200 px-3 py-2 whitespace-pre-wrap break-words">
                         AC-2, AC-5
                       </td>
-                      <td className="border-b border-gray-200 px-3 py-2"></td>
+                      <td className="border-b border-gray-200 px-3 py-2">
+                        Access authorization controls during provisioning and certifications
+                      </td>
                       <td className="border-b border-gray-200 px-3 py-2">
                         <ReportLink label="User Current Access Report" />
                       </td>
@@ -281,7 +289,9 @@ function ComplianceReportsView() {
                       <td className="border-b border-gray-200 px-3 py-2">
                         AC-1 (Policy &amp; Procedures)
                       </td>
-                      <td className="border-b border-gray-200 px-3 py-2"></td>
+                      <td className="border-b border-gray-200 px-3 py-2">
+                        Governing organization's access control policy through automated workflows, role-based provisioning, and auditable reporting on policy compliance
+                      </td>
                       <td className="border-b border-gray-200 px-3 py-2">
                         <ReportLink label="Policies Report" />
                       </td>
@@ -290,7 +300,9 @@ function ComplianceReportsView() {
                       <td className="px-3 py-2 whitespace-pre-wrap break-words">
                         AC-3, AC-5, AC-6
                       </td>
-                      <td className="px-3 py-2"></td>
+                      <td className="px-3 py-2">
+                        Prevent conflicting duties (AC-5), and apply least privilege by managing just-in-time roles, periodic access reviews, and privilege cleanup for identity-based reporting.
+                      </td>
                       <td className="px-3 py-2">
                         <ReportLink label="SOD Violation Report" />
                       </td>
@@ -437,7 +449,9 @@ function ComplianceReportsView() {
                       <td className="border-b border-gray-200 px-3 py-2">
                         Termination controls ITGC
                       </td>
-                      <td className="border-b border-gray-200 px-3 py-2"></td>
+                      <td className="border-b border-gray-200 px-3 py-2">
+                        Reports completion status for SOX termination evidence.
+                      </td>
                       <td className="border-b border-gray-200 px-3 py-2">
                         <ReportLink label="Deleted Application Accounts Report" />
                       </td>
@@ -446,7 +460,9 @@ function ComplianceReportsView() {
                       <td className="border-b border-gray-200 px-3 py-2">
                         Change Management + Logical Access
                       </td>
-                      <td className="border-b border-gray-200 px-3 py-2"></td>
+                      <td className="border-b border-gray-200 px-3 py-2">
+                        Provides auditable reports linking identity changes to identity lifecycle workflows
+                      </td>
                       <td className="border-b border-gray-200 px-3 py-2">
                         <ReportLink label="User Access History Report" />
                       </td>
@@ -455,7 +471,9 @@ function ComplianceReportsView() {
                       <td className="border-b border-gray-200 px-3 py-2">
                         Unauthorized access risk
                       </td>
-                      <td className="border-b border-gray-200 px-3 py-2"></td>
+                      <td className="border-b border-gray-200 px-3 py-2">
+                        Exception reporting on over-privileged or orphaned accounts.
+                      </td>
                       <td className="border-b border-gray-200 px-3 py-2">
                         <ReportLink label="Orphan Account Report" />
                       </td>
@@ -464,7 +482,9 @@ function ComplianceReportsView() {
                       <td className="border-b border-gray-200 px-3 py-2">
                         Quarterly Access Reviews
                       </td>
-                      <td className="border-b border-gray-200 px-3 py-2"></td>
+                      <td className="border-b border-gray-200 px-3 py-2">
+                        SOX-compliant reports on reviewed and remediated user entitlements
+                      </td>
                       <td className="border-b border-gray-200 px-3 py-2">
                         <ReportLink label="User Current Access Report" />
                       </td>
@@ -473,14 +493,18 @@ function ComplianceReportsView() {
                       <td className="border-b border-gray-200 px-3 py-2">
                         Control Design documentation
                       </td>
-                      <td className="border-b border-gray-200 px-3 py-2"></td>
+                      <td className="border-b border-gray-200 px-3 py-2">
+                        Documentation of access control workflows, policies, and automated processes to support SOX control design evidence and testing
+                      </td>
                       <td className="border-b border-gray-200 px-3 py-2">
                         <ReportLink label="Policies Report" />
                       </td>
                     </tr>
                     <tr className="align-top">
                       <td className="px-3 py-2">Preventive SoD controls</td>
-                      <td className="px-3 py-2"></td>
+                      <td className="px-3 py-2">
+                        Report SoD violations by detecting role conflicts, blocking conflicting access requests, and reporting preventive enforcement actions.
+                      </td>
                       <td className="px-3 py-2">
                         <ReportLink label="SOD Violation Report" />
                       </td>
