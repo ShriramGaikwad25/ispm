@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import Dropdown from "./Dropdown";
@@ -267,6 +267,7 @@ const HeaderContent = () => {
   const pathname = usePathname();
   const pathnameRef = useRef(pathname);
   pathnameRef.current = pathname;
+  const closeUserMenuRef = useRef<(() => void) | null>(null);
   const router = useRouter();
   const { logout, user } = useAuth();
   const { isVisible, toggleSidebar } = useLeftSidebar();
@@ -436,8 +437,13 @@ const HeaderContent = () => {
     return Math.max(Math.ceil(diffTime / (1000 * 60 * 60 * 24)), 0);
   };
 
+  const handleUserDropdownCloseMenu = useCallback((closeFunc: () => void) => {
+    closeUserMenuRef.current = closeFunc;
+  }, []);
+
   // Handler for Profile click in dropdown
   const handleProfileClick = () => {
+    closeUserMenuRef.current?.();
     if (userDetails) {
       router.push(`/profile`);
     }
@@ -445,6 +451,7 @@ const HeaderContent = () => {
 
   // Handler for Logout click in dropdown
   const handleLogoutClick = () => {
+    closeUserMenuRef.current?.();
     logout();
   };
 
@@ -951,6 +958,7 @@ const HeaderContent = () => {
             )}
             className="!p-0 !bg-transparent !border-0"
             title="User profile"
+            onCloseMenu={handleUserDropdownCloseMenu}
           >
             <button
               onClick={handleProfileClick}
