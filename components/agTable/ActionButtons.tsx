@@ -12,7 +12,6 @@ import { useState, useEffect, useRef } from "react";
 import Buttons from "react-multi-date-picker/components/button";
 import ProxyActionModal from "../ProxyActionModal";
 import DelegateActionModal from "../DelegateActionModal";
-import { updateAction } from "@/lib/api";
 import { useLoading } from "@/contexts/LoadingContext";
 import { useActionPanel } from "@/contexts/ActionPanelContext";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
@@ -55,6 +54,54 @@ export const clearPendingActionsStorage = () => {
   pendingActionsStorage.clear();
   commentsStorage.clear();
 };
+
+/** Comment / justification text stored on a grid row (API may use several field names). */
+function extractCommentFromRow(row: any): string | null {
+  if (!row) return null;
+  const possibleFields = [
+    "newComment",
+    "new_comment",
+    "newcomment",
+    "NewComment",
+    "NEW_COMMENT",
+    "comment",
+    "Comment",
+    "COMMENT",
+    "justification",
+    "Justification",
+    "JUSTIFICATION",
+    "newJustification",
+    "new_justification",
+    "newjustification",
+    "reviewComment",
+    "review_comment",
+    "reviewcomment",
+    "actionComment",
+    "action_comment",
+    "actioncomment",
+  ];
+  for (const field of possibleFields) {
+    if (
+      row[field] !== undefined &&
+      row[field] !== null &&
+      row[field] !== ""
+    ) {
+      const s = String(row[field]).trim();
+      if (s) return s;
+    }
+  }
+  const rowKeys = Object.keys(row);
+  const commentKey = rowKeys.find(
+    (key) =>
+      key.toLowerCase().includes("comment") ||
+      key.toLowerCase().includes("justification")
+  );
+  if (commentKey && row[commentKey]) {
+    const s = String(row[commentKey]).trim();
+    if (s) return s;
+  }
+  return null;
+}
 
 const ActionButtons = <T extends { status?: string }>({
   api,
@@ -516,19 +563,22 @@ const ActionButtons = <T extends { status?: string }>({
   }, []);
 
 
-  // Helper function to get justification from saved comments or use default
+  // Helper: local draft first, then comment on the record from API, then default (used for undo, approve, revoke, etc.)
   const getJustification = (defaultJustification: string): string => {
-    // Get comment from first selected row (or combine all if multiple)
     if (selectedIds.length === 0) return defaultJustification;
-    
-    // Try to get comment from any selected row
+
     for (const id of selectedIds) {
       const savedComment = commentsStorage.get(id);
       if (savedComment && savedComment.trim()) {
         return savedComment.trim();
       }
     }
-    
+
+    for (const row of definedRows) {
+      const fromRecord = extractCommentFromRow(row as any);
+      if (fromRecord) return fromRecord;
+    }
+
     return defaultJustification;
   };
 
@@ -631,39 +681,13 @@ const ActionButtons = <T extends { status?: string }>({
     const isCertified = isApproved || isApproveAction;
     const isRejectedRow = isRejected || isRejectAction;
     
-    // Check for newComment in various possible field names (case-insensitive search)
-    let hasNewComment: string | null = null;
-    if (firstRow) {
-      // Try all possible field name variations
-      const possibleFields = [
-        'newComment', 'new_comment', 'newcomment', 'NewComment', 'NEW_COMMENT',
-        'comment', 'Comment', 'COMMENT',
-        'justification', 'Justification', 'JUSTIFICATION',
-        'newJustification', 'new_justification', 'newjustification',
-        'reviewComment', 'review_comment', 'reviewcomment',
-        'actionComment', 'action_comment', 'actioncomment'
-      ];
-      
-      for (const field of possibleFields) {
-        if (firstRow[field] !== undefined && firstRow[field] !== null && firstRow[field] !== '') {
-          hasNewComment = String(firstRow[field]);
-          console.log('[ActionButtons] Found comment in field:', field, 'value:', hasNewComment);
-          break;
-        }
-      }
-      
-      // Also check all keys case-insensitively
-      if (!hasNewComment) {
-        const rowKeys = Object.keys(firstRow);
-        const commentKey = rowKeys.find(key => 
-          key.toLowerCase().includes('comment') || 
-          key.toLowerCase().includes('justification')
-        );
-        if (commentKey && firstRow[commentKey]) {
-          hasNewComment = String(firstRow[commentKey]);
-          console.log('[ActionButtons] Found comment in case-insensitive key:', commentKey, 'value:', hasNewComment);
-        }
-      }
+    const hasNewComment = firstRow ? extractCommentFromRow(firstRow) : null;
+    if (hasNewComment) {
+      console.log(
+        "[ActionButtons] Comment from row:",
+        "value:",
+        hasNewComment
+      );
     }
     
     // Debug logging
@@ -712,55 +736,6 @@ const ActionButtons = <T extends { status?: string }>({
     selectedIds.forEach((id) => {
       commentsStorage.set(id, trimmedComment);
     });
-
-    // For TreeClient / AppOwner entitlement grids:
-    // Call updateAction API immediately using the current status filter,
-    // but DO NOT queue anything in the ActionPanel (no floating submit button).
-    if (selectedIds.length > 0 && reviewerId && certId && context === "entitlement") {
-      // Map current status-filter to an action type:
-      // - Certify  -> Approve
-      // - Reject   -> Revoke
-      // - Pending / anything else -> Pending (no status change)
-      let actionTypeForComment: "Approve" | "Revoke" | "Pending" = "Pending";
-      if (isCertifyFilterActive) {
-        actionTypeForComment = "Approve";
-      } else if (isRejectFilterActive) {
-        actionTypeForComment = "Revoke";
-      }
-
-      // Build entitlement payload directly for updateAction
-      const uniqueLineItemIds = Array.from(
-        new Set(
-          definedRows
-            .map(
-              (row: any) => row.lineItemId || (row as any)?.accountLineItemId
-            )
-            .filter((id: any) => Boolean(id) && id !== "undefined" && id !== "null")
-        )
-      );
-
-      if (uniqueLineItemIds.length > 0) {
-        const payload: any = {
-          useraction: [],
-          accountAction: [],
-          entitlementAction: [
-            {
-              actionType: actionTypeForComment,
-              lineItemIds: uniqueLineItemIds,
-              justification: trimmedComment,
-            },
-          ],
-        };
-
-        try {
-          await updateAction(reviewerId, certId, payload);
-          // Do not reload the page; rely on local state and queued actions instead
-        } catch (err) {
-          console.error("Failed to save comment via updateAction:", err);
-          // Don't block closing the modal on API error; user can retry.
-        }
-      }
-    }
 
     setIsCommentModalOpen(false);
     setCommentText("");
