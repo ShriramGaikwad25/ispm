@@ -69,6 +69,14 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
     return dateStr;
   };
 
+  /** YYYY-MM-DD for <input type="date" min="..." /> from a Date at local midnight. */
+  const toInputDateLocal = (d: Date): string => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+
   // Get campaign expiry date from various sources
   const getCampaignExpiryDate = (): string | null => {
     // Try to get from localStorage
@@ -100,6 +108,16 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
   };
 
   const campaignExpiryDate = getCampaignExpiryDate();
+
+  /** Earliest allowed end date: strictly after certification expiration (next calendar day). */
+  const minConditionalEndDateInput = (() => {
+    if (!campaignExpiryDate) return undefined;
+    const expiryDateObj = new Date(campaignExpiryDate);
+    if (isNaN(expiryDateObj.getTime())) return undefined;
+    expiryDateObj.setHours(0, 0, 0, 0);
+    expiryDateObj.setDate(expiryDateObj.getDate() + 1);
+    return toInputDateLocal(expiryDateObj);
+  })();
 
   // Fetch entitlements when Modify Access is checked
   useEffect(() => {
@@ -225,15 +243,17 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
     if (campaignExpiryDate) {
       const expiryDateObj = new Date(campaignExpiryDate);
       const selectedDateObj = new Date(selectedDate);
-      
-      // Reset time to compare only dates
+
       expiryDateObj.setHours(0, 0, 0, 0);
       selectedDateObj.setHours(0, 0, 0, 0);
 
-      if (selectedDateObj < expiryDateObj) {
-        const formattedExpiry = new Date(campaignExpiryDate).toLocaleDateString();
+      // End date must be strictly after certification expiration (not same day)
+      if (selectedDateObj <= expiryDateObj) {
+        const formattedExpiry = new Date(
+          campaignExpiryDate
+        ).toLocaleDateString();
         setDateValidationError(
-          `Date cannot be before the campaign expiry date (${formattedExpiry})`
+          `End date must be after the certification expiration date (${formattedExpiry})`
         );
       } else {
         setDateValidationError("");
@@ -519,7 +539,7 @@ const RemediateSidebar: React.FC<RemediateSidebarProps> = ({
                   type="date"
                   value={conditionalEndDate}
                   onChange={handleDateChange}
-                  min={campaignExpiryDate ? new Date(campaignExpiryDate).toISOString().split('T')[0] : undefined}
+                  min={minConditionalEndDateInput}
                   className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white ${
                     dateValidationError
                       ? "border-red-500 focus:border-red-500 focus:ring-red-500"
