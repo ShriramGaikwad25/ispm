@@ -55,24 +55,38 @@ export const clearPendingActionsStorage = () => {
   commentsStorage.clear();
 };
 
-/** Comment / justification text stored on a grid row (API may use several field names). */
+function nonEmptyTrimmed(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  const s = String(value).trim();
+  return s ? s : null;
+}
+
+/**
+ * Comment / justification on a grid row. Prefer "new" reviewer comment over generic `comment`
+ * and over historical fields (`oldComments`, `previousComment`, etc.).
+ */
 function extractCommentFromRow(row: any): string | null {
   if (!row) return null;
-  const possibleFields = [
+
+  const newCommentFields = [
     "newComment",
     "new_comment",
     "newcomment",
     "NewComment",
     "NEW_COMMENT",
+    "newJustification",
+    "new_justification",
+    "newjustification",
+    "NewJustification",
+  ];
+
+  const generalCommentFields = [
     "comment",
     "Comment",
     "COMMENT",
     "justification",
     "Justification",
     "JUSTIFICATION",
-    "newJustification",
-    "new_justification",
-    "newjustification",
     "reviewComment",
     "review_comment",
     "reviewcomment",
@@ -80,26 +94,55 @@ function extractCommentFromRow(row: any): string | null {
     "action_comment",
     "actioncomment",
   ];
-  for (const field of possibleFields) {
-    if (
-      row[field] !== undefined &&
-      row[field] !== null &&
-      row[field] !== ""
-    ) {
-      const s = String(row[field]).trim();
-      if (s) return s;
-    }
-  }
-  const rowKeys = Object.keys(row);
-  const commentKey = rowKeys.find(
-    (key) =>
-      key.toLowerCase().includes("comment") ||
-      key.toLowerCase().includes("justification")
-  );
-  if (commentKey && row[commentKey]) {
-    const s = String(row[commentKey]).trim();
+
+  const oldOrPreviousCommentFields = [
+    "oldComments",
+    "oldComment",
+    "OldComments",
+    "OldComment",
+    "previousComment",
+    "previous_comment",
+    "PreviousComment",
+    "priorComment",
+    "prior_comment",
+    "lastComment",
+    "last_comment",
+  ];
+
+  const isHistoricalCommentKey = (key: string): boolean => {
+    const k = key.toLowerCase();
+    if (oldOrPreviousCommentFields.some((f) => f.toLowerCase() === k))
+      return true;
+    if (k.startsWith("old") && k.includes("comment")) return true;
+    if (k.includes("previous") && k.includes("comment")) return true;
+    return false;
+  };
+
+  for (const field of newCommentFields) {
+    const s = nonEmptyTrimmed(row[field]);
     if (s) return s;
   }
+  for (const field of generalCommentFields) {
+    const s = nonEmptyTrimmed(row[field]);
+    if (s) return s;
+  }
+
+  const rowKeys = Object.keys(row);
+  const dynamicKey = rowKeys.find((key) => {
+    if (isHistoricalCommentKey(key)) return false;
+    const k = key.toLowerCase();
+    return k.includes("comment") || k.includes("justification");
+  });
+  if (dynamicKey) {
+    const s = nonEmptyTrimmed(row[dynamicKey]);
+    if (s) return s;
+  }
+
+  for (const field of oldOrPreviousCommentFields) {
+    const s = nonEmptyTrimmed(row[field]);
+    if (s) return s;
+  }
+
   return null;
 }
 
@@ -702,16 +745,14 @@ const ActionButtons = <T extends { status?: string }>({
       storedComment: firstRowId ? commentsStorage.get(firstRowId) : null
     });
     
-    // Priority: newComment from row data (any status, including Pending) > stored comment > empty
+    // Priority: local draft (this session) > row (new comment before previous/old via extractCommentFromRow)
     let commentToShow = "";
     const storedComment = firstRowId ? commentsStorage.get(firstRowId) || "" : "";
-    
-    // Always prefer latest comment coming from API/row data (hasNewComment)
-    if (hasNewComment) {
-      commentToShow = hasNewComment;
-    } else if (storedComment) {
-      // Fallback to locally stored comment if API did not send one
+
+    if (storedComment) {
       commentToShow = storedComment;
+    } else if (hasNewComment) {
+      commentToShow = hasNewComment;
     }
     
     console.log('[ActionButtons] Final comment to show:', commentToShow, {
