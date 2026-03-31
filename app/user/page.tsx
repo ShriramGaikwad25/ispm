@@ -356,27 +356,42 @@ const columnDefs = useMemo<ColDef[]>(
   }
 
   return (
-    <div className="ag-theme-alpine" style={{ width: "100%" }}>
-      {/* Search Bar */}
-      <div className="mb-4">
-        <div className="relative max-w-md">
-          <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-            <Search className="text-gray-400 w-5 h-5" />
+    <div className="w-full">
+      {/* Header with Create new User */}
+      <div className="mb-4 flex justify-between items-start gap-4">
+        <div className="flex-1 max-w-md">
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+              <Search className="text-gray-400 w-5 h-5" />
+            </div>
+            <input
+              type="text"
+              placeholder="Search users by name, email, title, department, tags..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+            />
           </div>
-          <input
-            type="text"
-            placeholder="Search users by name, email, title, department, tags..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-          />
+          {searchTerm && (
+            <p className="text-sm text-gray-600 mt-1">
+              Showing {filteredData.length} result(s) for "{searchTerm}"
+            </p>
+          )}
         </div>
-        {searchTerm && (
-          <p className="text-sm text-gray-600 mt-1">
-            Showing {filteredData.length} result(s) for "{searchTerm}"
-          </p>
-        )}
+
+        <div className="flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => router.push("/user/create-user")}
+            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Create new User
+          </button>
+        </div>
       </div>
+
+    <div className="ag-theme-alpine" style={{ width: "100%" }}>
 
       {/* Top pagination */}
       <div className="mb-2">
@@ -423,6 +438,7 @@ const columnDefs = useMemo<ColDef[]>(
           pageSizeOptions={pageSizeSelector}
         />
       </div>
+    </div>
     </div>
   );
 }

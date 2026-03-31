@@ -4,7 +4,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { executeQuery } from "@/lib/api";
 import dynamic from "next/dynamic";
 import { ColDef, GridApi, themeQuartz } from "ag-grid-community";
-import { ChevronRight, Download } from "lucide-react";
+import { ChevronRight, Download, Search } from "lucide-react";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import "@/lib/ag-grid-setup";
 type AccessRow = Record<string, any>;
@@ -298,6 +298,7 @@ export default function AccessRequestReportPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [gridApi, setGridApi] = useState<GridApi | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const { openSidebar } = useRightSidebar();
 
   useEffect(() => {
@@ -711,11 +712,66 @@ export default function AccessRequestReportPage() {
     []
   );
 
+  const filteredRows = rows.filter((row) => {
+    const needle = searchQuery.trim().toLowerCase();
+    if (!needle) return true;
+
+    const requester = String(
+      getNestedField(row, [
+        "requester",
+        "requestor",
+        "requesterName",
+        "requester_name",
+        "requestorName",
+        "requestor_name",
+        "requestedBy",
+        "requested_by",
+        "requesterdisplayname",
+        "requester_display_name",
+        "displayname",
+        "display_name",
+      ]) || ""
+    );
+    const beneficiary = String(
+      getNestedField(row, [
+        "beneficiary",
+        "beneficiaryName",
+        "beneficiary_name",
+        "targetUser",
+        "target_user",
+        "user",
+        "beneficiarydisplayname",
+        "beneficiary_display_name",
+      ]) || ""
+    );
+    const timeRaw = getNestedField(row, [
+      "time_created",
+      "timeCreated",
+      "created_time",
+      "createdAt",
+      "created_at",
+    ]);
+    const timeFormatted = formatDateTime(timeRaw);
+    const timeSearchable = [timeFormatted, String(timeRaw || "")].join(" ");
+    const assignmentName = String(
+      getNestedField(row, [
+        "assignmentName",
+        "assignment_name",
+        "assignmentname",
+        "assignment name",
+      ]) || ""
+    );
+    const haystack = [requester, beneficiary, timeSearchable, assignmentName]
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(needle);
+  });
+
   return (
     <div className="min-h-screen bg-white">
       <div className="w-full py-4 px-6">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div>
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
             <h1 className="text-2xl font-semibold text-gray-900">
               Access Request Summary Report
             </h1>
@@ -723,19 +779,38 @@ export default function AccessRequestReportPage() {
               View and analyze access requests and their approval status.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              if (!gridApi) return;
-              gridApi.exportDataAsCsv({
-                fileName: "access-request-summary-report.csv",
-              });
-            }}
-            className="inline-flex items-center justify-center rounded-full border border-gray-300 bg-white p-2 text-gray-700 shadow-sm hover:bg-gray-50 hover:text-gray-900"
-            aria-label="Download report"
-          >
-            <Download className="w-4 h-4" />
-          </button>
+          <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto sm:justify-end">
+            {!loading && !error && rows.length > 0 && (
+              <div className="relative min-w-0 flex-1 sm:max-w-4xl sm:flex-initial sm:min-w-[440px]">
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+                  aria-hidden
+                />
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search by requester, beneficiary, time created, or assignment name"
+                  title="Search by requester, beneficiary, time created, or assignment name"
+                  className="w-full rounded-full border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  aria-label="Search by requester, beneficiary, time created, or assignment name"
+                />
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                if (!gridApi) return;
+                gridApi.exportDataAsCsv({
+                  fileName: "access-request-summary-report.csv",
+                });
+              }}
+              className="inline-flex shrink-0 items-center justify-center rounded-full border border-gray-300 bg-white p-2 text-gray-700 shadow-sm hover:bg-gray-50 hover:text-gray-900"
+              aria-label="Download report"
+            >
+              <Download className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {loading && (
@@ -755,9 +830,14 @@ export default function AccessRequestReportPage() {
 
         {!loading && !error && rows.length > 0 && (
           <div className="mt-2">
+            {filteredRows.length === 0 ? (
+              <p className="text-sm text-gray-500">
+                No rows match your search.
+              </p>
+            ) : (
             <div className="ag-theme-alpine w-full">
               <AgGridReact
-                rowData={rows}
+                rowData={filteredRows}
                 columnDefs={columnDefs}
                 defaultColDef={defaultColDef}
                 theme={themeQuartz}
@@ -775,6 +855,7 @@ export default function AccessRequestReportPage() {
                 }}
               />
             </div>
+            )}
           </div>
         )}
       </div>

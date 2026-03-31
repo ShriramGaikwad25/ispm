@@ -142,10 +142,10 @@ export function Navigation() {
       return { href: '/access-review', label: 'Back to Access Review' };
     }
     // Users
-    if (pathname === '/user/create-group') {
+    if (pathname === '/user/create-group' || pathname === '/user/create-user') {
       return { href: '/user', label: 'Back to Users' };
     }
-    if (pathname.startsWith('/user/') && pathname !== '/user' && pathname !== '/user/create-group') {
+    if (pathname.startsWith('/user/') && pathname !== '/user' && pathname !== '/user/create-group' && pathname !== '/user/create-user') {
       return { href: '/user', label: 'Back to Users' };
     }
     if (pathname === '/profile') {

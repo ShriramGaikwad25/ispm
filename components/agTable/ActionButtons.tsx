@@ -146,6 +146,49 @@ function extractCommentFromRow(row: any): string | null {
   return null;
 }
 
+function extractRemediationEndDateFromRow(row: any): string | null {
+  if (!row) return null;
+  const keys = [
+    "remediateOn",
+    "remediationEndDate",
+    "remediateEndDate",
+    "endDate",
+    "itemEndDate",
+    "conditionalEndDate",
+  ];
+  for (const k of keys) {
+    const s = nonEmptyTrimmed(row[k]);
+    if (s) return s;
+  }
+  return null;
+}
+
+function extractRemediationJustificationFromRows(rows: any[]): string {
+  for (const row of rows) {
+    const explicit = nonEmptyTrimmed(
+      row?.remediationJustification ?? row?.remediateJustification
+    );
+    if (explicit) return explicit;
+  }
+  for (const row of rows) {
+    const fromComment = extractCommentFromRow(row);
+    if (fromComment) return fromComment;
+  }
+  return "";
+}
+
+function extractRemediateActionFromRows(rows: any[]): string {
+  if (!rows.length) return "";
+  const unique = Array.from(
+    new Set(
+      rows
+        .map((r) => nonEmptyTrimmed(r?.remediateAction))
+        .filter((s): s is string => Boolean(s))
+    )
+  );
+  return unique.join(", ");
+}
+
 const ActionButtons = <T extends { status?: string }>({
   api,
   selectedRows,
@@ -170,6 +213,8 @@ const ActionButtons = <T extends { status?: string }>({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDelegateModalOpen, setIsDelegateModalOpen] = useState(false);
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
+  const [isRemediateDetailModalOpen, setIsRemediateDetailModalOpen] =
+    useState(false);
   const [commentText, setCommentText] = useState("");
   const [commentCategory, setCommentCategory] = useState("");
   const [commentSubcategory, setCommentSubcategory] = useState("");
@@ -244,6 +289,18 @@ const ActionButtons = <T extends { status?: string }>({
   const isDelegateAction = context === "entitlement" && (actionLower === "delegate" || statusLower === "delegated");
   const hasRemediateStatus = hasRemediateAction || isRemediateAction || isRemediatedFromRow ||
     selectedIds.some((id) => getPendingAction(id) === 'Remediate');
+  const hasRemediatedRows =
+    context === "entitlement" &&
+    definedRows.some(
+      (row: any) =>
+        row.isRemediated === true ||
+        String(row.isRemediated || "").toUpperCase() === "Y"
+    );
+  /** After queuing Pending to undo remediation, show normal actions instead of the R badge */
+  const isRemediateUndoQueued =
+    hasRemediatedRows &&
+    selectedIds.length > 0 &&
+    selectedIds.every((id) => getPendingAction(id) === "Pending");
   const hasDelegateStatus = isDelegateAction || 
     selectedIds.some((id) => getPendingAction(id) === 'Delegate');
 
@@ -408,7 +465,12 @@ const ActionButtons = <T extends { status?: string }>({
           willQueue: hasExistingQueuedActions || hasSubmittedActions || buttonWasFilled
         });
         
-        if (!hasExistingQueuedActions && !hasSubmittedActions && !buttonWasFilled) {
+        if (
+          !hasExistingQueuedActions &&
+          !hasSubmittedActions &&
+          !buttonWasFilled &&
+          !hasRemediatedRows
+        ) {
           // No existing queued actions to undo AND no submitted actions to revert AND button wasn't filled,
           // just update local state and don't queue
           console.log('[ActionButtons] No actions to undo, skipping queue');
@@ -456,7 +518,11 @@ const ActionButtons = <T extends { status?: string }>({
         
         // If buttonWasFilled is true, we're definitely undoing something, so ensure it's counted
         // Set the filter flag to ensure the action count increases and submit button appears
-        const shouldCountUndo = buttonWasFilled || hasExistingQueuedActions || hasSubmittedActions;
+        const shouldCountUndo =
+          buttonWasFilled ||
+          hasExistingQueuedActions ||
+          hasSubmittedActions ||
+          hasRemediatedRows;
         
         // Queue the action with filter flags set to ensure it's counted
         // This makes the submit button appear when undoing actions
@@ -623,6 +689,22 @@ const ActionButtons = <T extends { status?: string }>({
     }
 
     return defaultJustification;
+  };
+
+  const remediationDetailJustification =
+    extractRemediationJustificationFromRows(definedRows as any[]) || "—";
+  const remediationDetailEndDate =
+    extractRemediationEndDateFromRow(definedRows[0] as any) || "—";
+  const remediationDetailAction =
+    extractRemediateActionFromRows(definedRows as any[]) || "—";
+
+  const handleRemediateDetailUndo = async () => {
+    if (definedRows.length === 0 || isActionLoading) return;
+    setIsRemediateDetailModalOpen(false);
+    await updateActions("Pending", getJustification("Undo remediation"));
+    if (onActionSuccess) {
+      onActionSuccess();
+    }
   };
 
   const handleApprove = async (e: React.MouseEvent) => {
@@ -1087,13 +1169,107 @@ const ActionButtons = <T extends { status?: string }>({
   }
 
   // If remediate action exists, show "R" badge with Comment and Teams buttons
-  if (hasRemediateStatus) {
+  if (hasRemediateStatus && !isRemediateUndoQueued) {
     return (
       <div className="flex space-x-3 h-full items-center">
         {error && <div className="text-red-500 text-sm">{error}</div>}
-        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold">
+        <button
+          type="button"
+          title="Remediation details"
+          aria-label="Open remediation details"
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            setIsRemediateDetailModalOpen(true);
+          }}
+          className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+        >
           R
-        </span>
+        </button>
+        {isRemediateDetailModalOpen &&
+          createPortal(
+            <div
+              className="fixed inset-0 bg-black/50 flex items-center justify-center z-[200] px-3"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="remediate-detail-title"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  setIsRemediateDetailModalOpen(false);
+                }
+              }}
+            >
+              <div className="bg-white rounded-lg shadow-lg max-w-md w-full mx-4 border border-gray-200 overflow-hidden flex flex-col max-h-[min(90vh,560px)]">
+                <header className="flex-shrink-0 px-5 py-4 border-b border-gray-200 bg-gray-50">
+                  <h3
+                    id="remediate-detail-title"
+                    className="text-lg font-semibold text-gray-900"
+                  >
+                    Remediation details
+                  </h3>
+                </header>
+                <div className="px-5 py-4 overflow-y-auto flex-1 min-h-0">
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      End date
+                    </label>
+                    <input
+                      type="text"
+                      readOnly
+                      value={remediationDetailEndDate}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-800 bg-gray-50"
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Remediate action
+                    </label>
+                    <input
+                      type="text"
+                      readOnly
+                      value={remediationDetailAction}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-800 bg-gray-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Justification
+                    </label>
+                    <textarea
+                      readOnly
+                      rows={4}
+                      value={remediationDetailJustification}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-800 bg-gray-50 resize-y min-h-[100px]"
+                    />
+                  </div>
+                </div>
+                <footer className="flex-shrink-0 px-5 py-3 border-t border-gray-200 bg-gray-50 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-100"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsRemediateDetailModalOpen(false);
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isActionLoading || viewChangeEnable === false}
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void handleRemediateDetailUndo();
+                    }}
+                  >
+                    Undo
+                  </button>
+                </footer>
+              </div>
+            </div>,
+            document.body
+          )}
         <button
           onClick={handleComment}
           title="Comment"

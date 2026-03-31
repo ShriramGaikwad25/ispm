@@ -101,8 +101,8 @@ const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow, onDelet
       {
         headerName: "Name",
         field: "name",
-        flex: 2,
-        minWidth: 220,
+        flex: 3,
+        minWidth: 300,
         wrapText: true,
         autoHeight: true,
         sortable: true,
@@ -117,8 +117,8 @@ const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow, onDelet
       {
         headerName: "Type",
         field: "type",
-        flex: 1.5,
-        minWidth: 160,
+        flex: 2.25,
+        minWidth: 220,
         wrapText: true,
         autoHeight: true,
         sortable: true,
@@ -147,30 +147,6 @@ const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow, onDelet
         filter: true,
         valueFormatter: (params: any) => {
           if (!params.value) return "";
-          return new Date(params.value).toLocaleDateString();
-        },
-      },
-      {
-        headerName: "Last Run",
-        field: "lastRun",
-        width: 150,
-        minWidth: 130,
-        sortable: true,
-        filter: true,
-        valueFormatter: (params: any) => {
-          if (!params.value) return "Never";
-          return new Date(params.value).toLocaleDateString();
-        },
-      },
-      {
-        headerName: "Next Run",
-        field: "nextRun",
-        width: 150,
-        minWidth: 130,
-        sortable: true,
-        filter: true,
-        valueFormatter: (params: any) => {
-          if (!params.value) return "Not Scheduled";
           return new Date(params.value).toLocaleDateString();
         },
       },

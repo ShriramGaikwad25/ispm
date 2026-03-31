@@ -901,19 +901,30 @@ const AccessRequest: React.FC = () => {
           role="dialog"
           aria-modal="true"
           aria-labelledby="submit-success-title"
+          aria-describedby="submit-success-body"
         >
-          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
-            <h2 id="submit-success-title" className="text-xl font-semibold text-gray-900">
-              Request submitted successfully
-            </h2>
-            <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span className="text-sm text-gray-600">Your Request ID is:</span>
-              <span className="rounded-md border border-blue-200 bg-blue-50 px-3 py-1 text-lg font-semibold text-blue-900">
-                {submitRequestId || "Generated successfully"}
-              </span>
+          <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/5">
+            <div className="flex gap-3 border-b border-green-200/80 bg-gradient-to-br from-green-50 via-white to-white px-5 py-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-green-100 text-green-700">
+                <Check className="h-5 w-5" strokeWidth={2.5} aria-hidden />
+              </div>
+              <div className="min-w-0 pt-0.5">
+                <h2 id="submit-success-title" className="text-lg font-semibold tracking-tight text-gray-900">
+                  Request submitted successfully
+                </h2>
+              </div>
             </div>
 
-            <div className="mt-6 flex flex-wrap justify-end gap-2">
+            <div id="submit-success-body" className="flex-1 overflow-y-auto px-5 py-4">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="text-sm text-gray-600">Your Request ID is:</span>
+                <span className="rounded-md border border-blue-200 bg-blue-50 px-3 py-1 text-lg font-semibold text-blue-900">
+                  {submitRequestId || "Generated successfully"}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap justify-center gap-2 border-t border-gray-200 bg-white px-5 py-3">
               <button
                 type="button"
                 onClick={() => {
@@ -973,18 +984,19 @@ const AccessRequest: React.FC = () => {
                     </p>
                   </div>
                 </div>
-                <div className="px-5 pt-4">
-                  <p className="text-sm leading-relaxed text-gray-700">
-                    These entitlements need completed training before you can submit this request.
-                  </p>
-                </div>
-                <div className="flex-1 overflow-y-auto px-5 pb-1">
-                  <ul className="space-y-3">
-                    {submitFailureDialog.lines.map((line, idx) => (
-                      <li
-                        key={`${line.entName}-${idx}`}
-                        className="rounded-xl border border-gray-200 bg-gray-50/90 p-3.5 shadow-sm"
-                      >
+                <div className="flex min-h-0 flex-1 flex-col bg-gray-50">
+                  <div className="px-5 pt-4">
+                    <p className="text-sm leading-relaxed text-gray-700">
+                      These entitlements need completed training before you can submit this request.
+                    </p>
+                  </div>
+                  <div className="flex-1 overflow-y-auto px-5 pb-1">
+                    <ul className="space-y-3">
+                      {submitFailureDialog.lines.map((line, idx) => (
+                        <li
+                          key={`${line.entName}-${idx}`}
+                          className="rounded-xl border border-gray-200 bg-white p-3.5 shadow-sm"
+                        >
                         <p className="text-[15px] font-semibold leading-snug text-gray-900">
                           {formatEntitlementDisplayName(line.entName)}
                         </p>
@@ -999,11 +1011,12 @@ const AccessRequest: React.FC = () => {
                         <p className="mt-2 border-t border-gray-200/90 pt-2 text-sm leading-relaxed text-gray-700">
                           {line.message}
                         </p>
-                      </li>
-                    ))}
-                  </ul>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
-                <div className="flex justify-end border-t border-gray-200 bg-gray-50/90 px-5 py-3">
+                <div className="flex justify-end border-t border-gray-200 bg-white px-5 py-3">
                   <button
                     type="button"
                     onClick={handleCloseSubmitFailureDialog}
@@ -1025,12 +1038,12 @@ const AccessRequest: React.FC = () => {
                     </h2>
                   </div>
                 </div>
-                <div className="max-h-[min(50vh,320px)] overflow-y-auto px-5 py-4">
+                <div className="max-h-[min(50vh,320px)] overflow-y-auto bg-gray-50 px-5 py-4">
                   <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-700">
                     {submitFailureDialog.message}
                   </p>
                 </div>
-                <div className="flex justify-end border-t border-gray-200 bg-gray-50/90 px-5 py-3">
+                <div className="flex justify-end border-t border-gray-200 bg-white px-5 py-3">
                   <button
                     type="button"
                     onClick={handleCloseSubmitFailureDialog}

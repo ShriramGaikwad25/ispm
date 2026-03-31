@@ -1145,6 +1145,21 @@ const TreeClient: React.FC<TreeClientProps> = ({
             newComment: nestedEntityEntitlement.newComment ?? ent.newComment ?? "",
             isRemediated,
             remediateAction: nestedEntityEntitlement.remediateAction ?? ent.remediateAction ?? "",
+            remediationEndDate:
+              nestedEntityEntitlement.remediateOn ??
+              ent.remediateOn ??
+              nestedEntityEntitlement.remediationEndDate ??
+              nestedEntityEntitlement.remediateEndDate ??
+              nestedEntityEntitlement.endDate ??
+              nestedEntityEntitlement.itemEndDate ??
+              nestedEntityEntitlement.conditionalEndDate ??
+              ent.remediationEndDate ??
+              "",
+            remediationJustification:
+              nestedEntityEntitlement.remediationJustification ??
+              nestedEntityEntitlement.remediateJustification ??
+              ent.remediationJustification ??
+              "",
             accountId: applicationInfo.applicationEntityId ?? appInstance.accountId,
             aiassist: ent.aiassist ?? accountItem.aiassist,
           };
@@ -1373,6 +1388,21 @@ const TreeClient: React.FC<TreeClientProps> = ({
           newComment: newComment, // Add newComment to row data
           isRemediated: nestedEntityEntitlement.isRemediated ?? item.isRemediated ?? false,
           remediateAction: nestedEntityEntitlement.remediateAction ?? item.remediateAction ?? "",
+          remediationEndDate:
+            nestedEntityEntitlement.remediateOn ??
+            item.remediateOn ??
+            nestedEntityEntitlement.remediationEndDate ??
+            nestedEntityEntitlement.remediateEndDate ??
+            nestedEntityEntitlement.endDate ??
+            nestedEntityEntitlement.itemEndDate ??
+            nestedEntityEntitlement.conditionalEndDate ??
+            item.remediationEndDate ??
+            "",
+          remediationJustification:
+            nestedEntityEntitlement.remediationJustification ??
+            nestedEntityEntitlement.remediateJustification ??
+            item.remediationJustification ??
+            "",
           aiassist: item.aiassist,
           });
         });
@@ -1441,6 +1471,21 @@ const TreeClient: React.FC<TreeClientProps> = ({
             newComment: newComment, // Add newComment to row data
             isRemediated: nestedEntityEntitlement.isRemediated ?? item.isRemediated ?? false,
             remediateAction: nestedEntityEntitlement.remediateAction ?? item.remediateAction ?? "",
+            remediationEndDate:
+              nestedEntityEntitlement.remediateOn ??
+              item.remediateOn ??
+              nestedEntityEntitlement.remediationEndDate ??
+              nestedEntityEntitlement.remediateEndDate ??
+              nestedEntityEntitlement.endDate ??
+              nestedEntityEntitlement.itemEndDate ??
+              nestedEntityEntitlement.conditionalEndDate ??
+              item.remediationEndDate ??
+              "",
+            remediationJustification:
+              nestedEntityEntitlement.remediationJustification ??
+              nestedEntityEntitlement.remediateJustification ??
+              item.remediationJustification ??
+              "",
             aiassist: item.aiassist,
           };
       };
@@ -1783,6 +1828,21 @@ const TreeClient: React.FC<TreeClientProps> = ({
           newComment: newComment, // Add newComment to row data
           isRemediated: nestedEntityEntitlement.isRemediated ?? item.isRemediated ?? false,
           remediateAction: nestedEntityEntitlement.remediateAction ?? item.remediateAction ?? "",
+          remediationEndDate:
+            nestedEntityEntitlement.remediateOn ??
+            item.remediateOn ??
+            nestedEntityEntitlement.remediationEndDate ??
+            nestedEntityEntitlement.remediateEndDate ??
+            nestedEntityEntitlement.endDate ??
+            nestedEntityEntitlement.itemEndDate ??
+            nestedEntityEntitlement.conditionalEndDate ??
+            item.remediationEndDate ??
+            "",
+          remediationJustification:
+            nestedEntityEntitlement.remediationJustification ??
+            nestedEntityEntitlement.remediateJustification ??
+            item.remediationJustification ??
+            "",
           aiassist: item.aiassist,
         };
       });

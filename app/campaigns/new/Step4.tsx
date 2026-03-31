@@ -1,4 +1,4 @@
-import { BookTemplate, InfoIcon, Save } from "lucide-react";
+import { BookTemplate, InfoIcon, MailPlus, Pencil, Save } from "lucide-react";
 import { useEffect, useState, useRef, useMemo } from "react";
 import {
   Control,
@@ -377,19 +377,32 @@ const Step4: React.FC<StepProps> = ({
           </div>
           {watch("startOfCampaign") && (
             <div className="ml-52 flex items-center gap-3">
-              <button
-                type="button"
-                className="flex gap-2 items-center bg-blue-500 text-white rounded-md px-4 py-2 cursor-pointer hover:bg-blue-600 whitespace-nowrap"
-                onClick={() => handleOpenTemplateEditor("start")}
-              >
-                <BookTemplate size={16} />
-                {watch("startOfCampaignTemplateName") && watch("startOfCampaignTemplateName").trim() ? "Edit Template" : "Select Template"}
-              </button>
-              {watch("startOfCampaignTemplateName") && watch("startOfCampaignTemplateName").trim() && (
-                <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-md border border-blue-200 text-sm font-medium">
-                  <BookTemplate size={14} className="text-blue-600" />
-                  {watch("startOfCampaignTemplateName")}
-                </span>
+              {watch("startOfCampaignTemplateName")?.trim() ? (
+                <>
+                  <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-md border border-blue-200 text-sm font-medium">
+                    <BookTemplate size={14} className="text-blue-600" />
+                    {watch("startOfCampaignTemplateName")}
+                  </span>
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center rounded-md p-2 bg-white border border-green-600 text-green-600 cursor-pointer hover:bg-green-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-400 focus-visible:ring-offset-2"
+                    onClick={() => handleOpenTemplateEditor("start")}
+                    title="Edit template"
+                    aria-label="Edit template"
+                  >
+                    <Pencil size={18} aria-hidden />
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center rounded-md p-2 bg-white border border-green-600 text-green-600 cursor-pointer hover:bg-green-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-400 focus-visible:ring-offset-2"
+                  onClick={() => handleOpenTemplateEditor("start")}
+                  title="Select email template"
+                  aria-label="Select email template"
+                >
+                  <MailPlus size={18} aria-hidden />
+                </button>
               )}
             </div>
           )}
@@ -430,19 +443,32 @@ const Step4: React.FC<StepProps> = ({
           {watch("remindersDuringCampaign") && (
             <div className="ml-52 space-y-2">
               <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  className="flex gap-2 items-center bg-blue-500 text-white rounded-md px-4 py-2 cursor-pointer hover:bg-blue-600 whitespace-nowrap"
-                  onClick={() => handleOpenTemplateEditor("reminders")}
-                >
-                  <BookTemplate size={16} />
-                  {watch("remindersDuringCampaignTemplateName") && watch("remindersDuringCampaignTemplateName").trim() ? "Edit Template" : "Select Template"}
-                </button>
-                {watch("remindersDuringCampaignTemplateName") && watch("remindersDuringCampaignTemplateName").trim() && (
-                  <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-md border border-blue-200 text-sm font-medium">
-                    <BookTemplate size={14} className="text-blue-600" />
-                    {watch("remindersDuringCampaignTemplateName")}
-                  </span>
+                {watch("remindersDuringCampaignTemplateName")?.trim() ? (
+                  <>
+                    <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-md border border-blue-200 text-sm font-medium">
+                      <BookTemplate size={14} className="text-blue-600" />
+                      {watch("remindersDuringCampaignTemplateName")}
+                    </span>
+                    <button
+                      type="button"
+                      className="inline-flex items-center justify-center rounded-md p-2 bg-white border border-green-600 text-green-600 cursor-pointer hover:bg-green-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-400 focus-visible:ring-offset-2"
+                      onClick={() => handleOpenTemplateEditor("reminders")}
+                      title="Edit template"
+                      aria-label="Edit template"
+                    >
+                      <Pencil size={18} aria-hidden />
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center rounded-md p-2 bg-white border border-green-600 text-green-600 cursor-pointer hover:bg-green-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-400 focus-visible:ring-offset-2"
+                    onClick={() => handleOpenTemplateEditor("reminders")}
+                    title="Select email template"
+                    aria-label="Select email template"
+                  >
+                    <MailPlus size={18} aria-hidden />
+                  </button>
                 )}
               </div>
               {errors.remindersDuringCampaignReminders?.message &&
@@ -488,19 +514,32 @@ const Step4: React.FC<StepProps> = ({
           {watch("atEscalation") && (
             <div className="ml-52 space-y-2">
               <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  className="flex gap-2 items-center bg-blue-500 text-white rounded-md px-4 py-2 cursor-pointer hover:bg-blue-600 whitespace-nowrap"
-                  onClick={() => handleOpenTemplateEditor("escalation")}
-                >
-                  <BookTemplate size={16} />
-                  {watch("atEscalationTemplateName") && watch("atEscalationTemplateName").trim() ? "Edit Template" : "Select Template"}
-                </button>
-                {watch("atEscalationTemplateName") && watch("atEscalationTemplateName").trim() && (
-                  <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-md border border-blue-200 text-sm font-medium">
-                    <BookTemplate size={14} className="text-blue-600" />
-                    {watch("atEscalationTemplateName")}
-                  </span>
+                {watch("atEscalationTemplateName")?.trim() ? (
+                  <>
+                    <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-md border border-blue-200 text-sm font-medium">
+                      <BookTemplate size={14} className="text-blue-600" />
+                      {watch("atEscalationTemplateName")}
+                    </span>
+                    <button
+                      type="button"
+                      className="inline-flex items-center justify-center rounded-md p-2 bg-white border border-green-600 text-green-600 cursor-pointer hover:bg-green-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-400 focus-visible:ring-offset-2"
+                      onClick={() => handleOpenTemplateEditor("escalation")}
+                      title="Edit template"
+                      aria-label="Edit template"
+                    >
+                      <Pencil size={18} aria-hidden />
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center rounded-md p-2 bg-white border border-green-600 text-green-600 cursor-pointer hover:bg-green-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-400 focus-visible:ring-offset-2"
+                    onClick={() => handleOpenTemplateEditor("escalation")}
+                    title="Select email template"
+                    aria-label="Select email template"
+                  >
+                    <MailPlus size={18} aria-hidden />
+                  </button>
                 )}
               </div>
               {errors.atEscalationReminders?.message &&
@@ -532,19 +571,32 @@ const Step4: React.FC<StepProps> = ({
           </div>
           {watch("campaignClosure") && (
             <div className="ml-52 flex items-center gap-3">
-              <button
-                type="button"
-                className="flex gap-2 items-center bg-blue-500 text-white rounded-md px-4 py-2 cursor-pointer hover:bg-blue-600 whitespace-nowrap"
-                onClick={() => handleOpenTemplateEditor("closure")}
-              >
-                <BookTemplate size={16} />
-                {watch("campaignClosureTemplateName") && watch("campaignClosureTemplateName").trim() ? "Edit Template" : "Select Template"}
-              </button>
-              {watch("campaignClosureTemplateName") && watch("campaignClosureTemplateName").trim() && (
-                <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-md border border-blue-200 text-sm font-medium">
-                  <BookTemplate size={14} className="text-blue-600" />
-                  {watch("campaignClosureTemplateName")}
-                </span>
+              {watch("campaignClosureTemplateName")?.trim() ? (
+                <>
+                  <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-md border border-blue-200 text-sm font-medium">
+                    <BookTemplate size={14} className="text-blue-600" />
+                    {watch("campaignClosureTemplateName")}
+                  </span>
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center rounded-md p-2 bg-white border border-green-600 text-green-600 cursor-pointer hover:bg-green-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-400 focus-visible:ring-offset-2"
+                    onClick={() => handleOpenTemplateEditor("closure")}
+                    title="Edit template"
+                    aria-label="Edit template"
+                  >
+                    <Pencil size={18} aria-hidden />
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center rounded-md p-2 bg-white border border-green-600 text-green-600 cursor-pointer hover:bg-green-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-400 focus-visible:ring-offset-2"
+                  onClick={() => handleOpenTemplateEditor("closure")}
+                  title="Select email template"
+                  aria-label="Select email template"
+                >
+                  <MailPlus size={18} aria-hidden />
+                </button>
               )}
             </div>
           )}
