@@ -32,9 +32,8 @@ const AddDetailsSidebarContent: React.FC<{
   role: Role;
   riskClass: string;
   onAddToCart: () => void;
-  onValidate: () => void;
   showActions?: boolean;
-}> = ({ role, riskClass, onAddToCart, onValidate, showActions = true }) => {
+}> = ({ role, riskClass, onAddToCart, showActions = true }) => {
   const isApplicationInstance =
     (role.type ?? (role.catalogRow?.type as string) ?? "").toString().toLowerCase() === "applicationinstance";
 
@@ -384,9 +383,6 @@ const AddDetailsSidebarContent: React.FC<{
           <button type="button" onClick={onAddToCart} className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium bg-blue-600 hover:bg-blue-700 text-white text-sm transition-colors">
             <ShoppingCart className="w-4 h-4" />
             Add to cart
-          </button>
-          <button type="button" onClick={onValidate} className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-600 text-sm transition-colors">
-            Validate
           </button>
         </div>
       )}

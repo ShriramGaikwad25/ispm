@@ -621,16 +621,11 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
                         if (!isInCart(role.id)) addToCart({ id: role.id, name: role.name, risk: role.risk });
                         closeSidebar();
                       };
-                      const onValidate = () => {
-                        // Validate action – can be wired to validation API or flow later
-                        closeSidebar();
-                      };
                       openSidebar(
                         <AddDetailsSidebarContent
                           role={role}
                           riskClass={getRiskColor(role.risk)}
                           onAddToCart={addToCartForRole}
-                          onValidate={onValidate}
                         />,
                         { widthPx: 500, title: "Add Details" }
                       );
@@ -659,7 +654,7 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
 
         {filteredRoles.length === 0 && (
           <div className="text-center py-12 text-gray-500">
-            No roles found matching your search.
+            Loading...
           </div>
         )}
         {/* Pagination Controls (project-wide CustomPagination) */}

@@ -14,7 +14,7 @@ type TemplateRow = {
   name: string;
   type: string;
   owner: string;
-  createdOn: string;
+  createdOn: string | null;
   lastRun: string | null;
   nextRun: string | null;
   templateData?: any; // Store full template data for editing
@@ -70,7 +70,12 @@ const TemplateTable: React.FC<TemplateTableProps> = ({ onEdit, onRunNow, onDelet
             name: campaign.name || campaign.campaignName || campaign.templateName || "Unnamed Campaign",
             type: campaign.type || campaign.campaignType || campaign.templateType || "Standard",
             owner: ownerName,
-            createdOn: campaign.createdOn || campaign.createdDate || campaign.created || new Date().toISOString(),
+            createdOn:
+              campaign.campaignCreatedAt ??
+              campaign.createdOn ??
+              campaign.createdDate ??
+              campaign.created ??
+              null,
             lastRun: campaign.lastRun || campaign.lastRunDate || campaign.lastExecutionDate || null,
             nextRun: campaign.nextRun || campaign.nextRunDate || campaign.scheduledDate || null,
             templateData: campaign, // Store full campaign data for editing

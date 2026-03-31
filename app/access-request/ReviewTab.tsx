@@ -231,7 +231,6 @@ const ReviewTab: React.FC<ReviewTabProps> = ({ catalogRoles = [] }) => {
                           role={fullRole}
                           riskClass={getRiskColor(fullRole.risk)}
                           onAddToCart={closeSidebar}
-                          onValidate={closeSidebar}
                           showActions={false}
                         />,
                         { widthPx: 500, title: "View Details" }
