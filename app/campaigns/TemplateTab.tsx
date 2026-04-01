@@ -258,8 +258,8 @@ const TemplateTab: React.FC<TemplateTabProps> = ({ campaignId }) => {
       />
       
       {showCloneModal && createPortal(
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-3">
+          <div className="relative z-10 w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold text-gray-900">Clone Template</h2>
               <button
