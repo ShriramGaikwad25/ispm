@@ -383,10 +383,10 @@ const columnDefs = useMemo<ColDef[]>(
           <button
             type="button"
             onClick={() => router.push("/user/create-user")}
-            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
+            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-2 py-2 rounded-md text-sm transition-colors"
           >
-            <Plus className="w-4 h-4" />
-            Create new User
+            <Plus className="w-2 h-2" />
+            Create New User
           </button>
         </div>
       </div>

@@ -110,7 +110,7 @@ function toggleExpandedSection(
 
 function buildInitialSelection(options: InsightOption[]): Record<string, boolean> {
   return options.reduce<Record<string, boolean>>((acc, option) => {
-    acc[option.key] = false;
+    acc[option.key] = true;
     return acc;
   }, {});
 }

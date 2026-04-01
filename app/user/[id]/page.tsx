@@ -1551,19 +1551,17 @@ export default function UserDetailPage() {
   const UnderReviewTab = () => {
     const transientItems = [
       {
-        title: "Fusion HCM Admin Account",
+        title: "ORA_HRC_HUMAN_CAPITAL_MANAGEMENT_INTEGRATION_SPECIALIST_JOB",
         description:
-          "Operates core HCM administration. Provides governed workflows and traceability.",
+          "This role provides elevated administrative access focused on integration, data loading, and system configuration tasks that support overall HCM administration",
         application: "Oracle_Fusion_HCM",
-        account: "kelly.marks",
         entitlement: "HCM Admin Account",
       },
       {
-        title: "SAP Finance Ops",
+        title: "SAP_ALL",
         description:
-          "Performs financial postings, inquiries, and reconciliations under governed workflows.",
-        application: "SAP_S4",
-        account: "kelly.marks",
+          "This role provides super user profile that grants unrestricted access across the entire SAP system, including all administrative, configuration, and HR/HCM functions.",
+        application: "SAP_ALL",
         entitlement: "Finance Analyst",
       },
     ];
@@ -1626,14 +1624,14 @@ export default function UserDetailPage() {
         status: "Completed" 
       },
       { 
-        date: "09/24/2025", 
+        date: "11/14/2025", 
         requestedDuration: 1, 
         startTime: "11:00 AM", 
         endTime: "12:00 PM", 
         status: "Completed" 
       },
       { 
-        date: "09/24/2025", 
+        date: "12/16/2025", 
         requestedDuration: 1, 
         startTime: "09:00 AM", 
         endTime: "10:00 AM", 
@@ -1700,7 +1698,7 @@ export default function UserDetailPage() {
               <div className="trigger-card-section" style={{ height: "auto", marginBottom: 4 }}>
                 <div className="trigger-card" style={{ marginBottom: 0 }}>
                   <div className="trigger-card-header" style={{ paddingTop: 6, paddingBottom: 6 }}>
-                    <h4>{selectedItem?.title || "Fusion HCM Admin Account"}</h4>
+                    <h4>{selectedItem?.title || "ORA_HRC_HUMAN_CAPITAL_MANAGEMENT_INTEGRATION_SPECIALIST_JOB"}</h4>
                   </div>
                   <div className="trigger-card-content" style={{ padding: 8 }}>
                     <div className="trigger-info-rows" style={{ gap: 8 }}>
@@ -1710,17 +1708,17 @@ export default function UserDetailPage() {
                           style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "row", alignItems: "center", gap: 8, padding: "8px 12px" }}
                         >
                           <span className="info-label" style={{ marginRight: 4 }}>Description:</span>
-                          <span className="info-value whitespace-nowrap">{selectedItem?.description || "N/A"}</span>
+                          <span className="info-value whitespace-normal break-words">{selectedItem?.description || "N/A"}</span>
                         </div>
                       </div>
                       <div className="trigger-info-row" style={{ gridTemplateColumns: "1fr 1fr auto", columnGap: 16 }}>
                         <div className="info-item">
-                          <span className="info-label">Account</span>
-                          <span className="info-value">{selectedItem?.account || "N/A"}</span>
-                        </div>
-                        <div className="info-item">
                           <span className="info-label">Application</span>
                           <span className="info-value">{selectedItem?.application || "N/A"}</span>
+                        </div>
+                        <div className="info-item">
+                          <span className="info-label"></span>
+                          <span className="info-value"></span>
                         </div>
                         <div className="info-item">
                           <span className="info-label">Action</span>
