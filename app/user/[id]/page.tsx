@@ -1561,7 +1561,7 @@ export default function UserDetailPage() {
         title: "SAP_ALL",
         description:
           "This role provides super user profile that grants unrestricted access across the entire SAP system, including all administrative, configuration, and HR/HCM functions.",
-        application: "SAP_ALL",
+        application: "SAP_S4",
         entitlement: "Finance Analyst",
       },
     ];
