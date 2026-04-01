@@ -16,6 +16,7 @@ import {
   forceLogout
 } from '@/lib/auth';
 import { ensureAuthFetchPatched } from '@/lib/authFetch';
+import { clearJitAccessHistoryStore } from '@/lib/jitAccessHistoryStorage';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -143,6 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     clearAllAuthCookies();
+    clearJitAccessHistoryStore();
     setIsAuthenticated(false);
     setUser(null);
   };

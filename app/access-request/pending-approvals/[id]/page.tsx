@@ -166,16 +166,16 @@ const toObjectSafe = (value: unknown): Record<string, any> => {
   return {};
 };
 
-const APPROVER_COMMENTS_STORAGE_PREFIX =
-  "ispm:pending-approval-approver-comments";
+const REQUESTER_COMMENTS_STORAGE_PREFIX =
+  "ispm:pending-approval-requester-comments";
 
-function loadApproverCommentsFromStorage(
+function loadRequesterCommentsFromStorage(
   requestId: string,
 ): Record<string, string> {
   if (typeof window === "undefined") return {};
   try {
     const raw = localStorage.getItem(
-      `${APPROVER_COMMENTS_STORAGE_PREFIX}:${requestId}`,
+      `${REQUESTER_COMMENTS_STORAGE_PREFIX}:${requestId}`,
     );
     if (!raw) return {};
     const parsed = JSON.parse(raw) as unknown;
@@ -188,14 +188,14 @@ function loadApproverCommentsFromStorage(
   return {};
 }
 
-function saveApproverCommentsToStorage(
+function saveRequesterCommentsToStorage(
   requestId: string,
   map: Record<string, string>,
 ): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(
-      `${APPROVER_COMMENTS_STORAGE_PREFIX}:${requestId}`,
+      `${REQUESTER_COMMENTS_STORAGE_PREFIX}:${requestId}`,
       JSON.stringify(map),
     );
   } catch {
@@ -232,11 +232,11 @@ const PendingApprovalDetailPage = ({
   >({});
   const [lineItemComments, setLineItemComments] = useState<
     Record<string, string>
-  >(() => loadApproverCommentsFromStorage(id));
+  >(() => loadRequesterCommentsFromStorage(id));
 
   useEffect(() => {
     if (!id) return;
-    setLineItemComments(loadApproverCommentsFromStorage(id));
+    setLineItemComments(loadRequesterCommentsFromStorage(id));
   }, [id]);
 
   const [commentModalItemKey, setCommentModalItemKey] = useState<string | null>(
@@ -941,7 +941,7 @@ const PendingApprovalDetailPage = ({
       setLineItemActions((prev) => ({ ...prev, [lineItemKey]: action }));
       setLineItemComments((prev) => {
         const next = { ...prev, [lineItemKey]: justification };
-        if (id) saveApproverCommentsToStorage(id, next);
+        if (id) saveRequesterCommentsToStorage(id, next);
         return next;
       });
     } catch (err: any) {
@@ -966,7 +966,7 @@ const PendingApprovalDetailPage = ({
     try {
       setLineItemComments((prev) => {
         const next = { ...prev, [commentModalItemKey]: commentDraft.trim() };
-        saveApproverCommentsToStorage(id, next);
+        saveRequesterCommentsToStorage(id, next);
         return next;
       });
       closeCommentModal();
@@ -1242,8 +1242,8 @@ const PendingApprovalDetailPage = ({
               </button>
               <button
                 type="button"
-                title="Approver comment"
-                aria-label="Approver comment"
+                title="Requester comment"
+                aria-label="Requester comment"
                 disabled={isItemLoading}
                 onClick={() => openCommentModal(null, lineItemKey)}
                 className={`p-1 rounded flex items-center justify-center ${isItemLoading ? "opacity-60 cursor-not-allowed" : ""}`}
@@ -1684,8 +1684,8 @@ const PendingApprovalDetailPage = ({
                         </button>
                         <button
                           type="button"
-                          title="Approver comment"
-                          aria-label="Approver comment"
+                          title="Requester comment"
+                          aria-label="Requester comment"
                           disabled={isItemLoading}
                           onClick={(e) => openCommentModal(e, lineItemKey)}
                           className={`p-1 rounded flex items-center justify-center ${isItemLoading ? "opacity-60 cursor-not-allowed" : ""}`}
@@ -1738,30 +1738,11 @@ const PendingApprovalDetailPage = ({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">
-                          Approver Comment
+                          Requester Comment
                         </div>
                         <div className="text-gray-900 whitespace-pre-wrap break-words">
-                          {effectiveComment || "No approver comment provided."}
+                          {request.details.justification || "No justification provided."}
                         </div>
-                        {isLockedByServer && (
-                          <div className="pt-1">
-                            <span
-                              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                                lockedAction === "approve"
-                                  ? "bg-green-100 text-green-700"
-                                  : lockedAction === "reject"
-                                    ? "bg-rose-100 text-rose-700"
-                                    : "bg-sky-100 text-sky-700"
-                              }`}
-                            >
-                              {lockedAction === "approve"
-                                ? "Approved"
-                                : lockedAction === "reject"
-                                  ? "Rejected"
-                                  : "Consulted"}
-                            </span>
-                          </div>
-                        )}
                       </div>
                       <div className="space-y-1">
                         <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">
@@ -1822,7 +1803,7 @@ const PendingApprovalDetailPage = ({
                   <>
                     <div className="mb-4">
                       <h3 className="text-lg font-semibold text-gray-900">
-                        Approver Comment
+                        Requester Comment
                       </h3>
                     </div>
 
@@ -1932,7 +1913,7 @@ const PendingApprovalDetailPage = ({
 
                     <div className="mb-4">
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Approver Comment
+                        Requester Comment
                       </label>
                       <textarea
                         value={commentDraft}
@@ -2125,7 +2106,7 @@ const PendingApprovalDetailPage = ({
                           ...prev,
                           [infoRequestItemKey]: message,
                         };
-                        if (id) saveApproverCommentsToStorage(id, next);
+                        if (id) saveRequesterCommentsToStorage(id, next);
                         return next;
                       });
                       setInfoRequestItemKey(null);

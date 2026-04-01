@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { ShieldCheck } from "lucide-react";
 import ClientOnlyAgGrid from "@/components/ClientOnlyAgGrid";
 import CustomPagination from "@/components/agTable/CustomPagination";
@@ -48,6 +48,22 @@ const ENTITLEMENT_FIELDS = [
   'Provisioning Mechanism',
   'Action on Native Change'
 ];
+
+/** Entitlement metadata fields that do not show GenAI / Edit on Review checkboxes (Selection always has checkboxes) */
+const FIELDS_WITHOUT_CHECKBOXES = new Set<string>([
+  'ID',
+  'Type',
+  'Application Name',
+  'Total Assignments',
+  'Created On',
+  'Last Sync',
+  'Application Instance',
+  'Last Reviewed On',
+]);
+
+function isCheckboxHiddenForField(fieldName: string): boolean {
+  return FIELDS_WITHOUT_CHECKBOXES.has(fieldName);
+}
 
 interface EntitlementData {
   id: string;
@@ -134,7 +150,9 @@ export default function EntitlementManagementSettings() {
           entitlementId: ent.id,
           fieldName: field,
           selection: ent.fieldSelection?.[field] ?? true,
-          genAI: ent.fieldGenAI?.[field] || false,
+          genAI:
+            ent.fieldGenAI?.[field] ??
+            !isCheckboxHiddenForField(field),
           editOnReview: ent.fieldEditOnReview?.[field] || false
         });
       });
@@ -228,7 +246,7 @@ export default function EntitlementManagementSettings() {
     };
   }, [dataLoaded]);
 
-  const handleSelectionChange = (entitlementId: string, fieldName: string, checked: boolean) => {
+  const handleSelectionChange = useCallback((entitlementId: string, fieldName: string, checked: boolean) => {
     setEntitlements(prev => {
       return prev.map(ent => {
         if (ent.id === entitlementId) {
@@ -238,9 +256,9 @@ export default function EntitlementManagementSettings() {
         return ent;
       });
     });
-  };
+  }, []);
 
-  const handleGenAIChange = (entitlementId: string, fieldName: string, checked: boolean) => {
+  const handleGenAIChange = useCallback((entitlementId: string, fieldName: string, checked: boolean) => {
     setEntitlements(prev => {
       return prev.map(ent => {
         if (ent.id === entitlementId) {
@@ -250,9 +268,9 @@ export default function EntitlementManagementSettings() {
         return ent;
       });
     });
-  };
+  }, []);
 
-  const handleEditOnReviewChange = (entitlementId: string, fieldName: string, checked: boolean) => {
+  const handleEditOnReviewChange = useCallback((entitlementId: string, fieldName: string, checked: boolean) => {
     setEntitlements(prev => {
       return prev.map(ent => {
         if (ent.id === entitlementId) {
@@ -262,7 +280,134 @@ export default function EntitlementManagementSettings() {
         return ent;
       });
     });
-  };
+  }, []);
+
+  const entitlementColumnDefs = useMemo(
+    () => [
+      {
+        headerName: "Entitlement Meta Data",
+        field: "fieldName",
+        flex: 2,
+        minWidth: 320,
+        sortable: true,
+        filter: true,
+        cellStyle: { overflow: "visible" },
+        cellRenderer: (params: any) => {
+          return (
+            <div className="flex min-h-[2.5rem] items-center py-2 text-sm">
+              <strong>{params.value}</strong>
+            </div>
+          );
+        },
+      },
+      {
+        headerName: "Selection",
+        field: "selection",
+        flex: 1,
+        minWidth: 120,
+        sortable: false,
+        filter: false,
+        cellStyle: {
+          overflow: "visible",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        },
+        cellRenderer: (params: any) => {
+          return (
+            <div className="flex min-h-[2.5rem] w-full flex-shrink-0 items-center justify-center py-2">
+              <input
+                type="checkbox"
+                checked={!!params.value}
+                onChange={(e) => {
+                  if (!isEditing) return;
+                  handleSelectionChange(params.data.entitlementId, params.data.fieldName, e.target.checked);
+                }}
+                className={`h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600 focus:ring-blue-500 ${!isEditing ? "cursor-not-allowed" : ""}`}
+              />
+            </div>
+          );
+        },
+      },
+      {
+        headerName: "GenAI",
+        field: "genAI",
+        flex: 1,
+        minWidth: 120,
+        sortable: false,
+        filter: false,
+        cellStyle: {
+          overflow: "visible",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        },
+        cellRenderer: (params: any) => {
+          if (isCheckboxHiddenForField(params.data.fieldName)) {
+            return (
+              <div className="flex min-h-[2.5rem] w-full items-center justify-center py-2">
+                <span className="text-sm text-gray-300" aria-hidden="true">
+                  —
+                </span>
+              </div>
+            );
+          }
+          return (
+            <div className="flex min-h-[2.5rem] w-full flex-shrink-0 items-center justify-center py-2">
+              <input
+                type="checkbox"
+                checked={!!params.value}
+                onChange={(e) => {
+                  if (!isEditing) return;
+                  handleGenAIChange(params.data.entitlementId, params.data.fieldName, e.target.checked);
+                }}
+                className={`h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600 focus:ring-blue-500 ${!isEditing ? "cursor-not-allowed" : ""}`}
+              />
+            </div>
+          );
+        },
+      },
+      {
+        headerName: "Edit on Review",
+        field: "editOnReview",
+        flex: 1,
+        minWidth: 140,
+        sortable: false,
+        filter: false,
+        cellStyle: {
+          overflow: "visible",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        },
+        cellRenderer: (params: any) => {
+          if (isCheckboxHiddenForField(params.data.fieldName)) {
+            return (
+              <div className="flex min-h-[2.5rem] w-full items-center justify-center py-2">
+                <span className="text-sm text-gray-300" aria-hidden="true">
+                  —
+                </span>
+              </div>
+            );
+          }
+          return (
+            <div className="flex min-h-[2.5rem] w-full flex-shrink-0 items-center justify-center py-2">
+              <input
+                type="checkbox"
+                checked={!!params.value}
+                onChange={(e) => {
+                  if (!isEditing) return;
+                  handleEditOnReviewChange(params.data.entitlementId, params.data.fieldName, e.target.checked);
+                }}
+                className={`h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600 focus:ring-blue-500 ${!isEditing ? "cursor-not-allowed" : ""}`}
+              />
+            </div>
+          );
+        },
+      },
+    ],
+    [isEditing, handleSelectionChange, handleGenAIChange, handleEditOnReviewChange]
+  );
 
   const paginatedRows = useMemo(() => {
     if (pageSize === 'all') return fieldRows;
@@ -319,92 +464,7 @@ export default function EntitlementManagementSettings() {
                   gridApiRef.current = params.api;
                 }}
                 getRowId={(params: any) => params.data.id}
-                columnDefs={[
-                  { 
-                    headerName: 'Entitlement Meta Data', 
-                    field: 'fieldName',
-                    flex: 2,
-                    minWidth: 320,
-                    sortable: true,
-                    filter: true,
-                    cellRenderer: (params: any) => {
-                      return (
-                        <div className="py-2 text-sm h-6 flex items-center">
-                          <strong>{params.value}</strong>
-                        </div>
-                      );
-                    }
-                  },
-                  { 
-                    headerName: 'Selection', 
-                    field: 'selection',
-                    flex: 1,
-                    minWidth: 120,
-                    cellRenderer: (params: any) => {
-                      return (
-                        <div className="h-6 flex items-center justify-center">
-                          <input
-                            type="checkbox"
-                            checked={params.value || false}
-                            onChange={(e) => {
-                              if (!isEditing) return;
-                              handleSelectionChange(params.data.entitlementId, params.data.fieldName, e.target.checked);
-                            }}
-                            className={`w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 ${!isEditing ? 'cursor-not-allowed' : ''}`}
-                          />
-                        </div>
-                      );
-                    },
-                    sortable: false,
-                    filter: false
-                  },
-                  { 
-                    headerName: 'GenAI', 
-                    field: 'genAI',
-                    flex: 1,
-                    minWidth: 120,
-                    cellRenderer: (params: any) => {
-                      return (
-                        <div className="h-6 flex items-center justify-center">
-                          <input
-                            type="checkbox"
-                            checked={params.value || false}
-                            onChange={(e) => {
-                              if (!isEditing) return;
-                              handleGenAIChange(params.data.entitlementId, params.data.fieldName, e.target.checked);
-                            }}
-                            className={`w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 ${!isEditing ? 'cursor-not-allowed' : ''}`}
-                          />
-                        </div>
-                      );
-                    },
-                    sortable: false,
-                    filter: false
-                  },
-                  { 
-                    headerName: 'Edit on Review', 
-                    field: 'editOnReview',
-                    flex: 1,
-                    minWidth: 140,
-                    cellRenderer: (params: any) => {
-                      return (
-                        <div className="h-6 flex items-center justify-center">
-                          <input
-                            type="checkbox"
-                            checked={params.value || false}
-                            onChange={(e) => {
-                              if (!isEditing) return;
-                              handleEditOnReviewChange(params.data.entitlementId, params.data.fieldName, e.target.checked);
-                            }}
-                            className={`w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 ${!isEditing ? 'cursor-not-allowed' : ''}`}
-                          />
-                        </div>
-                      );
-                    },
-                    sortable: false,
-                    filter: false
-                  }
-                ]}
+                columnDefs={entitlementColumnDefs}
                 domLayout="autoHeight"
               />
               </div>

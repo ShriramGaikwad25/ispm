@@ -48,15 +48,18 @@ function LineItem({
     <div className="grid grid-cols-[1fr_auto_auto] gap-4 items-center px-4 py-2 border-b border-gray-200 last:border-0">
       <span className="text-sm text-gray-700 min-w-0">{label}</span>
       {checked ? (
-        <div className="flex items-center gap-1">
-          <input
-            type="number"
-            min={1}
-            value={expiryDays}
-            onChange={(e) => onExpiryChange(e.target.value)}
-            className="w-16 shrink-0 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
-          <span className="text-xs text-gray-500">days</span>
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
+          <span className="text-xs text-gray-600 whitespace-nowrap">Expiry Duration</span>
+          <div className="flex items-center gap-1">
+            <input
+              type="number"
+              min={1}
+              value={expiryDays}
+              onChange={(e) => onExpiryChange(e.target.value)}
+              className="w-16 shrink-0 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <span className="text-xs text-gray-500">days</span>
+          </div>
         </div>
       ) : (
         <span className="w-24 text-xs text-gray-400">—</span>
@@ -83,8 +86,11 @@ export default function ContinuousComplianceSettingsPage() {
 
   // Application Governance
   const [govNDE, setGovNDE] = useState(false);
+  const [govNDEExpiry, setGovNDEExpiry] = useState("60");
   const [govPrivilegedAccess, setGovPrivilegedAccess] = useState(false);
+  const [govPrivilegedAccessExpiry, setGovPrivilegedAccessExpiry] = useState("60");
   const [govAccountCreation, setGovAccountCreation] = useState(false);
+  const [govAccountCreationExpiry, setGovAccountCreationExpiry] = useState("60");
   const [govAppsMode, setGovAppsMode] = useState<"all" | "specific">("all");
   const [govSpecificApps, setGovSpecificApps] = useState<AppOption[]>([]);
   const [govInactiveAccounts, setGovInactiveAccounts] = useState(false);
@@ -95,14 +101,15 @@ export default function ContinuousComplianceSettingsPage() {
   const [govConditionalExpiryDuration2, setGovConditionalExpiryDuration2] = useState("10");
 
   // SoD - Conflict detection
-  const [sodInactiveAccount, setSodInactiveAccount] = useState(false);
-  const [sodInactiveDays, setSodInactiveDays] = useState("90");
+  const [sodConflictDetection, setSodConflictDetection] = useState(false);
+  const [sodConflictExpiryDays, setSodConflictExpiryDays] = useState("60");
   const [sodConflictAppsMode, setSodConflictAppsMode] = useState<"all" | "specific">("all");
   const [sodConflictSelectedApps, setSodConflictSelectedApps] = useState<AppOption[]>([]);
 
   // SoD - Conditional Access Expiry
   const [sodCondAccessExpiry, setSodCondAccessExpiry] = useState(false);
   const [sodCondAccessDaysBefore, setSodCondAccessDaysBefore] = useState("7");
+  const [sodCondAccessExpiryDuration, setSodCondAccessExpiryDuration] = useState("60");
   const [sodCondAppsMode, setSodCondAppsMode] = useState<"all" | "specific">("all");
   const [sodCondSelectedApps, setSodCondSelectedApps] = useState<AppOption[]>([]);
 
@@ -150,7 +157,7 @@ export default function ContinuousComplianceSettingsPage() {
                       <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
                         <div className="grid grid-cols-[1fr_auto_auto] gap-4 px-4 py-2 bg-gray-100 text-xs font-medium text-gray-600 border-b border-gray-200">
                           <span>Option</span>
-                          <span>Expiry Duration</span>
+                          <span aria-hidden className="select-none" />
                           <span>Enable / Disable</span>
                         </div>
                         <div className="divide-y divide-gray-200">
@@ -214,18 +221,32 @@ export default function ContinuousComplianceSettingsPage() {
                           )}
                         </div>
                         <div className="divide-y divide-gray-200">
-                          <div className="grid grid-cols-[1fr_auto] items-center px-4 py-2">
-                            <span className="text-sm text-gray-700">NDE</span>
-                            <Toggle checked={govNDE} onChange={setGovNDE} label="" />
+                          <div className="grid grid-cols-[1fr_auto_auto] gap-4 px-4 py-2 bg-gray-100 text-xs font-medium text-gray-600 border-b border-gray-200">
+                            <span>Option</span>
+                            <span aria-hidden className="select-none" />
+                            <span>Enable / Disable</span>
                           </div>
-                          <div className="grid grid-cols-[1fr_auto] items-center px-4 py-2">
-                            <span className="text-sm text-gray-700">Privileged Access</span>
-                            <Toggle checked={govPrivilegedAccess} onChange={setGovPrivilegedAccess} label="" />
-                          </div>
-                          <div className="grid grid-cols-[1fr_auto] items-center px-4 py-2">
-                            <span className="text-sm text-gray-700">Account Creation</span>
-                            <Toggle checked={govAccountCreation} onChange={setGovAccountCreation} label="" />
-                          </div>
+                          <LineItem
+                            label="NDE"
+                            checked={govNDE}
+                            onToggle={setGovNDE}
+                            expiryDays={govNDEExpiry}
+                            onExpiryChange={setGovNDEExpiry}
+                          />
+                          <LineItem
+                            label="Privileged Access"
+                            checked={govPrivilegedAccess}
+                            onToggle={setGovPrivilegedAccess}
+                            expiryDays={govPrivilegedAccessExpiry}
+                            onExpiryChange={setGovPrivilegedAccessExpiry}
+                          />
+                          <LineItem
+                            label="Account Creation"
+                            checked={govAccountCreation}
+                            onToggle={setGovAccountCreation}
+                            expiryDays={govAccountCreationExpiry}
+                            onExpiryChange={setGovAccountCreationExpiry}
+                          />
                           <div className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-4 px-4 py-2">
                             <span className="text-sm text-gray-700">Inactive accounts</span>
                             {govInactiveAccounts ? (
@@ -302,26 +323,9 @@ export default function ContinuousComplianceSettingsPage() {
                     <>
                       {/* SoD Conflict detection */}
                       <div className="rounded-lg border border-gray-200 bg-white p-4 mb-3">
-                        <div className="grid grid-cols-[1.2fr_2.2fr_auto] items-center gap-4">
+                        <div className="grid grid-cols-[1.2fr_minmax(0,2.2fr)_auto_auto] items-center gap-4">
                           <span className="text-sm font-medium text-gray-800">SoD Conflict detection</span>
                           <div className="space-y-1">
-                            <div className="flex items-center gap-3">
-                              <span className="text-xs text-gray-600">Inactive account</span>
-                              {sodInactiveAccount ? (
-                                <div className="flex items-center gap-1">
-                                  <input
-                                    type="number"
-                                    min={1}
-                                    value={sodInactiveDays}
-                                    onChange={(e) => setSodInactiveDays(e.target.value)}
-                                    className="w-20 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                  />
-                                  <span className="text-xs text-gray-500">days</span>
-                                </div>
-                              ) : (
-                                <span className="text-xs text-gray-400">Duration</span>
-                              )}
-                            </div>
                             <div className="space-y-2">
                               <div className="flex flex-wrap items-center gap-3">
                                 <span className="text-xs text-gray-600">Applications:</span>
@@ -366,11 +370,30 @@ export default function ContinuousComplianceSettingsPage() {
                               )}
                             </div>
                           </div>
+                          <div className="flex items-center gap-2 flex-wrap justify-end shrink-0">
+                            {sodConflictDetection ? (
+                              <>
+                                <span className="text-xs font-medium text-gray-600 whitespace-nowrap">Expiry Duration</span>
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    value={sodConflictExpiryDays}
+                                    onChange={(e) => setSodConflictExpiryDays(e.target.value)}
+                                    className="w-16 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  />
+                                  <span className="text-xs text-gray-500">days</span>
+                                </div>
+                              </>
+                            ) : (
+                              <span className="text-xs text-gray-400">—</span>
+                            )}
+                          </div>
                           <div className="flex justify-end">
                             <Toggle
                               label="Enable SoD conflict detection"
-                              checked={sodInactiveAccount}
-                              onChange={setSodInactiveAccount}
+                              checked={sodConflictDetection}
+                              onChange={setSodConflictDetection}
                             />
                           </div>
                         </div>
@@ -378,10 +401,10 @@ export default function ContinuousComplianceSettingsPage() {
 
                       {/* Conditional Access Expiry */}
                       <div className="rounded-lg border border-gray-200 bg-white p-4">
-                        <div className="grid grid-cols-[1.2fr_2.2fr_auto] items-center gap-4">
+                        <div className="grid grid-cols-[1.2fr_minmax(0,2.2fr)_auto_auto] items-center gap-4">
                           <span className="text-sm font-medium text-gray-800">Conditional Access Expiry</span>
                           <div className="space-y-1">
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 flex-wrap">
                               <span className="text-xs text-gray-600">Expiry window</span>
                               {sodCondAccessExpiry ? (
                                 <div className="flex items-center gap-1">
@@ -441,6 +464,25 @@ export default function ContinuousComplianceSettingsPage() {
                                 </div>
                               )}
                             </div>
+                          </div>
+                          <div className="flex items-center gap-2 flex-wrap justify-end shrink-0">
+                            {sodCondAccessExpiry ? (
+                              <>
+                                <span className="text-xs font-medium text-gray-600 whitespace-nowrap">Expiry Duration</span>
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    value={sodCondAccessExpiryDuration}
+                                    onChange={(e) => setSodCondAccessExpiryDuration(e.target.value)}
+                                    className="w-16 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  />
+                                  <span className="text-xs text-gray-500">days</span>
+                                </div>
+                              </>
+                            ) : (
+                              <span className="text-xs text-gray-400">—</span>
+                            )}
                           </div>
                           <div className="flex justify-end">
                             <Toggle

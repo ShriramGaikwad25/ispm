@@ -1,4 +1,6 @@
 // Authentication API endpoints and utilities
+import { clearJitAccessHistoryStore } from '@/lib/jitAccessHistoryStorage';
+
 const AUTH_BASE_URL = 'https://preview.keyforge.ai/RequestJWTToken/TokenProvider';
 
 export interface TokenResponse {
@@ -103,6 +105,12 @@ export function forceLogout(reason?: string): void {
     console.log('Cookies cleared');
   } catch (e) {
     console.error('Error clearing cookies:', e);
+  }
+
+  try {
+    clearJitAccessHistoryStore();
+  } catch {
+    /* ignore */
   }
   
   // Redirect to login page immediately - use multiple methods to ensure redirect

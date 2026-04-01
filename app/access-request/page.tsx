@@ -336,6 +336,30 @@ const AccessRequest: React.FC = () => {
       const firstRow = catalogData[0] || {};
       const keys = Object.keys(firstRow);
 
+      // kf_br_role_t rows (role_name only) — used when catalog filter is "Roles"
+      const isKfBrRoleRows =
+        keys.some((k) => k.toLowerCase() === "role_name") &&
+        !keys.some((k) =>
+          ["catalogid", "entitlementid", "appinstanceid"].includes(k.toLowerCase())
+        );
+      if (isKfBrRoleRows) {
+        return catalogData.map((row, idx) => {
+          const raw =
+            row.role_name !== undefined && row.role_name !== null
+              ? String(row.role_name)
+              : "";
+          const name = raw.trim() || "Unnamed access";
+          return {
+            id: name || String(idx),
+            name,
+            risk: "Low" as const,
+            description: "",
+            type: "role" as const,
+            catalogRow: { ...row, type: "role" },
+          };
+        });
+      }
+
       const findKey = (predicates: ((k: string) => boolean)[]): string | undefined => {
         const lowerKeys = keys.map((k) => k.toLowerCase());
         for (const predicate of predicates) {
@@ -688,25 +712,30 @@ const AccessRequest: React.FC = () => {
             query: "SELECT * FROM vw_catalog WHERE type = 'ApplicationInstance' ORDER BY appinstanceid",
             parameters: [],
           }
-        : catalogTypeFilter === "Tags"
+        : catalogTypeFilter === "Roles"
           ? {
-              // Entitlements filtered by tag text (inline filter on tags column only)
-              query:
-                trimmedTag
-                  ? `SELECT * FROM vw_catalog WHERE type = 'Entitlement' AND tags ILIKE '%${trimmedTag}%' ORDER BY appinstanceid`
-                  : "SELECT * FROM vw_catalog WHERE type = 'Entitlement' ORDER BY appinstanceid",
+              query: "select role_name from kf_br_role_t",
               parameters: [],
             }
-          : isFilteredByAppInstance
+          : catalogTypeFilter === "Tags"
             ? {
+                // Entitlements filtered by tag text (inline filter on tags column only)
                 query:
-                  "SELECT * FROM vw_catalog WHERE type = 'Entitlement' AND appinstanceid = ?::uuid ORDER BY appinstanceid",
-                parameters: [selectedAppInstanceId!.trim()],
-              }
-            : {
-                query: "SELECT * FROM vw_catalog ORDER BY appinstanceid",
+                  trimmedTag
+                    ? `SELECT * FROM vw_catalog WHERE type = 'Entitlement' AND tags ILIKE '%${trimmedTag}%' ORDER BY appinstanceid`
+                    : "SELECT * FROM vw_catalog WHERE type = 'Entitlement' ORDER BY appinstanceid",
                 parameters: [],
-              };
+              }
+            : isFilteredByAppInstance
+              ? {
+                  query:
+                    "SELECT * FROM vw_catalog WHERE type = 'Entitlement' AND appinstanceid = ?::uuid ORDER BY appinstanceid",
+                  parameters: [selectedAppInstanceId!.trim()],
+                }
+              : {
+                  query: "SELECT * FROM vw_catalog ORDER BY appinstanceid",
+                  parameters: [],
+                };
 
     fetch("https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery", {
       method: "POST",

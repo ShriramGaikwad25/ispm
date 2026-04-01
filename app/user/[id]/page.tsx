@@ -46,6 +46,39 @@ import ChartDataLabels from "chartjs-plugin-datalabels";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import UserDisplayName from "@/components/UserDisplayName";
 import ActionCompletedToast from "@/components/ActionCompletedToast";
+import { formatDateMMDDYYSlashes } from "@/utils/utils";
+import {
+  loadJitAccessHistory,
+  saveJitAccessHistory,
+  type JitAccessHistoryRow,
+} from "@/lib/jitAccessHistoryStorage";
+
+const JIT_HISTORY_SEED: JitAccessHistoryRow[] = [
+  {
+    id: "seed-1",
+    date: "02/12/2026",
+    requestedDuration: 4,
+    startTime: "02:30 PM",
+    endTime: "06:30 PM",
+    status: "Completed",
+  },
+  {
+    id: "seed-2",
+    date: "11/14/2025",
+    requestedDuration: 1,
+    startTime: "11:00 AM",
+    endTime: "12:00 PM",
+    status: "Completed",
+  },
+  {
+    id: "seed-3",
+    date: "12/16/2025",
+    requestedDuration: 1,
+    startTime: "09:00 AM",
+    endTime: "10:00 AM",
+    status: "Completed",
+  },
+];
 
 // Register Chart.js components and plugin
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend, ChartDataLabels);
@@ -1549,6 +1582,24 @@ export default function UserDetailPage() {
   };
 
   const UnderReviewTab = () => {
+    const formatTime12h = (d: Date) =>
+      d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+
+    const parseTimeToDate = (timeHHmm: string, base: Date) => {
+      const [h, m] = timeHHmm.split(":").map(Number);
+      const out = new Date(base);
+      out.setHours(h, m, 0, 0);
+      return out;
+    };
+
+    const hoursBetweenTimes = (startHHmm: string, endHHmm: string): number => {
+      const [sh, sm] = startHHmm.split(":").map(Number);
+      const [eh, em] = endHHmm.split(":").map(Number);
+      let mins = eh * 60 + em - (sh * 60 + sm);
+      if (mins < 0) mins += 24 * 60;
+      return Math.round((mins / 60) * 10) / 10;
+    };
+
     const transientItems = [
       {
         title: "ORA_HRC_HUMAN_CAPITAL_MANAGEMENT_INTEGRATION_SPECIALIST_JOB",
@@ -1578,6 +1629,24 @@ export default function UserDetailPage() {
     const [endTime, setEndTime] = useState<string>("");
     const [justification, setJustification] = useState<string>("");
 
+    const [historyRows, setHistoryRows] = useState<JitAccessHistoryRow[]>(JIT_HISTORY_SEED);
+    const skipJitHistoryPersist = useRef(true);
+
+    useEffect(() => {
+      const uid = getUserIdFromStorage();
+      const loaded = loadJitAccessHistory(uid);
+      setHistoryRows(loaded ?? JIT_HISTORY_SEED);
+      skipJitHistoryPersist.current = true;
+    }, [userData.email]);
+
+    useEffect(() => {
+      if (skipJitHistoryPersist.current) {
+        skipJitHistoryPersist.current = false;
+        return;
+      }
+      saveJitAccessHistory(getUserIdFromStorage(), historyRows);
+    }, [historyRows]);
+
     const resetForm = () => {
       setAccessMode("now");
       setHours("");
@@ -1598,7 +1667,44 @@ export default function UserDetailPage() {
 
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
-      // TODO: Wire to API
+
+      const today = new Date();
+      const todayFormatted = `${String(today.getMonth() + 1).padStart(2, "0")}/${String(today.getDate()).padStart(2, "0")}/${today.getFullYear()}`;
+
+      let row: JitAccessHistoryRow;
+
+      if (accessMode === "now") {
+        const h = parseFloat(hours);
+        if (Number.isNaN(h) || h <= 0) return;
+        const start = new Date();
+        const end = new Date(start.getTime() + h * 60 * 60 * 1000);
+        row = {
+          id: `jit-${Date.now()}`,
+          date: todayFormatted,
+          requestedDuration: h,
+          startTime: formatTime12h(start),
+          endTime: formatTime12h(end),
+          status: "Submitted",
+        };
+      } else {
+        const durationH = hoursBetweenTimes(startTime, endTime);
+        const dateLabel = scheduleDate
+          ? formatDateMMDDYYSlashes(scheduleDate)
+          : todayFormatted;
+        const base = scheduleDate ? new Date(`${scheduleDate}T12:00:00`) : today;
+        const startD = parseTimeToDate(startTime, base);
+        const endD = parseTimeToDate(endTime, base);
+        row = {
+          id: `jit-${Date.now()}`,
+          date: dateLabel,
+          requestedDuration: durationH,
+          startTime: formatTime12h(startD),
+          endTime: formatTime12h(endD),
+          status: "Submitted",
+        };
+      }
+
+      setHistoryRows((prev) => [row, ...prev]);
       console.log("Start Access submit", {
         item: selectedItem,
         accessMode,
@@ -1607,60 +1713,11 @@ export default function UserDetailPage() {
         startTime,
         endTime,
         justification,
+        row,
       });
       setIsDrawerOpen(false);
+      resetForm();
     };
-
-    // Get today's date in MM/DD/YYYY format
-    const today = new Date();
-    const todayFormatted = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
-
-    const historyRows = [
-      { 
-        date: "02/12/2026", 
-        requestedDuration: 4, 
-        startTime: "02:30 PM", 
-        endTime: "06:30 PM", 
-        status: "Completed" 
-      },
-      { 
-        date: "11/14/2025", 
-        requestedDuration: 1, 
-        startTime: "11:00 AM", 
-        endTime: "12:00 PM", 
-        status: "Completed" 
-      },
-      { 
-        date: "12/16/2025", 
-        requestedDuration: 1, 
-        startTime: "09:00 AM", 
-        endTime: "10:00 AM", 
-        status: "Completed" 
-      },
-      // { 
-      //   date: "09/24/2025", 
-      //   requestedDuration: 1, 
-      //   startTime: "1:00 PM", 
-      //   endTime: "1:30 PM", 
-      //   status: "Completed" 
-      // },
-      // { 
-      //   date: "09/23/2025", 
-      //   requestedDuration: 1, 
-      //   startTime: "2:00 PM", 
-      //   endTime: "2:45 PM", 
-      //   status: "Completed" 
-      // },
-      // { 
-      //   date: "09/22/2025", 
-      //   requestedDuration: 2, 
-      //   startTime: "4:00 PM", 
-      //   endTime: "5:30 PM", 
-      //   status: "Completed" 
-      // }
-    ];
-
-    const fmt = (d?: string | null) => (d ? require("@/utils/utils").formatDateMMDDYYSlashes(d) : "-");
 
     return (
       <div className="p-6 bg-gray-50">
@@ -1726,7 +1783,7 @@ export default function UserDetailPage() {
                             className="px-3 py-2 bg-green-600 text-white rounded-md text-sm hover:bg-green-700"
                             onClick={openDrawer}
                           >
-                            Start Access
+                            Request Access
                           </button>
                         </div>
                       </div>
@@ -1754,8 +1811,8 @@ export default function UserDetailPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {historyRows.map((h, i) => (
-                        <tr key={i} className="border-b hover:bg-gray-50">
+                      {historyRows.map((h) => (
+                        <tr key={h.id} className="border-b hover:bg-gray-50">
                           <td className="px-4 py-3 text-sm text-gray-700">{h.date}</td>
                           <td className="px-4 py-3 text-sm text-gray-700">{h.requestedDuration} hours</td>
                           <td className="px-4 py-3 text-sm text-gray-700">{h.startTime}</td>
@@ -1767,6 +1824,8 @@ export default function UserDetailPage() {
                                   ? "bg-gray-100 text-gray-700"
                                   : h.status === "Active"
                                   ? "bg-green-100 text-green-700"
+                                  : h.status === "Submitted"
+                                  ? "bg-amber-100 text-amber-800"
                                   : "bg-yellow-100 text-yellow-700"
                               }`}
                             >
