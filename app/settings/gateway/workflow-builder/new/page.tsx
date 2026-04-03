@@ -1,7 +1,25 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Check, ChevronLeft, ChevronRight, Plus, X, Minus } from "lucide-react";
+import {
+  ArrowDown,
+  Check,
+  Clock,
+  ChevronLeft,
+  ChevronRight,
+  Code,
+  Compass,
+  GitBranch,
+  Layers,
+  List,
+  Minus,
+  Plus,
+  Settings,
+  ShieldCheck,
+  Bell,
+  X,
+  Zap,
+} from "lucide-react";
 import { useForm, Control, FieldValues, UseFormSetValue, UseFormWatch } from "react-hook-form";
 import MultiSelect from "@/components/MultiSelect";
 import { loadUsers, customOption, loadIspmApps } from "@/components/MsAsyncData";
@@ -11,29 +29,8 @@ import ToggleSwitch from "@/components/ToggleSwitch";
 import FileDropzone from "@/components/FileDropzone";
 import { useSearchParams } from "next/navigation";
 import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
-
-// Step Palette Categories
-const STEP_PALETTE = {
-  LOGIC: [
-    { id: "user-enabled-check", label: "User Enabled Check", kind: "SYSTEM", type: "LOGIC" },
-    { id: "sod-analysis", label: "SoD Analysis", kind: "SYSTEM", type: "LOGIC" },
-    { id: "training-check", label: "Training Check", kind: "SYSTEM", type: "LOGIC" },
-  ],
-  APPROVALS: [
-    { id: "manager-approval", label: "Manager Approval", kind: "HUMAN", type: "APPROVAL" },
-    { id: "dept-head-approval", label: "Dept Head Approval", kind: "HUMAN", type: "APPROVAL" },
-    { id: "app-owner-approval", label: "App Owner Approval", kind: "HUMAN", type: "APPROVAL" },
-    { id: "role-owner-approval", label: "Role Owner Approval", kind: "HUMAN", type: "APPROVAL" },
-  ],
-  FULFILLMENT: [
-    { id: "scim-fulfillment", label: "SCIM Fulfillment", kind: "SYSTEM", type: "FULFILLMENT" },
-    { id: "itsm-ticket", label: "ITSM Ticket", kind: "SYSTEM", type: "FULFILLMENT" },
-  ],
-  AI_AGENTS: [
-    { id: "ai-auto-approve", label: "AI Auto-Approve Analysis", kind: "AI", type: "AI AGENT" },
-    { id: "ai-recommender", label: "AI Recommender", kind: "AI", type: "AI AGENT" },
-  ],
-};
+import { GuidedPolicyBuilder } from "./guided-policy-builder";
+import { STEP_PALETTE } from "./step-palette";
 
 const STAGE_COLUMN_HEADING_CLASS = [
   "bg-sky-100 text-sky-900",
@@ -57,6 +54,7 @@ interface PolicyBuilderProps {
 }
 
 const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) => {
+  const [policyUiTab, setPolicyUiTab] = useState<"guided" | "advanced">("guided");
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
   const [stepConfig, setStepConfig] = useState<any>(null);
@@ -312,6 +310,49 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
 
   return (
     <div className="w-full">
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-base font-semibold text-gray-900">Policy Builder</h2>
+        <div
+          className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 shadow-sm"
+          role="tablist"
+          aria-label="Policy builder mode"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={policyUiTab === "guided"}
+            onClick={() => setPolicyUiTab("guided")}
+            className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+              policyUiTab === "guided"
+                ? "bg-white text-sky-700 shadow-sm ring-1 ring-sky-200"
+                : "text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            <Compass className="h-3.5 w-3.5 shrink-0" />
+            Guided
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={policyUiTab === "advanced"}
+            onClick={() => setPolicyUiTab("advanced")}
+            className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+              policyUiTab === "advanced"
+                ? "bg-white text-sky-700 shadow-sm ring-1 ring-sky-200"
+                : "text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            <Settings className="h-3.5 w-3.5 shrink-0" />
+            Advanced
+          </button>
+        </div>
+      </div>
+
+      {policyUiTab === "guided" ? (
+        <div className="mb-4 w-full">
+          <GuidedPolicyBuilder formData={formData} setFormData={setFormData} />
+        </div>
+      ) : (
       <div className="flex h-[600px] gap-4 w-full mb-4">
         {/* Left Panel - Step Palette */}
         <div className="w-64 bg-gray-50 border border-gray-200 rounded-lg p-3 flex flex-col h-full">
@@ -353,13 +394,13 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
         </div>
 
         {/* Center Panel - Workflow Canvas */}
-        <div className="flex-1 bg-gradient-to-b from-white via-gray-50 to-gray-100 border border-gray-200 rounded-xl p-5 overflow-x-auto shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
+        <div className="flex-1 bg-gradient-to-b from-white via-gray-50 to-gray-100 border border-gray-200 rounded-xl p-4 overflow-x-auto shadow-sm">
+          <div className="mb-3 flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">
+              <h3 className="text-base font-semibold text-gray-900">
                 Approval Workflow Template
               </h3>
-              <p className="text-sm text-gray-600">
+              <p className="text-xs text-gray-600">
                 Design KeyForge approval stages, steps, and AI agents for a given use case.
               </p>
             </div>
@@ -406,12 +447,12 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                           }
                         }}
                         autoFocus
-                        className="w-full px-2 py-1 text-sm font-semibold border border-blue-500 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-2 py-1 text-xs font-semibold border border-blue-500 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     ) : (
                       <>
                         <h4
-                          className={`font-semibold text-sm px-2 py-1 rounded-md inline-block max-w-full ${
+                          className={`font-semibold text-xs px-2 py-1 rounded-md inline-block max-w-full ${
                             STAGE_HEADING_BY_NAME[stage.name.trim().toLowerCase()] ??
                             STAGE_COLUMN_HEADING_CLASS[stageIndex % STAGE_COLUMN_HEADING_CLASS.length]
                           }`}
@@ -459,7 +500,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                       }`}
                     >
                       <div className="flex items-center justify-between mb-2">
-                        <span className="font-medium text-sm text-gray-900">{step.label}</span>
+                        <span className="font-medium text-xs text-gray-900">{step.label}</span>
                         <button
                           type="button"
                           onClick={(e) => {
@@ -513,16 +554,16 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
               onClick={addStage}
               className={`${STAGE_COLUMN_MIN} h-fit px-3 py-8 bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 hover:bg-gray-100 flex flex-col items-center justify-center gap-2 transition-colors`}
             >
-              <Plus className="w-6 h-6 text-gray-400" />
-              <span className="text-sm font-medium text-gray-600">Add Stage</span>
+              <Plus className="w-5 h-5 text-gray-400" />
+              <span className="text-xs font-medium text-gray-600">Add Stage</span>
             </button>
           </div>
         </div>
 
         {selectedStep && (
-        <div className="w-80 bg-gray-50 border border-gray-200 rounded-lg p-4 overflow-y-auto shrink-0">
-          <div className="flex items-center justify-between gap-2 mb-4">
-            <h3 className="text-sm font-semibold text-slate-900 px-2 py-1.5 rounded-md bg-slate-200">
+        <div className="w-72 bg-gray-50 border border-gray-200 rounded-lg p-3 overflow-y-auto shrink-0">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <h3 className="text-xs font-semibold text-slate-900 px-2 py-1 rounded-md bg-slate-200">
               Step Configuration
             </h3>
             <button
@@ -536,7 +577,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
           </div>
             <div>
               <div className="mb-4">
-                <h4 className="font-semibold text-gray-900 px-2 py-1 rounded-md bg-gray-100 inline-block max-w-full">
+                <h4 className="text-xs font-semibold text-gray-900 px-2 py-1 rounded-md bg-gray-100 inline-block max-w-full">
                   {selectedStep.label}
                 </h4>
                 <p className="text-xs text-gray-600">
@@ -563,7 +604,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                       key={tab}
                       type="button"
                       onClick={() => setActiveTab(tab as any)}
-                      className={`px-3 py-2 text-xs font-medium rounded-t-lg transition-colors ${
+                      className={`px-2 py-1.5 text-[11px] font-medium rounded-t-lg transition-colors ${
                         activeTab === tab
                           ? "bg-blue-50 text-blue-700 border-b-2 border-blue-500"
                           : "text-gray-600 hover:text-gray-900"
@@ -585,7 +626,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                         type="text"
                         value={stepConfig?.label || ""}
                         onChange={(e) => updateStepConfig("label", e.target.value)}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
 
@@ -595,7 +636,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                         type="text"
                         value={stepConfig?.code || ""}
                         onChange={(e) => updateStepConfig("code", e.target.value)}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
 
@@ -605,7 +646,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                         value={stepConfig?.description || ""}
                         onChange={(e) => updateStepConfig("description", e.target.value)}
                         rows={3}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                       />
                     </div>
 
@@ -615,7 +656,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                         type="number"
                         value={stepConfig?.timeout || 30}
                         onChange={(e) => updateStepConfig("timeout", e.target.value)}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
 
@@ -640,7 +681,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                         onChange={(e) => updateStepConfig("condition", e.target.value)}
                         rows={6}
                         placeholder='e.g. risk >= "HIGH" || entitlement.tags.contains("SOX")'
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono"
                       />
                     </div>
 
@@ -651,7 +692,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                       <select
                         value={stepConfig?.skipLogic || "never"}
                         onChange={(e) => updateStepConfig("skipLogic", e.target.value)}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                       >
                         <option value="never">Never skip</option>
                         <option value="risk-low">Skip when risk = LOW</option>
@@ -664,10 +705,10 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                 {selectedStep.type === "AI AGENT" && activeTab === "AI Context" && (
                   <div className="space-y-6">
                     <div>
-                      <h5 className="text-sm font-semibold text-gray-900 mb-3">Input Signals</h5>
+                      <h5 className="text-xs font-semibold text-gray-900 mb-2">Input Signals</h5>
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
-                          <label className="text-sm text-gray-700">Peer Group Analysis</label>
+                          <label className="text-xs text-gray-700">Peer Group Analysis</label>
                           <ToggleSwitch
                             checked={stepConfig?.inputSignals?.peerGroupAnalysis !== false}
                             onChange={(checked) =>
@@ -679,7 +720,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                           />
                         </div>
                         <div className="flex items-center justify-between">
-                          <label className="text-sm text-gray-700">Historical Approvals</label>
+                          <label className="text-xs text-gray-700">Historical Approvals</label>
                           <ToggleSwitch
                             checked={stepConfig?.inputSignals?.historicalApprovals !== false}
                             onChange={(checked) =>
@@ -691,7 +732,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                           />
                         </div>
                         <div className="flex items-center justify-between">
-                          <label className="text-sm text-gray-700">HR Attribute Correlation</label>
+                          <label className="text-xs text-gray-700">HR Attribute Correlation</label>
                           <ToggleSwitch
                             checked={stepConfig?.inputSignals?.hrAttributeCorrelation !== false}
                             onChange={(checked) =>
@@ -703,7 +744,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                           />
                         </div>
                         <div className="flex items-center justify-between">
-                          <label className="text-sm text-gray-700">External Threat Intel</label>
+                          <label className="text-xs text-gray-700">External Threat Intel</label>
                           <ToggleSwitch
                             checked={stepConfig?.inputSignals?.externalThreatIntel === true}
                             onChange={(checked) =>
@@ -718,7 +759,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                     </div>
 
                     <div>
-                      <h5 className="text-sm font-semibold text-gray-900 mb-3">Confidence Gate</h5>
+                      <h5 className="text-xs font-semibold text-gray-900 mb-2">Confidence Gate</h5>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-gray-600">50%</span>
@@ -773,7 +814,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                           `}</style>
                         </div>
                         <div className="text-center">
-                          <span className="text-sm font-medium text-gray-900">
+                          <span className="text-xs font-medium text-gray-900">
                             Auto-approve confidence threshold: {stepConfig?.confidenceThreshold || 87}%
                           </span>
                         </div>
@@ -781,10 +822,10 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                     </div>
 
                     <div>
-                      <h5 className="text-sm font-semibold text-gray-900 mb-3">Hard Stop Rules (AI Override)</h5>
+                      <h5 className="text-xs font-semibold text-gray-900 mb-2">Hard Stop Rules (AI Override)</h5>
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
-                          <label className="text-sm text-gray-700">If risk level is HIGH</label>
+                          <label className="text-xs text-gray-700">If risk level is HIGH</label>
                           <ToggleSwitch
                             checked={stepConfig?.hardStopRules?.riskHigh !== false}
                             onChange={(checked) =>
@@ -796,7 +837,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                           />
                         </div>
                         <div className="flex items-center justify-between">
-                          <label className="text-sm text-gray-700">If SoD violation exists</label>
+                          <label className="text-xs text-gray-700">If SoD violation exists</label>
                           <ToggleSwitch
                             checked={stepConfig?.hardStopRules?.sodViolation !== false}
                             onChange={(checked) =>
@@ -820,7 +861,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                         type="text"
                         value={stepConfig?.label || ""}
                         onChange={(e) => updateStepConfig("label", e.target.value)}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
 
@@ -830,7 +871,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                         type="text"
                         value={stepConfig?.code || ""}
                         onChange={(e) => updateStepConfig("code", e.target.value)}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
 
@@ -840,7 +881,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                         value={stepConfig?.description || ""}
                         onChange={(e) => updateStepConfig("description", e.target.value)}
                         rows={3}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                       />
                     </div>
 
@@ -850,7 +891,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                         type="number"
                         value={stepConfig?.timeout || 30}
                         onChange={(e) => updateStepConfig("timeout", e.target.value)}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
 
@@ -875,7 +916,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                         onChange={(e) => updateStepConfig("condition", e.target.value)}
                         rows={6}
                         placeholder='e.g. risk >= "HIGH" || entitlement.tags.contains("SOX")'
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono"
                       />
                     </div>
 
@@ -886,7 +927,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                       <select
                         value={stepConfig?.skipLogic || "never"}
                         onChange={(e) => updateStepConfig("skipLogic", e.target.value)}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                       >
                         <option value="never">Never skip</option>
                         <option value="risk-low">Skip when risk = LOW</option>
@@ -903,7 +944,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                       <select
                         value={stepConfig?.approverResolver || "line-manager"}
                         onChange={(e) => updateStepConfig("approverResolver", e.target.value)}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                       >
                         <option value="line-manager">Line manager (HR)</option>
                         <option value="department-head">Department head</option>
@@ -923,7 +964,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                         onChange={(e) =>
                           updateStepConfig("escalateAfter", parseInt(e.target.value))
                         }
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
 
@@ -949,7 +990,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                         type="text"
                         value={stepConfig?.label || ""}
                         onChange={(e) => updateStepConfig("label", e.target.value)}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
 
@@ -959,7 +1000,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                         type="text"
                         value={stepConfig?.code || ""}
                         onChange={(e) => updateStepConfig("code", e.target.value)}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
 
@@ -971,7 +1012,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                         value={stepConfig?.description || ""}
                         onChange={(e) => updateStepConfig("description", e.target.value)}
                         rows={3}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                       />
                     </div>
 
@@ -981,7 +1022,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                         type="number"
                         value={stepConfig?.timeout || 30}
                         onChange={(e) => updateStepConfig("timeout", e.target.value)}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
 
@@ -1006,7 +1047,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                         onChange={(e) => updateStepConfig("condition", e.target.value)}
                         rows={6}
                         placeholder='e.g. risk >= "HIGH" || entitlement.tags.contains("SOX")'
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono"
                       />
                     </div>
 
@@ -1017,7 +1058,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                       <select
                         value={stepConfig?.skipLogic || "never"}
                         onChange={(e) => updateStepConfig("skipLogic", e.target.value)}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                       >
                         <option value="never">Never skip</option>
                         <option value="risk-low">Skip when risk = LOW</option>
@@ -1035,7 +1076,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                         type="text"
                         value={stepConfig?.label || ""}
                         onChange={(e) => updateStepConfig("label", e.target.value)}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
 
@@ -1045,7 +1086,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                         type="text"
                         value={stepConfig?.code || ""}
                         onChange={(e) => updateStepConfig("code", e.target.value)}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
 
@@ -1057,7 +1098,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                         value={stepConfig?.description || ""}
                         onChange={(e) => updateStepConfig("description", e.target.value)}
                         rows={3}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                       />
                     </div>
 
@@ -1067,7 +1108,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                         type="number"
                         value={stepConfig?.timeout || 30}
                         onChange={(e) => updateStepConfig("timeout", e.target.value)}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
 
@@ -1092,7 +1133,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                         onChange={(e) => updateStepConfig("condition", e.target.value)}
                         rows={6}
                         placeholder='e.g. risk >= "HIGH" || entitlement.tags.contains("SOX")'
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono"
                       />
                     </div>
 
@@ -1103,7 +1144,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                       <select
                         value={stepConfig?.skipLogic || "never"}
                         onChange={(e) => updateStepConfig("skipLogic", e.target.value)}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                       >
                         <option value="never">Never skip</option>
                         <option value="risk-low">Skip when risk = LOW</option>
@@ -1121,7 +1162,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                         type="text"
                         value={stepConfig?.label || ""}
                         onChange={(e) => updateStepConfig("label", e.target.value)}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
 
@@ -1131,7 +1172,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                         type="text"
                         value={stepConfig?.code || ""}
                         onChange={(e) => updateStepConfig("code", e.target.value)}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
 
@@ -1143,7 +1184,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                         value={stepConfig?.description || ""}
                         onChange={(e) => updateStepConfig("description", e.target.value)}
                         rows={3}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                       />
                     </div>
 
@@ -1168,7 +1209,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                         onChange={(e) => updateStepConfig("condition", e.target.value)}
                         rows={6}
                         placeholder='e.g. risk >= "HIGH" || entitlement.tags.contains("SOX")'
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono"
                       />
                     </div>
 
@@ -1179,7 +1220,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                       <select
                         value={stepConfig?.skipLogic || "never"}
                         onChange={(e) => updateStepConfig("skipLogic", e.target.value)}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
                         <option value="never">Never skip</option>
                         <option value="risk-low">Skip when risk = LOW</option>
@@ -1201,7 +1242,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                           type="text"
                           value={stepConfig?.label || ""}
                           onChange={(e) => updateStepConfig("label", e.target.value)}
-                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                       </div>
 
@@ -1211,7 +1252,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                           type="text"
                           value={stepConfig?.code || ""}
                           onChange={(e) => updateStepConfig("code", e.target.value)}
-                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                       </div>
 
@@ -1223,7 +1264,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                           value={stepConfig?.description || ""}
                           onChange={(e) => updateStepConfig("description", e.target.value)}
                           rows={3}
-                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                       </div>
 
@@ -1233,7 +1274,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                           type="number"
                           value={stepConfig?.timeout || 30}
                           onChange={(e) => updateStepConfig("timeout", e.target.value)}
-                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                       </div>
 
@@ -1251,7 +1292,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                           type="text"
                           value={stepConfig?.condition || "true"}
                           onChange={(e) => updateStepConfig("condition", e.target.value)}
-                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                       </div>
                     </>
@@ -1261,14 +1302,15 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
         </div>
         )}
       </div>
+      )}
 
       {/* JSON Preview Section */}
       <div className="w-full mt-4">
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3 px-2 py-1.5 rounded-md bg-gray-200 inline-block">
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+          <h3 className="text-xs font-semibold text-gray-900 mb-2 px-2 py-1 rounded-md bg-gray-200 inline-block">
             Workflow-as-Code Preview (read-only)
           </h3>
-          <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-auto text-xs font-mono max-h-64">
+          <pre className="bg-gray-900 text-gray-100 p-3 rounded-lg overflow-auto text-[11px] leading-relaxed font-mono max-h-64">
             {JSON.stringify(generateWorkflowJSON(), null, 2)}
           </pre>
         </div>
@@ -1380,6 +1422,465 @@ const getInitialFormData = () => ({
   },
 });
 
+function buildWorkflowJsonPreview(formData: any) {
+  const stages = formData?.step2?.stages || [];
+  const workflowStages = stages.map((stage: any) => {
+    let stageCondition = "true";
+    if (stage.steps?.length > 0) {
+      const stepWithCondition = stage.steps.find((st: any) => st.condition && st.condition !== "true");
+      if (stepWithCondition) {
+        stageCondition = stepWithCondition.condition;
+      } else if (stage.steps[0].condition) {
+        stageCondition = stage.steps[0].condition;
+      }
+    }
+
+    const stageSteps = (stage.steps || []).map((step: any) => {
+      const stepJSON: any = {
+        code: step.code,
+        label: step.label,
+        kind: step.kind,
+        type:
+          step.type === "AI AGENT" ? "AI_AGENT" : step.type === "FULFILLMENT" ? "FULFILL" : step.type,
+        config: {
+          blocking: step.blocking !== false,
+        },
+      };
+
+      if (step.type === "AI AGENT") {
+        stepJSON.ai = {
+          enabled: true,
+          peerGroup: step.inputSignals?.peerGroupAnalysis !== false,
+          historicalApprovals: step.inputSignals?.historicalApprovals !== false,
+          hrCorrelation: step.inputSignals?.hrAttributeCorrelation !== false,
+          externalThreat: step.inputSignals?.externalThreatIntel === true,
+          confidence: step.confidenceThreshold || 87,
+          hardStops: {
+            highRisk: step.hardStopRules?.riskHigh !== false,
+            sodViolation: step.hardStopRules?.sodViolation !== false,
+          },
+        };
+      }
+
+      if (step.type === "APPROVAL") {
+        const resolverMap: Record<string, string> = {
+          "line-manager": "FN_RESOLVE_MANAGER",
+          "department-head": "FN_RESOLVE_DEPT_HEAD",
+          "app-owner": "FN_RESOLVE_APP_OWNER",
+          "role-owner": "FN_RESOLVE_ROLE_OWNER",
+          custom: "FN_RESOLVE_CUSTOM",
+        };
+        stepJSON.config.approverResolver = resolverMap[step.approverResolver] || "FN_RESOLVE_MANAGER";
+        stepJSON.config.escalationHours = step.escalateAfter || 24;
+        stepJSON.config.skipSelf = step.skipIfRequestorIsApprover !== false;
+      }
+
+      const conditionStr =
+        typeof step.condition === "string"
+          ? step.condition
+          : step.condition?.expression ?? step.condition?.expr ?? "true";
+
+      if (step.type === "FULFILLMENT") {
+        stepJSON.config.mode = "ASYNC";
+        if (conditionStr && conditionStr !== "true") {
+          stepJSON.config.conditionExpr = conditionStr;
+        }
+      } else {
+        stepJSON.condition = { expression: conditionStr || "true" };
+      }
+
+      if (step.type === "CUSTOM") {
+        stepJSON.config.description = step.description || "";
+      }
+
+      return stepJSON;
+    });
+
+    return {
+      name: stage.name,
+      order: stage.order,
+      condition:
+        stageCondition === "true" || !stageCondition
+          ? stageCondition
+          : { expression: stageCondition },
+      steps: stageSteps,
+    };
+  });
+
+  return {
+    templateCode: "WF_STD_KEYFORGE",
+    version: 1,
+    type: "ACCESS_REQUEST",
+    stages: workflowStages,
+  };
+}
+
+function ReviewSectionHeader({
+  icon: Icon,
+  title,
+  iconClassName,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  iconClassName?: string;
+}) {
+  return (
+    <div className="mb-3 flex items-center gap-2">
+      <Icon className={`h-4 w-4 shrink-0 ${iconClassName ?? "text-sky-600"}`} />
+      <h3 className="text-sm font-semibold tracking-tight text-sky-700">{title}</h3>
+    </div>
+  );
+}
+
+function ReviewStepKindPills({ step }: { step: any }) {
+  const isAi = step.kind === "AI" || step.type === "AI AGENT";
+  const isHuman = step.kind === "HUMAN" || step.type === "APPROVAL";
+  const blocking = step.blocking !== false && isHuman;
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {isAi && (
+        <span className="inline-flex items-center gap-0.5 rounded-md bg-violet-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-violet-800">
+          <Zap className="h-2.5 w-2.5" aria-hidden />
+          AI agent
+        </span>
+      )}
+      {isHuman && (
+        <span className="inline-flex items-center gap-0.5 rounded-md bg-sky-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-sky-900">
+          <Clock className="h-2.5 w-2.5" aria-hidden />
+          Human
+        </span>
+      )}
+      {!isAi && !isHuman && (
+        <span className="inline-flex items-center gap-0.5 rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-700">
+          <Clock className="h-2.5 w-2.5" aria-hidden />
+          System
+        </span>
+      )}
+      {blocking && (
+        <span className="rounded-md bg-blue-600 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white">
+          Blocking
+        </span>
+      )}
+    </div>
+  );
+}
+
+function formatStep1Owners(s1: any): string {
+  if (s1.ownerType === "User" && Array.isArray(s1.ownerUser) && s1.ownerUser.length > 0) {
+    return s1.ownerUser.map((u: any) => u?.label ?? u).filter(Boolean).join(", ");
+  }
+  if (s1.ownerType === "Group" && Array.isArray(s1.ownerGroup) && s1.ownerGroup.length > 0) {
+    return s1.ownerGroup.map((g: any) => g?.label ?? g).filter(Boolean).join(", ");
+  }
+  return s1.owner ? String(s1.owner) : "";
+}
+
+const STAGE_SUMMARY_TONES: [string, string][] = [
+  ["bg-amber-100", "text-amber-950"],
+  ["bg-sky-100", "text-sky-950"],
+  ["bg-rose-100", "text-rose-950"],
+  ["bg-violet-100", "text-violet-950"],
+  ["bg-teal-100", "text-teal-950"],
+];
+
+function WorkflowReviewSubmit({ formData }: { formData: any }) {
+  const [jsonOpen, setJsonOpen] = useState(false);
+  const stages = formData?.step2?.stages || [];
+
+  const allSteps = stages.flatMap((st: any) => st.steps || []);
+  const codeU = (step: any) => String(step.code || "").toUpperCase();
+  const hasSod = allSteps.some((st: any) => codeU(st).includes("SOD"));
+  const hasTraining = allSteps.some((st: any) => codeU(st).includes("TRAINING"));
+  const hasAi = allSteps.some((st: any) => st.kind === "AI" || st.type === "AI AGENT");
+
+  const securityPolicies = [
+    { id: "sod", label: "sod", enabled: hasSod },
+    { id: "training", label: "training", enabled: hasTraining },
+    { id: "aiRisk", label: "aiRisk", enabled: hasAi },
+    { id: "normalize", label: "normalize", enabled: false },
+    { id: "riskClassify", label: "riskClassify", enabled: false },
+    { id: "aiExplain", label: "aiExplain", enabled: false },
+  ];
+
+  const s1 = formData?.step1 || {};
+  const s3 = formData?.step3 || {};
+  const dash = (v: string) => (v && String(v).trim() ? v : "—");
+  const dashOptional = (v: unknown) => {
+    if (v === null || v === undefined) return "—";
+    const s = String(v).trim();
+    return s || "—";
+  };
+
+  const summaryPill = (label: string, count: number, bg: string, text: string) => (
+    <div
+      className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wide shadow-sm ${bg} ${text}`}
+    >
+      <span>{label}</span>
+      <span className="rounded-md bg-white/60 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums">
+        {count} {count === 1 ? "step" : "steps"}
+      </span>
+    </div>
+  );
+
+  const stageModeTag = (parallel: boolean) =>
+    parallel ? (
+      <span className="inline-flex items-center gap-1 rounded-md bg-violet-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-violet-800">
+        <GitBranch className="h-3 w-3" aria-hidden />
+        Parallel
+      </span>
+    ) : (
+      <span className="inline-flex items-center gap-1 rounded-md bg-sky-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-sky-900">
+        <List className="h-3 w-3" aria-hidden />
+        Sequential
+      </span>
+    );
+
+  const parallelBanner = (
+    <div className="mb-3 flex items-center justify-center gap-2 rounded-lg bg-violet-100 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.08em] text-violet-900">
+      <GitBranch className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      All run simultaneously
+    </div>
+  );
+
+  const renderParallelStepGrid = (stepsList: any[]) => (
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      {stepsList.map((step: any) => (
+        <div
+          key={step.id}
+          className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 shadow-sm"
+        >
+          <ReviewStepKindPills step={step} />
+          <p className="mt-2 text-xs font-bold uppercase tracking-tight text-slate-900">
+            {String(step.label || "").toUpperCase()}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+
+  const renderSequentialSteps = (stepsList: any[]) => (
+    <div className="space-y-0">
+      {stepsList.map((step: any, idx: number) => (
+        <div key={step.id}>
+          <div className="flex items-start gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2.5 shadow-sm">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-600 text-[11px] font-bold leading-none text-white">
+              {idx + 1}
+            </span>
+            <div className="min-w-0 flex-1">
+              <ReviewStepKindPills step={step} />
+              <p className="mt-2 text-xs font-bold uppercase tracking-tight text-slate-900">
+                {String(step.label || "").toUpperCase()}
+              </p>
+            </div>
+          </div>
+          {idx < stepsList.length - 1 && (
+            <div className="flex justify-center py-1">
+              <ArrowDown className="h-3.5 w-3.5 text-sky-500" aria-hidden />
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
+  const detailCard = (
+    title: string,
+    parallel: boolean,
+    stepsList: any[],
+    emptyHint: string,
+    orderHint?: string
+  ) => (
+    <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
+          <h4 className="text-xs font-bold uppercase tracking-[0.12em] text-sky-800">{title}</h4>
+          {orderHint && (
+            <p className="mt-0.5 text-[10px] font-medium text-gray-500">Stage order: {orderHint}</p>
+          )}
+        </div>
+        {stageModeTag(parallel)}
+      </div>
+      {stepsList.length === 0 ? (
+        <p className="text-xs text-gray-400">{emptyHint}</p>
+      ) : parallel ? (
+        <>
+          {parallelBanner}
+          {renderParallelStepGrid(stepsList)}
+        </>
+      ) : (
+        renderSequentialSteps(stepsList)
+      )}
+    </div>
+  );
+
+  return (
+    <div className="mx-auto max-w-4xl space-y-5 pb-6">
+      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <ReviewSectionHeader icon={Layers} title="Basic Information (Step 1)" />
+        <dl className="divide-y divide-gray-100">
+          <div className="flex items-center justify-between gap-4 py-2.5 text-sm">
+            <dt className="shrink-0 font-medium text-gray-600">Name</dt>
+            <dd className="text-right font-medium text-gray-900">{dash(s1.certificationTemplate)}</dd>
+          </div>
+          <div className="flex items-start justify-between gap-4 py-2.5 text-sm">
+            <dt className="shrink-0 font-medium text-gray-600">Description</dt>
+            <dd className="max-w-[70%] text-right text-gray-900">{dash(s1.description)}</dd>
+          </div>
+          <div className="flex items-center justify-between gap-4 py-2.5 text-sm">
+            <dt className="shrink-0 font-medium text-gray-600">Owner type</dt>
+            <dd className="text-right font-medium text-gray-900">{dashOptional(s1.ownerType)}</dd>
+          </div>
+          <div className="flex items-start justify-between gap-4 py-2.5 text-sm">
+            <dt className="shrink-0 font-medium text-gray-600">Owners</dt>
+            <dd className="max-w-[70%] text-right text-gray-900">{dash(formatStep1Owners(s1))}</dd>
+          </div>
+          <div className="flex items-center justify-between gap-4 py-2.5 text-sm">
+            <dt className="shrink-0 font-medium text-gray-600">Tags</dt>
+            <dd className="text-right text-gray-900">{dash(s1.tags)}</dd>
+          </div>
+          <div className="flex items-center justify-between gap-4 py-2.5 text-sm">
+            <dt className="shrink-0 font-medium text-gray-600">User scope</dt>
+            <dd className="text-right text-gray-900">{dashOptional(s1.userType)}</dd>
+          </div>
+          <div className="flex items-center justify-between gap-4 py-2.5 text-sm">
+            <dt className="shrink-0 font-medium text-gray-600">Request object type</dt>
+            <dd className="text-right text-gray-900">{dashOptional(s1.selectData)}</dd>
+          </div>
+          {(s1.excludeUsersIsChecked || s1.groupListIsChecked) && (
+            <div className="py-2.5 text-sm">
+              <dt className="font-medium text-gray-600">Additional scope options</dt>
+              <dd className="mt-1 text-right text-xs text-gray-700">
+                {[
+                  s1.groupListIsChecked ? "Custom user group list" : null,
+                  s1.excludeUsersIsChecked ? "Exclude users" : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || "—"}
+              </dd>
+            </div>
+          )}
+        </dl>
+      </div>
+
+      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <ReviewSectionHeader icon={GitBranch} title="Workflow Stages & Steps (Step 2)" />
+        {stages.length === 0 ? (
+          <p className="text-xs text-gray-500">No stages configured yet.</p>
+        ) : (
+          <div className="flex flex-wrap items-center justify-center gap-1 sm:justify-start">
+            {stages.map((stage: any, i: number) => {
+              const count = stage.steps?.length ?? 0;
+              const [bg, fg] = STAGE_SUMMARY_TONES[i % STAGE_SUMMARY_TONES.length];
+              const label = String(stage.name || `Stage ${i + 1}`).toUpperCase();
+              return (
+                <React.Fragment key={stage.id ?? i}>
+                  {i > 0 && (
+                    <ChevronRight className="h-4 w-4 shrink-0 text-sky-500" aria-hidden />
+                  )}
+                  {summaryPill(label, count, bg, fg)}
+                </React.Fragment>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-4">
+        {stages.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-gray-200 bg-gray-50/80 px-4 py-6 text-center text-xs text-gray-500">
+            Add stages in Policy Builder to see them here.
+          </p>
+        ) : (
+          stages.map((stage: any, idx: number) =>
+            detailCard(
+              String(stage.name || `Stage ${idx + 1}`).toUpperCase(),
+              !!stage.parallelExecution,
+              stage.steps || [],
+              "No steps in this stage.",
+              String(stage.order ?? idx + 1)
+            )
+          )
+        )}
+      </div>
+
+      {(s3.notificationEnabled ||
+        s3.escalationEnabled ||
+        (s3.emailTemplate && String(s3.emailTemplate).trim()) ||
+        (s3.escalationTime && String(s3.escalationTime).trim())) && (
+        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          <ReviewSectionHeader icon={Bell} title="Notifications" />
+          <dl className="divide-y divide-gray-100">
+            <div className="flex items-center justify-between gap-4 py-2 text-sm">
+              <dt className="text-gray-600">Notifications</dt>
+              <dd className="text-xs font-semibold uppercase text-gray-900">
+                {s3.notificationEnabled ? "On" : "Off"}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-4 py-2 text-sm">
+              <dt className="text-gray-600">Email template</dt>
+              <dd className="max-w-[60%] truncate text-right text-gray-900">
+                {dash(s3.emailTemplate)}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-4 py-2 text-sm">
+              <dt className="text-gray-600">Escalation</dt>
+              <dd className="text-xs font-semibold uppercase text-gray-900">
+                {s3.escalationEnabled ? "On" : "Off"}
+                {s3.escalationEnabled && s3.escalationTime
+                  ? ` · ${s3.escalationTime}`
+                  : ""}
+              </dd>
+            </div>
+          </dl>
+        </div>
+      )}
+
+      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <ReviewSectionHeader icon={ShieldCheck} title="Security Policies" />
+        <ul className="divide-y divide-gray-100">
+          {securityPolicies.map((p) => (
+            <li key={p.id} className="flex items-center justify-between gap-4 py-2.5 text-sm">
+              <span className="font-mono text-xs font-medium text-gray-800">{p.label}</span>
+              {p.enabled ? (
+                <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-800">
+                  Enabled
+                </span>
+              ) : (
+                <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                  Disabled
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="pt-1">
+        <button
+          type="button"
+          onClick={() => setJsonOpen((o) => !o)}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-slate-800"
+        >
+          <Code className="h-4 w-4 shrink-0" aria-hidden />
+          {jsonOpen ? "Hide" : "Show"} Workflow-as-Code (JSON)
+        </button>
+        {jsonOpen && (
+          <pre className="mt-3 max-h-[min(28rem,50vh)] overflow-auto rounded-xl border border-gray-200 bg-slate-950 p-4 text-left text-[11px] leading-relaxed text-emerald-100">
+            {JSON.stringify(buildWorkflowJsonPreview(formData), null, 2)}
+          </pre>
+        )}
+      </div>
+
+      <div className="rounded-lg border border-sky-200 bg-sky-50/80 px-4 py-3 text-center text-xs text-sky-900">
+        This summary reflects <strong>Basic Information</strong>, your <strong>Policy Builder</strong>{" "}
+        stages and steps, and <strong>Notifications</strong> when configured. Use{" "}
+        <strong>Submit</strong> in the step bar when ready.
+      </div>
+    </div>
+  );
+}
+
 export default function WorkflowBuilderCreatePage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState(getInitialFormData);
@@ -1395,6 +1896,7 @@ export default function WorkflowBuilderCreatePage() {
   const {
     register,
     setValue,
+    reset,
     control,
     watch,
     resetField,
@@ -1428,6 +1930,7 @@ export default function WorkflowBuilderCreatePage() {
   const groupListIsChecked = watch("groupListIsChecked");
   const excludeUsersIsChecked = watch("excludeUsersIsChecked");
   const selectData = watch("selectData");
+  const editPolicyId = searchParams.get("id");
 
   useEffect(() => {
     if (ownerType === "User") {
@@ -1481,15 +1984,48 @@ export default function WorkflowBuilderCreatePage() {
     }
   }, [selectData, setValue]);
 
-  // Prefill form when coming from "Edit" on list page
+  // Create new (no ?id=): fresh form; do not hydrate from last "Edit" in localStorage.
+  // Edit (?id=): prefill when localStorage row matches the URL id.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const idFromQuery = searchParams.get("id");
+
+    if (!editPolicyId) {
+      try {
+        window.localStorage.removeItem("selectedWorkflowPolicy");
+      } catch {
+        /* ignore */
+      }
+      const fresh = getInitialFormData();
+      setFormData(fresh);
+      reset({
+        ownerUser: fresh.step1.ownerUser,
+        ownerGroup: fresh.step1.ownerGroup,
+        certificationTemplate: fresh.step1.certificationTemplate,
+        description: fresh.step1.description,
+        tags: fresh.step1.tags,
+        owner: fresh.step1.owner,
+        ownerType: fresh.step1.ownerType,
+        userType: fresh.step1.userType,
+        specificUserExpression: fresh.step1.specificUserExpression,
+        specificApps: fresh.step1.specificApps,
+        expressionApps: fresh.step1.expressionApps,
+        expressionEntitlement: fresh.step1.expressionEntitlement,
+        groupListIsChecked: fresh.step1.groupListIsChecked,
+        userGroupList: fresh.step1.userGroupList,
+        importNewUserGroup: fresh.step1.importNewUserGroup,
+        excludeUsersIsChecked: fresh.step1.excludeUsersIsChecked,
+        excludeUsers: fresh.step1.excludeUsers,
+        selectData: fresh.step1.selectData,
+      });
+      setCurrentStep(1);
+      return;
+    }
+
     try {
       const raw = window.localStorage.getItem("selectedWorkflowPolicy");
       if (!raw) return;
       const data = JSON.parse(raw);
-      if (idFromQuery && String(data.id) !== String(idFromQuery)) return;
+      if (String(data.id) !== String(editPolicyId)) return;
 
       setValue("certificationTemplate", data.name ?? "", { shouldValidate: true });
       setValue("description", data.description ?? "", { shouldValidate: true });
@@ -1606,7 +2142,7 @@ export default function WorkflowBuilderCreatePage() {
     } catch {
       // ignore bad JSON / storage issues
     }
-  }, [searchParams, setValue, setFormData]);
+  }, [editPolicyId, setValue, setFormData, reset]);
 
   useEffect(() => {
     const subscription = watch((values) => {
@@ -1727,93 +2263,7 @@ export default function WorkflowBuilderCreatePage() {
       case 2:
         return <PolicyBuilder formData={formData} setFormData={setFormData} />;
       case 3:
-        return (
-          <div className="space-y-6 max-w-2xl mx-auto">
-            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-              <h4 className="text-sm font-semibold text-gray-900 mb-4">Basic Information</h4>
-              <div className="space-y-3">
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Name:</span>
-                  <p className="text-sm text-gray-900 mt-1">
-                    {formData.step1.certificationTemplate || (
-                      <span className="text-gray-400">Not provided</span>
-                    )}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Description:</span>
-                  <p className="text-sm text-gray-900 mt-1">
-                    {formData.step1.description || (
-                      <span className="text-gray-400">Not provided</span>
-                    )}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Owner Type:</span>
-                  <p className="text-sm text-gray-900 mt-1">
-                    {formData.step1.ownerType || (
-                      <span className="text-gray-400">Not provided</span>
-                    )}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Owners:</span>
-                  <p className="text-sm text-gray-900 mt-1">
-                    {formData.step1.ownerType === "User"
-                      ? formData.step1.ownerUser.length > 0
-                        ? formData.step1.ownerUser
-                            .map((u: any) => u.label || u)
-                            .join(", ")
-                        : (
-                          <span className="text-gray-400">Not provided</span>
-                        )
-                      : formData.step1.ownerGroup.length > 0
-                      ? formData.step1.ownerGroup
-                          .map((g: any) => g.label || g)
-                          .join(", ")
-                      : (
-                        <span className="text-gray-400">Not provided</span>
-                      )}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-              <h4 className="text-sm font-semibold text-gray-900 mb-4">Policy Configuration</h4>
-              <div className="space-y-3">
-                {formData.step2.stages && formData.step2.stages.length > 0 ? (
-                  formData.step2.stages.map((stage: any) => (
-                    <div key={stage.id} className="border-l-2 border-blue-500 pl-3">
-                      <p className="text-sm font-medium text-gray-900">
-                        {stage.name} (Order {stage.order})
-                      </p>
-                      {stage.steps.length > 0 ? (
-                        <ul className="mt-1 space-y-1 ml-4">
-                          {stage.steps.map((step: any) => (
-                            <li key={step.id} className="text-sm text-gray-700">
-                              • {step.label} ({step.kind}, {step.type})
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-sm text-gray-400 mt-1">No steps configured</p>
-                      )}
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-gray-400">No stages configured</p>
-                )}
-              </div>
-            </div>
-
-            <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-              <p className="text-sm text-blue-800">
-                Please review all the information above. Click "Submit" to create the workflow.
-              </p>
-            </div>
-          </div>
-        );
+        return <WorkflowReviewSubmit formData={formData} />;
       default:
         return null;
     }

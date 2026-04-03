@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import AsyncSelect from "react-select/async";
 import { customOption, loadIspmApps } from "@/components/MsAsyncData";
@@ -11,16 +11,27 @@ type AppOption = {
   image?: string;
 };
 
-function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+function Toggle({
+  checked,
+  onChange,
+  label,
+  disabled,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  disabled?: boolean;
+}) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-        checked ? "bg-blue-600" : "bg-gray-300"
-      }`}
+      disabled={disabled}
+      onClick={() => !disabled && onChange(!checked)}
+      className={`relative inline-flex h-7 w-12 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+        disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"
+      } ${checked ? "bg-blue-600" : "bg-gray-300"}`}
     >
       <span
         className={`pointer-events-none inline-block h-6 w-6 shrink-0 rounded-full bg-white shadow-sm transition-transform ${
@@ -37,12 +48,14 @@ function LineItem({
   onToggle,
   expiryDays,
   onExpiryChange,
+  disabled,
 }: {
   label: string;
   checked: boolean;
   onToggle: (v: boolean) => void;
   expiryDays: string;
   onExpiryChange: (v: string) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="grid grid-cols-[1fr_auto_auto] gap-4 items-center px-4 py-2 border-b border-gray-200 last:border-0">
@@ -55,8 +68,9 @@ function LineItem({
               type="number"
               min={1}
               value={expiryDays}
+              disabled={disabled}
               onChange={(e) => onExpiryChange(e.target.value)}
-              className="w-16 shrink-0 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-16 shrink-0 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:opacity-70"
             />
             <span className="text-xs text-gray-500">days</span>
           </div>
@@ -65,13 +79,14 @@ function LineItem({
         <span className="w-24 text-xs text-gray-400">—</span>
       )}
       <div className="flex justify-end">
-        <Toggle checked={checked} onChange={onToggle} label="" />
+        <Toggle checked={checked} onChange={onToggle} label="" disabled={disabled} />
       </div>
     </div>
   );
 }
 
 export default function ContinuousComplianceSettingsPage() {
+  const [isEditing, setIsEditing] = useState(false);
   const [expandedCards, setExpandedCards] = useState<boolean[]>([false, false, false]);
 
   // User Lifecycle (each line: toggle + expiry duration)
@@ -123,10 +138,36 @@ export default function ContinuousComplianceSettingsPage() {
     setExpandedCards((prev) => prev.map((v, i) => (i === index ? !v : v)));
   };
 
+  const handleSave = () => {
+    // TODO: Persist settings when save endpoint is available.
+    setIsEditing(false);
+  };
+
+  const formDisabled = !isEditing;
+
   return (
     <div className="h-full p-6">
       <div className="w-full">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Continuous Compliance Settings</h1>
+        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+          <h1 className="text-2xl font-bold text-gray-900">Continuous Compliance Settings</h1>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsEditing(true)}
+              className="px-3 py-1.5 text-sm font-medium rounded border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              className="px-3 py-1.5 text-sm font-medium rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!isEditing}
+            >
+              Save
+            </button>
+          </div>
+        </div>
         <div className="space-y-4">
           {cards.map((card, idx) => (
             <div
@@ -161,10 +202,38 @@ export default function ContinuousComplianceSettingsPage() {
                           <span>Enable / Disable</span>
                         </div>
                         <div className="divide-y divide-gray-200">
-                          <LineItem label="Role" checked={lifecycleRole} onToggle={setLifecycleRole} expiryDays={lifecycleRoleExpiry} onExpiryChange={setLifecycleRoleExpiry} />
-                          <LineItem label="Job Title" checked={lifecycleJobTitle} onToggle={setLifecycleJobTitle} expiryDays={lifecycleJobTitleExpiry} onExpiryChange={setLifecycleJobTitleExpiry} />
-                          <LineItem label="Department" checked={lifecycleDepartment} onToggle={setLifecycleDepartment} expiryDays={lifecycleDepartmentExpiry} onExpiryChange={setLifecycleDepartmentExpiry} />
-                          <LineItem label="Manager" checked={lifecycleManager} onToggle={setLifecycleManager} expiryDays={lifecycleManagerExpiry} onExpiryChange={setLifecycleManagerExpiry} />
+                          <LineItem
+                            label="Role"
+                            checked={lifecycleRole}
+                            onToggle={setLifecycleRole}
+                            expiryDays={lifecycleRoleExpiry}
+                            onExpiryChange={setLifecycleRoleExpiry}
+                            disabled={formDisabled}
+                          />
+                          <LineItem
+                            label="Job Title"
+                            checked={lifecycleJobTitle}
+                            onToggle={setLifecycleJobTitle}
+                            expiryDays={lifecycleJobTitleExpiry}
+                            onExpiryChange={setLifecycleJobTitleExpiry}
+                            disabled={formDisabled}
+                          />
+                          <LineItem
+                            label="Department"
+                            checked={lifecycleDepartment}
+                            onToggle={setLifecycleDepartment}
+                            expiryDays={lifecycleDepartmentExpiry}
+                            onExpiryChange={setLifecycleDepartmentExpiry}
+                            disabled={formDisabled}
+                          />
+                          <LineItem
+                            label="Manager"
+                            checked={lifecycleManager}
+                            onToggle={setLifecycleManager}
+                            expiryDays={lifecycleManagerExpiry}
+                            onExpiryChange={setLifecycleManagerExpiry}
+                            disabled={formDisabled}
+                          />
                         </div>
                       </div>
                     </div>
@@ -180,7 +249,8 @@ export default function ContinuousComplianceSettingsPage() {
                             <span className="text-sm font-medium text-gray-700">Applications Scope</span>
                             <button
                               type="button"
-                              className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
+                              disabled={formDisabled}
+                              className={`px-3 py-1.5 text-xs rounded-md border transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                                 govAppsMode === "all"
                                   ? "bg-[#15274E] text-white border-[#15274E]"
                                   : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
@@ -191,7 +261,8 @@ export default function ContinuousComplianceSettingsPage() {
                             </button>
                             <button
                               type="button"
-                              className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
+                              disabled={formDisabled}
+                              className={`px-3 py-1.5 text-xs rounded-md border transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                                 govAppsMode === "specific"
                                   ? "bg-[#15274E] text-white border-[#15274E]"
                                   : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
@@ -208,6 +279,7 @@ export default function ContinuousComplianceSettingsPage() {
                                 cacheOptions
                                 defaultOptions
                                 isSearchable
+                                isDisabled={formDisabled}
                                 loadOptions={loadIspmApps}
                                 placeholder="Select Specific App(s)"
                                 components={{ Option: customOption as any }}
@@ -232,6 +304,7 @@ export default function ContinuousComplianceSettingsPage() {
                             onToggle={setGovNDE}
                             expiryDays={govNDEExpiry}
                             onExpiryChange={setGovNDEExpiry}
+                            disabled={formDisabled}
                           />
                           <LineItem
                             label="Privileged Access"
@@ -239,6 +312,7 @@ export default function ContinuousComplianceSettingsPage() {
                             onToggle={setGovPrivilegedAccess}
                             expiryDays={govPrivilegedAccessExpiry}
                             onExpiryChange={setGovPrivilegedAccessExpiry}
+                            disabled={formDisabled}
                           />
                           <LineItem
                             label="Account Creation"
@@ -246,6 +320,7 @@ export default function ContinuousComplianceSettingsPage() {
                             onToggle={setGovAccountCreation}
                             expiryDays={govAccountCreationExpiry}
                             onExpiryChange={setGovAccountCreationExpiry}
+                            disabled={formDisabled}
                           />
                           <div className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-4 px-4 py-2">
                             <span className="text-sm text-gray-700">Inactive accounts</span>
@@ -255,9 +330,10 @@ export default function ContinuousComplianceSettingsPage() {
                                   <input
                                     type="number"
                                     min={1}
+                                    disabled={formDisabled}
                                     value={govInactiveAccountsExpiry1}
                                     onChange={(e) => setGovInactiveAccountsExpiry1(e.target.value)}
-                                    className="w-16 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    className="w-16 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:opacity-70"
                                   />
                                   <span className="text-xs text-gray-500">days</span>
                                 </div>
@@ -265,9 +341,10 @@ export default function ContinuousComplianceSettingsPage() {
                                   <input
                                     type="number"
                                     min={1}
+                                    disabled={formDisabled}
                                     value={govInactiveAccountsExpiry2}
                                     onChange={(e) => setGovInactiveAccountsExpiry2(e.target.value)}
-                                    className="w-16 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    className="w-16 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:opacity-70"
                                   />
                                   <span className="text-xs text-gray-500">days</span>
                                 </div>
@@ -278,7 +355,7 @@ export default function ContinuousComplianceSettingsPage() {
                                 <span className="w-24 text-xs text-gray-400">—</span>
                               </>
                             )}
-                            <Toggle checked={govInactiveAccounts} onChange={setGovInactiveAccounts} label="" />
+                            <Toggle checked={govInactiveAccounts} onChange={setGovInactiveAccounts} label="" disabled={formDisabled} />
                           </div>
                           <div className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-4 px-4 py-2">
                             <span className="text-sm text-gray-700">Conditional access expiry</span>
@@ -288,9 +365,10 @@ export default function ContinuousComplianceSettingsPage() {
                                   <input
                                     type="number"
                                     min={1}
+                                    disabled={formDisabled}
                                     value={govConditionalExpiryDuration1}
                                     onChange={(e) => setGovConditionalExpiryDuration1(e.target.value)}
-                                    className="w-16 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    className="w-16 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:opacity-70"
                                   />
                                   <span className="text-xs text-gray-500">days</span>
                                 </div>
@@ -298,9 +376,10 @@ export default function ContinuousComplianceSettingsPage() {
                                   <input
                                     type="number"
                                     min={1}
+                                    disabled={formDisabled}
                                     value={govConditionalExpiryDuration2}
                                     onChange={(e) => setGovConditionalExpiryDuration2(e.target.value)}
-                                    className="w-16 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    className="w-16 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:opacity-70"
                                   />
                                   <span className="text-xs text-gray-500">days</span>
                                 </div>
@@ -311,7 +390,7 @@ export default function ContinuousComplianceSettingsPage() {
                                 <span className="w-24 text-xs text-gray-400">—</span>
                               </>
                             )}
-                            <Toggle checked={govConditionalExpiry} onChange={setGovConditionalExpiry} label="" />
+                            <Toggle checked={govConditionalExpiry} onChange={setGovConditionalExpiry} label="" disabled={formDisabled} />
                           </div>
                         </div> 
                       </div>
@@ -329,20 +408,22 @@ export default function ContinuousComplianceSettingsPage() {
                             <div className="space-y-2">
                               <div className="flex flex-wrap items-center gap-3">
                                 <span className="text-xs text-gray-600">Applications:</span>
-                                <label className="flex items-center gap-1 cursor-pointer text-xs">
+                                <label className={`flex items-center gap-1 text-xs ${formDisabled ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}>
                                   <input
                                     type="radio"
                                     name="sod-conflict-apps"
+                                    disabled={formDisabled}
                                     checked={sodConflictAppsMode === "all"}
                                     onChange={() => setSodConflictAppsMode("all")}
                                     className="text-blue-600"
                                   />
                                   <span>All</span>
                                 </label>
-                                <label className="flex items-center gap-1 cursor-pointer text-xs">
+                                <label className={`flex items-center gap-1 text-xs ${formDisabled ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}>
                                   <input
                                     type="radio"
                                     name="sod-conflict-apps"
+                                    disabled={formDisabled}
                                     checked={sodConflictAppsMode === "specific"}
                                     onChange={() => setSodConflictAppsMode("specific")}
                                     className="text-blue-600"
@@ -357,6 +438,7 @@ export default function ContinuousComplianceSettingsPage() {
                                     cacheOptions
                                     defaultOptions
                                     isSearchable
+                                    isDisabled={formDisabled}
                                     loadOptions={loadIspmApps}
                                     placeholder="Select Specific App(s)"
                                     components={{ Option: customOption as any }}
@@ -378,9 +460,10 @@ export default function ContinuousComplianceSettingsPage() {
                                   <input
                                     type="number"
                                     min={1}
+                                    disabled={formDisabled}
                                     value={sodConflictExpiryDays}
                                     onChange={(e) => setSodConflictExpiryDays(e.target.value)}
-                                    className="w-16 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    className="w-16 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:opacity-70"
                                   />
                                   <span className="text-xs text-gray-500">days</span>
                                 </div>
@@ -394,6 +477,7 @@ export default function ContinuousComplianceSettingsPage() {
                               label="Enable SoD conflict detection"
                               checked={sodConflictDetection}
                               onChange={setSodConflictDetection}
+                              disabled={formDisabled}
                             />
                           </div>
                         </div>
@@ -411,9 +495,10 @@ export default function ContinuousComplianceSettingsPage() {
                                   <input
                                     type="number"
                                     min={1}
+                                    disabled={formDisabled}
                                     value={sodCondAccessDaysBefore}
                                     onChange={(e) => setSodCondAccessDaysBefore(e.target.value)}
-                                    className="w-20 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    className="w-20 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:opacity-70"
                                   />
                                   <span className="text-xs text-gray-500">days before expiry</span>
                                 </div>
@@ -424,20 +509,22 @@ export default function ContinuousComplianceSettingsPage() {
                             <div className="space-y-2">
                               <div className="flex flex-wrap items-center gap-3">
                                 <span className="text-xs text-gray-600">Applications:</span>
-                                <label className="flex items-center gap-1 cursor-pointer text-xs">
+                                <label className={`flex items-center gap-1 text-xs ${formDisabled ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}>
                                   <input
                                     type="radio"
                                     name="sod-cond-apps"
+                                    disabled={formDisabled}
                                     checked={sodCondAppsMode === "all"}
                                     onChange={() => setSodCondAppsMode("all")}
                                     className="text-blue-600"
                                   />
                                   <span>All</span>
                                 </label>
-                                <label className="flex items-center gap-1 cursor-pointer text-xs">
+                                <label className={`flex items-center gap-1 text-xs ${formDisabled ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}>
                                   <input
                                     type="radio"
                                     name="sod-cond-apps"
+                                    disabled={formDisabled}
                                     checked={sodCondAppsMode === "specific"}
                                     onChange={() => setSodCondAppsMode("specific")}
                                     className="text-blue-600"
@@ -452,6 +539,7 @@ export default function ContinuousComplianceSettingsPage() {
                                     cacheOptions
                                     defaultOptions
                                     isSearchable
+                                    isDisabled={formDisabled}
                                     loadOptions={loadIspmApps}
                                     placeholder="Select Specific App(s)"
                                     components={{ Option: customOption as any }}
@@ -473,9 +561,10 @@ export default function ContinuousComplianceSettingsPage() {
                                   <input
                                     type="number"
                                     min={1}
+                                    disabled={formDisabled}
                                     value={sodCondAccessExpiryDuration}
                                     onChange={(e) => setSodCondAccessExpiryDuration(e.target.value)}
-                                    className="w-16 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    className="w-16 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:opacity-70"
                                   />
                                   <span className="text-xs text-gray-500">days</span>
                                 </div>
@@ -489,6 +578,7 @@ export default function ContinuousComplianceSettingsPage() {
                               label="Enable Conditional Access Expiry"
                               checked={sodCondAccessExpiry}
                               onChange={setSodCondAccessExpiry}
+                              disabled={formDisabled}
                             />
                           </div>
                         </div>
