@@ -23,7 +23,8 @@ import {
   Workflow,
   Users,
   ShieldCheck,
-  FileBarChart
+  FileBarChart,
+  Bot
 } from 'lucide-react';
 
 export interface NavItem {
@@ -71,6 +72,11 @@ export const navLinks: NavItem[] = [
       { name: 'Applications', href: '/applications', icon: LayoutPanelLeft },
       { name: 'Catalog', href: '/catalog', icon: ScreenShareIcon }
     ]
+  },
+  {
+    name: 'Non-Human Identity',
+    href: '/non-human-identity',
+    icon: Bot,
   },
   {
     name: 'Audit and Compliance',

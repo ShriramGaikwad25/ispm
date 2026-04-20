@@ -106,7 +106,15 @@ export function unwrapRowJson(row: Record<string, unknown>): Record<string, unkn
 /** Merge nested dashboard JSON (`dashboard`, `payload`, `data`, `result`) into the row for lookups */
 export function normalizeDashboardRow(row: Record<string, unknown>): Record<string, unknown> {
   const u = unwrapRowJson(row);
-  const nest = pickField(u, ["dashboard", "payload", "result", "kf_nhi_get_dashboard"]);
+  const nest = pickField(u, [
+    "dashboard",
+    "payload",
+    "data",
+    "result",
+    "kf_nhi_get_dashboard",
+    "kf_nhi_get_dashboard_v2",
+    "kf_nhi_get_agent_dashboard",
+  ]);
   if (nest && typeof nest === "object" && !Array.isArray(nest)) {
     return { ...(nest as Record<string, unknown>), ...u };
   }

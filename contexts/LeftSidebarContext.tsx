@@ -7,9 +7,12 @@ interface LeftSidebarContextValue {
   toggleSidebar: () => void;
   hideSidebar: () => void;
   showSidebar: () => void;
-  /** Current sidebar width in px (64 collapsed, 280 expanded). Used by fixed elements (e.g. steps bar) to avoid overlap. */
+  /** Main app navigation sidebar width in px (64 collapsed, 280 expanded). */
   sidebarWidthPx: number;
   setSidebarWidthPx: (w: number) => void;
+  /** Non-Human Identity secondary sidebar width (0 when not on that shell). */
+  nhiNavWidthPx: number;
+  setNhiNavWidthPx: (w: number) => void;
 }
 
 const LeftSidebarContext = createContext<LeftSidebarContextValue | undefined>(undefined);
@@ -17,6 +20,7 @@ const LeftSidebarContext = createContext<LeftSidebarContextValue | undefined>(un
 export const LeftSidebarProvider = ({ children }: { children: React.ReactNode }) => {
   const [isVisible, setIsVisible] = useState(true);
   const [sidebarWidthPx, setSidebarWidthPx] = useState(64);
+  const [nhiNavWidthPx, setNhiNavWidthPx] = useState(0);
 
   const toggleSidebar = useCallback(() => {
     setIsVisible(prev => !prev);
@@ -37,7 +41,9 @@ export const LeftSidebarProvider = ({ children }: { children: React.ReactNode })
     showSidebar,
     sidebarWidthPx,
     setSidebarWidthPx,
-  }), [isVisible, toggleSidebar, hideSidebar, showSidebar, sidebarWidthPx]);
+    nhiNavWidthPx,
+    setNhiNavWidthPx,
+  }), [isVisible, toggleSidebar, hideSidebar, showSidebar, sidebarWidthPx, nhiNavWidthPx]);
 
   return (
     <LeftSidebarContext.Provider value={value}>
