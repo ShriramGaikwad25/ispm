@@ -313,7 +313,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-base font-semibold text-gray-900">Policy Builder</h2>
         <div
-          className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 shadow-sm"
+          className="inline-flex rounded-lg border border-blue-200 bg-white p-1 shadow-sm"
           role="tablist"
           aria-label="Policy builder mode"
         >
@@ -324,8 +324,8 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
             onClick={() => setPolicyUiTab("guided")}
             className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
               policyUiTab === "guided"
-                ? "bg-white text-sky-700 shadow-sm ring-1 ring-sky-200"
-                : "text-gray-600 hover:text-gray-900"
+                ? "bg-blue-600 text-white shadow-sm ring-1 ring-blue-300"
+                : "text-blue-700/80 hover:bg-blue-100 hover:text-blue-800"
             }`}
           >
             <Compass className="h-3.5 w-3.5 shrink-0" />
@@ -338,8 +338,8 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
             onClick={() => setPolicyUiTab("advanced")}
             className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
               policyUiTab === "advanced"
-                ? "bg-white text-sky-700 shadow-sm ring-1 ring-sky-200"
-                : "text-gray-600 hover:text-gray-900"
+                ? "bg-blue-600 text-white shadow-sm ring-1 ring-blue-300"
+                : "text-blue-700/80 hover:bg-blue-100 hover:text-blue-800"
             }`}
           >
             <Settings className="h-3.5 w-3.5 shrink-0" />
@@ -1304,17 +1304,19 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
       </div>
       )}
 
-      {/* JSON Preview Section */}
-      <div className="w-full mt-4">
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-          <h3 className="text-xs font-semibold text-gray-900 mb-2 px-2 py-1 rounded-md bg-gray-200 inline-block">
-            Workflow-as-Code Preview (read-only)
-          </h3>
-          <pre className="bg-gray-900 text-gray-100 p-3 rounded-lg overflow-auto text-[11px] leading-relaxed font-mono max-h-64">
-            {JSON.stringify(generateWorkflowJSON(), null, 2)}
-          </pre>
+      {policyUiTab === "advanced" && (
+        <div className="w-full mt-4">
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+            <h3 className="text-xs font-semibold text-gray-900 mb-2 px-2 py-1 rounded-md bg-gray-200 inline-block">
+              Workflow-as-Code Preview (read-only)
+            </h3>
+            <pre className="bg-gray-900 text-gray-100 p-3 rounded-lg overflow-auto text-[11px] leading-relaxed font-mono max-h-64">
+              {JSON.stringify(generateWorkflowJSON(), null, 2)}
+            </pre>
+          </div>
         </div>
-      </div>
+      )}
+
     </div>
   );
 };
@@ -1860,7 +1862,7 @@ function WorkflowReviewSubmit({ formData }: { formData: any }) {
         <button
           type="button"
           onClick={() => setJsonOpen((o) => !o)}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-slate-800"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-blue-700"
         >
           <Code className="h-4 w-4 shrink-0" aria-hidden />
           {jsonOpen ? "Hide" : "Show"} Workflow-as-Code (JSON)
@@ -2351,7 +2353,7 @@ export default function WorkflowBuilderCreatePage() {
           ) : (
             <button
               onClick={handleSubmit}
-              className="flex items-center px-4 py-2 rounded-md text-sm font-medium bg-green-600 text-white hover:bg-green-700"
+              className="flex items-center px-4 py-2 rounded-md text-sm font-medium bg-blue-600 text-white hover:bg-blue-700"
             >
               Submit
             </button>

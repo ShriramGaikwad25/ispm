@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, Search, SquarePen } from "lucide-react";
+import { Eye, Search } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
@@ -225,16 +225,14 @@ export default function ManageAccessPolicyPage() {
       {
         headerName: "Policy Name",
         field: "policy_name",
-        flex: 1.2,
-        minWidth: 180,
-        maxWidth: 320,
+        flex: 4.0,
+        minWidth: 320,
       },
       {
         headerName: "Description",
         field: "policy_description",
-        flex: 2,
-        minWidth: 200,
-        maxWidth: 480,
+        flex: 8.0,
+        minWidth: 520,
         hide: false,
         wrapText: true,
         autoHeight: true,
@@ -250,15 +248,12 @@ export default function ManageAccessPolicyPage() {
         field: "created_by",
         flex: 1,
         minWidth: 120,
-        maxWidth: 220,
       },
       {
         headerName: "Status",
         field: "status",
-        width: 180,
-        minWidth: 180,
-        maxWidth: 180,
-        suppressSizeToFit: true,
+        flex: 0.4,
+        minWidth: 120,
         cellRenderer: (params: ICellRendererParams) => {
           const row = params.data as AccessPolicyRow;
           const isActive = isRowActive(row?.status);
@@ -301,19 +296,17 @@ export default function ManageAccessPolicyPage() {
       },
       {
         field: "actions",
-        headerName: "Actions",
-        width: 160,
-        minWidth: 160,
-        maxWidth: 160,
-        suppressSizeToFit: true,
+        headerName: "Action",
+        flex: 0.08,
+        minWidth: 45,
         cellRenderer: (params: ICellRendererParams) => {
           return (
-            <div className="flex gap-2 h-full items-center">
+            <div className="flex h-full w-full items-center justify-center">
               <button
                 type="button"
                 title="View Policy"
                 aria-label="View policy"
-                className="p-1 rounded transition-colors duration-200 hover:bg-gray-100"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white transition-colors duration-200 hover:bg-gray-100"
                 onClick={(e) => {
                   e.stopPropagation();
                   const id = params.data?.id;
@@ -335,20 +328,6 @@ export default function ManageAccessPolicyPage() {
                 }}
               >
                 <Eye className="w-5 h-5 text-gray-700" />
-              </button>
-              <button
-                type="button"
-                title="Edit Policy"
-                aria-label="Edit policy"
-                className="p-1 rounded transition-colors duration-200 hover:bg-gray-100"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const id = params.data?.id;
-                  if (!id) return;
-                  router.push(`/settings/gateway/manage-access-policy/new?policyId=${encodeURIComponent(id)}`);
-                }}
-              >
-                <SquarePen className="w-5 h-5 text-gray-700" />
               </button>
             </div>
           );

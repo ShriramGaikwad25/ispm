@@ -2,10 +2,10 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { themeQuartz } from "ag-grid-community";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useForm, Control, FieldValues, UseFormSetValue, UseFormWatch } from "react-hook-form";
-import { Check, ChevronLeft, ChevronRight, SquarePen, Eye } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Eye } from "lucide-react";
 import { asterisk, downArrow } from "@/utils/utils";
 import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
 import ExpressionBuilder from "@/components/ExpressionBuilder";
@@ -154,6 +154,7 @@ function getWorkflowTemplateIdFromPolicyRow(row: unknown): string | null {
 
 export default function ManageApprovalPoliciesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [mode, setMode] = useState<"list" | "create">("list");
   const [policies, setPolicies] = useState<
     {
@@ -199,6 +200,7 @@ export default function ManageApprovalPoliciesPage() {
   const [workflowSearch, setWorkflowSearch] = useState("");
   const [workflowRows, setWorkflowRows] = useState<WorkflowDefinition[]>([]);
   const { isVisible: isSidebarVisible, sidebarWidthPx } = useLeftSidebar();
+  const reviewEditRequested = searchParams.get("edit") === "1";
 
   const AgGridReact = useMemo(
     () => dynamic(() => import("ag-grid-react").then((mod) => mod.AgGridReact), { ssr: false }),
@@ -255,6 +257,20 @@ export default function ManageApprovalPoliciesPage() {
     });
     setWorkflowSearch("");
   };
+
+  useEffect(() => {
+    if (!reviewEditRequested) return;
+    try {
+      const raw = localStorage.getItem(APPROVAL_POLICY_VIEW_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { raw?: Record<string, unknown> };
+      const draftRow = parsed?.raw;
+      if (!draftRow || typeof draftRow !== "object") return;
+      onEditPolicy(draftRow);
+    } catch (error) {
+      console.error("Unable to load approval policy edit draft:", error);
+    }
+  }, [reviewEditRequested]);
 
   const approvalListColumnDefs = useMemo<ColDef[]>(
     () => [
@@ -329,14 +345,6 @@ export default function ManageApprovalPoliciesPage() {
                 }}
               >
                 <Eye className="w-4 h-4 text-gray-700" />
-              </button>
-              <button
-                type="button"
-                className="p-1.5 rounded-md hover:bg-gray-100 transition-colors"
-                aria-label="Edit approval policy"
-                onClick={() => onEditPolicy(params.data)}
-              >
-                <SquarePen className="w-4 h-4 text-gray-700" />
               </button>
             </div>
           );
@@ -505,7 +513,7 @@ export default function ManageApprovalPoliciesPage() {
 
   // Load workflow templates from API when on Step 3
   useEffect(() => {
-    if (mode !== "create" || currentStep !== 3) return;
+    if (mode !== "create" || (currentStep !== 3 && !reviewEditRequested)) return;
 
     let cancelled = false;
 
@@ -596,7 +604,7 @@ export default function ManageApprovalPoliciesPage() {
     return () => {
       cancelled = true;
     };
-  }, [mode, currentStep]);
+  }, [mode, currentStep, reviewEditRequested]);
 
   // After templates load on step 3, align selection with grid row ids (edit flow)
   useEffect(() => {
@@ -1280,6 +1288,109 @@ export default function ManageApprovalPoliciesPage() {
     return null;
   };
 
+  const renderAttachWorkflowSection = () => {
+    const rowData = filteredWorkflows.map((wf) => ({
+      ...wf,
+      tagsDisplay: (wf.tags ?? []).join(", "),
+    }));
+
+    const columnDefs = [
+      {
+        headerName: "",
+        width: 60,
+        maxWidth: 60,
+        pinned: "left",
+        cellRenderer: (params: any) => {
+          const checked = formData.step3.selectedWorkflowId === params.data.id;
+          return (
+            <input
+              type="radio"
+              checked={checked}
+              onChange={() =>
+                setFormData((prev) => ({
+                  ...prev,
+                  step3: { selectedWorkflowId: params.data.id },
+                }))
+              }
+            />
+          );
+        },
+      },
+      { headerName: "Name", field: "name", flex: 1, minWidth: 220 },
+      { headerName: "Description", field: "description", flex: 2, minWidth: 260 },
+      {
+        headerName: "Stages",
+        field: "stages",
+        width: 110,
+        valueFormatter: (params: any) =>
+          params.value !== undefined && params.value !== null && params.value !== ""
+            ? String(params.value)
+            : "-",
+      },
+      {
+        headerName: "Business Object Type",
+        field: "businessFunction",
+        flex: 1,
+        minWidth: 180,
+      },
+      { headerName: "Owner", field: "owner", flex: 1, minWidth: 160 },
+    ];
+
+    const defaultColDef = {
+      sortable: true,
+      filter: false,
+      resizable: true,
+      wrapText: true,
+      autoHeight: true,
+      cellStyle: {
+        whiteSpace: "normal",
+        wordBreak: "break-word",
+        lineHeight: 1.6,
+        fontSize: "14px",
+      },
+    };
+
+    return (
+      <div className="w-full">
+        <div className="flex justify-between items-center mb-3">
+          <div className="relative max-w-md w-full">
+            <input
+              type="text"
+              value={workflowSearch}
+              onChange={(e) => setWorkflowSearch(e.target.value)}
+              placeholder="Search workflows by name, description, tags, owner..."
+              className="form-input w-full"
+            />
+          </div>
+          <div className="text-[11px] text-gray-500">
+            {filteredWorkflows.length} workflow
+            {filteredWorkflows.length === 1 ? "" : "s"} found
+          </div>
+        </div>
+
+        <div className="ag-theme-alpine w-full">
+          <div style={{ width: "100%", minHeight: 260 }}>
+            {/* @ts-ignore - dynamic AgGridReact type */}
+            <AgGridReact
+              theme={themeQuartz}
+              rowData={rowData}
+              columnDefs={columnDefs}
+              defaultColDef={defaultColDef}
+              rowSelection="single"
+              onRowClicked={(event: any) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  step3: { selectedWorkflowId: event.data.id },
+                }))
+              }
+              domLayout="autoHeight"
+            />
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // List view: initial table with Create button
   if (mode === "list") {
     return (
@@ -1336,6 +1447,168 @@ export default function ManageApprovalPoliciesPage() {
               />
             </div>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  if (mode === "create" && reviewEditRequested) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="w-full py-4 px-6 space-y-4">
+          <div className="rounded-xl border border-blue-100 bg-white px-5 py-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h1 className="text-2xl font-bold text-gray-900">
+                  Edit Approval Policy
+                </h1>
+                <p className="mt-1 text-xs text-gray-600">
+                  Update the policy from this page without using the step form.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                className="inline-flex items-center gap-2 rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700"
+              >
+                <Check className="h-4 w-4" />
+                Update Policy
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              Approval Policy Details
+            </h2>
+            <div className="space-y-4 text-sm">
+              <div>
+                <label className={`block text-sm font-medium text-gray-700 mb-1 ${asterisk}`}>Name</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={formData.step1.name}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      step1: { ...prev.step1, name: e.target.value },
+                    }))
+                  }
+                />
+              </div>
+              <div>
+                <label className={`block text-sm font-medium text-gray-700 mb-1 ${asterisk}`}>Description</label>
+                <textarea
+                  className="form-input resize-y"
+                  rows={3}
+                  value={formData.step1.description}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      step1: { ...prev.step1, description: e.target.value },
+                    }))
+                  }
+                />
+              </div>
+              <div>
+                <label className={`block text-sm font-medium text-gray-700 mb-1 ${asterisk}`}>Owner</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={formData.step1.owner}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      step1: { ...prev.step1, owner: e.target.value },
+                    }))
+                  }
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-6">
+                <div className="w-full md:w-1/3">
+                  <label className={`block text-sm font-medium text-gray-700 mb-1 ${asterisk}`}>Priority</label>
+                  <select
+                    className="form-input bg-white"
+                    value={formData.step1.priority}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        step1: { ...prev.step1, priority: e.target.value as Priority },
+                      }))
+                    }
+                  >
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                    <option value="Critical">Critical</option>
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className={`block text-sm font-medium text-gray-700 mb-2 ${asterisk}`}>Status</label>
+                  <div className="inline-flex rounded-md border border-gray-300 overflow-hidden">
+                    {(["Staging", "Active", "Inactive"] as Status[]).map((status, index, array) => (
+                      <button
+                        key={status}
+                        type="button"
+                        onClick={() =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            step1: { ...prev.step1, status },
+                          }))
+                        }
+                        className={`relative px-4 py-2 text-xs font-medium border-r last:border-r-0 ${
+                          formData.step1.status === status
+                            ? `bg-[#15274E] text-white ${downArrow}`
+                            : "bg-white text-gray-700"
+                        } ${
+                          index === 0 ? "rounded-l-md" : index === array.length - 1 ? "rounded-r-md" : ""
+                        }`}
+                      >
+                        {status}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <div className="flex items-center gap-2 mb-3">
+              <label className="text-sm font-medium text-gray-700 whitespace-nowrap mr-1">
+                Condition Rule
+              </label>
+              <select
+                className="form-input w-56 bg-white"
+                value={conditionSubject}
+                onChange={(e) => setConditionSubject(e.target.value as ConditionSubject)}
+              >
+                {(["Request Type", "Application", "Entitlement", "Service Account", "User"] as ConditionSubject[]).map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+            <ExpressionBuilder
+              title="Build Expression"
+              control={conditionControl as unknown as Control<FieldValues>}
+              setValue={conditionSetValue as unknown as UseFormSetValue<FieldValues>}
+              watch={conditionWatch as unknown as UseFormWatch<FieldValues>}
+              fieldName="approvalConditions"
+              attributesOptions={
+                EXPRESSION_ATTRIBUTES[conditionSubject] ??
+                ATTRIBUTE_OPTIONS[conditionSubject].map((attr) => ({
+                  label: attr,
+                  value: attr.replace(/\s+/g, "_").toLowerCase(),
+                }))
+              }
+              fullWidth
+            />
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Attach Workflow</h2>
+            {renderAttachWorkflowSection()}
+          </div>
         </div>
       </div>
     );
@@ -1418,7 +1691,7 @@ export default function ManageApprovalPoliciesPage() {
                 className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium"
               >
                 <Check className="w-4 h-4 mr-2" />
-                Submit
+                {reviewEditRequested ? "Update Policy" : "Submit"}
               </button>
             )}
           </div>

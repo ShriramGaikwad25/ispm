@@ -62,6 +62,17 @@ export function Navigation() {
       })
     : navigation;
 
+  // Do not show back button on routes that are already first-class sidebar destinations.
+  const sidebarRouteSet = useState(() => {
+    const set = new Set<string>();
+    navigation.forEach((item) => {
+      set.add(item.href);
+      item.subItems?.forEach((subItem) => set.add(subItem.href));
+    });
+    return set;
+  })[0];
+  const isMainSidebarRoute = sidebarRouteSet.has(pathname);
+
   // Back link config: first match wins (order = most specific first)
   const getBackConfig = (): { href: string; label: string } | null => {
     // App Inventory
@@ -80,7 +91,7 @@ export function Navigation() {
       return { href: '/settings/gateway/email-templates', label: 'Back to Email Templates' };
     }
     if (pathname === '/settings/gateway/email-templates') {
-      return { href: '/settings/gateway', label: 'Back to Gateway' };
+      return { href: '/settings/gateway', label: 'Back to Generic' };
     }
     // Gateway - Workflow Builder create/edit
     if (pathname === '/settings/gateway/workflow-builder/new') {
@@ -89,6 +100,9 @@ export function Navigation() {
     // Gateway - other pages
     if (pathname === '/settings/gateway/manage-access-policy/new') {
       return { href: '/settings/gateway/manage-access-policy', label: 'Back to Manage Access Policy' };
+    }
+    if (pathname === '/settings/gateway/manage-access-policy') {
+      return { href: '/settings', label: 'Back to Administration' };
     }
     if (pathname === '/settings/gateway/manage-business-roles/new') {
       return { href: '/settings/gateway/manage-business-roles', label: 'Back to Manage Business Roles' };
@@ -132,10 +146,10 @@ export function Navigation() {
         pathname === '/settings/gateway/general' || pathname === '/settings/gateway/scheduler' ||
         pathname === '/settings/gateway/manage-business-roles' || pathname === '/settings/gateway/manage-approval-policies' ||
         pathname === '/settings/gateway/ai-insights-configuration' || pathname === '/settings/gateway/continuous-compliance') {
-      return { href: '/settings/gateway', label: 'Back to Gateway' };
+      return { href: '/settings/gateway', label: 'Back to Generic' };
     }
     if (pathname.startsWith('/settings/gateway/manage-access-policy')) {
-      return { href: '/settings/gateway', label: 'Back to Gateway' };
+      return { href: '/settings/gateway/manage-access-policy', label: 'Back to Access Policy' };
     }
     // App Owner / Access Review
     if (pathname === '/app-owner') {
@@ -256,7 +270,7 @@ export function Navigation() {
         aria-label="Primary navigation"
       >
         {/* Back - compact, before search */}
-        {backConfig && (
+        {!isMainSidebarRoute && backConfig && (
           <div className="w-full mb-2">
             <Link
               href={backConfig.href}

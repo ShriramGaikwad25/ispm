@@ -534,7 +534,8 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
         )}
 
         {/* Roles List (all roles from current API page) */}
-        <div className="space-y-3">
+        <div className="max-h-[55vh] overflow-y-auto pr-1">
+          <div className="space-y-3">
           {sortedRoles.map((role) => {
             const normalizedId = getRoleId(role);
             const inCartById = normalizedId ? isInCart(normalizedId) : false;
@@ -650,6 +651,7 @@ const SelectAccessTab: React.FC<SelectAccessTabProps> = ({
             </div>
             );
           })}
+          </div>
         </div>
 
         {filteredRoles.length === 0 && (

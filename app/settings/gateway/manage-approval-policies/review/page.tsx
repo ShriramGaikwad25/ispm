@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { AlertCircle, Printer } from "lucide-react";
+import { AlertCircle, Printer, SquarePen, ChevronLeft } from "lucide-react";
 import { executeQuery } from "@/lib/api";
+import { useRouter } from "next/navigation";
+import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
 
 const APPROVAL_POLICY_VIEW_STORAGE_KEY = "approvalPolicyViewDraft";
 
@@ -322,6 +324,8 @@ async function fetchWorkflowTemplateById(
 }
 
 export default function ApprovalPolicyReviewPage() {
+  const router = useRouter();
+  const { isVisible: isSidebarVisible, sidebarWidthPx } = useLeftSidebar();
   const [data, setData] = useState<ApprovalPolicyViewData>(EMPTY_DATA);
   const [hasData, setHasData] = useState(false);
   const [policyRaw, setPolicyRaw] = useState<Record<string, unknown> | null>(
@@ -526,6 +530,24 @@ export default function ApprovalPolicyReviewPage() {
 
   return (
     <div className="relative min-h-screen bg-gradient-to-b from-slate-50 to-gray-100">
+      <div
+        className="fixed top-[60px] z-20 bg-white/95 backdrop-blur border-b border-gray-200 px-6 py-2.5"
+        style={{
+          left: isSidebarVisible ? sidebarWidthPx : 0,
+          right: 0,
+          transition: "left 300ms ease-in-out",
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => router.push("/settings/gateway/manage-approval-policies")}
+          className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+        >
+          <ChevronLeft className="mr-1 h-4 w-4" />
+          Back to Approval Policies
+        </button>
+      </div>
+      <div className="h-[52px]" aria-hidden />
       <div className="absolute top-0 right-0 z-20 print:hidden p-0 m-0">
         <button
           type="button"
@@ -543,11 +565,25 @@ export default function ApprovalPolicyReviewPage() {
           <h1 className="text-lg font-semibold text-gray-900">
             Review and Submit Approval Policy
           </h1>
-          {hasData && (
-            <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 shrink-0">
-              {data.id || "Policy"}
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {hasData && (
+              <button
+                type="button"
+                onClick={() =>
+                  router.push("/settings/gateway/manage-approval-policies?edit=1")
+                }
+                className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+              >
+                <SquarePen className="h-3.5 w-3.5" />
+                Edit
+              </button>
+            )}
+            {hasData && (
+              <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 shrink-0">
+                {data.id || "Policy"}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Legacy back button row removed and replaced with header above */}

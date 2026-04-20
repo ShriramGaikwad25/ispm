@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   Users,
   Printer,
+  SquarePen,
 } from "lucide-react";
 import ExpressionBuilder from "@/components/ExpressionBuilder";
 import { getRiskColor, type Role } from "@/app/access-request/AddDetailsSidebarContent";
@@ -240,8 +241,11 @@ export default function CreateAccessPolicyPage() {
   const searchParams = useSearchParams();
   const policyIdParam = searchParams.get("policyId");
   const isViewMode = searchParams.get("view") === "1" && Boolean(policyIdParam);
+  const isEditFromView = isViewMode && searchParams.get("edit") === "1";
   const { addToCart, clearCart, isInCart, items: cartItems } = useCart();
   const [currentStep, setCurrentStep] = useState(1);
+  /** Single-page edit-from-view shows Select Access without advancing the wizard step. */
+  const shouldLoadSelectAccess = currentStep === 3 || isEditFromView;
   const [advanced, setAdvanced] = useState(false);
   // If policyId is present, we are editing an existing policy
   const [editingPolicyId, setEditingPolicyId] = useState<string | null>(null);
@@ -382,9 +386,9 @@ export default function CreateAccessPolicyPage() {
     });
   }, [catalogData]);
 
-  // Load application instances when on Select Access step
+  // Load application instances when Select Access is shown (wizard step 3 or single-page edit-from-view)
   useEffect(() => {
-    if (currentStep !== 3) return;
+    if (!shouldLoadSelectAccess) return;
     const url = "https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery";
     fetch(url, {
       method: "POST",
@@ -416,11 +420,11 @@ export default function CreateAccessPolicyPage() {
         setApplicationInstances(list);
       })
       .catch(() => setApplicationInstances([]));
-  }, [currentStep]);
+  }, [shouldLoadSelectAccess]);
 
   // Load catalog data in Select Access step
   useEffect(() => {
-    if (currentStep !== 3) return;
+    if (!shouldLoadSelectAccess) return;
 
     const fetchKey = `3-${catalogPage}-${selectedAppInstanceId ?? "all"}-${showApplicationInstancesOnly}-${catalogTypeFilter}-${tagFilter || "all"}`;
     if (catalogFetchKeyRef.current === fetchKey) return;
@@ -487,7 +491,7 @@ export default function CreateAccessPolicyPage() {
         }
       });
   }, [
-    currentStep,
+    shouldLoadSelectAccess,
     catalogPage,
     selectedAppInstanceId,
     showApplicationInstancesOnly,
@@ -865,7 +869,7 @@ export default function CreateAccessPolicyPage() {
     const apply = (row: Record<string, unknown>) =>
       applyPolicyRowFromApiRef.current(row);
 
-    if (isViewMode) {
+    if (isViewMode && !isEditFromView) {
       try {
         const raw = sessionStorage.getItem(ACCESS_POLICY_VIEW_STORAGE_KEY);
         if (raw) {
@@ -915,7 +919,7 @@ export default function CreateAccessPolicyPage() {
     };
 
     fetchPolicy();
-  }, [isViewMode, policyIdParam]);
+  }, [isEditFromView, isViewMode, policyIdParam]);
 
   useEffect(() => {
     if (!accessGrantedCatalogIds.length) {
@@ -1431,6 +1435,63 @@ export default function CreateAccessPolicyPage() {
     );
   };
 
+  const PolicyDetailsEditFromView = () => (
+    <div className="bg-white rounded-lg p-4 border border-gray-200">
+      <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <ShieldCheck className="h-4 w-4 text-blue-600 shrink-0" />
+        Access Policy
+      </h4>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+        <div>
+          <div className="font-medium text-gray-600 mb-1">Policy Name</div>
+          <input
+            type="text"
+            {...register("policyName")}
+            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <div className="font-medium text-gray-600 mb-1">Owner</div>
+          <input
+            type="text"
+            {...register("owner")}
+            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <div className="font-medium text-gray-600 mb-1">Priority</div>
+          <input
+            type="number"
+            {...register("priority")}
+            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <div className="font-medium text-gray-600 mb-1">Enabled</div>
+          <label className="inline-flex h-[38px] items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900">
+            <input
+              type="checkbox"
+              {...register("enabled")}
+              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+            />
+            Enabled
+          </label>
+        </div>
+        <div className="md:col-span-2">
+          <div className="font-medium text-gray-600 mb-1 flex items-center gap-2">
+            <FileText className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+            Description
+          </div>
+          <textarea
+            {...register("description")}
+            rows={3}
+            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+          />
+        </div>
+      </div>
+    </div>
+  );
+
   const steps = [
     { id: 1, title: "Policy Details" },
     { id: 2, title: "Membership Rule" },
@@ -1438,7 +1499,7 @@ export default function CreateAccessPolicyPage() {
     { id: 4, title: "Review" },
   ];
 
-  if (isViewMode) {
+  if (isViewMode && !isEditFromView) {
     return (
       <div className="relative min-h-screen bg-gradient-to-b from-slate-50 to-gray-100">
         <div className="absolute top-0 right-0 z-20 print:hidden p-0 m-0">
@@ -1455,13 +1516,28 @@ export default function CreateAccessPolicyPage() {
         <div className="mx-auto w-full max-w-6xl">
           <div className="space-y-4 py-3 px-6">
           <div className="rounded-xl border border-blue-100 bg-white px-5 py-4 shadow-sm">
-            <div className="min-w-0">
-              <h1 className="text-2xl font-bold text-gray-900">
-                Review Access Policy
-              </h1>
-              <p className="mt-1 text-xs text-gray-600">
-                Review policy details before making updates.
-              </p>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h1 className="text-2xl font-bold text-gray-900">
+                  Review Access Policy
+                </h1>
+                <p className="mt-1 text-xs text-gray-600">
+                  Review policy details before making updates.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!policyIdParam) return;
+                  router.push(
+                    `/settings/gateway/manage-access-policy/new?policyId=${encodeURIComponent(policyIdParam)}&view=1&edit=1`
+                  );
+                }}
+                className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                <SquarePen className="h-4 w-4" />
+                Edit
+              </button>
             </div>
           </div>
 
@@ -1485,6 +1561,109 @@ export default function CreateAccessPolicyPage() {
           </div>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (isViewMode && isEditFromView) {
+    return (
+      <div className="relative min-h-screen bg-gradient-to-b from-slate-50 to-gray-100">
+        <div className="mx-auto w-full max-w-6xl">
+          <div className="space-y-4 py-3 px-6">
+            <div className="rounded-xl border border-blue-100 bg-white px-5 py-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h1 className="text-2xl font-bold text-gray-900">
+                    Edit Access Policy
+                  </h1>
+                  <p className="mt-1 text-xs text-gray-600">
+                    Update the policy from this page without using the step form.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSubmit(onSubmit)}
+                  className="inline-flex items-center gap-2 rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700"
+                >
+                  <Check className="h-4 w-4" />
+                  Update Policy
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+              <div className="space-y-6">
+                <PolicyDetailsEditFromView />
+                <Step2Content />
+                <Step3Content />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {feedbackModal && (
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 px-4"
+            role="presentation"
+            onClick={(e) => {
+              if (e.target !== e.currentTarget) return;
+              if (feedbackModal?.navigateToList) return;
+              dismissFeedbackModal();
+            }}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="access-policy-feedback-title"
+              className="w-full max-w-md rounded-lg bg-white shadow-xl border border-gray-200 p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex gap-4">
+                {feedbackModal.type === "success" ? (
+                  <CheckCircle2
+                    className="h-11 w-11 text-green-600 shrink-0"
+                    aria-hidden
+                  />
+                ) : (
+                  <AlertCircle
+                    className="h-11 w-11 text-red-600 shrink-0"
+                    aria-hidden
+                  />
+                )}
+                <div className="min-w-0 flex-1">
+                  <h2
+                    id="access-policy-feedback-title"
+                    className="text-lg font-semibold text-gray-900"
+                  >
+                    {feedbackModal.title}
+                  </h2>
+                  <p className="mt-2 text-sm text-gray-600 whitespace-pre-wrap">
+                    {feedbackModal.message}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-6 flex justify-end gap-3">
+                {feedbackModal.navigateToList ? (
+                  <button
+                    type="button"
+                    onClick={dismissFeedbackModal}
+                    className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 text-sm font-medium"
+                  >
+                    View all policies
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={dismissFeedbackModal}
+                    className="px-4 py-2 rounded-md bg-gray-900 text-white hover:bg-gray-800 text-sm font-medium"
+                  >
+                    OK
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

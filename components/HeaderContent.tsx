@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Dropdown from "./Dropdown";
 import { formatDateMMDDYY } from "@/utils/utils";
@@ -13,6 +13,7 @@ import ChartDataLabels from "chartjs-plugin-datalabels";
 import "@/lib/ag-grid-setup";
 import CertificationProgress from "./CertificationProgress";
 import UserProgress from "./UserProgress";
+import { navLinks, NavItem } from "./Navi";
 import { useAuth } from "@/contexts/AuthContext";
 import { getCookie, COOKIE_NAMES, getCurrentUser } from "@/lib/auth";
 import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
@@ -265,6 +266,7 @@ const PopupButton = ({
 
 const HeaderContent = () => {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const pathnameRef = useRef(pathname);
   pathnameRef.current = pathname;
   const closeUserMenuRef = useRef<(() => void) | null>(null);
@@ -426,6 +428,94 @@ const HeaderContent = () => {
 
   // Check if we should show campaign-specific header (only when inside a specific campaign)
   const shouldShowCampaignHeader = pathname?.includes('/campaigns/manage-campaigns/');
+
+  const flattenNavItems = (items: NavItem[]): NavItem[] => {
+    const out: NavItem[] = [];
+    for (const item of items) {
+      out.push(item);
+      if (item.subItems?.length) {
+        out.push(...flattenNavItems(item.subItems));
+      }
+    }
+    return out;
+  };
+
+  const getHeadingFromNav = (currentPath: string): string | null => {
+    const allItems = flattenNavItems(navLinks);
+    const candidates = allItems.filter((item) => {
+      if (!item.href || item.href === "/") return currentPath === "/";
+      return (
+        currentPath === item.href ||
+        currentPath.startsWith(`${item.href}/`)
+      );
+    });
+
+    if (candidates.length === 0) return null;
+
+    const bestMatch = candidates.sort((a, b) => b.href.length - a.href.length)[0];
+    return bestMatch?.name || null;
+  };
+
+  const toTitleCaseFromSlug = (value: string): string => {
+    return value
+      .split("-")
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+  };
+
+  const getGenericGatewayPageTitle = (currentPath: string): string | null => {
+    if (!currentPath.startsWith("/settings/gateway/")) return null;
+    const rest = currentPath.replace("/settings/gateway/", "");
+    if (!rest) return null;
+
+    const parts = rest.split("/").filter(Boolean);
+    if (parts.length === 0) return null;
+
+    const last = parts[parts.length - 1];
+    const prev = parts.length > 1 ? parts[parts.length - 2] : "";
+
+    if (last === "new" || last === "create" || last === "review" || last === "edit") {
+      const action = toTitleCaseFromSlug(last);
+      const subject = toTitleCaseFromSlug(prev || "page");
+      return `${action} ${subject}`;
+    }
+
+    return toTitleCaseFromSlug(last);
+  };
+
+  const getNavbarHeading = (): string | null => {
+    if (!pathname) return null;
+
+    // Access Request area
+    if (pathname.startsWith("/access-request/pending-approvals")) return "My Approvals";
+    if (pathname.startsWith("/access-request")) return "Access Request";
+
+    // Gateway settings headings that previously rendered blank in header
+    if (pathname === "/settings/gateway/manage-access-policy") return "Manage Access Policy";
+    if (pathname === "/settings/gateway/manage-access-policy/new") {
+      const isView = searchParams?.get("view") === "1";
+      const isEdit = searchParams?.get("edit") === "1";
+      if (isView && isEdit) return "Edit Access Policy";
+      if (isView) return "Review Access Policy";
+      return "Create Access Policy";
+    }
+    if (pathname === "/settings/gateway/manage-approval-policies") {
+      const isEdit = searchParams?.get("edit") === "1";
+      return isEdit ? "Edit Approval Policy" : "Manage Approval Policies";
+    }
+    if (pathname === "/settings/gateway/manage-approval-policies/review") return "Review Approval Policy";
+
+    const headingFromNav = getHeadingFromNav(pathname);
+    if (headingFromNav && headingFromNav !== "Generic") return headingFromNav;
+
+    const genericGatewayTitle = getGenericGatewayPageTitle(pathname);
+    if (genericGatewayTitle) return genericGatewayTitle;
+
+    return headingFromNav;
+  };
+
+  const navbarHeading = getNavbarHeading();
 
 
   // Calculate days left
@@ -917,11 +1007,9 @@ const HeaderContent = () => {
           </div>
         ) : (
           <div className="flex items-center justify-center flex-1 px-4">
-            {pathname?.startsWith('/access-request') && (
+            {navbarHeading && (
               <p className="text-lg font-semibold text-white">
-                {pathname?.startsWith('/access-request/pending-approvals')
-                  ? 'My Approvals'
-                  : 'Access Request'}
+                {navbarHeading}
               </p>
             )}
           </div>
