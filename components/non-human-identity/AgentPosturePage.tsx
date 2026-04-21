@@ -27,6 +27,21 @@ import {
   type NhiAgentRow,
 } from "@/lib/nhi-agents";
 
+const FILTER_ALL = "all" as const;
+
+function displayCell(v: string | undefined): string {
+  const s = (v ?? "").trim();
+  return s.length ? s : "—";
+}
+
+function uniqueSortedOptions(rows: NhiAgentRow[], key: keyof NhiAgentRow): string[] {
+  const set = new Set<string>();
+  for (const r of rows) {
+    set.add(displayCell(r[key] as string | undefined));
+  }
+  return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+}
+
 ChartJS.register(
   ArcElement,
   BarElement,
@@ -69,7 +84,13 @@ export function AgentPosturePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [search, setSearch] = useState("");
+  const [agentNameSearch, setAgentNameSearch] = useState("");
+  const [interfaceTypeFilter, setInterfaceTypeFilter] = useState<string>(FILTER_ALL);
+  const [classificationFilter, setClassificationFilter] = useState<string>(FILTER_ALL);
+  const [platformFilter, setPlatformFilter] = useState<string>(FILTER_ALL);
+  const [environmentFilter, setEnvironmentFilter] = useState<string>(FILTER_ALL);
+  const [statusFilter, setStatusFilter] = useState<string>(FILTER_ALL);
+  const [businessOwnerFilter, setBusinessOwnerFilter] = useState<string>(FILTER_ALL);
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
@@ -172,33 +193,66 @@ export function AgentPosturePage() {
     };
   }, [topByActions]);
 
+  const filterOptions = useMemo(
+    () => ({
+      interfaceTypes: uniqueSortedOptions(agents, "interface_type"),
+      classifications: uniqueSortedOptions(agents, "identity_classification"),
+      platforms: uniqueSortedOptions(agents, "platform_name"),
+      environments: uniqueSortedOptions(agents, "environment_label"),
+      statuses: uniqueSortedOptions(agents, "identity_state"),
+      owners: uniqueSortedOptions(agents, "business_owner_name"),
+    }),
+    [agents]
+  );
+
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return agents;
     return agents.filter((a) => {
-      const blob = [
-        a.agent_name,
-        a.vendor,
-        a.model_name,
-        a.model_version,
-        a.nhi_id,
-        a.interface_type,
-        a.identity_classification,
-        a.platform_name,
-        a.environment_label,
-        a.identity_state,
-        a.business_owner_name,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return blob.includes(q);
+      if (agentNameSearch.trim()) {
+        const q = agentNameSearch.trim().toLowerCase();
+        if (!(a.agent_name ?? "").toLowerCase().includes(q)) return false;
+      }
+      if (interfaceTypeFilter !== FILTER_ALL && displayCell(a.interface_type) !== interfaceTypeFilter) {
+        return false;
+      }
+      if (classificationFilter !== FILTER_ALL && displayCell(a.identity_classification) !== classificationFilter) {
+        return false;
+      }
+      if (platformFilter !== FILTER_ALL && displayCell(a.platform_name) !== platformFilter) {
+        return false;
+      }
+      if (environmentFilter !== FILTER_ALL && displayCell(a.environment_label) !== environmentFilter) {
+        return false;
+      }
+      if (statusFilter !== FILTER_ALL && displayCell(a.identity_state) !== statusFilter) {
+        return false;
+      }
+      if (businessOwnerFilter !== FILTER_ALL && displayCell(a.business_owner_name) !== businessOwnerFilter) {
+        return false;
+      }
+      return true;
     });
-  }, [agents, search]);
+  }, [
+    agents,
+    agentNameSearch,
+    interfaceTypeFilter,
+    classificationFilter,
+    platformFilter,
+    environmentFilter,
+    statusFilter,
+    businessOwnerFilter,
+  ]);
 
   useEffect(() => {
     setPage(1);
-  }, [search]);
+  }, [
+    agentNameSearch,
+    interfaceTypeFilter,
+    classificationFilter,
+    platformFilter,
+    environmentFilter,
+    statusFilter,
+    businessOwnerFilter,
+  ]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const pageSafe = Math.min(page, totalPages);
@@ -367,26 +421,146 @@ export function AgentPosturePage() {
       </div>
 
       <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-gray-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700">
-              All agents
-            </h2>
-            <p className="mt-0.5 text-xs text-slate-500">
-              Search across agent name, vendor, model, interface type, classification, platform,
-              environment, status, and business owner.
-            </p>
+        <div className="border-b border-gray-100 px-4 py-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700">
+                All agents
+              </h2>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Filter by agent name and attributes (same pattern as Rotation Policy).
+              </p>
+            </div>
           </div>
-          <div className="relative w-full max-w-xl flex-1 sm:min-w-[280px]">
-            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search…"
-              className="w-full rounded-md border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-              aria-label="Search agents"
-            />
+
+          <div className="mt-4 grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="min-w-0">
+              <label htmlFor="agent-inv-name" className="text-sm font-medium text-gray-700">
+                Agent name
+              </label>
+              <div className="relative mt-1">
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                  <Search className="h-4 w-4 text-gray-400" aria-hidden />
+                </div>
+                <input
+                  id="agent-inv-name"
+                  type="search"
+                  value={agentNameSearch}
+                  onChange={(e) => setAgentNameSearch(e.target.value)}
+                  placeholder="Search by agent name…"
+                  autoComplete="off"
+                  className="w-full rounded-md border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                />
+              </div>
+            </div>
+            <div className="min-w-0">
+              <label htmlFor="agent-inv-interface" className="text-sm font-medium text-gray-700">
+                Interface type
+              </label>
+              <select
+                id="agent-inv-interface"
+                value={interfaceTypeFilter}
+                onChange={(e) => setInterfaceTypeFilter(e.target.value)}
+                className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              >
+                <option value={FILTER_ALL}>All</option>
+                {filterOptions.interfaceTypes.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="min-w-0">
+              <label htmlFor="agent-inv-classification" className="text-sm font-medium text-gray-700">
+                Classification
+              </label>
+              <select
+                id="agent-inv-classification"
+                value={classificationFilter}
+                onChange={(e) => setClassificationFilter(e.target.value)}
+                className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              >
+                <option value={FILTER_ALL}>All</option>
+                {filterOptions.classifications.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="min-w-0">
+              <label htmlFor="agent-inv-platform" className="text-sm font-medium text-gray-700">
+                Platform
+              </label>
+              <select
+                id="agent-inv-platform"
+                value={platformFilter}
+                onChange={(e) => setPlatformFilter(e.target.value)}
+                className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              >
+                <option value={FILTER_ALL}>All</option>
+                {filterOptions.platforms.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="min-w-0">
+              <label htmlFor="agent-inv-env" className="text-sm font-medium text-gray-700">
+                Environment
+              </label>
+              <select
+                id="agent-inv-env"
+                value={environmentFilter}
+                onChange={(e) => setEnvironmentFilter(e.target.value)}
+                className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              >
+                <option value={FILTER_ALL}>All</option>
+                {filterOptions.environments.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="min-w-0">
+              <label htmlFor="agent-inv-status" className="text-sm font-medium text-gray-700">
+                Status
+              </label>
+              <select
+                id="agent-inv-status"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              >
+                <option value={FILTER_ALL}>All</option>
+                {filterOptions.statuses.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="min-w-0">
+              <label htmlFor="agent-inv-owner" className="text-sm font-medium text-gray-700">
+                Business owner
+              </label>
+              <select
+                id="agent-inv-owner"
+                value={businessOwnerFilter}
+                onChange={(e) => setBusinessOwnerFilter(e.target.value)}
+                className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              >
+                <option value={FILTER_ALL}>All</option>
+                {filterOptions.owners.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
         <div className="overflow-x-auto">

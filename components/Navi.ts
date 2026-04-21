@@ -21,19 +21,13 @@ import {
   Workflow,
   Users,
   Bot,
-  KeyRound,
-  Phone,
-  FileSearch,
-  History,
-  ClipboardCheck,
   SlidersHorizontal,
   Siren,
-  GitBranch,
-  Table2,
   RefreshCw,
   ShieldAlert,
+  PlusCircle,
 } from "lucide-react";
-import { NHI_LEGACY_NAV_ITEMS, NHI_NAV_ITEMS } from "@/lib/nhi-shell";
+import { NHI_NAV_ITEMS } from "@/lib/nhi-shell";
 
 export interface NavItem {
   name: string;
@@ -50,34 +44,15 @@ const NHI_PRIMARY_ICONS = [
   Users,
   RefreshCw,
   ShieldAlert,
-] as const;
-
-const NHI_LEGACY_ICONS = [
-  LayoutDashboard,
-  Bot,
-  Users,
-  KeyRound,
-  Phone,
-  FileSearch,
-  Shield,
-  History,
-  ClipboardCheck,
   SlidersHorizontal,
   Siren,
-  GitBranch,
-  Table2,
+  PlusCircle,
 ] as const;
 
 const nhiPrimarySubItems: NavItem[] = NHI_NAV_ITEMS.map((item, i) => ({
   name: item.label,
   href: item.href,
   icon: NHI_PRIMARY_ICONS[i] ?? Bot,
-}));
-
-const nhiLegacySubItems: NavItem[] = NHI_LEGACY_NAV_ITEMS.map((item, i) => ({
-  name: item.label,
-  href: item.href,
-  icon: NHI_LEGACY_ICONS[i] ?? Bot,
 }));
 
 export const navLinks: NavItem[] = [
@@ -130,12 +105,6 @@ export const navLinks: NavItem[] = [
     href: "/non-human-identity",
     icon: Bot,
     subItems: nhiPrimarySubItems,
-  },
-  {
-    name: "Non-Human Identity-1",
-    href: "/non-human-identity-1",
-    icon: Bot,
-    subItems: nhiLegacySubItems,
   },
   {
     name: "Audit and Compliance",

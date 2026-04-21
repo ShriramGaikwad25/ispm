@@ -55,6 +55,21 @@ type NhiIdentity = {
   environment_label: string;
 };
 
+const FILTER_ALL = "all" as const;
+
+function displayCell(v: string | undefined): string {
+  const s = (v ?? "").trim();
+  return s.length ? s : "—";
+}
+
+function uniqueSortedOptions(rows: NhiIdentity[], key: keyof NhiIdentity): string[] {
+  const set = new Set<string>();
+  for (const r of rows) {
+    set.add(displayCell(r[key] as string | undefined));
+  }
+  return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+}
+
 const DONUT_COLORS = [
   "#4F46E5",
   "#10B981",
@@ -142,7 +157,14 @@ export function NhiInventoryPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
+  const [identityNameSearch, setIdentityNameSearch] = useState("");
+  const [nhiTypeFilter, setNhiTypeFilter] = useState<string>(FILTER_ALL);
+  const [identityTypeFilter, setIdentityTypeFilter] = useState<string>(FILTER_ALL);
+  const [environmentFilter, setEnvironmentFilter] = useState<string>(FILTER_ALL);
+  const [associatedSystemFilter, setAssociatedSystemFilter] = useState<string>(FILTER_ALL);
+  const [ownerFilter, setOwnerFilter] = useState<string>(FILTER_ALL);
+  const [riskFilter, setRiskFilter] = useState<string>(FILTER_ALL);
+  const [statusFilter, setStatusFilter] = useState<string>(FILTER_ALL);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
@@ -181,33 +203,70 @@ export function NhiInventoryPage() {
     [rows]
   );
 
+  const filterOptions = useMemo(
+    () => ({
+      nhiTypes: uniqueSortedOptions(rows, "nhi_type"),
+      identityTypes: uniqueSortedOptions(rows, "execution_type"),
+      environments: uniqueSortedOptions(rows, "environment_label"),
+      associatedSystems: uniqueSortedOptions(rows, "associated_system"),
+      owners: uniqueSortedOptions(rows, "owner_name"),
+      risks: uniqueSortedOptions(rows, "risk_level"),
+      statuses: uniqueSortedOptions(rows, "state"),
+    }),
+    [rows]
+  );
+
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return rows;
     return rows.filter((r) => {
-      const blob = [
-        r.name,
-        r.nhi_id,
-        r.nhi_type,
-        r.execution_type,
-        r.environment_label,
-        r.associated_system,
-        r.owner_name,
-        r.risk_level,
-        r.state,
-        r.criticality,
-        r.review_status,
-        r.load_source,
-      ]
-        .join(" ")
-        .toLowerCase();
-      return blob.includes(q);
+      if (identityNameSearch.trim()) {
+        const q = identityNameSearch.trim().toLowerCase();
+        const nameOk = r.name.toLowerCase().includes(q);
+        const idOk = r.nhi_id.toLowerCase().includes(q);
+        if (!nameOk && !idOk) return false;
+      }
+      if (nhiTypeFilter !== FILTER_ALL && displayCell(r.nhi_type) !== nhiTypeFilter) return false;
+      if (identityTypeFilter !== FILTER_ALL && displayCell(r.execution_type) !== identityTypeFilter) {
+        return false;
+      }
+      if (environmentFilter !== FILTER_ALL && displayCell(r.environment_label) !== environmentFilter) {
+        return false;
+      }
+      if (
+        associatedSystemFilter !== FILTER_ALL &&
+        displayCell(r.associated_system) !== associatedSystemFilter
+      ) {
+        return false;
+      }
+      if (ownerFilter !== FILTER_ALL && displayCell(r.owner_name) !== ownerFilter) return false;
+      if (riskFilter !== FILTER_ALL && displayCell(r.risk_level) !== riskFilter) return false;
+      if (statusFilter !== FILTER_ALL && displayCell(r.state) !== statusFilter) return false;
+      return true;
     });
-  }, [rows, search]);
+  }, [
+    rows,
+    identityNameSearch,
+    nhiTypeFilter,
+    identityTypeFilter,
+    environmentFilter,
+    associatedSystemFilter,
+    ownerFilter,
+    riskFilter,
+    statusFilter,
+  ]);
 
   useEffect(() => {
     setPage(1);
-  }, [search, pageSize]);
+  }, [
+    identityNameSearch,
+    nhiTypeFilter,
+    identityTypeFilter,
+    environmentFilter,
+    associatedSystemFilter,
+    ownerFilter,
+    riskFilter,
+    statusFilter,
+    pageSize,
+  ]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const pageSafe = Math.min(page, totalPages);
@@ -318,55 +377,198 @@ export function NhiInventoryPage() {
       </div>
 
       <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-gray-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700">
-              Identities ({filtered.length})
-            </h2>
-            <p className="mt-0.5 text-xs text-slate-500">
-              Search matches NHI type, identity type (execution), environment, associated system, owner, risk,
-              status, and other columns.
-            </p>
-          </div>
-          <div className="flex w-full max-w-2xl flex-1 items-center gap-2 sm:min-w-[280px]">
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-              <input
-                type="search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search…"
-                aria-label="Search identities"
-                className="w-full rounded-md border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-              />
+        <div className="border-b border-gray-100 px-4 py-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700">
+                Identities ({filtered.length})
+              </h2>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Filter by name and attributes (same pattern as Rotation Policy).
+              </p>
             </div>
-            <select
-              value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value))}
-              className="rounded-md border border-gray-200 bg-white px-2 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-              aria-label="Rows per page"
-            >
-              <option value={10}>10 / page</option>
-              <option value={25}>25 / page</option>
-              <option value={50}>50 / page</option>
-              <option value={100}>100 / page</option>
-            </select>
+            <div className="flex shrink-0 items-center gap-2">
+              <label htmlFor="nhi-inv-page-size" className="text-sm font-medium text-gray-700">
+                Rows
+              </label>
+              <select
+                id="nhi-inv-page-size"
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+                className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                aria-label="Rows per page"
+              >
+                <option value={10}>10 / page</option>
+                <option value={25}>25 / page</option>
+                <option value={50}>50 / page</option>
+                <option value={100}>100 / page</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="min-w-0">
+              <label htmlFor="nhi-inv-name" className="text-sm font-medium text-gray-700">
+                Name
+              </label>
+              <div className="relative mt-1">
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                  <Search className="h-4 w-4 text-gray-400" aria-hidden />
+                </div>
+                <input
+                  id="nhi-inv-name"
+                  type="search"
+                  value={identityNameSearch}
+                  onChange={(e) => setIdentityNameSearch(e.target.value)}
+                  placeholder="Search by name or NHI id…"
+                  autoComplete="off"
+                  aria-label="Search by identity name or NHI id"
+                  className="w-full rounded-md border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                />
+              </div>
+            </div>
+            <div className="min-w-0">
+              <label htmlFor="nhi-inv-nhi-type" className="text-sm font-medium text-gray-700">
+                NHI type
+              </label>
+              <select
+                id="nhi-inv-nhi-type"
+                value={nhiTypeFilter}
+                onChange={(e) => setNhiTypeFilter(e.target.value)}
+                className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              >
+                <option value={FILTER_ALL}>All</option>
+                {filterOptions.nhiTypes.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="min-w-0">
+              <label htmlFor="nhi-inv-identity-type" className="text-sm font-medium text-gray-700">
+                Identity type
+              </label>
+              <select
+                id="nhi-inv-identity-type"
+                value={identityTypeFilter}
+                onChange={(e) => setIdentityTypeFilter(e.target.value)}
+                className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              >
+                <option value={FILTER_ALL}>All</option>
+                {filterOptions.identityTypes.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="min-w-0">
+              <label htmlFor="nhi-inv-env" className="text-sm font-medium text-gray-700">
+                Environment
+              </label>
+              <select
+                id="nhi-inv-env"
+                value={environmentFilter}
+                onChange={(e) => setEnvironmentFilter(e.target.value)}
+                className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              >
+                <option value={FILTER_ALL}>All</option>
+                {filterOptions.environments.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="min-w-0">
+              <label htmlFor="nhi-inv-system" className="text-sm font-medium text-gray-700">
+                Associated system
+              </label>
+              <select
+                id="nhi-inv-system"
+                value={associatedSystemFilter}
+                onChange={(e) => setAssociatedSystemFilter(e.target.value)}
+                className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              >
+                <option value={FILTER_ALL}>All</option>
+                {filterOptions.associatedSystems.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="min-w-0">
+              <label htmlFor="nhi-inv-owner" className="text-sm font-medium text-gray-700">
+                Owner
+              </label>
+              <select
+                id="nhi-inv-owner"
+                value={ownerFilter}
+                onChange={(e) => setOwnerFilter(e.target.value)}
+                className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              >
+                <option value={FILTER_ALL}>All</option>
+                {filterOptions.owners.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="min-w-0">
+              <label htmlFor="nhi-inv-risk" className="text-sm font-medium text-gray-700">
+                Risk
+              </label>
+              <select
+                id="nhi-inv-risk"
+                value={riskFilter}
+                onChange={(e) => setRiskFilter(e.target.value)}
+                className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              >
+                <option value={FILTER_ALL}>All</option>
+                {filterOptions.risks.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="min-w-0">
+              <label htmlFor="nhi-inv-status" className="text-sm font-medium text-gray-700">
+                Status
+              </label>
+              <select
+                id="nhi-inv-status"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              >
+                <option value={FILTER_ALL}>All</option>
+                {filterOptions.statuses.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1120px] text-left text-xs">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
-                <th className="px-3 py-2.5">Name</th>
-                <th className="px-3 py-2.5">Type</th>
-                <th className="px-3 py-2.5">State</th>
-                <th className="px-3 py-2.5">Risk</th>
-                <th className="px-3 py-2.5">Criticality</th>
-                <th className="px-3 py-2.5">Execution</th>
-                <th className="px-3 py-2.5">Review</th>
-                <th className="px-3 py-2.5">Source</th>
-                <th className="px-3 py-2.5">Created</th>
-                <th className="w-14 px-2 py-2.5 text-center">View</th>
+                <th className="whitespace-nowrap px-3 py-2.5">Name</th>
+                <th className="whitespace-nowrap px-3 py-2.5">Type</th>
+                <th className="whitespace-nowrap px-3 py-2.5">State</th>
+                <th className="whitespace-nowrap px-3 py-2.5">Risk</th>
+                <th className="whitespace-nowrap px-3 py-2.5">Criticality</th>
+                <th className="whitespace-nowrap px-3 py-2.5">Execution</th>
+                <th className="whitespace-nowrap px-3 py-2.5">Review</th>
+                <th className="whitespace-nowrap px-3 py-2.5">Source</th>
+                <th className="whitespace-nowrap px-3 py-2.5">Created</th>
+                <th className="w-14 whitespace-nowrap px-2 py-2.5 text-center">View</th>
               </tr>
             </thead>
             <tbody>

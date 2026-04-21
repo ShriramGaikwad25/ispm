@@ -42,6 +42,13 @@ function rowMatchesFrequencyFilter(row: RotationPolicyListRow, freq: string): bo
   return row.frequencyLabel.includes(freq);
 }
 
+/** Matches NHI Inventory / table date display: US locale, consistent across browsers. */
+function formatUsDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("en-US");
+}
+
 export function RotationPolicyListPage() {
   const [search, setSearch] = useState("");
   const [nhiFilter, setNhiFilter] = useState<string>("all");
@@ -190,32 +197,31 @@ export function RotationPolicyListPage() {
             </h2>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1180px] text-left text-sm">
+            <table className="w-full min-w-[1020px] text-left text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-600">
-                  <th className="px-4 py-3">Policy name</th>
-                  <th className="px-4 py-3">Description</th>
-                  <th className="px-4 py-3">NHI types</th>
-                  <th className="px-4 py-3">Rotation frequency</th>
-                  <th className="px-4 py-3"># Identities</th>
-                  <th className="px-4 py-3">Last rotated</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
+                  <th className="whitespace-nowrap px-4 py-3">Policy name</th>
+                  <th className="whitespace-nowrap px-4 py-3">NHI types</th>
+                  <th className="whitespace-nowrap px-4 py-3">Rotation frequency</th>
+                  <th className="whitespace-nowrap px-4 py-3"># Identities</th>
+                  <th className="whitespace-nowrap px-4 py-3">Last rotated</th>
+                  <th className="whitespace-nowrap px-4 py-3">Status</th>
+                  <th className="whitespace-nowrap px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                    <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                       No policies match your filters.
                     </td>
                   </tr>
                 ) : (
                   filtered.map((row) => (
                     <tr key={row.id} className="border-b border-gray-50 hover:bg-gray-50/80">
-                      <td className="px-4 py-3 font-medium text-gray-900">{row.name}</td>
-                      <td className="max-w-xs px-4 py-3 text-gray-700">
-                        <span className="line-clamp-2">{row.description}</span>
+                      <td className="max-w-md px-4 py-3">
+                        <div className="font-medium text-gray-900">{row.name}</div>
+                        <div className="mt-1 line-clamp-2 text-sm text-gray-600">{row.description}</div>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-1">
@@ -239,12 +245,7 @@ export function RotationPolicyListPage() {
                         </Link>
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-gray-700">
-                        {row.lastRotated
-                          ? new Date(row.lastRotated).toLocaleString(undefined, {
-                              dateStyle: "medium",
-                              timeStyle: "short",
-                            })
-                          : "—"}
+                        {row.lastRotated ? formatUsDate(row.lastRotated) : "—"}
                       </td>
                       <td className="px-4 py-3">
                         <span

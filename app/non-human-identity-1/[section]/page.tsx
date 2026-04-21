@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import {
   NHI_LEGACY_NAV_ITEMS,
@@ -12,7 +13,6 @@ import { ChangesPage } from "@/components/non-human-identity/ChangesPage";
 import { ReviewsPage } from "@/components/non-human-identity/ReviewsPage";
 import { ControlRunsPage } from "@/components/non-human-identity/ControlRunsPage";
 import { EmergencyUsagePage } from "@/components/non-human-identity/EmergencyUsagePage";
-import { LookupCatalogPage } from "@/components/non-human-identity/LookupCatalogPage";
 import { LineageGraphPage } from "@/components/non-human-identity/LineageGraphPage";
 
 type PageProps = { params: Promise<{ section: string }> };
@@ -33,7 +33,11 @@ export default async function NonHumanIdentityLegacySectionPage({
     return <NhiInventoryPage />;
   }
   if (section === "service-accounts") {
-    return <ServiceAccountsPage />;
+    return (
+      <Suspense fallback={<div className="p-6 text-slate-600">Loading…</div>}>
+        <ServiceAccountsPage />
+      </Suspense>
+    );
   }
   if (section === "rfc-calls") {
     return <RfcCallsPage />;
@@ -55,9 +59,6 @@ export default async function NonHumanIdentityLegacySectionPage({
   }
   if (section === "emergency") {
     return <EmergencyUsagePage />;
-  }
-  if (section === "lookups") {
-    return <LookupCatalogPage />;
   }
   if (section === "lineage") {
     return <LineageGraphPage />;

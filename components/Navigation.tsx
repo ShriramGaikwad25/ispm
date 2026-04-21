@@ -48,9 +48,13 @@ export function Navigation() {
     return false;
   };
 
+  /** Path segment of href only (ignore ?query and #hash) for active-state matching. */
+  const hrefPathOnly = (href: string): string =>
+    normalizePath(href.split("?")[0].split("#")[0]);
+
   /** Sublinks: exact URL only. Prefix match would mark e.g. NHI "Dashboard" (/non-human-identity) active on every /non-human-identity/* route. */
   const routeMatchesExact = (href: string): boolean =>
-    normalizePath(pathname) === normalizePath(href);
+    normalizePath(pathname) === hrefPathOnly(href);
 
   const isItemActive = (item: NavItem): boolean => {
     if (routeMatches(item.href)) return true;
@@ -64,17 +68,7 @@ export function Navigation() {
     routeMatchesExact(subItem.href);
 
   useEffect(() => {
-    const nhi1Item = navigation.find((i) => i.name === "Non-Human Identity-1");
     const nhiItem = navigation.find((i) => i.name === "Non-Human Identity");
-    // Resolve -1 first so paths under /non-human-identity-1 never open the primary NHI section.
-    if (
-      nhi1Item?.subItems?.length &&
-      (routeMatches(nhi1Item.href) ||
-        nhi1Item.subItems.some((s) => routeMatches(s.href)))
-    ) {
-      setExpandedItems(new Set(["Non-Human Identity-1"]));
-      return;
-    }
     if (
       nhiItem?.subItems?.length &&
       (routeMatches(nhiItem.href) ||
@@ -178,11 +172,15 @@ export function Navigation() {
         pathname === '/settings/gateway/admin-roles' || pathname === '/settings/gateway/custom-schema' ||
         pathname === '/settings/gateway/general' || pathname === '/settings/gateway/scheduler' ||
         pathname === '/settings/gateway/manage-business-roles' || pathname === '/settings/gateway/manage-approval-policies' ||
-        pathname === '/settings/gateway/ai-insights-configuration' || pathname === '/settings/gateway/continuous-compliance') {
+        pathname === '/settings/gateway/ai-insights-configuration' || pathname === '/settings/gateway/continuous-compliance' ||
+        pathname === '/settings/gateway/nhi-settings') {
       return { href: '/settings/gateway', label: 'Back to Generic' };
     }
     if (pathname.startsWith('/settings/gateway/manage-access-policy')) {
       return { href: '/settings/gateway/manage-access-policy', label: 'Back to Access Policy' };
+    }
+    if (pathname === '/non-human-identity/create-nhi' || pathname === '/non-human-identity/request-access') {
+      return { href: '/non-human-identity', label: 'Back to Non-Human Identity' };
     }
     // App Owner / Access Review
     if (pathname === '/app-owner') {

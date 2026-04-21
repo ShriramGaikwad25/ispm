@@ -10,9 +10,8 @@ export const NHI_LEGACY_NAV_ITEMS: { label: string; href: string }[] = [
   { label: "Changes", href: "/non-human-identity-1/changes" },
   { label: "Reviews", href: "/non-human-identity-1/reviews" },
   { label: "Controls", href: "/non-human-identity-1/controls" },
-  { label: "Emergency", href: "/non-human-identity-1/emergency" },
+  { label: "Emergency", href: "/non-human-identity/request-access" },
   { label: "Lineage", href: "/non-human-identity-1/lineage" },
-  { label: "Lookups", href: "/non-human-identity-1/lookups" },
 ];
 
 const LEGACY_PREFIX = "/non-human-identity-1/";
@@ -30,6 +29,9 @@ export const NHI_NAV_ITEMS: { label: string; href: string }[] = [
   { label: "NHI Inventory", href: "/non-human-identity/nhi-inventory" },
   { label: "Rotation Policy", href: "/non-human-identity/rotation-policy" },
   { label: "Risk & Remediation", href: "/non-human-identity/risk-remediation" },
+  { label: "Controls", href: "/non-human-identity-1/controls" },
+  { label: "Request Access/Breakglass", href: "/non-human-identity/request-access" },
+  { label: "Create new NHI", href: "/non-human-identity/create-nhi" },
 ];
 
 /**

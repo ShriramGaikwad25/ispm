@@ -442,12 +442,11 @@ const HeaderContent = () => {
 
   const getHeadingFromNav = (currentPath: string): string | null => {
     const allItems = flattenNavItems(navLinks);
+    const navPath = (href: string) => href.split("?")[0].split("#")[0];
     const candidates = allItems.filter((item) => {
       if (!item.href || item.href === "/") return currentPath === "/";
-      return (
-        currentPath === item.href ||
-        currentPath.startsWith(`${item.href}/`)
-      );
+      const h = navPath(item.href);
+      return currentPath === h || currentPath.startsWith(`${h}/`);
     });
 
     if (candidates.length === 0) return null;
@@ -505,6 +504,9 @@ const HeaderContent = () => {
       return isEdit ? "Edit Approval Policy" : "Manage Approval Policies";
     }
     if (pathname === "/settings/gateway/manage-approval-policies/review") return "Review Approval Policy";
+    if (pathname === "/settings/gateway/nhi-settings") return "NHI Settings";
+    if (pathname === "/non-human-identity/request-access") return "Request Access / Breakglass";
+    if (pathname === "/non-human-identity/create-nhi") return "Create new NHI";
 
     const headingFromNav = getHeadingFromNav(pathname);
     if (headingFromNav && headingFromNav !== "Generic") return headingFromNav;

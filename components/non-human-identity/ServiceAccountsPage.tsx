@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { executeQuery } from "@/lib/api";
 import { extractResultRows } from "@/lib/nhi-dashboard";
 import { RotateCw } from "lucide-react";
+import { NhiCreateForm } from "@/components/non-human-identity/NhiCreateForm";
 
 const TENANT_ID = "a0000000-0000-0000-0000-000000000001";
 const INTENTS = ["read", "write", "execute", "monitor", "analyze", "admin", "communicate", "learn"];
@@ -101,6 +103,15 @@ export function ServiceAccountsPage(props: ServiceAccountsPageProps = {}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (embeddedNhiId) return;
+    if (searchParams.get("create") === "1" && showIdentitySidebar) {
+      router.replace("/non-human-identity/create-nhi");
+    }
+  }, [embeddedNhiId, searchParams, showIdentitySidebar, router]);
 
   const loadList = useCallback(async () => {
     if (!showIdentitySidebar) return;
@@ -351,16 +362,36 @@ export function ServiceAccountsPage(props: ServiceAccountsPageProps = {}) {
       </section>
 
       {showCreate && showIdentitySidebar && (
-        <CreateModal
-          users={users}
-          onClose={() => setShowCreate(false)}
-          onCreated={async (newId) => {
-            setShowCreate(false);
-            await loadList();
-            if (newId) setFocalId(newId);
-          }}
-          onError={setError}
-        />
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 pt-[10vh]"
+          onClick={() => setShowCreate(false)}
+        >
+          <div
+            className="max-h-[82vh] w-[min(720px,94vw)] overflow-auto rounded-lg border border-slate-200 bg-white p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-700">Create service account</h3>
+              <button
+                type="button"
+                className="ml-auto rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50"
+                onClick={() => setShowCreate(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <NhiCreateForm
+              users={users}
+              onSuccess={async (newId) => {
+                setShowCreate(false);
+                setError(null);
+                await loadList();
+                if (newId) setFocalId(newId);
+              }}
+              onCancel={() => setShowCreate(false)}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
@@ -819,131 +850,6 @@ function DelegationsBlock({
         ])}
       />
     </section>
-  );
-}
-
-function CreateModal({
-  users,
-  onClose,
-  onCreated,
-  onError,
-}: {
-  users: Row[];
-  onClose: () => void;
-  onCreated: (id: string | null) => Promise<void>;
-  onError: (s: string | null) => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [form, setForm] = useState({
-    name: "",
-    displayname: "",
-    description: "",
-    nhi_type: "service_account",
-    risk_level: "medium",
-    ownerid: "",
-    tags: "",
-    customattributes: "{}",
-    create_agent: false,
-    agent_vendor: "anthropic",
-    agent_model: "claude-sonnet-4.5",
-    requires_human_loop: true,
-  });
-
-  const submit = async () => {
-    if (!form.name.trim()) {
-      onError("name is required");
-      return;
-    }
-    setBusy(true);
-    onError(null);
-    try {
-      JSON.parse(form.customattributes || "{}");
-      const tags = form.tags.split(",").map((x) => x.trim()).filter(Boolean);
-      const r = await runScalar(
-        `SELECT public.kf_nhi_create_service_account(
-           ?::uuid, ?, ?, ?, ?,
-           ?::uuid, NULL, NULL, NULL,
-           ?, FALSE, ?::text[], ?::jsonb, NULL,
-           ?::boolean, ?, ?, ?::boolean, '{}'::jsonb, 'ui'
-         ) AS r`,
-        [
-          TENANT_ID,
-          form.name.trim(),
-          form.nhi_type,
-          form.displayname.trim() || null,
-          form.description.trim() || null,
-          form.ownerid || null,
-          form.risk_level,
-          `{${tags.join(",")}}`,
-          form.customattributes || "{}",
-          form.create_agent,
-          form.create_agent ? form.agent_vendor : null,
-          form.create_agent ? form.agent_model : null,
-          form.requires_human_loop,
-        ]
-      );
-      const newId = typeof r === "object" && r && "nhi_id" in (r as Record<string, unknown>) ? asText((r as Record<string, unknown>).nhi_id) : null;
-      await onCreated(newId);
-    } catch (e) {
-      onError(e instanceof Error ? e.message : "Create failed");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 pt-[10vh]" onClick={onClose}>
-      <div className="max-h-[82vh] w-[min(720px,94vw)] overflow-auto rounded-lg border border-slate-200 bg-white p-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-3 flex items-center">
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-700">Create service account</h3>
-          <button className="ml-auto rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50" onClick={onClose}>
-            ✕
-          </button>
-        </div>
-        <div className="grid gap-3 md:grid-cols-2">
-          <LabeledSelect label="Type" value={form.nhi_type} onChange={(v) => setForm((p) => ({ ...p, nhi_type: v }))} options={NHI_TYPES_FOR_LCM} />
-          <LabeledSelect label="Risk level" value={form.risk_level} onChange={(v) => setForm((p) => ({ ...p, risk_level: v }))} options={RISKS} />
-          <LabeledInput label="Name *" value={form.name} onChange={(v) => setForm((p) => ({ ...p, name: v }))} />
-          <LabeledInput label="Display name" value={form.displayname} onChange={(v) => setForm((p) => ({ ...p, displayname: v }))} />
-          <div className="md:col-span-2">
-            <LabeledInput label="Description" value={form.description} onChange={(v) => setForm((p) => ({ ...p, description: v }))} />
-          </div>
-          <LabeledSelect
-            label="Owner"
-            value={form.ownerid}
-            onChange={(v) => setForm((p) => ({ ...p, ownerid: v }))}
-            options={["", ...users.map((u) => asText(u.userid))]}
-            renderOption={(v) => (v ? asText(users.find((u) => asText(u.userid) === v)?.fullname) || v : "—")}
-          />
-          <LabeledInput label="Tags (comma)" value={form.tags} onChange={(v) => setForm((p) => ({ ...p, tags: v }))} />
-          <div className="md:col-span-2">
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">Custom attributes (JSON)</label>
-            <textarea className="h-28 w-full rounded border border-slate-300 px-3 py-2 font-mono text-xs focus:border-blue-500 focus:outline-none" value={form.customattributes} onChange={(e) => setForm((p) => ({ ...p, customattributes: e.target.value }))} />
-          </div>
-          <div className="md:col-span-2">
-            <label className="text-xs text-slate-600"><input type="checkbox" checked={form.create_agent} onChange={(e) => setForm((p) => ({ ...p, create_agent: e.target.checked }))} /> Also create agent profile</label>
-          </div>
-          {form.create_agent && (
-            <>
-              <LabeledSelect label="Vendor" value={form.agent_vendor} onChange={(v) => setForm((p) => ({ ...p, agent_vendor: v }))} options={["anthropic", "openai", "google", "meta", "mistral", "cohere", "internal"]} />
-              <LabeledInput label="Model" value={form.agent_model} onChange={(v) => setForm((p) => ({ ...p, agent_model: v }))} />
-              <div className="md:col-span-2">
-                <label className="text-xs text-slate-600"><input type="checkbox" checked={form.requires_human_loop} onChange={(e) => setForm((p) => ({ ...p, requires_human_loop: e.target.checked }))} /> Requires human loop (HITL)</label>
-              </div>
-            </>
-          )}
-        </div>
-
-        <div className="mt-4 flex justify-end gap-2">
-          <button className="rounded border border-slate-300 px-3 py-1.5 text-xs hover:bg-slate-50" onClick={onClose} disabled={busy}>
-            Cancel
-          </button>
-          <button className="rounded bg-blue-600 px-3 py-1.5 text-xs text-white hover:bg-blue-700 disabled:opacity-50" onClick={submit} disabled={busy}>
-            Create
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }
 
