@@ -1,4 +1,4 @@
-export default function NonHumanIdentityLayout({
+export default function NonHumanIdentityLegacyLayout({
   children,
 }: {
   children: React.ReactNode;

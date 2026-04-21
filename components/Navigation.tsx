@@ -39,17 +39,50 @@ export function Navigation() {
     });
   };
 
+  const normalizePath = (p: string) =>
+    p.length > 1 && p.endsWith('/') ? p.slice(0, -1) : p;
+
+  const routeMatches = (href: string): boolean => {
+    if (pathname === href) return true;
+    if (href !== '/' && pathname.startsWith(`${href}/`)) return true;
+    return false;
+  };
+
+  /** Sublinks: exact URL only. Prefix match would mark e.g. NHI "Dashboard" (/non-human-identity) active on every /non-human-identity/* route. */
+  const routeMatchesExact = (href: string): boolean =>
+    normalizePath(pathname) === normalizePath(href);
+
   const isItemActive = (item: NavItem): boolean => {
-    if (pathname === item.href) return true;
+    if (routeMatches(item.href)) return true;
     if (item.subItems) {
-      return item.subItems.some(subItem => pathname === subItem.href);
+      return item.subItems.some((subItem) => routeMatches(subItem.href));
     }
     return false;
   };
 
-  const isSubItemActive = (subItem: NavItem): boolean => {
-    return pathname === subItem.href;
-  };
+  const isSubItemActive = (subItem: NavItem): boolean =>
+    routeMatchesExact(subItem.href);
+
+  useEffect(() => {
+    const nhi1Item = navigation.find((i) => i.name === "Non-Human Identity-1");
+    const nhiItem = navigation.find((i) => i.name === "Non-Human Identity");
+    // Resolve -1 first so paths under /non-human-identity-1 never open the primary NHI section.
+    if (
+      nhi1Item?.subItems?.length &&
+      (routeMatches(nhi1Item.href) ||
+        nhi1Item.subItems.some((s) => routeMatches(s.href)))
+    ) {
+      setExpandedItems(new Set(["Non-Human Identity-1"]));
+      return;
+    }
+    if (
+      nhiItem?.subItems?.length &&
+      (routeMatches(nhiItem.href) ||
+        nhiItem.subItems.some((s) => routeMatches(s.href)))
+    ) {
+      setExpandedItems(new Set(["Non-Human Identity"]));
+    }
+  }, [pathname]);
 
   const normalizedSearch = searchTerm.trim().toLowerCase();
   const filteredNavigation = normalizedSearch
@@ -153,6 +186,9 @@ export function Navigation() {
     }
     // App Owner / Access Review
     if (pathname === '/app-owner') {
+      return { href: '/access-review', label: 'Back to Access Review' };
+    }
+    if (pathname === '/access-review/nhi-q3-production-review') {
       return { href: '/access-review', label: 'Back to Access Review' };
     }
     // Users

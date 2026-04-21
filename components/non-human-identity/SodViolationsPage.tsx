@@ -73,7 +73,10 @@ function severityTone(sev: string): string {
   return "bg-slate-50 text-slate-700 border-slate-200";
 }
 
-export function SodViolationsPage() {
+export function SodViolationsPage({
+  suppressPageHeader,
+  refreshNonce = 0,
+}: { suppressPageHeader?: boolean; refreshNonce?: number } = {}) {
   const [rows, setRows] = useState<SodRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -123,7 +126,7 @@ export function SodViolationsPage() {
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, refreshNonce]);
 
   const bySeverity = useMemo(() => groupCount(rows, "severity"), [rows]);
   const byRule = useMemo(() => groupCount(rows, "rule_code").slice(0, 10), [rows]);
@@ -151,19 +154,21 @@ export function SodViolationsPage() {
   }, [filtered, pageSafe, pageSize]);
 
   return (
-    <div className="w-full space-y-4 pb-8">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <h1 className="text-2xl font-semibold text-slate-900">Separation-of-Duty Violations</h1>
-        <button
-          type="button"
-          className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50"
-          onClick={() => void load()}
-          title="Refresh"
-          aria-label="Refresh"
-        >
-          ↻
-        </button>
-      </div>
+    <div className={`w-full space-y-4 ${suppressPageHeader ? "" : "pb-8"}`}>
+      {!suppressPageHeader && (
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <h1 className="text-2xl font-semibold text-slate-900">Separation-of-Duty Violations</h1>
+          <button
+            type="button"
+            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50"
+            onClick={() => void load()}
+            title="Refresh"
+            aria-label="Refresh"
+          >
+            ↻
+          </button>
+        </div>
+      )}
 
       {loading && <div className="text-sm text-slate-500">Loading SoD violations…</div>}
       {error && <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}

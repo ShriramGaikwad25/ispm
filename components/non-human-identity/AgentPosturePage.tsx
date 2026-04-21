@@ -15,7 +15,8 @@ import {
   Tooltip,
   Legend,
 } from "chart.js";
-import { RotateCw, Search } from "lucide-react";
+import Link from "next/link";
+import { Eye, RotateCw, Search } from "lucide-react";
 import { executeQuery } from "@/lib/api";
 import {
   AGENT_POSTURE_LIST_QUERY,
@@ -181,6 +182,12 @@ export function AgentPosturePage() {
         a.model_name,
         a.model_version,
         a.nhi_id,
+        a.interface_type,
+        a.identity_classification,
+        a.platform_name,
+        a.environment_label,
+        a.identity_state,
+        a.business_owner_name,
       ]
         .filter(Boolean)
         .join(" ")
@@ -205,7 +212,7 @@ export function AgentPosturePage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900 md:text-3xl">
-            Agent Posture
+            AI Agent Inventory
           </h1>
           <p className="mt-1 text-sm text-gray-600">
             Performance and posture across registered AI agents.
@@ -361,22 +368,29 @@ export function AgentPosturePage() {
 
       <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
         <div className="flex flex-col gap-3 border-b border-gray-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700">
-            All agents
-          </h2>
-          <div className="relative max-w-md flex-1">
+          <div>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700">
+              All agents
+            </h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Search across agent name, vendor, model, interface type, classification, platform,
+              environment, status, and business owner.
+            </p>
+          </div>
+          <div className="relative w-full max-w-xl flex-1 sm:min-w-[280px]">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search agent, vendor, model…"
+              placeholder="Search…"
               className="w-full rounded-md border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              aria-label="Search agents"
             />
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1024px] text-left text-xs">
+          <table className="w-full min-w-[1100px] text-left text-xs">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
                 <th className="whitespace-nowrap px-3 py-2.5">Agent</th>
@@ -392,6 +406,7 @@ export function AgentPosturePage() {
                 <th className="whitespace-nowrap px-3 py-2.5">Lat ms</th>
                 <th className="whitespace-nowrap px-3 py-2.5">Tokens 24h</th>
                 <th className="whitespace-nowrap px-3 py-2.5">$ 24h</th>
+                <th className="whitespace-nowrap px-3 py-2.5 text-center w-14">View</th>
               </tr>
             </thead>
             <tbody>
@@ -440,6 +455,20 @@ export function AgentPosturePage() {
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 tabular-nums text-slate-800">
                     {formatUsd(a.cost_usd_24h)}
+                  </td>
+                  <td className="px-2 py-2 text-center">
+                    {a.nhi_id ? (
+                      <Link
+                        href={`/non-human-identity/ai-agent-inventory/${encodeURIComponent(a.nhi_id)}`}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                        title="View agent details"
+                        aria-label={`View details for ${a.agent_name ?? "agent"}`}
+                      >
+                        <Eye className="h-4 w-4" aria-hidden />
+                      </Link>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
                   </td>
                 </tr>
               ))}

@@ -37,10 +37,32 @@ const defaultLogicalOperators = [
   { label: "OR", value: "OR" },
 ];
 
-/** react-select styles so dropdowns fill their flex container */
+/** react-select: full width, readable option text, portal above modals/footers */
 const selectStyles = {
   container: (base: object) => ({ ...base, width: "100%", minWidth: 0 }),
-  control: (base: object) => ({ ...base, width: "100%", minWidth: 0 }),
+  control: (base: object) => ({
+    ...base,
+    width: "100%",
+    minWidth: 0,
+    backgroundColor: "#ffffff",
+    borderColor: "#d1d5db",
+    color: "#111827",
+  }),
+  menuPortal: (base: object) => ({ ...base, zIndex: 10000 }),
+  menu: (base: object) => ({
+    ...base,
+    zIndex: 10000,
+    backgroundColor: "#ffffff",
+  }),
+  menuList: (base: object) => ({ ...base, backgroundColor: "#ffffff" }),
+  option: (base: object, state: { isFocused: boolean; isSelected: boolean }) => ({
+    ...base,
+    color: "#111827",
+    backgroundColor: state.isSelected ? "#dbeafe" : state.isFocused ? "#f3f4f6" : "#ffffff",
+  }),
+  singleValue: (base: object) => ({ ...base, color: "#111827" }),
+  input: (base: object) => ({ ...base, color: "#111827" }),
+  placeholder: (base: object) => ({ ...base, color: "#6b7280" }),
 };
 
 interface Condition {
@@ -74,6 +96,11 @@ const ExpressionBuilder: React.FC<ExpressionBuilderProps> = ({
   hideJsonPreview = false,
   fullWidth = false,
 }) => {
+  const [menuPortalTarget, setMenuPortalTarget] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setMenuPortalTarget(document.body);
+  }, []);
+
   const watchedConditions = useWatch({ control, name: fieldName });
   const conditions: Condition[] = useMemo(() => {
     if (!Array.isArray(watchedConditions)) return [];
@@ -164,6 +191,8 @@ const ExpressionBuilder: React.FC<ExpressionBuilderProps> = ({
                           : "AND/OR"
                       }
                       styles={selectStyles}
+                      menuPortalTarget={menuPortalTarget ?? undefined}
+                      menuPosition="fixed"
                     />
                   )}
                 />
@@ -181,6 +210,8 @@ const ExpressionBuilder: React.FC<ExpressionBuilderProps> = ({
                     isSearchable={false}
                     placeholder="Select Attribute"
                     styles={selectStyles}
+                    menuPortalTarget={menuPortalTarget ?? undefined}
+                    menuPosition="fixed"
                   />
                 )}
               />
@@ -197,6 +228,8 @@ const ExpressionBuilder: React.FC<ExpressionBuilderProps> = ({
                     isSearchable={false}
                     placeholder="Condition"
                     styles={selectStyles}
+                    menuPortalTarget={menuPortalTarget ?? undefined}
+                    menuPosition="fixed"
                   />
                 )}
               />

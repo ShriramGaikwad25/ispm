@@ -1,5 +1,5 @@
 import { AgentPosturePage } from "@/components/non-human-identity/AgentPosturePage";
 
-export default function NhiAgentsPage() {
+export default function NhiAiAgentInventoryPage() {
   return <AgentPosturePage />;
 }

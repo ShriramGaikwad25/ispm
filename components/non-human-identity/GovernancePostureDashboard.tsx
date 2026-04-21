@@ -13,7 +13,12 @@ import {
 } from "chart.js";
 import { RotateCw } from "lucide-react";
 import { executeQuery } from "@/lib/api";
-import { secretHealthArcColor } from "@/lib/chart-colors";
+import {
+  buildNhiTypeLegendColorMap,
+  CHART_SERIES_COLORS,
+  CHART_TRACK_GRAY,
+  secretHealthArcColor,
+} from "@/lib/chart-colors";
 import {
   buildGovernanceView,
   DASHBOARD_V2_QUERY,
@@ -25,12 +30,50 @@ import {
   type GovernanceViewModel,
   type MetricTone,
 } from "@/lib/governance-posture";
-import { extractResultRows } from "@/lib/nhi-dashboard";
-
 ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
 const Doughnut = dynamic(() => import("react-chartjs-2").then((m) => m.Doughnut), { ssr: false });
 const Bar = dynamic(() => import("react-chartjs-2").then((m) => m.Bar), { ssr: false });
+
+const DATALABELS_HIDE_ZERO = {
+  display: (context: { dataset: { data: unknown[] }; dataIndex: number }) => {
+    const raw = context.dataset.data[context.dataIndex];
+    const n = typeof raw === "number" ? raw : Number(raw);
+    return Number.isFinite(n) && n !== 0;
+  },
+};
+
+/** Static slice data — mirrors NHI dashboard “Total NHIs by Type” donut style */
+const STATIC_NHI_BY_TYPE = [
+  { label: "Service Account", value: 142 },
+  { label: "API Key", value: 89 },
+  { label: "AI Agent", value: 56 },
+  { label: "OAuth Client", value: 34 },
+  { label: "Certificate", value: 21 },
+] as const;
+
+/** Managed / Unmanaged — static counts */
+const STATIC_MANAGED_REVIEWED = 412;
+const STATIC_MANAGED_NOT_REVIEWED = 156;
+const STATIC_UNMANAGED = 283;
+
+/** Credential health — Fresh + Stale = 100 */
+const STATIC_CREDENTIAL_FRESH_PCT = 68;
+
+/** High risk NHI — donut segments */
+const STATIC_HIGH_RISK_SEGMENTS = [
+  { label: "Internet Exposed", value: 42 },
+  { label: "Production Critical", value: 28 },
+  { label: "Role Drifts", value: 19 },
+  { label: "Over Privileged", value: 35 },
+] as const;
+
+/** Policy violations — semi-gauge segments */
+const STATIC_POLICY_VIOLATIONS = [
+  { label: "SoD Violation", value: 14 },
+  { label: "AI Agent Violation", value: 9 },
+  { label: "SLA Breach", value: 7 },
+] as const;
 
 const EMPTY_VIEW = buildGovernanceView(null, []);
 
@@ -47,16 +90,56 @@ function metricValueClass(tone: MetricTone): string {
   }
 }
 
-function barColor(score: number): string {
-  if (score <= 0) return "#e5e7eb";
-  if (score < 50) return "#ef4444";
-  if (score < 75) return "#eab308";
-  return "#22c55e";
+function ChartShell({
+  title,
+  children,
+  className = "",
+}: {
+  title: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`flex min-h-[280px] flex-col rounded-lg border border-gray-200 bg-white p-6 shadow-sm ${className}`}
+    >
+      <h2 className="mb-3 text-sm font-semibold text-gray-900">{title}</h2>
+      <div className="flex min-h-[240px] flex-1 w-full items-center justify-center">{children}</div>
+    </div>
+  );
+}
+
+function LegendSwatch({
+  color,
+  label,
+  value,
+  size = "default",
+}: {
+  color: string;
+  label: string;
+  value: string;
+  size?: "default" | "lg";
+}) {
+  const isLg = size === "lg";
+  return (
+    <li
+      className={`flex items-center text-slate-600 ${isLg ? "gap-2.5 text-sm" : "gap-2 text-xs"}`}
+    >
+      <span
+        className={`shrink-0 rounded-sm ${isLg ? "h-3 w-3" : "h-2.5 w-2.5"}`}
+        style={{ backgroundColor: color }}
+        aria-hidden
+      />
+      <span className="leading-tight">
+        <span className="font-medium text-slate-700">{label}</span>
+        <span className="text-slate-500"> — {value}</span>
+      </span>
+    </li>
+  );
 }
 
 export function GovernancePostureDashboard() {
   const [view, setView] = useState<GovernanceViewModel>(EMPTY_VIEW);
-  const [payloadJson, setPayloadJson] = useState("{}");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -73,23 +156,10 @@ export function GovernancePostureDashboard() {
       const norm = getNormalizedDashboardV2Row(dashRes);
       const findings = parseFindingsSeverityResponse(findRes);
       setView(buildGovernanceView(norm, findings));
-      setPayloadJson(
-        JSON.stringify(
-          {
-            dashboard: norm ?? extractResultRows(dashRes)[0] ?? null,
-            findingsBySeverity: findings,
-          },
-          null,
-          2
-        )
-      );
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to load governance data";
       setError(msg);
       setView(EMPTY_VIEW);
-      setPayloadJson(
-        JSON.stringify({ error: msg, dashboard: null, findingsBySeverity: [] }, null, 2)
-      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -124,21 +194,118 @@ export function GovernancePostureDashboard() {
     [overallScore, gaugeArcColor]
   );
 
-  const subScoresChart = useMemo(() => {
-    const values = view.subScores.map((s) => s.value);
-    return {
-      labels: view.subScores.map((s) => s.label),
+  const staticTypeColorMap = useMemo(
+    () => buildNhiTypeLegendColorMap([...STATIC_NHI_BY_TYPE.map((x) => x.label)]),
+    []
+  );
+
+  const staticNhiByTypeChart = useMemo(
+    () => ({
+      labels: STATIC_NHI_BY_TYPE.map((x) => x.label),
       datasets: [
         {
-          label: "Score",
-          data: values,
-          backgroundColor: values.map(barColor),
+          data: STATIC_NHI_BY_TYPE.map((x) => x.value),
+          backgroundColor: STATIC_NHI_BY_TYPE.map(
+            (x) => staticTypeColorMap.get(x.label) ?? CHART_SERIES_COLORS[0]
+          ),
+          borderWidth: 0,
+        },
+      ],
+    }),
+    [staticTypeColorMap]
+  );
+
+  const managedUnmanagedChart = useMemo(
+    () => ({
+      labels: ["Managed", "Unmanaged"],
+      datasets: [
+        {
+          label: "Reviewed in 6 months",
+          data: [STATIC_MANAGED_REVIEWED, 0],
+          backgroundColor: "#11C65E",
+          borderWidth: 0,
+          borderRadius: 4,
+        },
+        {
+          label: "Not Reviewed",
+          data: [STATIC_MANAGED_NOT_REVIEWED, 0],
+          backgroundColor: "#F9B824",
+          borderWidth: 0,
+          borderRadius: 4,
+        },
+        {
+          label: "Unmanaged",
+          data: [0, STATIC_UNMANAGED],
+          backgroundColor: "#94A3B8",
           borderWidth: 0,
           borderRadius: 4,
         },
       ],
+    }),
+    []
+  );
+
+  const managedYMax = useMemo(() => {
+    const managedTotal = STATIC_MANAGED_REVIEWED + STATIC_MANAGED_NOT_REVIEWED;
+    return Math.max(managedTotal, STATIC_UNMANAGED, 1);
+  }, []);
+
+  const credentialHealthData = useMemo(() => {
+    const fresh = STATIC_CREDENTIAL_FRESH_PCT;
+    const stale = Math.max(0, 100 - fresh);
+    return {
+      labels: ["Fresh", "Stale"],
+      datasets: [
+        {
+          data: [fresh, stale],
+          backgroundColor: [secretHealthArcColor(fresh), CHART_TRACK_GRAY],
+          borderWidth: 0,
+        },
+      ],
     };
-  }, [view.subScores]);
+  }, []);
+
+  const highRiskNhiChart = useMemo(
+    () => ({
+      labels: STATIC_HIGH_RISK_SEGMENTS.map((x) => x.label),
+      datasets: [
+        {
+          data: STATIC_HIGH_RISK_SEGMENTS.map((x) => x.value),
+          backgroundColor: STATIC_HIGH_RISK_SEGMENTS.map(
+            (_, i) => CHART_SERIES_COLORS[i % CHART_SERIES_COLORS.length]
+          ),
+          borderWidth: 0,
+        },
+      ],
+    }),
+    []
+  );
+
+  const policyViolationsTotal = useMemo(
+    () => STATIC_POLICY_VIOLATIONS.reduce((s, x) => s + x.value, 0),
+    []
+  );
+
+  const policyViolationsChart = useMemo(() => {
+    const values = STATIC_POLICY_VIOLATIONS.map((x) => x.value);
+    const colors = [
+      CHART_SERIES_COLORS[0],
+      CHART_SERIES_COLORS[1],
+      CHART_SERIES_COLORS[2],
+    ];
+    return {
+      labels: STATIC_POLICY_VIOLATIONS.map((x) => x.label),
+      datasets: [
+        {
+          data: values,
+          backgroundColor: colors,
+          borderWidth: 0,
+          circumference: 180,
+          rotation: -90,
+        },
+      ],
+    };
+  }, []);
 
   const findingsChart = useMemo(() => {
     const rows = view.findingsBySeverity;
@@ -182,6 +349,7 @@ export function GovernancePostureDashboard() {
         </div>
       )}
 
+      {/* Section 1 — Overall Posture + six metric boxes */}
       <div className="grid gap-4 lg:grid-cols-12">
         <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm lg:col-span-5">
           <div className="relative mx-auto h-[200px] max-w-[300px]">
@@ -228,46 +396,198 @@ export function GovernancePostureDashboard() {
         </div>
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-700">
-          Sub-scores
-        </h2>
-        <div className="h-[280px] w-full">
-          <Bar
-            data={subScoresChart}
-            options={{
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: {
-                legend: { display: false },
-                tooltip: {
-                  callbacks: {
-                    label: (ctx) => `${ctx.label}: ${ctx.raw}`,
+      {/* Section 2 — Total NHIs by type + Managed / Unmanaged */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ChartShell title="Total NHIs by Type">
+          <div className="relative h-[240px] w-full">
+            <Doughnut
+              data={staticNhiByTypeChart}
+              options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                layout: { padding: 4 },
+                plugins: {
+                  legend: {
+                    position: "right",
+                    align: "center",
+                    labels: { boxWidth: 12, font: { size: 11 } },
+                  },
+                  datalabels: DATALABELS_HIDE_ZERO,
+                },
+              }}
+            />
+          </div>
+        </ChartShell>
+
+        <ChartShell title="Managed vs Unmanaged">
+          <div className="h-[240px] w-full">
+            <Bar
+              data={managedUnmanagedChart}
+              options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                  x: { stacked: true, grid: { display: false } },
+                  y: {
+                    stacked: true,
+                    beginAtZero: true,
+                    max: managedYMax,
+                    ticks: {
+                      precision: 0,
+                      maxTicksLimit: 10,
+                    },
                   },
                 },
-              },
-              scales: {
-                x: {
-                  grid: { display: false },
-                  ticks: { font: { size: 11 }, color: "#64748b" },
+                plugins: {
+                  legend: {
+                    position: "bottom",
+                    labels: { boxWidth: 12, font: { size: 11 } },
+                  },
+                  tooltip: {
+                    callbacks: {
+                      label: (ctx) => {
+                        const name = ctx.dataset.label ?? "";
+                        const raw = ctx.parsed.y;
+                        const n = Math.round(typeof raw === "number" ? raw : Number(raw));
+                        return name ? `${name}: ${n}` : String(n);
+                      },
+                    },
+                  },
+                  datalabels: DATALABELS_HIDE_ZERO,
                 },
-                y: {
-                  min: 0,
-                  max: 100,
-                  grid: { color: "#f1f5f9" },
-                  ticks: { stepSize: 25, font: { size: 11 }, color: "#64748b" },
-                },
-              },
-            }}
-          />
-        </div>
+              }}
+            />
+          </div>
+        </ChartShell>
       </div>
 
+      {/* Section 3 — Credential health + High risk NHI */}
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-700">
-            Open findings by severity
-          </h2>
+        <ChartShell title="Credential Health">
+          <div className="flex w-full flex-row flex-wrap items-center justify-center gap-7 sm:gap-10">
+            <div className="relative h-[188px] w-[276px] shrink-0">
+              <Doughnut
+                data={credentialHealthData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  circumference: 180,
+                  rotation: 270,
+                  cutout: "72%",
+                  layout: { padding: { top: 6, bottom: 6, left: 6, right: 6 } },
+                  plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                      callbacks: {
+                        label: (ctx) => {
+                          const v = ctx.raw;
+                          const n = typeof v === "number" ? v : Number(v);
+                          return `${ctx.label}: ${n}%`;
+                        },
+                      },
+                    },
+                    datalabels: DATALABELS_HIDE_ZERO,
+                  },
+                }}
+              />
+              <div className="pointer-events-none absolute inset-x-0 bottom-2 flex flex-col items-center text-center">
+                <span className="text-2xl font-semibold tabular-nums text-gray-900 sm:text-3xl">
+                  {STATIC_CREDENTIAL_FRESH_PCT}%
+                  <span className="text-base font-medium text-gray-500 sm:text-lg"> fresh</span>
+                </span>
+                <span className="mt-1 text-xs text-gray-500 sm:text-sm">
+                  Credential posture (sample)
+                </span>
+              </div>
+            </div>
+            <ul className="flex min-w-[152px] flex-col gap-3" aria-label="Credential health legend">
+              <LegendSwatch
+                size="lg"
+                color={secretHealthArcColor(STATIC_CREDENTIAL_FRESH_PCT)}
+                label="Fresh"
+                value={`${STATIC_CREDENTIAL_FRESH_PCT}%`}
+              />
+              <LegendSwatch
+                size="lg"
+                color={CHART_TRACK_GRAY}
+                label="Stale"
+                value={`${100 - STATIC_CREDENTIAL_FRESH_PCT}%`}
+              />
+            </ul>
+          </div>
+        </ChartShell>
+
+        <ChartShell title="High Risk NHI">
+          <div className="relative h-[260px] w-full max-w-[340px]">
+            <Doughnut
+              data={highRiskNhiChart}
+              options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                layout: { padding: 4 },
+                plugins: {
+                  legend: {
+                    position: "right",
+                    align: "center",
+                    labels: { boxWidth: 12, font: { size: 11 } },
+                  },
+                  datalabels: DATALABELS_HIDE_ZERO,
+                },
+              }}
+            />
+          </div>
+        </ChartShell>
+      </div>
+
+      {/* Section 4 — Policy violations + Open findings by severity */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ChartShell title="Policy Violations">
+          <div className="flex w-full flex-row flex-wrap items-center justify-center gap-6 sm:gap-8">
+            <div className="relative h-[200px] w-[240px] shrink-0">
+              <Doughnut
+                data={policyViolationsChart}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  cutout: "78%",
+                  layout: { padding: { top: 8, bottom: 12, left: 4, right: 4 } },
+                  plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                      callbacks: {
+                        label: (ctx) => {
+                          const v = ctx.raw;
+                          const n = typeof v === "number" ? v : Number(v);
+                          return `${ctx.label}: ${n}`;
+                        },
+                      },
+                    },
+                  },
+                }}
+              />
+              <div className="pointer-events-none absolute inset-x-0 bottom-10 flex flex-col items-center text-center">
+                <span className="text-3xl font-semibold tabular-nums text-slate-900">
+                  {policyViolationsTotal}
+                </span>
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:text-xs">
+                  Total violations
+                </span>
+              </div>
+            </div>
+            <ul className="flex min-w-[160px] flex-col gap-2" aria-label="Policy violations legend">
+              {STATIC_POLICY_VIOLATIONS.map((row, i) => (
+                <LegendSwatch
+                  key={row.label}
+                  color={CHART_SERIES_COLORS[i % CHART_SERIES_COLORS.length]}
+                  label={row.label}
+                  value={String(row.value)}
+                />
+              ))}
+            </ul>
+          </div>
+        </ChartShell>
+
+        <ChartShell title="Open findings by severity">
           {!view.findingsBySeverity.length ? (
             <p className="py-12 text-center text-sm text-slate-500">
               No open findings for this tenant.
@@ -289,16 +609,7 @@ export function GovernancePostureDashboard() {
               />
             </div>
           ) : null}
-        </div>
-
-        <div className="flex min-h-[280px] flex-col rounded-lg border border-gray-200 bg-white shadow-sm">
-          <h2 className="border-b border-gray-100 px-6 py-4 text-sm font-semibold uppercase tracking-wide text-slate-700">
-            Raw dashboard payload
-          </h2>
-          <pre className="max-h-[360px] flex-1 overflow-auto p-4 text-left text-xs leading-relaxed text-slate-800">
-            <code className="font-mono">{payloadJson}</code>
-          </pre>
-        </div>
+        </ChartShell>
       </div>
     </div>
   );

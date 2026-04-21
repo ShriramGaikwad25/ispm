@@ -84,6 +84,42 @@ const DetailCellRenderer = (props: IDetailCellRendererParams) => {
 export const formatDateMMDDYY = (dateString?: string) =>
   formatDateShared(dateString);
 
+/** Demo list row; empty reviewerId so row click does not navigate to a real certification. */
+function getDummyQ3NhiAccessReviewRow(): CertificationRow & {
+  progress: number;
+  description: string;
+  reviewerName: string;
+  dueIn: string;
+  estimatedTimeToCompletion: string;
+  totalActions: number;
+  totalActionsCompleted: number;
+} {
+  return {
+    id: "dummy-access-review-q3-nhi-production",
+    taskId: "",
+    reviewerId: "",
+    certificationId: "dummy-q3-nhi-production-access-review",
+    campaignId: "",
+    certificationName:
+      "Access Review Campaign: Q3 NHI Production Access Review",
+    certificationType: "Access Review",
+    certificationCreatedOn: "2026-03-15",
+    certificationExpiration: "2026-09-30",
+    status: "Active",
+    certificationSignedOff: false,
+    certificateRequester: "Priya Shah",
+    certificateOwner: "Priya Shah",
+    percentageCompleted: 14,
+    totalActions: 84,
+    totalActionsCompleted: 12,
+    progress: 14,
+    description: "Demonstration campaign (dummy data).",
+    reviewerName: "",
+    dueIn: "",
+    estimatedTimeToCompletion: "",
+  };
+}
+
 const OpenTab: React.FC = () => {
   const reviewerId = getReviewerId() || "";
   const { user } = useAuth();
@@ -761,15 +797,19 @@ const OpenTab: React.FC = () => {
       );
       console.log("Mapped Row Data:", mapped); // Debug mapped data
 
-      setRowData(mapped as unknown as UserRowData[]);
-      localStorage.setItem("sharedRowData", JSON.stringify(mapped));
+      const withDummy =
+        pageNumber === 1
+          ? [getDummyQ3NhiAccessReviewRow(), ...mapped]
+          : mapped;
+      setRowData(withDummy as unknown as UserRowData[]);
+      localStorage.setItem("sharedRowData", JSON.stringify(withDummy));
       try { window.dispatchEvent(new Event("localStorageChange")); } catch {}
       setTotalItems(certificationData.total_items || 0);
       setTotalPages(certificationData.total_pages || 1);
       
       // Progress data will be sent to header when a certification row is clicked
     }
-  }, [certificationData, reviewerId]);
+  }, [certificationData, reviewerId, pageNumber]);
 
   useEffect(() => {
     let filtered = rowData;
@@ -853,7 +893,50 @@ const OpenTab: React.FC = () => {
     const clickedReviewerId = e.data?.reviewerId;
     const clickedCertificationId = e.data?.certificationId;
     const certificationType = e.data?.certificationType;
-    
+
+    const isNhiDummy =
+      e.data?.id === "dummy-access-review-q3-nhi-production" ||
+      e.data?.certificationId === "dummy-q3-nhi-production-access-review";
+
+    if (isNhiDummy && e.data) {
+      const total = e.data.totalActions ?? 0;
+      const approved = e.data.totalActionsCompleted ?? 0;
+      const pending = Math.max(0, total - approved);
+      window.dispatchEvent(
+        new CustomEvent("progressDataChange", {
+          detail: {
+            total,
+            approved,
+            pending,
+            percentage: e.data.progress ?? 0,
+          },
+        })
+      );
+      const campaignSummary = {
+        reviewerId: e.data.reviewerId ?? "",
+        certificationId: e.data.certificationId,
+        campaignName: e.data.certificationName,
+        status: e.data.status,
+        snapshotAt: e.data.certificationCreatedOn,
+        dueDate: e.data.certificationExpiration,
+        progress: e.data.progress ?? 0,
+        totalItems: total,
+        approvedCount: approved,
+        pendingCount: pending,
+      };
+      localStorage.setItem(
+        "selectedCampaignSummary",
+        JSON.stringify(campaignSummary)
+      );
+      try {
+        window.dispatchEvent(new Event("localStorageChange"));
+      } catch {
+        /* ignore */
+      }
+      router.push("/access-review/nhi-q3-production-review");
+      return;
+    }
+
     // Send progress data to header for the clicked certification
     if (e.data) {
       const progressEvent = new CustomEvent('progressDataChange', {

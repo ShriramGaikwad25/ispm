@@ -17,7 +17,8 @@ ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 const Bar = dynamic(() => import("react-chartjs-2").then((m) => m.Bar), { ssr: false });
 
 const TENANT_ID = "a0000000-0000-0000-0000-000000000001";
-const STATUSES = [
+
+export const FINDINGS_STATUS_OPTIONS = [
   "all",
   "open",
   "triaged",
@@ -27,6 +28,8 @@ const STATUSES = [
   "resolved",
   "closed",
 ] as const;
+
+export type FindingsStatusFilter = (typeof FINDINGS_STATUS_OPTIONS)[number];
 
 type FindingRow = {
   finding_id: string;
@@ -100,9 +103,25 @@ function toneForStatus(st: string): string {
   return "bg-slate-50 text-slate-700 border-slate-200";
 }
 
-export function FindingsPage() {
+export function FindingsPage({
+  suppressPageHeader,
+  refreshNonce = 0,
+  statusFilter,
+  onStatusFilterChange,
+}: {
+  suppressPageHeader?: boolean;
+  refreshNonce?: number;
+  statusFilter?: FindingsStatusFilter;
+  onStatusFilterChange?: (v: FindingsStatusFilter) => void;
+} = {}) {
   const [rows, setRows] = useState<FindingRow[]>([]);
-  const [status, setStatus] = useState<(typeof STATUSES)[number]>("open");
+  const [internalStatus, setInternalStatus] = useState<FindingsStatusFilter>("open");
+  const controlled = statusFilter !== undefined && onStatusFilterChange !== undefined;
+  const status = controlled ? statusFilter : internalStatus;
+  const setStatusValue = (v: FindingsStatusFilter) => {
+    if (controlled) onStatusFilterChange(v);
+    else setInternalStatus(v);
+  };
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -153,7 +172,7 @@ export function FindingsPage() {
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, refreshNonce]);
 
   const bySource = useMemo(() => groupCount(rows, "source"), [rows]);
   const bySev = useMemo(() => groupCount(rows, "severity"), [rows]);
@@ -180,33 +199,41 @@ export function FindingsPage() {
     return filtered.slice(start, start + pageSize);
   }, [filtered, pageSafe, pageSize]);
 
+  const showLocalToolbar = !suppressPageHeader || !controlled;
+
   return (
-    <div className="w-full space-y-4 pb-8">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <h1 className="text-2xl font-semibold text-slate-900">Findings</h1>
-        <div className="flex items-center gap-2">
-          <select
-            className="rounded border border-slate-300 px-3 py-1.5 text-sm"
-            value={status}
-            onChange={(e) => setStatus(e.target.value as (typeof STATUSES)[number])}
-          >
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50"
-            onClick={() => void load()}
-            title="Refresh"
-            aria-label="Refresh"
-          >
-            ↻
-          </button>
+    <div className={`w-full space-y-4 ${suppressPageHeader ? "" : "pb-8"}`}>
+      {showLocalToolbar && (
+        <div
+          className={`flex flex-wrap items-end gap-3 ${suppressPageHeader ? "justify-start" : "justify-between"}`}
+        >
+          {!suppressPageHeader && <h1 className="text-2xl font-semibold text-slate-900">Findings</h1>}
+          <div className="flex items-center gap-2">
+            <select
+              className="rounded border border-slate-300 px-3 py-1.5 text-sm"
+              value={status}
+              onChange={(e) => setStatusValue(e.target.value as FindingsStatusFilter)}
+            >
+              {FINDINGS_STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+            {!suppressPageHeader && (
+              <button
+                type="button"
+                className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50"
+                onClick={() => void load()}
+                title="Refresh"
+                aria-label="Refresh"
+              >
+                ↻
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {loading && <div className="text-sm text-slate-500">Loading findings…</div>}
       {error && <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}

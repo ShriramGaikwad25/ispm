@@ -70,20 +70,40 @@ function Badge({ text, tone = "slate" }: { text: string; tone?: "slate" | "blue"
   return <span className={`rounded-full border px-2 py-0.5 text-xs ${cls}`}>{text}</span>;
 }
 
-export function ServiceAccountsPage() {
+export type ServiceAccountsPageProps = {
+  /** When set: show only this NHI, hide identity sidebar (e.g. AI Agent Details). */
+  embeddedNhiId?: string | null;
+  pageHeading?: string;
+  showIdentitySidebar?: boolean;
+  /** Create-account CTA + long subtitle (off for embedded agent detail). */
+  showServiceAccountChrome?: boolean;
+  /** Hide top title block (parent page supplies heading + tabs). */
+  suppressPageHeader?: boolean;
+};
+
+export function ServiceAccountsPage(props: ServiceAccountsPageProps = {}) {
+  const {
+    embeddedNhiId = null,
+    pageHeading,
+    showIdentitySidebar = true,
+    showServiceAccountChrome = true,
+    suppressPageHeader = false,
+  } = props;
   const [identities, setIdentities] = useState<Row[]>([]);
-  const [focalId, setFocalId] = useState("");
+  const [focalId, setFocalId] = useState(embeddedNhiId ?? "");
   const [detail, setDetail] = useState<Row | null>(null);
   const [capabilities, setCapabilities] = useState<Row[]>([]);
   const [endpoints, setEndpoints] = useState<Row[]>([]);
   const [delegations, setDelegations] = useState<Row[]>([]);
   const [users, setUsers] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
 
   const loadList = useCallback(async () => {
+    if (!showIdentitySidebar) return;
     const rows = await runRows(
       `SELECT nhi_id, name, displayname, nhi_type, state, risk_level,
               is_privileged, load_source
@@ -96,7 +116,7 @@ export function ServiceAccountsPage() {
     );
     setIdentities(rows);
     if (!focalId && rows.length) setFocalId(asText(rows[0].nhi_id));
-  }, [focalId]);
+  }, [focalId, showIdentitySidebar]);
 
   const loadUsers = useCallback(async () => {
     const rows = await runRows(
@@ -109,8 +129,8 @@ export function ServiceAccountsPage() {
     setUsers(rows);
   }, []);
 
-  const loadDetail = useCallback(async () => {
-    if (!focalId) return;
+  const loadDetailForId = useCallback(async (id: string) => {
+    if (!id) return;
     const [d, caps, eps, dels] = await Promise.all([
       runRows(
         `SELECT i.nhi_id, i.name, i.displayname, i.description, i.nhi_type, i.state,
@@ -125,7 +145,7 @@ export function ServiceAccountsPage() {
            LEFT JOIN public.applicationinstance ai ON ai.instanceid = i.instanceid
            LEFT JOIN public.kf_nhi_agent_profile ap ON ap.nhi_id = i.nhi_id
           WHERE i.tenant_id = ?::uuid AND i.nhi_id = ?::uuid`,
-        [TENANT_ID, focalId]
+        [TENANT_ID, id]
       ),
       runRows(
         `SELECT capability_id, tool_name, intent, tool_description, scope_filter,
@@ -134,7 +154,7 @@ export function ServiceAccountsPage() {
            FROM public.kf_nhi_agent_capability
           WHERE nhi_id = ?::uuid
           ORDER BY enabled DESC, tool_name`,
-        [focalId]
+        [id]
       ),
       runRows(
         `SELECT endpoint_id, endpoint_type, endpoint_value, label, direction,
@@ -142,7 +162,7 @@ export function ServiceAccountsPage() {
            FROM public.kf_nhi_trusted_endpoint
           WHERE nhi_id = ?::uuid
           ORDER BY endpoint_type, endpoint_value`,
-        [focalId]
+        [id]
       ),
       runRows(
         `SELECT d.delegation_id, d.intent, d.allowed_tools, d.scope_filter,
@@ -155,51 +175,110 @@ export function ServiceAccountsPage() {
            LEFT JOIN public.usr ua ON ua.userid = d.approved_by
           WHERE d.nhi_id = ?::uuid
           ORDER BY d.granted_at DESC`,
-        [focalId]
+        [id]
       ),
     ]);
     setDetail(d[0] ?? null);
     setCapabilities(caps);
     setEndpoints(eps);
     setDelegations(dels);
-  }, [focalId]);
+  }, []);
+
+  const loadDetail = useCallback(async () => {
+    if (!focalId) return;
+    await loadDetailForId(focalId);
+  }, [focalId, loadDetailForId]);
 
   useEffect(() => {
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        await Promise.all([loadList(), loadUsers()]);
+        await loadUsers();
+        if (showIdentitySidebar) await loadList();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load service accounts");
       } finally {
         setLoading(false);
       }
     })();
-  }, [loadList, loadUsers]);
+  }, [loadList, loadUsers, showIdentitySidebar]);
 
   useEffect(() => {
+    const id = (embeddedNhiId?.trim() || focalId?.trim() || "") as string;
+    if (!id) return;
     (async () => {
+      setDetailLoading(true);
+      setError(null);
       try {
-        await loadDetail();
+        if (embeddedNhiId?.trim()) setFocalId(embeddedNhiId.trim());
+        await loadDetailForId(id);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load identity details");
+        setDetail(null);
+        setCapabilities([]);
+        setEndpoints([]);
+        setDelegations([]);
+      } finally {
+        setDetailLoading(false);
       }
     })();
-  }, [loadDetail]);
+  }, [embeddedNhiId, focalId, loadDetailForId]);
 
   if (loading) return <div className="p-6 text-sm text-slate-500">Loading service accounts…</div>;
+  if (!showIdentitySidebar && detailLoading) {
+    return <div className="p-6 text-sm text-slate-500">Loading agent details…</div>;
+  }
+
+  const heading = pageHeading ?? "Service Accounts & Agents";
 
   return (
     <div className="w-full space-y-4 pb-8">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Service Accounts & Agents</h1>
-          <p className="mt-1 text-sm text-slate-600">
-            Create and manage metadata, capabilities, trusted endpoints, and delegations.
-          </p>
+      {!suppressPageHeader && (
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">{heading}</h1>
+            {showServiceAccountChrome && (
+              <p className="mt-1 text-sm text-slate-600">
+                Create and manage metadata, capabilities, trusted endpoints, and delegations.
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white hover:bg-slate-50"
+              aria-label="Refresh"
+              title="Refresh"
+              onClick={async () => {
+                try {
+                  setError(null);
+                  await Promise.all([
+                    showIdentitySidebar ? loadList() : Promise.resolve(),
+                    loadDetail(),
+                  ]);
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : "Refresh failed");
+                }
+              }}
+            >
+              <RotateCw className="h-4 w-4" />
+            </button>
+            {showServiceAccountChrome && showIdentitySidebar && (
+              <button
+                type="button"
+                className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700"
+                onClick={() => setShowCreate(true)}
+              >
+                + Create Service Account
+              </button>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+      )}
+
+      {suppressPageHeader && (
+        <div className="flex justify-end">
           <button
             type="button"
             className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white hover:bg-slate-50"
@@ -208,7 +287,7 @@ export function ServiceAccountsPage() {
             onClick={async () => {
               try {
                 setError(null);
-                await Promise.all([loadList(), loadDetail()]);
+                await loadDetail();
               } catch (e) {
                 setError(e instanceof Error ? e.message : "Refresh failed");
               }
@@ -216,19 +295,13 @@ export function ServiceAccountsPage() {
           >
             <RotateCw className="h-4 w-4" />
           </button>
-          <button
-            type="button"
-            className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700"
-            onClick={() => setShowCreate(true)}
-          >
-            + Create Service Account
-          </button>
         </div>
-      </div>
+      )}
 
       {error && <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
 
-      <section className="flex items-start gap-4">
+      <section className={showIdentitySidebar ? "flex items-start gap-4" : undefined}>
+        {showIdentitySidebar && (
         <aside className="sticky top-[72px] h-[calc(100vh-96px)] w-80 shrink-0 rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-700">
             Identities ({identities.length})
@@ -256,9 +329,16 @@ export function ServiceAccountsPage() {
             })}
           </ul>
         </aside>
+        )}
 
-        <div className="min-w-0 flex-1 space-y-4">
-          {!detail && <div className="rounded-lg border border-gray-200 bg-white p-4 text-sm text-slate-500">Pick an identity from the list.</div>}
+        <div className={`min-w-0 space-y-4 ${showIdentitySidebar ? "flex-1" : "w-full"}`}>
+          {!detail && (
+            <div className="rounded-lg border border-gray-200 bg-white p-4 text-sm text-slate-500">
+              {embeddedNhiId
+                ? "No identity record was returned for this agent ID. It may be missing from kf_nhi_identity for this tenant, or the ID from the inventory list does not match."
+                : "Pick an identity from the list."}
+            </div>
+          )}
           {detail && (
             <>
               <IdentityMetadata detail={detail} users={users} busy={busy} setBusy={setBusy} onSaved={loadDetail} onError={setError} />
@@ -270,7 +350,7 @@ export function ServiceAccountsPage() {
         </div>
       </section>
 
-      {showCreate && (
+      {showCreate && showIdentitySidebar && (
         <CreateModal
           users={users}
           onClose={() => setShowCreate(false)}

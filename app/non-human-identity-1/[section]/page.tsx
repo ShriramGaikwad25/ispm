@@ -1,5 +1,8 @@
 import { notFound } from "next/navigation";
-import { NHI_NAV_ITEMS, NHI_SECTION_SLUGS } from "@/lib/nhi-shell";
+import {
+  NHI_LEGACY_NAV_ITEMS,
+  NHI_LEGACY_SECTION_SLUGS,
+} from "@/lib/nhi-shell";
 import { NhiInventoryPage } from "@/components/non-human-identity/NhiInventoryPage";
 import { ServiceAccountsPage } from "@/components/non-human-identity/ServiceAccountsPage";
 import { RfcCallsPage } from "@/components/non-human-identity/RfcCallsPage";
@@ -14,15 +17,17 @@ import { LineageGraphPage } from "@/components/non-human-identity/LineageGraphPa
 
 type PageProps = { params: Promise<{ section: string }> };
 
-export default async function NonHumanIdentitySectionPage({ params }: PageProps) {
+export default async function NonHumanIdentityLegacySectionPage({
+  params,
+}: PageProps) {
   const { section } = await params;
-  if (!NHI_SECTION_SLUGS.has(section)) {
+  if (!NHI_LEGACY_SECTION_SLUGS.has(section)) {
     notFound();
   }
 
   const label =
-    NHI_NAV_ITEMS.find((i) => i.href === `/non-human-identity/${section}`)?.label ??
-    section;
+    NHI_LEGACY_NAV_ITEMS.find((i) => i.href === `/non-human-identity-1/${section}`)
+      ?.label ?? section;
 
   if (section === "nhis") {
     return <NhiInventoryPage />;

@@ -54,9 +54,15 @@ function asText(v: unknown): string {
   return String(v);
 }
 
-export function LineageGraphPage() {
+export type LineageGraphPageProps = {
+  /** Lock focal NHI and hide picker (e.g. embedded under AI Agent Details). */
+  embeddedNhiId?: string | null;
+};
+
+export function LineageGraphPage(props: LineageGraphPageProps = {}) {
+  const { embeddedNhiId = null } = props;
   const [identities, setIdentities] = useState<Identity[]>([]);
-  const [focalId, setFocalId] = useState("");
+  const [focalId, setFocalId] = useState(embeddedNhiId ?? "");
   const [focal, setFocal] = useState<Identity | null>(null);
   const [inbound, setInbound] = useState<SideNode[]>([]);
   const [outbound, setOutbound] = useState<SideNode[]>([]);
@@ -64,6 +70,10 @@ export function LineageGraphPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (embeddedNhiId) {
+      setFocalId(embeddedNhiId);
+      return;
+    }
     (async () => {
       try {
         const rows = extractResultRows(
@@ -81,14 +91,14 @@ export function LineageGraphPage() {
           nhi_type: asText(r.nhi_type),
         }));
         setIdentities(parsed);
-        if (parsed.length && !focalId) setFocalId(parsed[0].nhi_id);
+        setFocalId((prev) => prev || (parsed.length ? parsed[0].nhi_id : ""));
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load identities");
       } finally {
         setLoading(false);
       }
     })();
-  }, [focalId]);
+  }, [embeddedNhiId]);
 
   const loadLineage = useCallback(async () => {
     if (!focalId) return;
@@ -187,31 +197,46 @@ export function LineageGraphPage() {
 
   return (
     <div className="w-full space-y-4 pb-8">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <h1 className="text-2xl font-semibold text-slate-900">Lineage Graph</h1>
-        <div className="flex items-center gap-2">
-          <select
-            className="min-w-[300px] rounded border border-slate-300 px-3 py-1.5 text-sm"
-            value={focalId}
-            onChange={(e) => setFocalId(e.target.value)}
-          >
-            {identities.map((i) => (
-              <option key={i.nhi_id} value={i.nhi_id}>
-                {i.name} — {i.nhi_type}
-              </option>
-            ))}
-          </select>
+      {!embeddedNhiId && (
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <h1 className="text-2xl font-semibold text-slate-900">Lineage Graph</h1>
+          <div className="flex items-center gap-2">
+            <select
+              className="min-w-[300px] rounded border border-slate-300 px-3 py-1.5 text-sm"
+              value={focalId}
+              onChange={(e) => setFocalId(e.target.value)}
+            >
+              {identities.map((i) => (
+                <option key={i.nhi_id} value={i.nhi_id}>
+                  {i.name} — {i.nhi_type}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50"
+              onClick={() => void loadLineage()}
+              title="Refresh"
+              aria-label="Refresh"
+            >
+              ↻
+            </button>
+          </div>
+        </div>
+      )}
+      {embeddedNhiId && (
+        <div className="flex justify-end">
           <button
             type="button"
             className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50"
             onClick={() => void loadLineage()}
-            title="Refresh"
-            aria-label="Refresh"
+            title="Refresh lineage"
+            aria-label="Refresh lineage"
           >
-            ↻
+            ↻ Refresh
           </button>
         </div>
-      </div>
+      )}
 
       {error && <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
       {loading && !focal && <div className="text-sm text-slate-500">Loading lineage…</div>}

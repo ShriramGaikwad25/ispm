@@ -11,7 +11,8 @@ import {
   LinearScale,
   Tooltip,
 } from "chart.js";
-import { RotateCw, Search } from "lucide-react";
+import Link from "next/link";
+import { Eye, RotateCw, Search } from "lucide-react";
 import { executeQuery } from "@/lib/api";
 import { extractResultRows } from "@/lib/nhi-dashboard";
 
@@ -27,8 +28,13 @@ const Bar = dynamic(() => import("react-chartjs-2").then((m) => m.Bar), {
 const NHI_TENANT_ID = "a0000000-0000-0000-0000-000000000001";
 const NHI_IDENTITIES_QUERY = `SELECT i.nhi_id, i.name, i.nhi_type, i.state, i.risk_level,
                 i.criticality, i.execution_type, i.load_source,
-                i.createddate, i.review_status
+                i.createddate, i.review_status,
+                COALESCE(NULLIF(TRIM(COALESCE(u.firstname, '') || ' ' || COALESCE(u.lastname, '')), ''), u.username) AS owner_name,
+                ai.instancename AS associated_system,
+                COALESCE(NULLIF(TRIM(i.customattributes->>'environment'), ''), '') AS environment_label
            FROM public.kf_nhi_identity i
+           LEFT JOIN public.usr u ON u.userid = i.ownerid
+           LEFT JOIN public.applicationinstance ai ON ai.instanceid = i.instanceid
           WHERE i.tenant_id = ?::uuid
           ORDER BY i.createddate DESC
           LIMIT 500`;
@@ -44,6 +50,9 @@ type NhiIdentity = {
   load_source: string;
   createddate: string;
   review_status: string;
+  owner_name: string;
+  associated_system: string;
+  environment_label: string;
 };
 
 const DONUT_COLORS = [
@@ -87,6 +96,9 @@ function parseIdentityRow(r: Record<string, unknown>): NhiIdentity {
     load_source: safeText(r.load_source),
     createddate: safeText(r.createddate),
     review_status: safeText(r.review_status),
+    owner_name: safeText(r.owner_name),
+    associated_system: safeText(r.associated_system),
+    environment_label: safeText(r.environment_label),
   };
 }
 
@@ -172,21 +184,25 @@ export function NhiInventoryPage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return rows;
-    return rows.filter((r) =>
-      [
+    return rows.filter((r) => {
+      const blob = [
         r.name,
+        r.nhi_id,
         r.nhi_type,
-        r.state,
-        r.risk_level,
-        r.criticality,
         r.execution_type,
+        r.environment_label,
+        r.associated_system,
+        r.owner_name,
+        r.risk_level,
+        r.state,
+        r.criticality,
         r.review_status,
         r.load_source,
       ]
         .join(" ")
-        .toLowerCase()
-        .includes(q)
-    );
+        .toLowerCase();
+      return blob.includes(q);
+    });
   }, [rows, search]);
 
   useEffect(() => {
@@ -302,18 +318,25 @@ export function NhiInventoryPage() {
       </div>
 
       <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700">
-            Identities ({filtered.length})
-          </h2>
-          <div className="flex w-full max-w-2xl items-center gap-2">
+        <div className="flex flex-col gap-3 border-b border-gray-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700">
+              Identities ({filtered.length})
+            </h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Search matches NHI type, identity type (execution), environment, associated system, owner, risk,
+              status, and other columns.
+            </p>
+          </div>
+          <div className="flex w-full max-w-2xl flex-1 items-center gap-2 sm:min-w-[280px]">
             <div className="relative flex-1">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input
                 type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder={`Filter ${rows.length} rows…`}
+                placeholder="Search…"
+                aria-label="Search identities"
                 className="w-full rounded-md border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
               />
             </div>
@@ -331,7 +354,7 @@ export function NhiInventoryPage() {
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1080px] text-left text-xs">
+          <table className="w-full min-w-[1120px] text-left text-xs">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
                 <th className="px-3 py-2.5">Name</th>
@@ -343,6 +366,7 @@ export function NhiInventoryPage() {
                 <th className="px-3 py-2.5">Review</th>
                 <th className="px-3 py-2.5">Source</th>
                 <th className="px-3 py-2.5">Created</th>
+                <th className="w-14 px-2 py-2.5 text-center">View</th>
               </tr>
             </thead>
             <tbody>
@@ -357,6 +381,20 @@ export function NhiInventoryPage() {
                   <td className="px-3 py-2 text-slate-700">{r.review_status}</td>
                   <td className="px-3 py-2 text-slate-700">{r.load_source}</td>
                   <td className="px-3 py-2 text-slate-700">{formatDate(r.createddate)}</td>
+                  <td className="px-2 py-2 text-center">
+                    {r.nhi_id && r.nhi_id !== "—" ? (
+                      <Link
+                        href={`/non-human-identity/nhi-inventory/${encodeURIComponent(r.nhi_id)}`}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                        title="View NHI details"
+                        aria-label={`View details for ${r.name}`}
+                      >
+                        <Eye className="h-4 w-4" aria-hidden />
+                      </Link>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

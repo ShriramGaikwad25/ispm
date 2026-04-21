@@ -17,8 +17,18 @@ export const AGENT_POSTURE_LIST_QUERY = `SELECT p.nhi_id, p.agent_name, p.vendor
                 p.evaluation_score, p.tools_enabled, p.active_delegations,
                 p.actions_last_24h, p.denied_last_24h,
                 p.hallucinations_last_7d, p.avg_latency_ms_24h,
-                p.tokens_last_24h, p.cost_usd_24h
+                p.tokens_last_24h, p.cost_usd_24h,
+                i.state AS identity_state,
+                i.nhi_type AS identity_classification,
+                ai.instancename AS platform_name,
+                COALESCE(NULLIF(TRIM(COALESCE(u.firstname, '') || ' ' || COALESCE(u.lastname, '')), ''), u.username) AS business_owner_name,
+                (SELECT e.endpoint_type FROM public.kf_nhi_trusted_endpoint e
+                  WHERE e.nhi_id = p.nhi_id ORDER BY e.endpoint_type LIMIT 1) AS interface_type,
+                COALESCE(NULLIF(TRIM(i.customattributes->>'environment'), ''), '') AS environment_label
            FROM public.kf_nhi_mv_agent_posture p
+           LEFT JOIN public.kf_nhi_identity i ON i.nhi_id = p.nhi_id AND i.tenant_id = p.tenant_id
+           LEFT JOIN public.usr u ON u.userid = i.ownerid
+           LEFT JOIN public.applicationinstance ai ON ai.instanceid = i.instanceid
           WHERE p.tenant_id = ?::uuid
           ORDER BY p.actions_last_24h DESC NULLS LAST`;
 
@@ -42,6 +52,13 @@ export type NhiAgentRow = {
   rate_limit_per_min?: number | null;
   token_budget_per_day?: number | null;
   hallucinations_last_7d?: number | null;
+  /** From identity / joins (filters + display) */
+  identity_state?: string;
+  identity_classification?: string;
+  platform_name?: string;
+  business_owner_name?: string;
+  interface_type?: string;
+  environment_label?: string;
 };
 
 export function toNum(v: unknown): number {
@@ -52,6 +69,10 @@ export function toNum(v: unknown): number {
 
 /** Map one API object (dashboard agent or mv row) to {@link NhiAgentRow}. */
 export function mapRecordToAgentRow(o: Record<string, unknown>): NhiAgentRow {
+  const str = (k: string) => {
+    const v = o[k];
+    return v != null && String(v).trim() !== "" ? String(v) : undefined;
+  };
   return {
     nhi_id: o.nhi_id != null ? String(o.nhi_id) : undefined,
     vendor: o.vendor != null ? String(o.vendor) : undefined,
@@ -59,6 +80,12 @@ export function mapRecordToAgentRow(o: Record<string, unknown>): NhiAgentRow {
     agent_name: o.agent_name != null ? String(o.agent_name) : undefined,
     model_name: o.model_name != null ? String(o.model_name) : undefined,
     computed_at: o.computed_at != null ? String(o.computed_at) : undefined,
+    identity_state: str("identity_state"),
+    identity_classification: str("identity_classification"),
+    platform_name: str("platform_name"),
+    business_owner_name: str("business_owner_name"),
+    interface_type: str("interface_type"),
+    environment_label: str("environment_label"),
     cost_usd_24h:
       o.cost_usd_24h == null ? null : toNum(o.cost_usd_24h) || null,
     model_version: o.model_version != null ? String(o.model_version) : undefined,
