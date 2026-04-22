@@ -322,6 +322,29 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
           return best;
         };
 
+        const resolveTrackStepActionLabel = (step: any, actionFromCode: string, actionFromFields: string): string => {
+          let action = String(actionFromCode ? actionFromCode : actionFromFields).trim();
+          const isCustomApproval =
+            action.toUpperCase() === "CUSTOM APPROVAL" ||
+            String(step?.step_code ?? "")
+              .toUpperCase()
+              .replace(/_/g, " ") === "CUSTOM APPROVAL";
+          if (!isCustomApproval) return action;
+
+          const taskNameRaw =
+            step?.task?.name ??
+            step?.Task?.name ??
+            step?.tasks?.[0]?.name ??
+            step?.tasks?.[0]?.Task?.name;
+          const taskName =
+            typeof taskNameRaw === "string"
+              ? taskNameRaw.trim()
+              : taskNameRaw != null && taskNameRaw !== ""
+                ? String(taskNameRaw).trim()
+                : "";
+          return taskName || "CUSTOM APPROVAL";
+        };
+
         const mapInstanceSteps = (steps: any[]): InstanceStep[] =>
           steps.map((step) => {
             const actionFromCode = stepCodeToAction(step?.step_code);
@@ -338,7 +361,7 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
               "";
 
             return {
-            action: String(actionFromCode ? actionFromCode : actionFromFields),
+            action: resolveTrackStepActionLabel(step, actionFromCode, actionFromFields),
             date: String(
               formatDateTime(
                 step?.created_at ??

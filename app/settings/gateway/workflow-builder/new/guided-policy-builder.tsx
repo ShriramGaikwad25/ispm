@@ -460,8 +460,8 @@ function SortableFlowStepRow({
 
   return (
     <div ref={setNodeRef} style={style} className="relative">
-      <div className="flex items-center gap-2.5 rounded-lg border border-sky-200 bg-white px-2.5 py-2 shadow-sm">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sky-600 text-[11px] font-semibold leading-none text-white">
+      <div className="flex items-center gap-2.5 rounded-lg border border-blue-200 bg-white px-2.5 py-2 shadow-sm">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#1759e4] text-[11px] font-semibold leading-none text-white">
           {index + 1}
         </div>
         <div className="min-w-0 flex-1 py-0.5">
@@ -879,10 +879,10 @@ export const GuidedPolicyBuilder: React.FC<GuidedPolicyBuilderProps> = ({
   ) => {
     const tone =
       section === "approval"
-        ? "border-violet-300 bg-white text-violet-900 hover:bg-gray-50"
+        ? "border-blue-200 bg-white text-blue-900 hover:bg-[#E5EEFC]"
         : section === "fulfillment"
-          ? "border-amber-300 bg-white text-amber-900 hover:bg-gray-50"
-          : "border-sky-300 bg-white text-sky-800 hover:bg-gray-50";
+          ? "border-green-200 bg-white text-green-900 hover:bg-green-50"
+          : "border-blue-200 bg-white text-[#1759e4] hover:bg-[#E5EEFC]";
     return (
       <div className="relative mt-3">
         <button
@@ -924,7 +924,7 @@ export const GuidedPolicyBuilder: React.FC<GuidedPolicyBuilderProps> = ({
     const k = step.kind || "SYSTEM";
     if (k === "AI") {
       return (
-        <span className="inline-flex items-center gap-1 rounded-md bg-violet-100 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-violet-800">
+        <span className="inline-flex items-center gap-1 rounded-md bg-blue-100 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-[#1759e4]">
           <Zap className="h-2.5 w-2.5 shrink-0" aria-hidden />
           AI agent
         </span>
@@ -932,14 +932,14 @@ export const GuidedPolicyBuilder: React.FC<GuidedPolicyBuilderProps> = ({
     }
     if (k === "HUMAN") {
       return (
-        <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-900">
+        <span className="inline-flex items-center gap-1 rounded-md bg-[#F4F5FA] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-800">
           <Clock className="h-2.5 w-2.5 shrink-0" aria-hidden />
           Human
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 rounded-md bg-sky-100 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-sky-900">
+      <span className="inline-flex items-center gap-1 rounded-md bg-[#E5EEFC] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-[#1759e4]">
         <Clock className="h-2.5 w-2.5 shrink-0" aria-hidden />
         System
       </span>
@@ -948,13 +948,13 @@ export const GuidedPolicyBuilder: React.FC<GuidedPolicyBuilderProps> = ({
 
   const renderParallelFork = (steps: any[]) => (
     <div>
-      <div className="relative ml-0.5 border-l-2 border-violet-200 pl-4">
+      <div className="relative ml-0.5 border-l-2 border-blue-200 pl-4">
         <div className="relative -mt-0.5 mb-3 flex min-h-[1.25rem] items-center">
           <span
-            className="absolute -left-[calc(1rem+1px)] top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-violet-500 shadow-[0_0_0_2px_rgba(255,255,255,0.95)]"
+            className="absolute -left-[calc(1rem+1px)] top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-[#1759e4] shadow-[0_0_0_2px_rgba(255,255,255,0.95)]"
             aria-hidden
           />
-          <span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-violet-700">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[#1759e4]">
             Fork — all start together
           </span>
         </div>
@@ -967,7 +967,7 @@ export const GuidedPolicyBuilder: React.FC<GuidedPolicyBuilderProps> = ({
             return (
               <li key={step.id} className="relative">
                 <span
-                  className="absolute left-0 top-1/2 h-px w-4 -translate-x-full -translate-y-1/2 bg-violet-300"
+                  className="absolute left-0 top-1/2 h-px w-4 -translate-x-full -translate-y-1/2 bg-blue-200"
                   aria-hidden
                 />
                 <div className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 shadow-sm">
@@ -983,10 +983,10 @@ export const GuidedPolicyBuilder: React.FC<GuidedPolicyBuilderProps> = ({
 
         <div className="relative mt-4">
           <span
-            className="absolute -left-[calc(1rem+1px)] top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-emerald-500 shadow-[0_0_0_2px_rgba(255,255,255,0.95)]"
+            className="absolute -left-[calc(1rem+1px)] top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-[#16a34a] shadow-[0_0_0_2px_rgba(255,255,255,0.95)]"
             aria-hidden
           />
-          <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-emerald-800">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-green-800">
             Join — wait for all to complete
           </p>
         </div>
@@ -1049,7 +1049,7 @@ export const GuidedPolicyBuilder: React.FC<GuidedPolicyBuilderProps> = ({
               .map((t) => (
                 <div
                   key={t.id}
-                  className={`flex items-start justify-between gap-2 rounded-lg border px-2.5 py-2 ${opts.border} bg-sky-50/80`}
+                  className={`flex items-start justify-between gap-2 rounded-lg border px-2.5 py-2 ${opts.border} ${opts.bg}`}
                 >
                   <div className="min-w-0">
                     <span className="text-xs font-semibold text-gray-900">{t.label}</span>
@@ -1067,7 +1067,7 @@ export const GuidedPolicyBuilder: React.FC<GuidedPolicyBuilderProps> = ({
                 .map((st: any) => (
                   <div
                     key={st.id}
-                    className="flex items-start justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50/50 px-2.5 py-2"
+                    className="flex items-start justify-between gap-2 rounded-lg border border-blue-200 bg-[#E5EEFC]/50 px-2.5 py-2"
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
@@ -1097,7 +1097,7 @@ export const GuidedPolicyBuilder: React.FC<GuidedPolicyBuilderProps> = ({
                 .map((st: any) => (
                   <div
                     key={st.id}
-                    className="flex items-start justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50/50 px-2.5 py-2"
+                    className="flex items-start justify-between gap-2 rounded-lg border border-green-200 bg-green-50/50 px-2.5 py-2"
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
@@ -1127,7 +1127,7 @@ export const GuidedPolicyBuilder: React.FC<GuidedPolicyBuilderProps> = ({
                   return (
                     <div
                       key={st.id}
-                      className="flex items-start justify-between gap-2 rounded-lg border border-emerald-300 bg-emerald-50/80 px-2.5 py-2"
+                      className="flex items-start justify-between gap-2 rounded-lg border border-green-200 bg-green-50/80 px-2.5 py-2"
                     >
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
@@ -1168,7 +1168,7 @@ export const GuidedPolicyBuilder: React.FC<GuidedPolicyBuilderProps> = ({
                   type="button"
                   onClick={() => setParallel(false)}
                   className={`rounded-md px-2 py-1 ${
-                    !parallel ? "bg-blue-600 text-white shadow-sm" : "text-gray-500"
+                    !parallel ? "bg-[#1759e4] text-white shadow-sm" : "text-gray-500"
                   }`}
                 >
                   Sequential
@@ -1178,7 +1178,7 @@ export const GuidedPolicyBuilder: React.FC<GuidedPolicyBuilderProps> = ({
                   onClick={() => setParallel(true)}
                   className={`inline-flex items-center gap-1 rounded-md px-2 py-1 ${
                     parallel
-                      ? "bg-blue-600 text-white shadow-sm"
+                      ? "bg-[#1759e4] text-white shadow-sm"
                       : "text-gray-500"
                   }`}
                 >
@@ -1216,12 +1216,12 @@ export const GuidedPolicyBuilder: React.FC<GuidedPolicyBuilderProps> = ({
   const renderApprovalBody = () => {
     if (approvalStages.length === 0) {
       return (
-        <div className="rounded-lg border border-dashed border-violet-200 bg-violet-50/30 p-4 text-center">
+        <div className="rounded-lg border border-dashed border-blue-200 bg-[#E5EEFC]/30 p-4 text-center">
           <p className="text-xs text-gray-600">No approval stage yet.</p>
           <button
             type="button"
             onClick={ensureApprovalPipeline}
-            className="mt-2 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+            className="mt-2 rounded-lg bg-[#1759e4] px-3 py-1.5 text-xs font-medium text-white hover:brightness-95"
           >
             Add approval stage
           </button>
@@ -1256,7 +1256,7 @@ export const GuidedPolicyBuilder: React.FC<GuidedPolicyBuilderProps> = ({
             {APPROVAL_TEMPLATES.filter((t) => approvalHasTemplate(t)).map((t) => (
               <div
                 key={t.id}
-                className="flex items-start justify-between gap-2 rounded-lg border border-violet-200 bg-violet-50/80 px-2.5 py-2"
+                className="flex items-start justify-between gap-2 rounded-lg border border-blue-200 bg-[#E5EEFC]/80 px-2.5 py-2"
               >
                 <div className="min-w-0">
                   <span className="text-xs font-semibold text-gray-900">{t.label}</span>
@@ -1273,7 +1273,7 @@ export const GuidedPolicyBuilder: React.FC<GuidedPolicyBuilderProps> = ({
               .map(({ step, stageId }: { step: any; stageId: string }) => (
                 <div
                   key={step.id}
-                  className="flex items-start justify-between gap-2 rounded-lg border border-violet-200 bg-violet-50/50 px-2.5 py-2"
+                  className="flex items-start justify-between gap-2 rounded-lg border border-blue-200 bg-blue-50/50 px-2.5 py-2"
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
@@ -1313,7 +1313,7 @@ export const GuidedPolicyBuilder: React.FC<GuidedPolicyBuilderProps> = ({
                   type="button"
                   onClick={() => setStageParallel(displayStageId, false)}
                   className={`rounded-md px-2 py-1 ${
-                    !parallelApproval ? "bg-blue-600 text-white shadow-sm" : "text-gray-500"
+                    !parallelApproval ? "bg-[#1759e4] text-white shadow-sm" : "text-gray-500"
                   }`}
                 >
                   Sequential
@@ -1323,7 +1323,7 @@ export const GuidedPolicyBuilder: React.FC<GuidedPolicyBuilderProps> = ({
                   onClick={() => setStageParallel(displayStageId, true)}
                   className={`inline-flex items-center gap-1 rounded-md px-2 py-1 ${
                     parallelApproval
-                      ? "bg-blue-600 text-white shadow-sm"
+                      ? "bg-[#1759e4] text-white shadow-sm"
                       : "text-gray-500"
                   }`}
                 >
@@ -1371,31 +1371,37 @@ export const GuidedPolicyBuilder: React.FC<GuidedPolicyBuilderProps> = ({
     const isOpen = expanded === section;
     const hasCollapsedPills = !isOpen && collapsedPills.length > 0;
     const seqLabel = parallel ? "PARALLEL" : "SEQUENTIAL";
+    const openRing =
+      section === "validate"
+        ? "shadow-md shadow-blue-500/10 ring-2 ring-[#1759e4]/25"
+        : section === "approval"
+          ? "shadow-md shadow-blue-500/10 ring-2 ring-blue-200"
+          : "shadow-md shadow-green-500/10 ring-2 ring-green-200/90";
     return (
       <div
-        className={`rounded-xl border-2 ${borderClass} ${bgClass} shadow-sm transition-shadow ${isOpen ? "ring-1 ring-sky-200" : ""}`}
+        className={`rounded-2xl border-2 ${borderClass} ${bgClass} transition-all duration-200 ${isOpen ? openRing : "hover:shadow-sm"}`}
       >
         <button
           type="button"
           onClick={() => setExpanded(isOpen ? null : section)}
-          className="grid w-full grid-cols-[auto_1fr_auto] items-center gap-2 px-3 py-2.5 text-left"
+          className="grid w-full grid-cols-[auto_1fr_auto] items-center gap-2 rounded-t-2xl px-3.5 py-3 text-left"
         >
           <span
-            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-800 text-[11px] font-bold text-white ${hasCollapsedPills ? "translate-y-[10px]" : ""}`}
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-[#1759e4] bg-white text-[11px] font-bold text-[#1759e4] shadow-sm ${hasCollapsedPills ? "translate-y-[10px]" : ""}`}
           >
             {section === "validate" ? 1 : section === "approval" ? 2 : 3}
           </span>
           <span className="grid min-w-0 grid-cols-[auto_1fr] items-center gap-2">
             <span
-              className={`inline-flex h-8 shrink-0 items-center justify-center rounded-full px-3 text-xs font-bold uppercase leading-none tracking-wide ${pillBg} ${titleClass} ${hasCollapsedPills ? "translate-y-[10px]" : ""}`}
+              className={`inline-flex h-8 shrink-0 items-center justify-center rounded-full px-3.5 text-xs font-bold uppercase leading-none tracking-wide shadow-sm ${pillBg} ${titleClass} ${hasCollapsedPills ? "translate-y-[10px]" : ""}`}
             >
               {title}
             </span>
             <span className="flex min-w-0 items-center justify-end gap-1.5">
-              <span className="whitespace-nowrap text-[10px] text-gray-600">
+              <span className="whitespace-nowrap text-[10px] font-medium text-slate-600">
                 {stepCount} step{stepCount !== 1 ? "s" : ""}
               </span>
-              <span className="inline-flex items-center gap-0.5 whitespace-nowrap rounded-full bg-sky-100 px-1.5 py-0.5 text-[9px] font-bold text-sky-800">
+              <span className="inline-flex items-center gap-0.5 whitespace-nowrap rounded-full border border-blue-200 bg-[#E5EEFC] px-2 py-0.5 text-[9px] font-bold text-[#1759e4] shadow-sm">
                 {parallel ? (
                   <GitBranch className="h-2.5 w-2.5" />
                 ) : (
@@ -1405,7 +1411,7 @@ export const GuidedPolicyBuilder: React.FC<GuidedPolicyBuilderProps> = ({
               </span>
             </span>
           </span>
-          <span className="text-gray-400">
+          <span className="text-slate-400">
             {isOpen ? <Minus className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </span>
         </button>
@@ -1430,57 +1436,50 @@ export const GuidedPolicyBuilder: React.FC<GuidedPolicyBuilderProps> = ({
     label: (findTemplateForStep(st, VALIDATE_TEMPLATES)?.shortLabel || st.label).toUpperCase(),
     tone:
       st.type === "AI AGENT"
-        ? "bg-purple-100 text-purple-800"
-        : "bg-sky-100 text-sky-800",
+        ? "border border-blue-200 bg-blue-50 text-[#1759e4] shadow-sm"
+        : "border border-gray-200 bg-[#F4F5FA] text-slate-800 shadow-sm",
   }));
 
   const approvalPills = approvalStepsFlat.map(({ step }: { step: any }, i: number) => ({
     label: (findTemplateForStep(step, APPROVAL_TEMPLATES)?.shortLabel || step.label).toUpperCase(),
-    tone: "bg-sky-100 text-sky-800",
+    tone: "border border-blue-200 bg-[#E5EEFC] text-[#1759e4] shadow-sm",
   }));
 
   const fulfillmentPills = (fulfillmentStage?.steps || []).map((st: any) => ({
     label: (
       findTemplateForStep(st, [...FULFILLMENT_CORE, ...FULFILLMENT_EXTRA])?.shortLabel || st.label
     ).toUpperCase(),
-    tone: "bg-sky-100 text-sky-800",
+    tone: "border border-green-200 bg-green-50 text-green-800 shadow-sm",
   }));
 
   return (
-    <div className="w-full space-y-3 text-xs text-gray-800">
-      <div>
-        <h3 className="text-base font-semibold text-gray-900">Configure workflow steps</h3>
-        <p className="mt-0.5 text-xs text-gray-600">
-          Toggle steps on or off, then arrange their execution order in the flow panel.
-        </p>
-      </div>
-
-      <div className="space-y-2">
+    <div className="w-full space-y-4 text-xs text-slate-800">
+      <div className="space-y-3">
         {accordion(
           "validate",
           "Validate",
-          "text-blue-800",
-          "bg-blue-100",
-          "border-emerald-200/80",
-          "bg-white",
+          "text-[#1759e4]",
+          "bg-[#E5EEFC]",
+          "border-blue-200",
+          "bg-gradient-to-br from-[#E5EEFC]/50 via-white to-white",
           validateStage?.steps?.length ?? 0,
           parallelValidate,
           validatePills,
           renderSectionBody("validate", validateStage, VALIDATE_TEMPLATES, VALIDATE_ADD_MENU, {
-            accent: "emerald",
-            border: "border-emerald-200",
-            bg: "bg-emerald-50",
-            labelClass: "text-amber-800",
+            accent: "blue",
+            border: "border-blue-200",
+            bg: "bg-[#E5EEFC]/60",
+            labelClass: "text-slate-800",
           })
         )}
 
         {accordion(
           "approval",
           "Approval",
-          "text-yellow-800",
-          "bg-yellow-100",
-          "border-violet-200/80",
-          "bg-white",
+          "text-blue-900",
+          "bg-blue-100",
+          "border-blue-200",
+          "bg-gradient-to-br from-white via-[#F4F5FA]/40 to-white",
           approvalStepsFlat.length,
           parallelApproval,
           approvalPills,
@@ -1492,30 +1491,34 @@ export const GuidedPolicyBuilder: React.FC<GuidedPolicyBuilderProps> = ({
           "Fulfillment",
           "text-green-800",
           "bg-green-100",
-          "border-amber-200/80",
-          "bg-white",
+          "border-green-200",
+          "bg-gradient-to-br from-green-50/50 via-white to-white",
           fulfillmentStage?.steps?.length ?? 0,
           parallelFulfillment,
           fulfillmentPills,
           renderSectionBody("fulfillment", fulfillmentStage, FULFILLMENT_CORE, FULFILLMENT_ADD_MENU, {
-            accent: "amber",
-            border: "border-amber-200",
-            bg: "bg-amber-50",
-            labelClass: "text-rose-800",
+            accent: "green",
+            border: "border-green-200",
+            bg: "bg-green-50/80",
+            labelClass: "text-green-900",
           })
         )}
       </div>
 
-      <div className="flex flex-wrap items-center justify-center gap-1.5 border-t border-gray-200 pt-3">
-        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-800">
+      <div className="mt-1 flex flex-wrap items-center justify-center gap-2 rounded-xl border border-gray-200 bg-[#F4F5FA] py-2.5">
+        <span className="rounded-full border border-blue-200 bg-[#E5EEFC] px-3 py-1 text-[10px] font-bold tracking-wide text-[#1759e4]">
           VALIDATE
         </span>
-        <span className="text-[10px] text-gray-400">→</span>
-        <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-[10px] font-bold text-yellow-800">
+        <span className="text-gray-400" aria-hidden>
+          →
+        </span>
+        <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[10px] font-bold tracking-wide text-blue-900">
           APPROVAL
         </span>
-        <span className="text-[10px] text-gray-400">→</span>
-        <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-800">
+        <span className="text-gray-400" aria-hidden>
+          →
+        </span>
+        <span className="rounded-full border border-green-200 bg-green-50 px-3 py-1 text-[10px] font-bold tracking-wide text-green-800">
           FULFILLMENT
         </span>
       </div>

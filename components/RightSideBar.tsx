@@ -58,17 +58,24 @@ const RightSidebar = ({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target;
+      if (target instanceof Element) {
+        // Portals (`createPortal` to `document.body`) sit outside the sidebar node — don't close the bar for those.
+        if (target.closest("[data-right-sidebar-keep]")) {
+          return;
+        }
+      }
       if (sidebarRef.current && !sidebarRef.current.contains(event.target as Node)) {
         onClose();
       }
     };
 
     if (isOpen && closeOnOutsideClick) {
-      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener("mousedown", handleClickOutside);
     }
 
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [isOpen, onClose, closeOnOutsideClick]);
 

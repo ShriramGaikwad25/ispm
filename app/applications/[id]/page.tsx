@@ -23,6 +23,7 @@ import {
   ArrowRight,
   X,
   Edit,
+  Plus,
   Trash2,
   Info,
   HelpCircle,
@@ -46,6 +47,264 @@ import Tabs from "@/components/tabs";
 import PolicyRiskDetails from "@/components/PolicyRiskDetails";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import UserDisplayName from "@/components/UserDisplayName";
+
+/** First path segment for catalog mapping API (Keyforge / ACMECOM). */
+const CATALOG_MAPPING_SCOPE_ID = "11111111-1111-1111-1111-111111111111";
+
+function pickString(...vals: Array<unknown | undefined | null>): string | undefined {
+  for (const v of vals) {
+    if (v == null) continue;
+    const s = String(v).trim();
+    if (s !== "") return s;
+  }
+  return undefined;
+}
+
+/** Resolve catalog id from an entitlement row (API shapes vary by endpoint). */
+function resolveCatalogIdFromEntitlementRow(row: any): string | undefined {
+  if (!row || typeof row !== "object") return undefined;
+  const c = row.catalogDetails;
+  return pickString(
+    row.__catalogIdForMapping,
+    row.catalogid,
+    row.catalogId,
+    row.catalog_id,
+    row.CatalogId,
+    c?.id,
+    c?.catalogid,
+    c?.catalogId,
+    c?.catalog_id,
+    c?.Id,
+    row.entitlementCatalogId,
+    row.entCatalogId,
+    row.catalogID,
+    c?.catalogID,
+    row.entitlementId,
+    c?.entitlementid,
+    c?.entitlementId
+  );
+}
+
+function extractMappingRowsFromResponse(json: unknown): Record<string, unknown>[] {
+  if (json == null) return [];
+  if (Array.isArray(json)) return json as Record<string, unknown>[];
+  if (typeof json !== "object") return [];
+
+  const o = json as Record<string, unknown>;
+
+  if (o.executionStatus && String(o.executionStatus).toLowerCase() !== "success") {
+    return [];
+  }
+
+  const tryKeys = [
+    "resultSet",
+    "items",
+    "data",
+    "result",
+    "mappings",
+    "records",
+    "rows",
+    "values",
+    "content",
+    "payload",
+  ];
+  for (const k of tryKeys) {
+    const v = o[k];
+    if (Array.isArray(v) && v.length) return v as Record<string, unknown>[];
+  }
+  const dataObj = o.data;
+  if (dataObj && typeof dataObj === "object" && !Array.isArray(dataObj)) {
+    for (const k of tryKeys) {
+      const v = (dataObj as Record<string, unknown>)[k];
+      if (Array.isArray(v) && v.length) return v as Record<string, unknown>[];
+    }
+  }
+  for (const v of Object.values(o)) {
+    if (Array.isArray(v) && v.length > 0 && v[0] != null && typeof v[0] === "object") {
+      return v as Record<string, unknown>[];
+    }
+  }
+  if (
+    Object.prototype.hasOwnProperty.call(o, "mapped_item_name") ||
+    Object.prototype.hasOwnProperty.call(o, "mapped_applicationname") ||
+    Object.prototype.hasOwnProperty.call(o, "mappedItemName") ||
+    Object.prototype.hasOwnProperty.call(o, "mappedApplicationname") ||
+    Object.prototype.hasOwnProperty.call(o, "catalog_item_name") ||
+    Object.prototype.hasOwnProperty.call(o, "source_applicationname")
+  ) {
+    return [o];
+  }
+  return [];
+}
+
+function pickMappedItemField(row: any): string {
+  if (row == null || typeof row !== "object") return "—";
+  const nested = (row as any).mapping;
+  const src = nested && typeof nested === "object" ? { ...row, ...nested } : row;
+  return pickString(
+    src.mapped_item_name,
+    src.mappedItemName,
+    src.mappedItem,
+    (src as any).Mapped_Item_Name,
+    (src as any).MAPPED_ITEM_NAME,
+    src.catalog_item_name,
+    src.catalogItemName
+  ) ?? "—";
+}
+
+function pickMappedAppField(row: any): string {
+  if (row == null || typeof row !== "object") return "—";
+  const nested = (row as any).mapping;
+  const src = nested && typeof nested === "object" ? { ...row, ...nested } : row;
+  return pickString(
+    src.mapped_applicationname,
+    src.mappedApplicationname,
+    src.mappedApplicationName,
+    src.mapped_app_name,
+    (src as any).Mapped_Applicationname,
+    src.source_applicationname,
+    src.sourceApplicationname
+  ) ?? "—";
+}
+
+/** True if the row has a non-empty mapping id (API `mapping_id` / `id` / etc.). */
+function rowHasMappingId(row: unknown): boolean {
+  return Boolean(pickMappingIdFromRow(row));
+}
+
+/** Keyforge mapping record id (for DELETE .../remove with mappingIds body). */
+function pickMappingIdFromRow(row: any): string | undefined {
+  if (row == null || typeof row !== "object") return undefined;
+  const nested = (row as any).mapping;
+  const m = nested && typeof nested === "object" ? nested : null;
+  return pickString(
+    (row as any).__mappingId,
+    (row as any).mappingId,
+    (row as any).mappingid,
+    (row as any).mapping_id,
+    (row as any).MappingId,
+    (row as any).mapid,
+    m?.id,
+    m?.mappingId,
+    (row as any).id
+  );
+}
+
+function extractNewMappingIdsFromAddResponse(data: unknown, count: number): (string | undefined)[] {
+  const out: (string | undefined)[] = Array.from({ length: count }, () => undefined);
+  if (data == null || typeof data !== "object") return out;
+  const o = data as Record<string, unknown>;
+  const arr = (Array.isArray(o.resultSet) && o.resultSet) ||
+    (Array.isArray(o.mappings) && o.mappings) ||
+    (Array.isArray(o.items) && o.items) ||
+    (o.data && typeof o.data === "object" && Array.isArray((o.data as any).resultSet) && (o.data as any).resultSet) ||
+    null;
+  if (Array.isArray(arr) && arr.length) {
+    for (let i = 0; i < Math.min(arr.length, count); i++) {
+      const item = arr[i];
+      if (item && typeof item === "object") {
+        out[i] = pickString(
+          (item as any).mappingId,
+          (item as any).id,
+          (item as any).mapping_id
+        );
+      }
+    }
+    return out;
+  }
+  const single = pickString(
+    o.mappingId as string | undefined,
+    o.id as string | undefined
+  );
+  if (single) out[0] = single;
+  return out;
+}
+
+/** Stable id for an entitlement row from getAppEntitlements (used for selection keys). */
+function getAccessItemKey(item: any, listIndex: number) {
+  const c = item?.catalogDetails;
+  const k = pickString(
+    c?.id,
+    item.entitlementId,
+    item.id,
+    item.catalogid,
+    item.catalogId
+  );
+  if (k) return k;
+  return `access-row-${listIndex}`;
+}
+
+function getTargetCatalogIdFromAccessItem(item: any): string | undefined {
+  const c = item?.catalogDetails;
+  return pickString(
+    c?.id,
+    c?.catalogid,
+    c?.catalogId,
+    item.catalogid,
+    item.catalogId,
+    item.entitlementId,
+    item.id
+  );
+}
+
+/** One entry for POST .../mapping/{scope}/{catalogId}/add (per Keyforge body shape). */
+function buildMappingEntryFromAccessItem(
+  item: any,
+  appInstanceId: string
+):
+  | {
+      appinstanceid: string;
+      applicationname: string;
+      catalogid: string;
+      catalogIdType: string;
+      mappingDescription: string;
+      attributes: Record<string, unknown>;
+    }
+  | undefined {
+  const catalogid = getTargetCatalogIdFromAccessItem(item);
+  if (!catalogid) return undefined;
+  const c = item?.catalogDetails;
+  const applicationname =
+    pickString(
+      item.applicationName,
+      item["App Name"],
+      item.applicationname,
+      item.appName,
+      c?.applicationname,
+      c?.applicationName,
+      c?.appName
+    ) ?? "";
+  const catalogIdType =
+    pickString(
+      c?.catalogIdType,
+      c?.catalogidtype,
+      item.catalogIdType,
+      item.catalogIDType
+    ) ?? "Group";
+  const mappingDescription =
+    pickString(
+      c?.mappingDescription,
+      c?.description,
+      c?.entitlementDescription,
+      c?.longDescription,
+      item.entitlementDescription,
+      item["Ent Description"],
+      item.description
+    ) ?? "";
+  const rawAttrs = c?.attributes;
+  const attributes =
+    rawAttrs && typeof rawAttrs === "object" && !Array.isArray(rawAttrs)
+      ? (rawAttrs as Record<string, unknown>)
+      : ({} as Record<string, unknown>);
+  return {
+    appinstanceid: appInstanceId,
+    applicationname,
+    catalogid,
+    catalogIdType,
+    mappingDescription,
+    attributes,
+  };
+}
 
 interface DataItem {
   label: string;
@@ -361,6 +620,20 @@ export default function ApplicationDetailPage() {
         originalNodeData?.["Last Reviewed on"],
 
       // Technical details
+      "Logical Application":
+        catalogDetails.logicalApplication ||
+        catalogDetails.logical_application ||
+        catalogDetails.logicalApp ||
+        originalNodeData?.["Logical Application"],
+      "Application Category":
+        catalogDetails.applicationCategory ||
+        catalogDetails.application_category ||
+        catalogDetails.appCategory ||
+        originalNodeData?.["Application Category"],
+      "Associated Access":
+        catalogDetails.associatedAccess ||
+        catalogDetails.associated_access ||
+        originalNodeData?.["Associated Access"],
       Hierarchy:
         catalogDetails.hierarchy ||
         catalogDetails.hierarchy ||
@@ -485,6 +758,13 @@ export default function ApplicationDetailPage() {
         catalogDetails.dynamicTag ||
         catalogDetails.tags ||
         originalNodeData?.["Dynamic Tag"],
+      __catalogIdForMapping: pickString(
+        catalogDetails.id,
+        catalogDetails.catalogid,
+        catalogDetails.catalogId,
+        catalogDetails.catalog_id,
+        originalNodeData?.__catalogIdForMapping
+      ),
     };
 
     // Return the original data with the mapped fields
@@ -543,10 +823,130 @@ export default function ApplicationDetailPage() {
         security: false,
         lifecycle: false,
       });
+      const [associatedRows, setAssociatedRows] = useState<Record<string, unknown>[]>([]);
+      const [associatedLoading, setAssociatedLoading] = useState(true);
+      const [associatedError, setAssociatedError] = useState<string | null>(null);
+      const [associatedModalOpen, setAssociatedModalOpen] = useState(false);
+      const [showCatalogAddList, setShowCatalogAddList] = useState(false);
+      const [catalogAddItems, setCatalogAddItems] = useState<any[]>([]);
+      const [catalogAddLoading, setCatalogAddLoading] = useState(false);
+      const [catalogAddError, setCatalogAddError] = useState<string | null>(null);
+      const [catalogAddSearch, setCatalogAddSearch] = useState("");
+      const [catalogAddSelectedKeys, setCatalogAddSelectedKeys] = useState<string[]>([]);
+      const [mappingAddInProgress, setMappingAddInProgress] = useState(false);
+      const [mappingAddError, setMappingAddError] = useState<string | null>(null);
+      const [mappingRemoveIndex, setMappingRemoveIndex] = useState<number | null>(null);
+      const [mappingRemoveError, setMappingRemoveError] = useState<string | null>(null);
 
       useEffect(() => {
         setLocalEditableData({ ...finalData });
       }, []);
+
+      useEffect(() => {
+        const catalogId = resolveCatalogIdFromEntitlementRow(finalData);
+        if (!catalogId) {
+          setAssociatedLoading(false);
+          setAssociatedError("Catalog id is not available for this entitlement.");
+          setAssociatedRows([]);
+          return;
+        }
+        let cancelled = false;
+        (async () => {
+          setAssociatedLoading(true);
+          setAssociatedError(null);
+          try {
+            const url = `https://preview.keyforge.ai/catalog/api/v1/ACMECOM/mapping/${CATALOG_MAPPING_SCOPE_ID}/${encodeURIComponent(
+              catalogId
+            )}`;
+            const res = await fetch(url);
+            const json = await res.json().catch(() => null);
+            if (!res.ok) {
+              const msg =
+                json &&
+                typeof json === "object" &&
+                (String((json as any).message || (json as any).errorMessage || (json as any).error || "").trim() ||
+                  "");
+              throw new Error(
+                msg || (res.status === 400 ? "Invalid mapping request" : `Request failed (${res.status})`)
+              );
+            }
+            if (json && typeof json === "object" && "executionStatus" in (json as object)) {
+              const st = String((json as any).executionStatus).toLowerCase();
+              if (st !== "success" && st !== "partial" && st !== "partial_success") {
+                const errMsg = pickString(
+                  (json as any).errorMessage,
+                  (json as any).error_message,
+                  (json as any).message,
+                  (json as any).ErrorMessage
+                );
+                throw new Error(errMsg || "Mapping API returned a non-success status");
+              }
+            }
+            const rows = extractMappingRowsFromResponse(json).filter((r) =>
+              rowHasMappingId(r)
+            );
+            if (!cancelled) setAssociatedRows(rows);
+          } catch (e) {
+            if (!cancelled) {
+              setAssociatedError(
+                e instanceof Error ? e.message : "Failed to load associated mappings"
+              );
+              setAssociatedRows([]);
+            }
+          } finally {
+            if (!cancelled) setAssociatedLoading(false);
+          }
+        })();
+        return () => {
+          cancelled = true;
+        };
+      }, []);
+
+      useEffect(() => {
+        if (!associatedModalOpen) return;
+        const onKey = (e: KeyboardEvent) => {
+          if (e.key === "Escape") setAssociatedModalOpen(false);
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+      }, [associatedModalOpen]);
+
+      useEffect(() => {
+        if (!associatedModalOpen) {
+          setShowCatalogAddList(false);
+          setCatalogAddSearch("");
+          setCatalogAddSelectedKeys([]);
+          setMappingAddError(null);
+          setMappingAddInProgress(false);
+          setMappingRemoveError(null);
+          setMappingRemoveIndex(null);
+        }
+      }, [associatedModalOpen]);
+
+      const catalogAddFiltered = useMemo(() => {
+        const q = catalogAddSearch.trim().toLowerCase();
+        if (!q) return catalogAddItems;
+        return catalogAddItems.filter((item: any) => {
+          const c = item?.catalogDetails;
+          const n =
+            pickString(
+              item.entitlementName,
+              item["Ent Name"],
+              item.name,
+              c?.name,
+              c?.entitlementName
+            ) ?? "";
+          const a =
+            pickString(
+              item.applicationName,
+              item["App Name"],
+              item.applicationname,
+              c?.applicationname,
+              c?.applicationName
+            ) ?? "";
+          return `${n} ${a}`.toLowerCase().includes(q);
+        });
+      }, [catalogAddItems, catalogAddSearch]);
 
       const toggleLocalFrame = (frame: keyof typeof localExpandedFrames) => {
         setLocalExpandedFrames((prev) => ({ ...prev, [frame]: !prev[frame] }));
@@ -662,7 +1062,340 @@ export default function ApplicationDetailPage() {
         );
       };
 
+      const callMappingRemoveApi = async (contextCatalogId: string, mappingId: string) => {
+        const removedBy =
+          pickString(reviewerId) || "f558e3b2-348b-4ff3-be4c-a3c5dc8b5a91";
+        const url = `https://preview.keyforge.ai/catalog/api/v1/ACMECOM/mapping/${CATALOG_MAPPING_SCOPE_ID}/${encodeURIComponent(
+          contextCatalogId
+        )}/remove`;
+        const res = await fetch(url, {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Requested-With": "XMLHttpRequest",
+          },
+          body: JSON.stringify({ removedBy, mappingIds: [mappingId] }),
+        });
+        const data = (await res.json().catch(() => null)) as {
+          executionStatus?: string;
+          errorMessage?: string;
+          message?: string;
+        } | null;
+        if (!res.ok) {
+          throw new Error(
+            pickString(data?.errorMessage, data?.message) ||
+              (res.status === 400 ? "Invalid mapping remove request" : `Remove failed (${res.status})`)
+          );
+        }
+        if (data && data.executionStatus) {
+          const st = String(data.executionStatus).toLowerCase();
+          if (st !== "success" && st !== "partial" && st !== "partial_success") {
+            throw new Error(
+              pickString(data.errorMessage, data.message) || "Mapping remove was not successful"
+            );
+          }
+        }
+        return data;
+      };
+
+      const removeAssociatedRow = async (rowIndex: number) => {
+        setMappingRemoveError(null);
+        const contextCatalogId = resolveCatalogIdFromEntitlementRow(finalData);
+        if (!contextCatalogId) {
+          setMappingRemoveError("Catalog id is not available for this entitlement.");
+          return;
+        }
+        const row = associatedRows[rowIndex];
+        const mappingId = pickMappingIdFromRow(row);
+        if (!mappingId) {
+          setMappingRemoveError(
+            "Mapping id is missing for this row. Refresh the list or remove it after the server returns an id."
+          );
+          return;
+        }
+        setMappingRemoveIndex(rowIndex);
+        try {
+          await callMappingRemoveApi(contextCatalogId, mappingId);
+          setAssociatedRows((prev) => prev.filter((_, i) => i !== rowIndex));
+        } catch (e) {
+          setMappingRemoveError(
+            e instanceof Error ? e.message : "Failed to remove mapping. Please try again."
+          );
+        } finally {
+          setMappingRemoveIndex(null);
+        }
+      };
+
+      const openCatalogItemPicker = async () => {
+        setShowCatalogAddList(true);
+        setCatalogAddSearch("");
+        setMappingAddError(null);
+        setMappingRemoveError(null);
+        if (!id?.trim()) {
+          setCatalogAddError("Application instance is not available.");
+          setCatalogAddItems([]);
+          setCatalogAddSelectedKeys([]);
+          setCatalogAddLoading(false);
+          return;
+        }
+        setCatalogAddError(null);
+        setCatalogAddLoading(true);
+        setCatalogAddItems([]);
+        try {
+          const entReviewerId =
+            reviewerId?.trim() || "ec527a50-0944-4b31-b239-05518c87a743";
+          const url = `https://preview.keyforge.ai/entities/api/v1/ACMECOM/getAppEntitlements/${encodeURIComponent(
+            entReviewerId
+          )}/${encodeURIComponent(id)}`;
+          const res = await fetch(url);
+          const data = (await res.json().catch(() => null)) as {
+            executionStatus?: string;
+            errorMessage?: string;
+            message?: string;
+            items?: unknown[];
+          } | null;
+          if (!res.ok) {
+            throw new Error(
+              pickString(data?.errorMessage, data?.message) ||
+                (res.status === 400 ? "Invalid request" : `Request failed (${res.status})`)
+            );
+          }
+          if (data && data.executionStatus) {
+            const st = String(data.executionStatus).toLowerCase();
+            if (st !== "success" && st !== "partial" && st !== "partial_success") {
+              throw new Error(
+                pickString(data.errorMessage, data.message) || "Application entitlements could not be loaded."
+              );
+            }
+          }
+          const items = data?.items;
+          setCatalogAddItems(Array.isArray(items) ? items : []);
+          setCatalogAddSelectedKeys([]);
+        } catch (e) {
+          setCatalogAddError(
+            e instanceof Error ? e.message : "Failed to load access items for this application."
+          );
+        } finally {
+          setCatalogAddLoading(false);
+        }
+      };
+
+      const appendAccessItemsToAssociated = (
+        rawItems: any[],
+        extraMappingIds?: (string | undefined)[]
+      ) => {
+        if (rawItems.length === 0) return;
+        setAssociatedRows((prev) => {
+          const out: Record<string, unknown>[] = [...prev];
+          for (let i = 0; i < rawItems.length; i++) {
+            const item = rawItems[i];
+            const c = item?.catalogDetails;
+            const name = pickString(
+              item.entitlementName,
+              item["Ent Name"],
+              item.name,
+              c?.name,
+              c?.entitlementName,
+              c?.entitlementname
+            );
+            const app = pickString(
+              item.applicationName,
+              item["App Name"],
+              item.applicationname,
+              item.appName,
+              c?.applicationname,
+              c?.applicationName,
+              c?.appName
+            );
+            const sourceId = getTargetCatalogIdFromAccessItem(item);
+            if (
+              sourceId &&
+              out.some(
+                (r) =>
+                  pickString(
+                    (r as any).source_catalogid,
+                    (r as any).id,
+                    (r as any).catalogid
+                  ) === sourceId
+              )
+            ) {
+              continue;
+            }
+            const mapId = pickString(extraMappingIds?.[i]);
+            if (!mapId) continue;
+            out.push({
+              catalog_item_name: name ?? null,
+              mapped_item_name: name ?? null,
+              source_applicationname: app ?? null,
+              source_catalogid: sourceId ?? null,
+              __mappingId: mapId,
+            });
+          }
+          return out;
+        });
+      };
+
+      const toggleCatalogAddKey = (key: string) => {
+        setCatalogAddSelectedKeys((prev) =>
+          prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+        );
+      };
+
+      const callMappingAddApi = async (contextCatalogId: string, selectedItems: any[]) => {
+        const appInstanceId = id?.trim() || "";
+        if (!appInstanceId) {
+          throw new Error("Application instance is not available.");
+        }
+        const mappedBy =
+          pickString(reviewerId) || "f558e3b2-348b-4ff3-be4c-a3c5dc8b5a91";
+        const mappings: Array<NonNullable<ReturnType<typeof buildMappingEntryFromAccessItem>>> = [];
+        for (const item of selectedItems) {
+          const entry = buildMappingEntryFromAccessItem(item, appInstanceId);
+          if (!entry) {
+            throw new Error("One of the selected access items is missing a catalog id.");
+          }
+          mappings.push(entry);
+        }
+        const url = `https://preview.keyforge.ai/catalog/api/v1/ACMECOM/mapping/${CATALOG_MAPPING_SCOPE_ID}/${encodeURIComponent(
+          contextCatalogId
+        )}/add`;
+        const res = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Requested-With": "XMLHttpRequest",
+          },
+          body: JSON.stringify({ mappedBy, mappings }),
+        });
+        const data = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+        if (!res.ok) {
+          const errMsg = pickString(
+            data?.errorMessage as string | undefined,
+            data?.message as string | undefined
+          );
+          throw new Error(
+            errMsg ||
+              (res.status === 400 ? "Invalid mapping add request" : `Add failed (${res.status})`)
+          );
+        }
+        if (data && data.executionStatus) {
+          const st = String(data.executionStatus).toLowerCase();
+          if (st !== "success" && st !== "partial" && st !== "partial_success") {
+            throw new Error(
+              pickString(
+                data.errorMessage as string | undefined,
+                data.message as string | undefined
+              ) || "Mapping add was not successful"
+            );
+          }
+        }
+        return data;
+      };
+
+      const addSelectedAccessToTable = async () => {
+        if (catalogAddSelectedKeys.length === 0) return;
+        setMappingAddError(null);
+        const keySet = new Set(catalogAddSelectedKeys);
+        const selected = catalogAddItems.filter((item, idx) =>
+          keySet.has(getAccessItemKey(item, idx))
+        );
+        const contextCatalogId = resolveCatalogIdFromEntitlementRow(finalData);
+        if (!contextCatalogId) {
+          setMappingAddError("Catalog id is not available for this entitlement.");
+          return;
+        }
+        if (!id?.trim()) {
+          setMappingAddError("Application instance is not available.");
+          return;
+        }
+        setMappingAddInProgress(true);
+        try {
+          const addJson = await callMappingAddApi(contextCatalogId, selected);
+          const newIds = extractNewMappingIdsFromAddResponse(
+            addJson,
+            selected.length
+          );
+          appendAccessItemsToAssociated(selected, newIds);
+          setCatalogAddSelectedKeys([]);
+        } catch (e) {
+          setMappingAddError(
+            e instanceof Error ? e.message : "Failed to add access mapping. Please try again."
+          );
+        } finally {
+          setMappingAddInProgress(false);
+        }
+      };
+
+      const selectAllFilteredAccess = () => {
+        const keys = catalogAddFiltered.map((item: any) => {
+          const idx = catalogAddItems.indexOf(item);
+          return getAccessItemKey(item, idx >= 0 ? idx : 0);
+        });
+        setCatalogAddSelectedKeys((prev) => [...new Set([...prev, ...keys])]);
+      };
+
+      const clearCatalogAddSelection = () => setCatalogAddSelectedKeys([]);
+
+      const renderAssociatedTable = (showRemoveColumn: boolean) => (
+        <div>
+          {showRemoveColumn && mappingRemoveError ? (
+            <p className="text-sm text-red-600 mb-2">{mappingRemoveError}</p>
+          ) : null}
+          <div className="border border-gray-200 rounded-md overflow-x-auto max-w-full">
+            <table className="w-full text-xs text-left">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  <th className="px-2 py-1.5 font-medium text-gray-700">Entitlement</th>
+                  <th className="px-2 py-1.5 font-medium text-gray-700">Application</th>
+                  {showRemoveColumn ? (
+                    <th
+                      className="w-10 px-1 py-1.5 font-medium text-red-600 text-center"
+                      scope="col"
+                    >
+                      <span className="sr-only">Remove</span>
+                    </th>
+                  ) : null}
+                </tr>
+              </thead>
+              <tbody>
+                {associatedRows.map((row, i) => {
+                  const rowMappingId = pickMappingIdFromRow(row);
+                  return (
+                    <tr
+                      key={rowMappingId ? String(rowMappingId) : `assoc-row-${i}`}
+                      className="border-b border-gray-100 last:border-0"
+                    >
+                      <td className="px-2 py-1.5 text-gray-800 break-words max-w-[200px]">
+                        {pickMappedItemField(row)}
+                      </td>
+                      <td className="px-2 py-1.5 text-gray-800 break-words max-w-[200px]">
+                        {pickMappedAppField(row)}
+                      </td>
+                      {showRemoveColumn ? (
+                        <td className="px-1 py-1.5 align-middle text-center w-10">
+                          <button
+                            type="button"
+                            onClick={() => void removeAssociatedRow(i)}
+                            disabled={mappingRemoveIndex !== null}
+                            className="inline-flex p-1 rounded text-red-600 bg-red-50 border border-red-200 hover:text-red-800 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Remove mapping"
+                            aria-label="Remove this mapping"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" strokeWidth={2} />
+                          </button>
+                        </td>
+                      ) : null}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+
       return (
+        <>
         <div className="flex flex-col h-full">
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {entitlementDetailsError ? (
@@ -944,6 +1677,41 @@ export default function ApplicationDetailPage() {
                       finalData?.["License Type"],
                       "License Type"
                     )}
+                    {renderSingleFieldLocal(
+                      "Logical Application",
+                      finalData?.["Logical Application"],
+                      "Logical Application"
+                    )}
+                    {renderSingleFieldLocal(
+                      "Application Category",
+                      finalData?.["Application Category"],
+                      "Application Category"
+                    )}
+                    <div className="text-sm text-gray-700 pt-1">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className="font-medium text-gray-800">Associated Access</div>
+                        <button
+                          type="button"
+                          onClick={() => setAssociatedModalOpen(true)}
+                          className="text-sm font-medium text-blue-600 hover:text-blue-800"
+                        >
+                          Edit
+                        </button>
+                      </div>
+                      {associatedLoading ? (
+                        <div className="text-xs text-gray-500 py-1">Loading mappings…</div>
+                      ) : associatedError ? (
+                        <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
+                          {associatedError}
+                        </div>
+                      ) : associatedRows.length === 0 ? (
+                        <div className="text-xs text-gray-500">No associated mappings found.</div>
+                      ) : (
+                        <div className="max-h-64 overflow-y-auto overflow-x-auto">
+                          {renderAssociatedTable(false)}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1078,6 +1846,199 @@ export default function ApplicationDetailPage() {
             </div>
           </div>
         </div>
+        {associatedModalOpen &&
+          typeof document !== "undefined" &&
+          createPortal(
+            <div
+              className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center px-3"
+              data-right-sidebar-keep
+              onClick={() => setAssociatedModalOpen(false)}
+            >
+              <div
+                className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[85vh] flex flex-col"
+                onClick={(e) => e.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="associated-access-dialog-title"
+              >
+                <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-gray-200 shrink-0">
+                  <h2
+                    id="associated-access-dialog-title"
+                    className="text-lg font-semibold text-gray-900"
+                  >
+                    Associated Access
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={() => setAssociatedModalOpen(false)}
+                    className="p-1.5 rounded-md hover:bg-gray-100 text-gray-600"
+                    aria-label="Close"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="p-4 overflow-y-auto min-h-0">
+                  {associatedLoading ? (
+                    <div className="text-sm text-gray-500 py-4">Loading mappings…</div>
+                  ) : associatedError ? (
+                    <div className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                      {associatedError}
+                    </div>
+                  ) : (
+                    <div>
+                      {associatedRows.length === 0 ? (
+                        <div className="text-sm text-gray-500 py-2">No associated mappings found.</div>
+                      ) : (
+                        renderAssociatedTable(true)
+                      )}
+                      <div className="mt-3 pt-1 flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={openCatalogItemPicker}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                        >
+                          <Plus className="w-4 h-4" strokeWidth={2} />
+                          Add
+                        </button>
+                        {showCatalogAddList && (
+                          <button
+                            type="button"
+                            onClick={() => setShowCatalogAddList(false)}
+                            className="text-sm text-gray-600 hover:text-gray-900"
+                          >
+                            Hide catalog list
+                          </button>
+                        )}
+                      </div>
+                      {showCatalogAddList && (
+                        <div className="mt-4 border border-gray-200 rounded-lg bg-gray-50/50 p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                            <h3 className="text-sm font-semibold text-gray-800">Access for this application</h3>
+                            <div className="flex flex-wrap items-center gap-2 text-xs">
+                              <button
+                                type="button"
+                                onClick={selectAllFilteredAccess}
+                                disabled={mappingAddInProgress}
+                                className="text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                Select visible
+                              </button>
+                              <span className="text-gray-300">|</span>
+                              <button
+                                type="button"
+                                onClick={clearCatalogAddSelection}
+                                disabled={mappingAddInProgress}
+                                className="text-gray-600 hover:text-gray-900 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                Clear selection
+                              </button>
+                            </div>
+                          </div>
+                          <div className="relative mb-2">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <input
+                              type="search"
+                              value={catalogAddSearch}
+                              onChange={(e) => setCatalogAddSearch(e.target.value)}
+                              placeholder="Search by entitlement or application…"
+                              className="w-full pl-8 pr-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          </div>
+                          <div className="space-y-2 mb-2">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-xs text-gray-500">
+                                {catalogAddSelectedKeys.length} selected
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => void addSelectedAccessToTable()}
+                                disabled={
+                                  catalogAddSelectedKeys.length === 0 || mappingAddInProgress
+                                }
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <Plus className="w-4 h-4" strokeWidth={2} />
+                                {mappingAddInProgress ? "Adding…" : "Add selected"}
+                              </button>
+                            </div>
+                            {mappingAddError ? (
+                              <p className="text-sm text-red-600">{mappingAddError}</p>
+                            ) : null}
+                          </div>
+                          <div className="max-h-52 overflow-y-auto rounded-md border border-gray-200 bg-white">
+                            {catalogAddLoading && (
+                              <p className="text-sm text-gray-500 p-2">Loading access list…</p>
+                            )}
+                            {catalogAddError && !catalogAddLoading && (
+                              <p className="text-sm text-red-600 p-2">{catalogAddError}</p>
+                            )}
+                            {!catalogAddLoading &&
+                              !catalogAddError &&
+                              catalogAddFiltered.length === 0 && (
+                                <p className="text-sm text-gray-500 p-2">No access items found.</p>
+                              )}
+                            {!catalogAddLoading &&
+                              !catalogAddError &&
+                              catalogAddFiltered.map((item: any) => {
+                                const listIdx = catalogAddItems.indexOf(item);
+                                const idx = listIdx >= 0 ? listIdx : 0;
+                                const c = item?.catalogDetails;
+                                const n =
+                                  pickString(
+                                    item.entitlementName,
+                                    item["Ent Name"],
+                                    item.name,
+                                    c?.name,
+                                    c?.entitlementName
+                                  ) ?? "—";
+                                const a =
+                                  pickString(
+                                    item.applicationName,
+                                    item["App Name"],
+                                    item.applicationname,
+                                    c?.applicationname,
+                                    c?.applicationName
+                                  ) ?? "—";
+                                const k = getAccessItemKey(item, idx);
+                                const checked = catalogAddSelectedKeys.includes(k);
+                                return (
+                                  <label
+                                    key={k}
+                                    className="flex items-start gap-2 w-full text-left px-3 py-2.5 border-b border-gray-100 last:border-0 hover:bg-gray-50 cursor-pointer"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={() => toggleCatalogAddKey(k)}
+                                      className="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    />
+                                    <div className="min-w-0 flex-1">
+                                      <div className="text-sm font-medium text-gray-900">{n}</div>
+                                      <div className="text-xs text-gray-500 mt-0.5">{a}</div>
+                                    </div>
+                                  </label>
+                                );
+                              })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="px-4 py-3 border-t border-gray-200 flex justify-end shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setAssociatedModalOpen(false)}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )}
+        </>
       );
     };
 
@@ -1762,8 +2723,12 @@ export default function ApplicationDetailPage() {
   useEffect(() => {
     const fetchEntitlementsData = async () => {
       try {
+        const entReviewerId =
+          reviewerId?.trim() || "ec527a50-0944-4b31-b239-05518c87a743";
         const response = await fetch(
-          `https://preview.keyforge.ai/entities/api/v1/ACMECOM/getAppEntitlements/ec527a50-0944-4b31-b239-05518c87a743/${id}`
+          `https://preview.keyforge.ai/entities/api/v1/ACMECOM/getAppEntitlements/${encodeURIComponent(
+            entReviewerId
+          )}/${encodeURIComponent(id)}`
         );
         const data = await response.json();
         console.log("Entitlements data:", data);
@@ -1796,7 +2761,7 @@ export default function ApplicationDetailPage() {
       // Only fetch entitlements when on the Entitlements tab
       fetchEntitlementsData();
     }
-  }, [id, tabIndex]);
+  }, [id, tabIndex, reviewerId]);
 
   //   {
   //     "Ent ID": "ENT201",
@@ -4672,7 +5637,10 @@ export default function ApplicationDetailPage() {
       {/* Comment Modal */}
       {isCommentModalOpen &&
         createPortal(
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-3">
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-3"
+            data-right-sidebar-keep
+          >
             <div className="bg-white p-4 rounded-lg shadow-lg max-w-sm w-full mx-4">
               <div className="mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">Comment</h3>

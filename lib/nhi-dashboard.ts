@@ -417,6 +417,9 @@ export function parseNhisByRisk(row: Record<string, unknown>): RiskBar[] {
 
 /** Secret health score 0–100 for gauge/donut */
 export function parseSecretHealth(row: Record<string, unknown>): number | null {
+  const stats = parseSecretsPostureStats(row);
+  if (stats) return stats.pct;
+
   const sh = pickField(row, ["secret_health"]);
   if (Array.isArray(sh) && sh.length > 0) {
     const rows = sh.filter((x): x is Record<string, unknown> => Boolean(x) && typeof x === "object");
@@ -440,4 +443,99 @@ export function parseSecretHealth(row: Record<string, unknown>): number | null {
   const n = typeof raw === "number" ? raw : Number(raw);
   if (Number.isNaN(n)) return null;
   return Math.max(0, Math.min(100, n));
+}
+
+/** Totals for Secrets Posture Score widget (aggregates `secret_health[]` when present). */
+export type SecretsPostureStats = {
+  pct: number;
+  healthy: number;
+  total: number;
+  rotationOverdue: number;
+  expiringSoon: number;
+  expired: number;
+  neverRotated: number;
+};
+
+function aggregateSecretsPostureFromRows(rows: Record<string, unknown>[]): SecretsPostureStats {
+  let total = 0;
+  let expired = 0;
+  let expiringSoon = 0;
+  let rotationOverdue = 0;
+  let neverRotated = 0;
+  let healthySum = 0;
+  let healthyRowCount = 0;
+
+  for (const r of rows) {
+    total += Number(r.total_secrets ?? r.total ?? 0) || 0;
+    expired += Number(r.expired_count ?? r.expired ?? 0) || 0;
+    expiringSoon += Number(r.expiring_soon_count ?? r.expiring_soon ?? 0) || 0;
+    rotationOverdue += Number(r.rotation_overdue_count ?? r.rotation_overdue ?? 0) || 0;
+    neverRotated +=
+      Number(
+        r.never_rotated_count ??
+          r.never_rotated ??
+          r.secrets_never_rotated ??
+          r.never_rotated_secrets ??
+          0
+      ) || 0;
+    const h = r.healthy_secrets_count ?? r.healthy_count ?? r.fresh_secrets_count;
+    if (h != null && h !== "") {
+      healthySum += Number(h) || 0;
+      healthyRowCount += 1;
+    }
+  }
+
+  let healthy = healthyRowCount > 0 ? healthySum : 0;
+  if (healthyRowCount === 0 && total > 0) {
+    const rawHealthy = total - expired - expiringSoon - rotationOverdue - neverRotated;
+    healthy = Math.max(0, Math.min(total, rawHealthy));
+  }
+
+  let pct =
+    total > 0 ? Math.round((healthy / total) * 100) : computeSecretHealthScoreFromRows(rows);
+
+  if (total === 0 && healthyRowCount === 0) {
+    pct = computeSecretHealthScoreFromRows(rows);
+  }
+
+  return {
+    pct,
+    healthy,
+    total,
+    rotationOverdue,
+    expiringSoon,
+    expired,
+    neverRotated,
+  };
+}
+
+export function parseSecretsPostureStats(row: Record<string, unknown>): SecretsPostureStats | null {
+  const sh = pickField(row, ["secret_health"]);
+  if (Array.isArray(sh) && sh.length > 0) {
+    const rows = sh.filter((x): x is Record<string, unknown> => Boolean(x) && typeof x === "object");
+    if (rows.length) return aggregateSecretsPostureFromRows(rows);
+  }
+
+  const raw = pickField(row, [
+    "secret_health_pct",
+    "secret_health_score",
+    "secrets_health",
+    "secret_score",
+  ]);
+  if (raw !== undefined && raw !== null) {
+    const n = typeof raw === "number" ? raw : Number(raw);
+    if (!Number.isNaN(n)) {
+      return {
+        pct: Math.max(0, Math.min(100, n)),
+        healthy: 0,
+        total: 0,
+        rotationOverdue: 0,
+        expiringSoon: 0,
+        expired: 0,
+        neverRotated: 0,
+      };
+    }
+  }
+
+  return null;
 }

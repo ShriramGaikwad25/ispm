@@ -166,6 +166,50 @@ const toObjectSafe = (value: unknown): Record<string, any> => {
   return {};
 };
 
+function collectLineItemIdSet(entry: unknown): Set<string> {
+  const ids = new Set<string>();
+  const add = (v: unknown) => {
+    const n = normalizeId(v);
+    if (n) ids.add(n);
+  };
+  if (!entry || typeof entry !== "object") return ids;
+  const o = entry as Record<string, unknown>;
+  add(o.lineItemId ?? o.line_item_id ?? o.lineitemid ?? o.lineitemId);
+  add(o.catalogId ?? o.catalog_id ?? o.catalogid);
+  add(o.entitlementId ?? o.entitlement_id ?? o.entitlementid);
+  add(
+    o.requested_itemid ??
+      o.requestedItemId ??
+      o.requesteditemid ??
+      o.requestedItemid,
+  );
+  add(o.entity_id ?? o.entityId);
+  add(o.item_id ?? o.itemId);
+  const cat = o.catalog;
+  if (cat && typeof cat === "object" && !Array.isArray(cat)) {
+    const c = cat as Record<string, unknown>;
+    add(c.catalogid ?? c.catalogId ?? c.catalog_id ?? c.id);
+    add(c.entitlementid ?? c.entitlementId ?? c.entitlement_id);
+  }
+  return ids;
+}
+
+/** Resolve action_payload.lineItems entries to full objects from itemdetails when possible. */
+function findItemDetailForActionLine(
+  actionLine: unknown,
+  details: any[],
+): any | undefined {
+  const actionIds = collectLineItemIdSet(actionLine);
+  if (actionIds.size === 0) return undefined;
+  for (const d of details) {
+    const detailIds = collectLineItemIdSet(d);
+    for (const id of actionIds) {
+      if (detailIds.has(id)) return d;
+    }
+  }
+  return undefined;
+}
+
 const REQUESTER_COMMENTS_STORAGE_PREFIX =
   "ispm:pending-approval-requester-comments";
 
@@ -432,6 +476,41 @@ const PendingApprovalDetailPage = ({
             row.itemdetails ?? row.itemDetails,
           );
 
+          const actionPayload = toObjectSafe(
+            row.action_payload ??
+              row.actionPayload ??
+              row.actionpayload ??
+              contextJson.action_payload ??
+              contextJson.actionPayload ??
+              requestJson.action_payload ??
+              requestJson.actionPayload ??
+              {},
+          );
+          const actionLineItemsFromPayload = toArraySafe(
+            actionPayload.lineItems ?? actionPayload.lineitems,
+          );
+          const detailItemsForMapping =
+            actionLineItemsFromPayload.length > 0
+              ? actionLineItemsFromPayload.map((actionLine) => {
+                  const match = findItemDetailForActionLine(
+                    actionLine,
+                    itemDetails,
+                  );
+                  if (match) return match;
+                  const al = actionLine as Record<string, any>;
+                  const cat = al.catalog;
+                  return {
+                    ...al,
+                    catalog:
+                      cat &&
+                      typeof cat === "object" &&
+                      !Array.isArray(cat)
+                        ? cat
+                        : {},
+                  };
+                })
+              : itemDetails;
+
           const aiRecommendations = toAiRecommendationArray(
             row.ai_recommendation ??
               row.aiRecommendation ??
@@ -441,7 +520,7 @@ const PendingApprovalDetailPage = ({
               contextJson?.aiRecommendation,
           );
 
-          const lineItems: RequestLineItem[] = itemDetails.map(
+          const lineItems: RequestLineItem[] = detailItemsForMapping.map(
             (item, itemIdx) => {
               const catalog = item?.catalog ?? {};
               if (itemIdx === 0) {

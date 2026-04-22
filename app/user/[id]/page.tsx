@@ -1684,7 +1684,7 @@ export default function UserDetailPage() {
           requestedDuration: h,
           startTime: formatTime12h(start),
           endTime: formatTime12h(end),
-          status: "Submitted",
+          status: "In progress",
         };
       } else {
         const durationH = hoursBetweenTimes(startTime, endTime);
@@ -1700,7 +1700,7 @@ export default function UserDetailPage() {
           requestedDuration: durationH,
           startTime: formatTime12h(startD),
           endTime: formatTime12h(endD),
-          status: "Submitted",
+          status: "In progress",
         };
       }
 
@@ -1824,6 +1824,8 @@ export default function UserDetailPage() {
                                   ? "bg-gray-100 text-gray-700"
                                   : h.status === "Active"
                                   ? "bg-green-100 text-green-700"
+                                  : h.status === "In progress"
+                                  ? "bg-blue-100 text-blue-800"
                                   : h.status === "Submitted"
                                   ? "bg-amber-100 text-amber-800"
                                   : "bg-yellow-100 text-yellow-700"
@@ -1834,14 +1836,39 @@ export default function UserDetailPage() {
                           </td>
                           <td className="px-4 py-3 text-sm">
                             <div className="flex items-center gap-2">
-                              {/* Activity icon first */}
-                              <button
-                                className="text-blue-600 hover:text-blue-800 flex items-center justify-center"
-                                onClick={() => console.log('Activity', h)}
-                                title="Activity"
-                              >
-                                <History size={24} />
-                              </button>
+                              {h.status !== "In progress" && (
+                                <button
+                                  className="text-blue-600 hover:text-blue-800 flex items-center justify-center"
+                                  onClick={() => console.log('Activity', h)}
+                                  title="Activity"
+                                >
+                                  <History size={24} />
+                                </button>
+                              )}
+                              {h.status === "In progress" && (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="px-2.5 py-1 text-xs font-medium rounded border border-red-200 text-red-700 bg-red-50 hover:bg-red-100"
+                                    onClick={() =>
+                                      setHistoryRows((prev) =>
+                                        prev.map((r) =>
+                                          r.id === h.id ? { ...r, status: "Completed" } : r
+                                        )
+                                      )
+                                    }
+                                  >
+                                    Stop
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="px-2.5 py-1 text-xs font-medium rounded border border-green-200 text-green-700 bg-green-50 hover:bg-green-100"
+                                    onClick={() => console.log("Extend", h)}
+                                  >
+                                    Extend
+                                  </button>
+                                </>
+                              )}
                               {h.status === "Active" && (
                                 <>
                                   <button

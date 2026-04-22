@@ -351,6 +351,35 @@ export default function EntitlementDetailsSidebar({
                 "License Type",
                 (data as any)?.["License Type"]
               )}
+              {renderSingleFieldLocal(
+                "Logical Application",
+                "Logical Application",
+                pickValue(data, [
+                  "Logical Application",
+                  "logicalApplication",
+                  "logical_application",
+                  "logicalApp",
+                ])
+              )}
+              {renderSingleFieldLocal(
+                "Application Category",
+                "Application Category",
+                pickValue(data, [
+                  "Application Category",
+                  "applicationCategory",
+                  "application_category",
+                  "appCategory",
+                ])
+              )}
+              {renderSingleFieldLocal(
+                "Associated Access",
+                "Associated Access",
+                pickValue(data, [
+                  "Associated Access",
+                  "associatedAccess",
+                  "associated_access",
+                ])
+              )}
             </div>
           )}
         </div>

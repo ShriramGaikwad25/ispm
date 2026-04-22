@@ -310,10 +310,17 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
 
   return (
     <div className="w-full">
-      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-base font-semibold text-gray-900">Policy Builder</h2>
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h3 className="text-base font-bold tracking-tight text-[#1759e4]">Configure workflow steps</h3>
+          <p className="mt-1 text-xs leading-relaxed text-slate-600">
+            {policyUiTab === "guided"
+              ? "Toggle steps on or off, then arrange their execution order in the flow panel."
+              : "Select a stage, then add steps from the palette to build your workflow."}
+          </p>
+        </div>
         <div
-          className="inline-flex rounded-lg border border-blue-200 bg-white p-1 shadow-sm"
+          className="inline-flex shrink-0 rounded-lg border border-blue-200 bg-white p-1 shadow-sm"
           role="tablist"
           aria-label="Policy builder mode"
         >
@@ -324,8 +331,8 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
             onClick={() => setPolicyUiTab("guided")}
             className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
               policyUiTab === "guided"
-                ? "bg-blue-600 text-white shadow-sm ring-1 ring-blue-300"
-                : "text-blue-700/80 hover:bg-blue-100 hover:text-blue-800"
+                ? "bg-[#1759e4] text-white shadow-sm ring-1 ring-blue-300"
+                : "text-[#1759e4]/80 hover:bg-[#E5EEFC] hover:text-[#1759e4]"
             }`}
           >
             <Compass className="h-3.5 w-3.5 shrink-0" />
@@ -338,8 +345,8 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
             onClick={() => setPolicyUiTab("advanced")}
             className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
               policyUiTab === "advanced"
-                ? "bg-blue-600 text-white shadow-sm ring-1 ring-blue-300"
-                : "text-blue-700/80 hover:bg-blue-100 hover:text-blue-800"
+                ? "bg-[#1759e4] text-white shadow-sm ring-1 ring-blue-300"
+                : "text-[#1759e4]/80 hover:bg-[#E5EEFC] hover:text-[#1759e4]"
             }`}
           >
             <Settings className="h-3.5 w-3.5 shrink-0" />
@@ -355,8 +362,8 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
       ) : (
       <div className="flex h-[600px] gap-4 w-full mb-4">
         {/* Left Panel - Step Palette */}
-        <div className="w-64 bg-gray-50 border border-gray-200 rounded-lg p-3 flex flex-col h-full">
-          <h3 className="text-xs font-semibold text-gray-900 mb-2 tracking-wide">STEP PALETTE</h3>
+        <div className="flex h-full w-64 flex-col rounded-lg border border-gray-200 bg-gray-50 p-3">
+          <h3 className="mb-2 text-xs font-semibold tracking-wide text-gray-900">STEP PALETTE</h3>
           <div className="flex-1 grid grid-cols-1 gap-3 overflow-hidden">
             {Object.entries(STEP_PALETTE).map(([category, steps]) => (
               <div key={category} className="flex flex-col min-h-0">
@@ -394,12 +401,10 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
         </div>
 
         {/* Center Panel - Workflow Canvas */}
-        <div className="flex-1 bg-gradient-to-b from-white via-gray-50 to-gray-100 border border-gray-200 rounded-xl p-4 overflow-x-auto shadow-sm">
+        <div className="flex-1 overflow-x-auto rounded-xl border border-gray-200 bg-gradient-to-b from-white via-gray-50 to-gray-100 p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
             <div>
-              <h3 className="text-base font-semibold text-gray-900">
-                Approval Workflow Template
-              </h3>
+              <h3 className="text-base font-semibold text-gray-900">Approval Workflow Template</h3>
               <p className="text-xs text-gray-600">
                 Design KeyForge approval stages, steps, and AI agents for a given use case.
               </p>
@@ -1647,9 +1652,9 @@ function WorkflowReviewSubmit({ formData }: { formData: any }) {
 
   const renderParallelStepGrid = (stepsList: any[]) => (
     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-      {stepsList.map((step: any) => (
+      {stepsList.map((step: any, si: number) => (
         <div
-          key={step.id}
+          key={step.id != null && String(step.id) !== "" ? String(step.id) : `par-${si}`}
           className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 shadow-sm"
         >
           <ReviewStepKindPills step={step} />
@@ -1664,7 +1669,9 @@ function WorkflowReviewSubmit({ formData }: { formData: any }) {
   const renderSequentialSteps = (stepsList: any[]) => (
     <div className="space-y-0">
       {stepsList.map((step: any, idx: number) => (
-        <div key={step.id}>
+        <div
+          key={step.id != null && String(step.id) !== "" ? String(step.id) : `seq-${idx}`}
+        >
           <div className="flex items-start gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2.5 shadow-sm">
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-600 text-[11px] font-bold leading-none text-white">
               {idx + 1}
@@ -1794,15 +1801,17 @@ function WorkflowReviewSubmit({ formData }: { formData: any }) {
             Add stages in Policy Builder to see them here.
           </p>
         ) : (
-          stages.map((stage: any, idx: number) =>
-            detailCard(
-              String(stage.name || `Stage ${idx + 1}`).toUpperCase(),
-              !!stage.parallelExecution,
-              stage.steps || [],
-              "No steps in this stage.",
-              String(stage.order ?? idx + 1)
-            )
-          )
+          stages.map((stage: any, idx: number) => (
+            <React.Fragment key={stage.id ?? `review-stage-${idx}`}>
+              {detailCard(
+                String(stage.name || `Stage ${idx + 1}`).toUpperCase(),
+                !!stage.parallelExecution,
+                stage.steps || [],
+                "No steps in this stage.",
+                String(stage.order ?? idx + 1)
+              )}
+            </React.Fragment>
+          ))
         )}
       </div>
 
@@ -2292,34 +2301,38 @@ export default function WorkflowBuilderCreatePage() {
     <div className="h-full pt-16">
       {/* Fixed Step Bar */}
       <div
-        className="fixed top-16 right-0 z-20 bg-white shadow-sm border-b border-gray-200 px-4 py-3"
+        className="fixed top-16 right-0 z-20 border-b border-gray-200 bg-white px-4 py-3 shadow-sm"
         style={{ left: isSidebarVisible ? sidebarWidthPx : 0 }}
       >
-        <div className="max-w-6xl mx-auto flex items-center gap-6">
+        <div className="mx-auto flex max-w-6xl items-center gap-6">
           <button
             onClick={handlePrevious}
             disabled={currentStep === 1}
-            className={`flex items-center px-4 py-2 rounded-md text-sm font-medium ${
+            className={`flex items-center rounded-md px-4 py-2 text-sm font-medium ${
               currentStep === 1
-                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                ? "cursor-not-allowed bg-gray-100 text-gray-400"
                 : "bg-gray-200 text-gray-700 hover:bg-gray-300"
             }`}
           >
-            <ChevronLeft className="w-4 h-4 mr-2" />
+            <ChevronLeft className="mr-2 h-4 w-4" />
             Previous
           </button>
 
-          <div className="flex-1 flex items-center justify-center">
-            <div className="flex items-center justify-center gap-2 w-full max-w-xl">
+          <div className="flex flex-1 items-center justify-center">
+            <div className="flex w-full max-w-xl items-center justify-center gap-2">
               {steps.map((step, index) => (
                 <React.Fragment key={step.id}>
                   <div className="flex items-center">
                     <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                        currentStep >= step.id ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"
+                      className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium ${
+                        currentStep > step.id
+                          ? "bg-[#1759e4] text-white"
+                          : currentStep === step.id
+                            ? "border-2 border-[#1759e4] bg-white text-[#1759e4]"
+                            : "border-2 border-blue-300 bg-white text-blue-500"
                       }`}
                     >
-                      {currentStep > step.id ? <Check className="w-4 h-4" /> : step.id}
+                      {currentStep > step.id ? <Check className="h-4 w-4" /> : step.id}
                     </div>
                     <div className="ml-2">
                       <p className="text-xs font-medium text-gray-900">{step.title}</p>
@@ -2327,8 +2340,8 @@ export default function WorkflowBuilderCreatePage() {
                   </div>
                   {index < steps.length - 1 && (
                     <div
-                      className={`flex-1 h-0.5 mx-2 ${
-                        currentStep > step.id ? "bg-blue-600" : "bg-gray-200"
+                      className={`mx-2 h-0.5 flex-1 ${
+                        currentStep > step.id ? "bg-[#1759e4]" : "bg-gray-200"
                       }`}
                     />
                   )}
@@ -2341,19 +2354,19 @@ export default function WorkflowBuilderCreatePage() {
             <button
               onClick={handleNext}
               disabled={!isStepValid(currentStep)}
-              className={`flex items-center px-4 py-2 rounded-md text-sm font-medium ${
+              className={`flex items-center rounded-md px-4 py-2 text-sm font-medium ${
                 !isStepValid(currentStep)
-                  ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                  : "bg-blue-600 text-white hover:bg-blue-700"
+                  ? "cursor-not-allowed bg-gray-100 text-gray-400"
+                  : "bg-[#1759e4] text-white hover:brightness-95"
               }`}
             >
               Next
-              <ChevronRight className="w-4 h-4 ml-2" />
+              <ChevronRight className="ml-2 h-4 w-4" />
             </button>
           ) : (
             <button
               onClick={handleSubmit}
-              className="flex items-center px-4 py-2 rounded-md text-sm font-medium bg-blue-600 text-white hover:bg-blue-700"
+              className="flex items-center rounded-md bg-[#1759e4] px-4 py-2 text-sm font-medium text-white hover:brightness-95"
             >
               Submit
             </button>

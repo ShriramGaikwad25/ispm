@@ -10,8 +10,9 @@ import {
   parseNhisByType,
   parseNhisByLifecycle,
   parseNhisByRisk,
-  parseSecretHealth,
+  parseSecretsPostureStats,
 } from "@/lib/nhi-dashboard";
+import { SecretsPostureScoreCard } from "@/components/non-human-identity/SecretsPostureScoreCard";
 import {
   CHART_SERIES_COLORS,
   CHART_TRACK_GRAY,
@@ -111,7 +112,7 @@ export default function NhiDashboardPage() {
     return buildNhiTypeLegendColorMap(labels);
   }, [byType, byLifecycle]);
   const byRisk = useMemo(() => (row ? parseNhisByRisk(row) : []), [row]);
-  const secretHealth = useMemo(() => (row ? parseSecretHealth(row) : null), [row]);
+  const secretsPosture = useMemo(() => (row ? parseSecretsPostureStats(row) : null), [row]);
 
   const typeChartData = useMemo(() => {
     if (!byType.length) return null;
@@ -182,19 +183,20 @@ export default function NhiDashboardPage() {
   }, [byRisk]);
 
   const gaugeData = useMemo(() => {
-    if (secretHealth === null) return null;
-    const rest = Math.max(0, 100 - secretHealth);
+    if (secretsPosture === null) return null;
+    const p = secretsPosture.pct;
+    const rest = Math.max(0, 100 - p);
     return {
-      labels: ["Health", "Remaining"],
+      labels: ["Healthy ratio", "Remaining"],
       datasets: [
         {
-          data: [secretHealth, rest],
-          backgroundColor: [secretHealthArcColor(secretHealth), CHART_TRACK_GRAY],
+          data: [p, rest],
+          backgroundColor: [secretHealthArcColor(p), CHART_TRACK_GRAY],
           borderWidth: 0,
         },
       ],
     };
-  }, [secretHealth]);
+  }, [secretsPosture]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -354,44 +356,7 @@ export default function NhiDashboardPage() {
             )}
           </ChartCard>
 
-          <ChartCard title="Secret Health" empty={gaugeData === null}>
-            {gaugeData && secretHealth !== null && (
-              <div className="flex flex-col items-center justify-center w-full">
-                <div className="relative w-full h-[160px]">
-                  <Doughnut
-                    data={gaugeData}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      circumference: 180,
-                      rotation: 270,
-                      cutout: "72%",
-                      layout: { padding: 4 },
-                      plugins: {
-                        legend: {
-                          display: true,
-                          position: "right",
-                          align: "center",
-                          labels: { boxWidth: 12, font: { size: 11 } },
-                        },
-                        tooltip: {
-                          callbacks: {
-                            label: (ctx) => {
-                              if (ctx.dataIndex === 0) return `Health: ${secretHealth}%`;
-                              return "";
-                            },
-                          },
-                        },
-                        datalabels: DATALABELS_HIDE_ZERO,
-                      },
-                    }}
-                  />
-                </div>
-                <p className="text-2xl font-semibold text-gray-900 -mt-6">{secretHealth}%</p>
-                <p className="text-xs text-gray-500 mt-1">Secrets posture score</p>
-              </div>
-            )}
-          </ChartCard>
+          <SecretsPostureScoreCard stats={secretsPosture} gaugeData={gaugeData} />
         </div>
       </div>
     </div>

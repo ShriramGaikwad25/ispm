@@ -13,6 +13,8 @@ import {
 } from "chart.js";
 import { RotateCw } from "lucide-react";
 import { executeQuery } from "@/lib/api";
+import { parseSecretsPostureStats } from "@/lib/nhi-dashboard";
+import { SecretsPostureScoreCard } from "@/components/non-human-identity/SecretsPostureScoreCard";
 import {
   buildNhiTypeLegendColorMap,
   CHART_SERIES_COLORS,
@@ -56,9 +58,6 @@ const STATIC_NHI_BY_TYPE = [
 const STATIC_MANAGED_REVIEWED = 412;
 const STATIC_MANAGED_NOT_REVIEWED = 156;
 const STATIC_UNMANAGED = 283;
-
-/** Credential health — Fresh + Stale = 100 */
-const STATIC_CREDENTIAL_FRESH_PCT = 68;
 
 /** High risk NHI — donut segments */
 const STATIC_HIGH_RISK_SEGMENTS = [
@@ -140,6 +139,7 @@ function LegendSwatch({
 
 export function GovernancePostureDashboard() {
   const [view, setView] = useState<GovernanceViewModel>(EMPTY_VIEW);
+  const [dashboardRow, setDashboardRow] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -155,10 +155,12 @@ export function GovernancePostureDashboard() {
       ]);
       const norm = getNormalizedDashboardV2Row(dashRes);
       const findings = parseFindingsSeverityResponse(findRes);
+      setDashboardRow(norm);
       setView(buildGovernanceView(norm, findings));
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to load governance data";
       setError(msg);
+      setDashboardRow(null);
       setView(EMPTY_VIEW);
     } finally {
       setLoading(false);
@@ -250,20 +252,26 @@ export function GovernancePostureDashboard() {
     return Math.max(managedTotal, STATIC_UNMANAGED, 1);
   }, []);
 
-  const credentialHealthData = useMemo(() => {
-    const fresh = STATIC_CREDENTIAL_FRESH_PCT;
-    const stale = Math.max(0, 100 - fresh);
+  const secretsPosture = useMemo(
+    () => (dashboardRow ? parseSecretsPostureStats(dashboardRow) : null),
+    [dashboardRow]
+  );
+
+  const secretsGaugeData = useMemo(() => {
+    if (secretsPosture === null) return null;
+    const p = secretsPosture.pct;
+    const rest = Math.max(0, 100 - p);
     return {
-      labels: ["Fresh", "Stale"],
+      labels: ["Healthy ratio", "Remaining"],
       datasets: [
         {
-          data: [fresh, stale],
-          backgroundColor: [secretHealthArcColor(fresh), CHART_TRACK_GRAY],
+          data: [p, rest],
+          backgroundColor: [secretHealthArcColor(p), CHART_TRACK_GRAY],
           borderWidth: 0,
         },
       ],
     };
-  }, []);
+  }, [secretsPosture]);
 
   const highRiskNhiChart = useMemo(
     () => ({
@@ -461,61 +469,9 @@ export function GovernancePostureDashboard() {
         </ChartShell>
       </div>
 
-      {/* Section 3 — Credential health + High risk NHI */}
+      {/* Section 3 — Secrets posture + High risk NHI */}
       <div className="grid gap-4 lg:grid-cols-2">
-        <ChartShell title="Credential Health">
-          <div className="flex w-full flex-row flex-wrap items-center justify-center gap-7 sm:gap-10">
-            <div className="relative h-[188px] w-[276px] shrink-0">
-              <Doughnut
-                data={credentialHealthData}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  circumference: 180,
-                  rotation: 270,
-                  cutout: "72%",
-                  layout: { padding: { top: 6, bottom: 6, left: 6, right: 6 } },
-                  plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                      callbacks: {
-                        label: (ctx) => {
-                          const v = ctx.raw;
-                          const n = typeof v === "number" ? v : Number(v);
-                          return `${ctx.label}: ${n}%`;
-                        },
-                      },
-                    },
-                    datalabels: DATALABELS_HIDE_ZERO,
-                  },
-                }}
-              />
-              <div className="pointer-events-none absolute inset-x-0 bottom-2 flex flex-col items-center text-center">
-                <span className="text-2xl font-semibold tabular-nums text-gray-900 sm:text-3xl">
-                  {STATIC_CREDENTIAL_FRESH_PCT}%
-                  <span className="text-base font-medium text-gray-500 sm:text-lg"> fresh</span>
-                </span>
-                <span className="mt-1 text-xs text-gray-500 sm:text-sm">
-                  Credential posture (sample)
-                </span>
-              </div>
-            </div>
-            <ul className="flex min-w-[152px] flex-col gap-3" aria-label="Credential health legend">
-              <LegendSwatch
-                size="lg"
-                color={secretHealthArcColor(STATIC_CREDENTIAL_FRESH_PCT)}
-                label="Fresh"
-                value={`${STATIC_CREDENTIAL_FRESH_PCT}%`}
-              />
-              <LegendSwatch
-                size="lg"
-                color={CHART_TRACK_GRAY}
-                label="Stale"
-                value={`${100 - STATIC_CREDENTIAL_FRESH_PCT}%`}
-              />
-            </ul>
-          </div>
-        </ChartShell>
+        <SecretsPostureScoreCard stats={secretsPosture} gaugeData={secretsGaugeData} />
 
         <ChartShell title="High Risk NHI">
           <div className="relative h-[260px] w-full max-w-[340px]">
