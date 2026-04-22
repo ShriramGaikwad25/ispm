@@ -505,6 +505,16 @@ const HeaderContent = () => {
     }
     if (pathname === "/settings/gateway/manage-approval-policies/review") return "Review Approval Policy";
     if (pathname === "/settings/gateway/nhi-settings") return "NHI Settings";
+    if (pathname === "/settings/gateway/lookup-custom-approvers") return "Lookup For Custom Approvers";
+    if (pathname === "/settings/gateway/lookup-custom-approvers/new") {
+      return "New condition rule";
+    }
+    if (
+      /^\/settings\/gateway\/lookup-custom-approvers\/[^/]+$/.test(pathname) &&
+      pathname !== "/settings/gateway/lookup-custom-approvers"
+    ) {
+      return "Lookup rule details";
+    }
     if (pathname === "/non-human-identity/request-access") return "Request Access / Breakglass";
     if (pathname === "/non-human-identity/create-nhi") return "Create new NHI";
 
