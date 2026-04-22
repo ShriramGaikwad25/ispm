@@ -240,17 +240,17 @@ export default function LookupCustomApproverNewRulePage() {
               </button>
             </div>
 
-            <p className="mt-2 text-xs font-medium text-gray-600">
+            <p className="mt-2 text-sm font-medium text-gray-600">
               Condition fields <span className="text-red-600">*</span>
             </p>
-            <ul className="mt-1.5 max-h-[min(240px,42vh)] list-none space-y-1 overflow-y-auto overscroll-contain p-0">
+            <ul className="mt-2 max-h-[min(240px,42vh)] list-none space-y-1.5 overflow-y-auto overscroll-contain p-0">
               {fieldRows.map((row, index) => (
                 <li
                   key={row.id}
-                  className="flex items-center gap-1.5 rounded-md border border-gray-100 bg-gray-50/90 py-1 pl-1 pr-0.5"
+                  className="flex items-center gap-2 rounded-md border border-gray-100 bg-gray-50/90 py-1.5 pl-1.5 pr-1"
                 >
                   <span
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-white text-[10px] font-medium text-gray-500 tabular-nums ring-1 ring-gray-200"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-white text-xs font-medium text-gray-500 tabular-nums ring-1 ring-gray-200"
                     aria-hidden
                   >
                     {index + 1}
@@ -259,7 +259,7 @@ export default function LookupCustomApproverNewRulePage() {
                     type="text"
                     value={row.value}
                     onChange={(e) => setFieldValue(row.id, e.target.value)}
-                    className="min-w-0 flex-1 rounded border border-gray-200 bg-white px-2 py-1 text-xs font-mono text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="min-w-0 flex-1 rounded border border-gray-200 bg-white px-2.5 py-1.5 font-mono text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     aria-label={`Condition field ${index + 1}`}
                     autoComplete="off"
                   />
@@ -268,28 +268,28 @@ export default function LookupCustomApproverNewRulePage() {
                       type="button"
                       onClick={() => moveField(index, -1)}
                       disabled={index === 0}
-                      className="rounded p-1 text-gray-600 hover:bg-white disabled:pointer-events-none disabled:opacity-30"
+                      className="rounded p-1.5 text-gray-600 hover:bg-white disabled:pointer-events-none disabled:opacity-30"
                       aria-label={`Move field ${index + 1} up`}
                     >
-                      <ChevronUp className="h-3.5 w-3.5" />
+                      <ChevronUp className="h-4 w-4" />
                     </button>
                     <button
                       type="button"
                       onClick={() => moveField(index, 1)}
                       disabled={index === fieldRows.length - 1}
-                      className="rounded p-1 text-gray-600 hover:bg-white disabled:pointer-events-none disabled:opacity-30"
+                      className="rounded p-1.5 text-gray-600 hover:bg-white disabled:pointer-events-none disabled:opacity-30"
                       aria-label={`Move field ${index + 1} down`}
                     >
-                      <ChevronDown className="h-3.5 w-3.5" />
+                      <ChevronDown className="h-4 w-4" />
                     </button>
                     <button
                       type="button"
                       onClick={() => removeFieldRow(row.id)}
                       disabled={fieldRows.length <= 1}
-                      className="rounded p-1 text-red-600 hover:bg-red-50 disabled:pointer-events-none disabled:opacity-30"
+                      className="rounded p-1.5 text-red-600 hover:bg-red-50 disabled:pointer-events-none disabled:opacity-30"
                       aria-label={`Remove field ${index + 1}`}
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
                 </li>

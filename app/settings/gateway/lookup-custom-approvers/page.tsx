@@ -11,55 +11,14 @@ import {
   Map,
   Plus,
   Search,
-  Shield,
-  User,
 } from "lucide-react";
 import CustomPagination from "@/components/agTable/CustomPagination";
 import {
   type ConditionRule,
   fetchConditionRulesFromApi,
   formatConditionRuleDate,
+  getConditionFieldPillStyle,
 } from "./condition-rules-shared";
-
-function fieldPillClass(field: string, index: number) {
-  const key = field.toLowerCase();
-  if (
-    key.includes("user") ||
-    key.includes("department") ||
-    key.includes("owner")
-  ) {
-    return {
-      Icon: User,
-      pill:
-        "border border-sky-100 bg-sky-50 text-sky-800",
-      icon: "text-sky-600",
-    };
-  }
-  if (
-    key.includes("risk") ||
-    key.includes("catalog") ||
-    key.includes("item")
-  ) {
-    return {
-      Icon: Shield,
-      pill:
-        "border border-emerald-100 bg-emerald-50 text-emerald-800",
-      icon: "text-emerald-600",
-    };
-  }
-  if (index % 2 === 0) {
-    return {
-      Icon: User,
-      pill: "border border-sky-100 bg-sky-50 text-sky-800",
-      icon: "text-sky-600",
-    };
-  }
-  return {
-    Icon: Shield,
-    pill: "border border-emerald-100 bg-emerald-50 text-emerald-800",
-    icon: "text-emerald-600",
-  };
-}
 
 export default function LookupCustomApproversPage() {
   const [rules, setRules] = useState<ConditionRule[]>([]);
@@ -210,23 +169,21 @@ export default function LookupCustomApproversPage() {
                               : "No description."}
                           </p>
                           <div className="space-y-0.5 pt-0">
-                            <p className="text-[10px] font-medium text-gray-500">
+                            <p className="text-xs font-medium text-gray-500">
                               Condition fields
                             </p>
-                            <div className="flex flex-wrap gap-1">
+                            <div className="flex flex-wrap gap-1.5">
                               {fields.length > 0 ? (
                                 fields.map((field, idx) => {
-                                  const { Icon, pill, icon } = fieldPillClass(
-                                    field,
-                                    idx,
-                                  );
+                                  const { Icon, pill, icon } =
+                                    getConditionFieldPillStyle(field, idx);
                                   return (
                                     <span
                                       key={`${field}-${idx}`}
-                                      className={`inline-flex max-w-full items-center gap-0.5 rounded-full px-1.5 py-px text-[10px] font-medium ${pill}`}
+                                      className={`inline-flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${pill}`}
                                     >
                                       <Icon
-                                        className={`h-3 w-3 shrink-0 ${icon}`}
+                                        className={`h-3.5 w-3.5 shrink-0 ${icon}`}
                                         strokeWidth={2}
                                       />
                                       <span className="min-w-0 truncate font-mono">

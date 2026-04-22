@@ -1,4 +1,50 @@
+import type { LucideIcon } from "lucide-react";
+import { Shield, User } from "lucide-react";
+
 export const CONDITION_RULES_URL = "/api/lookup/condition-rules";
+
+/** Styling for condition field chips (list + detail views). */
+export function getConditionFieldPillStyle(
+  field: string,
+  index: number,
+): { Icon: LucideIcon; pill: string; icon: string } {
+  const key = field.toLowerCase();
+  if (
+    key.includes("user") ||
+    key.includes("department") ||
+    key.includes("owner") ||
+    key.includes("usr")
+  ) {
+    return {
+      Icon: User,
+      pill: "border border-sky-100 bg-sky-50 text-sky-800",
+      icon: "text-sky-600",
+    };
+  }
+  if (
+    key.includes("risk") ||
+    key.includes("catalog") ||
+    key.includes("item")
+  ) {
+    return {
+      Icon: Shield,
+      pill: "border border-emerald-100 bg-emerald-50 text-emerald-800",
+      icon: "text-emerald-600",
+    };
+  }
+  if (index % 2 === 0) {
+    return {
+      Icon: User,
+      pill: "border border-sky-100 bg-sky-50 text-sky-800",
+      icon: "text-sky-600",
+    };
+  }
+  return {
+    Icon: Shield,
+    pill: "border border-emerald-100 bg-emerald-50 text-emerald-800",
+    icon: "text-emerald-600",
+  };
+}
 
 export interface ConditionRuleMapping {
   id: number;
