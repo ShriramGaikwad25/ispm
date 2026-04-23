@@ -101,6 +101,69 @@ function resolveCatalogIdFromEntitlementRow(row: any): string | undefined {
   );
 }
 
+/** Entitlement id for `kf_entitlement_assignment_v` (may differ from catalog id). */
+function resolveEntitlementIdForAssignmentQuery(row: any): string | undefined {
+  if (!row || typeof row !== "object") return undefined;
+  const c = row.catalogDetails;
+  return pickString(
+    row.entitlementId,
+    row.entitlementid,
+    row["Ent ID"],
+    c?.entitlementid,
+    c?.entitlementId,
+    c?.id,
+    row.id
+  );
+}
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function extractExecuteQueryRows(data: unknown): Record<string, unknown>[] {
+  if (data == null) return [];
+  if (Array.isArray(data)) return data as Record<string, unknown>[];
+  if (typeof data !== "object") return [];
+  const o = data as Record<string, unknown>;
+  const tryKeys = ["resultSet", "rows", "data", "items", "records", "result"];
+  for (const k of tryKeys) {
+    const v = o[k];
+    if (Array.isArray(v) && v.length) return v as Record<string, unknown>[];
+  }
+  const dataObj = o.data;
+  if (dataObj && typeof dataObj === "object" && !Array.isArray(dataObj)) {
+    for (const k of tryKeys) {
+      const v = (dataObj as Record<string, unknown>)[k];
+      if (Array.isArray(v) && v.length) return v as Record<string, unknown>[];
+    }
+  }
+  return [];
+}
+
+function pickAssignmentLabel(row: Record<string, unknown>): string {
+  const s = pickString(
+    row.memberof as string | undefined,
+    row.member_of as string | undefined,
+    row.assignedto as string | undefined,
+    row.assigned_to as string | undefined,
+    row.memberto as string | undefined,
+    row.member_to as string | undefined,
+    row.principalname as string | undefined,
+    row.principal_name as string | undefined,
+    row.displayname as string | undefined,
+    row.display_name as string | undefined,
+    row.accountname as string | undefined,
+    row.groupname as string | undefined,
+    row.name as string | undefined
+  );
+  if (s) return s;
+  for (const v of Object.values(row)) {
+    if (v == null) continue;
+    if (typeof v === "string" && v.trim() !== "") return v.trim();
+    if (typeof v === "number" && !Number.isNaN(v)) return String(v);
+  }
+  return "—";
+}
+
 function extractMappingRowsFromResponse(json: unknown): Record<string, unknown>[] {
   if (json == null) return [];
   if (Array.isArray(json)) return json as Record<string, unknown>[];
@@ -883,6 +946,9 @@ export default function ApplicationDetailPage() {
       const [mappingAddError, setMappingAddError] = useState<string | null>(null);
       const [mappingRemoveIndex, setMappingRemoveIndex] = useState<number | null>(null);
       const [mappingRemoveError, setMappingRemoveError] = useState<string | null>(null);
+      const [assignmentRows, setAssignmentRows] = useState<Record<string, unknown>[]>([]);
+      const [assignmentLoading, setAssignmentLoading] = useState(false);
+      const [assignmentError, setAssignmentError] = useState<string | null>(null);
 
       useEffect(() => {
         setLocalEditableData({ ...finalData });
@@ -947,6 +1013,61 @@ export default function ApplicationDetailPage() {
           cancelled = true;
         };
       }, []);
+
+      useEffect(() => {
+        const entId = resolveEntitlementIdForAssignmentQuery(finalData);
+        if (!entId || !UUID_RE.test(entId)) {
+          setAssignmentRows([]);
+          setAssignmentError(null);
+          setAssignmentLoading(false);
+          if (entId && !UUID_RE.test(entId)) {
+            setAssignmentError("Invalid entitlement id for assignment query.");
+          }
+          return;
+        }
+        let cancelled = false;
+        (async () => {
+          setAssignmentLoading(true);
+          setAssignmentError(null);
+          try {
+            const res = await fetch(
+              "https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  query: `select * from public.kf_entitlement_assignment_v where entitlementid='${entId}'::uuid`,
+                  parameters: [],
+                }),
+              }
+            );
+            const data = (await res.json().catch(() => null)) as {
+              errorMessage?: string;
+              message?: string;
+            } | null;
+            if (!res.ok) {
+              throw new Error(
+                pickString(data?.errorMessage, data?.message) ||
+                  (res.status === 400 ? "Invalid query" : `Request failed (${res.status})`)
+              );
+            }
+            const rows = extractExecuteQueryRows(data);
+            if (!cancelled) setAssignmentRows(rows);
+          } catch (e) {
+            if (!cancelled) {
+              setAssignmentError(
+                e instanceof Error ? e.message : "Failed to load entitlement assignments"
+              );
+              setAssignmentRows([]);
+            }
+          } finally {
+            if (!cancelled) setAssignmentLoading(false);
+          }
+        })();
+        return () => {
+          cancelled = true;
+        };
+      }, [finalData]);
 
       useEffect(() => {
         if (!associatedModalOpen) return;
@@ -1643,7 +1764,7 @@ export default function ApplicationDetailPage() {
                     {renderSideBySideFieldLocal(
                       "Business Unit",
                       finalData?.["Business Unit"],
-                      "Business Owner",
+                      "Entitlement owner",
                       finalData?.["Ent Owner"],
                       "Business Unit",
                       "Ent Owner"
@@ -1698,9 +1819,9 @@ export default function ApplicationDetailPage() {
                       "App Instance"
                     )}
                     {renderSideBySideFieldLocal(
-                      "App Owner",
+                      "Application Owner",
                       finalData?.["App Owner"],
-                      "Ent Owner",
+                      "Entitlement owner",
                       finalData?.["Ent Owner"],
                       "App Owner",
                       "Ent Owner"
@@ -1713,11 +1834,36 @@ export default function ApplicationDetailPage() {
                       "Hierarchy",
                       "MFA Status"
                     )}
-                    {renderSingleFieldLocal(
-                      "Assigned to/Member of",
-                      finalData?.["assignment"],
-                      "assignment"
-                    )}
+                    <div className="text-sm text-gray-700">
+                      <div className="mb-0.5 text-sm">
+                        <strong className="text-gray-900" style={{ fontWeight: 700 }}>
+                          Assigned to/Member of
+                        </strong>
+                      </div>
+                      <div className="rounded border border-gray-200 bg-gray-50 px-2 py-1.5 text-xs text-gray-800 max-h-20 overflow-y-auto leading-snug">
+                        {assignmentLoading ? (
+                          <span className="text-gray-500">Loading…</span>
+                        ) : !resolveEntitlementIdForAssignmentQuery(finalData) ? (
+                          <span className="text-gray-500">Entitlement id not available</span>
+                        ) : assignmentError ? (
+                          <span className="text-amber-800">{assignmentError}</span>
+                        ) : assignmentRows.length === 0 ? (
+                          <span className="text-gray-500">No assignments</span>
+                        ) : assignmentRows.length === 1 ? (
+                          <span className="break-words whitespace-pre-wrap">
+                            {pickAssignmentLabel(assignmentRows[0])}
+                          </span>
+                        ) : (
+                          <ul className="list-disc pl-3.5 m-0 space-y-0.5 marker:text-gray-400">
+                            {assignmentRows.map((row, i) => (
+                              <li key={i} className="break-words">
+                                {pickAssignmentLabel(row)}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
                     {renderSingleFieldLocal(
                       "License Type",
                       finalData?.["License Type"],
@@ -3869,7 +4015,7 @@ export default function ApplicationDetailPage() {
       { field: "type", headerName: "Type", flex: 1, minWidth: 150 },
       {
         field: "Ent Owner",
-        headerName: "Owner",
+        headerName: "Entitlement owner",
         flex: 1,
         minWidth: 150,
       },
