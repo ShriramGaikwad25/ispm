@@ -159,4 +159,22 @@
   "Assigned To" : "Sarah.Brooks",
   "Expires On" : "2026-04-02",
   "Actions" : "Disable, Review"
+},
+{
+  "Entity" : "API Key",
+  "Details" : "AK-982734",
+  "Trigger Event" : "Rotate Key",
+  "Event Type" : "Key Rotation",
+  "Assigned To" : "Jessica.Camacho",
+  "Expires On" : "2026-04-27",
+  "Actions" : "Review, Rotate"
+},
+{
+  "Entity" : "Secret",
+  "Details" : "SEC-449821",
+  "Trigger Event" : "Unused Secret",
+  "Event Type" : "Deactivate Unused Credential",
+  "Assigned To" : "Jessica.Camacho",
+  "Expires On" : "2026-04-25",
+  "Actions" : "Review, Disable"
 }]}

@@ -44,6 +44,13 @@ const DURATION_UNITS = [
   { label: "Years", value: "years" },
 ];
 
+const ROTATION_METHOD_OPTIONS = [
+  { value: "auto" as const, label: "Automatic (vault/secret manager)" },
+  { value: "jit" as const, label: "JIT/Dynamic (short TTL)" },
+  { value: "semi" as const, label: "Semi-auto (owner approval)" },
+  { value: "manual" as const, label: "Manual (audit trail)" },
+];
+
 const SCOPE_EXPRESSION_ATTRIBUTES = [
   { label: "Tags", value: "tags" },
   { label: "Environment", value: "environment" },
@@ -96,6 +103,7 @@ type RotationPolicyFormValues = FieldValues & {
   credentialTypes: MultiValue<{ label: string; value: string }>;
   priority: string;
   nhiTypes: MultiValue<{ label: string; value: string }>;
+  scopeExceptions: string;
   showAdvancedScope: boolean;
   advancedConditions: unknown[];
   frequencyValue: string;
@@ -105,10 +113,7 @@ type RotationPolicyFormValues = FieldValues & {
   maxAgeEnabled: boolean;
   maxAgeValue: string;
   maxAgeUnit: string;
-  methodAuto: boolean;
-  methodJit: boolean;
-  methodSemi: boolean;
-  methodManual: boolean;
+  rotationMethod: "auto" | "jit" | "semi" | "manual";
   rotationWindowEnabled: boolean;
   windowStart: string;
   windowEnd: string;
@@ -186,28 +191,6 @@ function ToggleRow({
   );
 }
 
-function MethodToggle({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <label className="flex cursor-pointer items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-      />
-      <span className="text-gray-800">{label}</span>
-    </label>
-  );
-}
-
 export function RotationPolicyEditorPage({ policyId }: { policyId?: string }) {
   const menuPortalTarget = useSelectMenuPortalTarget();
   const router = useRouter();
@@ -229,6 +212,7 @@ export function RotationPolicyEditorPage({ policyId }: { policyId?: string }) {
               .map((t) => NHI_TYPE_OPTIONS.find((o) => o.label === t) ?? { label: t, value: t.toLowerCase().replace(/\s+/g, "_") })
               .filter(Boolean)
           : [NHI_TYPE_OPTIONS[1]],
+        scopeExceptions: "",
         showAdvancedScope: false,
         advancedConditions: [],
         frequencyValue: "90",
@@ -238,10 +222,7 @@ export function RotationPolicyEditorPage({ policyId }: { policyId?: string }) {
         maxAgeEnabled: true,
         maxAgeValue: "365",
         maxAgeUnit: "days",
-        methodAuto: true,
-        methodJit: false,
-        methodSemi: true,
-        methodManual: false,
+        rotationMethod: "auto",
         rotationWindowEnabled: false,
         windowStart: "09:00",
         windowEnd: "17:00",
@@ -282,13 +263,7 @@ export function RotationPolicyEditorPage({ policyId }: { policyId?: string }) {
       <div className="w-full space-y-4 px-4 py-6 sm:px-6 lg:px-8">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <Link
-              href="/non-human-identity/rotation-policy"
-              className="text-sm font-medium text-blue-700 hover:text-blue-900"
-            >
-              ← Credential Rotation Policies
-            </Link>
-            <h1 className="mt-2 text-2xl font-bold text-gray-900">
+            <h1 className="text-2xl font-bold text-gray-900">
               {policyId ? "Edit policy" : "Build new policy"}
             </h1>
             <p className="mt-1 text-sm text-gray-600">
@@ -350,6 +325,15 @@ export function RotationPolicyEditorPage({ policyId }: { policyId?: string }) {
                 />
               </div>
               <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Priority (overlapping policies)</label>
+                <input
+                  {...register("priority")}
+                  type="number"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                />
+                <p className="text-xs text-gray-500">Higher number wins when multiple policies match.</p>
+              </div>
+              <div className="space-y-2">
                 <span className="text-sm font-medium text-gray-700">Scope — NHI types</span>
                 <Controller
                   name="nhiTypes"
@@ -366,15 +350,19 @@ export function RotationPolicyEditorPage({ policyId }: { policyId?: string }) {
                     />
                   )}
                 />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Priority (overlapping policies)</label>
-                <input
-                  {...register("priority")}
-                  type="number"
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                />
-                <p className="text-xs text-gray-500">Higher number wins when multiple policies match.</p>
+                <div className="space-y-2 pt-1">
+                  <label className="text-sm font-medium text-gray-700" htmlFor="scope-exceptions">
+                    Exceptions
+                  </label>
+                  <input
+                    id="scope-exceptions"
+                    {...register("scopeExceptions")}
+                    type="text"
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                    placeholder="e.g., exempt specific high-availability NHIs"
+                    autoComplete="off"
+                  />
+                </div>
               </div>
               <div className="min-w-0 pt-3 lg:pt-4">
                 <Controller
@@ -512,39 +500,21 @@ export function RotationPolicyEditorPage({ policyId }: { policyId?: string }) {
 
               <div className="space-y-2">
                 <span className="text-sm font-medium text-gray-700">Rotation method</span>
-                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                  <Controller
-                    name="methodAuto"
-                    control={control}
-                    render={({ field }) => (
-                      <MethodToggle
-                        label="Automatic (vault/secret manager)"
-                        checked={field.value}
-                        onChange={field.onChange}
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4" role="radiogroup" aria-label="Rotation method">
+                  {ROTATION_METHOD_OPTIONS.map((opt) => (
+                    <label
+                      key={opt.value}
+                      className="flex cursor-pointer items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm has-[:checked]:border-blue-500 has-[:checked]:ring-1 has-[:checked]:ring-blue-500/30"
+                    >
+                      <input
+                        type="radio"
+                        value={opt.value}
+                        {...register("rotationMethod")}
+                        className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
-                    )}
-                  />
-                  <Controller
-                    name="methodJit"
-                    control={control}
-                    render={({ field }) => (
-                      <MethodToggle label="JIT/Dynamic (short TTL)" checked={field.value} onChange={field.onChange} />
-                    )}
-                  />
-                  <Controller
-                    name="methodSemi"
-                    control={control}
-                    render={({ field }) => (
-                      <MethodToggle label="Semi-auto (owner approval)" checked={field.value} onChange={field.onChange} />
-                    )}
-                  />
-                  <Controller
-                    name="methodManual"
-                    control={control}
-                    render={({ field }) => (
-                      <MethodToggle label="Manual (audit trail)" checked={field.value} onChange={field.onChange} />
-                    )}
-                  />
+                      <span className="text-gray-800">{opt.label}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
             </div>

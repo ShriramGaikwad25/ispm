@@ -367,7 +367,7 @@ export function ServiceAccountsPage(props: ServiceAccountsPageProps = {}) {
           onClick={() => setShowCreate(false)}
         >
           <div
-            className="max-h-[82vh] w-[min(720px,94vw)] overflow-auto rounded-lg border border-slate-200 bg-white p-4 shadow-xl"
+            className="max-h-[82vh] w-[min(960px,94vw)] overflow-auto rounded-lg border border-slate-200 bg-white p-4 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3 flex items-center">

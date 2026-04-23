@@ -188,6 +188,15 @@ export function Navigation() {
     if (pathname === '/non-human-identity/create-nhi' || pathname === '/non-human-identity/request-access') {
       return { href: '/non-human-identity', label: 'Back to Non-Human Identity' };
     }
+    if (pathname.match(/^\/non-human-identity\/nhi-inventory\/[^/]+$/)) {
+      return { href: '/non-human-identity/nhi-inventory', label: 'Back to NHI Inventory' };
+    }
+    if (pathname.match(/^\/non-human-identity\/ai-agent-inventory\/[^/]+$/)) {
+      return { href: '/non-human-identity/ai-agent-inventory', label: 'Back to AI Agent Inventory' };
+    }
+    if (pathname.match(/^\/non-human-identity\/rotation-policy\/[^/]+$/)) {
+      return { href: '/non-human-identity/rotation-policy', label: 'Back to Rotation Policy' };
+    }
     // App Owner / Access Review
     if (pathname === '/app-owner') {
       return { href: '/access-review', label: 'Back to Access Review' };
@@ -232,7 +241,9 @@ export function Navigation() {
       pathname === '/campaigns/continuous-compliance/account-inactive-review' ||
       pathname === '/campaigns/continuous-compliance/manager-inactive-review' ||
       pathname === '/campaigns/continuous-compliance/service-account-owner-inactive-review' ||
-      pathname === '/campaigns/continuous-compliance/newly-discovered-entitlement-review'
+      pathname === '/campaigns/continuous-compliance/newly-discovered-entitlement-review' ||
+      pathname === '/campaigns/continuous-compliance/api-key-rotation-review' ||
+      pathname === '/campaigns/continuous-compliance/secret-inactivity-review'
     ) {
       return { href: '/campaigns/continuous-compliance', label: 'Back to Continuous Compliance' };
     }

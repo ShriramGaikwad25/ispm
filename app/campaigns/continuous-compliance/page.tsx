@@ -244,6 +244,26 @@ export default function ContinuousCompliancePage() {
   }, [activeTab, searchTerm, completeRows.length, openRows.length]);
 
   const handleReviewClick = (rowData: any) => {
+    if (
+      String(rowData?.entity ?? "") === "API Key" &&
+      String(rowData?.details ?? "").trim() === "AK-982734"
+    ) {
+      router.push(
+        "/campaigns/continuous-compliance/api-key-rotation-review"
+      );
+      return;
+    }
+
+    if (
+      String(rowData?.entity ?? "") === "Secret" &&
+      String(rowData?.details ?? "").trim() === "SEC-449821"
+    ) {
+      router.push(
+        "/campaigns/continuous-compliance/secret-inactivity-review"
+      );
+      return;
+    }
+
     const triggerEventValue =
       rowData?.triggerEvent ?? rowData?.eventType ?? "";
     const triggerEventStr = String(triggerEventValue ?? "");
@@ -473,8 +493,29 @@ export default function ContinuousCompliancePage() {
         const hasRestore = has(/restore/i);
 
         const onActionClick = (actionName: string) => {
+          const data = params.data;
+          if (
+            actionName === "Rotate" &&
+            String(data?.entity ?? "") === "API Key" &&
+            String(data?.details ?? "").trim() === "AK-982734"
+          ) {
+            router.push(
+              "/campaigns/continuous-compliance/api-key-rotation-review"
+            );
+            return;
+          }
+          if (
+            actionName === "Disable" &&
+            String(data?.entity ?? "") === "Secret" &&
+            String(data?.details ?? "").trim() === "SEC-449821"
+          ) {
+            router.push(
+              "/campaigns/continuous-compliance/secret-inactivity-review"
+            );
+            return;
+          }
           // eslint-disable-next-line no-console
-          console.log(`${actionName} clicked`, params.data);
+          console.log(`${actionName} clicked`, data);
         };
 
         return (

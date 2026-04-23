@@ -223,7 +223,7 @@ export default function EntitlementDetailsSidebar({
           {expandedFramesLocal.general && (
             <div className="p-4 space-y-2">
               {renderSideBySideFieldLocal(
-                "Entitlement Type",
+                "Type",
                 "Ent Type",
                 pickValue(data, ["Ent Type", "type", "entitlementType", "entitlementtype"]),
                 "#Assignments",

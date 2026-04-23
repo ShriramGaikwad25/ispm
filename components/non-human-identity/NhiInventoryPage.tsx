@@ -12,7 +12,7 @@ import {
   Tooltip,
 } from "chart.js";
 import Link from "next/link";
-import { Eye, RotateCw, Search } from "lucide-react";
+import { Eye, Plus, RotateCw, Search } from "lucide-react";
 import { executeQuery } from "@/lib/api";
 import { extractResultRows } from "@/lib/nhi-dashboard";
 
@@ -28,7 +28,7 @@ const Bar = dynamic(() => import("react-chartjs-2").then((m) => m.Bar), {
 const NHI_TENANT_ID = "a0000000-0000-0000-0000-000000000001";
 const NHI_IDENTITIES_QUERY = `SELECT i.nhi_id, i.name, i.nhi_type, i.state, i.risk_level,
                 i.criticality, i.execution_type, i.load_source,
-                i.createddate, i.review_status,
+                i.createddate,
                 COALESCE(NULLIF(TRIM(COALESCE(u.firstname, '') || ' ' || COALESCE(u.lastname, '')), ''), u.username) AS owner_name,
                 ai.instancename AS associated_system,
                 COALESCE(NULLIF(TRIM(i.customattributes->>'environment'), ''), '') AS environment_label
@@ -49,7 +49,6 @@ type NhiIdentity = {
   execution_type: string;
   load_source: string;
   createddate: string;
-  review_status: string;
   owner_name: string;
   associated_system: string;
   environment_label: string;
@@ -110,7 +109,6 @@ function parseIdentityRow(r: Record<string, unknown>): NhiIdentity {
     execution_type: safeText(r.execution_type),
     load_source: safeText(r.load_source),
     createddate: safeText(r.createddate),
-    review_status: safeText(r.review_status),
     owner_name: safeText(r.owner_name),
     associated_system: safeText(r.associated_system),
     environment_label: safeText(r.environment_label),
@@ -277,17 +275,26 @@ export function NhiInventoryPage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6 pb-8">
-      <div className="flex items-end justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-3xl font-semibold text-slate-900">NHI Inventory</h1>
-        <button
-          type="button"
-          onClick={handleRefresh}
-          disabled={refreshing}
-          className="inline-flex items-center gap-2 text-sm font-medium text-blue-700 hover:text-blue-900 disabled:opacity-50"
-        >
-          <RotateCw className={`h-4 w-4 ${refreshing || loading ? "animate-spin" : ""}`} />
-          Refresh
-        </button>
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
+          <Link
+            href="/non-human-identity/create-nhi"
+            className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          >
+            <Plus className="h-4 w-4" aria-hidden />
+            Create New NHI
+          </Link>
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="inline-flex items-center gap-2 text-sm font-medium text-blue-700 hover:text-blue-900 disabled:opacity-50"
+          >
+            <RotateCw className={`h-4 w-4 ${refreshing || loading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {(loading || error) && (
@@ -565,7 +572,7 @@ export function NhiInventoryPage() {
                 <th className="whitespace-nowrap px-3 py-2.5">Risk</th>
                 <th className="whitespace-nowrap px-3 py-2.5">Criticality</th>
                 <th className="whitespace-nowrap px-3 py-2.5">Execution</th>
-                <th className="whitespace-nowrap px-3 py-2.5">Review</th>
+                <th className="whitespace-nowrap px-3 py-2.5">Owner</th>
                 <th className="whitespace-nowrap px-3 py-2.5">Source</th>
                 <th className="whitespace-nowrap px-3 py-2.5">Created</th>
                 <th className="w-14 whitespace-nowrap px-2 py-2.5 text-center">View</th>
@@ -580,7 +587,9 @@ export function NhiInventoryPage() {
                   <td className="px-3 py-2 text-slate-700">{r.risk_level}</td>
                   <td className="px-3 py-2 text-slate-700">{r.criticality}</td>
                   <td className="px-3 py-2 text-slate-700">{r.execution_type}</td>
-                  <td className="px-3 py-2 text-slate-700">{r.review_status}</td>
+                  <td className="max-w-[200px] truncate px-3 py-2 text-slate-700" title={displayCell(r.owner_name)}>
+                    {displayCell(r.owner_name)}
+                  </td>
                   <td className="px-3 py-2 text-slate-700">{r.load_source}</td>
                   <td className="px-3 py-2 text-slate-700">{formatDate(r.createddate)}</td>
                   <td className="px-2 py-2 text-center">

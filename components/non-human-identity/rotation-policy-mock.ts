@@ -7,7 +7,6 @@ export type RotationPolicyListRow = {
   nhiTypes: string[];
   frequencyLabel: string;
   identityCount: number;
-  lastRotated: string | null;
   status: RotationPolicyStatus;
 };
 
@@ -19,7 +18,6 @@ export const MOCK_ROTATION_POLICIES: RotationPolicyListRow[] = [
     nhiTypes: ["Service Account", "API Key"],
     frequencyLabel: "Every 90 days",
     identityCount: 142,
-    lastRotated: "2026-03-12T14:30:00Z",
     status: "Active",
   },
   {
@@ -29,7 +27,6 @@ export const MOCK_ROTATION_POLICIES: RotationPolicyListRow[] = [
     nhiTypes: ["AI Agent"],
     frequencyLabel: "Event-triggered + 30 days",
     identityCount: 56,
-    lastRotated: "2026-04-01T09:00:00Z",
     status: "Active",
   },
   {
@@ -39,7 +36,6 @@ export const MOCK_ROTATION_POLICIES: RotationPolicyListRow[] = [
     nhiTypes: ["Certificate"],
     frequencyLabel: "365 days",
     identityCount: 21,
-    lastRotated: "2025-11-20T11:00:00Z",
     status: "Paused",
   },
   {
@@ -49,7 +45,6 @@ export const MOCK_ROTATION_POLICIES: RotationPolicyListRow[] = [
     nhiTypes: ["Workload/Container", "Service Account"],
     frequencyLabel: "Every 180 days",
     identityCount: 89,
-    lastRotated: null,
     status: "Draft",
   },
   {
@@ -59,7 +54,6 @@ export const MOCK_ROTATION_POLICIES: RotationPolicyListRow[] = [
     nhiTypes: ["API Key", "Custom"],
     frequencyLabel: "Every 45 days",
     identityCount: 34,
-    lastRotated: "2026-04-10T16:45:00Z",
     status: "Active",
   },
 ];

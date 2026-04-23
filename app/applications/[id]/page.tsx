@@ -60,6 +60,22 @@ function pickString(...vals: Array<unknown | undefined | null>): string | undefi
   return undefined;
 }
 
+/** Entitlement display name for client-side filtering (API shapes vary). */
+function getEntitlementNameForFilter(row: any): string {
+  if (!row || typeof row !== "object") return "";
+  const c = row.catalogDetails;
+  return (
+    pickString(
+      row.entitlementName,
+      row.name,
+      row["Ent Name"],
+      c?.name,
+      c?.entitlementName,
+      c?.entitlement_name
+    ) ?? ""
+  );
+}
+
 /** Resolve catalog id from an entitlement row (API shapes vary by endpoint). */
 function resolveCatalogIdFromEntitlementRow(row: any): string | undefined {
   if (!row || typeof row !== "object") return undefined;
@@ -395,6 +411,10 @@ export default function ApplicationDetailPage() {
   const serviceAccountsSearchInputRef = useRef<HTMLInputElement>(null);
   const serviceAccountsGridApiRef = useRef<GridApi | null>(null);
   const [entRowData, setEntRowData] = useState<any[]>([]);
+  const [entitlementsSearchQuery, setEntitlementsSearchQuery] = useState("");
+  const entitlementsSearchInputRef = useRef<HTMLInputElement>(null);
+  const [isEntitlementsSearchFocused, setIsEntitlementsSearchFocused] =
+    useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [entitlementDetails, setEntitlementDetails] = useState<any>(null);
@@ -493,16 +513,25 @@ export default function ApplicationDetailPage() {
   const [entTotalItems, setEntTotalItems] = useState(0);
   const [entTotalPages, setEntTotalPages] = useState(0);
 
+  const filteredEntRowData = useMemo(() => {
+    const q = entitlementsSearchQuery.trim().toLowerCase();
+    if (!q) return entRowData;
+    return entRowData.filter((row: any) => {
+      const name = getEntitlementNameForFilter(row);
+      return name.toLowerCase().includes(q);
+    });
+  }, [entRowData, entitlementsSearchQuery]);
+
   // Build separate row for description under each entitlement row (for Entitlements tab)
   const entRowsWithDesc = useMemo(() => {
-    if (!entRowData || entRowData.length === 0) return [] as any[];
+    if (!filteredEntRowData || filteredEntRowData.length === 0) return [] as any[];
     const rows: any[] = [];
-    for (const item of entRowData) {
+    for (const item of filteredEntRowData) {
       rows.push(item);
       rows.push({ ...item, __isDescRow: true });
     }
     return rows;
-  }, [entRowData]);
+  }, [filteredEntRowData]);
 
   // Paginated data for Entitlement tab tables
   const entPaginatedData = useMemo(() => {
@@ -529,6 +558,23 @@ export default function ApplicationDetailPage() {
   useEffect(() => {
     setEntCurrentPage(1);
   }, [entTabIndex]);
+
+  useEffect(() => {
+    setEntCurrentPage(1);
+  }, [entitlementsSearchQuery]);
+
+  useEffect(() => {
+    if (isEntitlementsSearchFocused && entitlementsSearchInputRef.current) {
+      requestAnimationFrame(() => {
+        entitlementsSearchInputRef.current?.focus();
+        const input = entitlementsSearchInputRef.current;
+        if (input && input.selectionStart !== null) {
+          const len = input.value.length;
+          input.setSelectionRange(len, len);
+        }
+      });
+    }
+  }, [filteredEntRowData, isEntitlementsSearchFocused]);
 
   // Helper function to map catalogDetails to nodeData fields
   const mapApiDataToNodeData = (catalogDetails: any, originalNodeData: any) => {
@@ -1556,7 +1602,7 @@ export default function ApplicationDetailPage() {
                 {localExpandedFrames.general && (
                   <div className="p-4 space-y-2">
                     {renderSideBySideFieldLocal(
-                      "Ent Type",
+                      "Type",
                       finalData?.["Ent Type"],
                       "#Assignments",
                       finalData?.["Total Assignments"],
@@ -1564,7 +1610,7 @@ export default function ApplicationDetailPage() {
                       "Total Assignments"
                     )}
                     {renderSideBySideFieldLocal(
-                      "App Name",
+                      "Application",
                       finalData?.["App Name"],
                       "Tag(s)",
                       finalData?.["Dynamic Tag"],
@@ -1644,7 +1690,7 @@ export default function ApplicationDetailPage() {
                       true
                     )}
                     {renderSideBySideFieldLocal(
-                      "App Name",
+                      "Application",
                       finalData?.["App Name"],
                       "App Instance",
                       finalData?.["App Instance"],
@@ -4232,7 +4278,7 @@ export default function ApplicationDetailPage() {
         return (
           <div
             className="ag-theme-alpine"
-            style={{ height: 860, width: "100%", minWidth: 0 }}
+            style={{ width: "100%", minWidth: 0 }}
           >
             {/* <div className="relative mb-2">
               <Accordion
@@ -4331,13 +4377,15 @@ export default function ApplicationDetailPage() {
             </div>
             {mounted && (
               <AgGridReact
+                key={`entitlements-grid-all-${entitlementsSearchQuery}-${entCurrentPage}-${entPageSize}-${filteredEntRowData.length}`}
                 rowData={entPaginatedData}
                 columnDefs={colDefs}
                 defaultColDef={defaultColDef}
                 masterDetail={true}
                 getRowHeight={(params) => (params?.data?.__isDescRow ? 36 : 40)}
                 detailCellRendererParams={detailCellRendererParams}
-                domLayout="normal"
+                detailRowAutoHeight
+                domLayout="autoHeight"
                 onGridReady={(params) => {
                   gridApiRef.current = params.api;
                 }}
@@ -4476,12 +4524,14 @@ export default function ApplicationDetailPage() {
           </div>
           {mounted && (
             <AgGridReact
+              key={`entitlements-grid-review-${entitlementsSearchQuery}-${entCurrentPage}-${entPageSize}-${filteredEntRowData.length}`}
               rowData={entPaginatedData}
               columnDefs={underReviewColDefs}
               defaultColDef={defaultColDef}
               masterDetail={true}
               getRowHeight={(params) => (params?.data?.__isDescRow ? 36 : 40)}
               detailCellRendererParams={detailCellRendererParams}
+              detailRowAutoHeight
               domLayout="autoHeight"
               getRowId={(params) => {
                 const data = params.data || {};
@@ -4521,6 +4571,8 @@ export default function ApplicationDetailPage() {
     entTotalPages,
     entPageSize,
     entTabIndex,
+    entitlementsSearchQuery,
+    filteredEntRowData.length,
     gridApiRef,
     colDefs,
     defaultColDef,
@@ -4536,14 +4588,37 @@ export default function ApplicationDetailPage() {
     return (
       <div
         className="ag-theme-alpine"
-        style={{ height: 500, width: "100%" }}
+        style={{ width: "100%" }}
       >
-        <div className="relative mb-2 flex items-center justify-between">
-          <h1 className="text-xl font-bold pb-2 text-blue-950">
-            Entitlements
-          </h1>
-          <div className="flex items-center">
-            <Exports gridApi={gridApiRef.current} />
+        <div className="relative mb-2 flex flex-col gap-2">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <h1 className="text-xl font-bold text-blue-950 shrink-0">
+              Entitlements
+            </h1>
+            <div className="flex items-center gap-4 flex-1 justify-end min-w-0">
+              <div className="relative max-w-md w-full">
+                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                  <Search className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  ref={entitlementsSearchInputRef}
+                  type="text"
+                  placeholder="Search by entitlement name..."
+                  value={entitlementsSearchQuery}
+                  onChange={(e) => setEntitlementsSearchQuery(e.target.value)}
+                  onFocus={() => setIsEntitlementsSearchFocused(true)}
+                  onBlur={() => setIsEntitlementsSearchFocused(false)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                />
+              </div>
+              {entitlementsSearchQuery.trim() !== "" && (
+                <p className="text-sm text-gray-600 whitespace-nowrap shrink-0">
+                  Showing {filteredEntRowData.length} of {entRowData.length}{" "}
+                  entitlements
+                </p>
+              )}
+              <Exports gridApi={gridApiRef.current} />
+            </div>
           </div>
         </div>
         {/* Always render the All tab content without showing inner tabs */}
@@ -4552,7 +4627,14 @@ export default function ApplicationDetailPage() {
         )}
       </div>
     );
-  }, [tabsDataEnt, entTabIndex, setEntTabIndex]);
+  }, [
+    tabsDataEnt,
+    entTabIndex,
+    setEntTabIndex,
+    entitlementsSearchQuery,
+    filteredEntRowData.length,
+    entRowData.length,
+  ]);
 
   // Accounts Tab Component - Proper React component that reacts to state changes
   const AccountsTabComponent = useMemo(() => {

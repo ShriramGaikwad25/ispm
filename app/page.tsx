@@ -47,7 +47,7 @@ interface DashboardStats {
   myRequests: number;
 }
 
-const CONTINUOUS_COMPLIANCE_ITEMS = 17;
+const CONTINUOUS_COMPLIANCE_ITEMS = 19;
 
 export default function Dashboard() {
   const router = useRouter();

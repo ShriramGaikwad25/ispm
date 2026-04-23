@@ -48,6 +48,58 @@ const STAGE_HEADING_BY_NAME: Record<string, string> = {
 /** Slightly narrower stage columns + matching “Add Stage” control */
 const STAGE_COLUMN_MIN = "min-w-[252px]";
 
+const APPROVAL_FN_TO_UI: Record<string, string> = {
+  FN_RESOLVE_MANAGER: "line-manager",
+  FN_RESOLVE_DEPT_HEAD: "department-head",
+  FN_RESOLVE_APP_OWNER: "app-owner",
+  FN_RESOLVE_ROLE_OWNER: "role-owner",
+  FN_RESOLVE_CUSTOM: "custom",
+};
+
+function approverFieldsFromApiConfig(config: any, stepCodeUpper: string) {
+  const cfg = config || {};
+  const isCustomApprovalCode =
+    stepCodeUpper === "APPROVAL_CUSTOM" || stepCodeUpper === "CUSTOM_APPROVAL";
+  const useCustomLookup =
+    String(cfg.approverSource || "").toUpperCase() === "LOOKUP" ||
+    (isCustomApprovalCode && cfg.lookupRuleId != null);
+  if (useCustomLookup) {
+    return {
+      approverResolver: "custom-lookup" as const,
+      taskName: typeof cfg.taskName === "string" ? cfg.taskName : undefined,
+      lookupRuleId: cfg.lookupRuleId != null ? Number(cfg.lookupRuleId) : undefined,
+      escalateAfter: Number(cfg.escalationHours) || 24,
+      skipIfRequestorIsApprover: cfg.skipSelf !== false,
+    };
+  }
+  const fn = typeof cfg.approverResolver === "string" ? cfg.approverResolver : "";
+  return {
+    approverResolver: APPROVAL_FN_TO_UI[fn] || "line-manager",
+    escalateAfter: Number(cfg.escalationHours) || 24,
+    skipIfRequestorIsApprover: cfg.skipSelf !== false,
+  };
+}
+
+function applyApprovalStepToWorkflowJson(stepJSON: { config: any }, step: any) {
+  if (step.type !== "APPROVAL") return;
+  if (step.approverResolver === "custom-lookup") {
+    stepJSON.config.approverSource = "LOOKUP";
+    if (step.lookupRuleId != null) stepJSON.config.lookupRuleId = step.lookupRuleId;
+    if (step.taskName) stepJSON.config.taskName = step.taskName;
+  } else {
+    const resolverMap: Record<string, string> = {
+      "line-manager": "FN_RESOLVE_MANAGER",
+      "department-head": "FN_RESOLVE_DEPT_HEAD",
+      "app-owner": "FN_RESOLVE_APP_OWNER",
+      "role-owner": "FN_RESOLVE_ROLE_OWNER",
+      custom: "FN_RESOLVE_CUSTOM",
+    };
+    stepJSON.config.approverResolver = resolverMap[step.approverResolver] || "FN_RESOLVE_MANAGER";
+  }
+  stepJSON.config.escalationHours = step.escalateAfter || 24;
+  stepJSON.config.skipSelf = step.skipIfRequestorIsApprover !== false;
+}
+
 interface PolicyBuilderProps {
   formData: any;
   setFormData: any;
@@ -255,16 +307,7 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
         }
 
         if (step.type === "APPROVAL") {
-          const resolverMap: Record<string, string> = {
-            "line-manager": "FN_RESOLVE_MANAGER",
-            "department-head": "FN_RESOLVE_DEPT_HEAD",
-            "app-owner": "FN_RESOLVE_APP_OWNER",
-            "role-owner": "FN_RESOLVE_ROLE_OWNER",
-            "custom": "FN_RESOLVE_CUSTOM",
-          };
-          stepJSON.config.approverResolver = resolverMap[step.approverResolver] || "FN_RESOLVE_MANAGER";
-          stepJSON.config.escalationHours = step.escalateAfter || 24;
-          stepJSON.config.skipSelf = step.skipIfRequestorIsApprover !== false;
+          applyApprovalStepToWorkflowJson(stepJSON, step);
         }
 
         const conditionStr =
@@ -955,8 +998,17 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                         <option value="department-head">Department head</option>
                         <option value="app-owner">Application owner</option>
                         <option value="role-owner">Role / role collection owner</option>
+                        <option value="custom-lookup">Custom Lookup</option>
                         <option value="custom">Custom lookup</option>
                       </select>
+                      {stepConfig?.approverResolver === "custom-lookup" && (
+                        <div className="mt-2">
+                          <span className="mb-1 block text-xs font-medium text-gray-700">Task name</span>
+                          <div className="rounded border border-gray-300 bg-slate-50 px-2.5 py-2 text-xs leading-snug text-slate-900 min-h-[2.25rem]">
+                            {String(stepConfig?.taskName ?? "").trim() || "—"}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div>
@@ -1470,16 +1522,7 @@ function buildWorkflowJsonPreview(formData: any) {
       }
 
       if (step.type === "APPROVAL") {
-        const resolverMap: Record<string, string> = {
-          "line-manager": "FN_RESOLVE_MANAGER",
-          "department-head": "FN_RESOLVE_DEPT_HEAD",
-          "app-owner": "FN_RESOLVE_APP_OWNER",
-          "role-owner": "FN_RESOLVE_ROLE_OWNER",
-          custom: "FN_RESOLVE_CUSTOM",
-        };
-        stepJSON.config.approverResolver = resolverMap[step.approverResolver] || "FN_RESOLVE_MANAGER";
-        stepJSON.config.escalationHours = step.escalateAfter || 24;
-        stepJSON.config.skipSelf = step.skipIfRequestorIsApprover !== false;
+        applyApprovalStepToWorkflowJson(stepJSON, step);
       }
 
       const conditionStr =
@@ -2123,7 +2166,7 @@ export default function WorkflowBuilderCreatePage() {
                   .replace(/_/g, " ")
                   .replace(/\b\w/g, (c: string) => c.toUpperCase());
 
-                return {
+                const baseStep = {
                   id: `step-${stageIdx + 1}-${stepIdx + 1}-${upperCode}`,
                   label,
                   code: upperCode,
@@ -2131,6 +2174,15 @@ export default function WorkflowBuilderCreatePage() {
                   type,
                   condition: conditionExpr || "true",
                 };
+
+                if (type === "APPROVAL") {
+                  return {
+                    ...baseStep,
+                    ...approverFieldsFromApiConfig(step.config, upperCode),
+                  };
+                }
+
+                return baseStep;
               })
             : [];
 
