@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useId } from "react";
+import React from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Clock, KeyRound } from "lucide-react";
@@ -41,7 +41,6 @@ const AUDIT_EVENTS: { title: string; detail: string; danger?: boolean }[] = [
 export default function ApiKeyRotationReviewClient() {
   const searchParams = useSearchParams();
   const keyId = (searchParams.get("keyId") || DEFAULT_KEY_ID).trim() || DEFAULT_KEY_ID;
-  const usageChartGradientId = useId().replace(/:/g, "");
 
   return (
     <div className="min-h-screen bg-[#f4f5f8]">
@@ -172,46 +171,6 @@ export default function ApiKeyRotationReviewClient() {
                     </Link>
                   </FieldValue>
                 </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-              <h2 className="text-sm font-semibold text-gray-900 mb-4">Activity</h2>
-              <div className="grid grid-cols-1 gap-3">
-                <div>
-                  <FieldLabel>Last Used</FieldLabel>
-                  <FieldValue>2 hours ago</FieldValue>
-                </div>
-                <div>
-                  <FieldLabel>Usage Frequency</FieldLabel>
-                  <FieldValue>High</FieldValue>
-                </div>
-              </div>
-              <div
-                className="mt-4 h-44 sm:h-52 rounded-lg border border-dashed border-blue-200/90 bg-gradient-to-b from-blue-100/30 to-white relative overflow-hidden"
-                aria-label="Usage trend (illustrative)"
-              >
-                <svg className="absolute inset-0 w-full h-full" viewBox="0 0 320 48" preserveAspectRatio="none">
-                  <title>Usage trend</title>
-                  <defs>
-                    <linearGradient id={usageChartGradientId} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="rgb(37 99 235)" stopOpacity="0.15" />
-                      <stop offset="100%" stopColor="rgb(37 99 235)" stopOpacity="0" />
-                    </linearGradient>
-                  </defs>
-                  <polygon
-                    fill={`url(#${usageChartGradientId})`}
-                    points="0,48 0,34 25,30 50,32 75,22 100,24 125,16 150,20 175,14 200,18 225,10 250,13 275,9 320,12 320,48"
-                  />
-                  <polyline
-                    fill="none"
-                    stroke="#2563eb"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    points="0,34 25,30 50,32 75,22 100,24 125,16 150,20 175,14 200,18 225,10 250,13 275,9 320,12"
-                  />
-                </svg>
               </div>
             </div>
           </aside>

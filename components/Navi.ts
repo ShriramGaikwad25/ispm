@@ -46,7 +46,6 @@ const NHI_PRIMARY_ICONS = [
   ShieldAlert,
   SlidersHorizontal,
   Siren,
-  PlusCircle,
 ] as const;
 
 const nhiPrimarySubItems: NavItem[] = NHI_NAV_ITEMS.map((item, i) => ({

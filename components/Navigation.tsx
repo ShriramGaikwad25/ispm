@@ -185,7 +185,10 @@ export function Navigation() {
     if (pathname.startsWith('/settings/gateway/manage-access-policy')) {
       return { href: '/settings/gateway/manage-access-policy', label: 'Back to Access Policy' };
     }
-    if (pathname === '/non-human-identity/create-nhi' || pathname === '/non-human-identity/request-access') {
+    if (pathname === '/non-human-identity/create-nhi') {
+      return { href: '/non-human-identity/nhi-inventory', label: 'Back to NHI Inventory' };
+    }
+    if (pathname === '/non-human-identity/request-access') {
       return { href: '/non-human-identity', label: 'Back to Non-Human Identity' };
     }
     if (pathname.match(/^\/non-human-identity\/nhi-inventory\/[^/]+$/)) {

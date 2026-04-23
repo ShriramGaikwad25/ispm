@@ -31,7 +31,6 @@ export const NHI_NAV_ITEMS: { label: string; href: string }[] = [
   { label: "Risk & Remediation", href: "/non-human-identity/risk-remediation" },
   { label: "Controls", href: "/non-human-identity-1/controls" },
   { label: "Request Access/Breakglass", href: "/non-human-identity/request-access" },
-  { label: "Create new NHI", href: "/non-human-identity/create-nhi" },
 ];
 
 /**
