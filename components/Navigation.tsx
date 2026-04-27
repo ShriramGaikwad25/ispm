@@ -78,6 +78,17 @@ export function Navigation() {
     }
   }, [pathname]);
 
+  useEffect(() => {
+    const raItem = navigation.find((i) => i.name === "Risk Analysis");
+    if (
+      raItem?.subItems?.length &&
+      (routeMatches(raItem.href) ||
+        raItem.subItems.some((s) => routeMatches(s.href)))
+    ) {
+      setExpandedItems(new Set(["Risk Analysis"]));
+    }
+  }, [pathname]);
+
   const normalizedSearch = searchTerm.trim().toLowerCase();
   const filteredNavigation = normalizedSearch
     ? navigation.filter((item) => {
@@ -278,9 +289,9 @@ export function Navigation() {
     if (pathname.startsWith('/oracle-reports/') && pathname !== '/oracle-reports') {
       return { href: '/oracle-reports', label: 'Back to Oracle Reports' };
     }
-    // Risk Posture detail pages → back to Dashboard
+    // Risk Posture detail pages → back to Risk Analysis hub
     if (pathname.startsWith('/risk-posture/orphan-exposure') || pathname.startsWith('/risk-posture/user-access-drift')) {
-      return { href: '/', label: 'Back to Dashboard' };
+      return { href: '/risk-analysis', label: 'Back to Risk Analysis' };
     }
     // Track Request detail → back to Track Request list
     if (pathname.startsWith('/track-request/') && pathname !== '/track-request') {
@@ -308,7 +319,7 @@ export function Navigation() {
 
   return (
     <aside 
-      className="fixed left-0 top-[60px] z-40 bg-white border-r border-gray-200 flex flex-col"
+      className="fixed left-0 top-[60px] z-40 bg-white border-r border-gray-200 flex flex-col min-h-0"
       style={{
         height: 'calc(100vh - 60px)',
         width: isSidebarExpanded ? '280px' : '64px',
@@ -318,11 +329,11 @@ export function Navigation() {
     >
       {/* Navigation Links */}
       <nav 
-        className="flex flex-col px-3 py-4 space-y-1 flex-1 w-full items-start" 
-        style={{ gap: '6px' }}
+        className="flex flex-col flex-1 min-h-0 px-3 py-4 w-full items-stretch overflow-hidden" 
         role="navigation"
         aria-label="Primary navigation"
       >
+        <div className="flex flex-col w-full space-y-1 shrink-0" style={{ gap: '6px' }}>
         {/* Back - compact, before search */}
         {!isMainSidebarRoute && backConfig && (
           <div className="w-full mb-2">
@@ -362,7 +373,12 @@ export function Navigation() {
             </button>
           )}
         </div>
+        </div>
 
+        <div
+          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden w-full flex flex-col"
+          style={{ gap: '6px' }}
+        >
         {filteredNavigation.map((item) => {
           const Icon = item.icon;
           const isActive = isItemActive(item);
@@ -523,9 +539,10 @@ export function Navigation() {
             </div>
           );
         })}
+        </div>
         
         {/* Expand/Collapse Arrow Button - Just below last item */}
-        <div className={`flex items-center w-full mt-2 ${isSidebarExpanded ? 'px-2' : 'pl-2 justify-start'}`}>
+        <div className={`flex items-center w-full mt-2 shrink-0 ${isSidebarExpanded ? 'px-2' : 'pl-2 justify-start'}`}>
           <button
             onClick={toggleExpand}
             aria-label={isSidebarExpanded ? "Collapse sidebar" : "Expand sidebar"}

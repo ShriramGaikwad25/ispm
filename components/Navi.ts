@@ -26,8 +26,10 @@ import {
   RefreshCw,
   ShieldAlert,
   PlusCircle,
+  LineChart,
 } from "lucide-react";
 import { NHI_NAV_ITEMS } from "@/lib/nhi-shell";
+import { riskAnalysisSubItems } from "@/lib/risk-analysis-routes";
 
 export interface NavItem {
   name: string;
@@ -104,6 +106,12 @@ export const navLinks: NavItem[] = [
     href: "/non-human-identity",
     icon: Bot,
     subItems: nhiPrimarySubItems,
+  },
+  {
+    name: "Risk Analysis",
+    href: "/risk-analysis",
+    icon: LineChart,
+    subItems: riskAnalysisSubItems,
   },
   {
     name: "Audit and Compliance",

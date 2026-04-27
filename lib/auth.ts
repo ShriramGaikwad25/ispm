@@ -1,6 +1,40 @@
 // Authentication API endpoints and utilities
 import { clearJitAccessHistoryStore } from '@/lib/jitAccessHistoryStorage';
 
+/** Best-effort message from KeyForge / gateway / PG JSON error bodies. */
+function pickHttpErrorBodyMessage(errorJson: unknown, fallback: string): string {
+  if (typeof errorJson === "string" && errorJson.trim()) return errorJson.trim();
+  if (errorJson == null || typeof errorJson !== "object" || Array.isArray(errorJson)) {
+    return fallback;
+  }
+  const o = errorJson as Record<string, unknown>;
+  const nested =
+    o.error && typeof o.error === "object" && !Array.isArray(o.error)
+      ? (o.error as Record<string, unknown>)
+      : null;
+  const candidates: unknown[] = [
+    o.message,
+    o.error,
+    o.detail,
+    o.title,
+    o.description,
+    o.statusMessage,
+    o.exceptionMessage,
+    nested?.message,
+    nested?.detail,
+  ];
+  for (const c of candidates) {
+    if (typeof c === "string" && c.trim()) return c.trim();
+  }
+  try {
+    const s = JSON.stringify(o);
+    if (s && s.length < 1200) return s;
+  } catch {
+    // ignore
+  }
+  return fallback;
+}
+
 const AUTH_BASE_URL = 'https://preview.keyforge.ai/RequestJWTToken/TokenProvider';
 
 export interface TokenResponse {
@@ -468,27 +502,27 @@ export async function apiRequestWithAuth<T>(
     }
 
     if (!response.ok) {
-      // Get error details from response body
       let errorMessage = `API request failed: ${response.status} ${response.statusText}`;
       try {
         const errorText = await response.text();
         if (errorText) {
           try {
-            const errorJson = JSON.parse(errorText);
-            errorMessage = errorJson.message || errorJson.error || errorMessage;
+            const errorJson = JSON.parse(errorText) as unknown;
+            errorMessage = pickHttpErrorBodyMessage(errorJson, errorMessage);
           } catch {
             errorMessage = errorText || errorMessage;
           }
         }
-      } catch (e) {
-        // If we can't read the error body, use the default message
+      } catch {
+        // keep default errorMessage
       }
-      
-      // Check for authentication errors
+
+      errorMessage = `[HTTP ${response.status}] ${errorMessage}`;
+
       if (response.status === 401 || response.status === 403) {
         forceLogout(`API request failed with status ${response.status}`);
       }
-      
+
       throw new Error(errorMessage);
     }
 
