@@ -238,8 +238,9 @@ export async function importRulesetCsv(
   return { data: getKfResultData(res) };
 }
 
-// --- Rules (adjust SQL to your DB) ---
-const RM_LIST_RULES_QUERY = "SELECT public.kf_rm_list_rules(?::bigint, ?::jsonb) AS result";
+// --- Rules ---
+const RM_LIST_RULES_QUERY =
+  "SELECT public.kf_rm_list_rules(NULL::uuid, ?::bigint, NULL, NULL, NULL, NULL, ?, ?) AS result";
 const RM_TOGGLE_RULE_STATUS_QUERY =
   "SELECT public.kf_rm_set_rule_status(?::bigint, ?::text) AS result";
 const RM_GET_RULE_QUERY = "SELECT public.kf_rm_get_rule(?::bigint) AS result";
@@ -263,17 +264,15 @@ function asArray<T>(raw: unknown): T[] {
   return [];
 }
 
-export type ListRulesFilters = { search?: string; severity?: string };
+export type ListRulesOptions = { page?: number; pageSize?: number };
 
 export async function listRules(
   rulesetId: number,
-  filters: ListRulesFilters = {}
+  options: ListRulesOptions = {}
 ): Promise<{ data: RuleListRow[] }> {
-  const payload = JSON.stringify({
-    ...(filters.search ? { search: filters.search } : {}),
-    ...(filters.severity ? { severity: filters.severity } : {}),
-  });
-  const res = await executeQuery<unknown>(RM_LIST_RULES_QUERY, [rulesetId, payload]);
+  const page = options.page ?? 1;
+  const pageSize = options.pageSize ?? 200;
+  const res = await executeQuery<unknown>(RM_LIST_RULES_QUERY, [rulesetId, page, pageSize]);
   return { data: asArray<RuleListRow>(getKfResultData(res)) };
 }
 

@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from 'next/navigation';
 import { useState, useMemo } from 'react';
-import { Settings, FileText, Users, Shield, Mail, ShieldCheck, Clock, Lock, Search, GraduationCap, Brain, Bot, UserSearch } from 'lucide-react';
+import { Settings, FileText, Users, Shield, Mail, ShieldCheck, Clock, Lock, Search, GraduationCap, Brain, Bot, UserSearch, ArrowLeftRight } from 'lucide-react';
 
 export default function GatewaySettings() {
   const router = useRouter();
@@ -92,6 +92,13 @@ export default function GatewaySettings() {
       subtitle: 'Define how custom approvers are resolved for workflows and policies.',
       href: '/settings/gateway/lookup-custom-approvers',
       icon: <UserSearch className="w-5 h-5 text-gray-600" />,
+    },
+    {
+      id: 'transformation-provider',
+      title: 'Transformation Provider',
+      subtitle: 'Configure transformation providers for data and integration flows.',
+      href: '/settings/gateway/transformation-provider',
+      icon: <ArrowLeftRight className="w-5 h-5 text-gray-600" />,
     },
   ];
 

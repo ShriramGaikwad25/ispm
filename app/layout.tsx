@@ -18,6 +18,7 @@ import { ItemDetailsProvider } from "@/contexts/ItemDetailsContext";
 import RightSideBarHost from "@/components/RightSideBarHost";
 import LayoutContentShift from "@/components/LayoutContentShift";
 import { SkipLink } from "@/components/SkipLink";
+import { ChartJsAppFontSync } from "@/components/ChartJsAppFontSync";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -34,6 +35,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
+        <ChartJsAppFontSync />
         <SkipLink />
         <AuthProvider>
           <QueryProvider>

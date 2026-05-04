@@ -1,24 +1,25 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Copy, MoreHorizontal, Pencil, Power, Search } from "lucide-react";
+import { executeQuery } from "@/lib/api";
 import {
-  MOCK_ROTATION_POLICIES,
-  type RotationPolicyListRow,
-  type RotationPolicyStatus,
-} from "@/components/non-human-identity/rotation-policy-mock";
+  parseRotationPolicyGridResponse,
+  ROTATION_POLICY_GRID_QUERY,
+  type RotationPolicyGridRow,
+} from "@/lib/nhi-rotation-policy-grid";
 
-const NHI_TYPE_OPTIONS = Array.from(new Set(MOCK_ROTATION_POLICIES.flatMap((r) => r.nhiTypes))).sort();
-const STATUS_OPTIONS: ("all" | RotationPolicyStatus)[] = ["all", "Active", "Draft", "Paused"];
+const DEFAULT_STATUSES = ["Active", "Draft", "Paused"] as const;
 
-function statusBadgeClass(s: RotationPolicyStatus): string {
-  switch (s) {
-    case "Active":
+function statusBadgeClass(s: string): string {
+  const k = s.trim().toLowerCase();
+  switch (k) {
+    case "active":
       return "border-emerald-200 bg-emerald-50 text-emerald-800";
-    case "Draft":
+    case "draft":
       return "border-slate-200 bg-slate-50 text-slate-700";
-    case "Paused":
+    case "paused":
       return "border-amber-200 bg-amber-50 text-amber-900";
     default:
       return "border-slate-200 bg-slate-50 text-slate-700";
@@ -36,22 +37,61 @@ function nhiBadgeClass(i: number): string {
   return palette[i % palette.length];
 }
 
-function rowMatchesFrequencyFilter(row: RotationPolicyListRow, freq: string): boolean {
+function rowMatchesFrequencyFilter(row: RotationPolicyGridRow, freq: string): boolean {
   if (freq === "all") return true;
   if (freq === "event") return /event/i.test(row.frequencyLabel);
   return row.frequencyLabel.includes(freq);
 }
 
 export function RotationPolicyListPage() {
+  const [policies, setPolicies] = useState<RotationPolicyGridRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [nhiFilter, setNhiFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<(typeof STATUS_OPTIONS)[number]>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [freqFilter, setFreqFilter] = useState<string>("all");
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
 
+  const load = useCallback(async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const response = await executeQuery<unknown>(ROTATION_POLICY_GRID_QUERY, []);
+      setPolicies(parseRotationPolicyGridResponse(response));
+    } catch (e) {
+      setPolicies([]);
+      setError(e instanceof Error ? e.message : "Failed to load rotation policies");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const nhiTypeOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of policies) {
+      for (const t of r.nhiTypes) {
+        if (t) set.add(t);
+      }
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  }, [policies]);
+
+  const statusOptions = useMemo(() => {
+    const set = new Set<string>(["all", ...DEFAULT_STATUSES]);
+    for (const r of policies) {
+      if (r.status && r.status !== "—") set.add(r.status);
+    }
+    return Array.from(set);
+  }, [policies]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return MOCK_ROTATION_POLICIES.filter((r) => {
+    return policies.filter((r) => {
       const blob = [r.name, r.description, r.nhiTypes.join(" "), r.status, r.frequencyLabel]
         .join(" ")
         .toLowerCase();
@@ -61,12 +101,12 @@ export function RotationPolicyListPage() {
       if (!rowMatchesFrequencyFilter(r, freqFilter)) return false;
       return true;
     });
-  }, [search, nhiFilter, statusFilter, freqFilter]);
+  }, [policies, search, nhiFilter, statusFilter, freqFilter]);
 
   const summary = useMemo(() => {
     const totalPolicies = filtered.length;
     const identitiesCovered = filtered.reduce((acc, r) => acc + r.identityCount, 0);
-    const reviewPolicies = filtered.filter((r) => r.status === "Draft").length;
+    const reviewPolicies = filtered.filter((r) => r.status.toLowerCase() === "draft").length;
     const denom = 850;
     const coverageScopePct = Math.min(100, Math.round((identitiesCovered / denom) * 100));
     return { totalPolicies, identitiesCovered, reviewPolicies, coverageScopePct };
@@ -91,6 +131,10 @@ export function RotationPolicyListPage() {
           </Link>
         </div>
 
+        {error && (
+          <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>
+        )}
+
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-0 flex-1">
             <label htmlFor="rotation-policy-search" className="text-sm font-medium text-gray-700">
@@ -107,7 +151,8 @@ export function RotationPolicyListPage() {
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Policy name, NHI type, status, rotation frequency…"
                 autoComplete="off"
-                className="w-full rounded-md border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                disabled={loading}
+                className="w-full rounded-md border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:bg-gray-50"
               />
             </div>
           </div>
@@ -119,10 +164,11 @@ export function RotationPolicyListPage() {
               id="rotation-nhi-type"
               value={nhiFilter}
               onChange={(e) => setNhiFilter(e.target.value)}
-              className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              disabled={loading}
+              className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:bg-gray-50"
             >
               <option value="all">All types</option>
-              {NHI_TYPE_OPTIONS.map((t) => (
+              {nhiTypeOptions.map((t) => (
                 <option key={t} value={t}>
                   {t}
                 </option>
@@ -136,10 +182,11 @@ export function RotationPolicyListPage() {
             <select
               id="rotation-status"
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as (typeof STATUS_OPTIONS)[number])}
-              className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              onChange={(e) => setStatusFilter(e.target.value)}
+              disabled={loading}
+              className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:bg-gray-50"
             >
-              {STATUS_OPTIONS.map((s) => (
+              {statusOptions.map((s) => (
                 <option key={s} value={s}>
                   {s === "all" ? "All statuses" : s}
                 </option>
@@ -154,7 +201,8 @@ export function RotationPolicyListPage() {
               id="rotation-freq"
               value={freqFilter}
               onChange={(e) => setFreqFilter(e.target.value)}
-              className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              disabled={loading}
+              className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:bg-gray-50"
             >
               <option value="all">Any</option>
               <option value="30">~30 days</option>
@@ -186,7 +234,7 @@ export function RotationPolicyListPage() {
         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
           <div className="border-b border-gray-100 px-4 py-3">
             <h2 className="text-sm font-semibold text-gray-900">
-              Policies <span className="font-normal text-gray-500">({filtered.length})</span>
+              Policies <span className="font-normal text-gray-500">({loading ? "…" : filtered.length})</span>
             </h2>
           </div>
           <div className="overflow-x-auto">
@@ -202,10 +250,16 @@ export function RotationPolicyListPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.length === 0 ? (
+                {loading ? (
                   <tr>
                     <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
-                      No policies match your filters.
+                      Loading policies…
+                    </td>
+                  </tr>
+                ) : filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                      {policies.length === 0 ? "No policies returned from the server." : "No policies match your filters."}
                     </td>
                   </tr>
                 ) : (
@@ -213,18 +267,24 @@ export function RotationPolicyListPage() {
                     <tr key={row.id} className="border-b border-gray-50 hover:bg-gray-50/80">
                       <td className="max-w-md px-4 py-3">
                         <div className="font-medium text-gray-900">{row.name}</div>
-                        <div className="mt-1 line-clamp-2 text-sm text-gray-600">{row.description}</div>
+                        {row.description ? (
+                          <div className="mt-1 line-clamp-2 text-sm text-gray-600">{row.description}</div>
+                        ) : null}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-1">
-                          {row.nhiTypes.map((t, i) => (
-                            <span
-                              key={t}
-                              className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${nhiBadgeClass(i)}`}
-                            >
-                              {t}
-                            </span>
-                          ))}
+                          {row.nhiTypes.length === 0 ? (
+                            <span className="text-gray-500">—</span>
+                          ) : (
+                            row.nhiTypes.map((t, i) => (
+                              <span
+                                key={`${row.id}-${t}-${i}`}
+                                className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${nhiBadgeClass(i)}`}
+                              >
+                                {t}
+                              </span>
+                            ))
+                          )}
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-gray-800">{row.frequencyLabel}</td>
@@ -246,7 +306,7 @@ export function RotationPolicyListPage() {
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
                           <Link
-                            href={`/non-human-identity/rotation-policy/${row.id}`}
+                            href={`/non-human-identity/rotation-policy/${encodeURIComponent(row.id)}`}
                             className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
                             title="Edit"
                             aria-label="Edit policy"

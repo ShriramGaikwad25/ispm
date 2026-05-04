@@ -1,13 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import { Controller, useForm, type Control, type FieldValues, type UseFormSetValue, type UseFormWatch } from "react-hook-form";
 import Select, { type MultiValue, type StylesConfig } from "react-select";
 import ExpressionBuilder from "@/components/ExpressionBuilder";
-import { MOCK_ROTATION_POLICIES } from "@/components/non-human-identity/rotation-policy-mock";
+import { executeQuery } from "@/lib/api";
+import {
+  extractRotationPolicyDetailRow,
+  ROTATION_POLICY_BY_ID_QUERY,
+} from "@/lib/nhi-rotation-policy-detail";
 
 const CREDENTIAL_TYPE_OPTIONS = [
   { label: "Passwords", value: "passwords" },
@@ -127,6 +131,305 @@ type RotationPolicyFormValues = FieldValues & {
   recipientIamAdmin: boolean;
 };
 
+function rowFieldMap(row: Record<string, unknown>): Map<string, string> {
+  return new Map(Object.keys(row).map((k) => [k.toLowerCase(), k]));
+}
+
+function getRowField(row: Record<string, unknown>, ...names: string[]): unknown {
+  const m = rowFieldMap(row);
+  for (const n of names) {
+    const k = m.get(n.toLowerCase());
+    if (k !== undefined) return row[k];
+  }
+  return undefined;
+}
+
+function strRow(row: Record<string, unknown>, ...names: string[]): string {
+  const v = getRowField(row, ...names);
+  if (v == null) return "";
+  return String(v).trim();
+}
+
+function parsePgTextArray(v: unknown): string[] {
+  if (v == null) return [];
+  if (Array.isArray(v)) return v.map((x) => String(x).trim()).filter(Boolean);
+  if (typeof v !== "string") return [];
+  const t = v.trim();
+  if (!t) return [];
+  if (t.startsWith("{") && t.endsWith("}")) {
+    const inner = t.slice(1, -1).trim();
+    if (!inner) return [];
+    return inner.split(",").map((s) => s.trim()).filter(Boolean);
+  }
+  try {
+    const p = JSON.parse(t) as unknown;
+    if (Array.isArray(p)) return p.map((x) => String(x).trim()).filter(Boolean);
+  } catch {
+    /* ignore */
+  }
+  return t.split(/[,;]/).map((s) => s.trim()).filter(Boolean);
+}
+
+function boolRow(row: Record<string, unknown>, ...names: string[]): boolean {
+  const v = getRowField(row, ...names);
+  if (v === true || v === "true" || v === "t" || v === 1 || v === "1") return true;
+  if (v === false || v === "false" || v === "f" || v === 0 || v === "0") return false;
+  return Boolean(v);
+}
+
+function optBoolRow(row: Record<string, unknown>, fallback: boolean, ...names: string[]): boolean {
+  const v = getRowField(row, ...names);
+  if (v === undefined) return fallback;
+  return boolRow(row, ...names);
+}
+
+function numRowStr(row: Record<string, unknown>, fallback: string, ...names: string[]): string {
+  const v = getRowField(row, ...names);
+  if (typeof v === "number" && Number.isFinite(v)) return String(v);
+  if (typeof v === "string" && v.trim() && Number.isFinite(Number(v))) return String(Number(v));
+  return fallback;
+}
+
+const NHI_SCOPE_VALUE_ALIASES: Record<string, string> = {
+  agent: "ai_agent",
+  ai_agent: "ai_agent",
+  managed_identity: "workload",
+  workload_container: "workload",
+  workload: "workload",
+};
+
+function nhiTokenToSelectOption(token: string): { label: string; value: string } {
+  const raw = token.trim().toLowerCase();
+  const value = NHI_SCOPE_VALUE_ALIASES[raw] ?? raw;
+  const opt = NHI_TYPE_OPTIONS.find((o) => o.value === value);
+  if (opt) return opt;
+  const label = raw
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+  return { label, value: raw.replace(/\s+/g, "_") };
+}
+
+function apiCredentialToFormCategory(token: string): string | null {
+  const n = token.trim().toLowerCase();
+  if (["password", "database_password"].includes(n)) return "passwords";
+  if (["oauth_token", "bearer_token"].includes(n)) return "tokens";
+  if (["tls_certificate", "certificate"].includes(n)) return "certs";
+  if (["api_key", "hmac_key", "oauth_client_secret"].includes(n)) return "keys";
+  if (n.includes("cert")) return "certs";
+  if (n.includes("token")) return "tokens";
+  if (n.includes("password")) return "passwords";
+  if (n) return "keys";
+  return null;
+}
+
+function parseScopeExpression(v: unknown): unknown[] {
+  if (Array.isArray(v)) return v;
+  if (typeof v === "string" && v.trim()) {
+    try {
+      const p = JSON.parse(v) as unknown;
+      if (Array.isArray(p)) return p;
+      if (p && typeof p === "object" && p !== null && "conditions" in p) {
+        const c = (p as { conditions?: unknown }).conditions;
+        if (Array.isArray(c)) return c;
+      }
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function mapApiRotationMethod(raw: string | undefined): RotationPolicyFormValues["rotationMethod"] {
+  const k = (raw ?? "").trim().toLowerCase().replace(/-/g, "_");
+  if (k === "jit_dynamic" || k === "jit") return "jit";
+  if (k === "semi_auto" || k === "semi") return "semi";
+  if (k === "manual") return "manual";
+  if (k === "automatic" || k === "auto") return "auto";
+  return "auto";
+}
+
+function normalizeDurationUnit(raw: string | undefined, fallback: string): string {
+  const u = (raw ?? "").trim().toLowerCase();
+  if (u === "day" || u === "days") return "days";
+  if (u === "month" || u === "months") return "months";
+  if (u === "year" || u === "years") return "years";
+  return fallback;
+}
+
+function coerceTimeInput(raw: string, fallback: string): string {
+  const s = raw.trim();
+  if (!s) return fallback;
+  if (/^\d{1,2}:\d{2}(:\d{2})?/.test(s)) {
+    const parts = s.split(":");
+    const hh = parts[0]?.padStart(2, "0") ?? "09";
+    const mm = parts[1]?.padStart(2, "0") ?? "00";
+    return `${hh.slice(-2)}:${mm.slice(-2)}`;
+  }
+  const d = new Date(s);
+  if (!Number.isNaN(d.getTime())) {
+    return d.toISOString().slice(11, 16);
+  }
+  return fallback;
+}
+
+function coerceDateInput(raw: string, fallback: string): string {
+  const s = raw.trim();
+  if (!s) return fallback;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const d = new Date(s);
+  if (!Number.isNaN(d.getTime())) {
+    return d.toISOString().slice(0, 10);
+  }
+  return fallback;
+}
+
+function parseFailureAlerts(
+  v: unknown,
+  fallback: MultiValue<{ label: string; value: string }>,
+): MultiValue<{ label: string; value: string }> {
+  const tokens = parsePgTextArray(v);
+  if (tokens.length === 0 && typeof v === "string" && v.trim().startsWith("[")) {
+    try {
+      const p = JSON.parse(v) as unknown;
+      if (Array.isArray(p)) {
+        for (const x of p) tokens.push(String(x));
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  if (tokens.length === 0) return fallback;
+  const out: { label: string; value: string }[] = [];
+  const seen = new Set<string>();
+  for (const t of tokens) {
+    const value = t.trim().toLowerCase().replace(/\s+/g, "_");
+    const opt = FAILURE_ALERT_OPTIONS.find((o) => o.value === value);
+    if (opt && !seen.has(opt.value)) {
+      seen.add(opt.value);
+      out.push(opt);
+    }
+  }
+  return out.length > 0 ? out : fallback;
+}
+
+function mapDetailRowToFormValues(
+  row: Record<string, unknown>,
+  blank: RotationPolicyFormValues,
+): RotationPolicyFormValues {
+  const credTokens = parsePgTextArray(getRowField(row, "credential_types"));
+  const credCategories = new Set<string>();
+  for (const t of credTokens) {
+    const cat = apiCredentialToFormCategory(t);
+    if (cat) credCategories.add(cat);
+  }
+  const credentialTypes: MultiValue<{ label: string; value: string }> =
+    credCategories.size > 0
+      ? (Array.from(credCategories)
+          .map((v) => CREDENTIAL_TYPE_OPTIONS.find((o) => o.value === v))
+          .filter(Boolean) as MultiValue<{ label: string; value: string }>)
+      : blank.credentialTypes;
+
+  const scopeTokens = parsePgTextArray(getRowField(row, "scope_nhi_types", "nhi_types"));
+  const nhiTypes: MultiValue<{ label: string; value: string }> =
+    scopeTokens.length > 0 ? scopeTokens.map(nhiTokenToSelectOption) : blank.nhiTypes;
+
+  const advancedRaw = getRowField(row, "scope_expression", "advanced_conditions", "condition_expression");
+  const advancedConditions = parseScopeExpression(advancedRaw);
+
+  const eventCode = strRow(row, "event_trigger_type", "event_trigger", "trigger_type").toLowerCase();
+  let eventTriggeredOption: RotationPolicyFormValues["eventTriggeredOption"] =
+    EVENT_TRIGGER_OPTIONS.find((o) => o.value === eventCode) ?? null;
+  const eventTriggeredEnabled = boolRow(row, "event_triggered", "event_trigger_enabled");
+  if (eventTriggeredEnabled && !eventTriggeredOption) {
+    eventTriggeredOption = EVENT_TRIGGER_OPTIONS[2];
+  }
+
+  return {
+    ...blank,
+    name: strRow(row, "name", "policy_name") || blank.name,
+    description: strRow(row, "description", "policy_description") || blank.description,
+    owner: strRow(row, "owner", "owner_name", "last_modified_by", "business_owner") || blank.owner,
+    credentialTypes,
+    priority: numRowStr(row, blank.priority, "priority", "sort_priority"),
+    nhiTypes,
+    scopeExceptions: strRow(row, "scope_exceptions", "exceptions", "exceptions_note") || blank.scopeExceptions,
+    showAdvancedScope: advancedConditions.length > 0,
+    advancedConditions,
+    frequencyValue: numRowStr(row, blank.frequencyValue, "frequency_value", "rotation_frequency_value"),
+    frequencyUnit: normalizeDurationUnit(
+      strRow(row, "frequency_unit", "rotation_frequency_unit") || undefined,
+      blank.frequencyUnit,
+    ),
+    eventTriggeredEnabled,
+    eventTriggeredOption,
+    maxAgeEnabled: optBoolRow(row, blank.maxAgeEnabled, "max_age_enabled"),
+    maxAgeValue: numRowStr(row, blank.maxAgeValue, "max_age_value"),
+    maxAgeUnit: normalizeDurationUnit(
+      strRow(row, "max_age_unit") || undefined,
+      blank.maxAgeUnit,
+    ),
+    rotationMethod: mapApiRotationMethod(strRow(row, "rotation_method", "rotation_mode")),
+    rotationWindowEnabled: optBoolRow(row, blank.rotationWindowEnabled, "rotation_window_enabled", "window_enabled"),
+    windowStart: coerceTimeInput(
+      strRow(row, "rotation_window_start", "window_start", "exec_window_start"),
+      blank.windowStart,
+    ),
+    windowEnd: coerceTimeInput(
+      strRow(row, "rotation_window_end", "window_end", "exec_window_end"),
+      blank.windowEnd,
+    ),
+    blackoutStart: coerceDateInput(
+      strRow(row, "blackout_start", "blackout_period_start"),
+      blank.blackoutStart,
+    ),
+    blackoutEnd: coerceDateInput(strRow(row, "blackout_end", "blackout_period_end"), blank.blackoutEnd),
+    retryEnabled: optBoolRow(row, blank.retryEnabled, "retry_enabled", "retry_logic_enabled"),
+    retryMax: numRowStr(row, blank.retryMax, "retry_max", "retry_max_attempts"),
+    preRotationDays: numRowStr(row, blank.preRotationDays, "pre_rotation_days", "reminder_days"),
+    failureAlerts: parseFailureAlerts(
+      getRowField(row, "failure_alert_channels", "failure_alerts", "notification_channels"),
+      blank.failureAlerts,
+    ),
+    recipientOwner: optBoolRow(row, blank.recipientOwner, "notify_owner", "recipient_owner"),
+    recipientIamAdmin: optBoolRow(row, blank.recipientIamAdmin, "notify_iam_admin", "recipient_iam_admin"),
+  };
+}
+
+function buildNewPolicyDefaults(): RotationPolicyFormValues {
+  return {
+    name: "",
+    description: "",
+    owner: "",
+    credentialTypes: [CREDENTIAL_TYPE_OPTIONS[1], CREDENTIAL_TYPE_OPTIONS[2]],
+    priority: "100",
+    nhiTypes: [NHI_TYPE_OPTIONS[1]],
+    scopeExceptions: "",
+    showAdvancedScope: false,
+    advancedConditions: [],
+    frequencyValue: "90",
+    frequencyUnit: "days",
+    eventTriggeredEnabled: false,
+    eventTriggeredOption: null,
+    maxAgeEnabled: true,
+    maxAgeValue: "365",
+    maxAgeUnit: "days",
+    rotationMethod: "auto",
+    rotationWindowEnabled: false,
+    windowStart: "09:00",
+    windowEnd: "17:00",
+    blackoutStart: "",
+    blackoutEnd: "",
+    retryEnabled: true,
+    retryMax: "3",
+    preRotationDays: "7",
+    failureAlerts: [FAILURE_ALERT_OPTIONS[0]],
+    recipientOwner: true,
+    recipientIamAdmin: true,
+  };
+}
+
 function ExpandableSection({
   title,
   defaultOpen = true,
@@ -194,53 +497,58 @@ function ToggleRow({
 export function RotationPolicyEditorPage({ policyId }: { policyId?: string }) {
   const menuPortalTarget = useSelectMenuPortalTarget();
   const router = useRouter();
-  const existing = useMemo(
-    () => (policyId ? MOCK_ROTATION_POLICIES.find((p) => p.id === policyId) : undefined),
-    [policyId],
-  );
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [detailLoading, setDetailLoading] = useState(Boolean(policyId));
 
-  const defaultValues = useMemo(
-    () =>
-      ({
-        name: existing?.name ?? "",
-        description: existing?.description ?? "",
-        owner: "",
-        credentialTypes: [CREDENTIAL_TYPE_OPTIONS[1], CREDENTIAL_TYPE_OPTIONS[2]],
-        priority: "100",
-        nhiTypes: existing
-          ? existing.nhiTypes
-              .map((t) => NHI_TYPE_OPTIONS.find((o) => o.label === t) ?? { label: t, value: t.toLowerCase().replace(/\s+/g, "_") })
-              .filter(Boolean)
-          : [NHI_TYPE_OPTIONS[1]],
-        scopeExceptions: "",
-        showAdvancedScope: false,
-        advancedConditions: [],
-        frequencyValue: "90",
-        frequencyUnit: "days",
-        eventTriggeredEnabled: false,
-        eventTriggeredOption: null,
-        maxAgeEnabled: true,
-        maxAgeValue: "365",
-        maxAgeUnit: "days",
-        rotationMethod: "auto",
-        rotationWindowEnabled: false,
-        windowStart: "09:00",
-        windowEnd: "17:00",
-        blackoutStart: "",
-        blackoutEnd: "",
-        retryEnabled: true,
-        retryMax: "3",
-        preRotationDays: "7",
-        failureAlerts: [FAILURE_ALERT_OPTIONS[0]],
-        recipientOwner: true,
-        recipientIamAdmin: true,
-      }) as RotationPolicyFormValues,
-    [existing],
-  );
+  const blankDefaults = useMemo(() => buildNewPolicyDefaults(), []);
 
-  const { control, register, handleSubmit, watch, setValue } = useForm<RotationPolicyFormValues>({
-    defaultValues,
+  const { control, register, handleSubmit, watch, setValue, reset } = useForm<RotationPolicyFormValues>({
+    defaultValues: blankDefaults,
   });
+
+  const applyDetailRow = useCallback(
+    (row: Record<string, unknown>) => {
+      reset(mapDetailRowToFormValues(row, buildNewPolicyDefaults()));
+    },
+    [reset],
+  );
+
+  useEffect(() => {
+    if (!policyId) {
+      setLoadError(null);
+      setDetailLoading(false);
+      reset(buildNewPolicyDefaults());
+      return;
+    }
+
+    let cancelled = false;
+    setLoadError(null);
+    setDetailLoading(true);
+
+    void (async () => {
+      try {
+        const response = await executeQuery<unknown>(ROTATION_POLICY_BY_ID_QUERY, [policyId]);
+        if (cancelled) return;
+        const row = extractRotationPolicyDetailRow(response);
+        if (!row) {
+          setLoadError("Policy not found.");
+          reset(buildNewPolicyDefaults());
+          return;
+        }
+        applyDetailRow(row);
+      } catch (e) {
+        if (cancelled) return;
+        setLoadError(e instanceof Error ? e.message : "Failed to load policy");
+        reset(buildNewPolicyDefaults());
+      } finally {
+        if (!cancelled) setDetailLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [policyId, reset, applyDetailRow]);
 
   const showAdvanced = watch("showAdvancedScope");
   const eventOn = watch("eventTriggeredEnabled");
@@ -267,13 +575,23 @@ export function RotationPolicyEditorPage({ policyId }: { policyId?: string }) {
               {policyId ? "Edit policy" : "Build new policy"}
             </h1>
             <p className="mt-1 text-sm text-gray-600">
-              Configure scope, rotation mechanics, execution windows, and notifications. Changes are saved locally until
-              an API is connected.
+              Configure scope, rotation mechanics, execution windows, and notifications.
+              {policyId ? " Policy details are loaded from the server when you open this page." : ""}
             </p>
           </div>
         </div>
 
-        <div className="space-y-4">
+        {loadError ? (
+          <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{loadError}</div>
+        ) : null}
+
+        {detailLoading ? (
+          <div className="rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+            Loading policy…
+          </div>
+        ) : null}
+
+        <div className={`space-y-4 ${detailLoading ? "pointer-events-none opacity-60" : ""}`}>
           <ExpandableSection title="1. General" defaultOpen>
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="space-y-2">

@@ -12,7 +12,7 @@ export function AiAgentDetailPageClient({ nhiId }: { nhiId: string }) {
   const [tab, setTab] = useState<Tab>("details");
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-4 pb-8">
+    <div className="w-full min-w-0 space-y-4 pb-8">
       <Link
         href="/non-human-identity/ai-agent-inventory"
         className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900"

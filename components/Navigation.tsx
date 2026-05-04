@@ -184,13 +184,23 @@ export function Navigation() {
         label: 'Back to condition rules',
       };
     }
+    if (
+      pathname === '/settings/gateway/transformation-provider' &&
+      (searchParams?.get('view') === 'create' || searchParams?.get('view') === 'edit')
+    ) {
+      return {
+        href: '/settings/gateway/transformation-provider',
+        label: 'Back to Transformation Provider',
+      };
+    }
     if (pathname === '/settings/gateway/entitlement-management' || pathname === '/settings/gateway/workflow-builder' ||
         pathname === '/settings/gateway/sam' || pathname === '/settings/gateway/native-users' ||
         pathname === '/settings/gateway/admin-roles' || pathname === '/settings/gateway/custom-schema' ||
         pathname === '/settings/gateway/general' || pathname === '/settings/gateway/scheduler' ||
         pathname === '/settings/gateway/manage-business-roles' || pathname === '/settings/gateway/manage-approval-policies' ||
         pathname === '/settings/gateway/ai-insights-configuration' || pathname === '/settings/gateway/continuous-compliance' ||
-        pathname === '/settings/gateway/nhi-settings' || pathname === '/settings/gateway/lookup-custom-approvers') {
+        pathname === '/settings/gateway/nhi-settings' || pathname === '/settings/gateway/lookup-custom-approvers' ||
+        pathname === '/settings/gateway/transformation-provider') {
       return { href: '/settings/gateway', label: 'Back to Generic' };
     }
     if (pathname.startsWith('/settings/gateway/manage-access-policy')) {

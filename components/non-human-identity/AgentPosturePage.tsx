@@ -262,7 +262,7 @@ export function AgentPosturePage() {
   }, [filtered, pageSafe]);
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6 pb-6">
+    <div className="w-full min-w-0 space-y-6 pb-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900 md:text-3xl">
@@ -294,7 +294,7 @@ export function AgentPosturePage() {
       )}
 
       <div className="grid gap-4 lg:grid-cols-12 lg:items-stretch">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:col-span-6">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:col-span-8">
           <MetricCard label="Agents total" value={metrics.agentsTotal} tone="dark" />
           <MetricCard
             label="Active"
@@ -323,7 +323,7 @@ export function AgentPosturePage() {
           />
         </div>
 
-        <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm lg:col-span-6">
+        <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm lg:col-span-4">
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-700">
             Agent posture radar
           </h2>

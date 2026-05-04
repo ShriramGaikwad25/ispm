@@ -25,12 +25,14 @@ export function RiskRemediationPageClient() {
       </div>
 
       <div className="flex w-full flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1">
+        <div className="inline-flex rounded-lg border border-blue-200 bg-blue-50/80 p-1">
           <button
             type="button"
             onClick={() => setTab("findings")}
             className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-              tab === "findings" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
+              tab === "findings"
+                ? "bg-blue-600 text-white shadow-sm"
+                : "text-blue-900/75 hover:bg-blue-100 hover:text-blue-950"
             }`}
           >
             Findings
@@ -39,7 +41,9 @@ export function RiskRemediationPageClient() {
             type="button"
             onClick={() => setTab("sod")}
             className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-              tab === "sod" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
+              tab === "sod"
+                ? "bg-blue-600 text-white shadow-sm"
+                : "text-blue-900/75 hover:bg-blue-100 hover:text-blue-950"
             }`}
           >
             SOD

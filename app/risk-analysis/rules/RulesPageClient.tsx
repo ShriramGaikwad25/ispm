@@ -35,15 +35,25 @@ export default function RulesPageClient() {
 
   const rules = useQuery({
     enabled: rulesetId != null,
-    queryKey: ["rules", rulesetId, search, severity],
-    queryFn: async () =>
-      (
-        await listRules(rulesetId!, {
-          search: search || undefined,
-          severity: severity || undefined,
-        })
-      ).data ?? [],
+    queryKey: ["rules", rulesetId],
+    queryFn: async () => (await listRules(rulesetId!, { page: 1, pageSize: 200 })).data ?? [],
   });
+
+  const filteredRules = useMemo(() => {
+    let rows = rules.data ?? [];
+    const q = search.trim().toLowerCase();
+    if (q) {
+      rows = rows.filter(
+        (r) =>
+          String(r.rule_code ?? "").toLowerCase().includes(q) ||
+          String(r.rule_name ?? "").toLowerCase().includes(q)
+      );
+    }
+    if (severity) {
+      rows = rows.filter((r) => r.severity === severity);
+    }
+    return rows;
+  }, [rules.data, search, severity]);
 
   const toggle = useMutation({
     mutationFn: async ({ id, status }: { id: number; status: string }) => toggleRuleStatus(id, status),
@@ -141,7 +151,7 @@ export default function RulesPageClient() {
               </tr>
             </thead>
             <tbody>
-              {rules.data?.map((r: RuleListRow) => {
+              {filteredRules.map((r: RuleListRow) => {
                 const condA = (r.conditions ?? []).filter((c) => c.condition_side === "A").length;
                 const condB = (r.conditions ?? []).filter((c) => c.condition_side === "B").length;
                 return (

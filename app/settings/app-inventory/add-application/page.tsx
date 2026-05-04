@@ -1,10 +1,34 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { ChevronLeft, ChevronRight, Check, ChevronDown, ChevronUp, Edit, Trash2, Info, X, GripVertical, Eye, EyeOff } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Edit,
+  Trash2,
+  Info,
+  X,
+  GripVertical,
+  Eye,
+  EyeOff,
+  Database,
+  FileSpreadsheet,
+  Server,
+  Cloud,
+  Key,
+  Globe,
+  Layers,
+  Unplug,
+  FolderTree,
+  Users,
+} from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getAllSupportedApplicationTypesViaProxy, executeQuery, submitItAssetRequest, getInProgressApplications, getItAssetApp, getFlatfileAppMetadataUsers, getAppMetadataUsers, uploadAndGetSchemaUsers, uploadAndGetSchemaForField, saveBaseMetadataUsers, saveBaseMetadataForField, saveAppDetails, onboardApp, updateAppConfig } from "@/lib/api";
 import AdvanceSettingTab, { type AdvanceSettingTabRef } from "../[id]/components/AdvanceSettingTab";
+import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
 
 interface FormData {
   step1: {
@@ -42,6 +66,44 @@ interface FormData {
   };
 }
 
+/** Lucide icon for application type cards (replaces generic emoji). */
+function AppTypeCardIcon({ typeId }: { typeId: string }) {
+  const t = typeId.toLowerCase();
+  const cn = "w-[1.15rem] h-[1.15rem] text-slate-700";
+  const stroke = 1.65;
+  if (t.includes("flatfile") || t.includes("flat file") || t.includes("csv")) {
+    return <FileSpreadsheet className={cn} strokeWidth={stroke} aria-hidden />;
+  }
+  if (t.includes("disconnected")) {
+    return <Unplug className={cn} strokeWidth={stroke} aria-hidden />;
+  }
+  if (t.includes("ldap") || t.includes("directory")) {
+    return <FolderTree className={cn} strokeWidth={stroke} aria-hidden />;
+  }
+  if (t.includes("active directory") || t.includes("collector")) {
+    return <Users className={cn} strokeWidth={stroke} aria-hidden />;
+  }
+  if (t.includes("scim")) {
+    return <Users className={cn} strokeWidth={stroke} aria-hidden />;
+  }
+  if (t.includes("rest") || t.includes("web service") || (t.includes("api") && !t.includes("jdbc"))) {
+    return <Globe className={cn} strokeWidth={stroke} aria-hidden />;
+  }
+  if (t.includes("jdbc") || t.includes("sql")) {
+    return <Database className={cn} strokeWidth={stroke} aria-hidden />;
+  }
+  if (t.includes("as400") || t.includes("as/400") || t.includes("ibm")) {
+    return <Server className={cn} strokeWidth={stroke} aria-hidden />;
+  }
+  if (t.includes("azure") || t.includes("entra")) {
+    return <Cloud className={cn} strokeWidth={stroke} aria-hidden />;
+  }
+  if (t.includes("okta") || t.includes("oauth") || t.includes("saml") || t.includes("openid")) {
+    return <Key className={cn} strokeWidth={stroke} aria-hidden />;
+  }
+  return <Layers className={cn} strokeWidth={stroke} aria-hidden />;
+}
+
 /** Backend uses "IBM AS 400"; older aliases kept for compatibility. */
 function isAs400ApplicationType(type: string | undefined): boolean {
   if (!type?.trim()) return false;
@@ -60,6 +122,7 @@ function isAs400ApplicationType(type: string | undefined): boolean {
 
 export default function AddApplicationPage() {
   const router = useRouter();
+  const { isVisible: isSidebarVisible, sidebarWidthPx } = useLeftSidebar();
   const searchParams = useSearchParams();
   const isCompleteIntegration = searchParams.get("completeIntegration") === "1";
   const [currentStep, setCurrentStep] = useState(1);
@@ -272,8 +335,6 @@ export default function AddApplicationPage() {
   const [editingAttribute, setEditingAttribute] = useState<any>(null);
   const ATTR_MAPPING_PAGE_SIZE = 10;
   const [restServiceTab, setRestServiceTab] = useState<"connection" | "general" | "advanced">("connection");
-  const [isSearchFocused, setIsSearchFocused] = useState(false);
-  
   // SCIM Attributes state
   const [scimAttributes, setScimAttributes] = useState<string[]>([]);
   const [isLoadingAttributes, setIsLoadingAttributes] = useState(false);
@@ -290,7 +351,7 @@ export default function AddApplicationPage() {
   const editDropdownRef = useRef<HTMLDivElement>(null);
   
   // Application types from API
-  const [applicationTypes, setApplicationTypes] = useState<Array<{ id: string; title: string; subtitle: string; icon: string }>>([]);
+  const [applicationTypes, setApplicationTypes] = useState<Array<{ id: string; title: string; subtitle: string }>>([]);
   const [oauthTypes, setOauthTypes] = useState<string[]>([]);
   const [isLoadingAppTypes, setIsLoadingAppTypes] = useState(false);
   // Field definitions from API
@@ -471,6 +532,14 @@ export default function AddApplicationPage() {
     });
   };
 
+  const toggleStep1ApplicationType = (typeId: string) => {
+    setFormData((prev) =>
+      prev.step1.type === typeId
+        ? { ...prev, step1: { ...prev.step1, type: "", oauthType: "" } }
+        : { ...prev, step1: { ...prev.step1, type: typeId } }
+    );
+  };
+
   const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   const showSubmitProgressToasts = async () => {
@@ -488,6 +557,7 @@ export default function AddApplicationPage() {
   };
 
   const handleNext = async () => {
+    if (currentStep === 1 && (isLoadingAppTypes || !formData.step1.type?.trim())) return;
     const isDisconnectedApp = formData.step1.type === "Disconnected Application";
     const maxStep = isDisconnectedApp ? 6 : 5;
     if (currentStep >= maxStep) return;
@@ -841,7 +911,6 @@ export default function AddApplicationPage() {
             id: typeName,
             title: typeName,
             subtitle: `${typeName} application type`,
-            icon: "📦" // Default icon, you can customize based on typeName
           };
         });
         console.log("Extracted application types:", extractedTypes);
@@ -1829,36 +1898,30 @@ export default function AddApplicationPage() {
       case 1:
         return (
           <div className="space-y-6">
-             <div className="relative">
-               <input
-                 type="text"
-                 value={searchQuery}
-                 onChange={(e) => setSearchQuery(e.target.value)}
-                 onFocus={() => setIsSearchFocused(true)}
-                 onBlur={() => setIsSearchFocused(false)}
-                 className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
-                 placeholder=" "
-               />
-               <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                 searchQuery || isSearchFocused
-                   ? 'top-0.5 text-xs text-blue-600' 
-                   : 'top-3.5 text-sm text-gray-500'
-               }`}>
-                 Search *
-               </label>
-             </div>
-             <div>
-               <label className="block text-sm font-medium text-gray-700 mb-4">
+             <div className="flex w-full items-center justify-between gap-3 min-w-0">
+               <span className="text-sm font-medium text-gray-700 shrink-0">
                  Application Type *
-               </label>
-               {isLoadingAppTypes ? (
+               </span>
+               <div className="min-w-0 flex-1 flex justify-end">
+                 <input
+                   id="app-type-search"
+                   type="text"
+                   value={searchQuery}
+                   onChange={(e) => setSearchQuery(e.target.value)}
+                   aria-label="Search application types"
+                   className="w-full max-w-sm px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                   placeholder="Filter application types…"
+                 />
+               </div>
+             </div>
+             {isLoadingAppTypes ? (
                  <div className="flex items-center justify-center p-8">
                    <div className="text-gray-500">Loading application types...</div>
                  </div>
                ) : (
-               <div className="grid grid-cols-3 gap-4">
+               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                  {applicationTypes.length === 0 ? (
-                   <div className="col-span-3 text-center text-gray-500 p-4">
+                   <div className="col-span-full text-center text-gray-500 p-4">
                      No application types available. Please check the API connection.
                    </div>
                  ) : (
@@ -1872,24 +1935,27 @@ export default function AddApplicationPage() {
                      .map((type) => (
                    <div
                      key={type.id}
-                     onClick={() => handleInputChange("step1", "type", type.id)}
-                     className={`p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 hover:shadow-md ${
+                     onClick={() => toggleStep1ApplicationType(type.id)}
+                     className={`p-3.5 border rounded-lg cursor-pointer transition-all duration-200 hover:shadow-md ${
                        formData.step1.type === type.id
-                         ? "border-blue-500 bg-blue-50"
+                         ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500/30"
                          : "border-gray-200 bg-white hover:border-gray-300"
                      }`}
                    >
-                     <div className="flex items-center mb-2">
-                       <div className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-lg mr-3">
-                         {type.icon}
+                     <div className="flex items-start gap-2.5">
+                       <div
+                         className="w-9 h-9 rounded-md flex items-center justify-center shrink-0 bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200/90 shadow-[0_1px_2px_rgba(15,23,42,0.06)]"
+                         aria-hidden
+                       >
+                         <AppTypeCardIcon typeId={type.id} />
                        </div>
-                       <div className="flex-1">
-                         <h3 className="font-medium text-gray-900 text-sm">{type.title}</h3>
-                         <p className="text-xs text-gray-500">{type.subtitle}</p>
+                       <div className="min-w-0 flex-1">
+                         <h3 className="font-medium text-gray-900 text-sm leading-snug">{type.title}</h3>
+                         <p className="text-xs text-gray-500 mt-0.5 line-clamp-2 leading-snug">{type.subtitle}</p>
                        </div>
                        {formData.step1.type === type.id && (
-                         <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
-                           <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                         <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                           <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                            </svg>
                          </div>
@@ -1900,7 +1966,6 @@ export default function AddApplicationPage() {
                  )}
                </div>
                )}
-             </div>
           </div>
         );
 
@@ -10139,7 +10204,212 @@ export default function AddApplicationPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="w-full py-8 px-4">
+      {/* Fixed step bar with Previous / steps / Next — aligned with other wizards */}
+      <div
+        className="fixed top-[60px] z-20 bg-white border-b border-gray-200 shadow-sm px-3 sm:px-4 py-2.5 sm:py-3"
+        style={{
+          left: isSidebarVisible ? sidebarWidthPx : 0,
+          right: 0,
+          transition: "left 300ms ease-in-out",
+        }}
+      >
+        <div className="flex items-center gap-2 sm:gap-3 max-w-full min-w-0">
+          <button
+            type="button"
+            onClick={handlePrevious}
+            disabled={(!isCompleteIntegration && currentStep === 1) || submitRequestLoading}
+            className={`flex items-center px-2.5 sm:px-3 py-2 rounded-md text-sm font-medium shrink-0 ${
+              ((!isCompleteIntegration && currentStep === 1) || submitRequestLoading)
+                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+            }`}
+          >
+            <ChevronLeft className="w-4 h-4 mr-1.5" />
+            {isCompleteIntegration && currentStep === 3 ? "Back to Inventory" : "Previous"}
+          </button>
+
+          <div className="flex-1 flex items-center justify-between min-w-0 overflow-x-auto">
+            {(() => {
+              const isDisconnected = formData.step1.type === "Disconnected Application";
+              const stepsShown = isCompleteIntegration
+                ? isDisconnected
+                  ? steps.filter((s) => s.id >= 3 && s.id <= 6)
+                  : steps.filter((s) => s.id >= 3 && s.id <= 5)
+                : isDisconnected
+                  ? steps
+                  : steps.filter((s) => s.id <= 5);
+              return stepsShown.map((step, index) => {
+                const isClickable = isCompleteIntegration || step.id > 1;
+                const displayNumber = isCompleteIntegration ? index + 1 : step.id;
+                return (
+                  <div
+                    key={step.id}
+                    className={`flex items-center min-w-0 shrink-0 ${isClickable ? "cursor-pointer" : ""}`}
+                    onClick={isClickable ? () => setCurrentStep(step.id) : undefined}
+                    onKeyDown={
+                      isClickable
+                        ? (e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setCurrentStep(step.id);
+                            }
+                          }
+                        : undefined
+                    }
+                    role={isClickable ? "button" : undefined}
+                    tabIndex={isClickable ? 0 : undefined}
+                    aria-label={
+                      isClickable ? `Go to step ${displayNumber}: ${step.title}` : undefined
+                    }
+                  >
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium border shrink-0 ${
+                        currentStep >= step.id
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-white text-gray-600 border-gray-300"
+                      } ${isClickable ? "hover:ring-2 hover:ring-blue-400" : ""}`}
+                    >
+                      {currentStep > step.id ? <Check className="w-4 h-4" /> : displayNumber}
+                    </div>
+                    <div className="ml-2 sm:ml-2.5 min-w-0">
+                      <p className="text-xs sm:text-sm font-medium text-gray-900 whitespace-nowrap">
+                        {(() => {
+                          const type = formData.step1.type;
+                          if (type === "Flatfile" && step.id === 3) return "File Upload";
+                          if (type === "Disconnected Application") {
+                            if (step.id === 4) return "File Upload";
+                            if (step.id === 5) return "Schema Mapping";
+                            if (step.id === 6) return "Finish Up";
+                          } else {
+                            if (step.id === 4) return "Schema Mapping";
+                            if (step.id === 5) return "Finish Up";
+                          }
+                          return step.title;
+                        })()}
+                      </p>
+                    </div>
+                    {index < stepsShown.length - 1 && (
+                      <div className="flex-1 h-0.5 bg-gray-200 mx-2 sm:mx-4 min-w-[12px] sm:min-w-[16px]" />
+                    )}
+                  </div>
+                );
+              });
+            })()}
+          </div>
+
+          <div className="shrink-0 flex flex-wrap gap-2 sm:gap-3 justify-end">
+            {currentStep < (!isCompleteIntegration && formData.step1.type === "Disconnected Application" ? 6 : 5) ? (
+              <button
+                onClick={handleNext}
+                disabled={
+                  submitRequestLoading ||
+                  (currentStep === 1 && (isLoadingAppTypes || !formData.step1.type?.trim()))
+                }
+                className={`flex items-center px-4 py-2 rounded-md text-sm font-medium ${
+                  submitRequestLoading
+                    ? "bg-blue-600 text-white opacity-60 cursor-not-allowed"
+                    : currentStep === 1 && (isLoadingAppTypes || !formData.step1.type?.trim())
+                      ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                      : "bg-blue-600 text-white hover:bg-blue-700"
+                }`}
+              >
+                {submitRequestLoading ? "Submitting…" : currentStep === 1 ? "Next" : "Save and Next"}
+                <ChevronRight className="w-4 h-4 ml-2" />
+              </button>
+            ) : !isCompleteIntegration ? (
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={submitRequestLoading}
+                className={`flex items-center px-2.5 sm:px-3 py-2 rounded-md text-sm font-medium ${
+                  submitRequestLoading
+                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                    : "bg-green-600 text-white hover:bg-green-700"
+                }`}
+              >
+                <Check className="w-4 h-4 mr-1.5" />
+                {submitRequestLoading ? "Submitting..." : "Submit Application"}
+              </button>
+            ) : null}
+            {isCompleteIntegration && formData.step1.type === "Disconnected Application" && currentStep === 6 && (
+              <button
+                type="button"
+                className="flex items-center px-2.5 sm:px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+                disabled={onboardLoading || submitRequestLoading}
+                onClick={async () => {
+                  if (onboardLoading || submitRequestLoading) return;
+                  setSubmitRequestError(null);
+                  setOnboardLoading(true);
+                  try {
+                    const ownerEmail = formData.step2.technicalOwnerEmail || formData.step2.businessOwnerEmail || "";
+                    const step3 = formData.step3 || {};
+                    const provisioningAttrMap: Record<string, { variable: string }> = {};
+                    attributeMappingData.forEach((mapping) => {
+                      if (mapping.target?.trim()) {
+                        provisioningAttrMap[mapping.target.trim()] = { variable: mapping.source?.trim() ?? "" };
+                      }
+                    });
+                    const userSearchBaseVal = String(step3.userSearchBase ?? step3.user_searchBase ?? "").trim();
+                    const groupSearchBaseVal = String(step3.groupSearchBase ?? step3.group_searchBase ?? "").trim();
+                    const { userSearchBase: _uo, groupSearchBase: _go, user_searchBase: _ubo, group_searchBase: _gbo, ...step3Rest } = step3 as Record<string, unknown>;
+                    const connectionDetails: Record<string, unknown> = {
+                      ...step3Rest,
+                      hostname: step3.hostname ?? "",
+                      port: step3.port ?? "",
+                      username: step3.username ?? "",
+                      password: step3.password ?? "",
+                      user_searchBase: userSearchBaseVal,
+                      group_searchBase: groupSearchBaseVal,
+                    };
+                    const applicationConfigurationDetails =
+                      (formData.step1.type === "Disconnected Application" && currentStep === 6 && advanceSettingRef.current?.getConfig?.()) ?? null;
+                    const onboardPayload = {
+                      tenantId: "ACMECOM",
+                      appid: appIdFromUrl || "",
+                      serviceURL: "",
+                      name: formData.step2.applicationName || "",
+                      description: formData.step2.description || "",
+                      category: formData.step1.type || "",
+                      owner: { type: "User", value: ownerEmail },
+                      status: "InProgress",
+                      connectionDetails,
+                      dicoveredOn: null,
+                      integratedOn: null,
+                      schemaMappingDetails: {
+                        provisioningAttrMap,
+                        reconcilliationAttrMap: {},
+                      },
+                      applicationConfigurationDetails,
+                      iga: false,
+                      lcm: false,
+                      sso: false,
+                      ...(appIdFromUrl && !Number.isNaN(Number(appIdFromUrl)) ? { key: Number(appIdFromUrl) } : {}),
+                    };
+                    await onboardApp(onboardPayload);
+                    router.push("/settings/app-inventory");
+                  } catch (err) {
+                    const message = err instanceof Error ? err.message : "Failed to onboard application";
+                    setSubmitRequestError(message);
+                  } finally {
+                    setOnboardLoading(false);
+                  }
+                }}
+              >
+                {onboardLoading ? "Onboarding…" : "OnBoard"}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="h-[64px] sm:h-[68px]" aria-hidden />
+
+      <div className="w-full pt-0 pb-8 px-3 sm:px-4">
+        {submitRequestError && (
+          <div className="mb-4 px-4 py-3 bg-red-50 text-red-700 text-sm rounded-md border border-red-100">
+            {submitRequestError}
+          </div>
+        )}
         {/* Edit mode: app summary card from IT Asset getapp */}
         {isCompleteIntegration && (
           <div className="mb-6 bg-white rounded-xl border border-gray-200 shadow-md overflow-hidden flex">
@@ -10196,194 +10466,6 @@ export default function AddApplicationPage() {
             </div>
           </div>
         )}
-
-        {/* Progress Steps - clickable in edit mode to move between steps without Save and Next */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-          <div className="flex items-center justify-between">
-            {(() => {
-              const isDisconnected = formData.step1.type === "Disconnected Application";
-              const stepsShown = isCompleteIntegration
-                ? (isDisconnected
-                    ? steps.filter((s) => s.id >= 3 && s.id <= 6)
-                    : steps.filter((s) => s.id >= 3 && s.id <= 5))
-                : isDisconnected
-                  ? steps
-                  : steps.filter((s) => s.id <= 5);
-              return stepsShown.map((step, index) => {
-                const isClickable = isCompleteIntegration || step.id > 1;
-                const displayNumber = isCompleteIntegration ? index + 1 : step.id;
-                return (
-                  <div
-                    key={step.id}
-                    className={`flex items-center ${isClickable ? "cursor-pointer" : ""}`}
-                    onClick={isClickable ? () => setCurrentStep(step.id) : undefined}
-                    onKeyDown={
-                      isClickable
-                        ? (e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              setCurrentStep(step.id);
-                            }
-                          }
-                        : undefined
-                    }
-                    role={isClickable ? "button" : undefined}
-                    tabIndex={isClickable ? 0 : undefined}
-                    aria-label={
-                      isClickable ? `Go to step ${displayNumber}: ${step.title}` : undefined
-                    }
-                  >
-                    <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                        currentStep >= step.id
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-200 text-gray-600"
-                      } ${isClickable ? "hover:ring-2 hover:ring-blue-400" : ""}`}
-                    >
-                      {currentStep > step.id ? <Check className="w-4 h-4" /> : displayNumber}
-                    </div>
-                    <div className="ml-3">
-                      <p className="text-sm font-medium text-gray-900">
-                        {(() => {
-                          const type = formData.step1.type;
-                          if (type === "Flatfile" && step.id === 3) return "File Upload";
-                          if (type === "Disconnected Application") {
-                            if (step.id === 4) return "File Upload";
-                            if (step.id === 5) return "Schema Mapping";
-                            if (step.id === 6) return "Finish Up";
-                          } else {
-                            if (step.id === 4) return "Schema Mapping";
-                            if (step.id === 5) return "Finish Up";
-                          }
-                          return step.title;
-                        })()}
-                      </p>
-                    </div>
-                    {index < stepsShown.length - 1 && (
-                      <div className="flex-1 h-0.5 bg-gray-200 mx-4" />
-                    )}
-                  </div>
-                );
-              });
-            })()}
-          </div>
-        </div>
-
-        {/* Navigation Buttons - moved to top */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-          {submitRequestError && (
-            <div className="mb-4 px-4 py-3 bg-red-50 text-red-700 text-sm rounded-md">
-              {submitRequestError}
-            </div>
-          )}
-          <div className="flex justify-between items-center">
-            <button
-              onClick={handlePrevious}
-              disabled={(!isCompleteIntegration && currentStep === 1) || submitRequestLoading}
-              className={`flex items-center px-4 py-2 rounded-md text-sm font-medium ${
-                ((!isCompleteIntegration && currentStep === 1) || submitRequestLoading)
-                  ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                  : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-              }`}
-            >
-              <ChevronLeft className="w-4 h-4 mr-2" />
-              {isCompleteIntegration && currentStep === 3 ? "Back to Inventory" : "Previous"}
-            </button>
-
-            <div className="flex gap-3 ml-auto">
-              {currentStep < (!isCompleteIntegration && formData.step1.type === "Disconnected Application" ? 6 : 5) ? (
-                <button
-                  onClick={handleNext}
-                  disabled={submitRequestLoading}
-                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {submitRequestLoading ? "Submitting…" : currentStep === 1 ? "Next" : "Save and Next"}
-                  <ChevronRight className="w-4 h-4 ml-2" />
-                </button>
-              ) : !isCompleteIntegration ? (
-                <button
-                  onClick={handleSubmit}
-                  disabled={submitRequestLoading}
-                  className={`flex items-center px-4 py-2 rounded-md text-sm font-medium ${
-                    submitRequestLoading
-                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                      : "bg-green-600 text-white hover:bg-green-700"
-                  }`}
-                >
-                  <Check className="w-4 h-4 mr-2" />
-                  {submitRequestLoading ? "Submitting..." : "Submit Application"}
-                </button>
-              ) : null}
-              {isCompleteIntegration && formData.step1.type === "Disconnected Application" && currentStep === 6 && (
-                <button
-                  type="button"
-                  className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
-                  disabled={onboardLoading || submitRequestLoading}
-                  onClick={async () => {
-                    if (onboardLoading || submitRequestLoading) return;
-                    setSubmitRequestError(null);
-                    setOnboardLoading(true);
-                    try {
-                      const ownerEmail = formData.step2.technicalOwnerEmail || formData.step2.businessOwnerEmail || "";
-                      const step3 = formData.step3 || {};
-                      const provisioningAttrMap: Record<string, { variable: string }> = {};
-                      attributeMappingData.forEach((mapping) => {
-                        if (mapping.target?.trim()) {
-                          provisioningAttrMap[mapping.target.trim()] = { variable: mapping.source?.trim() ?? "" };
-                        }
-                      });
-                      const userSearchBaseVal = String(step3.userSearchBase ?? step3.user_searchBase ?? "").trim();
-                      const groupSearchBaseVal = String(step3.groupSearchBase ?? step3.group_searchBase ?? "").trim();
-                      const { userSearchBase: _uo, groupSearchBase: _go, user_searchBase: _ubo, group_searchBase: _gbo, ...step3Rest } = step3 as Record<string, unknown>;
-                      const connectionDetails: Record<string, unknown> = {
-                        ...step3Rest,
-                        hostname: step3.hostname ?? "",
-                        port: step3.port ?? "",
-                        username: step3.username ?? "",
-                        password: step3.password ?? "",
-                        user_searchBase: userSearchBaseVal,
-                        group_searchBase: groupSearchBaseVal,
-                      };
-                      const applicationConfigurationDetails =
-                        (formData.step1.type === "Disconnected Application" && currentStep === 6 && advanceSettingRef.current?.getConfig?.()) ?? null;
-                      const onboardPayload = {
-                        tenantId: "ACMECOM",
-                        appid: appIdFromUrl || "",
-                        serviceURL: "",
-                        name: formData.step2.applicationName || "",
-                        description: formData.step2.description || "",
-                        category: formData.step1.type || "",
-                        owner: { type: "User", value: ownerEmail },
-                        status: "InProgress",
-                        connectionDetails,
-                        dicoveredOn: null,
-                        integratedOn: null,
-                        schemaMappingDetails: {
-                          provisioningAttrMap,
-                          reconcilliationAttrMap: {},
-                        },
-                        applicationConfigurationDetails,
-                        iga: false,
-                        lcm: false,
-                        sso: false,
-                        ...(appIdFromUrl && !Number.isNaN(Number(appIdFromUrl)) ? { key: Number(appIdFromUrl) } : {}),
-                      };
-                      await onboardApp(onboardPayload);
-                      router.push("/settings/app-inventory");
-                    } catch (err) {
-                      const message = err instanceof Error ? err.message : "Failed to onboard application";
-                      setSubmitRequestError(message);
-                    } finally {
-                      setOnboardLoading(false);
-                    }
-                  }}
-                >
-                  {onboardLoading ? "Onboarding…" : "OnBoard"}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
 
         {submitRequestLoading && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">

@@ -631,6 +631,7 @@ export function LineageGraphPage(props: LineageGraphPageProps = {}) {
             viewBox={`${layout.viewBox.x} ${layout.viewBox.y} ${layout.viewBox.w} ${layout.viewBox.h}`}
             className="w-full"
             style={{
+              fontFamily: "inherit",
               height: Math.min(960, Math.max(680, layout.viewBox.h * 0.98)),
               minHeight: 680,
             }}

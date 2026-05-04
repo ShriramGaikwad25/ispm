@@ -44,6 +44,14 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
+  // AI Agent Inventory: wide layout with a modest edge gutter (px-4 vs default p-6 elsewhere).
+  const mainPadClass =
+    typeof pathname === "string" &&
+    (pathname.startsWith("/non-human-identity/ai-agent-inventory") ||
+      pathname.startsWith("/non-human-identity-1/agents"))
+      ? "py-6 px-4"
+      : "p-6";
+
   // Show main app layout for authenticated users. Sidebar is fixed so main needs margin-left.
   return (
     <div className="flex flex-col min-h-screen">
@@ -55,7 +63,9 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
           marginLeft: isSidebarVisible ? sidebarWidthPx : 0,
         }}
       >
-        <main className="min-h-0 flex-1 overflow-auto bg-gray-50 p-6">{children}</main>
+        <main className={`min-h-0 min-w-0 flex-1 overflow-auto bg-gray-50 ${mainPadClass}`}>
+          {children}
+        </main>
       </div>
     </div>
   );
