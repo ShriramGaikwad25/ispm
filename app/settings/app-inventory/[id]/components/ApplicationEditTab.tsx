@@ -11,6 +11,56 @@ interface ApplicationEditTabProps {
   onBackToInventory?: () => void;
 }
 
+/** Match API keys like Password, admin_password, PWD, Passphrase, etc. */
+function fieldKeyLooksSensitive(field: string): boolean {
+  const n = field.replace(/^\uFEFF/, "").trim().toLowerCase().replace(/_/g, "");
+  return (
+    /password|passwd|secret|token|passphrase|credential|apikey|privatekey|clientsecret|adminpassword|refreshtoken|accesstoken|authorization/i.test(
+      n
+    ) ||
+    n === "pwd"
+  );
+}
+
+function labelLooksLikePasswordOnly(label: string): boolean {
+  const base = label.replace(/:\s*$/, "").trim().toLowerCase();
+  return base === "password" || /\bpassword\b/.test(base);
+}
+
+function scalarEditValue(value: unknown): { text: string; isScalar: boolean } {
+  if (value == null) {
+    return { text: JSON.stringify(value ?? "", null, 2), isScalar: false };
+  }
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return { text: String(value), isScalar: true };
+  }
+  if (typeof value === "object" && value instanceof String) {
+    return { text: String(value), isScalar: true };
+  }
+  return { text: JSON.stringify(value ?? "", null, 2), isScalar: false };
+}
+
+/** Plaintext for secret inputs: APIs may return strings, numbers, or (rarely) char arrays. */
+function coerceSecretPlaintext(value: unknown): string | null {
+  if (value == null) return "";
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (typeof value === "object" && value instanceof String) {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "";
+    if (
+      value.every((x) => typeof x === "string" || typeof x === "number" || typeof x === "boolean")
+    ) {
+      return value.map((x) => String(x)).join("");
+    }
+    return null;
+  }
+  return null;
+}
+
 export default function ApplicationEditTab({ applicationId, onBackToInventory }: ApplicationEditTabProps) {
   const router = useRouter();
   const [appDetails, setAppDetails] = useState<any>(null);
@@ -99,8 +149,18 @@ export default function ApplicationEditTab({ applicationId, onBackToInventory }:
     editable: boolean = false,
     onChange?: (newValue: string) => void
   ) => {
+    const isSensitiveField =
+      maskPassword ||
+      (fieldKey != null &&
+        fieldKey !== "" &&
+        fieldKeyLooksSensitive(String(fieldKey))) ||
+      labelLooksLikePasswordOnly(label);
+    const keyIsExactlyPassword =
+      fieldKey != null &&
+      String(fieldKey).replace(/^\uFEFF/, "").trim().toLowerCase() === "password";
+
     let displayValue: string;
-    if (maskPassword && typeof value === "string" && value !== "") {
+    if ((isSensitiveField || keyIsExactlyPassword) && value != null && String(value) !== "") {
       displayValue = "••••••••";
     } else {
       displayValue = formatValue(value);
@@ -109,8 +169,29 @@ export default function ApplicationEditTab({ applicationId, onBackToInventory }:
     const noScroll = fieldKey?.toLowerCase() === "uniqueidschemamap";
 
     if (editable) {
-      const editString =
-        typeof value === "string" ? value : JSON.stringify(value ?? "", null, 2);
+      const secretPlain = coerceSecretPlaintext(value);
+      if ((isSensitiveField || keyIsExactlyPassword) && secretPlain !== null) {
+        return (
+          <div className="flex flex-col gap-1 py-2 border-b border-gray-100 last:border-b-0">
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-sm font-medium text-gray-700 shrink-0">{label}:</span>
+            </div>
+            <input
+              type="password"
+              className="mt-1 w-full text-sm text-gray-900 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              value={secretPlain}
+              onChange={(e) => onChange?.(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+        );
+      }
+
+      const { text: editString } = scalarEditValue(value);
+      const editLooksLikeJson =
+        !(isSensitiveField || keyIsExactlyPassword) &&
+        (editString.startsWith("{") || editString.startsWith("["));
+
       return (
         <div className="flex flex-col gap-1 py-2 border-b border-gray-100 last:border-b-0">
           <div className="flex items-center justify-between gap-4">
@@ -118,7 +199,7 @@ export default function ApplicationEditTab({ applicationId, onBackToInventory }:
           </div>
           <textarea
             className="mt-1 w-full text-sm text-gray-900 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-vertical"
-            rows={isJson ? 5 : 2}
+            rows={editLooksLikeJson ? 5 : 2}
             value={editString}
             onChange={(e) => onChange?.(e.target.value)}
           />
@@ -164,11 +245,9 @@ export default function ApplicationEditTab({ applicationId, onBackToInventory }:
           {fields.map((field) => {
             const value = data[field];
             const fieldLower = field.toLowerCase();
-            const maskPassword =
-              fieldLower.includes("password") ||
-              fieldLower.includes("secret") ||
-              fieldLower.includes("token");
             const label = formatLabel(field);
+            const maskPassword =
+              fieldKeyLooksSensitive(field) || labelLooksLikePasswordOnly(label);
 
             if (
               isEditing &&
