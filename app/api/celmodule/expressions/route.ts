@@ -142,9 +142,16 @@ export async function POST(req: Request) {
   }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const res = await fetch(UPSTREAM, {
+    const { searchParams } = new URL(req.url);
+    const upstreamUrl = new URL(UPSTREAM);
+    for (const category of searchParams.getAll("category")) {
+      const trimmed = category.trim();
+      if (trimmed) upstreamUrl.searchParams.append("category", trimmed);
+    }
+
+    const res = await fetch(upstreamUrl.toString(), {
       headers: commonUpstreamHeaders(),
       cache: "no-store",
     });

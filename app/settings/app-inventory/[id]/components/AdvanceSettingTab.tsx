@@ -1,9 +1,22 @@
 "use client";
 
-import React, { useState, forwardRef, useImperativeHandle, useRef } from "react";
+import React, { useState, useEffect, useMemo, useCallback, forwardRef, useImperativeHandle, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronRight, ChevronUp, Edit, Trash2, X, Plus, Calendar, Loader2 } from "lucide-react";
-import { updateAppConfig } from "@/lib/api";
+import { ChevronDown, ChevronRight, ChevronUp, Edit, Trash2, X, Plus, Calendar, Loader2, Code2 } from "lucide-react";
+import {
+  updateAppConfig,
+  getApplicationDetails,
+  getAllSupportedApplicationTypesViaProxy,
+  getMappedSchema,
+  integratedIgaSourceKeysFromMappedSchema,
+  buildMapFieldsPayloadWithTransformations,
+  mapSchemaFields,
+  transformationMappingsFromMappedSchema,
+  parseSupportedObjectsApplicationTypeItem,
+  type ApplicationTypeIntegrationFieldGroup,
+} from "@/lib/api";
+import IntegrationAdvancedSettingGroups from "./IntegrationAdvancedSettingGroups";
 
 type EventTabId = "pre-process" | "post-process";
 
@@ -73,6 +86,76 @@ const defaultAppAccessRule = {
 
 const defaultAutoRetry = { isEnabled: false, interval: -1, maximumRetry: 0 };
 
+const CEL_EXPRESSIONS_BASE = "/api/celmodule/expressions";
+/** Same endpoint as Schema Mapping Source Attribute list. */
+const SCIM_ATTRIBUTES_URL = "https://preview.keyforge.ai/schemamapper/getscim/ACMECOM";
+
+type CelExpressionOption = { id: number; name: string };
+
+function buildCelExpressionsUrl(appId: string, applicationType: string): string {
+  const params = new URLSearchParams();
+  params.append("category", appId.trim());
+  params.append("category", applicationType.trim());
+  return `${CEL_EXPRESSIONS_BASE}?${params.toString()}`;
+}
+
+function buildOutboundExpressionsUrl(): string {
+  const params = new URLSearchParams();
+  params.append("category", "OutBound");
+  return `${CEL_EXPRESSIONS_BASE}?${params.toString()}`;
+}
+
+function parseCelExpressionsList(data: unknown): CelExpressionOption[] {
+  const raw = Array.isArray(data)
+    ? data
+    : data != null && typeof data === "object" && Array.isArray((data as { expressions?: unknown }).expressions)
+      ? (data as { expressions: unknown[] }).expressions
+      : [];
+  return raw
+    .map((item, i) => {
+      if (item == null || typeof item !== "object") return null;
+      const row = item as { id?: unknown; name?: unknown };
+      const name = String(row.name ?? "").trim();
+      if (!name) return null;
+      const id = Number(row.id);
+      return { id: Number.isFinite(id) && id >= 0 ? id : i + 1, name };
+    })
+    .filter((x): x is CelExpressionOption => x != null);
+}
+
+function parseScimAttributesList(data: unknown): string[] {
+  if (data != null && typeof data === "object" && Array.isArray((data as { scimAttributes?: unknown }).scimAttributes)) {
+    return (data as { scimAttributes: unknown[] }).scimAttributes
+      .map((a) => String(a).trim())
+      .filter(Boolean);
+  }
+  if (Array.isArray(data)) {
+    return data.map((a) => String(a).trim()).filter(Boolean);
+  }
+  return [];
+}
+
+function dedupeOptionsByName<T extends { id: number; name: string }>(items: T[]): T[] {
+  const byName = new Map<string, T>();
+  for (const item of items) {
+    const name = item.name.trim();
+    if (!name || byName.has(name)) continue;
+    byName.set(name, item);
+  }
+  return Array.from(byName.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+type InboundTransformationMappingRow = {
+  id: string;
+  igaField: string;
+  transformationProvider: string;
+};
+
+type OutboundTransformationMappingRow = {
+  id: string;
+  targetField: string;
+  transformationProvider: string;
+};
+
 export type AdvanceSettingTabRef = {
   /** Returns current hooks + threshold config (for use in wizard submit / OnBoard). */
   getConfig: () => Record<string, unknown>;
@@ -82,14 +165,66 @@ type AdvanceSettingTabProps = {
   applicationId: string;
   /** When true, only show Hooks + Target System Provisioning Threshold (e.g. in add-application step 5); hide Submit/Cancel. */
   wizardMode?: boolean;
+  /** Load and show per-type integration advanced setting groups (connection parameters, etc.). */
+  showIntegrationAdvancedGroups?: boolean;
+  /** Optional: parent supplies groups/values (wizard). If omitted, loaded from app + supported-objects when `showIntegrationAdvancedGroups`. */
+  integrationFieldGroups?: ApplicationTypeIntegrationFieldGroup[];
+  integrationFieldValues?: Record<string, string>;
+  onIntegrationFieldChange?: (fieldKey: string, value: string) => void;
+  applicationCategory?: string;
+  /** App id for getmappedschema when `applicationId` is `wizard` (complete-integration / post–newApp). */
+  mappedSchemaApplicationId?: string;
 };
 
 const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProps>(function AdvanceSettingTab(
-  { applicationId, wizardMode },
+  {
+    applicationId,
+    wizardMode,
+    showIntegrationAdvancedGroups,
+    integrationFieldGroups: integrationFieldGroupsProp,
+    integrationFieldValues: integrationFieldValuesProp,
+    onIntegrationFieldChange,
+    applicationCategory: applicationCategoryProp,
+    mappedSchemaApplicationId,
+  },
   ref
 ) {
   const router = useRouter();
+  const [isTransformationExpanded, setIsTransformationExpanded] = useState(false);
+  const [isInboundTransformationExpanded, setIsInboundTransformationExpanded] = useState(false);
+  const [isOutboundTransformationExpanded, setIsOutboundTransformationExpanded] = useState(false);
+  const [inboundIgaField, setInboundIgaField] = useState("");
+  const [inboundTransformationProvider, setInboundTransformationProvider] = useState("");
+  const [inboundMappingRows, setInboundMappingRows] = useState<InboundTransformationMappingRow[]>([]);
+  const [scimAttributes, setScimAttributes] = useState<string[]>([]);
+  const [integratedIgaSourceKeys, setIntegratedIgaSourceKeys] = useState<Set<string>>(() => new Set());
+  const [filteredIgaSource, setFilteredIgaSource] = useState<string[]>([]);
+  const [igaSourceDropdownOpen, setIgaSourceDropdownOpen] = useState(false);
+  const [igaDropdownRect, setIgaDropdownRect] = useState<DOMRect | null>(null);
+  const igaSourceRef = useRef<HTMLDivElement>(null);
+  const igaDropdownPortalRef = useRef<HTMLDivElement>(null);
+  const [inboundTransformationProviderOptions, setInboundTransformationProviderOptions] = useState<
+    CelExpressionOption[]
+  >([]);
+  const [outboundTargetField, setOutboundTargetField] = useState("");
+  const [outboundTransformationProvider, setOutboundTransformationProvider] = useState("");
+  const [outboundMappingRows, setOutboundMappingRows] = useState<OutboundTransformationMappingRow[]>([]);
+  const [outboundTransformationProviderOptions, setOutboundTransformationProviderOptions] = useState<
+    CelExpressionOption[]
+  >([]);
+  const [inboundOptionsLoading, setInboundOptionsLoading] = useState(false);
+  const [outboundOptionsLoading, setOutboundOptionsLoading] = useState(false);
+  const [inboundOptionsError, setInboundOptionsError] = useState<string | null>(null);
+  const [outboundOptionsError, setOutboundOptionsError] = useState<string | null>(null);
+  const [isTransformationSaving, setIsTransformationSaving] = useState(false);
+  const [transformationSaveError, setTransformationSaveError] = useState<string | null>(null);
+  const [transformationSaveSuccess, setTransformationSaveSuccess] = useState(false);
   const [isHooksExpanded, setIsHooksExpanded] = useState(true);
+  const [loadedIntegrationGroups, setLoadedIntegrationGroups] = useState<ApplicationTypeIntegrationFieldGroup[]>(
+    []
+  );
+  const [loadedIntegrationValues, setLoadedIntegrationValues] = useState<Record<string, string>>({});
+  const [integrationGroupsLoading, setIntegrationGroupsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
@@ -138,6 +273,286 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
     create: { ...initialExceptionalState },
     delete: { ...initialExceptionalState },
   });
+
+  const integrationGroups =
+    integrationFieldGroupsProp?.length ? integrationFieldGroupsProp : loadedIntegrationGroups;
+  const integrationValues = integrationFieldValuesProp ?? loadedIntegrationValues;
+  const showIntegrationSection =
+    Boolean(showIntegrationAdvancedGroups || integrationFieldGroupsProp?.length) && integrationGroups.length > 0;
+
+  const igaFieldsInTable = useMemo(
+    () => new Set(inboundMappingRows.map((r) => r.igaField.trim().toLowerCase())),
+    [inboundMappingRows]
+  );
+  const availableIgaFields = useMemo(
+    () =>
+      scimAttributes.filter((a) => {
+        const key = a.trim().toLowerCase();
+        return !igaFieldsInTable.has(key) && !integratedIgaSourceKeys.has(key);
+      }),
+    [scimAttributes, igaFieldsInTable, integratedIgaSourceKeys]
+  );
+
+  const filterIgaSource = (term: string) => {
+    setInboundIgaField(term);
+    if (!term.trim()) setFilteredIgaSource(availableIgaFields);
+    else
+      setFilteredIgaSource(
+        availableIgaFields.filter((a) => a.toLowerCase().includes(term.toLowerCase()))
+      );
+  };
+
+  const syncIgaDropdownPosition = useCallback(() => {
+    if (igaSourceRef.current) {
+      setIgaDropdownRect(igaSourceRef.current.getBoundingClientRect());
+    }
+  }, []);
+
+  const openIgaSourceDropdown = useCallback(() => {
+    setFilteredIgaSource(availableIgaFields);
+    syncIgaDropdownPosition();
+    setIgaSourceDropdownOpen(true);
+  }, [availableIgaFields, syncIgaDropdownPosition]);
+
+  useEffect(() => {
+    if (!igaSourceDropdownOpen) return;
+    syncIgaDropdownPosition();
+    const onScrollOrResize = () => syncIgaDropdownPosition();
+    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onScrollOrResize);
+    return () => {
+      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
+    };
+  }, [igaSourceDropdownOpen, syncIgaDropdownPosition]);
+
+  useEffect(() => {
+    if (!igaSourceDropdownOpen) return;
+    const onPointerDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (igaSourceRef.current?.contains(target)) return;
+      if (igaDropdownPortalRef.current?.contains(target)) return;
+      setIgaSourceDropdownOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [igaSourceDropdownOpen]);
+
+  const handleIntegrationFieldChange = (key: string, value: string) => {
+    if (onIntegrationFieldChange) {
+      onIntegrationFieldChange(key, value);
+      return;
+    }
+    setLoadedIntegrationValues((prev) => ({ ...prev, [key]: value }));
+  };
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const schemaAppId =
+      mappedSchemaApplicationId?.trim() ||
+      (applicationId && applicationId !== "wizard" ? applicationId.trim() : "");
+
+    (async () => {
+      setInboundOptionsLoading(true);
+      setInboundOptionsError(null);
+      try {
+        const scimHeaders = {
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+        };
+
+        let applicationType = applicationCategoryProp?.trim() ?? "";
+        if (!applicationType && schemaAppId) {
+          try {
+            const apiToken =
+              typeof window !== "undefined"
+                ? sessionStorage.getItem(`app-inventory-token-${schemaAppId}`) ?? ""
+                : "";
+            const appData = await getApplicationDetails(schemaAppId, apiToken);
+            const app = appData?.Application ?? appData ?? {};
+            applicationType = String(
+              app.category ?? app.Category ?? app.applicationType ?? app.ApplicationType ?? ""
+            ).trim();
+          } catch {
+            /* use empty — expressions fetch skipped until type is known */
+          }
+        }
+
+        const expressionsUrl =
+          schemaAppId && applicationType ? buildCelExpressionsUrl(schemaAppId, applicationType) : null;
+
+        const mappedSchemaPromise = schemaAppId
+          ? getMappedSchema("ACMECOM", schemaAppId).catch(() => null)
+          : Promise.resolve(null);
+
+        const expressionsPromise = expressionsUrl
+          ? fetch(expressionsUrl, { signal: controller.signal })
+          : Promise.resolve(null);
+
+        const [exprRes, scimRes, mappedData] = await Promise.all([
+          expressionsPromise,
+          fetch(SCIM_ATTRIBUTES_URL, {
+            method: "GET",
+            headers: scimHeaders,
+            signal: controller.signal,
+          }),
+          mappedSchemaPromise,
+        ]);
+        if (controller.signal.aborted) return;
+
+        if (expressionsUrl) {
+          if (!exprRes?.ok) throw new Error(`Expressions request failed (${exprRes.status})`);
+        }
+        if (!scimRes.ok) throw new Error(`SCIM attributes request failed (${scimRes.status})`);
+
+        const scimData: unknown = await scimRes.json();
+        const expressionOptions = expressionsUrl
+          ? dedupeOptionsByName(parseCelExpressionsList(await exprRes!.json()))
+          : [];
+
+        const integratedKeys = mappedData
+          ? integratedIgaSourceKeysFromMappedSchema(mappedData)
+          : new Set<string>();
+        const scimList = parseScimAttributesList(scimData);
+        const available = scimList.filter((a) => !integratedKeys.has(a.trim().toLowerCase()));
+
+        setIntegratedIgaSourceKeys(integratedKeys);
+        setInboundTransformationProviderOptions(expressionOptions);
+        setScimAttributes(scimList);
+        setFilteredIgaSource(available);
+        if (mappedData) {
+          const { inbound, outbound } = transformationMappingsFromMappedSchema(mappedData);
+          setInboundMappingRows(inbound);
+          setOutboundMappingRows(outbound);
+        }
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setInboundOptionsError(err instanceof Error ? err.message : "Failed to load dropdown options");
+        setInboundTransformationProviderOptions([]);
+        setScimAttributes([]);
+        setIntegratedIgaSourceKeys(new Set());
+        setFilteredIgaSource([]);
+      } finally {
+        if (!controller.signal.aborted) setInboundOptionsLoading(false);
+      }
+    })();
+    return () => controller.abort();
+  }, [applicationId, mappedSchemaApplicationId, applicationCategoryProp]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    (async () => {
+      setOutboundOptionsLoading(true);
+      setOutboundOptionsError(null);
+      try {
+        const res = await fetch(buildOutboundExpressionsUrl(), { signal: controller.signal });
+        if (controller.signal.aborted) return;
+        if (!res.ok) throw new Error(`Outbound expressions request failed (${res.status})`);
+        const data: unknown = await res.json();
+        setOutboundTransformationProviderOptions(dedupeOptionsByName(parseCelExpressionsList(data)));
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setOutboundOptionsError(err instanceof Error ? err.message : "Failed to load outbound providers");
+        setOutboundTransformationProviderOptions([]);
+      } finally {
+        if (!controller.signal.aborted) setOutboundOptionsLoading(false);
+      }
+    })();
+    return () => controller.abort();
+  }, []);
+
+  const handleAddInboundMapping = () => {
+    const iga = inboundIgaField.trim();
+    const provider = inboundTransformationProvider.trim();
+    if (!iga || !provider) return;
+    setInboundMappingRows((prev) => [
+      ...prev,
+      { id: `inbound-${Date.now()}`, igaField: iga, transformationProvider: provider },
+    ]);
+    setInboundIgaField("");
+    setInboundTransformationProvider("");
+  };
+
+  const removeInboundMapping = (id: string) => {
+    setInboundMappingRows((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  const handleAddOutboundMapping = () => {
+    const target = outboundTargetField.trim();
+    const provider = outboundTransformationProvider.trim();
+    if (!target || !provider) return;
+    setOutboundMappingRows((prev) => [
+      ...prev,
+      { id: `outbound-${Date.now()}`, targetField: target, transformationProvider: provider },
+    ]);
+    setOutboundTargetField("");
+    setOutboundTransformationProvider("");
+  };
+
+  const removeOutboundMapping = (id: string) => {
+    setOutboundMappingRows((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  useEffect(() => {
+    if (integrationFieldGroupsProp?.length || !showIntegrationAdvancedGroups) return;
+    if (!applicationId || applicationId === "wizard") return;
+
+    let cancelled = false;
+    (async () => {
+      setIntegrationGroupsLoading(true);
+      try {
+        const apiToken =
+          typeof window !== "undefined"
+            ? sessionStorage.getItem(`app-inventory-token-${applicationId}`) ?? ""
+            : "";
+        const [appData, supported] = await Promise.all([
+          getApplicationDetails(applicationId, apiToken),
+          getAllSupportedApplicationTypesViaProxy(),
+        ]);
+        if (cancelled) return;
+
+        const app = appData?.Application ?? appData ?? {};
+        const category =
+          applicationCategoryProp?.trim() ||
+          String(app.category ?? app.Category ?? app.applicationType ?? "").trim();
+
+        const conn = (app.connectionDetails ?? app.ConnectionDetails ?? {}) as Record<string, unknown>;
+        const values: Record<string, string> = {};
+        Object.entries(conn).forEach(([k, v]) => {
+          if (v != null && typeof v !== "object") values[k] = String(v);
+        });
+        setLoadedIntegrationValues(values);
+
+        let groups: ApplicationTypeIntegrationFieldGroup[] = [];
+        if (category && supported?.applicationType && Array.isArray(supported.applicationType)) {
+          for (const raw of supported.applicationType as unknown[]) {
+            const parsed = parseSupportedObjectsApplicationTypeItem(raw);
+            if (parsed?.typeName === category && parsed.integrationFieldGroups?.length) {
+              groups = parsed.integrationFieldGroups;
+              break;
+            }
+          }
+        }
+        setLoadedIntegrationGroups(groups);
+      } catch {
+        if (!cancelled) {
+          setLoadedIntegrationGroups([]);
+          setLoadedIntegrationValues({});
+        }
+      } finally {
+        if (!cancelled) setIntegrationGroupsLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    applicationId,
+    applicationCategoryProp,
+    integrationFieldGroupsProp,
+    showIntegrationAdvancedGroups,
+  ]);
 
   const setThreshold = (op: ThresholdOp, update: Partial<ThresholdState>) => {
     setThresholdByOperation((prev) => ({ ...prev, [op]: { ...prev[op], ...update } }));
@@ -287,6 +702,42 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
     []
   );
 
+  const resolveSchemaAppId = () =>
+    mappedSchemaApplicationId?.trim() ||
+    (applicationId && applicationId !== "wizard" ? applicationId.trim() : "");
+
+  const handleSaveTransformationMappings = async () => {
+    const appId = resolveSchemaAppId();
+    setTransformationSaveError(null);
+    setTransformationSaveSuccess(false);
+
+    if (!appId) {
+      setTransformationSaveError("Save is available after the application is registered.");
+      return;
+    }
+
+    setIsTransformationSaving(true);
+    try {
+      const existingMapped = await getMappedSchema("ACMECOM", appId);
+      const payload = buildMapFieldsPayloadWithTransformations(
+        existingMapped,
+        inboundMappingRows,
+        outboundMappingRows
+      );
+      await mapSchemaFields("ACMECOM", appId, payload);
+      const refreshed = await getMappedSchema("ACMECOM", appId);
+      const { inbound, outbound } = transformationMappingsFromMappedSchema(refreshed);
+      setInboundMappingRows(inbound);
+      setOutboundMappingRows(outbound);
+      setIntegratedIgaSourceKeys(integratedIgaSourceKeysFromMappedSchema(refreshed));
+      setTransformationSaveSuccess(true);
+    } catch (err) {
+      setTransformationSaveError(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setIsTransformationSaving(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!applicationId || wizardMode) return;
     setSubmitError(null);
@@ -402,6 +853,22 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
 
   return (
     <div className="p-6">
+          {integrationGroupsLoading && showIntegrationAdvancedGroups && !integrationFieldGroupsProp?.length ? (
+            <div className="mb-6 flex items-center gap-2 text-sm text-gray-500">
+              <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
+              Loading integration advanced settings...
+            </div>
+          ) : null}
+          {showIntegrationSection ? (
+            <IntegrationAdvancedSettingGroups
+              className="mb-6"
+              groups={integrationGroups}
+              values={integrationValues}
+              onChange={handleIntegrationFieldChange}
+              expandStateKeyPrefix={applicationId || "app"}
+              sectionTitle="Advanced settings (grouped)"
+            />
+          ) : null}
           {/* Hooks section: Name + Pre/Post Process Event (collapsible) - same style as Threshold card */}
           <div className="mb-6 border border-slate-200 rounded-xl overflow-hidden bg-slate-50/60 shadow-sm">
             <div
@@ -1068,6 +1535,351 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </div>
+
+          {/* Transformation Provider - same card style as Hooks / Threshold */}
+          <div className="mt-8 border border-slate-200 rounded-xl overflow-visible bg-slate-50/60 shadow-sm">
+            <div
+              className="flex items-center justify-between cursor-pointer border-l-4 border-amber-500 bg-white px-5 py-3.5 hover:bg-slate-50 transition-colors"
+              onClick={() => setIsTransformationExpanded(!isTransformationExpanded)}
+              role="button"
+              aria-expanded={isTransformationExpanded}
+            >
+              <h3 className="text-md font-semibold text-slate-800 flex items-center gap-2">
+                <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-amber-100 text-amber-700">
+                  <Code2 className="w-4 h-4" aria-hidden />
+                </span>
+                Transformation Provider
+              </h3>
+              {isTransformationExpanded ? (
+                <ChevronDown className="w-5 h-5 text-slate-500" />
+              ) : (
+                <ChevronUp className="w-5 h-5 text-slate-500" />
+              )}
+            </div>
+            {isTransformationExpanded && (
+              <div className="p-5 border-t border-slate-200 bg-white flex flex-col gap-3">
+                <div className="border border-slate-200 rounded-lg bg-white shadow-sm overflow-visible">
+                  <button
+                    type="button"
+                    onClick={() => setIsInboundTransformationExpanded((v) => !v)}
+                    className={`flex w-full items-start justify-between gap-4 px-4 py-4 text-left bg-slate-50/90 hover:bg-slate-100/80 transition-colors ${
+                      isInboundTransformationExpanded ? "border-b border-slate-200/80" : ""
+                    }`}
+                    aria-expanded={isInboundTransformationExpanded}
+                  >
+                    <div className="flex flex-1 flex-col gap-1 min-w-0 pr-2">
+                      <span className="text-sm font-semibold text-slate-800">InBound Transformation</span>
+                      <p className="text-xs text-gray-600 leading-relaxed">
+                        Inbound transformation happens when data is coming into the IGA system from a target
+                        application (HR system, Active Directory, database, cloud app, etc.).
+                      </p>
+                    </div>
+                    {isInboundTransformationExpanded ? (
+                      <ChevronDown className="w-5 h-5 text-slate-600 shrink-0 mt-0.5" aria-hidden />
+                    ) : (
+                      <ChevronUp className="w-5 h-5 text-slate-600 shrink-0 mt-0.5" aria-hidden />
+                    )}
+                  </button>
+                  {isInboundTransformationExpanded && (
+                    <div className="px-4 py-4 bg-white space-y-4">
+                      {inboundOptionsError && (
+                        <p className="text-xs text-red-600" role="alert">
+                          {inboundOptionsError}
+                        </p>
+                      )}
+                      <div className="flex flex-wrap items-end gap-3">
+                        <div className="flex-1 min-w-[12rem] relative overflow-visible" ref={igaSourceRef}>
+                          <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                            IGA Field
+                          </label>
+                          <input
+                            type="text"
+                            value={inboundIgaField}
+                            onChange={(e) => filterIgaSource(e.target.value)}
+                            onFocus={openIgaSourceDropdown}
+                            disabled={inboundOptionsLoading}
+                            placeholder={
+                              inboundOptionsLoading
+                                ? "Loading..."
+                                : "Select or enter source attribute"
+                            }
+                            className="w-full px-3 py-2 pr-9 border border-gray-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                          />
+                          <button
+                            type="button"
+                            disabled={inboundOptionsLoading}
+                            className="absolute right-2 top-[1.85rem] text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (igaSourceDropdownOpen) {
+                                setIgaSourceDropdownOpen(false);
+                              } else {
+                                openIgaSourceDropdown();
+                              }
+                            }}
+                            aria-label="Toggle IGA field list"
+                          >
+                            <ChevronDown
+                              className={`w-4 h-4 transition-transform ${igaSourceDropdownOpen ? "rotate-180" : ""}`}
+                            />
+                          </button>
+                          {igaSourceDropdownOpen &&
+                            !inboundOptionsLoading &&
+                            igaDropdownRect &&
+                            typeof document !== "undefined" &&
+                            createPortal(
+                              <div
+                                ref={igaDropdownPortalRef}
+                                className="fixed z-[200] bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto"
+                                style={{
+                                  top: igaDropdownRect.bottom + 4,
+                                  left: igaDropdownRect.left,
+                                  width: igaDropdownRect.width,
+                                }}
+                              >
+                                {filteredIgaSource.length === 0 ? (
+                                  <div className="px-4 py-2 text-sm text-gray-500">No attributes found</div>
+                                ) : (
+                                  filteredIgaSource.map((attr, index) => (
+                                    <button
+                                      key={`${attr}-${index}`}
+                                      type="button"
+                                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-blue-50"
+                                      onMouseDown={(e) => e.preventDefault()}
+                                      onClick={() => {
+                                        setInboundIgaField(attr);
+                                        setIgaSourceDropdownOpen(false);
+                                      }}
+                                    >
+                                      {attr}
+                                    </button>
+                                  ))
+                                )}
+                              </div>,
+                              document.body
+                            )}
+                        </div>
+                        <div className="flex-1 min-w-[12rem]">
+                          <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                            Transformation Provider
+                          </label>
+                          <select
+                            value={inboundTransformationProvider}
+                            onChange={(e) => setInboundTransformationProvider(e.target.value)}
+                            disabled={inboundOptionsLoading}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                          >
+                            <option value="">
+                              {inboundOptionsLoading
+                                ? "Loading..."
+                                : "Select transformation provider"}
+                            </option>
+                            {inboundTransformationProviderOptions.map((opt) => (
+                              <option key={`transform-${opt.id}-${opt.name}`} value={opt.name}>
+                                {opt.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="shrink-0">
+                          <button
+                            type="button"
+                            onClick={handleAddInboundMapping}
+                            disabled={
+                              inboundOptionsLoading ||
+                              !inboundIgaField.trim() ||
+                              !inboundTransformationProvider.trim()
+                            }
+                            className="h-[38px] px-4 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Add
+                          </button>
+                        </div>
+                      </div>
+                      {inboundMappingRows.length > 0 && (
+                        <div className="border border-slate-200 rounded-md overflow-hidden">
+                          <table className="w-full text-sm text-left">
+                            <thead className="bg-slate-50 text-xs font-medium text-slate-600 uppercase tracking-wide">
+                              <tr>
+                                <th className="px-3 py-2">IGA Field</th>
+                                <th className="px-3 py-2">Transformation Provider</th>
+                                <th className="px-3 py-2 w-16" />
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {inboundMappingRows.map((row) => (
+                                <tr key={row.id} className="bg-white">
+                                  <td className="px-3 py-2 text-slate-800">{row.igaField}</td>
+                                  <td className="px-3 py-2 text-slate-800">
+                                    {row.transformationProvider}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => removeInboundMapping(row.id)}
+                                      className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                                      aria-label="Remove mapping"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="border border-slate-200 rounded-lg bg-white shadow-sm overflow-visible">
+                  <button
+                    type="button"
+                    onClick={() => setIsOutboundTransformationExpanded((v) => !v)}
+                    className={`flex w-full items-start justify-between gap-4 px-4 py-4 text-left bg-slate-50/90 hover:bg-slate-100/80 transition-colors ${
+                      isOutboundTransformationExpanded ? "border-b border-slate-200/80" : ""
+                    }`}
+                    aria-expanded={isOutboundTransformationExpanded}
+                  >
+                    <div className="flex flex-1 flex-col gap-1 min-w-0 pr-2">
+                      <span className="text-sm font-semibold text-slate-800">OutBound Transformation</span>
+                      <p className="text-xs text-gray-600 leading-relaxed">
+                        Outbound transformation occurs when data moves from IGA to a target application during
+                        provisioning or updates.
+                      </p>
+                    </div>
+                    {isOutboundTransformationExpanded ? (
+                      <ChevronDown className="w-5 h-5 text-slate-600 shrink-0 mt-0.5" aria-hidden />
+                    ) : (
+                      <ChevronUp className="w-5 h-5 text-slate-600 shrink-0 mt-0.5" aria-hidden />
+                    )}
+                  </button>
+                  {isOutboundTransformationExpanded && (
+                    <div className="px-4 py-4 bg-white space-y-4">
+                      {outboundOptionsError && (
+                        <p className="text-xs text-red-600" role="alert">
+                          {outboundOptionsError}
+                        </p>
+                      )}
+                      <div className="flex flex-wrap items-end gap-3">
+                        <div className="flex-1 min-w-[12rem]">
+                          <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                            Target Field
+                          </label>
+                          <input
+                            type="text"
+                            value={outboundTargetField}
+                            onChange={(e) => setOutboundTargetField(e.target.value)}
+                            disabled={outboundOptionsLoading}
+                            placeholder={
+                              outboundOptionsLoading ? "Loading..." : "Enter target field"
+                            }
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-[12rem]">
+                          <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                            Transformation Provider
+                          </label>
+                          <select
+                            value={outboundTransformationProvider}
+                            onChange={(e) => setOutboundTransformationProvider(e.target.value)}
+                            disabled={outboundOptionsLoading}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                          >
+                            <option value="">
+                              {outboundOptionsLoading
+                                ? "Loading..."
+                                : "Select transformation provider"}
+                            </option>
+                            {outboundTransformationProviderOptions.map((opt) => (
+                              <option key={`outbound-transform-${opt.id}-${opt.name}`} value={opt.name}>
+                                {opt.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="shrink-0">
+                          <button
+                            type="button"
+                            onClick={handleAddOutboundMapping}
+                            disabled={
+                              outboundOptionsLoading ||
+                              !outboundTargetField.trim() ||
+                              !outboundTransformationProvider.trim()
+                            }
+                            className="h-[38px] px-4 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Add
+                          </button>
+                        </div>
+                      </div>
+                      {outboundMappingRows.length > 0 && (
+                        <div className="border border-slate-200 rounded-md overflow-hidden">
+                          <table className="w-full text-sm text-left">
+                            <thead className="bg-slate-50 text-xs font-medium text-slate-600 uppercase tracking-wide">
+                              <tr>
+                                <th className="px-3 py-2">Target Field</th>
+                                <th className="px-3 py-2">Transformation Provider</th>
+                                <th className="px-3 py-2 w-16" />
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {outboundMappingRows.map((row) => (
+                                <tr key={row.id} className="bg-white">
+                                  <td className="px-3 py-2 text-slate-800">{row.targetField}</td>
+                                  <td className="px-3 py-2 text-slate-800">
+                                    {row.transformationProvider}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => removeOutboundMapping(row.id)}
+                                      className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                                      aria-label="Remove mapping"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-col items-end gap-2 pt-4 mt-1 border-t border-slate-200">
+                  {transformationSaveError && (
+                    <p className="text-xs text-red-600 w-full text-right" role="alert">
+                      {transformationSaveError}
+                    </p>
+                  )}
+                  {transformationSaveSuccess && (
+                    <p className="text-xs text-green-600 w-full text-right" role="status">
+                      Transformation mappings saved successfully.
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleSaveTransformationMappings}
+                    disabled={isTransformationSaving}
+                    className="h-[38px] px-5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {isTransformationSaving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
+                        Saving...
+                      </>
+                    ) : (
+                      "Save"
+                    )}
+                  </button>
+                </div>
               </div>
             )}
           </div>

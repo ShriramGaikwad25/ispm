@@ -78,7 +78,9 @@ export default function AppInventorySettingsPage() {
     const SchemaTab = () => (
       <SchemaMappingTab applicationId={applicationId} onCancel={handleBack} />
     );
-    const AdvanceTab = () => <AdvanceSettingTab applicationId={applicationId} />;
+    const AdvanceTab = () => (
+      <AdvanceSettingTab applicationId={applicationId} showIntegrationAdvancedGroups />
+    );
     return [
       { label: "Configuration ", component: EditTab, icon: Pencil },
       { label: "Schema Mapping", component: SchemaTab, icon: Network },

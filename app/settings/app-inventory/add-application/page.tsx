@@ -26,7 +26,7 @@ import {
   Users,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getAllSupportedApplicationTypesViaProxy, executeQuery, submitItAssetRequest, getInProgressApplications, getItAssetApp, getFlatfileAppMetadataUsers, getAppMetadataUsers, uploadAndGetSchemaUsers, uploadAndGetSchemaForField, saveBaseMetadataUsers, saveBaseMetadataForField, saveAppDetails, onboardApp, updateAppConfig } from "@/lib/api";
+import { getAllSupportedApplicationTypesViaProxy, executeQuery, getInProgressApplications, getItAssetApp, getFlatfileAppMetadataUsers, getAppMetadataUsers, uploadAndGetSchemaUsers, uploadAndGetSchemaForField, saveBaseMetadataUsers, saveBaseMetadataForField, saveAppDetails, onboardApp, updateAppConfig, registerScimAppNewApp, getMappedSchema, extractApplicationIdFromRegisterNewAppResponse, persistAppInventoryTokenFromRegisterNewAppResponse, attributeMappingsFromGetMappedSchemaJson, parseSupportedObjectsApplicationTypeItem, describeAdvancedSettingSlotValue, coerceSupportedObjectsFieldKey, normalizeSupportedObjectsFieldArray, type SupportedAppTypeAdvancedParts, type ApplicationTypeIntegrationFieldGroup } from "@/lib/api";
 import AdvanceSettingTab, { type AdvanceSettingTabRef } from "../[id]/components/AdvanceSettingTab";
 import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
 
@@ -111,20 +111,22 @@ function isAs400ApplicationType(type: string | undefined): boolean {
   return t === "AS400" || t === "AS/400" || t === "IBM AS 400";
 }
 
-  const steps = [
-    { id: 1, title: "Select System", description: "" },
-    { id: 2, title: "Add Details", description: "" },
-    { id: 3, title: "Integration Setting", description: "" },
-    { id: 4, title: "File Upload", description: "" },
-    { id: 5, title: "Schema Mapping", description: "" },
-    { id: 6, title: "Finish Up", description: "" }
-  ];
+const steps = [
+  { id: 1, title: "Select System", description: "" },
+  { id: 2, title: "Add Details", description: "" },
+  { id: 3, title: "Integration Setting", description: "" },
+  { id: 4, title: "File Upload", description: "" },
+  { id: 5, title: "Schema Mapping", description: "" },
+  { id: 6, title: "Finish Up", description: "" },
+];
 
 export default function AddApplicationPage() {
   const router = useRouter();
   const { isVisible: isSidebarVisible, sidebarWidthPx } = useLeftSidebar();
   const searchParams = useSearchParams();
-  const isCompleteIntegration = searchParams.get("completeIntegration") === "1";
+  const completeIntegrationRaw = searchParams.get("completeIntegration")?.trim().toLowerCase() ?? "";
+  const isCompleteIntegration =
+    completeIntegrationRaw === "1" || completeIntegrationRaw === "true" || completeIntegrationRaw === "yes";
   const [currentStep, setCurrentStep] = useState(1);
 
   const appIdFromUrl = searchParams.get("appId") ?? "";
@@ -171,6 +173,105 @@ export default function AddApplicationPage() {
   /** AS400 main cards: expand/collapse independently (not tied to step3.integrationSettings). */
   const [as400ReadOperationsExpanded, setAs400ReadOperationsExpanded] = useState(false);
   const [as400WriteOperationsExpanded, setAs400WriteOperationsExpanded] = useState(false);
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [attributeMappingPage, setAttributeMappingPage] = useState(1);
+  const [isEditingAttribute, setIsEditingAttribute] = useState(false);
+  const [editingAttribute, setEditingAttribute] = useState<any>(null);
+  const ATTR_MAPPING_PAGE_SIZE = 10;
+  const [restServiceTab, setRestServiceTab] = useState<"connection" | "general" | "advanced">("connection");
+  // SCIM Attributes state
+  const [scimAttributes, setScimAttributes] = useState<string[]>([]);
+  const [isLoadingAttributes, setIsLoadingAttributes] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isEditDropdownOpen, setIsEditDropdownOpen] = useState(false);
+  const [sourceAttributeValue, setSourceAttributeValue] = useState("");
+  const [editSourceAttributeValue, setEditSourceAttributeValue] = useState("");
+  const [targetAttributeValue, setTargetAttributeValue] = useState("");
+  const [defaultAttributeValue, setDefaultAttributeValue] = useState("");
+  const [keyfieldChecked, setKeyfieldChecked] = useState(false);
+  const [mappingType, setMappingType] = useState<string>("direct");
+  const [filteredAttributes, setFilteredAttributes] = useState<string[]>([]);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const editDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Application types from API (optional advancedSetting → three summary cards on step 1)
+  type ApplicationTypeOption = {
+    id: string;
+    title: string;
+    subtitle: string;
+    advancedSettingParts?: SupportedAppTypeAdvancedParts | null;
+  };
+  const [applicationTypes, setApplicationTypes] = useState<ApplicationTypeOption[]>([]);
+  const [oauthTypes, setOauthTypes] = useState<string[]>([]);
+  const [isLoadingAppTypes, setIsLoadingAppTypes] = useState(false);
+  // Field definitions from API
+  const [applicationTypeFields, setApplicationTypeFields] = useState<Record<string, string[]>>({});
+  /** Grouped fields from nested `advancedSetting` in supported-objects (e.g. Database, RESTService). */
+  const [applicationTypeIntegrationGroups, setApplicationTypeIntegrationGroups] = useState<
+    Record<string, ApplicationTypeIntegrationFieldGroup[]>
+  >({});
+  /** Step 3: expand/collapse for each integration `advancedSetting` group (`appType::groupId`). */
+  const [integrationGroupExpanded, setIntegrationGroupExpanded] = useState<Record<string, boolean>>({});
+  const [oauthTypeFields, setOauthTypeFields] = useState<Record<string, string[]>>({});
+  // User search (Add Details step - Technical Owner / Business Owner)
+  type OwnerField = "technicalOwner" | "businessOwner";
+  type UserSearchHit = {
+    id: string;
+    name: string;
+    email: string;
+    username: string;
+    department?: string;
+    jobTitle?: string;
+    employeeId?: string;
+  };
+  const [userSearchAllUsers, setUserSearchAllUsers] = useState<UserSearchHit[]>([]);
+  const [userSearchField, setUserSearchField] = useState<OwnerField | null>(null);
+  const [userSearchLoading, setUserSearchLoading] = useState(false);
+  const [userSearchError, setUserSearchError] = useState<string | null>(null);
+  const [submitRequestLoading, setSubmitRequestLoading] = useState(false);
+  const [submitRequestError, setSubmitRequestError] = useState<string | null>(null);
+  const [submitProgressToast, setSubmitProgressToast] = useState<string | null>(null);
+  const [onboardLoading, setOnboardLoading] = useState(false);
+  /** Application id from POST newApp (used for getmappedschema on step 4 in create flow). */
+  const [wizardRegisteredAppId, setWizardRegisteredAppId] = useState<string | null>(null);
+  const step2UserFetchedRef = useRef(false);
+  const technicalOwnerDropdownRef = useRef<HTMLDivElement>(null);
+  const businessOwnerDropdownRef = useRef<HTMLDivElement>(null);
+  const [formData, setFormData] = useState<FormData>({
+    step1: {
+      applicationName: "",
+      type: "",
+      oauthType: "",
+    },
+    step2: {
+      applicationName: "",
+      description: "",
+      trustedSource: false,
+      technicalOwner: "",
+      businessOwner: "",
+      technicalOwnerEmail: "",
+      businessOwnerEmail: "",
+    },
+    step3: {
+      // Dynamic fields will be populated based on application type
+    },
+    step4: {
+      complianceRequirements: [],
+      securityControls: [],
+      monitoringEnabled: false,
+    },
+    step5: {
+      backupFrequency: "",
+      disasterRecovery: "",
+      maintenanceWindow: "",
+    },
+    step6: {
+      reviewNotes: "",
+      approvalRequired: false,
+      goLiveDate: "",
+    },
+  });
 
   // When opening from Settings for a non-integrated app, start at step 3 (Integration Setting)
   useEffect(() => {
@@ -329,83 +430,6 @@ export default function AddApplicationPage() {
       });
   }, [isCompleteIntegration, appIdFromUrl]);
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [attributeMappingPage, setAttributeMappingPage] = useState(1);
-  const [isEditingAttribute, setIsEditingAttribute] = useState(false);
-  const [editingAttribute, setEditingAttribute] = useState<any>(null);
-  const ATTR_MAPPING_PAGE_SIZE = 10;
-  const [restServiceTab, setRestServiceTab] = useState<"connection" | "general" | "advanced">("connection");
-  // SCIM Attributes state
-  const [scimAttributes, setScimAttributes] = useState<string[]>([]);
-  const [isLoadingAttributes, setIsLoadingAttributes] = useState(false);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isEditDropdownOpen, setIsEditDropdownOpen] = useState(false);
-  const [sourceAttributeValue, setSourceAttributeValue] = useState("");
-  const [editSourceAttributeValue, setEditSourceAttributeValue] = useState("");
-  const [targetAttributeValue, setTargetAttributeValue] = useState("");
-  const [defaultAttributeValue, setDefaultAttributeValue] = useState("");
-  const [keyfieldChecked, setKeyfieldChecked] = useState(false);
-  const [mappingType, setMappingType] = useState<string>("direct");
-  const [filteredAttributes, setFilteredAttributes] = useState<string[]>([]);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const editDropdownRef = useRef<HTMLDivElement>(null);
-  
-  // Application types from API
-  const [applicationTypes, setApplicationTypes] = useState<Array<{ id: string; title: string; subtitle: string }>>([]);
-  const [oauthTypes, setOauthTypes] = useState<string[]>([]);
-  const [isLoadingAppTypes, setIsLoadingAppTypes] = useState(false);
-  // Field definitions from API
-  const [applicationTypeFields, setApplicationTypeFields] = useState<Record<string, string[]>>({});
-  const [oauthTypeFields, setOauthTypeFields] = useState<Record<string, string[]>>({});
-  // User search (Add Details step - Technical Owner / Business Owner)
-  type OwnerField = "technicalOwner" | "businessOwner";
-  type UserSearchHit = { id: string; name: string; email: string; username: string; department?: string; jobTitle?: string; employeeId?: string };
-  const [userSearchAllUsers, setUserSearchAllUsers] = useState<UserSearchHit[]>([]);
-  const [userSearchField, setUserSearchField] = useState<OwnerField | null>(null);
-  const [userSearchLoading, setUserSearchLoading] = useState(false);
-  const [userSearchError, setUserSearchError] = useState<string | null>(null);
-  const [submitRequestLoading, setSubmitRequestLoading] = useState(false);
-  const [submitRequestError, setSubmitRequestError] = useState<string | null>(null);
-  const [submitProgressToast, setSubmitProgressToast] = useState<string | null>(null);
-  const [onboardLoading, setOnboardLoading] = useState(false);
-  const step2UserFetchedRef = useRef(false);
-  const technicalOwnerDropdownRef = useRef<HTMLDivElement>(null);
-  const businessOwnerDropdownRef = useRef<HTMLDivElement>(null);
-  const [formData, setFormData] = useState<FormData>({
-    step1: {
-      applicationName: "",
-      type: "",
-      oauthType: ""
-    },
-    step2: {
-      applicationName: "",
-      description: "",
-      trustedSource: false,
-      technicalOwner: "",
-      businessOwner: "",
-      technicalOwnerEmail: "",
-      businessOwnerEmail: ""
-    },
-    step3: {
-      // Dynamic fields will be populated based on application type
-    },
-    step4: {
-      complianceRequirements: [],
-      securityControls: [],
-      monitoringEnabled: false
-    },
-    step5: {
-      backupFrequency: "",
-      disasterRecovery: "",
-      maintenanceWindow: ""
-    },
-    step6: {
-      reviewNotes: "",
-      approvalRequired: false,
-      goLiveDate: ""
-    }
-  });
-
   // When entering File Upload step for Disconnected Application, clear previous metadata users
   useEffect(() => {
     if (currentStep === 4 && formData.step1.type === "Disconnected Application") {
@@ -563,43 +587,7 @@ export default function AddApplicationPage() {
     if (currentStep >= maxStep) return;
     if (currentStep === 2) {
       setSubmitRequestError(null);
-      setSubmitRequestLoading(true);
-      try {
-        const ownerEmail = formData.step2.technicalOwnerEmail || formData.step2.businessOwnerEmail || "";
-        const step3 = formData.step3 || {};
-        // Build connectionDetails dynamically from step3 so payload reflects selected application type fields
-        const connectionDetails: Record<string, string> = {};
-        Object.entries(step3).forEach(([k, v]) => {
-          if (v === undefined || v === null) return;
-          connectionDetails[k] = String(v);
-        });
-        // Normalize LDAP-style search base keys if present
-        const userSearchBaseVal = step3.userSearchBase ?? step3.user_searchBase;
-        const groupSearchBaseVal = step3.groupSearchBase ?? step3.group_searchBase;
-        if (userSearchBaseVal != null) {
-          connectionDetails.user_searchBase = String(userSearchBaseVal);
-        }
-        if (groupSearchBaseVal != null) {
-          connectionDetails.group_searchBase = String(groupSearchBaseVal);
-        }
-        const payload = {
-          name: formData.step2.applicationName || "",
-          description: formData.step2.description || "",
-          category: formData.step1.type || "",
-          iga: false,
-          sso: false,
-          lcm: false,
-          owner: { type: "User", value: ownerEmail },
-          connectionDetails,
-        };
-        await submitItAssetRequest(payload);
-        setCurrentStep(currentStep + 1);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Failed to submit request";
-        setSubmitRequestError(message);
-      } finally {
-        setSubmitRequestLoading(false);
-      }
+      setCurrentStep(currentStep + 1);
     } else if (!isCompleteIntegration && currentStep === 3 && isDisconnectedApp) {
       // Integration Settings: Disconnected Application - save app details via saveappdetails
       setSubmitRequestError(null);
@@ -769,6 +757,75 @@ export default function AddApplicationPage() {
       } finally {
         setSubmitRequestLoading(false);
       }
+    } else if (
+      !isCompleteIntegration &&
+      currentStep === 3 &&
+      !isDisconnectedApp &&
+      formData.step1.type !== "Flatfile"
+    ) {
+      setSubmitRequestError(null);
+      setSubmitRequestLoading(true);
+      try {
+        const step3 = (formData.step3 || {}) as Record<string, unknown>;
+        const ApplicationDetails: Record<string, string> = {};
+        const pick = (targetKey: string, ...sourceKeys: string[]) => {
+          for (const sk of sourceKeys) {
+            const raw = step3[sk];
+            if (raw != null && String(raw).trim() !== "") {
+              ApplicationDetails[targetKey] = String(raw);
+              return;
+            }
+          }
+        };
+        pick("hostname", "hostname");
+        pick("port", "port");
+        pick("username", "username");
+        pick("password", "password");
+        pick("user_searchBase", "user_searchBase", "userSearchBase");
+        pick("group_searchBase", "group_searchBase", "groupSearchBase");
+        pick("default_group", "default_group", "defaultGroup");
+
+        const ldapCanonical = new Set([
+          "hostname",
+          "port",
+          "username",
+          "password",
+          "user_searchBase",
+          "group_searchBase",
+          "default_group",
+        ]);
+        Object.entries(step3).forEach(([k, v]) => {
+          if (v == null || typeof v === "object") return;
+          const strVal = String(v).trim();
+          if (!strVal) return;
+          const outKey =
+            k === "userSearchBase"
+              ? "user_searchBase"
+              : k === "groupSearchBase"
+                ? "group_searchBase"
+                : k === "defaultGroup"
+                  ? "default_group"
+                  : k;
+          if (!ldapCanonical.has(outKey) && ApplicationDetails[outKey] === undefined) {
+            ApplicationDetails[outKey] = strVal;
+          }
+        });
+
+        const registerResult = await registerScimAppNewApp({
+          ApplicationName: (formData.step2.applicationName || "").trim(),
+          ApplicationType: formData.step1.type || "",
+          ApplicationDetails,
+        });
+        const newAppId = extractApplicationIdFromRegisterNewAppResponse(registerResult);
+        persistAppInventoryTokenFromRegisterNewAppResponse(registerResult, newAppId);
+        if (newAppId) setWizardRegisteredAppId(newAppId);
+        setCurrentStep(currentStep + 1);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to register application";
+        setSubmitRequestError(message);
+      } finally {
+        setSubmitRequestLoading(false);
+      }
     } else if (isCompleteIntegration && (currentStep === 3 || currentStep === 4)) {
       setSubmitRequestError(null);
       setSubmitRequestLoading(true);
@@ -902,20 +959,26 @@ export default function AddApplicationPage() {
       // API returns: { applicationType: [{ "LDAP": [...] }, { "Generic LDAP": [...] }, ...] }
       if (data?.applicationType && Array.isArray(data.applicationType)) {
         const fieldMap: Record<string, string[]> = {};
-        const extractedTypes = data.applicationType.map((item: any) => {
-          // Each item is an object with one key (the app type name)
-          const typeName = Object.keys(item)[0];
-          const fields = item[typeName];
-          if (Array.isArray(fields)) fieldMap[typeName] = fields;
-          return {
-            id: typeName,
-            title: typeName,
-            subtitle: `${typeName} application type`,
-          };
-        });
+        const integrationGroupMap: Record<string, ApplicationTypeIntegrationFieldGroup[]> = {};
+        const extractedTypes: ApplicationTypeOption[] = [];
+        for (const raw of data.applicationType as unknown[]) {
+          const parsed = parseSupportedObjectsApplicationTypeItem(raw);
+          if (!parsed) continue;
+          fieldMap[parsed.typeName] = parsed.fields;
+          if (parsed.integrationFieldGroups?.length) {
+            integrationGroupMap[parsed.typeName] = parsed.integrationFieldGroups;
+          }
+          extractedTypes.push({
+            id: parsed.typeName,
+            title: parsed.typeName,
+            subtitle: `${parsed.typeName} application type`,
+            advancedSettingParts: parsed.advancedSettingParts,
+          });
+        }
         console.log("Extracted application types:", extractedTypes);
         setApplicationTypes(extractedTypes);
         setApplicationTypeFields(fieldMap);
+        setApplicationTypeIntegrationGroups(integrationGroupMap);
       } else {
         console.warn("No applicationType found in API response or invalid format:", data);
       }
@@ -928,7 +991,7 @@ export default function AddApplicationPage() {
           // Each item is an object with one key (the oauth type name)
           const key = Object.keys(item)[0];
           const fields = item[key];
-          if (Array.isArray(fields)) oauthFieldMap[key] = fields;
+          if (Array.isArray(fields)) oauthFieldMap[key] = normalizeSupportedObjectsFieldArray(fields);
           return key;
         });
         console.log("Extracted OAuth types:", extractedOauthTypes);
@@ -942,6 +1005,7 @@ export default function AddApplicationPage() {
       setApplicationTypes([]);
       setOauthTypes([]);
       setApplicationTypeFields({});
+      setApplicationTypeIntegrationGroups({});
       setOauthTypeFields({});
     } finally {
       setIsLoadingAppTypes(false);
@@ -951,6 +1015,32 @@ export default function AddApplicationPage() {
   // Fetch application types on component mount
   useEffect(() => {
     fetchApplicationTypes();
+  }, []);
+
+  /** Block POST/GET to legacy IT Asset submitrequest while this page is mounted (stale chunks or stray callers). */
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const needle = "/itasset/ACMECOM/submitrequest";
+    const nextFetch = window.fetch.bind(window);
+    window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+      if (url.includes(needle)) {
+        console.warn("[Add Application] Blocked IT Asset submitrequest:", url);
+        return new Response(JSON.stringify({}), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return nextFetch(input, init);
+    };
+    return () => {
+      window.fetch = nextFetch as typeof window.fetch;
+    };
   }, []);
 
   // When in complete-integration mode, ensure step1.type matches a loaded application type so step 3 shows correct fields
@@ -1133,6 +1223,30 @@ export default function AddApplicationPage() {
       })
       .finally(() => setUserSearchLoading(false));
   }, [currentStep]);
+
+  // Step 4 (Schema Mapping): load rows from schemamapper getmappedschema
+  useEffect(() => {
+    if (currentStep !== 4 || typeof window === "undefined") return;
+    const appId = (isCompleteIntegration ? appIdFromUrl?.trim() : wizardRegisteredAppId?.trim()) || "";
+    if (!appId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const json = await getMappedSchema("ACMECOM", appId);
+        if (cancelled) return;
+        const rows = attributeMappingsFromGetMappedSchemaJson(json);
+        if (rows.length > 0) {
+          setAttributeMappingData(rows);
+          setAttributeMappingPage(1);
+        }
+      } catch (e) {
+        console.warn("getmappedschema failed:", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentStep, isCompleteIntegration, appIdFromUrl, wizardRegisteredAppId]);
 
   // Filter loaded users by current input (client-side only)
   const getFilteredOwnerUsers = (field: OwnerField): UserSearchHit[] => {
@@ -1952,6 +2066,29 @@ export default function AddApplicationPage() {
                        <div className="min-w-0 flex-1">
                          <h3 className="font-medium text-gray-900 text-sm leading-snug">{type.title}</h3>
                          <p className="text-xs text-gray-500 mt-0.5 line-clamp-2 leading-snug">{type.subtitle}</p>
+                         {type.advancedSettingParts && (
+                           <div className="mt-2 pt-2 border-t border-slate-200/90 grid grid-cols-3 gap-1.5">
+                             {(
+                               [
+                                 { key: "hook" as const, label: "Hook" },
+                                 { key: "threshold" as const, label: "Threshold" },
+                                 { key: "autoRetry" as const, label: "Auto retry" },
+                               ] as const
+                             ).map(({ key, label }) => (
+                               <div
+                                 key={key}
+                                 className="rounded-md border border-slate-200/90 bg-slate-50/90 px-1 py-1.5 text-center"
+                               >
+                                 <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500 leading-tight">
+                                   {label}
+                                 </div>
+                                 <div className="text-[10px] text-slate-700 mt-0.5 leading-snug line-clamp-2">
+                                   {describeAdvancedSettingSlotValue(type.advancedSettingParts[key])}
+                                 </div>
+                               </div>
+                             ))}
+                           </div>
+                         )}
                        </div>
                        {formData.step1.type === type.id && (
                          <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center shrink-0 mt-0.5">
@@ -3503,28 +3640,40 @@ export default function AddApplicationPage() {
           }
 
           // Dynamic rendering based on API-provided fields + custom fields from step3/connectionDetails
+          const integrationGroupsForType = applicationTypeIntegrationGroups[selectedAppType] ?? [];
           const typeFields = applicationTypeFields[selectedAppType] || [];
           const selectedOauth = formData.step1.oauthType;
           const oauthFieldsForType = oauthTypeFields[selectedOauth] || [];
-          const allKnownFields = new Set<string>([...typeFields, ...oauthFieldsForType]);
+          const allKnownFields = new Set<string>([
+            ...typeFields,
+            ...oauthFieldsForType,
+            ...integrationGroupsForType.flatMap((g) => g.fields),
+          ]);
           const customFieldKeys = Object.keys(formData.step3 || {}).filter(
             (k) => typeof k === "string" && k.trim() !== "" && !allKnownFields.has(k)
           );
 
-          if (typeFields.length > 0 || oauthFieldsForType.length > 0 || customFieldKeys.length > 0) {
-            const renderField = (fieldKey: string) => {
-              const label = fieldKey
+          if (
+            typeFields.length > 0 ||
+            oauthFieldsForType.length > 0 ||
+            customFieldKeys.length > 0 ||
+            integrationGroupsForType.length > 0
+          ) {
+            const renderField = (fieldKey: unknown) => {
+              const key = coerceSupportedObjectsFieldKey(fieldKey);
+              if (!key) return null;
+              const label = key
                 .replace(/_/g, " ")
                 .replace(/\b\w/g, (c) => c.toUpperCase());
-              const value = (formData.step3 as any)[fieldKey] ?? "";
-              const isPasswordLike = /password|secret|token|passphrase/i.test(fieldKey);
+              const value = (formData.step3 as any)[key] ?? "";
+              const isPasswordLike = /password|secret|token|passphrase/i.test(key);
               return (
-                <div className="flex-1 relative" key={fieldKey}>
+                <div className="flex-1 relative" key={key}>
                   <input
                     type={isPasswordLike ? "password" : "text"}
                     value={value}
-                    onChange={(e) => handleInputChange("step3", fieldKey, e.target.value)}
-                    className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                    onChange={(e) => handleInputChange("step3", key, e.target.value)}
+                    className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
                     placeholder=" "
                     autoComplete={isPasswordLike ? "off" : undefined}
                   />
@@ -3539,6 +3688,53 @@ export default function AddApplicationPage() {
 
             return (
               <div className="space-y-6">
+                {integrationGroupsForType.length > 0 && (
+                  <div>
+                    <div className="text-sm font-medium text-gray-700 mb-3">
+                      Advanced settings (grouped)
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {integrationGroupsForType.map((group) => {
+                        const expandKey = `${selectedAppType}::${group.id}`;
+                        const expanded = integrationGroupExpanded[expandKey] ?? false;
+                        return (
+                          <div
+                            key={group.id}
+                            className="border border-slate-200 rounded-lg bg-white shadow-sm overflow-hidden"
+                          >
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setIntegrationGroupExpanded((prev) => ({
+                                  ...prev,
+                                  [expandKey]: !(prev[expandKey] ?? false),
+                                }))
+                              }
+                              className={`flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left bg-slate-50/90 hover:bg-slate-100/80 transition-colors ${
+                                expanded ? "border-b border-slate-200/80" : ""
+                              }`}
+                              aria-expanded={expanded}
+                            >
+                              <span className="text-sm font-semibold text-slate-800 min-w-0">
+                                {group.label}
+                              </span>
+                              {expanded ? (
+                                <ChevronUp className="w-4 h-4 text-slate-600 shrink-0" aria-hidden />
+                              ) : (
+                                <ChevronDown className="w-4 h-4 text-slate-600 shrink-0" aria-hidden />
+                              )}
+                            </button>
+                            {expanded && (
+                              <div className="px-3 pb-3 pt-3 flex flex-col gap-2 bg-white">
+                                {group.fields.map((fk) => renderField(fk))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 {typeFields.length > 0 && (
                   <div>
                     <div className="text-sm font-medium text-gray-700 mb-3">{selectedAppType} Settings</div>
@@ -10184,7 +10380,28 @@ export default function AddApplicationPage() {
         return (
           <div className="space-y-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Advanced settings</h2>
-            <AdvanceSettingTab ref={advanceSettingRef} applicationId="wizard" wizardMode />
+            <AdvanceSettingTab
+              ref={advanceSettingRef}
+              applicationId="wizard"
+              wizardMode
+              mappedSchemaApplicationId={
+                (isCompleteIntegration ? appIdFromUrl : wizardRegisteredAppId)?.trim() || undefined
+              }
+              showIntegrationAdvancedGroups={
+                (applicationTypeIntegrationGroups[formData.step1.type] ?? []).length > 0
+              }
+              integrationFieldGroups={applicationTypeIntegrationGroups[formData.step1.type] ?? []}
+              integrationFieldValues={Object.fromEntries(
+                (applicationTypeIntegrationGroups[formData.step1.type] ?? []).flatMap((g) =>
+                  g.fields.map((fk) => [
+                    fk,
+                    String((formData.step3 as Record<string, unknown>)[fk] ?? ""),
+                  ])
+                )
+              )}
+              onIntegrationFieldChange={(key, value) => handleInputChange("step3", key, value)}
+              applicationCategory={formData.step1.type}
+            />
           </div>
         );
 
@@ -10193,7 +10410,28 @@ export default function AddApplicationPage() {
         return (
           <div className="space-y-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Advanced settings</h2>
-            <AdvanceSettingTab ref={advanceSettingRef} applicationId="wizard" wizardMode />
+            <AdvanceSettingTab
+              ref={advanceSettingRef}
+              applicationId="wizard"
+              wizardMode
+              mappedSchemaApplicationId={
+                (isCompleteIntegration ? appIdFromUrl : wizardRegisteredAppId)?.trim() || undefined
+              }
+              showIntegrationAdvancedGroups={
+                (applicationTypeIntegrationGroups[formData.step1.type] ?? []).length > 0
+              }
+              integrationFieldGroups={applicationTypeIntegrationGroups[formData.step1.type] ?? []}
+              integrationFieldValues={Object.fromEntries(
+                (applicationTypeIntegrationGroups[formData.step1.type] ?? []).flatMap((g) =>
+                  g.fields.map((fk) => [
+                    fk,
+                    String((formData.step3 as Record<string, unknown>)[fk] ?? ""),
+                  ])
+                )
+              )}
+              onIntegrationFieldChange={(key, value) => handleInputChange("step3", key, value)}
+              applicationCategory={formData.step1.type}
+            />
           </div>
         );
 
@@ -10300,6 +10538,7 @@ export default function AddApplicationPage() {
           <div className="shrink-0 flex flex-wrap gap-2 sm:gap-3 justify-end">
             {currentStep < (!isCompleteIntegration && formData.step1.type === "Disconnected Application" ? 6 : 5) ? (
               <button
+                type="button"
                 onClick={handleNext}
                 disabled={
                   submitRequestLoading ||

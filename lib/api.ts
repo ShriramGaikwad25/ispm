@@ -539,18 +539,22 @@ export async function getAllApplications(): Promise<any> {
   }
 }
 
-/** Submits an application request to the IT Asset API (Add Details step). */
-export async function submitItAssetRequest(payload: {
-  name: string;
-  description: string;
-  category: string;
-  iga?: boolean;
-  sso?: boolean;
-  lcm?: boolean;
-  owner?: { type: string; value: string };
-  connectionDetails?: Record<string, string>;
-}): Promise<any> {
-  const endpoint = "https://preview.keyforge.ai/itasset/ACMECOM/submitrequest";
+/** POST registerscimapp newApp — create app registration after Integration Setting (step 3). */
+export async function registerScimAppNewApp(payload: {
+  ApplicationName: string;
+  ApplicationType: string;
+  ApplicationDetails: Record<string, string>;
+}): Promise<unknown> {
+  const endpoint = "https://preview.keyforge.ai/registerscimapp/registerfortenant/ACMECOM/newApp";
+  const body = {
+    ApplicationName: payload.ApplicationName,
+    ApplicationType: payload.ApplicationType,
+    ApplicationDetails: payload.ApplicationDetails,
+    OAuthDetails: {
+      OAuthType: "KPOAUTH",
+      adminID: "ACMEADMIN",
+    },
+  };
 
   const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
   if (!accessToken) {
@@ -566,7 +570,7 @@ export async function submitItAssetRequest(payload: {
   const response = await fetchFn(endpoint, {
     method: "POST",
     headers,
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {
@@ -579,7 +583,7 @@ export async function submitItAssetRequest(payload: {
     } catch (e) {
       if (e instanceof Error && e.message === "Token Expired") throw e;
     }
-    throw new Error(`submitrequest failed: ${response.status} - ${errorText}`);
+    throw new Error(`newApp failed: ${response.status} - ${errorText}`);
   }
 
   const data = await response.json();
@@ -587,6 +591,660 @@ export async function submitItAssetRequest(payload: {
     throw new Error("Token Expired");
   }
   return data;
+}
+
+/** GET schemamapper getmappedschema — provisioning/reconciliation maps for an application id. */
+export async function getMappedSchema(tenantId: string, applicationId: string): Promise<unknown> {
+  const url = `https://preview.keyforge.ai/schemamapper/getmappedschema/${encodeURIComponent(tenantId)}/${encodeURIComponent(applicationId)}`;
+  const fetchFn = typeof window !== "undefined" ? getOriginalFetch() : fetch;
+  const response = await fetchFn(url, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Requested-With": "XMLHttpRequest",
+    },
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`getmappedschema failed: ${response.status} - ${text}`);
+  }
+  return response.json();
+}
+
+export type MapFieldsProvisioningEntry =
+  | { variable: string }
+  | { inboundTransform: string }
+  | { outboundTransform: string };
+
+export type MapFieldsPayload = {
+  provisioningAttrMap: Record<string, MapFieldsProvisioningEntry>;
+  reconcilliationAttrMap: Record<string, unknown>;
+};
+
+/** Flat provisioning entries from getmappedschema (supports scimTargetMap or flat map). */
+export function getProvisioningAttrMapEntries(
+  json: unknown
+): Record<string, Record<string, unknown>> {
+  if (json == null || typeof json !== "object") return {};
+  const root = json as Record<string, unknown>;
+  const pam = root.provisioningAttrMap;
+  if (!pam || typeof pam !== "object") return {};
+  const container = pam as Record<string, unknown>;
+  if (
+    container.scimTargetMap &&
+    typeof container.scimTargetMap === "object" &&
+    !Array.isArray(container.scimTargetMap)
+  ) {
+    return container.scimTargetMap as Record<string, Record<string, unknown>>;
+  }
+  const entries: Record<string, Record<string, unknown>> = {};
+  for (const [key, value] of Object.entries(container)) {
+    if (key === "scimTargetMap") continue;
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      entries[key] = value as Record<string, unknown>;
+    }
+  }
+  return entries;
+}
+
+export function transformationMappingsFromMappedSchema(json: unknown): {
+  inbound: { id: string; igaField: string; transformationProvider: string }[];
+  outbound: { id: string; targetField: string; transformationProvider: string }[];
+} {
+  const entries = getProvisioningAttrMapEntries(json);
+  const inbound: { id: string; igaField: string; transformationProvider: string }[] = [];
+  const outbound: { id: string; targetField: string; transformationProvider: string }[] = [];
+  let idx = 0;
+  for (const [key, value] of Object.entries(entries)) {
+    if (value && typeof value === "object" && "inboundTransform" in value) {
+      const igaField = String((value as { inboundTransform?: unknown }).inboundTransform ?? "").trim();
+      const provider = key.trim();
+      if (provider && igaField) {
+        inbound.push({
+          id: `inbound-loaded-${idx++}`,
+          igaField,
+          transformationProvider: provider,
+        });
+      }
+    } else if (value && typeof value === "object" && "outboundTransform" in value) {
+      const provider = String((value as { outboundTransform?: unknown }).outboundTransform ?? "").trim();
+      const targetField = key.trim();
+      if (targetField && provider) {
+        outbound.push({
+          id: `outbound-loaded-${idx++}`,
+          targetField,
+          transformationProvider: provider,
+        });
+      }
+    }
+  }
+  return { inbound, outbound };
+}
+
+/** Merge schema variable mappings with inbound/outbound transformation rows for mapfields POST. */
+export function buildMapFieldsPayloadWithTransformations(
+  existingMappedSchema: unknown,
+  inboundRows: { igaField: string; transformationProvider: string }[],
+  outboundRows: { targetField: string; transformationProvider: string }[]
+): MapFieldsPayload {
+  const entries = getProvisioningAttrMapEntries(existingMappedSchema);
+  const provisioningAttrMap: Record<string, MapFieldsProvisioningEntry> = {};
+
+  for (const [key, value] of Object.entries(entries)) {
+    if (value && typeof value === "object" && "variable" in value) {
+      const variable = String((value as { variable?: unknown }).variable ?? "").trim();
+      if (variable) {
+        provisioningAttrMap[key] = { variable };
+      }
+    }
+  }
+
+  inboundRows.forEach((row) => {
+    const provider = row.transformationProvider.trim();
+    const igaField = row.igaField.trim();
+    if (provider && igaField) {
+      provisioningAttrMap[provider] = { inboundTransform: igaField };
+    }
+  });
+
+  outboundRows.forEach((row) => {
+    const targetField = row.targetField.trim();
+    const provider = row.transformationProvider.trim();
+    if (targetField && provider) {
+      provisioningAttrMap[targetField] = { outboundTransform: provider };
+    }
+  });
+
+  const root = existingMappedSchema as Record<string, unknown> | null;
+  const reconciliation =
+    root?.reconcilliationAttrMap ?? root?.reconciliationAttrMap;
+  const reconcilliationAttrMap =
+    reconciliation && typeof reconciliation === "object" && !Array.isArray(reconciliation)
+      ? (reconciliation as Record<string, unknown>)
+      : {};
+
+  return { provisioningAttrMap, reconcilliationAttrMap };
+}
+
+/** POST schemamapper mapfields — same API as Schema Mapping save. */
+export async function mapSchemaFields(
+  tenantId: string,
+  applicationId: string,
+  payload: MapFieldsPayload
+): Promise<void> {
+  const url = `https://preview.keyforge.ai/schemamapper/mapfields/${encodeURIComponent(tenantId)}/${encodeURIComponent(applicationId)}`;
+  const fetchFn = typeof window !== "undefined" ? getOriginalFetch() : fetch;
+  const response = await fetchFn(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Requested-With": "XMLHttpRequest",
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `mapfields failed: ${response.status}`);
+  }
+}
+
+/** Parses newApp JSON for an application id used in getmappedschema URL. */
+export function extractApplicationIdFromRegisterNewAppResponse(data: unknown): string | null {
+  if (data == null) return null;
+  if (typeof data === "string") {
+    const t = data.trim();
+    return t || null;
+  }
+  if (typeof data !== "object") return null;
+  const o = data as Record<string, unknown>;
+  const tryVal = (v: unknown): string | null => {
+    if (v == null) return null;
+    const s = String(v).trim();
+    return s || null;
+  };
+
+  // newApp returns SCIMURL like https://.../scim/v2/ACMECOM/33A8AHT1 — id is last segment after tenant
+  const scimUrlRaw = o.SCIMURL ?? o.scimURL ?? o.ScimUrl ?? o.scimurl;
+  if (typeof scimUrlRaw === "string" && scimUrlRaw.trim()) {
+    const scimUrl = scimUrlRaw.trim();
+    try {
+      const url = new URL(scimUrl);
+      const parts = url.pathname.split("/").filter(Boolean);
+      const tenant = String(o.TenantID ?? o.tenantID ?? "ACMECOM").trim();
+      const tenantIdx = parts.findIndex((p) => p.toLowerCase() === tenant.toLowerCase());
+      if (tenantIdx >= 0 && parts[tenantIdx + 1]) {
+        const id = parts[tenantIdx + 1].trim();
+        if (id) return id;
+      }
+      const m = scimUrl.match(/\/scim\/v2\/[^/]+\/([^/?#]+)/i);
+      if (m?.[1]) return m[1].trim();
+    } catch {
+      const m = scimUrl.match(/\/scim\/v2\/[^/]+\/([^/?#]+)/i) ?? scimUrl.match(/\/ACMECOM\/([^/?#]+)/i);
+      if (m?.[1]) return m[1].trim();
+    }
+  }
+
+  const keys = [
+    "ApplicationID",
+    "applicationID",
+    "ApplicationId",
+    "applicationId",
+    "AppId",
+    "appId",
+    "application_id",
+    "key",
+    "Key",
+    "id",
+    "ID",
+  ];
+  for (const k of keys) {
+    const id = tryVal(o[k]);
+    if (id) return id;
+  }
+  const nested = o.Application ?? o.application ?? o.data ?? o.result;
+  if (nested && typeof nested === "object") {
+    const n = nested as Record<string, unknown>;
+    for (const k of keys) {
+      const id = tryVal(n[k]);
+      if (id) return id;
+    }
+  }
+  return null;
+}
+
+/** Stores APIToken from newApp for app-inventory flows (mapfields, getApplicationDetails, etc.). */
+export function persistAppInventoryTokenFromRegisterNewAppResponse(
+  data: unknown,
+  applicationId: string | null
+): void {
+  if (typeof window === "undefined" || !applicationId?.trim()) return;
+  if (data == null || typeof data !== "object") return;
+  const o = data as Record<string, unknown>;
+  const token = o.APIToken ?? o.apiToken ?? o.ApiToken;
+  if (typeof token === "string" && token.trim()) {
+    sessionStorage.setItem(`app-inventory-token-${applicationId.trim()}`, token.trim());
+  }
+}
+
+export type WizardSchemaMappingRow = {
+  id: string;
+  source: string;
+  target: string;
+  defaultValue: string;
+  type: string;
+  keyfieldMapping: boolean;
+};
+
+/** Source IGA/SCIM attribute names already mapped in schema (lowercase keys for comparison). */
+export function integratedIgaSourceKeysFromMappedSchema(json: unknown): Set<string> {
+  const keys = new Set<string>();
+  if (json == null || typeof json !== "object") return keys;
+  const provisioning = getProvisioningAttrMapEntries(json);
+  for (const value of Object.values(provisioning)) {
+    if (value && typeof value === "object" && "variable" in value) {
+      const source = String((value as { variable?: unknown }).variable ?? "").trim();
+      if (source) keys.add(source.toLowerCase());
+    }
+  }
+  const root = json as Record<string, unknown>;
+  const reconciliation =
+    (root.reconcilliationAttrMap as { scimTargetMap?: Record<string, unknown> } | undefined)?.scimTargetMap ??
+    (root.reconciliationAttrMap as { scimTargetMap?: Record<string, unknown> } | undefined)?.scimTargetMap ??
+    {};
+  for (const [source] of Object.entries(reconciliation)) {
+    const s = String(source).trim();
+    if (s) keys.add(s.toLowerCase());
+  }
+  return keys;
+}
+
+/** Maps getmappedschema JSON into wizard attribute rows (matches SchemaMappingTab semantics). */
+export function attributeMappingsFromGetMappedSchemaJson(json: unknown): WizardSchemaMappingRow[] {
+  const rows: WizardSchemaMappingRow[] = [];
+  const seen = new Set<string>();
+  const pairKey = (s: string, t: string) => `${s}\0${t}`;
+  let idx = 0;
+  const root = json as Record<string, any>;
+  const provisioning = root?.provisioningAttrMap?.scimTargetMap ?? {};
+  Object.entries(provisioning).forEach(([target, value]) => {
+    const source = String((value as { variable?: unknown })?.variable ?? value ?? "").trim();
+    const t = String(target).trim();
+    if (!source && !t) return;
+    const pk = pairKey(source, t);
+    if (seen.has(pk)) return;
+    seen.add(pk);
+    rows.push({
+      id: `mapped-p-${idx++}`,
+      source,
+      target: t,
+      defaultValue: "",
+      type: "direct",
+      keyfieldMapping: false,
+    });
+  });
+  const reconciliation =
+    root?.reconcilliationAttrMap?.scimTargetMap ?? root?.reconciliationAttrMap?.scimTargetMap ?? {};
+  Object.entries(reconciliation).forEach(([source, value]) => {
+    const target = String((value as { variable?: unknown })?.variable ?? value ?? "").trim();
+    const s = String(source).trim();
+    if (!s && !target) return;
+    const pk = pairKey(s, target);
+    if (seen.has(pk)) return;
+    seen.add(pk);
+    rows.push({
+      id: `mapped-r-${idx++}`,
+      source: s,
+      target,
+      defaultValue: "",
+      type: "direct",
+      keyfieldMapping: false,
+    });
+  });
+  return rows;
+}
+
+/** One row inferred from POST .../submitrequest schema metadata for the wizard table. */
+export interface ItAssetSubmitRequestSchemaRow {
+  /** Connector / LDAP / app attribute side (maps as Target in the UI). */
+  target: string;
+  /** IAM / SCIM attribute path (maps as Source in the UI). */
+  source: string;
+  /** Wizard mapping kind: direct | expression | constant, etc. */
+  type: string;
+}
+
+function asSubmitRecord(data: unknown): Record<string, unknown> | null {
+  return data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : null;
+}
+
+function normalizeWizardMappingType(apiType: string): string {
+  const t = String(apiType ?? "")
+    .trim()
+    .toLowerCase();
+  if (t === "expression" || t === "constant" || t === "direct") return t;
+  return t || "direct";
+}
+
+function coerceNameTypeMappingRow(raw: unknown): ItAssetSubmitRequestSchemaRow | null {
+  const o = asSubmitRecord(raw);
+  if (!o) return null;
+  const name =
+    o.name ??
+    o.Name ??
+    o.attributeName ??
+    o.AttributeName ??
+    o.targetAttribute ??
+    o.TargetAttribute ??
+    o.target ??
+    o.Target;
+  const nameStr = name != null ? String(name).trim() : "";
+  if (!nameStr) return null;
+  const typeRaw = o.type ?? o.Type ?? o.mappingType ?? o.MappingType ?? "direct";
+  const sourceRaw =
+    o.source ??
+    o.Source ??
+    o.variable ??
+    o.Variable ??
+    o.from ??
+    o.connectorAttribute ??
+    o.ConnectorAttribute;
+  const sourceStr = sourceRaw != null ? String(sourceRaw).trim() : "";
+  return {
+    target: nameStr,
+    source: sourceStr,
+    type: normalizeWizardMappingType(String(typeRaw)),
+  };
+}
+
+/** provisioningAttrMap: { connectorAttr: { variable: "iamPath" } } → UI target=key, source=variable */
+function coerceProvisioningAttrMapRows(mapVal: unknown): ItAssetSubmitRequestSchemaRow[] {
+  const obj = mapVal && typeof mapVal === "object" ? (mapVal as Record<string, unknown>) : null;
+  if (!obj) return [];
+  const out: ItAssetSubmitRequestSchemaRow[] = [];
+  for (const [targetKey, val] of Object.entries(obj)) {
+    const tk = targetKey.trim();
+    if (!tk) continue;
+    let source = "";
+    if (typeof val === "string") source = val.trim();
+    else if (val && typeof val === "object") {
+      const v = val as Record<string, unknown>;
+      const variable = v.variable ?? v.Variable;
+      source = variable != null ? String(variable).trim() : "";
+    }
+    out.push({ target: tk, source, type: "direct" });
+  }
+  return out;
+}
+
+/** reconcilliationAttrMap is inverse keyed; normalize to same target/source shape as provisioning. */
+function coerceReconciliationAttrMapRows(mapVal: unknown): ItAssetSubmitRequestSchemaRow[] {
+  const obj = mapVal && typeof mapVal === "object" ? (mapVal as Record<string, unknown>) : null;
+  if (!obj) return [];
+  const out: ItAssetSubmitRequestSchemaRow[] = [];
+  for (const [iamKey, val] of Object.entries(obj)) {
+    const source = iamKey.trim();
+    if (!source) continue;
+    let target = "";
+    if (typeof val === "string") target = val.trim();
+    else if (val && typeof val === "object") {
+      const v = val as Record<string, unknown>;
+      const variable = v.variable ?? v.Variable;
+      target = variable != null ? String(variable).trim() : "";
+    }
+    if (!target) continue;
+    out.push({ target, source, type: "direct" });
+  }
+  return out;
+}
+
+function reconciliationAttrMapKeys(obj: Record<string, unknown> | null): unknown {
+  if (!obj) return undefined;
+  return (
+    obj.reconcilliationAttrMap ??
+    obj.ReconcilliationAttrMap ??
+    obj.reconciliationAttrMap ??
+    obj.ReconciliationAttrMap ??
+    obj.reconcilliation_attr_map ??
+    obj.reconciliation_attr_map
+  );
+}
+
+function firstNonEmptySubmitArray(...candidates: unknown[]): unknown[] {
+  for (const c of candidates) {
+    if (Array.isArray(c) && c.length > 0) return c;
+  }
+  return [];
+}
+
+function looksLikeItAssetAppRecord(r: Record<string, unknown>): boolean {
+  return (
+    "tenantId" in r ||
+    "schemaMappingDetails" in r ||
+    "SchemaMappingDetails" in r ||
+    "provisioningAttrMap" in r ||
+    "ProvisioningAttrMap" in r ||
+    "reconcilliationAttrMap" in r ||
+    "reconciliationAttrMap" in r ||
+    ("name" in r && "category" in r) ||
+    "connectionDetails" in r ||
+    "appid" in r
+  );
+}
+
+function expandItAssetSubmitResponseToCandidateRecords(data: unknown): Record<string, unknown>[] {
+  if (data === null || data === undefined) return [];
+
+  const objectRecordsOnly = (arr: unknown): Record<string, unknown>[] => {
+    if (!Array.isArray(arr)) return [];
+    return arr.filter((x): x is Record<string, unknown> => asSubmitRecord(x) !== null);
+  };
+
+  const direct = objectRecordsOnly(data);
+  if (direct.length && direct.some(looksLikeItAssetAppRecord)) {
+    return direct;
+  }
+
+  const rootObj = asSubmitRecord(data);
+  if (rootObj) {
+    const wrapperKeys = [
+      "applications",
+      "apps",
+      "applicationList",
+      "ApplicationList",
+      "applicationRecords",
+      "items",
+      "data",
+      "results",
+      "payload",
+      "value",
+      "rows",
+      "list",
+      "records",
+      "Records",
+      "application",
+    ] as const;
+    for (const k of wrapperKeys) {
+      const inner = objectRecordsOnly(rootObj[k]);
+      if (inner.length) return inner;
+    }
+    for (const v of Object.values(rootObj)) {
+      const inner = objectRecordsOnly(v);
+      if (inner.length && inner.some(looksLikeItAssetAppRecord)) return inner;
+    }
+    return looksLikeItAssetAppRecord(rootObj) || Object.keys(rootObj).length > 0 ? [rootObj] : [];
+  }
+
+  return [];
+}
+
+function pickSubmitResponseAppRecord(
+  records: Record<string, unknown>[],
+  applicationName?: string,
+  category?: string,
+  ownerEmail?: string
+): Record<string, unknown> | null {
+  if (!records.length) return null;
+  if (records.length === 1) return records[0]!;
+  const wantName = applicationName?.trim();
+  const wantCat = category?.trim();
+  const ownerNorm = ownerEmail?.trim().toLowerCase();
+
+  if (wantName) {
+    const n = wantName.toLowerCase();
+    const exact = records.find((r) => String(r.name ?? "").trim().toLowerCase() === n);
+    if (exact) return exact;
+
+    /* Backend sometimes returns stray leading/trailing whitespace in name */
+    const loose = records.find((r) => String(r.name ?? "").trim() === applicationName!.trim());
+    if (loose) return loose;
+  }
+
+  if (wantCat && ownerNorm) {
+    const fuzzy = [...records].reverse().find((r) => {
+      const st = String(r.status ?? "").toLowerCase();
+      if (st !== "new" && st !== "inprogress" && st !== "in progress") return false;
+      const cat =
+        String(r.category ?? r.applicationType ?? r.ApplicationType ?? r.type ?? "")
+          .trim()
+          .toLowerCase();
+      const own = r.owner && typeof r.owner === "object" ? (r.owner as Record<string, unknown>) : null;
+      const ov = String(own?.value ?? own?.email ?? "").trim().toLowerCase();
+      return cat === wantCat.toLowerCase() && ov === ownerNorm;
+    });
+    if (fuzzy) return fuzzy;
+  }
+
+  return records[records.length - 1]!;
+}
+
+/** Parses a single IT Asset app row / submit payload envelope for provisioning + optional reconciliation maps. */
+export function extractSchemaMappingFromItAssetAppRecord(root: unknown): ItAssetSubmitRequestSchemaRow[] {
+  const raw = asSubmitRecord(root);
+  if (!raw) return [];
+
+  const fromRootMap = coerceProvisioningAttrMapRows(
+    raw.provisioningAttrMap ?? raw.ProvisioningAttrMap ?? raw.provisioning_attr_map
+  );
+
+  const nestedSchema =
+    raw.schemaMapping ??
+    raw.SchemaMapping ??
+    raw.schema_mapping ??
+    raw.schemaMappingDetails ??
+    raw.SchemaMappingDetails;
+
+  let list: unknown[] = [];
+  const schemaRec = asSubmitRecord(nestedSchema);
+
+  if (schemaRec) {
+    list = firstNonEmptySubmitArray(
+      Array.isArray(nestedSchema) ? nestedSchema : undefined,
+      schemaRec.attributes,
+      schemaRec.Attributes,
+      schemaRec.schemaMappingAttributes,
+      schemaRec.schemaMappings,
+      schemaRec.schema_mappings,
+      schemaRec.items,
+      schemaRec.list,
+      schemaRec.mappings
+    );
+    if (!list.length) {
+      const inner = asSubmitRecord(schemaRec.schema);
+      list = firstNonEmptySubmitArray(inner?.attributes, inner?.Mappings);
+    }
+  } else if (Array.isArray(nestedSchema)) {
+    list = nestedSchema;
+  }
+
+  let listWide = list.length
+    ? list
+    : firstNonEmptySubmitArray(
+        raw.schemaMappingAttributes,
+        raw.schemaAttributes,
+        raw.attributes,
+        raw.Attributes,
+        raw.mappings,
+        raw.mapping,
+        raw.Mapping
+      );
+
+  const resultRec = asSubmitRecord(raw.result);
+  if (!listWide.length && resultRec) {
+    listWide = firstNonEmptySubmitArray(
+      resultRec.schemaMapping,
+      resultRec.SchemaMapping,
+      resultRec.attributes,
+      resultRec.mapping
+    );
+    const resultSchemaRec = asSubmitRecord(resultRec.schemaMappingDetails ?? resultRec.SchemaMappingDetails);
+    if (!listWide.length && resultSchemaRec) {
+      listWide = firstNonEmptySubmitArray(resultSchemaRec.attributes, resultSchemaRec.schemaMappings);
+    }
+  }
+
+  const fromNestedProv =
+    schemaRec != null
+      ? coerceProvisioningAttrMapRows(
+          schemaRec.provisioningAttrMap ?? schemaRec.ProvisioningAttrMap ?? schemaRec.provisioning_attr_map
+        )
+      : [];
+
+  const fromRootRecon = coerceReconciliationAttrMapRows(reconciliationAttrMapKeys(raw));
+  const fromNestedRecon = coerceReconciliationAttrMapRows(schemaRec !== null ? reconciliationAttrMapKeys(schemaRec) : null);
+
+  const provisioningRows =
+    fromNestedProv.length > 0 ? fromNestedProv : fromRootMap.length > 0 ? fromRootMap : [];
+  const reconciliationRowsOnly =
+    fromNestedRecon.length > 0 ? fromNestedRecon : fromRootRecon.length > 0 ? fromRootRecon : [];
+
+  const nameTypeRows = listWide
+    .map(coerceNameTypeMappingRow)
+    .filter((x): x is ItAssetSubmitRequestSchemaRow => x !== null && Boolean(x.target));
+
+  const rows =
+    provisioningRows.length > 0
+      ? provisioningRows
+      : nameTypeRows.length > 0
+        ? nameTypeRows
+        : reconciliationRowsOnly;
+
+  const seen = new Set<string>();
+  const deduped: ItAssetSubmitRequestSchemaRow[] = [];
+  for (const row of rows) {
+    if (!row.target.trim() || seen.has(row.target)) continue;
+    seen.add(row.target);
+    deduped.push(row);
+  }
+  return deduped;
+}
+
+export interface ParseItAssetSchemaMappingOptions {
+  /** Match the catalog row whose `name` equals the app just submitted (recommended). */
+  applicationName?: string;
+  /** Helps disambiguate when name is duplicated or omitted. */
+  category?: string;
+  ownerEmail?: string;
+}
+
+/**
+ * Parses `submitrequest` JSON: often a tenant-wide application array plus the newly created row.
+ * Prefer **`applicationName`** so schema rows come from the correct app ("abcd"), not the last list item ("Mosaic").
+ */
+export function parseSchemaMappingFromItAssetSubmitRequestResponse(
+  data: unknown,
+  options?: ParseItAssetSchemaMappingOptions
+): ItAssetSubmitRequestSchemaRow[] {
+  let expanded = expandItAssetSubmitResponseToCandidateRecords(data);
+  if (expanded.length === 0 && Array.isArray(data)) {
+    expanded = data.filter((x): x is Record<string, unknown> => asSubmitRecord(x) !== null);
+  }
+  const root =
+    expanded.length === 0
+      ? (asSubmitRecord(data) ?? null)
+      : expanded.length === 1
+        ? expanded[0]!
+        : pickSubmitResponseAppRecord(expanded, options?.applicationName, options?.category, options?.ownerEmail);
+  return extractSchemaMappingFromItAssetAppRecord(root ?? data);
 }
 
 /** Fetches applications that are In Progress from the IT Asset API. Returns null on failure so the main app list still loads. */
@@ -1240,6 +1898,195 @@ export async function getAllSupportedApplicationTypesViaProxy(): Promise<any> {
     throw new Error(`Proxy fetch failed: ${res.status} ${res.statusText}\n${errorBody}`);
   }
   return res.json();
+}
+
+/**
+ * Coerces a supported-objects field list entry (string or { name, field, key, ... }) to a form field key.
+ */
+export function coerceSupportedObjectsFieldKey(entry: unknown): string | null {
+  if (entry == null) return null;
+  if (typeof entry === "string") {
+    const t = entry.trim();
+    return t || null;
+  }
+  if (typeof entry === "object" && !Array.isArray(entry)) {
+    const o = entry as Record<string, unknown>;
+    const s = String(
+      o.name ??
+        o.field ??
+        o.Field ??
+        o.key ??
+        o.Key ??
+        o.attribute ??
+        o.Attribute ??
+        o.id ??
+        o.Id ??
+        ""
+    ).trim();
+    return s || null;
+  }
+  const s = String(entry).trim();
+  return s || null;
+}
+
+export function normalizeSupportedObjectsFieldArray(fieldsVal: unknown): string[] {
+  if (!Array.isArray(fieldsVal)) return [];
+  return (fieldsVal as unknown[])
+    .map(coerceSupportedObjectsFieldKey)
+    .filter((k): k is string => Boolean(k));
+}
+
+/** One grouped block from `{ advancedSetting: [ { connectionParameters: [...] }, ... ] }` inside a type's field array. */
+export type ApplicationTypeIntegrationFieldGroup = {
+  id: string;
+  label: string;
+  fields: string[];
+};
+
+function formatIntegrationGroupLabel(sectionId: string): string {
+  const withSpaces = String(sectionId)
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/_/g, " ");
+  return withSpaces.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Reads `advancedSetting: [ { connectionParameters: [...] }, { basic: [...] }, ... ]` from a type's field array. */
+export function extractIntegrationAdvancedGroupsFromFieldsArray(
+  fieldsVal: unknown
+): ApplicationTypeIntegrationFieldGroup[] {
+  if (!Array.isArray(fieldsVal)) return [];
+  const groups: ApplicationTypeIntegrationFieldGroup[] = [];
+  for (const entry of fieldsVal as unknown[]) {
+    if (entry == null || typeof entry !== "object" || Array.isArray(entry)) continue;
+    const o = entry as Record<string, unknown>;
+    const adv = o.advancedSetting ?? o.AdvancedSetting;
+    if (!Array.isArray(adv)) continue;
+    for (const section of adv) {
+      if (section == null || typeof section !== "object" || Array.isArray(section)) continue;
+      const sec = section as Record<string, unknown>;
+      const sectionKeys = Object.keys(sec);
+      const sectionId = sectionKeys[0];
+      if (!sectionId) continue;
+      const list = sec[sectionId];
+      const fieldKeys = normalizeSupportedObjectsFieldArray(list);
+      if (fieldKeys.length === 0) continue;
+      groups.push({
+        id: sectionId,
+        label: formatIntegrationGroupLabel(sectionId),
+        fields: fieldKeys,
+      });
+    }
+  }
+  return groups;
+}
+
+/**
+ * Splits a type field array into integration cards (nested advancedSetting) vs flat root string fields.
+ * Root strings that duplicate fields already placed in a group are omitted from `flatFieldKeys`.
+ */
+export function flattenIntegrationFieldsAfterAdvancedGroups(fieldsVal: unknown): {
+  groups: ApplicationTypeIntegrationFieldGroup[];
+  flatFieldKeys: string[];
+} {
+  const groups = extractIntegrationAdvancedGroupsFromFieldsArray(fieldsVal);
+  const inGroup = new Set(groups.flatMap((g) => g.fields));
+  const seenFlat = new Set<string>();
+  const flatOrdered: string[] = [];
+
+  if (Array.isArray(fieldsVal)) {
+    for (const entry of fieldsVal as unknown[]) {
+      if (typeof entry === "string") {
+        const k = coerceSupportedObjectsFieldKey(entry);
+        if (k && !inGroup.has(k) && !seenFlat.has(k)) {
+          seenFlat.add(k);
+          flatOrdered.push(k);
+        }
+        continue;
+      }
+      if (entry != null && typeof entry === "object" && !Array.isArray(entry)) {
+        const o = entry as Record<string, unknown>;
+        if (o.advancedSetting != null || o.AdvancedSetting != null) continue;
+        const k = coerceSupportedObjectsFieldKey(entry);
+        if (k && !inGroup.has(k) && !seenFlat.has(k)) {
+          seenFlat.add(k);
+          flatOrdered.push(k);
+        }
+      }
+    }
+  }
+
+  return { groups, flatFieldKeys: flatOrdered };
+}
+
+/** One entry from supported-objects `applicationType` array (may include `advancedSetting`). */
+export type SupportedAppTypeAdvancedParts = {
+  hook: unknown;
+  threshold: unknown;
+  autoRetry: unknown;
+};
+
+export type ParsedSupportedApplicationTypeItem = {
+  typeName: string;
+  /** Flat field keys not covered by {@link integrationFieldGroups} (avoids duplicating grouped inputs). */
+  fields: string[];
+  /** Top-level hook / threshold / autoRetry summary (different from nested integration groups). */
+  advancedSettingParts: SupportedAppTypeAdvancedParts | null;
+  /** Nested `{ advancedSetting: [ { connectionParameters: [...] }, ... ] }` inside the type's field array. */
+  integrationFieldGroups: ApplicationTypeIntegrationFieldGroup[] | null;
+};
+
+/**
+ * Parses a single supported-objects `applicationType` record.
+ * Skips `advancedSetting` / `AdvancedSetting` when resolving the type name key.
+ */
+export function parseSupportedObjectsApplicationTypeItem(item: unknown): ParsedSupportedApplicationTypeItem | null {
+  if (item == null || typeof item !== "object" || Array.isArray(item)) return null;
+  const rec = item as Record<string, unknown>;
+  const typeKeys = Object.keys(rec).filter((k) => !/^advancedsetting$/i.test(k));
+  const typeName = typeKeys[0];
+  if (!typeName) return null;
+  const fieldsVal = rec[typeName];
+  const { groups: integrationGroups, flatFieldKeys } = flattenIntegrationFieldsAfterAdvancedGroups(fieldsVal);
+
+  const advRaw = rec.advancedSetting ?? rec.AdvancedSetting;
+  let advancedSettingParts: SupportedAppTypeAdvancedParts | null = null;
+  if (advRaw != null && typeof advRaw === "object" && !Array.isArray(advRaw)) {
+    const o = advRaw as Record<string, unknown>;
+    const hasHookShape =
+      "hook" in o ||
+      "Hook" in o ||
+      "threshold" in o ||
+      "Threshold" in o ||
+      "autoRetry" in o ||
+      "auto_retry" in o ||
+      "AutoRetry" in o;
+    if (hasHookShape) {
+      advancedSettingParts = {
+        hook: o.hook ?? o.Hook,
+        threshold: o.threshold ?? o.Threshold,
+        autoRetry: o.autoRetry ?? o.auto_retry ?? o.AutoRetry,
+      };
+    }
+  }
+  return {
+    typeName,
+    fields: flatFieldKeys,
+    advancedSettingParts,
+    integrationFieldGroups: integrationGroups.length > 0 ? integrationGroups : null,
+  };
+}
+
+/** Short label for an advancedSetting slot on a summary card. */
+export function describeAdvancedSettingSlotValue(val: unknown): string {
+  if (val == null) return "—";
+  if (Array.isArray(val)) return val.length ? `${val.length} item(s)` : "—";
+  if (typeof val === "object") {
+    const n = Object.keys(val as object).length;
+    return n ? "Defined" : "—";
+  }
+  const s = String(val).trim();
+  if (!s) return "—";
+  return s.length > 22 ? `${s.slice(0, 22)}…` : s;
 }
 
 // Validate password for sign-off

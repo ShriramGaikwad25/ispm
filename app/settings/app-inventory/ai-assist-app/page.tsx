@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { ChevronLeft, ChevronRight, Check, ChevronDown, Edit, Trash2, Info } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { getAllSupportedApplicationTypesViaProxy } from "@/lib/api";
+import { getAllSupportedApplicationTypesViaProxy, parseSupportedObjectsApplicationTypeItem, describeAdvancedSettingSlotValue, normalizeSupportedObjectsFieldArray, type SupportedAppTypeAdvancedParts } from "@/lib/api";
 import { getCookie, COOKIE_NAMES, forceLogout, getCurrentUser } from "@/lib/auth";
 
 interface FormData {
@@ -79,7 +79,14 @@ export default function AIAssistAppPage() {
   const editDropdownRef = useRef<HTMLDivElement>(null);
   
   // Application types from API
-  const [applicationTypes, setApplicationTypes] = useState<Array<{ id: string; title: string; subtitle: string; icon: string }>>([]);
+  type ApplicationTypeOption = {
+    id: string;
+    title: string;
+    subtitle: string;
+    icon: string;
+    advancedSettingParts?: SupportedAppTypeAdvancedParts | null;
+  };
+  const [applicationTypes, setApplicationTypes] = useState<ApplicationTypeOption[]>([]);
   const [oauthTypes, setOauthTypes] = useState<string[]>([]);
   const [isLoadingAppTypes, setIsLoadingAppTypes] = useState(false);
   // Field definitions from API
@@ -408,18 +415,19 @@ export default function AIAssistAppPage() {
       // API returns: { applicationType: [{ "LDAP": [...] }, { "Generic LDAP": [...] }, ...] }
       if (data?.applicationType && Array.isArray(data.applicationType)) {
         const fieldMap: Record<string, string[]> = {};
-        const extractedTypes = data.applicationType.map((item: any) => {
-          // Each item is an object with one key (the app type name)
-          const typeName = Object.keys(item)[0];
-          const fields = item[typeName];
-          if (Array.isArray(fields)) fieldMap[typeName] = fields;
-          return {
-            id: typeName,
-            title: typeName,
-            subtitle: `${typeName} application type`,
-            icon: "📦" // Default icon, you can customize based on typeName
-          };
-        });
+        const extractedTypes: ApplicationTypeOption[] = [];
+        for (const raw of data.applicationType as unknown[]) {
+          const parsed = parseSupportedObjectsApplicationTypeItem(raw);
+          if (!parsed) continue;
+          fieldMap[parsed.typeName] = parsed.fields;
+          extractedTypes.push({
+            id: parsed.typeName,
+            title: parsed.typeName,
+            subtitle: `${parsed.typeName} application type`,
+            icon: "📦",
+            advancedSettingParts: parsed.advancedSettingParts,
+          });
+        }
         console.log("Extracted application types:", extractedTypes);
         setApplicationTypes(extractedTypes);
         setApplicationTypeFields(fieldMap);
@@ -435,7 +443,7 @@ export default function AIAssistAppPage() {
           // Each item is an object with one key (the oauth type name)
           const key = Object.keys(item)[0];
           const fields = item[key];
-          if (Array.isArray(fields)) oauthFieldMap[key] = fields;
+          if (Array.isArray(fields)) oauthFieldMap[key] = normalizeSupportedObjectsFieldArray(fields);
           return key;
         });
         console.log("Extracted OAuth types:", extractedOauthTypes);
@@ -655,10 +663,31 @@ export default function AIAssistAppPage() {
                        <div className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-lg mr-3">
                          {type.icon}
                        </div>
-                       <div className="flex-1">
-                         <h3 className="font-medium text-gray-900 text-sm">{type.title}</h3>
-                         <p className="text-xs text-gray-500">{type.subtitle}</p>
-                       </div>
+                     <div className="flex-1">
+                       <h3 className="font-medium text-gray-900 text-sm">{type.title}</h3>
+                       <p className="text-xs text-gray-500">{type.subtitle}</p>
+                       {type.advancedSettingParts && (
+                         <div className="mt-2 pt-2 border-t border-gray-200 grid grid-cols-3 gap-1.5">
+                           {(
+                             [
+                               { key: "hook" as const, label: "Hook" },
+                               { key: "threshold" as const, label: "Threshold" },
+                               { key: "autoRetry" as const, label: "Auto retry" },
+                             ] as const
+                           ).map(({ key, label }) => (
+                             <div
+                               key={key}
+                               className="rounded-md border border-gray-200 bg-gray-50 px-1 py-1 text-center"
+                             >
+                               <div className="text-[9px] font-semibold uppercase text-gray-500 leading-tight">{label}</div>
+                               <div className="text-[10px] text-gray-700 mt-0.5 line-clamp-2">
+                                 {describeAdvancedSettingSlotValue(type.advancedSettingParts[key])}
+                               </div>
+                             </div>
+                           ))}
+                         </div>
+                       )}
+                     </div>
                        {formData.step1.type === type.id && (
                          <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
                            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
