@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import {
   ChevronLeft,
   ChevronRight,
@@ -25,9 +26,47 @@ import {
   FolderTree,
   Users,
 } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { getAllSupportedApplicationTypesViaProxy, executeQuery, getInProgressApplications, getItAssetApp, getFlatfileAppMetadataUsers, getAppMetadataUsers, uploadAndGetSchemaUsers, uploadAndGetSchemaForField, saveBaseMetadataUsers, saveBaseMetadataForField, saveAppDetails, onboardApp, updateAppConfig, registerScimAppNewApp, getMappedSchema, extractApplicationIdFromRegisterNewAppResponse, persistAppInventoryTokenFromRegisterNewAppResponse, attributeMappingsFromGetMappedSchemaJson, parseSupportedObjectsApplicationTypeItem, describeAdvancedSettingSlotValue, coerceSupportedObjectsFieldKey, normalizeSupportedObjectsFieldArray, type SupportedAppTypeAdvancedParts, type ApplicationTypeIntegrationFieldGroup } from "@/lib/api";
-import AdvanceSettingTab, { type AdvanceSettingTabRef } from "../[id]/components/AdvanceSettingTab";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import {
+  getAllSupportedApplicationTypesViaProxy,
+  executeQuery,
+  getInProgressApplications,
+  getItAssetApp,
+  getFlatfileAppMetadataUsers,
+  getAppMetadataUsers,
+  uploadAndGetSchemaUsers,
+  uploadAndGetSchemaForField,
+  saveBaseMetadataUsers,
+  saveBaseMetadataForField,
+  saveAppDetails,
+  onboardApp,
+  registerScimAppNewApp,
+  getMappedSchema,
+  mapSchemaFields,
+  extractApplicationIdFromRegisterNewAppResponse,
+  persistAppInventoryTokenFromRegisterNewAppResponse,
+  attributeMappingsFromGetMappedSchemaJson,
+  parseSupportedObjectsApplicationTypeItem,
+  describeAdvancedSettingSlotValue,
+  coerceSupportedObjectsFieldKey,
+  normalizeSupportedObjectsFieldArray,
+  CONNECTION_PARAMETERS_GROUP_ID,
+  isGroupedOnboardApplicationType,
+  isAiAgentOnboardApplicationType,
+  GROUPED_ONBOARD_APPLICATION_TYPES,
+  testDatabaseConnection,
+  buildDatabaseTestConnectionPayload,
+  isDatabaseTestConnectionPayloadComplete,
+  fetchDatabaseSchema,
+  fetchDatabaseSuggestMapping,
+  applyDatabaseSuggestMappingToRows,
+  attributeMappingsFromFetchSchemaJson,
+  testRestServiceConnection,
+  parseConnectionTestResult,
+  type SupportedAppTypeAdvancedParts,
+  type ApplicationTypeIntegrationFieldGroup,
+} from "@/lib/api";
+import TabbedIntegrationOnboardGroups from "../components/TabbedIntegrationOnboardGroups";
 import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
 
 interface FormData {
@@ -39,7 +78,7 @@ interface FormData {
   step2: {
     applicationName: string;
     description: string;
-    trustedSource: boolean;
+    sourceType: string;
     technicalOwner: string;
     businessOwner: string;
     technicalOwnerEmail: string;
@@ -111,6 +150,71 @@ function isAs400ApplicationType(type: string | undefined): boolean {
   return t === "AS400" || t === "AS/400" || t === "IBM AS 400";
 }
 
+/** Build ApplicationDetails payload for registerscimapp newApp from wizard step 3. */
+function buildApplicationDetailsFromStep3(step3: Record<string, unknown>): Record<string, string> {
+  const ApplicationDetails: Record<string, string> = {};
+  const pick = (targetKey: string, ...sourceKeys: string[]) => {
+    for (const sk of sourceKeys) {
+      const raw = step3[sk];
+      if (raw != null && String(raw).trim() !== "") {
+        ApplicationDetails[targetKey] = String(raw);
+        return;
+      }
+    }
+  };
+  pick("hostname", "hostname");
+  pick("port", "port");
+  pick("username", "username");
+  pick("password", "password");
+  pick("user_searchBase", "user_searchBase", "userSearchBase");
+  pick("group_searchBase", "group_searchBase", "groupSearchBase");
+  pick("default_group", "default_group", "defaultGroup");
+
+  const ldapCanonical = new Set([
+    "hostname",
+    "port",
+    "username",
+    "password",
+    "user_searchBase",
+    "group_searchBase",
+    "default_group",
+  ]);
+  Object.entries(step3).forEach(([k, v]) => {
+    if (v == null || typeof v === "object") return;
+    const strVal = String(v).trim();
+    if (!strVal) return;
+    const outKey =
+      k === "userSearchBase"
+        ? "user_searchBase"
+        : k === "groupSearchBase"
+          ? "group_searchBase"
+          : k === "defaultGroup"
+            ? "default_group"
+            : k;
+    if (!ldapCanonical.has(outKey) && ApplicationDetails[outKey] === undefined) {
+      ApplicationDetails[outKey] = strVal;
+    }
+  });
+  return ApplicationDetails;
+}
+
+/** ApplicationDetails for newApp — grouped types send all step 3 scalar fields. */
+function buildApplicationDetailsForNewApp(
+  step3: Record<string, unknown>,
+  appType: string
+): Record<string, string> {
+  if (isGroupedOnboardApplicationType(appType)) {
+    const ApplicationDetails: Record<string, string> = {};
+    Object.entries(step3).forEach(([k, v]) => {
+      if (v == null || typeof v === "object") return;
+      const strVal = String(v).trim();
+      if (strVal) ApplicationDetails[k] = strVal;
+    });
+    return ApplicationDetails;
+  }
+  return buildApplicationDetailsFromStep3(step3);
+}
+
 const steps = [
   { id: 1, title: "Select System", description: "" },
   { id: 2, title: "Add Details", description: "" },
@@ -120,8 +224,26 @@ const steps = [
   { id: 6, title: "Finish Up", description: "" },
 ];
 
+/** Database / RESTService wizard (AI Agent route). */
+const aiAgentWizardSteps = [
+  { id: 1, title: "Select System", description: "" },
+  { id: 2, title: "Add Details", description: "" },
+  { id: 3, title: "Integration Setting", description: "" },
+  { id: 4, title: "Schema Mapping", description: "" },
+  { id: 5, title: "Finish Up", description: "" },
+];
+
+const APPLICATION_SOURCE_TYPE_OPTIONS = [
+  "Trusted Source",
+  "Target Source",
+  "LMS",
+] as const;
+
 export default function AddApplicationPage() {
   const router = useRouter();
+  const pathname = usePathname();
+  const isAiAgentWizard = pathname?.includes("/add-application-ai-agent") ?? false;
+  const wizardSteps = isAiAgentWizard ? aiAgentWizardSteps : steps;
   const { isVisible: isSidebarVisible, sidebarWidthPx } = useLeftSidebar();
   const searchParams = useSearchParams();
   const completeIntegrationRaw = searchParams.get("completeIntegration")?.trim().toLowerCase() ?? "";
@@ -134,11 +256,21 @@ export default function AddApplicationPage() {
   const appTypeFromUrl = searchParams.get("appType") ?? "";
 
   // Attribute mapping state (declared early so getallapp effect can call setAttributeMappingData)
-  type AttributeMapping = { id: string; source: string; target: string; defaultValue?: string; type: string; keyfieldMapping?: boolean };
+  type DatabaseMappingSourceSelection = "bestMatch" | "option2" | "custom";
+  type AttributeMapping = {
+    id: string;
+    source: string;
+    target: string;
+    defaultValue?: string;
+    type: string;
+    keyfieldMapping?: boolean;
+    bestMatch?: string;
+    option2?: string;
+    /** Which of the 3 selectable columns is active for this row. */
+    sourceSelection?: DatabaseMappingSourceSelection;
+  };
   const [attributeMappingData, setAttributeMappingData] = useState<AttributeMapping[]>([]);
 
-  // Ref to step 5 AdvanceSettingTab so we can read hooks + threshold config on submit / OnBoard
-  const advanceSettingRef = useRef<AdvanceSettingTabRef | null>(null);
   // Flatfile step 3: file input element and selected file
   const flatfileFileInputRef = useRef<HTMLInputElement>(null);
   const flatfileFileRef = useRef<File | null>(null);
@@ -179,7 +311,19 @@ export default function AddApplicationPage() {
   const [isEditingAttribute, setIsEditingAttribute] = useState(false);
   const [editingAttribute, setEditingAttribute] = useState<any>(null);
   const ATTR_MAPPING_PAGE_SIZE = 10;
-  const [restServiceTab, setRestServiceTab] = useState<"connection" | "general" | "advanced">("connection");
+  const [groupedIntegrationTab, setGroupedIntegrationTab] = useState(CONNECTION_PARAMETERS_GROUP_ID);
+  const [testConnectionLoading, setTestConnectionLoading] = useState(false);
+  const [testConnectionFeedback, setTestConnectionFeedback] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+  const [databaseSessionId, setDatabaseSessionId] = useState<string | null>(null);
+  const [databaseSchemaLoaded, setDatabaseSchemaLoaded] = useState(false);
+  const [fetchSchemaLoading, setFetchSchemaLoading] = useState(false);
+  const [fetchSchemaFeedback, setFetchSchemaFeedback] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
   // SCIM Attributes state
   const [scimAttributes, setScimAttributes] = useState<string[]>([]);
   const [isLoadingAttributes, setIsLoadingAttributes] = useState(false);
@@ -194,6 +338,11 @@ export default function AddApplicationPage() {
   const [filteredAttributes, setFilteredAttributes] = useState<string[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const editDropdownRef = useRef<HTMLDivElement>(null);
+  const [dbMappingOpenRowId, setDbMappingOpenRowId] = useState<string | null>(null);
+  const [dbMappingDropdownRect, setDbMappingDropdownRect] = useState<DOMRect | null>(null);
+  const [dbMappingFilter, setDbMappingFilter] = useState("");
+  const dbMappingAnchorRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const dbMappingDropdownPortalRef = useRef<HTMLDivElement | null>(null);
 
   // Application types from API (optional advancedSetting → three summary cards on step 1)
   type ApplicationTypeOption = {
@@ -233,7 +382,7 @@ export default function AddApplicationPage() {
   const [submitRequestError, setSubmitRequestError] = useState<string | null>(null);
   const [submitProgressToast, setSubmitProgressToast] = useState<string | null>(null);
   const [onboardLoading, setOnboardLoading] = useState(false);
-  /** Application id from POST newApp (used for getmappedschema on step 4 in create flow). */
+  /** Application id from POST newApp on final submit (used for getmappedschema if present). */
   const [wizardRegisteredAppId, setWizardRegisteredAppId] = useState<string | null>(null);
   const step2UserFetchedRef = useRef(false);
   const technicalOwnerDropdownRef = useRef<HTMLDivElement>(null);
@@ -247,7 +396,7 @@ export default function AddApplicationPage() {
     step2: {
       applicationName: "",
       description: "",
-      trustedSource: false,
+      sourceType: "",
       technicalOwner: "",
       businessOwner: "",
       technicalOwnerEmail: "",
@@ -566,26 +715,16 @@ export default function AddApplicationPage() {
 
   const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  const showSubmitProgressToasts = async () => {
-    const progressMessages = [
-      "Request Received...",
-      "Application Artifacts Created...",
-      "Update Schema mapping...",
-      "Application registered Successfully",
-    ];
-
-    for (let i = 0; i < progressMessages.length; i += 1) {
-      setSubmitProgressToast(progressMessages[i]);
-      await wait(5000);
-    }
-  };
-
   const handleNext = async () => {
     if (currentStep === 1 && (isLoadingAppTypes || !formData.step1.type?.trim())) return;
     const isDisconnectedApp = formData.step1.type === "Disconnected Application";
     const maxStep = isDisconnectedApp ? 6 : 5;
     if (currentStep >= maxStep) return;
     if (currentStep === 2) {
+      if (!formData.step2.sourceType?.trim()) {
+        setSubmitRequestError("Please select a source type.");
+        return;
+      }
       setSubmitRequestError(null);
       setCurrentStep(currentStep + 1);
     } else if (!isCompleteIntegration && currentStep === 3 && isDisconnectedApp) {
@@ -757,75 +896,6 @@ export default function AddApplicationPage() {
       } finally {
         setSubmitRequestLoading(false);
       }
-    } else if (
-      !isCompleteIntegration &&
-      currentStep === 3 &&
-      !isDisconnectedApp &&
-      formData.step1.type !== "Flatfile"
-    ) {
-      setSubmitRequestError(null);
-      setSubmitRequestLoading(true);
-      try {
-        const step3 = (formData.step3 || {}) as Record<string, unknown>;
-        const ApplicationDetails: Record<string, string> = {};
-        const pick = (targetKey: string, ...sourceKeys: string[]) => {
-          for (const sk of sourceKeys) {
-            const raw = step3[sk];
-            if (raw != null && String(raw).trim() !== "") {
-              ApplicationDetails[targetKey] = String(raw);
-              return;
-            }
-          }
-        };
-        pick("hostname", "hostname");
-        pick("port", "port");
-        pick("username", "username");
-        pick("password", "password");
-        pick("user_searchBase", "user_searchBase", "userSearchBase");
-        pick("group_searchBase", "group_searchBase", "groupSearchBase");
-        pick("default_group", "default_group", "defaultGroup");
-
-        const ldapCanonical = new Set([
-          "hostname",
-          "port",
-          "username",
-          "password",
-          "user_searchBase",
-          "group_searchBase",
-          "default_group",
-        ]);
-        Object.entries(step3).forEach(([k, v]) => {
-          if (v == null || typeof v === "object") return;
-          const strVal = String(v).trim();
-          if (!strVal) return;
-          const outKey =
-            k === "userSearchBase"
-              ? "user_searchBase"
-              : k === "groupSearchBase"
-                ? "group_searchBase"
-                : k === "defaultGroup"
-                  ? "default_group"
-                  : k;
-          if (!ldapCanonical.has(outKey) && ApplicationDetails[outKey] === undefined) {
-            ApplicationDetails[outKey] = strVal;
-          }
-        });
-
-        const registerResult = await registerScimAppNewApp({
-          ApplicationName: (formData.step2.applicationName || "").trim(),
-          ApplicationType: formData.step1.type || "",
-          ApplicationDetails,
-        });
-        const newAppId = extractApplicationIdFromRegisterNewAppResponse(registerResult);
-        persistAppInventoryTokenFromRegisterNewAppResponse(registerResult, newAppId);
-        if (newAppId) setWizardRegisteredAppId(newAppId);
-        setCurrentStep(currentStep + 1);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Failed to register application";
-        setSubmitRequestError(message);
-      } finally {
-        setSubmitRequestLoading(false);
-      }
     } else if (isCompleteIntegration && (currentStep === 3 || currentStep === 4)) {
       setSubmitRequestError(null);
       setSubmitRequestLoading(true);
@@ -881,6 +951,20 @@ export default function AddApplicationPage() {
       } finally {
         setSubmitRequestLoading(false);
       }
+    } else if (
+      isAiAgentWizard &&
+      !isCompleteIntegration &&
+      currentStep === 3 &&
+      formData.step1.type === "Database"
+    ) {
+      if (!isDatabaseSchemaStepReady()) {
+        setSubmitRequestError(
+          "Test the connection, enter Get All Users, load schema, then continue to Schema Mapping."
+        );
+        return;
+      }
+      setSubmitRequestError(null);
+      setCurrentStep(currentStep + 1);
     } else {
       setCurrentStep(currentStep + 1);
     }
@@ -902,30 +986,49 @@ export default function AddApplicationPage() {
     setSubmitRequestError(null);
     setSubmitRequestLoading(true);
 
-    const isDisconnectedApp = formData.step1.type === "Disconnected Application";
-
     try {
-      await showSubmitProgressToasts();
+      const appType = formData.step1.type?.trim() || "";
+      const isDisconnectedApp = appType === "Disconnected Application";
+      const isFlatfile = appType === "Flatfile";
+      const usesNewAppRegistration =
+        !isCompleteIntegration && !isDisconnectedApp && !isFlatfile;
 
-      // If we're on the last step for Disconnected Application (step 6), include Advanced settings
-      if (isDisconnectedApp && currentStep === 6 && advanceSettingRef.current) {
-        const config = advanceSettingRef.current.getConfig();
-        const appId = appIdFromUrl?.trim();
-        const token =
-          typeof window !== "undefined" && appId
-            ? sessionStorage.getItem(`app-inventory-token-${appId}`) ?? ""
-            : "";
-        if (appId && token) {
-          try {
-            await updateAppConfig(appId, token, config);
-          } catch (err) {
-            console.error("Failed to save advanced settings:", err);
-            alert("Application submitted but advanced settings could not be saved: " + (err instanceof Error ? err.message : "Unknown error"));
-          }
+      if (usesNewAppRegistration) {
+        const step3 = (formData.step3 || {}) as Record<string, unknown>;
+        const ApplicationDetails = buildApplicationDetailsForNewApp(step3, appType);
+
+        // 1) POST newApp — register application and get app id
+        setSubmitProgressToast("Request Received...");
+        const registerResult = await registerScimAppNewApp({
+          ApplicationName: (formData.step2.applicationName || "").trim(),
+          ApplicationType: appType,
+          ApplicationDetails,
+        });
+        const appId = extractApplicationIdFromRegisterNewAppResponse(registerResult)?.trim() || "";
+        persistAppInventoryTokenFromRegisterNewAppResponse(registerResult, appId);
+        if (!appId) {
+          throw new Error("Application registration did not return an application id");
         }
+        setWizardRegisteredAppId(appId);
+
+        // 2) POST mapfields — save schema mapping using app id from newApp
+        setSubmitProgressToast("Update Schema mapping...");
+        const provisioningAttrMap: Record<string, { variable: string }> = {};
+        attributeMappingData.forEach((mapping) => {
+          if (mapping.target?.trim()) {
+            provisioningAttrMap[mapping.target.trim()] = {
+              variable: mapping.source?.trim() ?? "",
+            };
+          }
+        });
+        await mapSchemaFields("ACMECOM", appId, {
+          provisioningAttrMap,
+          reconcilliationAttrMap: {},
+        });
       }
 
-      console.log("Form submitted:", formData);
+      setSubmitProgressToast("Application registered Successfully");
+      await wait(800);
       router.push("/settings/app-inventory");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to submit application";
@@ -1224,9 +1327,16 @@ export default function AddApplicationPage() {
       .finally(() => setUserSearchLoading(false));
   }, [currentStep]);
 
+  const getStep3Trim = (key: string): string =>
+    String((formData.step3 as Record<string, unknown>)[key] ?? "").trim();
+
+  const isDatabaseOnboardType = isAiAgentWizard && formData.step1.type === "Database";
+  const databaseViewName = getStep3Trim("view_name");
   // Step 4 (Schema Mapping): load rows from schemamapper getmappedschema
   useEffect(() => {
     if (currentStep !== 4 || typeof window === "undefined") return;
+    if (isAiAgentWizard && !isCompleteIntegration) return;
+    if (isDatabaseOnboardType && !isCompleteIntegration) return;
     const appId = (isCompleteIntegration ? appIdFromUrl?.trim() : wizardRegisteredAppId?.trim()) || "";
     if (!appId) return;
     let cancelled = false;
@@ -1246,7 +1356,203 @@ export default function AddApplicationPage() {
     return () => {
       cancelled = true;
     };
-  }, [currentStep, isCompleteIntegration, appIdFromUrl, wizardRegisteredAppId]);
+  }, [
+    currentStep,
+    isCompleteIntegration,
+    appIdFromUrl,
+    wizardRegisteredAppId,
+    isDatabaseOnboardType,
+    isAiAgentWizard,
+  ]);
+
+  // Database schema mapping: preload SCIM source attributes for row dropdowns
+  useEffect(() => {
+    if (currentStep !== 4 || !isDatabaseOnboardType || isCompleteIntegration) return;
+    if (!databaseSchemaLoaded) return;
+    if (scimAttributes.length === 0 && !isLoadingAttributes) {
+      fetchScimAttributes();
+    }
+  }, [
+    currentStep,
+    isDatabaseOnboardType,
+    isCompleteIntegration,
+    databaseSchemaLoaded,
+    scimAttributes.length,
+    isLoadingAttributes,
+  ]);
+
+  useEffect(() => {
+    if (isAiAgentWizard && isGroupedOnboardApplicationType(formData.step1.type)) {
+      setGroupedIntegrationTab(CONNECTION_PARAMETERS_GROUP_ID);
+      setTestConnectionFeedback(null);
+    }
+    if (!isAiAgentWizard || formData.step1.type !== "Database") {
+      setDatabaseSessionId(null);
+      setDatabaseSchemaLoaded(false);
+      setFetchSchemaFeedback(null);
+    }
+  }, [formData.step1.type, isAiAgentWizard]);
+
+  useEffect(() => {
+    if (!isDatabaseOnboardType) return;
+    setDatabaseSchemaLoaded(false);
+    setFetchSchemaFeedback(null);
+    setAttributeMappingData([]);
+    setAttributeMappingPage(1);
+  }, [isDatabaseOnboardType, databaseViewName]);
+
+  const handleTestConnection = async () => {
+    const appType = formData.step1.type?.trim() || "";
+    if (!isAiAgentWizard || !isGroupedOnboardApplicationType(appType)) return;
+
+    const groups = applicationTypeIntegrationGroups[appType] ?? [];
+    const connGroup = groups.find((g) => g.id === CONNECTION_PARAMETERS_GROUP_ID);
+    if (!connGroup?.fields.length) {
+      setTestConnectionFeedback({
+        type: "error",
+        message: "Connection parameters are not configured for this application type.",
+      });
+      return;
+    }
+
+    setTestConnectionLoading(true);
+    setTestConnectionFeedback(null);
+    setFetchSchemaFeedback(null);
+    try {
+      let data: unknown;
+      if (appType === "Database") {
+        setDatabaseSessionId(null);
+        setDatabaseSchemaLoaded(false);
+        setAttributeMappingData([]);
+        handleInputChange("step3", "dbSessionId", "");
+        const dbPayload = buildDatabaseTestConnectionPayload(
+          formData.step3 as Record<string, unknown>
+        );
+        if (!isDatabaseTestConnectionPayloadComplete(dbPayload)) {
+          setTestConnectionFeedback({
+            type: "error",
+            message:
+              "Enter database type, connection URL (e.g. localhost:5432/dbname or JDBC URL), username, and password.",
+          });
+          return;
+        }
+        data = await testDatabaseConnection(dbPayload);
+      } else {
+        const missing = connGroup.fields.filter((fk) => !getStep3Trim(fk));
+        if (missing.length > 0) {
+          setTestConnectionFeedback({
+            type: "error",
+            message: "Please fill in all connection parameter fields before testing.",
+          });
+          return;
+        }
+        const payload: Record<string, string> = {};
+        connGroup.fields.forEach((fk) => {
+          const v = getStep3Trim(fk);
+          if (v) payload[fk] = v;
+        });
+        data = await testRestServiceConnection(payload);
+      }
+      const result = parseConnectionTestResult(data);
+      if (appType === "Database" && result.ok) {
+        if (!result.session_id) {
+          setTestConnectionFeedback({
+            type: "error",
+            message: "Connection succeeded but no session id was returned.",
+          });
+          return;
+        }
+        setDatabaseSessionId(result.session_id);
+        handleInputChange("step3", "dbSessionId", result.session_id);
+      }
+      setTestConnectionFeedback({
+        type: result.ok ? "success" : "error",
+        message: result.message,
+      });
+    } catch (err) {
+      setTestConnectionFeedback({
+        type: "error",
+        message: err instanceof Error ? err.message : "Connection test failed",
+      });
+    } finally {
+      setTestConnectionLoading(false);
+    }
+  };
+
+  const handleFetchDatabaseSchema = async () => {
+    const sessionId = databaseSessionId?.trim() || getStep3Trim("dbSessionId");
+    const view_name = getStep3Trim("view_name");
+    if (!sessionId) {
+      setFetchSchemaFeedback({
+        type: "error",
+        message: "Test the connection first to obtain a session.",
+      });
+      return;
+    }
+    if (!view_name) {
+      setFetchSchemaFeedback({
+        type: "error",
+        message: "Enter Get All Users before loading schema.",
+      });
+      return;
+    }
+
+    setFetchSchemaLoading(true);
+    setFetchSchemaFeedback(null);
+    setSubmitRequestError(null);
+    try {
+      const data = await fetchDatabaseSchema({
+        session_id: sessionId,
+        view_name,
+        is_stored_procedure: false,
+      });
+      let rows = attributeMappingsFromFetchSchemaJson(data);
+      if (rows.length === 0) {
+        throw new Error("No columns were returned for this view.");
+      }
+
+      let suggestApplied = false;
+      try {
+        const suggestData = await fetchDatabaseSuggestMapping({
+          session_id: sessionId,
+          top_n: 3,
+        });
+        rows = applyDatabaseSuggestMappingToRows(rows, suggestData);
+        suggestApplied = rows.some((r) => Boolean(r.bestMatch || r.option2));
+      } catch (suggestErr) {
+        console.warn("suggest-mapping failed:", suggestErr);
+      }
+
+      setAttributeMappingData(rows);
+      setAttributeMappingPage(1);
+      setDatabaseSchemaLoaded(true);
+      setFetchSchemaFeedback({
+        type: "success",
+        message: suggestApplied
+          ? `Loaded ${rows.length} column(s) with mapping suggestions. You can continue to Schema Mapping.`
+          : `Loaded ${rows.length} column(s). Mapping suggestions were unavailable; you can map attributes manually.`,
+      });
+    } catch (err) {
+      setDatabaseSchemaLoaded(false);
+      setFetchSchemaFeedback({
+        type: "error",
+        message: err instanceof Error ? err.message : "Failed to fetch schema",
+      });
+    } finally {
+      setFetchSchemaLoading(false);
+    }
+  };
+
+  const isDatabaseConnectionTestSuccessful = (): boolean =>
+    testConnectionFeedback?.type === "success" &&
+    Boolean(databaseSessionId?.trim() || getStep3Trim("dbSessionId"));
+
+  const isDatabaseSchemaStepReady = (): boolean =>
+    Boolean(
+      databaseSchemaLoaded &&
+        (databaseSessionId?.trim() || getStep3Trim("dbSessionId")) &&
+        getStep3Trim("view_name")
+    );
 
   // Filter loaded users by current input (client-side only)
   const getFilteredOwnerUsers = (field: OwnerField): UserSearchHit[] => {
@@ -1494,6 +1800,376 @@ export default function AddApplicationPage() {
       </div>
     );
   };
+
+  const normalizeMappingLabel = (value: string | undefined): string =>
+    (value ?? "").trim().toLowerCase();
+
+  const getDatabaseMappingPick = (
+    mapping: AttributeMapping
+  ): DatabaseMappingSourceSelection | "" => {
+    if (mapping.sourceSelection) return mapping.sourceSelection;
+    const src = normalizeMappingLabel(mapping.source);
+    if (!src) return "";
+    if (mapping.bestMatch && src === normalizeMappingLabel(mapping.bestMatch)) {
+      return "bestMatch";
+    }
+    if (mapping.option2 && src === normalizeMappingLabel(mapping.option2)) {
+      return "option2";
+    }
+    return mapping.source?.trim() ? "custom" : "";
+  };
+
+  const setDatabaseMappingPick = (
+    rowId: string,
+    pick: DatabaseMappingSourceSelection
+  ) => {
+    setAttributeMappingData((prev) =>
+      prev.map((m) => {
+        if (m.id !== rowId) return m;
+        if (pick === "bestMatch") {
+          return {
+            ...m,
+            sourceSelection: pick,
+            source: m.bestMatch?.trim() ?? "",
+          };
+        }
+        if (pick === "option2") {
+          return {
+            ...m,
+            sourceSelection: pick,
+            source: m.option2?.trim() ?? "",
+          };
+        }
+        return { ...m, sourceSelection: pick };
+      })
+    );
+  };
+
+  const updateDatabaseMappingSource = (
+    id: string,
+    source: string,
+    selection: DatabaseMappingSourceSelection = "custom"
+  ) => {
+    setAttributeMappingData((prev) =>
+      prev.map((m) =>
+        m.id === id ? { ...m, source, sourceSelection: selection } : m
+      )
+    );
+  };
+
+  /** Full SCIM list for database mapping dropdown (always show all, not filtered by input). */
+  const databaseMappingDropdownOptions = (mapping: AttributeMapping | undefined): string[] => {
+    const seen = new Set<string>();
+    const add = (v: string | undefined) => {
+      const t = v?.trim();
+      if (t && !seen.has(t)) seen.add(t);
+    };
+    for (const attr of scimAttributes) add(attr);
+    if (mapping) {
+      add(mapping.source);
+      add(mapping.bestMatch);
+      add(mapping.option2);
+    }
+    return Array.from(seen).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  };
+
+  const dbMappingOpenRow = dbMappingOpenRowId
+    ? attributeMappingData.find((m) => m.id === dbMappingOpenRowId)
+    : undefined;
+
+  const dbMappingDropdownOptions = databaseMappingDropdownOptions(dbMappingOpenRow);
+
+  const syncDbMappingDropdownPosition = useCallback(() => {
+    if (!dbMappingOpenRowId) return;
+    const anchor = dbMappingAnchorRefs.current[dbMappingOpenRowId];
+    if (anchor) setDbMappingDropdownRect(anchor.getBoundingClientRect());
+  }, [dbMappingOpenRowId]);
+
+  const openDbMappingDropdown = (rowId: string) => {
+    const mapping = attributeMappingData.find((m) => m.id === rowId);
+    setDbMappingFilter(mapping?.source ?? "");
+    setDbMappingOpenRowId(rowId);
+    const anchor = dbMappingAnchorRefs.current[rowId];
+    if (anchor) setDbMappingDropdownRect(anchor.getBoundingClientRect());
+    if (scimAttributes.length === 0 && !isLoadingAttributes) {
+      fetchScimAttributes();
+    }
+  };
+
+  const selectDbMappingAttribute = (rowId: string, attr: string) => {
+    updateDatabaseMappingSource(rowId, attr, "custom");
+    setDbMappingFilter(attr);
+    setDbMappingOpenRowId(null);
+    setDbMappingDropdownRect(null);
+  };
+
+  useEffect(() => {
+    if (!dbMappingOpenRowId) return;
+    syncDbMappingDropdownPosition();
+    const onScrollOrResize = () => syncDbMappingDropdownPosition();
+    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onScrollOrResize);
+    return () => {
+      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
+    };
+  }, [dbMappingOpenRowId, syncDbMappingDropdownPosition]);
+
+  useEffect(() => {
+    if (!dbMappingOpenRowId) return;
+    const onPointerDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      const anchor = dbMappingAnchorRefs.current[dbMappingOpenRowId];
+      if (anchor?.contains(target)) return;
+      if (dbMappingDropdownPortalRef.current?.contains(target)) return;
+      setDbMappingOpenRowId(null);
+      setDbMappingDropdownRect(null);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [dbMappingOpenRowId]);
+
+  const renderDatabaseSchemaMappingStep = () => (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-3">
+          Schema Mapping
+        </h3>
+        <p className="text-sm text-gray-600 mt-2">
+          Map each database column by selecting exactly one option: Best Match, Option 2, or Source
+          Attribute.
+        </p>
+      </div>
+
+      <div className="border border-gray-200 rounded-lg overflow-visible">
+        <table className="w-full table-auto">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Source Attribute
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Best Match
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Option 2
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Source Attribute
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {getCurrentPageData().length === 0 ? (
+              <tr>
+                <td colSpan={4} className="px-4 py-6 text-center text-sm text-gray-500">
+                  No columns loaded. Return to Integration and click Load Schema.
+                </td>
+              </tr>
+            ) : (
+              getCurrentPageData().map((mapping, index) => {
+                const mappingPick = getDatabaseMappingPick(mapping);
+                const mappingRadioName = `db-mapping-${mapping.id}`;
+                const isCustomPick = mappingPick === "custom";
+
+                return (
+                <tr key={mapping.id ?? `db-row-${index}`}>
+                  <td
+                    className="px-4 py-3 text-sm font-medium text-gray-900 whitespace-pre-wrap break-words align-top"
+                    title={mapping.target}
+                  >
+                    {mapping.target || "—"}
+                  </td>
+                  <td className="px-4 py-3 text-sm align-top">
+                    {mapping.bestMatch ? (
+                      <label className="flex items-start gap-2.5 cursor-pointer group">
+                        <input
+                          type="radio"
+                          name={mappingRadioName}
+                          className="mt-0.5 w-4 h-4 shrink-0 text-blue-600 border-gray-300 focus:ring-blue-500"
+                          checked={mappingPick === "bestMatch"}
+                          onChange={() => setDatabaseMappingPick(mapping.id, "bestMatch")}
+                          aria-label={`Select best match ${mapping.bestMatch} for ${mapping.target}`}
+                        />
+                        <span className="text-gray-900 break-words group-hover:text-blue-700">
+                          {mapping.bestMatch}
+                        </span>
+                      </label>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-sm align-top">
+                    {mapping.option2 ? (
+                      <label className="flex items-start gap-2.5 cursor-pointer group">
+                        <input
+                          type="radio"
+                          name={mappingRadioName}
+                          className="mt-0.5 w-4 h-4 shrink-0 text-blue-600 border-gray-300 focus:ring-blue-500"
+                          checked={mappingPick === "option2"}
+                          onChange={() => setDatabaseMappingPick(mapping.id, "option2")}
+                          aria-label={`Select option 2 ${mapping.option2} for ${mapping.target}`}
+                        />
+                        <span className="text-gray-900 break-words group-hover:text-blue-700">
+                          {mapping.option2}
+                        </span>
+                      </label>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 align-top min-w-[12rem]">
+                    <div className="flex items-start gap-2.5">
+                      <input
+                        type="radio"
+                        name={mappingRadioName}
+                        className="mt-2.5 w-4 h-4 shrink-0 text-blue-600 border-gray-300 focus:ring-blue-500"
+                        checked={isCustomPick}
+                        onChange={() => {
+                          setDatabaseMappingPick(mapping.id, "custom");
+                          openDbMappingDropdown(mapping.id);
+                        }}
+                        aria-label={`Select custom source attribute for ${mapping.target}`}
+                      />
+                      <div
+                        className="relative flex-1 overflow-visible"
+                        ref={(el) => {
+                          dbMappingAnchorRefs.current[mapping.id] = el;
+                        }}
+                      >
+                      <input
+                        type="text"
+                        className="w-full px-3 py-2 pr-9 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:bg-gray-50 disabled:text-gray-500"
+                        value={
+                          dbMappingOpenRowId === mapping.id
+                            ? dbMappingFilter
+                            : mapping.source || ""
+                        }
+                        disabled={
+                          !isCustomPick ||
+                          (isLoadingAttributes && scimAttributes.length === 0)
+                        }
+                        placeholder={
+                          isLoadingAttributes
+                            ? "Loading attributes…"
+                            : "Select or enter source attribute"
+                        }
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setDbMappingFilter(value);
+                          updateDatabaseMappingSource(mapping.id, value, "custom");
+                          if (dbMappingOpenRowId !== mapping.id) {
+                            openDbMappingDropdown(mapping.id);
+                          }
+                        }}
+                        onFocus={() => {
+                          setDatabaseMappingPick(mapping.id, "custom");
+                          openDbMappingDropdown(mapping.id);
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-2 top-2 text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                        disabled={
+                          !isCustomPick ||
+                          (isLoadingAttributes && scimAttributes.length === 0)
+                        }
+                        aria-label="Toggle source attribute list"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDatabaseMappingPick(mapping.id, "custom");
+                          if (dbMappingOpenRowId === mapping.id) {
+                            setDbMappingOpenRowId(null);
+                            setDbMappingDropdownRect(null);
+                          } else {
+                            openDbMappingDropdown(mapping.id);
+                          }
+                        }}
+                      >
+                        <ChevronDown
+                          className={`w-4 h-4 transition-transform ${
+                            dbMappingOpenRowId === mapping.id ? "rotate-180" : ""
+                          }`}
+                        />
+                      </button>
+                    </div>
+                    </div>
+                  </td>
+                </tr>
+              );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <button
+            type="button"
+            className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
+            onClick={() => setAttributeMappingPage(Math.max(1, attributeMappingPage - 1))}
+            disabled={attributeMappingPage === 1}
+          >
+            &lt;
+          </button>
+          <span className="text-sm text-gray-700">
+            Page {attributeMappingPage} of {getAttributeMappingTotalPages()}
+          </span>
+          <button
+            type="button"
+            className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
+            onClick={() =>
+              setAttributeMappingPage(
+                Math.min(getAttributeMappingTotalPages(), attributeMappingPage + 1)
+              )
+            }
+            disabled={attributeMappingPage === getAttributeMappingTotalPages()}
+          >
+            &gt;
+          </button>
+        </div>
+        <p className="text-xs text-gray-500">
+          {attributeMappingData.length} column(s) · mappings are saved when you submit the
+          application
+        </p>
+      </div>
+
+      {dbMappingOpenRowId &&
+        dbMappingDropdownRect &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={dbMappingDropdownPortalRef}
+            className="fixed z-[200] bg-white border border-gray-300 rounded-md shadow-lg max-h-80 overflow-y-auto overflow-x-hidden"
+            style={{
+              top: dbMappingDropdownRect.bottom + 4,
+              left: dbMappingDropdownRect.left,
+              width: Math.max(dbMappingDropdownRect.width, 220),
+            }}
+          >
+            {isLoadingAttributes ? (
+              <div className="px-4 py-2 text-sm text-gray-500">Loading attributes…</div>
+            ) : dbMappingDropdownOptions.length > 0 ? (
+              dbMappingDropdownOptions.map((attr, index) => (
+                <button
+                  key={`${attr}-${index}`}
+                  type="button"
+                  className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 border-b border-gray-100 last:border-b-0"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => selectDbMappingAttribute(dbMappingOpenRowId, attr)}
+                >
+                  {attr}
+                </button>
+              ))
+            ) : (
+              <div className="px-4 py-2 text-sm text-gray-500">No attributes found</div>
+            )}
+          </div>,
+          document.body
+        )}
+    </div>
+  );
 
   // Shared Schema Mapping step content (used for both normal and disconnected flows)
   const renderSchemaMappingStep = () => (
@@ -2007,6 +2683,269 @@ export default function AddApplicationPage() {
     </div>
   );
 
+  const renderFinishUpSummary = () => {
+    const appType = formData.step1.type?.trim() || "";
+    const isDisconnected = appType === "Disconnected Application";
+    const isFlatfile = appType === "Flatfile";
+
+    const SummarySection = ({
+      title,
+      children,
+    }: {
+      title: string;
+      children: React.ReactNode;
+    }) => (
+      <section className="border border-slate-200 rounded-lg bg-white overflow-hidden shadow-sm">
+        <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+          <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
+        </div>
+        <dl className="px-4 py-3 space-y-0">{children}</dl>
+      </section>
+    );
+
+    const SummaryRow = ({ label, value }: { label: string; value: React.ReactNode }) => (
+      <div className="flex flex-col sm:flex-row sm:gap-4 py-2 border-b border-slate-100 last:border-0">
+        <dt className="sm:w-44 shrink-0 text-xs font-medium text-slate-500 uppercase tracking-wide">
+          {label}
+        </dt>
+        <dd className="min-w-0 text-sm text-slate-900 break-words">{value ?? "—"}</dd>
+      </div>
+    );
+
+    const maskIfSensitive = (key: string, value: unknown): string => {
+      if (value == null || value === "") return "—";
+      if (/password|secret|token|credential/i.test(key)) return "••••••••";
+      if (Array.isArray(value)) return value.length ? value.map(String).join(", ") : "—";
+      if (typeof value === "object") return JSON.stringify(value);
+      return String(value);
+    };
+
+    const integrationGroups = applicationTypeIntegrationGroups[appType] ?? [];
+    const integrationRows: { label: string; value: string }[] = [];
+    for (const group of integrationGroups) {
+      for (const fieldKey of group.fields) {
+        const raw = (formData.step3 as Record<string, unknown>)[fieldKey];
+        integrationRows.push({
+          label: fieldKey.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase()),
+          value: maskIfSensitive(fieldKey, raw),
+        });
+      }
+    }
+
+    if (integrationRows.length === 0 && !isFlatfile && !isDisconnected) {
+      const skipKeys = new Set([
+        "fieldOrder",
+        "multivaluedField",
+        "integrationSettings",
+      ]);
+      Object.entries(formData.step3 as Record<string, unknown>).forEach(([key, val]) => {
+        if (skipKeys.has(key) || val == null || val === "") return;
+        if (Array.isArray(val) && val.length === 0) return;
+        integrationRows.push({
+          label: key.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase()),
+          value: maskIfSensitive(key, val),
+        });
+      });
+    }
+
+    const flatfilePreviewCount = (() => {
+      const data = flatfileMetadataUsers as { preview?: unknown[] } | unknown[] | null;
+      if (!data) return 0;
+      if (!Array.isArray(data) && Array.isArray((data as { preview?: unknown[] }).preview)) {
+        return (data as { preview: unknown[] }).preview.length;
+      }
+      return Array.isArray(data) ? data.length : 0;
+    })();
+
+    const disconnectedPreviewCount = (() => {
+      const data = disconnectedMetadataUsers as { preview?: unknown[] } | unknown[] | null;
+      if (!data) return 0;
+      if (!Array.isArray(data) && Array.isArray((data as { preview?: unknown[] }).preview)) {
+        return (data as { preview: unknown[] }).preview.length;
+      }
+      return Array.isArray(data) ? data.length : 0;
+    })();
+
+    const mappingPreview = attributeMappingData.slice(0, 8);
+
+    return (
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Review &amp; finish</h2>
+          <p className="text-sm text-gray-600 mt-1">
+            Summary of your application configuration across all wizard steps.
+          </p>
+        </div>
+
+        {!isCompleteIntegration && (
+          <SummarySection title="1. Select System">
+            <SummaryRow label="Application type" value={appType || "—"} />
+            {formData.step1.oauthType ? (
+              <SummaryRow label="OAuth type" value={formData.step1.oauthType} />
+            ) : null}
+          </SummarySection>
+        )}
+
+        <SummarySection title={isCompleteIntegration ? "1. Application details" : "2. Add Details"}>
+          <SummaryRow label="Application name" value={formData.step2.applicationName} />
+          <SummaryRow
+            label="Description"
+            value={formData.step2.description?.trim() ? formData.step2.description : "—"}
+          />
+          <SummaryRow label="Technical owner" value={formData.step2.technicalOwner} />
+          <SummaryRow label="Business owner" value={formData.step2.businessOwner} />
+          <SummaryRow label="Technical owner email" value={formData.step2.technicalOwnerEmail} />
+          <SummaryRow label="Business owner email" value={formData.step2.businessOwnerEmail} />
+          <SummaryRow
+            label="Source type"
+            value={formData.step2.sourceType?.trim() || "—"}
+          />
+        </SummarySection>
+
+        {isFlatfile ? (
+          <SummarySection title={isCompleteIntegration ? "2. File upload" : "3. File upload"}>
+            <SummaryRow
+              label="Uploaded file"
+              value={flatfileFileRef.current?.name ?? "No file selected"}
+            />
+            <SummaryRow label="Field delimiter" value={String(formData.step3.fieldDelimiter ?? "—")} />
+            <SummaryRow
+              label="Multivalue delimiter"
+              value={String(formData.step3.multivalueDelimiter ?? "—")}
+            />
+            <SummaryRow label="Preview rows" value={String(flatfilePreviewCount)} />
+            <SummaryRow
+              label="Fields configured"
+              value={
+                Array.isArray(formData.step3.fieldOrder) && formData.step3.fieldOrder.length > 0
+                  ? `${formData.step3.fieldOrder.length} field(s)`
+                  : "—"
+              }
+            />
+          </SummarySection>
+        ) : isDisconnected ? (
+          <>
+            <SummarySection title={isCompleteIntegration ? "2. Integration settings" : "3. Integration settings"}>
+              {integrationRows.length === 0 ? (
+                <SummaryRow label="Configuration" value="No integration fields configured" />
+              ) : (
+                integrationRows.map((row) => (
+                  <SummaryRow key={row.label} label={row.label} value={row.value} />
+                ))
+              )}
+            </SummarySection>
+            <SummarySection title={isCompleteIntegration ? "3. File upload" : "4. File upload"}>
+              <SummaryRow
+                label="Uploaded file"
+                value={disconnectedFile?.name ?? "No file selected"}
+              />
+              <SummaryRow label="Preview rows" value={String(disconnectedPreviewCount)} />
+              <SummaryRow
+                label="Metadata saved"
+                value={disconnectedMetadataSaved ? "Yes" : "No"}
+              />
+            </SummarySection>
+          </>
+        ) : appType === "Database" ? (
+          <SummarySection title={isCompleteIntegration ? "2. Integration settings" : "3. Integration settings"}>
+            {integrationRows.length === 0 ? (
+              <SummaryRow label="Configuration" value="No integration fields configured" />
+            ) : (
+              integrationRows.map((row) => (
+                <SummaryRow key={row.label} label={row.label} value={row.value} />
+              ))
+            )}
+            <SummaryRow label="Get All Users" value={getStep3Trim("view_name") || "—"} />
+            <SummaryRow
+              label="Connection session"
+              value={databaseSessionId || getStep3Trim("dbSessionId") || "—"}
+            />
+            <SummaryRow
+              label="Schema loaded"
+              value={
+                databaseSchemaLoaded
+                  ? `Yes (${attributeMappingData.length} column(s))`
+                  : "No"
+              }
+            />
+          </SummarySection>
+        ) : (
+          <SummarySection title={isCompleteIntegration ? "2. Integration settings" : "3. Integration settings"}>
+            {integrationRows.length === 0 ? (
+              <SummaryRow label="Configuration" value="No integration fields configured" />
+            ) : (
+              integrationRows.map((row) => (
+                <SummaryRow key={row.label} label={row.label} value={row.value} />
+              ))
+            )}
+          </SummarySection>
+        )}
+
+        <SummarySection
+          title={
+            isDisconnected
+              ? isCompleteIntegration
+                ? "4. Schema mapping"
+                : "5. Schema mapping"
+              : isCompleteIntegration
+                ? "3. Schema mapping"
+                : "4. Schema mapping"
+          }
+        >
+          <SummaryRow
+            label="Mappings"
+            value={
+              attributeMappingData.length === 0
+                ? "No mappings configured"
+                : `${attributeMappingData.length} mapping(s)`
+            }
+          />
+          {mappingPreview.length > 0 ? (
+            <div className="py-2">
+              <dt className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">
+                Mapping preview
+              </dt>
+              <dd>
+                <div className="border border-slate-200 rounded-md overflow-hidden">
+                  <table className="w-full text-sm text-left">
+                    <thead className="bg-slate-50 text-xs text-slate-600">
+                      <tr>
+                        <th className="px-3 py-2 font-medium">
+                          {appType === "Database" ? "Column" : "Source"}
+                        </th>
+                        <th className="px-3 py-2 font-medium">
+                          {appType === "Database" ? "Source attribute" : "Target"}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {mappingPreview.map((m) => (
+                        <tr key={m.id}>
+                          <td className="px-3 py-2 text-slate-800">
+                            {appType === "Database" ? m.target || "—" : m.source || "—"}
+                          </td>
+                          <td className="px-3 py-2 text-slate-800">
+                            {appType === "Database" ? m.source || "—" : m.target || "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {attributeMappingData.length > mappingPreview.length ? (
+                  <p className="text-xs text-slate-500 mt-2">
+                    +{attributeMappingData.length - mappingPreview.length} more mapping(s)
+                  </p>
+                ) : null}
+              </dd>
+            </div>
+          ) : null}
+        </SummarySection>
+
+      </div>
+    );
+  };
+
   const renderStepContent = () => {
     switch (currentStep) {
       case 1:
@@ -2040,12 +2979,17 @@ export default function AddApplicationPage() {
                    </div>
                  ) : (
                    applicationTypes
-                     .filter((type) => 
-                       searchQuery === "" || 
-                       type.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                       type.subtitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                       type.id.toLowerCase().includes(searchQuery.toLowerCase())
-                     )
+                     .filter((type) => {
+                       const isAiAgentType = isAiAgentOnboardApplicationType(type.id);
+                       if (isAiAgentWizard && !isAiAgentType) return false;
+                       if (!isAiAgentWizard && isAiAgentType) return false;
+                       return (
+                         searchQuery === "" ||
+                         type.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         type.subtitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         type.id.toLowerCase().includes(searchQuery.toLowerCase())
+                       );
+                     })
                      .map((type) => (
                    <div
                      key={type.id}
@@ -2118,8 +3062,8 @@ export default function AddApplicationPage() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="flex-[3] relative">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="relative min-w-0">
                 <input
                   type="text"
                   value={formData.step2.applicationName}
@@ -2135,16 +3079,37 @@ export default function AddApplicationPage() {
                   Application Name *
                 </label>
               </div>
-              <div className="flex-none flex items-center pt-1">
-                <input
-                  type="checkbox"
-                  id="trustedSource"
-                  checked={formData.step2.trustedSource}
-                  onChange={(e) => handleInputChange("step2", "trustedSource", e.target.checked)}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+              <div className="relative min-w-0">
+                <select
+                  id="applicationSourceType"
+                  value={formData.step2.sourceType}
+                  onChange={(e) =>
+                    handleInputChange("step2", "sourceType", e.target.value)
+                  }
+                  className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
+                >
+                  <option value="" disabled>
+                    {" "}
+                  </option>
+                  {APPLICATION_SOURCE_TYPE_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none"
+                  aria-hidden
                 />
-                <label htmlFor="trustedSource" className="ml-2 text-sm text-gray-700 cursor-pointer">
-                  Trusted Source
+                <label
+                  htmlFor="applicationSourceType"
+                  className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                    formData.step2.sourceType
+                      ? "top-0.5 text-xs text-blue-600"
+                      : "top-3.5 text-sm text-gray-500"
+                  }`}
+                >
+                  Source type *
                 </label>
               </div>
             </div>
@@ -2251,6 +3216,25 @@ export default function AddApplicationPage() {
 
       case 3:
         const selectedAppType = formData.step1.type;
+
+        if (isAiAgentWizard && !isAiAgentOnboardApplicationType(selectedAppType)) {
+          return (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 space-y-4">
+              <h3 className="text-lg font-semibold text-amber-900">Select an application type</h3>
+              <p className="text-sm text-amber-800">
+                AI Agent onboarding supports{" "}
+                {GROUPED_ONBOARD_APPLICATION_TYPES.join(" and ")} only.
+              </p>
+              <button
+                type="button"
+                onClick={() => setCurrentStep(1)}
+                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700"
+              >
+                Go to Select System
+              </button>
+            </div>
+          );
+        }
 
         // For Disconnected Application (both create and edit), step 3 = Integration Settings
         if (selectedAppType === "Disconnected Application") {
@@ -3685,6 +4669,124 @@ export default function AddApplicationPage() {
                 </div>
               );
             };
+
+            if (
+              isAiAgentWizard &&
+              isGroupedOnboardApplicationType(selectedAppType) &&
+              integrationGroupsForType.length > 0
+            ) {
+              const connGroup = integrationGroupsForType.find(
+                (g) => g.id === CONNECTION_PARAMETERS_GROUP_ID
+              );
+              const integrationValues = Object.fromEntries(
+                integrationGroupsForType.flatMap((g) =>
+                  g.fields.map((fk) => [fk, String((formData.step3 as Record<string, unknown>)[fk] ?? "")])
+                )
+              );
+              const canTestConnection =
+                selectedAppType === "Database"
+                  ? isDatabaseTestConnectionPayloadComplete(
+                      buildDatabaseTestConnectionPayload(
+                        formData.step3 as Record<string, unknown>
+                      )
+                    )
+                  : connGroup
+                    ? connGroup.fields.every((fk) => getStep3Trim(fk) !== "")
+                    : false;
+
+              return (
+                <div className="space-y-6">
+                  <TabbedIntegrationOnboardGroups
+                    applicationType={selectedAppType}
+                    groups={integrationGroupsForType}
+                    values={integrationValues}
+                    onChange={(key, value) => handleInputChange("step3", key, value)}
+                    activeTabId={groupedIntegrationTab}
+                    onActiveTabChange={setGroupedIntegrationTab}
+                    testConnectionLoading={testConnectionLoading}
+                    testConnectionFeedback={testConnectionFeedback}
+                    onTestConnection={handleTestConnection}
+                    canTestConnection={canTestConnection}
+                  />
+                  {selectedAppType === "Database" && isDatabaseConnectionTestSuccessful() && (
+                    <div className="border border-slate-200 rounded-lg bg-white shadow-sm p-4 sm:p-5 space-y-4">
+                      <h4 className="text-sm font-semibold text-slate-800">
+                        Reconciliation/Aggregation
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        Enter Get All Users and load columns before Schema Mapping.
+                      </p>
+                      <div className="relative min-w-0 max-w-md">
+                        <input
+                          type="text"
+                          value={getStep3Trim("view_name")}
+                          onChange={(e) => handleInputChange("step3", "view_name", e.target.value)}
+                          className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder=" "
+                        />
+                        <label
+                          className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                            getStep3Trim("view_name")
+                              ? "top-0.5 text-xs text-blue-600"
+                              : "top-3.5 text-sm text-gray-500"
+                          }`}
+                        >
+                          Get All Users *
+                        </label>
+                      </div>
+                      {(databaseSessionId || getStep3Trim("dbSessionId")) && (
+                        <p className="text-xs text-slate-500 font-mono truncate">
+                          Session: {databaseSessionId || getStep3Trim("dbSessionId")}
+                        </p>
+                      )}
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2 border-t border-slate-100">
+                        <div className="min-w-0">
+                          {fetchSchemaFeedback ? (
+                            <p
+                              className={`text-sm ${
+                                fetchSchemaFeedback.type === "success"
+                                  ? "text-green-700"
+                                  : "text-red-600"
+                              }`}
+                              role="status"
+                            >
+                              {fetchSchemaFeedback.message}
+                            </p>
+                          ) : databaseSchemaLoaded ? (
+                            <p className="text-sm text-green-700" role="status">
+                              Schema loaded ({attributeMappingData.length} columns). Schema Mapping step
+                              is unlocked.
+                            </p>
+                          ) : (
+                            <p className="text-xs text-slate-500">
+                              Load schema to unlock the next step.
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleFetchDatabaseSchema}
+                          disabled={
+                            fetchSchemaLoading ||
+                            (!databaseSessionId && !getStep3Trim("dbSessionId")) ||
+                            !getStep3Trim("view_name")
+                          }
+                          className={`shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium ${
+                            fetchSchemaLoading ||
+                            (!databaseSessionId && !getStep3Trim("dbSessionId")) ||
+                            !getStep3Trim("view_name")
+                              ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                              : "bg-blue-600 text-white hover:bg-blue-700"
+                          }`}
+                        >
+                          {fetchSchemaLoading ? "Loading schema…" : "Load Schema"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            }
 
             return (
               <div className="space-y-6">
@@ -8755,13 +9857,13 @@ export default function AddApplicationPage() {
                         ? `${formData.step2.applicationName} (${selectedAppType || "—"})`
                         : selectedAppType || "No Application Selected"}`}
                   </h3>
-                  <p className="text-sm text-gray-600">
-                    {selectedAppType === "Flatfile"
-                      ? "Upload your flat file and set field and multivalue delimiters."
-                      : isCompleteIntegration
-                        ? "Configure the integration settings for this application."
-                        : "Configure the integration settings for your selected application type."}
-                  </p>
+                  {(selectedAppType === "Flatfile" || isCompleteIntegration) && (
+                    <p className="text-sm text-gray-600">
+                      {selectedAppType === "Flatfile"
+                        ? "Upload your flat file and set field and multivalue delimiters."
+                        : "Configure the integration settings for this application."}
+                    </p>
+                  )}
                 </div>
                 {renderIntegrationFields()}
               </div>
@@ -9919,6 +11021,35 @@ export default function AddApplicationPage() {
           );
         }
 
+        if (
+          isAiAgentWizard &&
+          formData.step1.type === "Database" &&
+          !isCompleteIntegration &&
+          !isDatabaseSchemaStepReady()
+        ) {
+          return (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 space-y-4">
+              <h3 className="text-lg font-semibold text-amber-900">Schema Mapping not ready</h3>
+              <p className="text-sm text-amber-800">
+                On the Integration step, test the database connection, enter Get All Users, and
+                click <strong>Load Schema</strong>. Then you can map columns to source attributes
+                here.
+              </p>
+              <button
+                type="button"
+                onClick={() => setCurrentStep(3)}
+                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700"
+              >
+                Go to Integration Settings
+              </button>
+            </div>
+          );
+        }
+
+        if (isAiAgentWizard && formData.step1.type === "Database" && !isCompleteIntegration) {
+          return renderDatabaseSchemaMappingStep();
+        }
+
         return (
           <div className="space-y-6">
 
@@ -10371,69 +11502,21 @@ export default function AddApplicationPage() {
         );
 
       case 5:
+        if (isAiAgentWizard) {
+          return <div className="space-y-6">{renderFinishUpSummary()}</div>;
+        }
+
         // For Disconnected Application (create + edit), step 5 should be Schema Mapping
         if (formData.step1.type === "Disconnected Application") {
           return renderSchemaMappingStep();
         }
 
-        // For all other flows, step 5 is Advanced settings / Finish Up
-        return (
-          <div className="space-y-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Advanced settings</h2>
-            <AdvanceSettingTab
-              ref={advanceSettingRef}
-              applicationId="wizard"
-              wizardMode
-              mappedSchemaApplicationId={
-                (isCompleteIntegration ? appIdFromUrl : wizardRegisteredAppId)?.trim() || undefined
-              }
-              showIntegrationAdvancedGroups={
-                (applicationTypeIntegrationGroups[formData.step1.type] ?? []).length > 0
-              }
-              integrationFieldGroups={applicationTypeIntegrationGroups[formData.step1.type] ?? []}
-              integrationFieldValues={Object.fromEntries(
-                (applicationTypeIntegrationGroups[formData.step1.type] ?? []).flatMap((g) =>
-                  g.fields.map((fk) => [
-                    fk,
-                    String((formData.step3 as Record<string, unknown>)[fk] ?? ""),
-                  ])
-                )
-              )}
-              onIntegrationFieldChange={(key, value) => handleInputChange("step3", key, value)}
-              applicationCategory={formData.step1.type}
-            />
-          </div>
-        );
+        // For all other flows, step 5 is Finish Up (summary only)
+        return <div className="space-y-6">{renderFinishUpSummary()}</div>;
 
       case 6:
-        // Step 6 is only reachable for new Disconnected apps; show Advanced settings (Hooks & Threshold)
-        return (
-          <div className="space-y-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Advanced settings</h2>
-            <AdvanceSettingTab
-              ref={advanceSettingRef}
-              applicationId="wizard"
-              wizardMode
-              mappedSchemaApplicationId={
-                (isCompleteIntegration ? appIdFromUrl : wizardRegisteredAppId)?.trim() || undefined
-              }
-              showIntegrationAdvancedGroups={
-                (applicationTypeIntegrationGroups[formData.step1.type] ?? []).length > 0
-              }
-              integrationFieldGroups={applicationTypeIntegrationGroups[formData.step1.type] ?? []}
-              integrationFieldValues={Object.fromEntries(
-                (applicationTypeIntegrationGroups[formData.step1.type] ?? []).flatMap((g) =>
-                  g.fields.map((fk) => [
-                    fk,
-                    String((formData.step3 as Record<string, unknown>)[fk] ?? ""),
-                  ])
-                )
-              )}
-              onIntegrationFieldChange={(key, value) => handleInputChange("step3", key, value)}
-              applicationCategory={formData.step1.type}
-            />
-          </div>
-        );
+        // Step 6 is only reachable for new Disconnected apps — Finish Up
+        return <div className="space-y-6">{renderFinishUpSummary()}</div>;
 
       default:
         return null;
@@ -10469,16 +11552,25 @@ export default function AddApplicationPage() {
           <div className="flex-1 flex items-center justify-between min-w-0 overflow-x-auto">
             {(() => {
               const isDisconnected = formData.step1.type === "Disconnected Application";
-              const stepsShown = isCompleteIntegration
-                ? isDisconnected
-                  ? steps.filter((s) => s.id >= 3 && s.id <= 6)
-                  : steps.filter((s) => s.id >= 3 && s.id <= 5)
-                : isDisconnected
-                  ? steps
-                  : steps.filter((s) => s.id <= 5);
+              const stepsShown = isAiAgentWizard
+                ? wizardSteps
+                : isCompleteIntegration
+                  ? isDisconnected
+                    ? steps.filter((s) => s.id >= 3 && s.id <= 6)
+                    : steps.filter((s) => s.id >= 3 && s.id <= 5)
+                  : isDisconnected
+                    ? steps
+                    : steps.filter((s) => s.id <= 5);
+              const isDatabase = isAiAgentWizard && formData.step1.type === "Database";
               return stepsShown.map((step, index) => {
-                const isClickable = isCompleteIntegration || step.id > 1;
-                const displayNumber = isCompleteIntegration ? index + 1 : step.id;
+                const stepReachable =
+                  isCompleteIntegration ||
+                  step.id <= 3 ||
+                  !isDatabase ||
+                  isDatabaseSchemaStepReady();
+                const isClickable = (isCompleteIntegration || step.id > 1) && stepReachable;
+                const displayNumber =
+                  isCompleteIntegration || isAiAgentWizard ? index + 1 : step.id;
                 return (
                   <div
                     key={step.id}
@@ -10512,6 +11604,7 @@ export default function AddApplicationPage() {
                     <div className="ml-2 sm:ml-2.5 min-w-0">
                       <p className="text-xs sm:text-sm font-medium text-gray-900 whitespace-nowrap">
                         {(() => {
+                          if (isAiAgentWizard) return step.title;
                           const type = formData.step1.type;
                           if (type === "Flatfile" && step.id === 3) return "File Upload";
                           if (type === "Disconnected Application") {
@@ -10536,18 +11629,30 @@ export default function AddApplicationPage() {
           </div>
 
           <div className="shrink-0 flex flex-wrap gap-2 sm:gap-3 justify-end">
-            {currentStep < (!isCompleteIntegration && formData.step1.type === "Disconnected Application" ? 6 : 5) ? (
+            {currentStep <
+            (isAiAgentWizard
+              ? 5
+              : !isCompleteIntegration && formData.step1.type === "Disconnected Application"
+                ? 6
+                : 5) ? (
               <button
                 type="button"
                 onClick={handleNext}
                 disabled={
                   submitRequestLoading ||
-                  (currentStep === 1 && (isLoadingAppTypes || !formData.step1.type?.trim()))
+                  (currentStep === 1 && (isLoadingAppTypes || !formData.step1.type?.trim())) ||
+                  (currentStep === 2 && !formData.step2.sourceType?.trim()) ||
+                  (isAiAgentWizard &&
+                    currentStep === 3 &&
+                    formData.step1.type === "Database" &&
+                    !isDatabaseSchemaStepReady())
                 }
                 className={`flex items-center px-4 py-2 rounded-md text-sm font-medium ${
                   submitRequestLoading
                     ? "bg-blue-600 text-white opacity-60 cursor-not-allowed"
-                    : currentStep === 1 && (isLoadingAppTypes || !formData.step1.type?.trim())
+                    : (currentStep === 1 &&
+                        (isLoadingAppTypes || !formData.step1.type?.trim())) ||
+                      (currentStep === 2 && !formData.step2.sourceType?.trim())
                       ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                       : "bg-blue-600 text-white hover:bg-blue-700"
                 }`}
@@ -10600,8 +11705,6 @@ export default function AddApplicationPage() {
                       user_searchBase: userSearchBaseVal,
                       group_searchBase: groupSearchBaseVal,
                     };
-                    const applicationConfigurationDetails =
-                      (formData.step1.type === "Disconnected Application" && currentStep === 6 && advanceSettingRef.current?.getConfig?.()) ?? null;
                     const onboardPayload = {
                       tenantId: "ACMECOM",
                       appid: appIdFromUrl || "",
@@ -10618,7 +11721,7 @@ export default function AddApplicationPage() {
                         provisioningAttrMap,
                         reconcilliationAttrMap: {},
                       },
-                      applicationConfigurationDetails,
+                      applicationConfigurationDetails: null,
                       iga: false,
                       lcm: false,
                       sso: false,
@@ -10644,6 +11747,15 @@ export default function AddApplicationPage() {
       <div className="h-[64px] sm:h-[68px]" aria-hidden />
 
       <div className="w-full pt-0 pb-8 px-3 sm:px-4">
+        {isAiAgentWizard && (
+          <div className="mb-4">
+            <h1 className="text-xl font-semibold text-gray-900">Add Application (AI Agent)</h1>
+            <p className="text-sm text-gray-600 mt-1">
+              Onboard Database or REST Service applications with tabbed integration, connection
+              testing, and AI-assisted schema mapping.
+            </p>
+          </div>
+        )}
         {submitRequestError && (
           <div className="mb-4 px-4 py-3 bg-red-50 text-red-700 text-sm rounded-md border border-red-100">
             {submitRequestError}

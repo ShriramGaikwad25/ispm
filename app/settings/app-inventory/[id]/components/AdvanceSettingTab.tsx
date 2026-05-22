@@ -101,7 +101,7 @@ function buildCelExpressionsUrl(appId: string, applicationType: string): string 
 
 function buildOutboundExpressionsUrl(): string {
   const params = new URLSearchParams();
-  params.append("category", "OutBound");
+  params.append("category", "outBound");
   return `${CEL_EXPRESSIONS_BASE}?${params.toString()}`;
 }
 
@@ -174,6 +174,10 @@ type AdvanceSettingTabProps = {
   applicationCategory?: string;
   /** App id for getmappedschema when `applicationId` is `wizard` (complete-integration / post–newApp). */
   mappedSchemaApplicationId?: string;
+  /** When false, hides Transformation Provider, Hooks, and Threshold (new-app create wizard). */
+  showHooksThresholdAndTransformation?: boolean;
+  /** Called when Cancel is clicked. If not provided, navigates to /settings/app-inventory */
+  onCancel?: () => void;
 };
 
 const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProps>(function AdvanceSettingTab(
@@ -186,12 +190,14 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
     onIntegrationFieldChange,
     applicationCategory: applicationCategoryProp,
     mappedSchemaApplicationId,
+    showHooksThresholdAndTransformation = true,
+    onCancel,
   },
   ref
 ) {
   const router = useRouter();
-  const [isTransformationExpanded, setIsTransformationExpanded] = useState(false);
-  const [isInboundTransformationExpanded, setIsInboundTransformationExpanded] = useState(false);
+  const [isTransformationExpanded, setIsTransformationExpanded] = useState(true);
+  const [isInboundTransformationExpanded, setIsInboundTransformationExpanded] = useState(true);
   const [isOutboundTransformationExpanded, setIsOutboundTransformationExpanded] = useState(false);
   const [inboundIgaField, setInboundIgaField] = useState("");
   const [inboundTransformationProvider, setInboundTransformationProvider] = useState("");
@@ -219,7 +225,7 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
   const [isTransformationSaving, setIsTransformationSaving] = useState(false);
   const [transformationSaveError, setTransformationSaveError] = useState<string | null>(null);
   const [transformationSaveSuccess, setTransformationSaveSuccess] = useState(false);
-  const [isHooksExpanded, setIsHooksExpanded] = useState(true);
+  const [isHooksExpanded, setIsHooksExpanded] = useState(false);
   const [loadedIntegrationGroups, setLoadedIntegrationGroups] = useState<ApplicationTypeIntegrationFieldGroup[]>(
     []
   );
@@ -233,7 +239,7 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
     "pre-process": { ...initialEventTabState },
     "post-process": { ...initialEventTabState },
   });
-  const [isThresholdExpanded, setIsThresholdExpanded] = useState(true);
+  const [isThresholdExpanded, setIsThresholdExpanded] = useState(false);
   const [hookName, setHookName] = useState("");
   // Process Event modal (Add Service)
   const [isProcessEventModalOpen, setIsProcessEventModalOpen] = useState(false);
@@ -347,6 +353,7 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
   };
 
   useEffect(() => {
+    if (!showHooksThresholdAndTransformation) return;
     const controller = new AbortController();
     const schemaAppId =
       mappedSchemaApplicationId?.trim() ||
@@ -437,9 +444,10 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
       }
     })();
     return () => controller.abort();
-  }, [applicationId, mappedSchemaApplicationId, applicationCategoryProp]);
+  }, [applicationId, mappedSchemaApplicationId, applicationCategoryProp, showHooksThresholdAndTransformation]);
 
   useEffect(() => {
+    if (!showHooksThresholdAndTransformation) return;
     const controller = new AbortController();
     (async () => {
       setOutboundOptionsLoading(true);
@@ -459,7 +467,7 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
       }
     })();
     return () => controller.abort();
-  }, []);
+  }, [showHooksThresholdAndTransformation]);
 
   const handleAddInboundMapping = () => {
     const iga = inboundIgaField.trim();
@@ -759,6 +767,14 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
     }
   };
 
+  const handleCancel = () => {
+    if (onCancel) {
+      onCancel();
+    } else {
+      router.push("/settings/app-inventory");
+    }
+  };
+
   const operationLabel = (op: string) =>
     op === "getuser" ? "GetUser" : op === "getalluser" ? "GetAllUser" : op.charAt(0).toUpperCase() + op.slice(1);
 
@@ -869,6 +885,354 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
               sectionTitle="Advanced settings (grouped)"
             />
           ) : null}
+          {showHooksThresholdAndTransformation && (
+            <>
+          {/* Transformation Provider - same card style as Hooks / Threshold */}
+          <div className="mb-6 border border-slate-200 rounded-xl overflow-visible bg-slate-50/60 shadow-sm">
+            <div
+              className="flex items-center justify-between cursor-pointer border-l-4 border-amber-500 bg-white px-5 py-3.5 hover:bg-slate-50 transition-colors"
+              onClick={() => setIsTransformationExpanded(!isTransformationExpanded)}
+              role="button"
+              aria-expanded={isTransformationExpanded}
+            >
+              <h3 className="text-md font-semibold text-slate-800 flex items-center gap-2">
+                <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-amber-100 text-amber-700">
+                  <Code2 className="w-4 h-4" aria-hidden />
+                </span>
+                Transformation Provider
+              </h3>
+              {isTransformationExpanded ? (
+                <ChevronDown className="w-5 h-5 text-slate-500" />
+              ) : (
+                <ChevronUp className="w-5 h-5 text-slate-500" />
+              )}
+            </div>
+            {isTransformationExpanded && (
+              <div className="p-5 border-t border-slate-200 bg-white flex flex-col gap-3">
+                <div className="border border-slate-200 rounded-lg bg-white shadow-sm overflow-visible">
+                  <button
+                    type="button"
+                    onClick={() => setIsInboundTransformationExpanded((v) => !v)}
+                    className={`flex w-full items-start justify-between gap-4 px-4 py-4 text-left bg-slate-50/90 hover:bg-slate-100/80 transition-colors ${
+                      isInboundTransformationExpanded ? "border-b border-slate-200/80" : ""
+                    }`}
+                    aria-expanded={isInboundTransformationExpanded}
+                  >
+                    <div className="flex flex-1 flex-col gap-1 min-w-0 pr-2">
+                      <span className="text-sm font-semibold text-slate-800">InBound Transformation</span>
+                      <p className="text-xs text-gray-600 leading-relaxed">
+                        Inbound transformation happens when data is coming into the IGA system from a target
+                        application (HR system, Active Directory, database, cloud app, etc.).
+                      </p>
+                    </div>
+                    {isInboundTransformationExpanded ? (
+                      <ChevronDown className="w-5 h-5 text-slate-600 shrink-0 mt-0.5" aria-hidden />
+                    ) : (
+                      <ChevronUp className="w-5 h-5 text-slate-600 shrink-0 mt-0.5" aria-hidden />
+                    )}
+                  </button>
+                  {isInboundTransformationExpanded && (
+                    <div className="px-4 py-4 bg-white space-y-4">
+                      {inboundOptionsError && (
+                        <p className="text-xs text-red-600" role="alert">
+                          {inboundOptionsError}
+                        </p>
+                      )}
+                      <div className="flex flex-wrap items-end gap-3">
+                        <div className="flex-1 min-w-[12rem] relative overflow-visible" ref={igaSourceRef}>
+                          <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                            IGA Field
+                          </label>
+                          <input
+                            type="text"
+                            value={inboundIgaField}
+                            onChange={(e) => filterIgaSource(e.target.value)}
+                            onFocus={openIgaSourceDropdown}
+                            disabled={inboundOptionsLoading}
+                            placeholder={
+                              inboundOptionsLoading
+                                ? "Loading..."
+                                : "Select or enter source attribute"
+                            }
+                            className="w-full px-3 py-2 pr-9 border border-gray-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                          />
+                          <button
+                            type="button"
+                            disabled={inboundOptionsLoading}
+                            className="absolute right-2 top-[1.85rem] text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (igaSourceDropdownOpen) {
+                                setIgaSourceDropdownOpen(false);
+                              } else {
+                                openIgaSourceDropdown();
+                              }
+                            }}
+                            aria-label="Toggle IGA field list"
+                          >
+                            <ChevronDown
+                              className={`w-4 h-4 transition-transform ${igaSourceDropdownOpen ? "rotate-180" : ""}`}
+                            />
+                          </button>
+                          {igaSourceDropdownOpen &&
+                            !inboundOptionsLoading &&
+                            igaDropdownRect &&
+                            typeof document !== "undefined" &&
+                            createPortal(
+                              <div
+                                ref={igaDropdownPortalRef}
+                                className="fixed z-[200] bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto"
+                                style={{
+                                  top: igaDropdownRect.bottom + 4,
+                                  left: igaDropdownRect.left,
+                                  width: igaDropdownRect.width,
+                                }}
+                              >
+                                {filteredIgaSource.length === 0 ? (
+                                  <div className="px-4 py-2 text-sm text-gray-500">No attributes found</div>
+                                ) : (
+                                  filteredIgaSource.map((attr, index) => (
+                                    <button
+                                      key={`${attr}-${index}`}
+                                      type="button"
+                                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-blue-50"
+                                      onMouseDown={(e) => e.preventDefault()}
+                                      onClick={() => {
+                                        setInboundIgaField(attr);
+                                        setIgaSourceDropdownOpen(false);
+                                      }}
+                                    >
+                                      {attr}
+                                    </button>
+                                  ))
+                                )}
+                              </div>,
+                              document.body
+                            )}
+                        </div>
+                        <div className="flex-1 min-w-[12rem]">
+                          <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                            Transformation Provider
+                          </label>
+                          <select
+                            value={inboundTransformationProvider}
+                            onChange={(e) => setInboundTransformationProvider(e.target.value)}
+                            disabled={inboundOptionsLoading}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                          >
+                            <option value="">
+                              {inboundOptionsLoading
+                                ? "Loading..."
+                                : "Select transformation provider"}
+                            </option>
+                            {inboundTransformationProviderOptions.map((opt) => (
+                              <option key={`transform-${opt.id}-${opt.name}`} value={opt.name}>
+                                {opt.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="shrink-0">
+                          <button
+                            type="button"
+                            onClick={handleAddInboundMapping}
+                            disabled={
+                              inboundOptionsLoading ||
+                              !inboundIgaField.trim() ||
+                              !inboundTransformationProvider.trim()
+                            }
+                            className="h-[38px] px-4 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Add
+                          </button>
+                        </div>
+                      </div>
+                      {inboundMappingRows.length > 0 && (
+                        <div className="border border-slate-200 rounded-md overflow-hidden">
+                          <table className="w-full text-sm text-left">
+                            <thead className="bg-slate-50 text-xs font-medium text-slate-600 uppercase tracking-wide">
+                              <tr>
+                                <th className="px-3 py-2">IGA Field</th>
+                                <th className="px-3 py-2">Transformation Provider</th>
+                                <th className="px-3 py-2 w-16" />
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {inboundMappingRows.map((row) => (
+                                <tr key={row.id} className="bg-white">
+                                  <td className="px-3 py-2 text-slate-800">{row.igaField}</td>
+                                  <td className="px-3 py-2 text-slate-800">
+                                    {row.transformationProvider}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => removeInboundMapping(row.id)}
+                                      className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                                      aria-label="Remove mapping"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="border border-slate-200 rounded-lg bg-white shadow-sm overflow-visible">
+                  <button
+                    type="button"
+                    onClick={() => setIsOutboundTransformationExpanded((v) => !v)}
+                    className={`flex w-full items-start justify-between gap-4 px-4 py-4 text-left bg-slate-50/90 hover:bg-slate-100/80 transition-colors ${
+                      isOutboundTransformationExpanded ? "border-b border-slate-200/80" : ""
+                    }`}
+                    aria-expanded={isOutboundTransformationExpanded}
+                  >
+                    <div className="flex flex-1 flex-col gap-1 min-w-0 pr-2">
+                      <span className="text-sm font-semibold text-slate-800">OutBound Transformation</span>
+                      <p className="text-xs text-gray-600 leading-relaxed">
+                        Outbound transformation occurs when data moves from IGA to a target application during
+                        provisioning or updates.
+                      </p>
+                    </div>
+                    {isOutboundTransformationExpanded ? (
+                      <ChevronDown className="w-5 h-5 text-slate-600 shrink-0 mt-0.5" aria-hidden />
+                    ) : (
+                      <ChevronUp className="w-5 h-5 text-slate-600 shrink-0 mt-0.5" aria-hidden />
+                    )}
+                  </button>
+                  {isOutboundTransformationExpanded && (
+                    <div className="px-4 py-4 bg-white space-y-4">
+                      {outboundOptionsError && (
+                        <p className="text-xs text-red-600" role="alert">
+                          {outboundOptionsError}
+                        </p>
+                      )}
+                      <div className="flex flex-wrap items-end gap-3">
+                        <div className="flex-1 min-w-[12rem]">
+                          <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                            Target Field
+                          </label>
+                          <input
+                            type="text"
+                            value={outboundTargetField}
+                            onChange={(e) => setOutboundTargetField(e.target.value)}
+                            disabled={outboundOptionsLoading}
+                            placeholder={
+                              outboundOptionsLoading ? "Loading..." : "Enter target field"
+                            }
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-[12rem]">
+                          <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                            Transformation Provider
+                          </label>
+                          <select
+                            value={outboundTransformationProvider}
+                            onChange={(e) => setOutboundTransformationProvider(e.target.value)}
+                            disabled={outboundOptionsLoading}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                          >
+                            <option value="">
+                              {outboundOptionsLoading
+                                ? "Loading..."
+                                : "Select transformation provider"}
+                            </option>
+                            {outboundTransformationProviderOptions.map((opt) => (
+                              <option key={`outbound-transform-${opt.id}-${opt.name}`} value={opt.name}>
+                                {opt.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="shrink-0">
+                          <button
+                            type="button"
+                            onClick={handleAddOutboundMapping}
+                            disabled={
+                              outboundOptionsLoading ||
+                              !outboundTargetField.trim() ||
+                              !outboundTransformationProvider.trim()
+                            }
+                            className="h-[38px] px-4 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Add
+                          </button>
+                        </div>
+                      </div>
+                      {outboundMappingRows.length > 0 && (
+                        <div className="border border-slate-200 rounded-md overflow-hidden">
+                          <table className="w-full text-sm text-left">
+                            <thead className="bg-slate-50 text-xs font-medium text-slate-600 uppercase tracking-wide">
+                              <tr>
+                                <th className="px-3 py-2">Target Field</th>
+                                <th className="px-3 py-2">Transformation Provider</th>
+                                <th className="px-3 py-2 w-16" />
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {outboundMappingRows.map((row) => (
+                                <tr key={row.id} className="bg-white">
+                                  <td className="px-3 py-2 text-slate-800">{row.targetField}</td>
+                                  <td className="px-3 py-2 text-slate-800">
+                                    {row.transformationProvider}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => removeOutboundMapping(row.id)}
+                                      className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                                      aria-label="Remove mapping"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-col items-end gap-2 pt-4 mt-1 border-t border-slate-200">
+                  {transformationSaveError && (
+                    <p className="text-xs text-red-600 w-full text-right" role="alert">
+                      {transformationSaveError}
+                    </p>
+                  )}
+                  {transformationSaveSuccess && (
+                    <p className="text-xs text-green-600 w-full text-right" role="status">
+                      Transformation mappings saved successfully.
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleSaveTransformationMappings}
+                    disabled={isTransformationSaving}
+                    className="h-[38px] px-5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {isTransformationSaving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
+                        Saving...
+                      </>
+                    ) : (
+                      "Save"
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+
           {/* Hooks section: Name + Pre/Post Process Event (collapsible) - same style as Threshold card */}
           <div className="mb-6 border border-slate-200 rounded-xl overflow-hidden bg-slate-50/60 shadow-sm">
             <div
@@ -1539,350 +1903,8 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
             )}
           </div>
 
-          {/* Transformation Provider - same card style as Hooks / Threshold */}
-          <div className="mt-8 border border-slate-200 rounded-xl overflow-visible bg-slate-50/60 shadow-sm">
-            <div
-              className="flex items-center justify-between cursor-pointer border-l-4 border-amber-500 bg-white px-5 py-3.5 hover:bg-slate-50 transition-colors"
-              onClick={() => setIsTransformationExpanded(!isTransformationExpanded)}
-              role="button"
-              aria-expanded={isTransformationExpanded}
-            >
-              <h3 className="text-md font-semibold text-slate-800 flex items-center gap-2">
-                <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-amber-100 text-amber-700">
-                  <Code2 className="w-4 h-4" aria-hidden />
-                </span>
-                Transformation Provider
-              </h3>
-              {isTransformationExpanded ? (
-                <ChevronDown className="w-5 h-5 text-slate-500" />
-              ) : (
-                <ChevronUp className="w-5 h-5 text-slate-500" />
-              )}
-            </div>
-            {isTransformationExpanded && (
-              <div className="p-5 border-t border-slate-200 bg-white flex flex-col gap-3">
-                <div className="border border-slate-200 rounded-lg bg-white shadow-sm overflow-visible">
-                  <button
-                    type="button"
-                    onClick={() => setIsInboundTransformationExpanded((v) => !v)}
-                    className={`flex w-full items-start justify-between gap-4 px-4 py-4 text-left bg-slate-50/90 hover:bg-slate-100/80 transition-colors ${
-                      isInboundTransformationExpanded ? "border-b border-slate-200/80" : ""
-                    }`}
-                    aria-expanded={isInboundTransformationExpanded}
-                  >
-                    <div className="flex flex-1 flex-col gap-1 min-w-0 pr-2">
-                      <span className="text-sm font-semibold text-slate-800">InBound Transformation</span>
-                      <p className="text-xs text-gray-600 leading-relaxed">
-                        Inbound transformation happens when data is coming into the IGA system from a target
-                        application (HR system, Active Directory, database, cloud app, etc.).
-                      </p>
-                    </div>
-                    {isInboundTransformationExpanded ? (
-                      <ChevronDown className="w-5 h-5 text-slate-600 shrink-0 mt-0.5" aria-hidden />
-                    ) : (
-                      <ChevronUp className="w-5 h-5 text-slate-600 shrink-0 mt-0.5" aria-hidden />
-                    )}
-                  </button>
-                  {isInboundTransformationExpanded && (
-                    <div className="px-4 py-4 bg-white space-y-4">
-                      {inboundOptionsError && (
-                        <p className="text-xs text-red-600" role="alert">
-                          {inboundOptionsError}
-                        </p>
-                      )}
-                      <div className="flex flex-wrap items-end gap-3">
-                        <div className="flex-1 min-w-[12rem] relative overflow-visible" ref={igaSourceRef}>
-                          <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                            IGA Field
-                          </label>
-                          <input
-                            type="text"
-                            value={inboundIgaField}
-                            onChange={(e) => filterIgaSource(e.target.value)}
-                            onFocus={openIgaSourceDropdown}
-                            disabled={inboundOptionsLoading}
-                            placeholder={
-                              inboundOptionsLoading
-                                ? "Loading..."
-                                : "Select or enter source attribute"
-                            }
-                            className="w-full px-3 py-2 pr-9 border border-gray-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                          />
-                          <button
-                            type="button"
-                            disabled={inboundOptionsLoading}
-                            className="absolute right-2 top-[1.85rem] text-gray-400 hover:text-gray-600 disabled:opacity-50"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (igaSourceDropdownOpen) {
-                                setIgaSourceDropdownOpen(false);
-                              } else {
-                                openIgaSourceDropdown();
-                              }
-                            }}
-                            aria-label="Toggle IGA field list"
-                          >
-                            <ChevronDown
-                              className={`w-4 h-4 transition-transform ${igaSourceDropdownOpen ? "rotate-180" : ""}`}
-                            />
-                          </button>
-                          {igaSourceDropdownOpen &&
-                            !inboundOptionsLoading &&
-                            igaDropdownRect &&
-                            typeof document !== "undefined" &&
-                            createPortal(
-                              <div
-                                ref={igaDropdownPortalRef}
-                                className="fixed z-[200] bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto"
-                                style={{
-                                  top: igaDropdownRect.bottom + 4,
-                                  left: igaDropdownRect.left,
-                                  width: igaDropdownRect.width,
-                                }}
-                              >
-                                {filteredIgaSource.length === 0 ? (
-                                  <div className="px-4 py-2 text-sm text-gray-500">No attributes found</div>
-                                ) : (
-                                  filteredIgaSource.map((attr, index) => (
-                                    <button
-                                      key={`${attr}-${index}`}
-                                      type="button"
-                                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-blue-50"
-                                      onMouseDown={(e) => e.preventDefault()}
-                                      onClick={() => {
-                                        setInboundIgaField(attr);
-                                        setIgaSourceDropdownOpen(false);
-                                      }}
-                                    >
-                                      {attr}
-                                    </button>
-                                  ))
-                                )}
-                              </div>,
-                              document.body
-                            )}
-                        </div>
-                        <div className="flex-1 min-w-[12rem]">
-                          <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                            Transformation Provider
-                          </label>
-                          <select
-                            value={inboundTransformationProvider}
-                            onChange={(e) => setInboundTransformationProvider(e.target.value)}
-                            disabled={inboundOptionsLoading}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                          >
-                            <option value="">
-                              {inboundOptionsLoading
-                                ? "Loading..."
-                                : "Select transformation provider"}
-                            </option>
-                            {inboundTransformationProviderOptions.map((opt) => (
-                              <option key={`transform-${opt.id}-${opt.name}`} value={opt.name}>
-                                {opt.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="shrink-0">
-                          <button
-                            type="button"
-                            onClick={handleAddInboundMapping}
-                            disabled={
-                              inboundOptionsLoading ||
-                              !inboundIgaField.trim() ||
-                              !inboundTransformationProvider.trim()
-                            }
-                            className="h-[38px] px-4 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            Add
-                          </button>
-                        </div>
-                      </div>
-                      {inboundMappingRows.length > 0 && (
-                        <div className="border border-slate-200 rounded-md overflow-hidden">
-                          <table className="w-full text-sm text-left">
-                            <thead className="bg-slate-50 text-xs font-medium text-slate-600 uppercase tracking-wide">
-                              <tr>
-                                <th className="px-3 py-2">IGA Field</th>
-                                <th className="px-3 py-2">Transformation Provider</th>
-                                <th className="px-3 py-2 w-16" />
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                              {inboundMappingRows.map((row) => (
-                                <tr key={row.id} className="bg-white">
-                                  <td className="px-3 py-2 text-slate-800">{row.igaField}</td>
-                                  <td className="px-3 py-2 text-slate-800">
-                                    {row.transformationProvider}
-                                  </td>
-                                  <td className="px-3 py-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => removeInboundMapping(row.id)}
-                                      className="p-1.5 text-red-600 hover:bg-red-50 rounded"
-                                      aria-label="Remove mapping"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <div className="border border-slate-200 rounded-lg bg-white shadow-sm overflow-visible">
-                  <button
-                    type="button"
-                    onClick={() => setIsOutboundTransformationExpanded((v) => !v)}
-                    className={`flex w-full items-start justify-between gap-4 px-4 py-4 text-left bg-slate-50/90 hover:bg-slate-100/80 transition-colors ${
-                      isOutboundTransformationExpanded ? "border-b border-slate-200/80" : ""
-                    }`}
-                    aria-expanded={isOutboundTransformationExpanded}
-                  >
-                    <div className="flex flex-1 flex-col gap-1 min-w-0 pr-2">
-                      <span className="text-sm font-semibold text-slate-800">OutBound Transformation</span>
-                      <p className="text-xs text-gray-600 leading-relaxed">
-                        Outbound transformation occurs when data moves from IGA to a target application during
-                        provisioning or updates.
-                      </p>
-                    </div>
-                    {isOutboundTransformationExpanded ? (
-                      <ChevronDown className="w-5 h-5 text-slate-600 shrink-0 mt-0.5" aria-hidden />
-                    ) : (
-                      <ChevronUp className="w-5 h-5 text-slate-600 shrink-0 mt-0.5" aria-hidden />
-                    )}
-                  </button>
-                  {isOutboundTransformationExpanded && (
-                    <div className="px-4 py-4 bg-white space-y-4">
-                      {outboundOptionsError && (
-                        <p className="text-xs text-red-600" role="alert">
-                          {outboundOptionsError}
-                        </p>
-                      )}
-                      <div className="flex flex-wrap items-end gap-3">
-                        <div className="flex-1 min-w-[12rem]">
-                          <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                            Target Field
-                          </label>
-                          <input
-                            type="text"
-                            value={outboundTargetField}
-                            onChange={(e) => setOutboundTargetField(e.target.value)}
-                            disabled={outboundOptionsLoading}
-                            placeholder={
-                              outboundOptionsLoading ? "Loading..." : "Enter target field"
-                            }
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                          />
-                        </div>
-                        <div className="flex-1 min-w-[12rem]">
-                          <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                            Transformation Provider
-                          </label>
-                          <select
-                            value={outboundTransformationProvider}
-                            onChange={(e) => setOutboundTransformationProvider(e.target.value)}
-                            disabled={outboundOptionsLoading}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                          >
-                            <option value="">
-                              {outboundOptionsLoading
-                                ? "Loading..."
-                                : "Select transformation provider"}
-                            </option>
-                            {outboundTransformationProviderOptions.map((opt) => (
-                              <option key={`outbound-transform-${opt.id}-${opt.name}`} value={opt.name}>
-                                {opt.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="shrink-0">
-                          <button
-                            type="button"
-                            onClick={handleAddOutboundMapping}
-                            disabled={
-                              outboundOptionsLoading ||
-                              !outboundTargetField.trim() ||
-                              !outboundTransformationProvider.trim()
-                            }
-                            className="h-[38px] px-4 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            Add
-                          </button>
-                        </div>
-                      </div>
-                      {outboundMappingRows.length > 0 && (
-                        <div className="border border-slate-200 rounded-md overflow-hidden">
-                          <table className="w-full text-sm text-left">
-                            <thead className="bg-slate-50 text-xs font-medium text-slate-600 uppercase tracking-wide">
-                              <tr>
-                                <th className="px-3 py-2">Target Field</th>
-                                <th className="px-3 py-2">Transformation Provider</th>
-                                <th className="px-3 py-2 w-16" />
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                              {outboundMappingRows.map((row) => (
-                                <tr key={row.id} className="bg-white">
-                                  <td className="px-3 py-2 text-slate-800">{row.targetField}</td>
-                                  <td className="px-3 py-2 text-slate-800">
-                                    {row.transformationProvider}
-                                  </td>
-                                  <td className="px-3 py-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => removeOutboundMapping(row.id)}
-                                      className="p-1.5 text-red-600 hover:bg-red-50 rounded"
-                                      aria-label="Remove mapping"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <div className="flex flex-col items-end gap-2 pt-4 mt-1 border-t border-slate-200">
-                  {transformationSaveError && (
-                    <p className="text-xs text-red-600 w-full text-right" role="alert">
-                      {transformationSaveError}
-                    </p>
-                  )}
-                  {transformationSaveSuccess && (
-                    <p className="text-xs text-green-600 w-full text-right" role="status">
-                      Transformation mappings saved successfully.
-                    </p>
-                  )}
-                  <button
-                    type="button"
-                    onClick={handleSaveTransformationMappings}
-                    disabled={isTransformationSaving}
-                    className="h-[38px] px-5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                  >
-                    {isTransformationSaving ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
-                        Saving...
-                      </>
-                    ) : (
-                      "Save"
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+            </>
+          )}
 
           {/* Submit and Cancel - hidden in wizard mode (e.g. add-application step 5) */}
           {!wizardMode && (
@@ -1901,6 +1923,7 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
               <button
                 type="button"
                 disabled={isSubmitting}
+                onClick={handleCancel}
                 className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel

@@ -593,6 +593,770 @@ export async function registerScimAppNewApp(payload: {
   return data;
 }
 
+export const CONNECTION_PARAMETERS_GROUP_ID = "connectionParameters";
+
+export const GROUPED_ONBOARD_APPLICATION_TYPES = [
+  "Database",
+  "RESTService Application",
+] as const;
+
+export type GroupedOnboardApplicationType = (typeof GROUPED_ONBOARD_APPLICATION_TYPES)[number];
+
+export function isGroupedOnboardApplicationType(type: string | undefined): type is GroupedOnboardApplicationType {
+  if (!type?.trim()) return false;
+  return (GROUPED_ONBOARD_APPLICATION_TYPES as readonly string[]).includes(type.trim());
+}
+
+/** Application types onboarded via Add Application (AI Agent) wizard (Database + REST). */
+export function isAiAgentOnboardApplicationType(type: string | undefined): boolean {
+  return isGroupedOnboardApplicationType(type);
+}
+
+function connectionTestAuthHeaders(): Headers {
+  const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
+  if (!accessToken) {
+    throw new Error("No access token available");
+  }
+  const headers = new Headers();
+  headers.set("Content-Type", "application/json");
+  headers.set("X-Requested-With", "XMLHttpRequest");
+  headers.set("Authorization", `Bearer ${accessToken}`);
+  return headers;
+}
+
+export type ConnectionTestResult = {
+  ok: boolean;
+  message: string;
+  session_id?: string;
+};
+
+/** Parses gatewayassist / legacy test-connection JSON for UI feedback. */
+export function parseConnectionTestResult(data: unknown): ConnectionTestResult {
+  if (data == null) {
+    return { ok: true, message: "Connection successful." };
+  }
+  if (typeof data === "object") {
+    const o = data as Record<string, unknown>;
+    if (o.success === true) {
+      const session_id = String(o.session_id ?? o.sessionId ?? "").trim() || undefined;
+      return {
+        ok: true,
+        message: String(o.message ?? "Connection successful.").trim() || "Connection successful.",
+        session_id,
+      };
+    }
+    if (o.success === false) {
+      return {
+        ok: false,
+        message: String(o.message ?? o.errorMessage ?? "Connection test failed.").trim(),
+      };
+    }
+    const status = String(o.status ?? o.Status ?? "").toLowerCase().trim();
+    const message = String(
+      o.message ?? o.Message ?? o.errorMessage ?? o.error ?? ""
+    ).trim();
+    if (status === "success" || status === "ok") {
+      const session_id = String(o.session_id ?? o.sessionId ?? "").trim() || undefined;
+      return { ok: true, message: message || "Connection successful.", session_id };
+    }
+    if (status === "error" || status === "failed" || status === "failure") {
+      return { ok: false, message: message || "Connection test failed." };
+    }
+    if (message) {
+      return { ok: true, message };
+    }
+  }
+  return { ok: true, message: "Connection successful." };
+}
+
+export type DatabaseFetchSchemaPayload = {
+  session_id: string;
+  view_name: string;
+  is_stored_procedure: boolean;
+};
+
+function pickSchemaFieldString(o: Record<string, unknown>, ...keys: string[]): string {
+  for (const key of keys) {
+    const v = o[key];
+    if (v != null && String(v).trim() !== "") return String(v).trim();
+  }
+  return "";
+}
+
+function databaseColumnNameFromEntry(entry: unknown): string {
+  if (entry == null) return "";
+  if (typeof entry === "string") return entry.trim();
+  if (typeof entry === "object" && !Array.isArray(entry)) {
+    const o = entry as Record<string, unknown>;
+    return pickSchemaFieldString(
+      o,
+      "column_name",
+      "columnName",
+      "name",
+      "field",
+      "attribute",
+      "Attribute",
+      "key"
+    );
+  }
+  return "";
+}
+
+function parseDatabaseSchemaMappingEntry(
+  entry: unknown,
+  idx: number
+): WizardSchemaMappingRow | null {
+  const dbColumn = databaseColumnNameFromEntry(entry);
+  if (!dbColumn) return null;
+
+  let bestMatch = "";
+  let option2 = "";
+  if (entry != null && typeof entry === "object" && !Array.isArray(entry)) {
+    const o = entry as Record<string, unknown>;
+    bestMatch = pickSchemaFieldString(
+      o,
+      "best_match",
+      "bestMatch",
+      "best_match_attribute",
+      "bestMatchAttribute"
+    );
+    option2 = pickSchemaFieldString(
+      o,
+      "option_2",
+      "option2",
+      "option_2_attribute",
+      "option2Attribute",
+      "second_match",
+      "secondMatch"
+    );
+  }
+
+  return {
+    id: `db-schema-${idx}`,
+    target: dbColumn,
+    source: bestMatch,
+    bestMatch,
+    option2,
+    defaultValue: "",
+    type: "direct",
+    keyfieldMapping: false,
+  };
+}
+
+function collectDatabaseSchemaMappingEntries(node: unknown, depth = 0): unknown[] {
+  if (node == null || depth > 6) return [];
+  if (Array.isArray(node)) {
+    const rows: unknown[] = [];
+    for (const item of node) {
+      if (databaseColumnNameFromEntry(item)) rows.push(item);
+      else rows.push(...collectDatabaseSchemaMappingEntries(item, depth + 1));
+    }
+    return rows;
+  }
+  if (typeof node !== "object") return [];
+
+  const o = node as Record<string, unknown>;
+  const listKeys = [
+    "columns",
+    "fields",
+    "attributes",
+    "schema_columns",
+    "column_names",
+    "schema",
+    "mappings",
+    "data",
+    "result",
+  ];
+  for (const key of listKeys) {
+    if (key in o) {
+      const found = collectDatabaseSchemaMappingEntries(o[key], depth + 1);
+      if (found.length > 0) return found;
+    }
+  }
+  return [];
+}
+
+/** Maps fetch-schema API response to database wizard rows (target = DB column, source = selected IGA attribute). */
+export function attributeMappingsFromFetchSchemaJson(json: unknown): WizardSchemaMappingRow[] {
+  const entries = collectDatabaseSchemaMappingEntries(json);
+  const rows: WizardSchemaMappingRow[] = [];
+  const seenColumns = new Set<string>();
+  entries.forEach((entry, idx) => {
+    const row = parseDatabaseSchemaMappingEntry(entry, idx);
+    if (!row) return;
+    const key = row.target.toLowerCase();
+    if (seenColumns.has(key)) return;
+    seenColumns.add(key);
+    rows.push(row);
+  });
+  return rows;
+}
+
+/** POST gatewayassist schemamapper db fetch-schema (after test-connection session_id). */
+export async function fetchDatabaseSchema(payload: DatabaseFetchSchemaPayload): Promise<unknown> {
+  const endpoint =
+    "https://preview.keyforge.ai/gatewayassist/api/v1/KEYFORGE/schemamapper/db/fetch-schema";
+  const fetchFn = typeof window !== "undefined" ? getOriginalFetch() : fetch;
+  const response = await fetchFn(endpoint, {
+    method: "POST",
+    headers: connectionTestAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const text = await response.text();
+  let data: unknown = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    if (!response.ok) {
+      throw new Error(text || `fetch-schema failed: ${response.status}`);
+    }
+  }
+  if (data != null && (await checkTokenExpiredError(data))) {
+    throw new Error("Token Expired");
+  }
+  if (!response.ok) {
+    const msg =
+      data != null && typeof data === "object"
+        ? String((data as Record<string, unknown>).message ?? (data as Record<string, unknown>).errorMessage ?? text)
+        : text;
+    throw new Error(msg || `fetch-schema failed: ${response.status}`);
+  }
+  if (data != null && typeof data === "object" && (data as Record<string, unknown>).success === false) {
+    throw new Error(
+      String((data as Record<string, unknown>).message ?? "Failed to fetch database schema.")
+    );
+  }
+  return data;
+}
+
+export type DatabaseSuggestMappingPayload = {
+  session_id: string;
+  top_n: number;
+};
+
+export type DatabaseColumnSuggestion = {
+  bestMatch: string;
+  option2: string;
+  autoAccept: boolean;
+};
+
+function displayFromSuggestOption(opt: unknown): string {
+  if (opt == null || typeof opt !== "object") return "";
+  return pickSchemaFieldString(
+    opt as Record<string, unknown>,
+    "display",
+    "name",
+    "attribute",
+    "field",
+    "variable"
+  );
+}
+
+/** Ranked suggestions from a suggest-mapping `mappings[]` item (`suggested` + `other_options`). */
+function suggestionDisplaysFromMappingEntry(entry: Record<string, unknown>): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const push = (label: string) => {
+    const t = label.trim();
+    if (!t) return;
+    const key = t.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(t);
+  };
+
+  push(displayFromSuggestOption(entry.suggested));
+  const other = entry.other_options ?? entry.otherOptions;
+  if (Array.isArray(other)) {
+    for (const opt of other) {
+      push(displayFromSuggestOption(opt));
+    }
+  }
+  return out;
+}
+
+function suggestMappingEntriesFromJson(json: unknown): Record<string, unknown>[] {
+  if (json == null) return [];
+  if (Array.isArray(json)) {
+    return json.filter((item): item is Record<string, unknown> => item != null && typeof item === "object");
+  }
+  if (typeof json === "object") {
+    const root = json as Record<string, unknown>;
+    if (Array.isArray(root.mappings)) {
+      return root.mappings.filter(
+        (item): item is Record<string, unknown> => item != null && typeof item === "object"
+      );
+    }
+  }
+  return [];
+}
+
+/** Parse KEYFORGE suggest-mapping response: bestMatch = suggested.display, option2 = other_options[0].display. */
+export function databaseColumnSuggestionsFromJson(
+  json: unknown
+): Map<string, DatabaseColumnSuggestion> {
+  const map = new Map<string, DatabaseColumnSuggestion>();
+  for (const entry of suggestMappingEntriesFromJson(json)) {
+    const columnName = pickSchemaFieldString(entry, "column_name", "columnName");
+    if (!columnName) continue;
+    const displays = suggestionDisplaysFromMappingEntry(entry);
+    const autoAccept = Boolean(entry.auto_accept ?? entry.autoAccept);
+    map.set(columnName.toLowerCase(), {
+      bestMatch: displays[0] ?? "",
+      option2: displays[1] ?? "",
+      autoAccept,
+    });
+  }
+  return map;
+}
+
+function suggestionStringsFromValue(value: unknown): string[] {
+  if (value == null) return [];
+  if (typeof value === "string") {
+    const t = value.trim();
+    return t ? [t] : [];
+  }
+  if (Array.isArray(value)) {
+    const out: string[] = [];
+    for (const item of value) {
+      if (typeof item === "string") {
+        const t = item.trim();
+        if (t) out.push(t);
+      } else if (item != null && typeof item === "object") {
+        const io = item as Record<string, unknown>;
+        const t = pickSchemaFieldString(
+          io,
+          "display",
+          "attribute",
+          "name",
+          "field",
+          "variable",
+          "target",
+          "value",
+          "source_attribute",
+          "sourceAttribute",
+          "match"
+        );
+        if (t) out.push(t);
+        else if (typeof io.score === "number" && io.attribute == null) {
+          const nested = suggestionStringsFromValue(io.match ?? io.suggestion);
+          out.push(...nested);
+        }
+      }
+    }
+    return out;
+  }
+  if (typeof value === "object") {
+    const o = value as Record<string, unknown>;
+    const nested = o.suggestions ?? o.matches ?? o.options ?? o.top_matches ?? o.attributes;
+    if (nested != null) return suggestionStringsFromValue(nested);
+  }
+  return [];
+}
+
+/** Build map of database column name → ranked source attribute suggestions. */
+export function columnSuggestionsFromSuggestMappingJson(json: unknown): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  if (json == null) return map;
+
+  const addEntry = (columnKey: string, suggestions: unknown) => {
+    const col = columnKey.trim();
+    if (!col) return;
+    const list = suggestionStringsFromValue(suggestions);
+    if (list.length === 0) return;
+    const key = col.toLowerCase();
+    const existing = map.get(key);
+    if (!existing || list.length > existing.length) {
+      map.set(key, list);
+    }
+  };
+
+  if (Array.isArray(json)) {
+    for (const item of json) {
+      if (item == null || typeof item !== "object") continue;
+      const o = item as Record<string, unknown>;
+      const col = pickSchemaFieldString(
+        o,
+        "column_name",
+        "columnName",
+        "column",
+        "source_column",
+        "sourceColumn",
+        "db_column",
+        "dbColumn",
+        "name",
+        "field",
+        "target"
+      );
+      if (col) {
+        if (o.suggested != null || o.other_options != null || o.otherOptions != null) {
+          const list = suggestionDisplaysFromMappingEntry(o);
+          if (list.length > 0) {
+            const key = col.toLowerCase();
+            map.set(key, list);
+          }
+        } else {
+          const sugs =
+            o.suggestions ??
+            o.matches ??
+            o.options ??
+            o.top_matches ??
+            o.attributes ??
+            o.mapping_suggestions;
+          addEntry(col, sugs ?? o);
+        }
+      }
+    }
+    return map;
+  }
+
+  if (typeof json !== "object") return map;
+  const root = json as Record<string, unknown>;
+
+  const listKeys = [
+    "mappings",
+    "suggestions",
+    "column_mappings",
+    "columnMappings",
+    "schema_mappings",
+    "results",
+    "data",
+    "result",
+  ];
+  for (const key of listKeys) {
+    if (key in root && Array.isArray(root[key])) {
+      return columnSuggestionsFromSuggestMappingJson(root[key]);
+    }
+  }
+
+  const mapKeys = ["suggestions", "column_suggestions", "columnSuggestions", "mapping"];
+  for (const key of mapKeys) {
+    const node = root[key];
+    if (node != null && typeof node === "object" && !Array.isArray(node)) {
+      for (const [col, sugs] of Object.entries(node as Record<string, unknown>)) {
+        addEntry(col, sugs);
+      }
+      if (map.size > 0) return map;
+    }
+  }
+
+  for (const [col, sugs] of Object.entries(root)) {
+    if (
+      col === "status" ||
+      col === "message" ||
+      col === "success" ||
+      col === "session_id" ||
+      col === "sessionId"
+    ) {
+      continue;
+    }
+    if (Array.isArray(sugs) || (sugs != null && typeof sugs === "object")) {
+      addEntry(col, sugs);
+    }
+  }
+
+  return map;
+}
+
+/** Apply suggest-mapping API results to wizard rows (bestMatch = suggested.display, option2 = other_options[0].display). */
+export function applyDatabaseSuggestMappingToRows(
+  rows: WizardSchemaMappingRow[],
+  suggestJson: unknown
+): WizardSchemaMappingRow[] {
+  const byColumn = databaseColumnSuggestionsFromJson(suggestJson);
+  if (byColumn.size === 0) {
+    const legacy = columnSuggestionsFromSuggestMappingJson(suggestJson);
+    if (legacy.size === 0) return rows;
+    return rows.map((row) => {
+      const suggestions = legacy.get(row.target.toLowerCase()) ?? [];
+      const bestMatch = suggestions[0] ?? row.bestMatch ?? "";
+      const option2 = suggestions[1] ?? row.option2 ?? "";
+      const source = row.source?.trim() || bestMatch;
+      return { ...row, bestMatch, option2, source };
+    });
+  }
+
+  return rows.map((row) => {
+    const hint = byColumn.get(row.target.toLowerCase());
+    if (!hint) return row;
+    const bestMatch = hint.bestMatch || row.bestMatch || "";
+    const option2 = hint.option2 || row.option2 || "";
+    const existingSource = row.source?.trim() ?? "";
+    const source = existingSource || (hint.autoAccept ? bestMatch : "");
+    return { ...row, bestMatch, option2, source };
+  });
+}
+
+/** Build mapping rows from suggest-mapping `mappings` when fetch-schema rows are not yet available. */
+export function attributeMappingsFromSuggestMappingJson(
+  json: unknown
+): WizardSchemaMappingRow[] {
+  const byColumn = databaseColumnSuggestionsFromJson(json);
+  const rows: WizardSchemaMappingRow[] = [];
+  let idx = 0;
+  for (const entry of suggestMappingEntriesFromJson(json)) {
+    const columnName = pickSchemaFieldString(entry, "column_name", "columnName");
+    if (!columnName) continue;
+    const hint = byColumn.get(columnName.toLowerCase());
+    if (!hint) continue;
+    rows.push({
+      id: `db-suggest-${idx++}`,
+      target: columnName,
+      source: hint.autoAccept ? hint.bestMatch : "",
+      bestMatch: hint.bestMatch,
+      option2: hint.option2,
+      defaultValue: "",
+      type: "direct",
+      keyfieldMapping: false,
+    });
+  }
+  return rows;
+}
+
+/** POST gatewayassist schemamapper db suggest-mapping (after fetch-schema). */
+export async function fetchDatabaseSuggestMapping(
+  payload: DatabaseSuggestMappingPayload
+): Promise<unknown> {
+  const endpoint =
+    "https://preview.keyforge.ai/gatewayassist/api/v1/KEYFORGE/schemamapper/db/suggest-mapping";
+  const fetchFn = typeof window !== "undefined" ? getOriginalFetch() : fetch;
+  const response = await fetchFn(endpoint, {
+    method: "POST",
+    headers: connectionTestAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const text = await response.text();
+  let data: unknown = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    if (!response.ok) {
+      throw new Error(text || `suggest-mapping failed: ${response.status}`);
+    }
+  }
+  if (data != null && (await checkTokenExpiredError(data))) {
+    throw new Error("Token Expired");
+  }
+  if (!response.ok) {
+    const msg =
+      data != null && typeof data === "object"
+        ? String(
+            (data as Record<string, unknown>).message ??
+              (data as Record<string, unknown>).errorMessage ??
+              text
+          )
+        : text;
+    throw new Error(msg || `suggest-mapping failed: ${response.status}`);
+  }
+  if (data != null && typeof data === "object" && (data as Record<string, unknown>).success === false) {
+    throw new Error(
+      String((data as Record<string, unknown>).message ?? "Failed to fetch mapping suggestions.")
+    );
+  }
+  return data;
+}
+
+export type DatabaseTestConnectionPayload = {
+  db_type: string;
+  host: string;
+  port: number;
+  db_name: string;
+  username: string;
+  password: string;
+};
+
+function pickStep3String(step3: Record<string, unknown>, ...keys: string[]): string {
+  for (const k of keys) {
+    const v = step3[k];
+    if (v != null && String(v).trim() !== "") return String(v).trim();
+  }
+  return "";
+}
+
+/** Normalizes UI database type labels to gatewayassist db_type values. */
+export function normalizeDatabaseTestDbType(raw: string): string {
+  const t = raw.trim().toLowerCase();
+  if (!t) return "";
+  if (t.includes("postgres")) return "postgres";
+  if (t.includes("mysql") || t.includes("maria")) return "mysql";
+  if (t.includes("oracle")) return "oracle";
+  if (t.includes("sqlserver") || t.includes("mssql")) return "sqlserver";
+  return t.replace(/\s+/g, "");
+}
+
+/** Parses host/port/database from JDBC URL or host:port/db strings. */
+export function parseDatabaseConnectionTarget(
+  connectionURL: string,
+  dbTypeHint?: string
+): { host: string; port?: number; db_name: string } {
+  const url = connectionURL.trim();
+  if (!url) return { host: "", db_name: "" };
+
+  const jdbc = url.match(/^jdbc:([^:]+):\/\/([^/:]+)(?::(\d+))?(?:\/([^?;]+))?/i);
+  if (jdbc) {
+    return {
+      host: jdbc[2],
+      port: jdbc[3] ? Number(jdbc[3]) : defaultDatabasePort(dbTypeHint ?? jdbc[1]),
+      db_name: (jdbc[4] || "").trim(),
+    };
+  }
+
+  const hostPortDb = url.match(/^([^:/]+):(\d+)(?:\/(.+))?$/);
+  if (hostPortDb) {
+    return {
+      host: hostPortDb[1],
+      port: Number(hostPortDb[2]),
+      db_name: (hostPortDb[3] || "").trim(),
+    };
+  }
+
+  if (!url.includes("://") && !url.includes(":")) {
+    return { host: url, db_name: "" };
+  }
+
+  try {
+    const withScheme = /^https?:\/\//i.test(url) ? url : `http://${url}`;
+    const u = new URL(withScheme);
+    return {
+      host: u.hostname,
+      port: u.port ? Number(u.port) : undefined,
+      db_name: u.pathname.replace(/^\//, "").trim(),
+    };
+  } catch {
+    return { host: "", db_name: "" };
+  }
+}
+
+function defaultDatabasePort(dbType?: string): number | undefined {
+  const t = (dbType ?? "").toLowerCase();
+  if (t.includes("postgres")) return 5432;
+  if (t.includes("mysql") || t.includes("maria")) return 3306;
+  if (t.includes("oracle")) return 1521;
+  if (t.includes("sqlserver") || t.includes("mssql")) return 1433;
+  return undefined;
+}
+
+/** Maps wizard step3 connection fields to gatewayassist test-connection payload. */
+export function buildDatabaseTestConnectionPayload(
+  step3: Record<string, unknown>
+): DatabaseTestConnectionPayload {
+  const db_type = normalizeDatabaseTestDbType(
+    pickStep3String(step3, "databaseType", "db_type", "dbType")
+  );
+  const username = pickStep3String(step3, "username");
+  const password = pickStep3String(step3, "password");
+
+  let host = pickStep3String(step3, "host", "hostname");
+  let portStr = pickStep3String(step3, "port");
+  let db_name = pickStep3String(
+    step3,
+    "db_name",
+    "dbName",
+    "databaseName",
+    "jdbcReadDatabaseName"
+  );
+
+  const connectionURL = pickStep3String(
+    step3,
+    "connectionURL",
+    "connectionUrl",
+    "jdbc_url",
+    "jdbcUrl"
+  );
+  if (connectionURL && (!host || !portStr || !db_name)) {
+    const parsed = parseDatabaseConnectionTarget(connectionURL, db_type);
+    if (!host) host = parsed.host;
+    if (!portStr && parsed.port != null) portStr = String(parsed.port);
+    if (!db_name) db_name = parsed.db_name;
+  }
+
+  const port = portStr ? Number(portStr) : defaultDatabasePort(db_type) ?? 0;
+
+  return {
+    db_type,
+    host,
+    port: Number.isFinite(port) ? port : 0,
+    db_name,
+    username,
+    password,
+  };
+}
+
+export function isDatabaseTestConnectionPayloadComplete(
+  payload: DatabaseTestConnectionPayload
+): boolean {
+  return Boolean(
+    payload.db_type &&
+      payload.host &&
+      payload.port > 0 &&
+      payload.db_name &&
+      payload.username &&
+      payload.password
+  );
+}
+
+/** POST gatewayassist schemamapper db test-connection. */
+export async function testDatabaseConnection(
+  payload: DatabaseTestConnectionPayload
+): Promise<unknown> {
+  const endpoint =
+    "https://preview.keyforge.ai/gatewayassist/api/v1/KEYFORGE/schemamapper/db/test-connection";
+  const fetchFn = typeof window !== "undefined" ? getOriginalFetch() : fetch;
+  const response = await fetchFn(endpoint, {
+    method: "POST",
+    headers: connectionTestAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const text = await response.text();
+  let data: unknown = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    if (!response.ok) {
+      throw new Error(text || `Connection test failed: ${response.status}`);
+    }
+  }
+  if (data != null && (await checkTokenExpiredError(data))) {
+    throw new Error("Token Expired");
+  }
+  if (!response.ok) {
+    const parsed = parseConnectionTestResult(data);
+    throw new Error(parsed.message || text || `Connection test failed: ${response.status}`);
+  }
+  return data;
+}
+
+/** POST restagent testconnection — RESTService Application connection parameters. */
+export async function testRestServiceConnection(
+  payload: Record<string, string>
+): Promise<unknown> {
+  const endpoint =
+    "https://preview.keyforge.ai/aiagentcontroller/api/v1/ACMECOM/restagent/testconnection";
+  const fetchFn = typeof window !== "undefined" ? getOriginalFetch() : fetch;
+  const response = await fetchFn(endpoint, {
+    method: "POST",
+    headers: connectionTestAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const text = await response.text();
+  let data: unknown = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    if (!response.ok) {
+      throw new Error(text || `Connection test failed: ${response.status}`);
+    }
+  }
+  if (data != null && (await checkTokenExpiredError(data))) {
+    throw new Error("Token Expired");
+  }
+  if (!response.ok) {
+    const parsed = parseConnectionTestResult(data);
+    throw new Error(parsed.message || text || `Connection test failed: ${response.status}`);
+  }
+  return data;
+}
+
 /** GET schemamapper getmappedschema — provisioning/reconciliation maps for an application id. */
 export async function getMappedSchema(tenantId: string, applicationId: string): Promise<unknown> {
   const url = `https://preview.keyforge.ai/schemamapper/getmappedschema/${encodeURIComponent(tenantId)}/${encodeURIComponent(applicationId)}`;
@@ -833,6 +1597,10 @@ export type WizardSchemaMappingRow = {
   defaultValue: string;
   type: string;
   keyfieldMapping: boolean;
+  /** Database fetch-schema: suggested source attribute (column 2). */
+  bestMatch?: string;
+  /** Database fetch-schema: alternate suggestion (column 3). */
+  option2?: string;
 };
 
 /** Source IGA/SCIM attribute names already mapped in schema (lowercase keys for comparison). */
