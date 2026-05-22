@@ -718,7 +718,7 @@ export default function AddApplicationPage() {
   const handleNext = async () => {
     if (currentStep === 1 && (isLoadingAppTypes || !formData.step1.type?.trim())) return;
     const isDisconnectedApp = formData.step1.type === "Disconnected Application";
-    const maxStep = isDisconnectedApp ? 6 : 5;
+    const maxStep = isAiAgentWizard ? 5 : isDisconnectedApp ? 6 : 5;
     if (currentStep >= maxStep) return;
     if (currentStep === 2) {
       if (!formData.step2.sourceType?.trim()) {
@@ -971,14 +971,19 @@ export default function AddApplicationPage() {
   };
 
   const handlePrevious = () => {
-    if (currentStep > 1) {
-      setSubmitRequestError(null);
-      if (isCompleteIntegration && currentStep === 3) {
-        router.push("/settings/app-inventory");
-        return;
-      }
-      setCurrentStep(currentStep - 1);
+    if (submitRequestLoading) return;
+    setSubmitRequestError(null);
+    if (isCompleteIntegration && currentStep === 3) {
+      router.push("/settings/app-inventory");
+      return;
     }
+    if (currentStep === 1) {
+      if (isAiAgentWizard) {
+        router.push("/settings/app-inventory");
+      }
+      return;
+    }
+    setCurrentStep(currentStep - 1);
   };
 
   const handleSubmit = async () => {
@@ -11538,15 +11543,23 @@ export default function AddApplicationPage() {
           <button
             type="button"
             onClick={handlePrevious}
-            disabled={(!isCompleteIntegration && currentStep === 1) || submitRequestLoading}
+            disabled={
+              (!isCompleteIntegration && currentStep === 1 && !isAiAgentWizard) ||
+              submitRequestLoading
+            }
             className={`flex items-center px-2.5 sm:px-3 py-2 rounded-md text-sm font-medium shrink-0 ${
-              ((!isCompleteIntegration && currentStep === 1) || submitRequestLoading)
+              (!isCompleteIntegration && currentStep === 1 && !isAiAgentWizard) ||
+              submitRequestLoading
                 ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                 : "bg-gray-200 text-gray-700 hover:bg-gray-300"
             }`}
           >
             <ChevronLeft className="w-4 h-4 mr-1.5" />
-            {isCompleteIntegration && currentStep === 3 ? "Back to Inventory" : "Previous"}
+            {isCompleteIntegration && currentStep === 3
+              ? "Back to Inventory"
+              : isAiAgentWizard && currentStep === 1
+                ? "Back to Integrations"
+                : "Previous"}
           </button>
 
           <div className="flex-1 flex items-center justify-between min-w-0 overflow-x-auto">
@@ -11751,8 +11764,8 @@ export default function AddApplicationPage() {
           <div className="mb-4">
             <h1 className="text-xl font-semibold text-gray-900">Add Application (AI Agent)</h1>
             <p className="text-sm text-gray-600 mt-1">
-              Onboard Database or REST Service applications with tabbed integration, connection
-              testing, and AI-assisted schema mapping.
+              Onboard Database or REST Service applications with connection testing and AI-assisted
+              schema mapping.
             </p>
           </div>
         )}

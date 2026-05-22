@@ -114,8 +114,13 @@ export function Navigation() {
   // Back link config: first match wins (order = most specific first)
   const getBackConfig = (): { href: string; label: string } | null => {
     // App Inventory
-    if (pathname === '/settings/app-inventory/add-application' || pathname === '/settings/app-inventory/ai-assist-app') {
-      return { href: '/settings/app-inventory', label: 'Back to App Inventory' };
+    if (
+      pathname === '/settings/app-inventory/add-application' ||
+      pathname === '/settings/app-inventory/add-application-ai-agent' ||
+      pathname === '/settings/app-inventory/ai-assist-app' ||
+      /^\/settings\/app-inventory\/[^/]+\/(settings|schema-mapping)$/.test(pathname)
+    ) {
+      return { href: '/settings/app-inventory', label: 'Back to Integrations' };
     }
     // Gateway - Email Templates (dynamic back for edit page)
     const emailTemplatesEditMatch = pathname.match(/^\/settings\/gateway\/email-templates\/edit\/([^/]+)$/);
