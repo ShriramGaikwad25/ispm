@@ -59,6 +59,8 @@ import {
   isDatabaseTestConnectionPayloadComplete,
   fetchDatabaseSchema,
   fetchDatabaseSuggestMapping,
+  confirmDatabaseMapping,
+  buildDatabaseConfirmMappingDecisions,
   applyDatabaseSuggestMappingToRows,
   attributeMappingsFromFetchSchemaJson,
   testRestServiceConnection,
@@ -1015,6 +1017,21 @@ export default function AddApplicationPage() {
           throw new Error("Application registration did not return an application id");
         }
         setWizardRegisteredAppId(appId);
+
+        if (appType === "Database") {
+          const sessionId =
+            databaseSessionId?.trim() || String(step3.dbSessionId ?? "").trim();
+          if (!sessionId) {
+            throw new Error(
+              "Database session is missing. Run Test Connection and load schema before submitting."
+            );
+          }
+          setSubmitProgressToast("Confirming schema mapping...");
+          await confirmDatabaseMapping({
+            session_id: sessionId,
+            decisions: buildDatabaseConfirmMappingDecisions(attributeMappingData),
+          });
+        }
 
         // 2) POST mapfields — save schema mapping using app id from newApp
         setSubmitProgressToast("Update Schema mapping...");

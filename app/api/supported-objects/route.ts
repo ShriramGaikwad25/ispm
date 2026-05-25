@@ -1,37 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getJwtTokenFromRequest, withAuthHeader } from '@/lib/serverAuth';
+import { getAccessTokenFromRequest, withRegisterScimAuthHeader } from '@/lib/serverAuth';
+
+const SUPPORTED_OBJECTS_URL =
+  'https://preview.keyforge.ai/registerscimapp/registerfortenant/ACMECOM/getAllSupportedObjects';
 
 export async function GET(request: NextRequest) {
   try {
-    const jwtToken = getJwtTokenFromRequest(request);
-    console.log('API Route: Fetching supported objects from external API...');
-    const response = await fetch(
-      'https://preview.keyforge.ai/registerscimapp/registerfortenant/ACMECOM/getAllSupportedObjects',
-      {
-        method: 'GET',
-        headers: withAuthHeader({
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-          'User-Agent': 'ISPM-App/1.0'
-        }, jwtToken),
-      }
-    );
+    const accessToken = getAccessTokenFromRequest(request);
+    if (!accessToken) {
+      return NextResponse.json(
+        { error: 'Failed to fetch supported objects', message: 'No access token available' },
+        { status: 401 }
+      );
+    }
 
-    console.log('API Route: External API response status:', response.status);
+    const response = await fetch(SUPPORTED_OBJECTS_URL, {
+      method: 'GET',
+      headers: withRegisterScimAuthHeader(
+        {
+          'X-Requested-With': 'XMLHttpRequest',
+          'User-Agent': 'ISPM-App/1.0',
+        },
+        request
+      ),
+    });
+
     const text = await response.text();
-    console.log('API Route: External API response length:', text.length);
 
     if (!response.ok) {
-      console.error('API Route: External API error:', response.status, text);
+      console.error('supported-objects: external API error:', response.status, text);
       throw new Error(`External API error: ${response.status} ${response.statusText} - ${text}`);
     }
 
-    let data: any;
+    let data: unknown;
     try {
-      data = JSON.parse(text);
-      console.log('API Route: Parsed JSON successfully, applicationType count:', data?.applicationType?.length || 0);
-    } catch (parseError) {
-      console.error('API Route: JSON parse error:', parseError);
+      data = text ? JSON.parse(text) : null;
+    } catch {
       data = { message: text };
     }
 
@@ -44,7 +48,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('API Route: Error in GET handler:', error);
+    console.error('supported-objects: GET handler error:', error);
     return NextResponse.json(
       {
         error: 'Failed to fetch supported objects',
@@ -72,5 +76,3 @@ export async function OPTIONS() {
     },
   });
 }
-
-

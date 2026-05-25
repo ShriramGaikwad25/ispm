@@ -460,10 +460,31 @@ export async function updateCampaignSchedule(payload: {
   return result;
 }
 
-// Get all supported application types for registration
+// Get all supported application types for registration (registerscimapp uses access token)
 export async function getAllSupportedApplicationTypes(): Promise<any> {
-  const endpoint = "https://preview.keyforge.ai/registerscimapp/registerfortenant/ACMECOM/getAllSupportedObjects";
-  return fetchApi(endpoint);
+  const endpoint =
+    "https://preview.keyforge.ai/registerscimapp/registerfortenant/ACMECOM/getAllSupportedObjects";
+  const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
+  if (!accessToken) {
+    throw new Error("No access token available");
+  }
+  const fetchFn = typeof window !== "undefined" ? getOriginalFetch() : fetch;
+  const response = await fetchFn(endpoint, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "X-Requested-With": "XMLHttpRequest",
+    },
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`getAllSupportedObjects failed: ${response.status} - ${errorText}`);
+  }
+  const data = await response.json();
+  if (await checkTokenExpiredError(data)) {
+    throw new Error("Token Expired");
+  }
+  return data;
 }
 
 // Get all registered applications
@@ -1151,6 +1172,115 @@ export async function fetchDatabaseSuggestMapping(
   if (data != null && typeof data === "object" && (data as Record<string, unknown>).success === false) {
     throw new Error(
       String((data as Record<string, unknown>).message ?? "Failed to fetch mapping suggestions.")
+    );
+  }
+  return data;
+}
+
+export type DatabaseConfirmMappingDecisionAction = "accept" | "pick" | "manual" | "skip";
+
+export type DatabaseConfirmMappingDecision = {
+  column_name: string;
+  action: DatabaseConfirmMappingDecisionAction;
+  picked?: string;
+  manual_entry?: string;
+};
+
+export type DatabaseConfirmMappingPayload = {
+  session_id: string;
+  decisions: DatabaseConfirmMappingDecision[];
+};
+
+export type DatabaseConfirmMappingRowInput = {
+  target: string;
+  source?: string;
+  bestMatch?: string;
+  option2?: string;
+  sourceSelection?: "bestMatch" | "option2" | "custom";
+};
+
+/** Build confirm-mapping `decisions` from schema mapping UI rows. */
+export function buildDatabaseConfirmMappingDecisions(
+  rows: DatabaseConfirmMappingRowInput[]
+): DatabaseConfirmMappingDecision[] {
+  return rows
+    .filter((row) => row.target?.trim())
+    .map((row) => {
+      const column_name = row.target.trim();
+      const source = (row.source ?? "").trim();
+      const selection = row.sourceSelection;
+
+      if (selection === "bestMatch") {
+        return { column_name, action: "accept" as const };
+      }
+      if (selection === "option2") {
+        const picked = (row.option2 ?? "").trim() || source;
+        return { column_name, action: "pick" as const, picked };
+      }
+      if (selection === "custom") {
+        return {
+          column_name,
+          action: "manual" as const,
+          manual_entry: source,
+        };
+      }
+
+      if (!source) {
+        return { column_name, action: "skip" as const };
+      }
+
+      const srcNorm = source.toLowerCase();
+      const bestNorm = (row.bestMatch ?? "").trim().toLowerCase();
+      const opt2Norm = (row.option2 ?? "").trim().toLowerCase();
+
+      if (bestNorm && srcNorm === bestNorm) {
+        return { column_name, action: "accept" as const };
+      }
+      if (opt2Norm && srcNorm === opt2Norm) {
+        return { column_name, action: "pick" as const, picked: source };
+      }
+      return { column_name, action: "manual" as const, manual_entry: source };
+    });
+}
+
+/** POST gatewayassist schemamapper db confirm-mapping (finalize mapping decisions for session). */
+export async function confirmDatabaseMapping(
+  payload: DatabaseConfirmMappingPayload
+): Promise<unknown> {
+  const endpoint =
+    "https://preview.keyforge.ai/gatewayassist/api/v1/KEYFORGE/schemamapper/db/confirm-mapping";
+  const fetchFn = typeof window !== "undefined" ? getOriginalFetch() : fetch;
+  const response = await fetchFn(endpoint, {
+    method: "POST",
+    headers: connectionTestAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const text = await response.text();
+  let data: unknown = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    if (!response.ok) {
+      throw new Error(text || `confirm-mapping failed: ${response.status}`);
+    }
+  }
+  if (data != null && (await checkTokenExpiredError(data))) {
+    throw new Error("Token Expired");
+  }
+  if (!response.ok) {
+    const msg =
+      data != null && typeof data === "object"
+        ? String(
+            (data as Record<string, unknown>).message ??
+              (data as Record<string, unknown>).errorMessage ??
+              text
+          )
+        : text;
+    throw new Error(msg || `confirm-mapping failed: ${response.status}`);
+  }
+  if (data != null && typeof data === "object" && (data as Record<string, unknown>).success === false) {
+    throw new Error(
+      String((data as Record<string, unknown>).message ?? "Failed to confirm database mapping.")
     );
   }
   return data;
@@ -2660,7 +2790,11 @@ export async function getAllSupportedApplicationTypesViaProxy(): Promise<any> {
     "X-Requested-With": "XMLHttpRequest",
   };
 
-  const res = await fetch(`/api/supported-objects`, { headers, cache: 'no-store' });
+  const res = await fetch(`/api/supported-objects`, {
+    headers,
+    cache: "no-store",
+    credentials: "include",
+  });
   if (!res.ok) {
     const errorBody = await res.text();
     throw new Error(`Proxy fetch failed: ${res.status} ${res.statusText}\n${errorBody}`);
