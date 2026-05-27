@@ -36,6 +36,8 @@ import type { ErpInstance, ExtractTemplate, UpsertErpInstanceInput } from "@/typ
 import type { Lookup, LookupType, UpsertLookupValueInput } from "@/types/rm-lookups";
 // SimulationResult / SimulationApiResult used in unwrapSimulationResult
 
+const RM_TENANT_ID = "a0000000-0000-0000-0000-000000000001";
+
 export type { RulesetCsvRow } from "@/types/rm-dashboard";
 export type {
   FunctionRow,
@@ -76,20 +78,20 @@ export type { Lookup, LookupType, UpsertLookupValueInput } from "@/types/rm-look
 
 /** Third arg: `status` (e.g. `ACTIVE`), then `page`, `page_size` — `["ACTIVE",1,50]`. */
 export const RM_LIST_RULESETS_QUERY =
-  "SELECT public.kf_rm_list_rulesets(NULL::uuid, ?, ?, ?) AS result";
+  "SELECT public.kf_rm_list_rulesets(?::uuid, ?, ?, ?) AS result";
 
 export const RM_LIST_RULESETS_DEFAULT_PAGE = 1;
 export const RM_LIST_RULESETS_DEFAULT_PAGE_SIZE = 500;
 
 export const RM_GET_DASHBOARD_V2_ALL_QUERY =
-  "SELECT public.kf_rm_get_dashboard_v2(NULL::uuid, NULL::bigint) AS result";
+  "SELECT public.kf_rm_get_dashboard_v2(?::uuid, NULL::bigint) AS result";
 
 export const RM_GET_DASHBOARD_V2_BY_RULESET_QUERY =
-  "SELECT public.kf_rm_get_dashboard_v2(NULL::uuid, ?::bigint) AS result";
+  "SELECT public.kf_rm_get_dashboard_v2(?::uuid, ?::bigint) AS result";
 
 /** e.g. category `RULESET_STATUS`, locale `en`. */
 export const RM_LIST_LOOKUP_VALUES_QUERY =
-  "SELECT public.kf_rm_list_lookup_values(?, NULL::uuid, ?) AS result";
+  "SELECT public.kf_rm_list_lookup_values(?, ?::uuid, ?) AS result";
 
 const RM_UPSERT_RULESET_QUERY = "SELECT public.kf_rm_upsert_ruleset(?::jsonb) AS result";
 const RM_TRIGGER_ANALYSIS_QUERY = "SELECT public.kf_rm_trigger_analysis(?::bigint) AS result";
@@ -127,7 +129,11 @@ export async function getLookupByCategory(
   category: string,
   locale: string = "en"
 ): Promise<{ data: RmLookupValue[] }> {
-  const res = await executeQuery<unknown>(RM_LIST_LOOKUP_VALUES_QUERY, [category, locale]);
+  const res = await executeQuery<unknown>(RM_LIST_LOOKUP_VALUES_QUERY, [
+    category,
+    RM_TENANT_ID,
+    locale,
+  ]);
   const data = getKfResultData(res);
   if (Array.isArray(data)) {
     return {
@@ -159,7 +165,12 @@ export async function listRulesets(
 ): Promise<{ data: RmRuleset[] }> {
   const st =
     status != null && String(status).trim() !== "" ? String(status).trim() : "";
-  const response = await executeQuery<unknown>(RM_LIST_RULESETS_QUERY, [st, page, pageSize]);
+  const response = await executeQuery<unknown>(RM_LIST_RULESETS_QUERY, [
+    RM_TENANT_ID,
+    st,
+    page,
+    pageSize,
+  ]);
   return { data: mapExecuteQueryToRulesets(response) };
 }
 
@@ -182,13 +193,17 @@ export async function triggerAnalysis(rulesetId: number): Promise<{ data: unknow
 }
 
 const RM_LIST_ANALYSIS_RUNS_QUERY =
-  "SELECT public.kf_rm_list_analysis_runs(NULL::uuid, NULL::bigint, NULL, ?, ?) AS result";
+  "SELECT public.kf_rm_list_analysis_runs(?::uuid, NULL::bigint, NULL, ?, ?) AS result";
 
 export async function listAnalysisRuns(
   page: number = 1,
   pageSize: number = 50
 ): Promise<{ data: AnalysisRunListRow[] }> {
-  const res = await executeQuery<unknown>(RM_LIST_ANALYSIS_RUNS_QUERY, [page, pageSize]);
+  const res = await executeQuery<unknown>(RM_LIST_ANALYSIS_RUNS_QUERY, [
+    RM_TENANT_ID,
+    page,
+    pageSize,
+  ]);
   return { data: asArray<AnalysisRunListRow>(getKfResultData(res)) };
 }
 
@@ -328,15 +343,15 @@ export async function searchFunctions(
 
 // --- Functions (catalog) ---
 const RM_LIST_FUNCTIONS_PAGED_QUERY =
-  "SELECT public.kf_rm_list_functions_paged(NULL::uuid, NULL::varchar, NULL::varchar, ?::varchar, ?, ?) AS result";
+  "SELECT public.kf_rm_list_functions_paged(?::uuid, NULL::varchar, NULL::varchar, ?::varchar, ?, ?) AS result";
 const RM_GET_FUNCTION_DETAIL_QUERY = "SELECT public.kf_rm_get_function(?::bigint) AS result";
 const RM_UPSERT_FUNCTION_QUERY = "SELECT public.kf_rm_upsert_function(?::jsonb) AS result";
 const RM_DELETE_FUNCTION_QUERY = "SELECT public.kf_rm_delete_function(?::bigint) AS result";
 const RM_SEARCH_PRIVILEGES_QUERY =
-  "SELECT public.kf_rm_search_privileges(NULL::uuid, ?, NULL, ?) AS result";
+  "SELECT public.kf_rm_search_privileges(?::uuid, ?, NULL, ?) AS result";
 
 const RM_LIST_VIOLATIONS_QUERY =
-  "SELECT public.kf_rm_list_violations_v2(NULL::uuid, NULL::bigint, NULL::bigint, NULL::uuid, ?, NULL, NULL, NULL, NULL, NULL, ?, ?, ?, ?, ?) AS result";
+  "SELECT public.kf_rm_list_violations_v2(?::uuid, NULL::bigint, NULL::bigint, NULL::uuid, ?, NULL, NULL, NULL, NULL, NULL, ?, ?, ?, ?, ?) AS result";
 
 function mapListViolationsResult(
   raw: unknown,
@@ -397,6 +412,7 @@ export async function listViolations(filters: ListViolationsParams): Promise<Lis
       ? String(filters.status).trim()
       : "";
   const res = await executeQuery<unknown>(RM_LIST_VIOLATIONS_QUERY, [
+    RM_TENANT_ID,
     status,
     sortBy,
     sortDir,
@@ -417,7 +433,12 @@ export async function listFunctionsPaged(
     params.status != null && String(params.status).trim() !== ""
       ? String(params.status).trim()
       : "";
-  const res = await executeQuery<unknown>(RM_LIST_FUNCTIONS_PAGED_QUERY, [status, page, pageSize]);
+  const res = await executeQuery<unknown>(RM_LIST_FUNCTIONS_PAGED_QUERY, [
+    RM_TENANT_ID,
+    status,
+    page,
+    pageSize,
+  ]);
   return { data: asArray<FunctionListRow>(getKfResultData(res)) };
 }
 
@@ -447,7 +468,11 @@ export async function searchPrivileges(
   systemType: string = "GENERIC",
   limit: number = 50
 ): Promise<{ data: PrivilegeSearchRow[] }> {
-  const res = await executeQuery<unknown>(RM_SEARCH_PRIVILEGES_QUERY, [systemType, limit]);
+  const res = await executeQuery<unknown>(RM_SEARCH_PRIVILEGES_QUERY, [
+    RM_TENANT_ID,
+    systemType,
+    limit,
+  ]);
   return { data: asArray<PrivilegeSearchRow>(getKfResultData(res)) };
 }
 
@@ -457,19 +482,19 @@ export async function searchPrivileges(
 export async function getDashboard(rulesetId?: number): Promise<{ data: RmDashboardData }> {
   const response =
     rulesetId == null
-      ? await executeQuery<unknown>(RM_GET_DASHBOARD_V2_ALL_QUERY, [])
-      : await executeQuery<unknown>(RM_GET_DASHBOARD_V2_BY_RULESET_QUERY, [rulesetId]);
+      ? await executeQuery<unknown>(RM_GET_DASHBOARD_V2_ALL_QUERY, [RM_TENANT_ID])
+      : await executeQuery<unknown>(RM_GET_DASHBOARD_V2_BY_RULESET_QUERY, [RM_TENANT_ID, rulesetId]);
   return { data: mapExecuteQueryToDashboard(response) };
 }
 
 // --- Mitigations (controls catalog) — align SQL with `public.kf_rm_*` in your DB ---
 const RM_LIST_MITIGATIONS_QUERY =
-  "SELECT public.kf_rm_list_mitigations(NULL::uuid) AS result";
+  "SELECT public.kf_rm_list_mitigations(?::uuid) AS result";
 const RM_UPSERT_MITIGATION_QUERY =
   "SELECT public.kf_rm_upsert_mitigation(?::jsonb) AS result";
 
 export async function listMitigations(): Promise<{ data: MitigationListRow[] }> {
-  const res = await executeQuery<unknown>(RM_LIST_MITIGATIONS_QUERY, []);
+  const res = await executeQuery<unknown>(RM_LIST_MITIGATIONS_QUERY, [RM_TENANT_ID]);
   return { data: asArray<MitigationListRow>(getKfResultData(res)) };
 }
 
@@ -482,7 +507,7 @@ export async function upsertMitigation(
 
 // --- Exceptions — align SQL with `public.kf_rm_*` in your DB ---
 const RM_LIST_EXCEPTIONS_QUERY =
-  "SELECT public.kf_rm_list_exceptions(NULL::uuid, NULL, NULL::uuid, ?, ?) AS result";
+  "SELECT public.kf_rm_list_exceptions(?::uuid, NULL, NULL::uuid, ?, ?) AS result";
 const RM_APPROVE_EXCEPTION_QUERY =
   "SELECT public.kf_rm_approve_exception(?::bigint, ?::text) AS result";
 
@@ -490,7 +515,11 @@ export async function listExceptions(
   page: number = 1,
   pageSize: number = 100
 ): Promise<{ data: ExceptionListRow[] }> {
-  const res = await executeQuery<unknown>(RM_LIST_EXCEPTIONS_QUERY, [page, pageSize]);
+  const res = await executeQuery<unknown>(RM_LIST_EXCEPTIONS_QUERY, [
+    RM_TENANT_ID,
+    page,
+    pageSize,
+  ]);
   return { data: asArray<ExceptionListRow>(getKfResultData(res)) };
 }
 
@@ -571,14 +600,14 @@ export async function simulateRole(
 
 // --- ERP instances & extract templates — align SQL with your `public.kf_rm_*` definitions ---
 const RM_LIST_ERP_INSTANCES_QUERY =
-  "SELECT public.kf_rm_list_erp_instances(NULL::uuid) AS result";
+  "SELECT public.kf_rm_list_erp_instances(?::uuid) AS result";
 const RM_UPSERT_ERP_INSTANCE_QUERY =
   "SELECT public.kf_rm_upsert_erp_instance(?::jsonb) AS result";
 const RM_LIST_EXTRACT_TEMPLATES_QUERY =
-  "SELECT public.kf_rm_list_extract_templates(?, NULL::uuid) AS result";
+  "SELECT public.kf_rm_list_extract_templates(?, ?::uuid) AS result";
 
 export async function listErpInstances(): Promise<{ data: ErpInstance[] }> {
-  const res = await executeQuery<unknown>(RM_LIST_ERP_INSTANCES_QUERY, []);
+  const res = await executeQuery<unknown>(RM_LIST_ERP_INSTANCES_QUERY, [RM_TENANT_ID]);
   return { data: asArray<ErpInstance>(getKfResultData(res)) };
 }
 
@@ -592,13 +621,16 @@ export async function upsertErpInstance(
 export async function listExtractTemplates(
   systemType: string
 ): Promise<{ data: ExtractTemplate[] }> {
-  const res = await executeQuery<unknown>(RM_LIST_EXTRACT_TEMPLATES_QUERY, [systemType]);
+  const res = await executeQuery<unknown>(RM_LIST_EXTRACT_TEMPLATES_QUERY, [
+    systemType,
+    RM_TENANT_ID,
+  ]);
   return { data: asArray<ExtractTemplate>(getKfResultData(res)) };
 }
 
 // --- Lookup type list & value admin — align `public.kf_rm_*` with your DB if names differ
 const RM_LIST_LOOKUP_TYPES_QUERY =
-  "SELECT public.kf_rm_list_lookup_types(NULL::uuid) AS result";
+  "SELECT public.kf_rm_list_lookup_types(?::uuid) AS result";
 const RM_UPSERT_LOOKUP_VALUE_QUERY =
   "SELECT public.kf_rm_upsert_lookup_value(?::jsonb) AS result";
 const RM_DELETE_LOOKUP_VALUE_QUERY =
@@ -662,7 +694,7 @@ function mapListFromQuery<T>(
 }
 
 export async function listLookupTypes(): Promise<{ data: LookupType[] }> {
-  const res = await executeQuery<unknown>(RM_LIST_LOOKUP_TYPES_QUERY, []);
+  const res = await executeQuery<unknown>(RM_LIST_LOOKUP_TYPES_QUERY, [RM_TENANT_ID]);
   return { data: mapListFromQuery(res, mapLookupTypeRow, (r) => Boolean(r.type_code)) };
 }
 
@@ -674,7 +706,11 @@ export async function listLookupValues(
   typeCode: string,
   locale: string = "en"
 ): Promise<{ data: Lookup[] }> {
-  const res = await executeQuery<unknown>(RM_LIST_LOOKUP_VALUES_QUERY, [typeCode, locale]);
+  const res = await executeQuery<unknown>(RM_LIST_LOOKUP_VALUES_QUERY, [
+    typeCode,
+    RM_TENANT_ID,
+    locale,
+  ]);
   return {
     data: mapListFromQuery(res, mapLookupAdminRow, (r) => Boolean(r.value_code)),
   };

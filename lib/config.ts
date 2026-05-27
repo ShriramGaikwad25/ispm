@@ -1,12 +1,13 @@
-// Configuration for the scheduler
+import appConfig from "@/config.json";
+
+export const tenantId = appConfig.tenantId;
+
+// Application configuration
 export const config = {
-  // API Configuration
+  tenantId,
   api: {
-    // API endpoints
     endpoints: {
-      // Direct external scheduler jobs endpoint (no local proxy route)
-      jobs: "https://preview.keyforge.ai/kfscheduler/api/v1/ACMECOM/jobs",
-      // Add more endpoints as needed
+      jobs: `https://preview.keyforge.ai/kfscheduler/api/v1/${tenantId}/jobs`,
     },
   },
 };

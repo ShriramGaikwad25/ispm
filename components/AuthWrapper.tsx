@@ -14,9 +14,12 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [isRedirecting, setIsRedirecting] = useState(false);
 
+  const isPublicAuthRoute =
+    pathname === '/login' || pathname?.startsWith('/oauth/callback');
+
   // Handle redirects with proper state management
   useEffect(() => {
-    if (!isAuthenticated && pathname !== '/login') {
+    if (!isAuthenticated && !isPublicAuthRoute) {
       setIsRedirecting(true);
       router.push('/login');
     } else if (isAuthenticated && pathname === '/login') {

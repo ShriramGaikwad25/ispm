@@ -1,4 +1,5 @@
 // Authentication API endpoints and utilities
+import { tenantId as configTenantId } from '@/lib/config';
 import { clearJitAccessHistoryStore } from '@/lib/jitAccessHistoryStorage';
 
 /** Best-effort message from KeyForge / gateway / PG JSON error bodies. */
@@ -36,6 +37,22 @@ function pickHttpErrorBodyMessage(errorJson: unknown, fallback: string): string 
 }
 
 const AUTH_BASE_URL = 'https://preview.keyforge.ai/RequestJWTToken/TokenProvider';
+
+export const AUTH_SESSION_KEYS = {
+  AUTH_TYPE: 'kf_auth_type',
+  AUTH_METHOD: 'kf_auth_method',
+  LOGOUT_URL: 'kf_logout_url',
+  OAUTH_CALLBACK_FAILED: 'kf_oauth_callback_failed',
+} as const;
+
+export interface ApplicationAuthTypeResponse {
+  OAuthRequestURL?: string;
+  STATUS?: string;
+  logoutURL?: string;
+  AuthType?: string;
+  AuthMethod?: string;
+  status?: string;
+}
 
 export interface TokenResponse {
   tokenResponse: {
@@ -127,6 +144,7 @@ export function clearAllAuthCookies(): void {
   Object.values(COOKIE_NAMES).forEach(cookieName => {
     deleteCookie(cookieName);
   });
+  clearPersistedApplicationAuthType();
 }
 
 // Force logout when tokens fail - clears cookies and redirects to login
@@ -212,6 +230,242 @@ export async function checkTokenExpiredError(data: any): Promise<boolean> {
   return false;
 }
 
+function registeredAppName(): string {
+  return configTenantId;
+}
+
+export function isOAuthApplicationAuth(
+  response: ApplicationAuthTypeResponse | null | undefined
+): boolean {
+  const authType = String(response?.AuthType ?? '').trim().toUpperCase();
+  return authType === 'OAUTH';
+}
+
+export function getOAuthRequestUrl(
+  response: ApplicationAuthTypeResponse | null | undefined
+): string | null {
+  const url = String(response?.OAuthRequestURL ?? '').trim();
+  return url || null;
+}
+
+/** OAuth authorization code + state returned on the app redirect URI. */
+export function getOAuthCallbackParamsFromUrl(
+  search?: string
+): { code: string; state: string } | null {
+  if (typeof window === 'undefined') return null;
+  const params = new URLSearchParams(search ?? window.location.search);
+  const code = params.get('code')?.trim();
+  const state = params.get('state')?.trim();
+  if (!code || !state) return null;
+  return { code, state };
+}
+
+/** @deprecated Use getOAuthCallbackParamsFromUrl() instead. */
+export function shouldSkipOAuthRedirect(): boolean {
+  return getOAuthCallbackParamsFromUrl() !== null;
+}
+
+export function clearOAuthCallbackParamsFromUrl(): void {
+  if (typeof window === 'undefined') return;
+  const url = new URL(window.location.href);
+  url.searchParams.delete('code');
+  url.searchParams.delete('state');
+  const qs = url.searchParams.toString();
+  window.history.replaceState({}, '', url.pathname + (qs ? `?${qs}` : ''));
+}
+
+function parseAccessTokenFromAuthPayload(data: unknown): {
+  accessToken: string;
+  userUniqueID?: string;
+  userAdminRoles?: string;
+  userid?: string;
+} {
+  if (data == null || typeof data !== 'object') {
+    throw new Error('Invalid OAuth callback response');
+  }
+  const root = data as Record<string, unknown>;
+  const tokenResponse =
+    root.tokenResponse && typeof root.tokenResponse === 'object'
+      ? (root.tokenResponse as Record<string, unknown>)
+      : null;
+
+  const accessToken = String(
+    tokenResponse?.accessToken ?? root.accessToken ?? ''
+  ).trim();
+  if (!accessToken) {
+    throw new Error('No access token in OAuth callback response');
+  }
+
+  const userUniqueID = String(
+    tokenResponse?.userUniqueID ?? root.userUniqueID ?? ''
+  ).trim();
+  const userAdminRoles = String(
+    tokenResponse?.userAdminRoles ?? root.userAdminRoles ?? ''
+  ).trim();
+  const userid = String(
+    tokenResponse?.userid ?? root.userid ?? userUniqueID ?? ''
+  ).trim();
+
+  return {
+    accessToken,
+    userUniqueID: userUniqueID || undefined,
+    userAdminRoles: userAdminRoles || undefined,
+    userid: userid || undefined,
+  };
+}
+
+/** Exchange OAuth authorization code for an access token (Keyforge callback). */
+export async function completeOAuthCallback(
+  code: string,
+  state: string
+): Promise<{
+  accessToken: string;
+  userUniqueID?: string;
+  userAdminRoles?: string;
+  userid?: string;
+}> {
+  const params = new URLSearchParams({
+    code,
+    state,
+    registeredAppName: registeredAppName(),
+  });
+  const response = await fetch(`${AUTH_BASE_URL}/oauth/callback?${params.toString()}`, {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+  });
+
+  const rawText = await response.text();
+  let data: unknown;
+  try {
+    data = rawText ? JSON.parse(rawText) : null;
+  } catch {
+    throw new Error(
+      `OAuth callback returned non-JSON (${response.status}): ${rawText.slice(0, 200)}`
+    );
+  }
+
+  if (!response.ok) {
+    const message =
+      typeof data === 'object' &&
+      data !== null &&
+      'statusMessage' in data &&
+      typeof (data as Record<string, unknown>).statusMessage === 'string'
+        ? String((data as Record<string, unknown>).statusMessage)
+        : rawText || `OAuth callback failed (${response.status})`;
+    throw new Error(message);
+  }
+
+  if (
+    typeof data === 'object' &&
+    data !== null &&
+    ((data as Record<string, unknown>).status === 'failed' ||
+      (data as Record<string, unknown>).status === 'error' ||
+      (data as Record<string, unknown>).STATUS === 'FAILED')
+  ) {
+    throw new Error(
+      String(
+        (data as Record<string, unknown>).statusMessage ??
+          (data as Record<string, unknown>).STATUSMESSAGE ??
+          'OAuth callback failed'
+      )
+    );
+  }
+
+  return parseAccessTokenFromAuthPayload(data);
+}
+
+/** Persist cookies + JWT after password or OAuth login. */
+export async function establishAuthenticatedSession(options: {
+  accessToken: string;
+  userUniqueID?: string;
+  userAdminRoles?: string;
+  userid?: string;
+}): Promise<void> {
+  const { accessToken, userUniqueID, userAdminRoles, userid } = options;
+  const resolvedUserid = userid ?? userUniqueID ?? '';
+
+  setCookie(COOKIE_NAMES.ACCESS_TOKEN, accessToken);
+  setCookie(
+    COOKIE_NAMES.UID_TENANT,
+    JSON.stringify({ userid: resolvedUserid, tenantId: configTenantId })
+  );
+
+  if (userUniqueID) {
+    setCookie(COOKIE_NAMES.REVIEWER_ID, userUniqueID);
+  }
+  if (userAdminRoles) {
+    setCookie(COOKIE_NAMES.USER_ADMIN_ROLES, userAdminRoles);
+  }
+
+  const jwtResponse = await generateJWTToken(accessToken);
+  const jwtToken = extractJWTToken(jwtResponse);
+  if (!jwtToken) {
+    throw new Error('Failed to generate JWT token after login');
+  }
+  setCookie(COOKIE_NAMES.JWT_TOKEN, jwtToken);
+}
+
+export function persistApplicationAuthType(response: ApplicationAuthTypeResponse): void {
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.setItem(AUTH_SESSION_KEYS.AUTH_TYPE, String(response.AuthType ?? ''));
+    sessionStorage.setItem(AUTH_SESSION_KEYS.AUTH_METHOD, String(response.AuthMethod ?? ''));
+    if (response.logoutURL?.trim()) {
+      sessionStorage.setItem(AUTH_SESSION_KEYS.LOGOUT_URL, response.logoutURL.trim());
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+export function getPersistedAuthType(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return sessionStorage.getItem(AUTH_SESSION_KEYS.AUTH_TYPE);
+  } catch {
+    return null;
+  }
+}
+
+export function clearPersistedApplicationAuthType(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.removeItem(AUTH_SESSION_KEYS.AUTH_TYPE);
+    sessionStorage.removeItem(AUTH_SESSION_KEYS.AUTH_METHOD);
+    sessionStorage.removeItem(AUTH_SESSION_KEYS.LOGOUT_URL);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Resolves tenant auth mode (LOCAL vs OAUTH) for the configured registered app name. */
+export async function fetchApplicationAuthType(
+  registeredApp?: string
+): Promise<ApplicationAuthTypeResponse> {
+  const appName = (registeredApp ?? configTenantId).trim();
+  const response = await fetch(`${AUTH_BASE_URL}/applicationType`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ registeredAppName: appName }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(
+      `applicationType failed: ${response.status} ${response.statusText} - ${errorText}`
+    );
+  }
+
+  const data = (await response.json()) as ApplicationAuthTypeResponse;
+  const status = String(data.status ?? data.STATUS ?? '').trim().toLowerCase();
+  if (status && status !== 'success') {
+    throw new Error(`applicationType returned status: ${status}`);
+  }
+
+  persistApplicationAuthType(data);
+  return data;
+}
+
 // API functions
 export async function requestToken(userid: string, password: string): Promise<TokenResponse> {
   try {
@@ -222,7 +476,7 @@ export async function requestToken(userid: string, password: string): Promise<To
       },
       body: JSON.stringify({
         requestToken: {
-          registeredAppName: "ACMECOM",
+          registeredAppName: registeredAppName(),
           userid: userid,
           password: password
         }
@@ -257,7 +511,7 @@ export async function verifyToken(accessToken: string): Promise<VerifyTokenRespo
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        registeredAppName: "ACMECOM",
+        registeredAppName: registeredAppName(),
         accessToken: accessToken
       }),
     });
@@ -298,7 +552,7 @@ export async function requestJWTToken(accessToken: string): Promise<JWTTokenResp
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        registeredAppName: "ACMECOM",
+        registeredAppName: registeredAppName(),
         accessToken: accessToken
       }),
     });
@@ -330,7 +584,7 @@ export function extractJWTToken(jwtResponse: JWTTokenResponse): string | null {
 // Generate JWT token using the new authservice API
 export async function generateJWTToken(accessToken: string): Promise<JWTTokenResponse> {
   try {
-    const response = await fetch('https://preview.keyforge.ai/authservice/api/v1/ACMECOM/generateJWTToken', {
+    const response = await fetch(`https://preview.keyforge.ai/authservice/api/v1/${registeredAppName()}/generateJWTToken`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

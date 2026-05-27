@@ -4,14 +4,20 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { getCookie, verifyToken, COOKIE_NAMES } from '@/lib/auth';
+import { getCookie, COOKIE_NAMES, AUTH_SESSION_KEYS } from '@/lib/auth';
 
 export default function LoginPage() {
   const [userid, setUserid] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isCheckingToken, setIsCheckingToken] = useState(true);
-  const { login, isLoading } = useAuth();
+
+  useEffect(() => {
+    if (sessionStorage.getItem(AUTH_SESSION_KEYS.OAUTH_CALLBACK_FAILED) === '1') {
+      setError('SSO sign-in could not be completed. Please try again or contact your administrator.');
+    }
+  }, []);
+  const { login, isLoading, isOAuthRedirecting, isCompletingOAuth } = useAuth();
   const router = useRouter();
 
   // Check for existing valid token on page load
@@ -63,13 +69,19 @@ export default function LoginPage() {
     }
   };
 
-  // Show loading state while checking token
-  if (isCheckingToken) {
+  // Show loading while checking tokens or OAuth is in progress (handled by AuthContext)
+  if (isCheckingToken || isOAuthRedirecting || isCompletingOAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Checking authentication...</p>
+          <p className="text-gray-600">
+            {isCompletingOAuth
+              ? 'Completing sign in...'
+              : isOAuthRedirecting
+                ? 'Redirecting to sign in...'
+                : 'Checking authentication...'}
+          </p>
         </div>
       </div>
     );

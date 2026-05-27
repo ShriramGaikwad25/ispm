@@ -4,17 +4,20 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { 
   requestToken, 
   verifyToken, 
-  requestJWTToken,
-  generateJWTToken,
-  extractJWTToken,
-  isAuthenticated, 
   getCurrentUser, 
   clearAllAuthCookies,
-  setCookie,
   getCookie,
   COOKIE_NAMES,
-  forceLogout
+  fetchApplicationAuthType,
+  isOAuthApplicationAuth,
+  getOAuthRequestUrl,
+  getOAuthCallbackParamsFromUrl,
+  clearOAuthCallbackParamsFromUrl,
+  completeOAuthCallback,
+  establishAuthenticatedSession,
+  AUTH_SESSION_KEYS,
 } from '@/lib/auth';
+import { tenantId } from '@/lib/config';
 import { ensureAuthFetchPatched } from '@/lib/authFetch';
 import { clearJitAccessHistoryStore } from '@/lib/jitAccessHistoryStorage';
 
@@ -24,6 +27,9 @@ interface AuthContextType {
   logout: () => void;
   user: { email: string; tenantId?: string } | null;
   isLoading: boolean;
+  authType: string | null;
+  isOAuthRedirecting: boolean;
+  isCompletingOAuth: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -33,31 +39,91 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<{ email: string; tenantId?: string } | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [authType, setAuthType] = useState<string | null>(null);
+  const [isOAuthRedirecting, setIsOAuthRedirecting] = useState(false);
+  const [isCompletingOAuth, setIsCompletingOAuth] = useState(false);
 
   // Patch global fetch once on the client so every request carries the JWT token
   ensureAuthFetchPatched();
 
-  // Check for existing session on mount
+  // Resolve auth mode on startup, then restore session or redirect to OAuth
   useEffect(() => {
     const initializeAuth = async () => {
+      let redirectingToOAuth = false;
+
       try {
+        const oauthCallback = getOAuthCallbackParamsFromUrl();
+        if (oauthCallback) {
+          setIsCompletingOAuth(true);
+          try {
+            console.log('AuthContext: completing OAuth callback');
+            const tokens = await completeOAuthCallback(
+              oauthCallback.code,
+              oauthCallback.state
+            );
+            await establishAuthenticatedSession(tokens);
+            clearOAuthCallbackParamsFromUrl();
+            sessionStorage.removeItem(AUTH_SESSION_KEYS.OAUTH_CALLBACK_FAILED);
+            setIsAuthenticated(true);
+            setUser({
+              email: tokens.userid ?? tokens.userUniqueID ?? '',
+              tenantId,
+            });
+            setAuthType('OAUTH');
+            if (
+              window.location.pathname === '/login' ||
+              window.location.pathname.startsWith('/oauth/callback') ||
+              window.location.search.includes('code=')
+            ) {
+              window.location.replace('/');
+            }
+            return;
+          } catch (oauthError) {
+            console.error('AuthContext: OAuth callback failed:', oauthError);
+            clearOAuthCallbackParamsFromUrl();
+            sessionStorage.setItem(AUTH_SESSION_KEYS.OAUTH_CALLBACK_FAILED, '1');
+            setAuthType('OAUTH');
+          } finally {
+            setIsCompletingOAuth(false);
+          }
+        }
+
+        const appAuth = await fetchApplicationAuthType();
+        const resolvedAuthType = String(appAuth.AuthType ?? '').trim().toUpperCase() || 'LOCAL';
+        setAuthType(resolvedAuthType);
+        console.log('AuthContext: applicationType resolved:', resolvedAuthType, appAuth.AuthMethod);
+
         const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
         const jwtToken = getCookie(COOKIE_NAMES.JWT_TOKEN);
-        console.log('AuthContext: Access token found:', !!accessToken);
-        console.log('AuthContext: JWT token found:', !!jwtToken);
-        
+        const hasSession = !!(accessToken && jwtToken);
+
+        const oauthUrl = getOAuthRequestUrl(appAuth);
+        const oauthCallbackFailed =
+          typeof window !== 'undefined' &&
+          sessionStorage.getItem(AUTH_SESSION_KEYS.OAUTH_CALLBACK_FAILED) === '1';
+        if (
+          isOAuthApplicationAuth(appAuth) &&
+          oauthUrl &&
+          !hasSession &&
+          !getOAuthCallbackParamsFromUrl() &&
+          !oauthCallbackFailed
+        ) {
+          console.log('AuthContext: OAuth tenant — redirecting to provider');
+          redirectingToOAuth = true;
+          setIsOAuthRedirecting(true);
+          window.location.assign(oauthUrl);
+          return;
+        }
+
         if (accessToken && jwtToken) {
-          // Verify that the access token is still valid
           console.log('AuthContext: Both tokens found, verifying access token');
           const verificationResult = await verifyToken(accessToken);
-          
+
           if (verificationResult.valid) {
             console.log('AuthContext: Token verification successful, setting authenticated');
             setIsAuthenticated(true);
-            const currentUser = getCurrentUser();
-            setUser(currentUser);
+            setUser(getCurrentUser());
           } else {
-            // Token verification failed - logout will be handled by verifyToken
             console.log('AuthContext: Token verification failed');
             setIsAuthenticated(false);
             setUser(null);
@@ -69,11 +135,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } catch (error) {
         console.error('Auth initialization error:', error);
-        clearAllAuthCookies();
-        setIsAuthenticated(false);
-        setUser(null);
+        // Fall back to LOCAL login if applicationType fails so existing flow still works
+        setAuthType('LOCAL');
+        const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
+        const jwtToken = getCookie(COOKIE_NAMES.JWT_TOKEN);
+        if (accessToken && jwtToken) {
+          try {
+            const verificationResult = await verifyToken(accessToken);
+            if (verificationResult.valid) {
+              setIsAuthenticated(true);
+              setUser(getCurrentUser());
+            } else {
+              setIsAuthenticated(false);
+              setUser(null);
+            }
+          } catch {
+            clearAllAuthCookies();
+            setIsAuthenticated(false);
+            setUser(null);
+          }
+        } else {
+          setIsAuthenticated(false);
+          setUser(null);
+        }
       } finally {
-        setIsInitialized(true);
+        setIsCompletingOAuth(false);
+        if (!redirectingToOAuth) {
+          setIsInitialized(true);
+        }
       }
     };
 
@@ -87,47 +176,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Step 1: Request access token
       const tokenResponse = await requestToken(userid, password);
       console.log('AuthContext: Token response received:', tokenResponse);
-      
-      // Step 2: Set access token (master token) and UID tenant cookies
-      // The access token is a long-lived token used to generate new JWT tokens when they expire
-      const accessToken = tokenResponse.tokenResponse.accessToken;
-      const userUniqueID = tokenResponse.tokenResponse.userUniqueID;
-      const userAdminRoles = tokenResponse.tokenResponse.userAdminRoles;
-      setCookie(COOKIE_NAMES.ACCESS_TOKEN, accessToken);
-      setCookie(COOKIE_NAMES.UID_TENANT, JSON.stringify({ userid, tenantId: 'ACMECOM' }));
-      // Store userUniqueID as reviewerId for use throughout the application
-      if (userUniqueID) {
-        setCookie(COOKIE_NAMES.REVIEWER_ID, userUniqueID);
-        console.log('AuthContext: Reviewer ID (userUniqueID) cookie set:', userUniqueID);
-      }
-      // Store userAdminRoles for use throughout the application
-      if (userAdminRoles) {
-        setCookie(COOKIE_NAMES.USER_ADMIN_ROLES, userAdminRoles);
-        console.log('AuthContext: User Admin Roles cookie set:', userAdminRoles);
-      }
-      console.log('AuthContext: Access token (master token) cookie set');
-      
-      // Step 3: Generate short-lived JWT token using the new API endpoint
-      // This JWT token is used for API calls and will be refreshed using the access token
-      const jwtResponse = await generateJWTToken(accessToken);
-      console.log('AuthContext: JWT token response received:', jwtResponse);
-      
-      // Extract JWT token from response (handle different possible response formats)
-      const jwtToken = extractJWTToken(jwtResponse);
-      
-      if (!jwtToken) {
-        console.error('AuthContext: JWT token not found in response');
-        // Logout will be handled by generateJWTToken if it detects failure
-        forceLogout('JWT token not found in response');
-        throw new Error('Failed to generate JWT token');
-      }
-      
-      setCookie(COOKIE_NAMES.JWT_TOKEN, jwtToken);
-      console.log('AuthContext: JWT token (for API calls) cookie set');
-      
-      // Update auth state
+
+      const { accessToken, userUniqueID, userAdminRoles } = tokenResponse.tokenResponse;
+      await establishAuthenticatedSession({
+        accessToken,
+        userUniqueID,
+        userAdminRoles,
+        userid,
+      });
+
       setIsAuthenticated(true);
-      setUser({ email: userid, tenantId: 'ACMECOM' });
+      setUser({ email: userid, tenantId });
       console.log('AuthContext: Authentication state updated');
       
       return true;
@@ -149,20 +208,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
-  // Don't render children until auth state is initialized
-  if (!isInitialized) {
+  // Don't render children until auth state is initialized (or OAuth redirect is in progress)
+  if (!isInitialized || isOAuthRedirecting || isCompletingOAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
+          <p className="text-gray-600">
+            {isCompletingOAuth
+              ? 'Completing sign in...'
+              : isOAuthRedirecting
+                ? 'Redirecting to sign in...'
+                : 'Loading...'}
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, login, logout, user, isLoading }}>
+    <AuthContext.Provider
+      value={{
+        isAuthenticated,
+        login,
+        logout,
+        user,
+        isLoading,
+        authType,
+        isOAuthRedirecting,
+        isCompletingOAuth,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
