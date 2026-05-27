@@ -20,6 +20,10 @@ import {
   hasOAuthRedirectBeenAttempted,
   markOAuthRedirectAttempted,
   clearOAuthRedirectAttempted,
+  syncKeyforgeOAuthSession,
+  getOAuthTokensFromUrl,
+  clearOAuthTokensFromUrl,
+  hasReadableAuthCookies,
   AUTH_SESSION_KEYS,
 } from '@/lib/auth';
 import { tenantId } from '@/lib/config';
@@ -55,9 +59,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const restoreAuthenticatedSession = async (): Promise<boolean> => {
     const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
     const jwtToken = getCookie(COOKIE_NAMES.JWT_TOKEN);
-    if (!accessToken || !jwtToken) return false;
+    if (!jwtToken && !accessToken) return false;
 
-    const verificationResult = await verifyToken(accessToken);
+    const verificationResult = await verifyToken(accessToken ?? undefined);
     if (!verificationResult.valid) {
       setIsAuthenticated(false);
       setUser(null);
@@ -65,12 +69,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     setIsAuthenticated(true);
-    setUser(getCurrentUser());
+    const currentUser = getCurrentUser() as { email?: string; userid?: string; tenantId?: string } | null;
+    const email = currentUser?.email ?? currentUser?.userid ?? '';
+    setUser({ email, tenantId: currentUser?.tenantId ?? tenantId });
     const persistedAuthType = getPersistedAuthType();
     if (persistedAuthType) {
       setAuthType(persistedAuthType.trim().toUpperCase());
     }
     return true;
+  };
+
+  const finishAuthenticatedUser = (email: string) => {
+    setIsAuthenticated(true);
+    setUser({ email, tenantId });
+    clearOAuthRedirectAttempted();
+    sessionStorage.removeItem(AUTH_SESSION_KEYS.OAUTH_CALLBACK_FAILED);
   };
 
   // Resolve auth mode once per app load; cache applicationType for the session
@@ -95,11 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             clearOAuthCallbackParamsFromUrl();
             sessionStorage.removeItem(AUTH_SESSION_KEYS.OAUTH_CALLBACK_FAILED);
             clearOAuthRedirectAttempted();
-            setIsAuthenticated(true);
-            setUser({
-              email: tokens.userid ?? tokens.userUniqueID ?? '',
-              tenantId,
-            });
+            finishAuthenticatedUser(tokens.userid ?? tokens.userUniqueID ?? '');
             setAuthType('OAUTH');
             if (
               window.location.pathname === '/login' ||
@@ -119,14 +128,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
-        const jwtToken = getCookie(COOKIE_NAMES.JWT_TOKEN);
-        const hasSession = !!(accessToken && jwtToken);
+        const urlTokens = getOAuthTokensFromUrl();
+        if (urlTokens?.accessToken || urlTokens?.jwtToken) {
+          setIsCompletingOAuth(true);
+          try {
+            await establishAuthenticatedSession({
+              accessToken: urlTokens.accessToken,
+              jwtToken: urlTokens.jwtToken,
+              userid: urlTokens.userid,
+            });
+            clearOAuthTokensFromUrl();
+            finishAuthenticatedUser(urlTokens.userid ?? '');
+            setAuthType('OAUTH');
+            if (window.location.pathname === '/login') {
+              window.location.replace('/');
+            }
+            return;
+          } catch (urlTokenError) {
+            console.error('AuthContext: URL token import failed:', urlTokenError);
+            clearOAuthTokensFromUrl();
+          } finally {
+            setIsCompletingOAuth(false);
+          }
+        }
 
-        // Already signed in — restore session without calling applicationType again
-        if (hasSession) {
+        if (hasReadableAuthCookies()) {
           await restoreAuthenticatedSession();
           return;
+        }
+
+        // Keyforge OAuth sets HttpOnly cookies on .keyforge.ai — import into app-readable cookies
+        if (hasOAuthRedirectBeenAttempted() || getPersistedAuthType()?.toUpperCase() === 'OAUTH') {
+          setIsCompletingOAuth(true);
+          try {
+            const synced = await syncKeyforgeOAuthSession();
+            if (synced) {
+              await restoreAuthenticatedSession();
+              setAuthType('OAUTH');
+              if (window.location.pathname === '/login') {
+                window.location.replace('/');
+              }
+              return;
+            }
+          } finally {
+            setIsCompletingOAuth(false);
+          }
         }
 
         const appAuth =
@@ -191,7 +237,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearOAuthRedirectAttempted();
       sessionStorage.removeItem(AUTH_SESSION_KEYS.OAUTH_CALLBACK_FAILED);
       console.log('AuthContext: Authentication state updated');
-      
       return true;
     } catch (error) {
       console.error('Login error:', error);

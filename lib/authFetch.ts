@@ -75,7 +75,10 @@ export function ensureAuthFetchPatched(): void {
 
       const nextInit: RequestInit = { ...init, headers };
 
-      const promise = originalFetch!(input, nextInit);
+      const promise = originalFetch!(input, {
+        ...nextInit,
+        credentials: isKeyforgeRequest(input) ? 'include' : nextInit.credentials,
+      });
 
       if (isRetry || !isKeyforgeRequest(input)) {
         return promise;

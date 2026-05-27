@@ -45,6 +45,7 @@ export const AUTH_SESSION_KEYS = {
   OAUTH_CALLBACK_FAILED: 'kf_oauth_callback_failed',
   OAUTH_REDIRECT_ATTEMPTED: 'kf_oauth_redirect_attempted',
   APP_AUTH_TYPE_CACHE: 'kf_app_auth_type_response',
+  USE_KEYFORGE_HTTPONLY_COOKIES: 'kf_use_keyforge_httponly_cookies',
 } as const;
 
 export interface ApplicationAuthTypeResponse {
@@ -378,15 +379,20 @@ export async function completeOAuthCallback(
 
 /** Persist cookies + JWT after password or OAuth login. */
 export async function establishAuthenticatedSession(options: {
-  accessToken: string;
+  accessToken?: string;
   userUniqueID?: string;
   userAdminRoles?: string;
   userid?: string;
+  jwtToken?: string;
 }): Promise<void> {
-  const { accessToken, userUniqueID, userAdminRoles, userid } = options;
+  const { accessToken, userUniqueID, userAdminRoles, userid, jwtToken: jwtTokenInput } = options;
   const resolvedUserid = userid ?? userUniqueID ?? '';
+  const resolvedAccessToken = String(accessToken ?? '').trim();
 
-  setCookie(COOKIE_NAMES.ACCESS_TOKEN, accessToken);
+  if (resolvedAccessToken) {
+    setCookie(COOKIE_NAMES.ACCESS_TOKEN, resolvedAccessToken);
+  }
+
   setCookie(
     COOKIE_NAMES.UID_TENANT,
     JSON.stringify({ userid: resolvedUserid, tenantId: configTenantId })
@@ -399,12 +405,210 @@ export async function establishAuthenticatedSession(options: {
     setCookie(COOKIE_NAMES.USER_ADMIN_ROLES, userAdminRoles);
   }
 
-  const jwtResponse = await generateJWTToken(accessToken);
-  const jwtToken = extractJWTToken(jwtResponse);
+  let jwtToken = String(jwtTokenInput ?? '').trim();
+  if (!jwtToken) {
+    const jwtResponse = resolvedAccessToken
+      ? await generateJWTToken(resolvedAccessToken)
+      : await generateJWTTokenFromKeyforgeCookies();
+    jwtToken = extractJWTToken(jwtResponse) ?? '';
+  }
+
   if (!jwtToken) {
     throw new Error('Failed to generate JWT token after login');
   }
+
   setCookie(COOKIE_NAMES.JWT_TOKEN, jwtToken);
+
+  if (!resolvedAccessToken) {
+    sessionStorage.setItem(AUTH_SESSION_KEYS.USE_KEYFORGE_HTTPONLY_COOKIES, '1');
+  } else {
+    sessionStorage.removeItem(AUTH_SESSION_KEYS.USE_KEYFORGE_HTTPONLY_COOKIES);
+  }
+}
+
+function pickAuthFieldsFromPayload(data: unknown): {
+  accessToken: string;
+  jwtToken: string;
+  userUniqueID?: string;
+  userAdminRoles?: string;
+  userid?: string;
+} | null {
+  if (data == null || typeof data !== 'object') return null;
+  const root = data as Record<string, unknown>;
+  const tokenResponse =
+    root.tokenResponse && typeof root.tokenResponse === 'object'
+      ? (root.tokenResponse as Record<string, unknown>)
+      : null;
+
+  const accessToken = String(
+    tokenResponse?.accessToken ??
+      root.accessToken ??
+      root.OAUTH_PROVIDER_ACCESSTOKEN ??
+      ''
+  ).trim();
+  const jwtToken = String(
+    tokenResponse?.jwtToken ??
+      root.jwtToken ??
+      root.JWT_ACCESSTOKEN ??
+      extractJWTToken(data as JWTTokenResponse) ??
+      ''
+  ).trim();
+  const userUniqueID = String(
+    tokenResponse?.userUniqueID ??
+      root.userUniqueID ??
+      root.reviewworld ??
+      root.reviewerId ??
+      ''
+  ).trim();
+  const userid = String(
+    tokenResponse?.userid ??
+      root.userid ??
+      root.LOGGEDIN_USERID ??
+      userUniqueID ??
+      ''
+  ).trim();
+  const userAdminRoles = String(
+    tokenResponse?.userAdminRoles ?? root.userAdminRoles ?? ''
+  ).trim();
+
+  if (!accessToken && !jwtToken) return null;
+
+  return {
+    accessToken,
+    jwtToken,
+    userUniqueID: userUniqueID || undefined,
+    userid: userid || undefined,
+    userAdminRoles: userAdminRoles || undefined,
+  };
+}
+
+export function getOAuthTokensFromUrl(): {
+  accessToken?: string;
+  jwtToken?: string;
+  userid?: string;
+} | null {
+  if (typeof window === 'undefined') return null;
+  const params = new URLSearchParams(window.location.search);
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+
+  const accessToken =
+    params.get('accessToken') ??
+    params.get('access_token') ??
+    hashParams.get('accessToken') ??
+    hashParams.get('access_token') ??
+    undefined;
+  const jwtToken =
+    params.get('jwtToken') ??
+    params.get('token') ??
+    hashParams.get('jwtToken') ??
+    hashParams.get('token') ??
+    undefined;
+  const userid =
+    params.get('userid') ??
+    params.get('LOGGEDIN_USERID') ??
+    hashParams.get('userid') ??
+    undefined;
+
+  if (!accessToken && !jwtToken) return null;
+  return { accessToken: accessToken ?? undefined, jwtToken: jwtToken ?? undefined, userid: userid ?? undefined };
+}
+
+export function clearOAuthTokensFromUrl(): void {
+  if (typeof window === 'undefined') return;
+  const url = new URL(window.location.href);
+  for (const key of [
+    'accessToken',
+    'access_token',
+    'jwtToken',
+    'token',
+    'userid',
+    'LOGGEDIN_USERID',
+    'code',
+    'state',
+  ]) {
+    url.searchParams.delete(key);
+  }
+  url.hash = '';
+  const qs = url.searchParams.toString();
+  window.history.replaceState({}, '', url.pathname + (qs ? `?${qs}` : ''));
+}
+
+export function usesKeyforgeHttpOnlyCookies(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return sessionStorage.getItem(AUTH_SESSION_KEYS.USE_KEYFORGE_HTTPONLY_COOKIES) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function hasReadableAuthCookies(): boolean {
+  const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
+  const jwtToken = getCookie(COOKIE_NAMES.JWT_TOKEN);
+  return !!(accessToken && jwtToken);
+}
+
+/** Import session from Keyforge HttpOnly cookies (OAuth sets these on .keyforge.ai). */
+export async function syncKeyforgeOAuthSession(): Promise<boolean> {
+  const appName = registeredAppName();
+  const postJson = async (url: string, body?: Record<string, unknown>) => {
+    const response = await fetch(url, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    if (!response.ok) return null;
+    try {
+      return (await response.json()) as unknown;
+    } catch {
+      return null;
+    }
+  };
+
+  const candidates = [
+    await postJson(`${AUTH_BASE_URL}/requestJWTToken`, { registeredAppName: appName }),
+    await postJson(`${AUTH_BASE_URL}/verifyToken`, { registeredAppName: appName }),
+    await (async () => {
+      const response = await fetch(
+        `https://preview.keyforge.ai/authservice/api/v1/${appName}/generateJWTToken`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: { Accept: 'application/json' },
+        }
+      );
+      if (!response.ok) return null;
+      try {
+        return (await response.json()) as unknown;
+      } catch {
+        return null;
+      }
+    })(),
+  ];
+
+  for (const payload of candidates) {
+    const picked = pickAuthFieldsFromPayload(payload);
+    if (!picked) continue;
+
+    try {
+      await establishAuthenticatedSession({
+        accessToken: picked.accessToken || undefined,
+        jwtToken: picked.jwtToken || undefined,
+        userUniqueID: picked.userUniqueID,
+        userAdminRoles: picked.userAdminRoles,
+        userid: picked.userid,
+      });
+      return true;
+    } catch (error) {
+      console.warn('syncKeyforgeOAuthSession: failed to establish session from payload', error);
+    }
+  }
+
+  return false;
 }
 
 export function persistApplicationAuthType(response: ApplicationAuthTypeResponse): void {
@@ -481,6 +685,7 @@ export function clearPersistedApplicationAuthType(): void {
     sessionStorage.removeItem(AUTH_SESSION_KEYS.LOGOUT_URL);
     sessionStorage.removeItem(AUTH_SESSION_KEYS.OAUTH_CALLBACK_FAILED);
     sessionStorage.removeItem(AUTH_SESSION_KEYS.OAUTH_REDIRECT_ATTEMPTED);
+    sessionStorage.removeItem(AUTH_SESSION_KEYS.USE_KEYFORGE_HTTPONLY_COOKIES);
     sessionStorage.removeItem(`${AUTH_SESSION_KEYS.APP_AUTH_TYPE_CACHE}:${configTenantId}`);
   } catch {
     /* ignore */
@@ -576,16 +781,17 @@ export async function requestToken(userid: string, password: string): Promise<To
   }
 }
 
-export async function verifyToken(accessToken: string): Promise<VerifyTokenResponse> {
+export async function verifyToken(accessToken?: string): Promise<VerifyTokenResponse> {
   try {
     const response = await fetch(`${AUTH_BASE_URL}/verifyToken`, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         registeredAppName: registeredAppName(),
-        accessToken: accessToken
+        ...(accessToken?.trim() ? { accessToken: accessToken.trim() } : {}),
       }),
     });
 
@@ -655,14 +861,19 @@ export function extractJWTToken(jwtResponse: JWTTokenResponse): string | null {
 }
 
 // Generate JWT token using the new authservice API
-export async function generateJWTToken(accessToken: string): Promise<JWTTokenResponse> {
+export async function generateJWTToken(accessToken?: string): Promise<JWTTokenResponse> {
   try {
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+    };
+    if (accessToken?.trim()) {
+      headers.Authorization = `Bearer ${accessToken.trim()}`;
+    }
+
     const response = await fetch(`https://preview.keyforge.ai/authservice/api/v1/${registeredAppName()}/generateJWTToken`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`,
-      },
+      credentials: 'include',
+      headers,
     });
 
     if (!response.ok) {
@@ -688,10 +899,23 @@ export async function generateJWTToken(accessToken: string): Promise<JWTTokenRes
   }
 }
 
+/** Generate JWT when access token exists only as a Keyforge HttpOnly cookie. */
+export async function generateJWTTokenFromKeyforgeCookies(): Promise<JWTTokenResponse> {
+  return generateJWTToken();
+}
+
 // Token refresh functionality
 export async function refreshJWTToken(): Promise<boolean> {
   try {
     const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
+    if (!accessToken && usesKeyforgeHttpOnlyCookies()) {
+      const jwtResponse = await generateJWTTokenFromKeyforgeCookies();
+      const jwtToken = extractJWTToken(jwtResponse);
+      if (!jwtToken) return false;
+      setCookie(COOKIE_NAMES.JWT_TOKEN, jwtToken);
+      return true;
+    }
+
     if (!accessToken) {
       console.error('Access token not found during refresh');
       // Don't logout here - let the caller handle it
@@ -1003,13 +1227,13 @@ export async function apiRequestWithAuth<T>(
 
 // Check if user is authenticated based on cookies
 export function isAuthenticated(): boolean {
-  const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
   const jwtToken = getCookie(COOKIE_NAMES.JWT_TOKEN);
-  return !!(accessToken && jwtToken);
+  const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
+  return !!(jwtToken || accessToken || usesKeyforgeHttpOnlyCookies());
 }
 
 // Get current user info from cookies
-export function getCurrentUser(): { email?: string; tenantId?: string } | null {
+export function getCurrentUser(): { email?: string; userid?: string; tenantId?: string } | null {
   const uidTenant = getCookie(COOKIE_NAMES.UID_TENANT);
   if (!uidTenant) return null;
   
