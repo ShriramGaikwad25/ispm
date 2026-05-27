@@ -17,10 +17,11 @@ import {
   clearOAuthCallbackParamsFromUrl,
   completeOAuthCallback,
   establishAuthenticatedSession,
+  acceptKeyforgeOAuthSession,
+  mirrorReadableOAuthTokens,
   hasOAuthRedirectBeenAttempted,
   markOAuthRedirectAttempted,
   clearOAuthRedirectAttempted,
-  syncKeyforgeOAuthSession,
   getOAuthTokensFromUrl,
   clearOAuthTokensFromUrl,
   hasReadableAuthCookies,
@@ -104,7 +105,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               oauthCallback.code,
               oauthCallback.state
             );
-            await establishAuthenticatedSession(tokens);
+            const accepted = await acceptKeyforgeOAuthSession({
+              userid: tokens.userid,
+              userUniqueID: tokens.userUniqueID,
+              userAdminRoles: tokens.userAdminRoles,
+            });
+            if (!accepted) {
+              throw new Error('OAuth session could not be verified after callback');
+            }
             clearOAuthCallbackParamsFromUrl();
             sessionStorage.removeItem(AUTH_SESSION_KEYS.OAUTH_CALLBACK_FAILED);
             clearOAuthRedirectAttempted();
@@ -132,11 +140,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (urlTokens?.accessToken || urlTokens?.jwtToken) {
           setIsCompletingOAuth(true);
           try {
-            await establishAuthenticatedSession({
+            mirrorReadableOAuthTokens({
               accessToken: urlTokens.accessToken,
               jwtToken: urlTokens.jwtToken,
               userid: urlTokens.userid,
             });
+            const accepted = await acceptKeyforgeOAuthSession({ userid: urlTokens.userid });
+            if (!accepted) {
+              throw new Error('OAuth session could not be verified from URL tokens');
+            }
             clearOAuthTokensFromUrl();
             finishAuthenticatedUser(urlTokens.userid ?? '');
             setAuthType('OAUTH');
@@ -157,12 +169,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        // Keyforge OAuth sets HttpOnly cookies on .keyforge.ai — import into app-readable cookies
+        // Keyforge OAuth already set HttpOnly tokens — only verify, no extra JWT API calls
         if (hasOAuthRedirectBeenAttempted() || getPersistedAuthType()?.toUpperCase() === 'OAUTH') {
           setIsCompletingOAuth(true);
           try {
-            const synced = await syncKeyforgeOAuthSession();
-            if (synced) {
+            const accepted = await acceptKeyforgeOAuthSession();
+            if (accepted) {
               await restoreAuthenticatedSession();
               setAuthType('OAUTH');
               if (window.location.pathname === '/login') {
