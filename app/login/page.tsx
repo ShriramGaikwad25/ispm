@@ -12,12 +12,18 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [isCheckingToken, setIsCheckingToken] = useState(true);
 
+  const { login, isLoading, authType, isOAuthRedirecting, isCompletingOAuth } = useAuth();
+  const isLocalAuth = authType === 'LOCAL' || authType === null;
+
   useEffect(() => {
-    if (sessionStorage.getItem(AUTH_SESSION_KEYS.OAUTH_CALLBACK_FAILED) === '1') {
+    if (
+      authType &&
+      authType !== 'LOCAL' &&
+      sessionStorage.getItem(AUTH_SESSION_KEYS.OAUTH_CALLBACK_FAILED) === '1'
+    ) {
       setError('SSO sign-in could not be completed. Please try again or contact your administrator.');
     }
-  }, []);
-  const { login, isLoading, isOAuthRedirecting, isCompletingOAuth } = useAuth();
+  }, [authType]);
   const router = useRouter();
 
   // Check for existing valid token on page load
@@ -69,8 +75,9 @@ export default function LoginPage() {
     }
   };
 
-  // Show loading while checking tokens or OAuth is in progress (handled by AuthContext)
-  if (isCheckingToken || isOAuthRedirecting || isCompletingOAuth) {
+  // LOCAL: username/password form. Any other AuthType: SSO redirect/callback via AuthContext.
+  const showExternalAuthLoading = !isLocalAuth && (isOAuthRedirecting || isCompletingOAuth);
+  if (isCheckingToken || showExternalAuthLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -81,6 +88,24 @@ export default function LoginPage() {
               : isOAuthRedirecting
                 ? 'Redirecting to sign in...'
                 : 'Checking authentication...'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Non-LOCAL AuthType: never show username/password — SSO / external flow only
+  if (authType && authType !== 'LOCAL') {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-8">
+        <div className="text-center max-w-md">
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-4">
+              {error}
+            </div>
+          )}
+          <p className="text-gray-600">
+            Sign-in for this application uses your organization SSO ({authType}).
           </p>
         </div>
       </div>

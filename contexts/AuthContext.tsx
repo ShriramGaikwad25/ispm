@@ -1,30 +1,24 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { 
   requestToken, 
-  verifyToken, 
-  getCurrentUser, 
   clearAllAuthCookies,
   getCookie,
   COOKIE_NAMES,
   fetchApplicationAuthType,
-  getCachedApplicationAuthType,
-  getPersistedAuthType,
-  isOAuthApplicationAuth,
+  isLocalApplicationAuth,
+  usesExternalAuthFlow,
+  getApplicationAuthType,
   getOAuthRequestUrl,
   getOAuthCallbackParamsFromUrl,
   clearOAuthCallbackParamsFromUrl,
   completeOAuthCallback,
   establishAuthenticatedSession,
-  acceptKeyforgeOAuthSession,
-  mirrorReadableOAuthTokens,
-  hasOAuthRedirectBeenAttempted,
-  markOAuthRedirectAttempted,
-  clearOAuthRedirectAttempted,
-  getOAuthTokensFromUrl,
-  clearOAuthTokensFromUrl,
-  hasReadableAuthCookies,
+  restoreSessionFromCookies,
+  getPersistedAuthType,
+  normalizeAuthCookiesFromBrowser,
+  fetchServerSession,
   AUTH_SESSION_KEYS,
 } from '@/lib/auth';
 import { tenantId } from '@/lib/config';
@@ -52,72 +46,97 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authType, setAuthType] = useState<string | null>(null);
   const [isOAuthRedirecting, setIsOAuthRedirecting] = useState(false);
   const [isCompletingOAuth, setIsCompletingOAuth] = useState(false);
-  const initStartedRef = useRef(false);
 
   // Patch global fetch once on the client so every request carries the JWT token
   ensureAuthFetchPatched();
 
-  const restoreAuthenticatedSession = async (): Promise<boolean> => {
-    const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
-    const jwtToken = getCookie(COOKIE_NAMES.JWT_TOKEN);
-    if (!jwtToken && !accessToken) return false;
-
-    const verificationResult = await verifyToken(accessToken ?? undefined);
-    if (!verificationResult.valid) {
-      setIsAuthenticated(false);
-      setUser(null);
-      return false;
-    }
-
-    setIsAuthenticated(true);
-    const currentUser = getCurrentUser() as { email?: string; userid?: string; tenantId?: string } | null;
-    const email = currentUser?.email ?? currentUser?.userid ?? '';
-    setUser({ email, tenantId: currentUser?.tenantId ?? tenantId });
-    const persistedAuthType = getPersistedAuthType();
-    if (persistedAuthType) {
-      setAuthType(persistedAuthType.trim().toUpperCase());
-    }
-    return true;
-  };
-
-  const finishAuthenticatedUser = (email: string) => {
-    setIsAuthenticated(true);
-    setUser({ email, tenantId });
-    clearOAuthRedirectAttempted();
-    sessionStorage.removeItem(AUTH_SESSION_KEYS.OAUTH_CALLBACK_FAILED);
-  };
-
-  // Resolve auth mode once per app load; cache applicationType for the session
+  // Resolve auth mode on startup, then restore session or redirect to OAuth
   useEffect(() => {
-    if (initStartedRef.current) return;
-    initStartedRef.current = true;
-
     const initializeAuth = async () => {
       let redirectingToOAuth = false;
 
       try {
+        normalizeAuthCookiesFromBrowser();
         const oauthCallback = getOAuthCallbackParamsFromUrl();
+        const serverSession = await fetchServerSession();
+        const hasClientSession = !!(
+          getCookie(COOKIE_NAMES.ACCESS_TOKEN) && getCookie(COOKIE_NAMES.JWT_TOKEN)
+        );
+        const hasSession = serverSession.authenticated || hasClientSession;
+
+        // Cookies already present (SSO return or refresh): trust them — no verifyToken
+        if (hasSession) {
+          const resolvedAuthType =
+            oauthCallback || getPersistedAuthType() === 'OAUTH' || serverSession.authenticated
+              ? getPersistedAuthType() && getPersistedAuthType() !== 'LOCAL'
+                ? getPersistedAuthType()!
+                : 'OAUTH'
+              : getPersistedAuthType() ?? 'LOCAL';
+
+          console.log('AuthContext: restoring session from existing cookies');
+          if (oauthCallback) clearOAuthCallbackParamsFromUrl();
+
+          setAuthType(resolvedAuthType);
+          const session = restoreSessionFromCookies();
+          const email = String(
+            serverSession.user?.email ??
+              serverSession.user?.userid ??
+              session.user?.email ??
+              ''
+          ).trim();
+          setIsAuthenticated(true);
+          setUser({
+            email,
+            tenantId: serverSession.user?.tenantId ?? session.user?.tenantId ?? tenantId,
+          });
+          sessionStorage.removeItem(AUTH_SESSION_KEYS.OAUTH_CALLBACK_FAILED);
+
+          if (
+            oauthCallback ||
+            window.location.pathname === '/login' ||
+            window.location.pathname.startsWith('/oauth/callback')
+          ) {
+            window.location.replace('/');
+          }
+          return;
+        }
+
+        const appAuth = await fetchApplicationAuthType();
+        const resolvedAuthType = getApplicationAuthType(appAuth);
+        setAuthType(resolvedAuthType);
+        console.log('AuthContext: applicationType resolved:', resolvedAuthType, appAuth.AuthMethod);
+
+        // LOCAL: username/password login page (no cookies yet)
+        if (isLocalApplicationAuth(appAuth)) {
+          sessionStorage.removeItem(AUTH_SESSION_KEYS.OAUTH_CALLBACK_FAILED);
+          if (oauthCallback) {
+            clearOAuthCallbackParamsFromUrl();
+          }
+          setIsAuthenticated(false);
+          setUser(null);
+          return;
+        }
+
+        // Non-LOCAL without cookies: exchange code only when tokens are not already present
         if (oauthCallback) {
           setIsCompletingOAuth(true);
           try {
-            console.log('AuthContext: completing OAuth callback');
+            console.log('AuthContext: completing OAuth callback (no cookies yet)');
             const tokens = await completeOAuthCallback(
               oauthCallback.code,
               oauthCallback.state
             );
-            const accepted = await acceptKeyforgeOAuthSession({
-              userid: tokens.userid,
-              userUniqueID: tokens.userUniqueID,
-              userAdminRoles: tokens.userAdminRoles,
+            await establishAuthenticatedSession({
+              ...tokens,
+              skipJwtGeneration: !!getCookie(COOKIE_NAMES.JWT_TOKEN),
             });
-            if (!accepted) {
-              throw new Error('OAuth session could not be verified after callback');
-            }
             clearOAuthCallbackParamsFromUrl();
             sessionStorage.removeItem(AUTH_SESSION_KEYS.OAUTH_CALLBACK_FAILED);
-            clearOAuthRedirectAttempted();
-            finishAuthenticatedUser(tokens.userid ?? tokens.userUniqueID ?? '');
-            setAuthType('OAUTH');
+            setIsAuthenticated(true);
+            setUser({
+              email: tokens.userid ?? tokens.userUniqueID ?? '',
+              tenantId,
+            });
             if (
               window.location.pathname === '/login' ||
               window.location.pathname.startsWith('/oauth/callback') ||
@@ -130,82 +149,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             console.error('AuthContext: OAuth callback failed:', oauthError);
             clearOAuthCallbackParamsFromUrl();
             sessionStorage.setItem(AUTH_SESSION_KEYS.OAUTH_CALLBACK_FAILED, '1');
-            setAuthType('OAUTH');
           } finally {
             setIsCompletingOAuth(false);
           }
         }
-
-        const urlTokens = getOAuthTokensFromUrl();
-        if (urlTokens?.accessToken || urlTokens?.jwtToken) {
-          setIsCompletingOAuth(true);
-          try {
-            mirrorReadableOAuthTokens({
-              accessToken: urlTokens.accessToken,
-              jwtToken: urlTokens.jwtToken,
-              userid: urlTokens.userid,
-            });
-            const accepted = await acceptKeyforgeOAuthSession({ userid: urlTokens.userid });
-            if (!accepted) {
-              throw new Error('OAuth session could not be verified from URL tokens');
-            }
-            clearOAuthTokensFromUrl();
-            finishAuthenticatedUser(urlTokens.userid ?? '');
-            setAuthType('OAUTH');
-            if (window.location.pathname === '/login') {
-              window.location.replace('/');
-            }
-            return;
-          } catch (urlTokenError) {
-            console.error('AuthContext: URL token import failed:', urlTokenError);
-            clearOAuthTokensFromUrl();
-          } finally {
-            setIsCompletingOAuth(false);
-          }
-        }
-
-        if (hasReadableAuthCookies()) {
-          await restoreAuthenticatedSession();
-          return;
-        }
-
-        // Keyforge OAuth already set HttpOnly tokens — only verify, no extra JWT API calls
-        if (hasOAuthRedirectBeenAttempted() || getPersistedAuthType()?.toUpperCase() === 'OAUTH') {
-          setIsCompletingOAuth(true);
-          try {
-            const accepted = await acceptKeyforgeOAuthSession();
-            if (accepted) {
-              await restoreAuthenticatedSession();
-              setAuthType('OAUTH');
-              if (window.location.pathname === '/login') {
-                window.location.replace('/');
-              }
-              return;
-            }
-          } finally {
-            setIsCompletingOAuth(false);
-          }
-        }
-
-        const appAuth =
-          getCachedApplicationAuthType() ?? (await fetchApplicationAuthType());
-        const resolvedAuthType = String(appAuth.AuthType ?? '').trim().toUpperCase() || 'LOCAL';
-        setAuthType(resolvedAuthType);
-        console.log('AuthContext: applicationType resolved:', resolvedAuthType, appAuth.AuthMethod);
 
         const oauthUrl = getOAuthRequestUrl(appAuth);
         const oauthCallbackFailed =
+          typeof window !== 'undefined' &&
           sessionStorage.getItem(AUTH_SESSION_KEYS.OAUTH_CALLBACK_FAILED) === '1';
         if (
-          isOAuthApplicationAuth(appAuth) &&
+          usesExternalAuthFlow(appAuth) &&
           oauthUrl &&
-          !getOAuthCallbackParamsFromUrl() &&
-          !oauthCallbackFailed &&
-          !hasOAuthRedirectBeenAttempted()
+          !oauthCallbackFailed
         ) {
-          console.log('AuthContext: OAuth tenant — redirecting to provider');
+          console.log('AuthContext: external auth — redirecting to provider');
           redirectingToOAuth = true;
-          markOAuthRedirectAttempted();
           setIsOAuthRedirecting(true);
           window.location.assign(oauthUrl);
           return;
@@ -215,8 +174,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
       } catch (error) {
         console.error('Auth initialization error:', error);
-        setAuthType(getPersistedAuthType()?.trim().toUpperCase() || 'LOCAL');
-        await restoreAuthenticatedSession();
+        const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
+        const jwtToken = getCookie(COOKIE_NAMES.JWT_TOKEN);
+        const hasSession = !!(accessToken && jwtToken);
+        const persistedAuthType = getPersistedAuthType();
+
+        const serverSession = await fetchServerSession();
+        if (serverSession.authenticated || normalizeAuthCookiesFromBrowser()) {
+          const session = restoreSessionFromCookies();
+          setAuthType(persistedAuthType && persistedAuthType !== 'LOCAL' ? persistedAuthType : 'OAUTH');
+          setIsAuthenticated(true);
+          setUser({
+            email: String(
+              serverSession.user?.email ?? serverSession.user?.userid ?? session.user?.email ?? ''
+            ).trim(),
+            tenantId: serverSession.user?.tenantId ?? session.user?.tenantId ?? tenantId,
+          });
+          if (getOAuthCallbackParamsFromUrl()) {
+            clearOAuthCallbackParamsFromUrl();
+          }
+        } else {
+          setAuthType('LOCAL');
+          setIsAuthenticated(false);
+          setUser(null);
+        }
       } finally {
         setIsCompletingOAuth(false);
         if (!redirectingToOAuth) {
@@ -229,6 +210,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (userid: string, password: string): Promise<boolean> => {
+    if (authType && authType !== 'LOCAL') {
+      console.warn('AuthContext: password login is only available for LOCAL auth');
+      return false;
+    }
     setIsLoading(true);
     try {
       console.log('AuthContext: Starting login process');
@@ -246,9 +231,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setIsAuthenticated(true);
       setUser({ email: userid, tenantId });
-      clearOAuthRedirectAttempted();
-      sessionStorage.removeItem(AUTH_SESSION_KEYS.OAUTH_CALLBACK_FAILED);
       console.log('AuthContext: Authentication state updated');
+      
       return true;
     } catch (error) {
       console.error('Login error:', error);

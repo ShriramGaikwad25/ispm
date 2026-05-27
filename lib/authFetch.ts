@@ -1,10 +1,4 @@
-import {
-  COOKIE_NAMES,
-  getCookie,
-  refreshJWTToken,
-  forceLogout,
-  usesKeyforgeHttpOnlyCookies,
-} from "@/lib/auth";
+import { COOKIE_NAMES, getCookie, refreshJWTToken, forceLogout } from "@/lib/auth";
 
 let fetchPatched = false;
 let originalFetch: typeof window.fetch | null = null;
@@ -58,10 +52,8 @@ export function ensureAuthFetchPatched(): void {
 
     try {
       const jwtToken = getCookie(COOKIE_NAMES.JWT_TOKEN);
-      const useKeyforgeCookies = usesKeyforgeHttpOnlyCookies();
-      const keyforgeRequest = isKeyforgeRequest(input);
 
-      if (!jwtToken && !useKeyforgeCookies && !isRetry) {
+      if (!jwtToken && !isRetry) {
         return originalFetch!(input, init);
       }
 
@@ -83,12 +75,9 @@ export function ensureAuthFetchPatched(): void {
 
       const nextInit: RequestInit = { ...init, headers };
 
-      const promise = originalFetch!(input, {
-        ...nextInit,
-        credentials: keyforgeRequest || useKeyforgeCookies ? 'include' : nextInit.credentials,
-      });
+      const promise = originalFetch!(input, nextInit);
 
-      if (isRetry || !keyforgeRequest) {
+      if (isRetry || !isKeyforgeRequest(input)) {
         return promise;
       }
 
