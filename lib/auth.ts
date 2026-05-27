@@ -43,6 +43,7 @@ export const AUTH_SESSION_KEYS = {
   AUTH_METHOD: 'kf_auth_method',
   LOGOUT_URL: 'kf_logout_url',
   OAUTH_CALLBACK_FAILED: 'kf_oauth_callback_failed',
+  OAUTH_REDIRECT_AT: 'kf_oauth_redirect_at',
 } as const;
 
 export interface ApplicationAuthTypeResponse {
@@ -364,6 +365,45 @@ export function getOAuthRequestUrl(
   return url || null;
 }
 
+export function markOAuthRedirectAttempt(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.setItem(AUTH_SESSION_KEYS.OAUTH_REDIRECT_AT, String(Date.now()));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Prevents redirect loops to identity.keyforge.ai / IdP when callback failed or cookies not on app origin. */
+export function shouldRedirectToOAuthProvider(oauthUrl: string | null): boolean {
+  if (!oauthUrl?.trim()) return false;
+  if (typeof window === 'undefined') return false;
+  if (getOAuthCallbackParamsFromUrl()) return false;
+
+  try {
+    if (sessionStorage.getItem(AUTH_SESSION_KEYS.OAUTH_CALLBACK_FAILED) === '1') {
+      return false;
+    }
+    const lastRedirect = sessionStorage.getItem(AUTH_SESSION_KEYS.OAUTH_REDIRECT_AT);
+    if (lastRedirect && Date.now() - Number(lastRedirect) < 20_000) {
+      return false;
+    }
+  } catch {
+    /* ignore */
+  }
+
+  try {
+    const target = new URL(oauthUrl, window.location.href);
+    if (target.origin === window.location.origin) {
+      return false;
+    }
+  } catch {
+    return false;
+  }
+
+  return true;
+}
+
 /** OAuth authorization code + state returned on the app redirect URI. */
 export function getOAuthCallbackParamsFromUrl(
   search?: string
@@ -440,14 +480,11 @@ export async function completeOAuthCallback(
   userAdminRoles?: string;
   userid?: string;
 }> {
-  const params = new URLSearchParams({
-    code,
-    state,
-    registeredAppName: registeredAppName(),
-  });
-  const response = await fetch(`${AUTH_BASE_URL}/oauth/callback?${params.toString()}`, {
+  const params = new URLSearchParams({ code, state });
+  const response = await fetch(`/api/auth/oauth/callback?${params.toString()}`, {
     method: 'GET',
     headers: { Accept: 'application/json' },
+    cache: 'no-store',
   });
 
   const rawText = await response.text();
@@ -578,11 +615,18 @@ export async function fetchApplicationAuthType(
   registeredApp?: string
 ): Promise<ApplicationAuthTypeResponse> {
   const appName = (registeredApp ?? configTenantId).trim();
-  const response = await fetch(`${AUTH_BASE_URL}/applicationType`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ registeredAppName: appName }),
-  });
+  const useProxy = typeof window !== 'undefined';
+  const response = useProxy
+    ? await fetch('/api/auth/application-type', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
+      })
+    : await fetch(`${AUTH_BASE_URL}/applicationType`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ registeredAppName: appName }),
+      });
 
   if (!response.ok) {
     const errorText = await response.text();

@@ -12,7 +12,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [isCheckingToken, setIsCheckingToken] = useState(true);
 
-  const { login, isLoading, authType, isOAuthRedirecting, isCompletingOAuth } = useAuth();
+  const { login, isLoading, authType, isOAuthRedirecting, isCompletingOAuth, authError } = useAuth();
   const isLocalAuth = authType === 'LOCAL' || authType === null;
 
   useEffect(() => {
@@ -94,18 +94,22 @@ export default function LoginPage() {
     );
   }
 
+  const displayError = error || authError;
+
   // Non-LOCAL AuthType: never show username/password — SSO / external flow only
   if (authType && authType !== 'LOCAL') {
     return (
       <div className="min-h-screen flex items-center justify-center p-8">
         <div className="text-center max-w-md">
-          {error && (
+          {displayError && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-4">
-              {error}
+              {displayError}
             </div>
           )}
           <p className="text-gray-600">
-            Sign-in for this application uses your organization SSO ({authType}).
+            {displayError
+              ? 'Fix the issue above, then refresh this page to try SSO again.'
+              : `Sign-in for this application uses your organization SSO (${authType}).`}
           </p>
         </div>
       </div>
