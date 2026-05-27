@@ -43,6 +43,8 @@ export const AUTH_SESSION_KEYS = {
   AUTH_METHOD: 'kf_auth_method',
   LOGOUT_URL: 'kf_logout_url',
   OAUTH_CALLBACK_FAILED: 'kf_oauth_callback_failed',
+  OAUTH_REDIRECT_ATTEMPTED: 'kf_oauth_redirect_attempted',
+  APP_AUTH_TYPE_CACHE: 'kf_app_auth_type_response',
 } as const;
 
 export interface ApplicationAuthTypeResponse {
@@ -410,9 +412,53 @@ export function persistApplicationAuthType(response: ApplicationAuthTypeResponse
   try {
     sessionStorage.setItem(AUTH_SESSION_KEYS.AUTH_TYPE, String(response.AuthType ?? ''));
     sessionStorage.setItem(AUTH_SESSION_KEYS.AUTH_METHOD, String(response.AuthMethod ?? ''));
+    sessionStorage.setItem(
+      `${AUTH_SESSION_KEYS.APP_AUTH_TYPE_CACHE}:${configTenantId}`,
+      JSON.stringify(response)
+    );
     if (response.logoutURL?.trim()) {
       sessionStorage.setItem(AUTH_SESSION_KEYS.LOGOUT_URL, response.logoutURL.trim());
     }
+  } catch {
+    /* ignore */
+  }
+}
+
+export function getCachedApplicationAuthType(): ApplicationAuthTypeResponse | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(
+      `${AUTH_SESSION_KEYS.APP_AUTH_TYPE_CACHE}:${configTenantId}`
+    );
+    if (!raw) return null;
+    return JSON.parse(raw) as ApplicationAuthTypeResponse;
+  } catch {
+    return null;
+  }
+}
+
+export function hasOAuthRedirectBeenAttempted(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return sessionStorage.getItem(AUTH_SESSION_KEYS.OAUTH_REDIRECT_ATTEMPTED) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function markOAuthRedirectAttempted(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.setItem(AUTH_SESSION_KEYS.OAUTH_REDIRECT_ATTEMPTED, '1');
+  } catch {
+    /* ignore */
+  }
+}
+
+export function clearOAuthRedirectAttempted(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.removeItem(AUTH_SESSION_KEYS.OAUTH_REDIRECT_ATTEMPTED);
   } catch {
     /* ignore */
   }
@@ -433,37 +479,64 @@ export function clearPersistedApplicationAuthType(): void {
     sessionStorage.removeItem(AUTH_SESSION_KEYS.AUTH_TYPE);
     sessionStorage.removeItem(AUTH_SESSION_KEYS.AUTH_METHOD);
     sessionStorage.removeItem(AUTH_SESSION_KEYS.LOGOUT_URL);
+    sessionStorage.removeItem(AUTH_SESSION_KEYS.OAUTH_CALLBACK_FAILED);
+    sessionStorage.removeItem(AUTH_SESSION_KEYS.OAUTH_REDIRECT_ATTEMPTED);
+    sessionStorage.removeItem(`${AUTH_SESSION_KEYS.APP_AUTH_TYPE_CACHE}:${configTenantId}`);
   } catch {
     /* ignore */
   }
 }
 
-/** Resolves tenant auth mode (LOCAL vs OAUTH) for the configured registered app name. */
+let applicationAuthTypeInFlight: Promise<ApplicationAuthTypeResponse> | null = null;
+
+/** Resolves tenant auth mode (LOCAL vs OAUTH). Cached for the browser session. */
 export async function fetchApplicationAuthType(
-  registeredApp?: string
+  registeredApp?: string,
+  options?: { force?: boolean }
 ): Promise<ApplicationAuthTypeResponse> {
+  if (!options?.force) {
+    const cached = getCachedApplicationAuthType();
+    if (cached) return cached;
+    if (applicationAuthTypeInFlight) return applicationAuthTypeInFlight;
+  }
+
   const appName = (registeredApp ?? configTenantId).trim();
-  const response = await fetch(`${AUTH_BASE_URL}/applicationType`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ registeredAppName: appName }),
-  });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `applicationType failed: ${response.status} ${response.statusText} - ${errorText}`
-    );
+  const request = (async (): Promise<ApplicationAuthTypeResponse> => {
+    const response = await fetch(`${AUTH_BASE_URL}/applicationType`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ registeredAppName: appName }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(
+        `applicationType failed: ${response.status} ${response.statusText} - ${errorText}`
+      );
+    }
+
+    const data = (await response.json()) as ApplicationAuthTypeResponse;
+    const status = String(data.status ?? data.STATUS ?? '').trim().toLowerCase();
+    if (status && status !== 'success') {
+      throw new Error(`applicationType returned status: ${status}`);
+    }
+
+    persistApplicationAuthType(data);
+    return data;
+  })();
+
+  if (!options?.force) {
+    applicationAuthTypeInFlight = request;
   }
 
-  const data = (await response.json()) as ApplicationAuthTypeResponse;
-  const status = String(data.status ?? data.STATUS ?? '').trim().toLowerCase();
-  if (status && status !== 'success') {
-    throw new Error(`applicationType returned status: ${status}`);
+  try {
+    return await request;
+  } finally {
+    if (applicationAuthTypeInFlight === request) {
+      applicationAuthTypeInFlight = null;
+    }
   }
-
-  persistApplicationAuthType(data);
-  return data;
 }
 
 // API functions

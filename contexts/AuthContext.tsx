@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { 
   requestToken, 
   verifyToken, 
@@ -9,12 +9,17 @@ import {
   getCookie,
   COOKIE_NAMES,
   fetchApplicationAuthType,
+  getCachedApplicationAuthType,
+  getPersistedAuthType,
   isOAuthApplicationAuth,
   getOAuthRequestUrl,
   getOAuthCallbackParamsFromUrl,
   clearOAuthCallbackParamsFromUrl,
   completeOAuthCallback,
   establishAuthenticatedSession,
+  hasOAuthRedirectBeenAttempted,
+  markOAuthRedirectAttempted,
+  clearOAuthRedirectAttempted,
   AUTH_SESSION_KEYS,
 } from '@/lib/auth';
 import { tenantId } from '@/lib/config';
@@ -42,12 +47,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authType, setAuthType] = useState<string | null>(null);
   const [isOAuthRedirecting, setIsOAuthRedirecting] = useState(false);
   const [isCompletingOAuth, setIsCompletingOAuth] = useState(false);
+  const initStartedRef = useRef(false);
 
   // Patch global fetch once on the client so every request carries the JWT token
   ensureAuthFetchPatched();
 
-  // Resolve auth mode on startup, then restore session or redirect to OAuth
+  const restoreAuthenticatedSession = async (): Promise<boolean> => {
+    const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
+    const jwtToken = getCookie(COOKIE_NAMES.JWT_TOKEN);
+    if (!accessToken || !jwtToken) return false;
+
+    const verificationResult = await verifyToken(accessToken);
+    if (!verificationResult.valid) {
+      setIsAuthenticated(false);
+      setUser(null);
+      return false;
+    }
+
+    setIsAuthenticated(true);
+    setUser(getCurrentUser());
+    const persistedAuthType = getPersistedAuthType();
+    if (persistedAuthType) {
+      setAuthType(persistedAuthType.trim().toUpperCase());
+    }
+    return true;
+  };
+
+  // Resolve auth mode once per app load; cache applicationType for the session
   useEffect(() => {
+    if (initStartedRef.current) return;
+    initStartedRef.current = true;
+
     const initializeAuth = async () => {
       let redirectingToOAuth = false;
 
@@ -64,6 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             await establishAuthenticatedSession(tokens);
             clearOAuthCallbackParamsFromUrl();
             sessionStorage.removeItem(AUTH_SESSION_KEYS.OAUTH_CALLBACK_FAILED);
+            clearOAuthRedirectAttempted();
             setIsAuthenticated(true);
             setUser({
               email: tokens.userid ?? tokens.userUniqueID ?? '',
@@ -88,76 +119,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        const appAuth = await fetchApplicationAuthType();
-        const resolvedAuthType = String(appAuth.AuthType ?? '').trim().toUpperCase() || 'LOCAL';
-        setAuthType(resolvedAuthType);
-        console.log('AuthContext: applicationType resolved:', resolvedAuthType, appAuth.AuthMethod);
-
         const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
         const jwtToken = getCookie(COOKIE_NAMES.JWT_TOKEN);
         const hasSession = !!(accessToken && jwtToken);
 
+        // Already signed in — restore session without calling applicationType again
+        if (hasSession) {
+          await restoreAuthenticatedSession();
+          return;
+        }
+
+        const appAuth =
+          getCachedApplicationAuthType() ?? (await fetchApplicationAuthType());
+        const resolvedAuthType = String(appAuth.AuthType ?? '').trim().toUpperCase() || 'LOCAL';
+        setAuthType(resolvedAuthType);
+        console.log('AuthContext: applicationType resolved:', resolvedAuthType, appAuth.AuthMethod);
+
         const oauthUrl = getOAuthRequestUrl(appAuth);
         const oauthCallbackFailed =
-          typeof window !== 'undefined' &&
           sessionStorage.getItem(AUTH_SESSION_KEYS.OAUTH_CALLBACK_FAILED) === '1';
         if (
           isOAuthApplicationAuth(appAuth) &&
           oauthUrl &&
-          !hasSession &&
           !getOAuthCallbackParamsFromUrl() &&
-          !oauthCallbackFailed
+          !oauthCallbackFailed &&
+          !hasOAuthRedirectBeenAttempted()
         ) {
           console.log('AuthContext: OAuth tenant — redirecting to provider');
           redirectingToOAuth = true;
+          markOAuthRedirectAttempted();
           setIsOAuthRedirecting(true);
           window.location.assign(oauthUrl);
           return;
         }
 
-        if (accessToken && jwtToken) {
-          console.log('AuthContext: Both tokens found, verifying access token');
-          const verificationResult = await verifyToken(accessToken);
-
-          if (verificationResult.valid) {
-            console.log('AuthContext: Token verification successful, setting authenticated');
-            setIsAuthenticated(true);
-            setUser(getCurrentUser());
-          } else {
-            console.log('AuthContext: Token verification failed');
-            setIsAuthenticated(false);
-            setUser(null);
-          }
-        } else {
-          console.log('AuthContext: Missing tokens, not authenticated');
-          setIsAuthenticated(false);
-          setUser(null);
-        }
+        setIsAuthenticated(false);
+        setUser(null);
       } catch (error) {
         console.error('Auth initialization error:', error);
-        // Fall back to LOCAL login if applicationType fails so existing flow still works
-        setAuthType('LOCAL');
-        const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
-        const jwtToken = getCookie(COOKIE_NAMES.JWT_TOKEN);
-        if (accessToken && jwtToken) {
-          try {
-            const verificationResult = await verifyToken(accessToken);
-            if (verificationResult.valid) {
-              setIsAuthenticated(true);
-              setUser(getCurrentUser());
-            } else {
-              setIsAuthenticated(false);
-              setUser(null);
-            }
-          } catch {
-            clearAllAuthCookies();
-            setIsAuthenticated(false);
-            setUser(null);
-          }
-        } else {
-          setIsAuthenticated(false);
-          setUser(null);
-        }
+        setAuthType(getPersistedAuthType()?.trim().toUpperCase() || 'LOCAL');
+        await restoreAuthenticatedSession();
       } finally {
         setIsCompletingOAuth(false);
         if (!redirectingToOAuth) {
@@ -187,6 +188,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setIsAuthenticated(true);
       setUser({ email: userid, tenantId });
+      clearOAuthRedirectAttempted();
+      sessionStorage.removeItem(AUTH_SESSION_KEYS.OAUTH_CALLBACK_FAILED);
       console.log('AuthContext: Authentication state updated');
       
       return true;
