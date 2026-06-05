@@ -75,6 +75,16 @@ const MISFIRE_INSTRUCTIONS = [
 // TODO: Replace with API call to fetch available job classes
 const DEFAULT_JOB_CLASS = "com.keyforge.quartz.schedular.jobs.SCIMGatewayJob";
 
+const EMPTY_NEW_JOB_DATA = {
+  jobClass: "",
+  jobName: "",
+  jobGroup: "",
+  intervalMs: "" as number | "",
+  repeatCount: "" as number | "",
+  cronExpression: "",
+  data: {},
+};
+
 export default function SchedulerManager() {
   const [popup, setPopup] = useState<{
     isOpen: boolean;
@@ -105,15 +115,7 @@ export default function SchedulerManager() {
   const [showMiddlePanel, setShowMiddlePanel] = useState(false);
   const [jobSearchTerm, setJobSearchTerm] = useState("");
   const [newJobType, setNewJobType] = useState<"simple" | "cron">("simple");
-  const [newJobData, setNewJobData] = useState({
-    jobClass: "com.keyforge.quartz.schedular.jobs.SCIMGatewayJob",
-    jobName: "",
-    jobGroup: "",
-    intervalMs: 86400000,
-    repeatCount: 1,
-    cronExpression: "0 0/10 * * * ?",
-    data: {},
-  });
+  const [newJobData, setNewJobData] = useState(EMPTY_NEW_JOB_DATA);
 
   // Console log form data changes for debugging
   useEffect(() => {
@@ -549,8 +551,8 @@ export default function SchedulerManager() {
         data: newJobData.data,
         ...(newJobType === "simple"
           ? {
-              intervalMs: newJobData.intervalMs,
-              repeatCount: newJobData.repeatCount,
+              intervalMs: Number(newJobData.intervalMs),
+              repeatCount: Number(newJobData.repeatCount),
             }
           : { cronExpression: newJobData.cronExpression }),
       };
@@ -562,13 +564,15 @@ export default function SchedulerManager() {
       console.log("Payload being sent to API:", payload);
       console.log("Payload JSON:", JSON.stringify(payload, null, 2));
 
-      const createResult = await apiRequestWithAuth<any>(
-        "https://preview.keyforge.ai/kfscheduler/api/v1/ACMECOM/jobs",
-        {
-          method: "POST",
-          body: JSON.stringify(payload),
-        }
-      );
+      const createEndpoint =
+        newJobType === "simple"
+          ? `${config.api.endpoints.jobs}/schedule/interval`
+          : `${config.api.endpoints.jobs}/schedule/cron`;
+
+      const createResult = await apiRequestWithAuth<any>(createEndpoint, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
       console.log("=== JOB CREATED SUCCESSFULLY ===");
       console.log("Response:", createResult);
 
@@ -576,15 +580,8 @@ export default function SchedulerManager() {
       setShowNewJobForm(false);
       setShowMiddlePanel(false);
       // Reset form
-      setNewJobData({
-        jobClass: "com.keyforge.quartz.schedular.jobs.SCIMGatewayJob",
-        jobName: "",
-        jobGroup: "",
-        intervalMs: 86400000,
-        repeatCount: 1,
-        cronExpression: "0 0/10 * * * ?",
-        data: {},
-      });
+      setNewJobData(EMPTY_NEW_JOB_DATA);
+      setNewJobType("simple");
       // Refresh job list
       fetchJobs();
     } catch (error) {
@@ -1233,6 +1230,8 @@ export default function SchedulerManager() {
               className="new-trigger-btn"
               onClick={() => {
                 if (!showNewJobForm) {
+                  setNewJobData(EMPTY_NEW_JOB_DATA);
+                  setNewJobType("simple");
                   setShowMiddlePanel(true);
                   setShowNewJobForm(true);
                 } else {
@@ -1349,12 +1348,14 @@ export default function SchedulerManager() {
 
               <div className="form-group">
                 <label>Job Class:</label>
-                <div className="job-class-display">
-                  <span className="job-class-value">SCIM Gateway Job</span>
-                  <small className="job-class-description">
-                    {newJobData.jobClass}
-                  </small>
-                </div>
+                <input
+                  type="text"
+                  value={newJobData.jobClass}
+                  onChange={(e) =>
+                    setNewJobData({ ...newJobData, jobClass: e.target.value })
+                  }
+                  placeholder="Enter job class"
+                />
               </div>
 
               {/* Job Type Selection */}
@@ -1399,7 +1400,10 @@ export default function SchedulerManager() {
                       onChange={(e) =>
                         setNewJobData({
                           ...newJobData,
-                          intervalMs: parseInt(e.target.value) || 0,
+                          intervalMs:
+                            e.target.value === ""
+                              ? ""
+                              : parseInt(e.target.value, 10),
                         })
                       }
                       placeholder="86400000"
@@ -1413,7 +1417,10 @@ export default function SchedulerManager() {
                       onChange={(e) =>
                         setNewJobData({
                           ...newJobData,
-                          repeatCount: parseInt(e.target.value) || 0,
+                          repeatCount:
+                            e.target.value === ""
+                              ? ""
+                              : parseInt(e.target.value, 10),
                         })
                       }
                       placeholder="1"
@@ -1482,7 +1489,12 @@ export default function SchedulerManager() {
                   disabled={
                     isUpdatingJson ||
                     !newJobData.jobName ||
-                    !newJobData.jobGroup
+                    !newJobData.jobGroup ||
+                    !newJobData.jobClass ||
+                    (newJobType === "simple" &&
+                      (newJobData.intervalMs === "" ||
+                        newJobData.repeatCount === "")) ||
+                    (newJobType === "cron" && !newJobData.cronExpression)
                   }
                 >
                   {isUpdatingJson ? (
