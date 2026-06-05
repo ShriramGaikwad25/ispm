@@ -2845,11 +2845,48 @@ export type ApplicationTypeIntegrationFieldGroup = {
   fields: string[];
 };
 
-function formatIntegrationGroupLabel(sectionId: string): string {
-  const withSpaces = String(sectionId)
+const INTEGRATION_FIELD_LABEL_ACRONYMS = new Set([
+  "api",
+  "db",
+  "id",
+  "iga",
+  "jdbc",
+  "ldap",
+  "lcm",
+  "oauth",
+  "oim",
+  "rest",
+  "scim",
+  "sql",
+  "sso",
+  "ssl",
+  "uid",
+  "uri",
+  "url",
+]);
+
+/** Turns supported-objects field keys (camelCase, snake_case, PascalCase) into UI labels. */
+export function formatIntegrationFieldLabel(fieldKey: string): string {
+  const spaced = String(fieldKey)
     .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/_/g, " ");
-  return withSpaces.replace(/\b\w/g, (c) => c.toUpperCase());
+    .replace(/([A-Z])([A-Z][a-z])/g, "$1 $2")
+    .replace(/_/g, " ")
+    .trim();
+  if (!spaced) return "";
+  return spaced
+    .split(/\s+/)
+    .map((word) => {
+      const lower = word.toLowerCase();
+      if (INTEGRATION_FIELD_LABEL_ACRONYMS.has(lower)) {
+        return lower === "oauth" ? "OAuth" : lower.toUpperCase();
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
+    .join(" ");
+}
+
+function formatIntegrationGroupLabel(sectionId: string): string {
+  return formatIntegrationFieldLabel(sectionId);
 }
 
 /** Reads `advancedSetting: [ { connectionParameters: [...] }, { basic: [...] }, ... ]` from a type's field array. */

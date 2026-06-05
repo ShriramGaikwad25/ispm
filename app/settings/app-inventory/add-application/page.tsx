@@ -49,6 +49,7 @@ import {
   parseSupportedObjectsApplicationTypeItem,
   describeAdvancedSettingSlotValue,
   coerceSupportedObjectsFieldKey,
+  formatIntegrationFieldLabel,
   normalizeSupportedObjectsFieldArray,
   CONNECTION_PARAMETERS_GROUP_ID,
   isGroupedOnboardApplicationType,
@@ -4667,9 +4668,7 @@ export default function AddApplicationPage() {
             const renderField = (fieldKey: unknown) => {
               const key = coerceSupportedObjectsFieldKey(fieldKey);
               if (!key) return null;
-              const label = key
-                .replace(/_/g, " ")
-                .replace(/\b\w/g, (c) => c.toUpperCase());
+              const label = formatIntegrationFieldLabel(key);
               const value = (formData.step3 as any)[key] ?? "";
               const isPasswordLike = /password|secret|token|passphrase/i.test(key);
               return (

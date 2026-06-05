@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import {
   CONNECTION_PARAMETERS_GROUP_ID,
   coerceSupportedObjectsFieldKey,
+  formatIntegrationFieldLabel,
   type ApplicationTypeIntegrationFieldGroup,
 } from "@/lib/api";
 
@@ -63,7 +64,7 @@ export default function TabbedIntegrationOnboardGroups({
   const renderField = (fieldKey: unknown) => {
     const key = coerceSupportedObjectsFieldKey(fieldKey);
     if (!key) return null;
-    const label = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    const label = formatIntegrationFieldLabel(key);
     const value = values[key] ?? "";
     const isPasswordLike = /password|secret|token|passphrase/i.test(key);
     return (
