@@ -628,7 +628,7 @@ export function isGroupedOnboardApplicationType(type: string | undefined): type 
   return (GROUPED_ONBOARD_APPLICATION_TYPES as readonly string[]).includes(type.trim());
 }
 
-/** Application types onboarded via Add Application (AI Agent) wizard (Database + REST). */
+/** Application types with the specialized AI Agent wizard flow (Database + REST). Also available in normal Add Application. */
 export function isAiAgentOnboardApplicationType(type: string | undefined): boolean {
   return isGroupedOnboardApplicationType(type);
 }

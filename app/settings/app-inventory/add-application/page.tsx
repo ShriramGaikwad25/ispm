@@ -1018,7 +1018,7 @@ export default function AddApplicationPage() {
         }
         setWizardRegisteredAppId(appId);
 
-        if (appType === "Database") {
+        if (isAiAgentWizard && appType === "Database") {
           const sessionId =
             databaseSessionId?.trim() || String(step3.dbSessionId ?? "").trim();
           if (!sessionId) {
@@ -3004,7 +3004,6 @@ export default function AddApplicationPage() {
                      .filter((type) => {
                        const isAiAgentType = isAiAgentOnboardApplicationType(type.id);
                        if (isAiAgentWizard && !isAiAgentType) return false;
-                       if (!isAiAgentWizard && isAiAgentType) return false;
                        return (
                          searchQuery === "" ||
                          type.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
