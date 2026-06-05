@@ -428,6 +428,56 @@ export async function executeQuery<T>(
   return result;
 }
 
+/** Builds applicationinstance.configuration from schema mapping rows. */
+export function buildApplicationInstanceConfiguration(
+  mappings: Array<{ source?: string; target?: string; keyfieldMapping?: boolean }>
+): Record<string, string> {
+  const keyfield = mappings.find((m) => m.keyfieldMapping && m.target?.trim() && m.source?.trim());
+  if (keyfield) {
+    return {
+      matchUserAttribute: keyfield.target!.trim(),
+      identityMatchingAttribute: keyfield.source!.trim(),
+    };
+  }
+  const userNameMapping = mappings.find(
+    (m) => m.target?.trim().toLowerCase() === "username" && m.source?.trim()
+  );
+  if (userNameMapping) {
+    return {
+      matchUserAttribute: userNameMapping.target!.trim(),
+      identityMatchingAttribute: userNameMapping.source!.trim(),
+    };
+  }
+  const first = mappings.find((m) => m.target?.trim() && m.source?.trim());
+  if (first) {
+    return {
+      matchUserAttribute: first.target!.trim(),
+      identityMatchingAttribute: first.source!.trim(),
+    };
+  }
+  return {
+    matchUserAttribute: "userName",
+    identityMatchingAttribute: "username",
+  };
+}
+
+/** executeQuery: register new app via DB function after SCIM registration. */
+export async function executeAddNewAppFunction(applicationName: string): Promise<unknown> {
+  const escaped = applicationName.replace(/'/g, "''");
+  return executeQuery(`select kf_app_add_new_app_fn('${escaped}')`, []);
+}
+
+/** executeQuery: persist applicationinstance configuration (identity matching attrs). */
+export async function executeUpdateApplicationInstanceConfiguration(
+  appId: string,
+  configuration: Record<string, string>
+): Promise<unknown> {
+  return executeQuery("CALL kf_update_applicationinstance_configuration(?,?::jsonb)", [
+    appId,
+    configuration,
+  ]);
+}
+
 // Update campaign schedule
 export async function updateCampaignSchedule(payload: {
   campaignName: string;

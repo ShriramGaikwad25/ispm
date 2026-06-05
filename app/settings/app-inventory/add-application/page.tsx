@@ -30,6 +30,9 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
   getAllSupportedApplicationTypesViaProxy,
   executeQuery,
+  buildApplicationInstanceConfiguration,
+  executeAddNewAppFunction,
+  executeUpdateApplicationInstanceConfiguration,
   getInProgressApplications,
   getItAssetApp,
   getFlatfileAppMetadataUsers,
@@ -1048,6 +1051,14 @@ export default function AddApplicationPage() {
           provisioningAttrMap,
           reconcilliationAttrMap: {},
         });
+
+        const applicationName = (formData.step2.applicationName || "").trim();
+        setSubmitProgressToast("Registering application instance...");
+        await executeAddNewAppFunction(applicationName);
+
+        setSubmitProgressToast("Updating application configuration...");
+        const configuration = buildApplicationInstanceConfiguration(attributeMappingData);
+        await executeUpdateApplicationInstanceConfiguration(appId, configuration);
       }
 
       setSubmitProgressToast("Application registered Successfully");
