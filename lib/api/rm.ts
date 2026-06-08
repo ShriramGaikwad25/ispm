@@ -38,6 +38,10 @@ import type { Lookup, LookupType, UpsertLookupValueInput } from "@/types/rm-look
 
 const RM_TENANT_ID = "a0000000-0000-0000-0000-000000000001";
 
+function rmTenantId(): string {
+  return RM_TENANT_ID;
+}
+
 export type { RulesetCsvRow } from "@/types/rm-dashboard";
 export type {
   FunctionRow,
@@ -255,13 +259,14 @@ export async function importRulesetCsv(
 
 // --- Rules ---
 const RM_LIST_RULES_QUERY =
-  "SELECT public.kf_rm_list_rules(NULL::uuid, ?::bigint, NULL, NULL, NULL, NULL, ?, ?) AS result";
+  "SELECT public.kf_rm_list_rules(?::uuid, ?::bigint, NULL, NULL, NULL, NULL, ?, ?) AS result";
 const RM_TOGGLE_RULE_STATUS_QUERY =
-  "SELECT public.kf_rm_set_rule_status(?::bigint, ?::text) AS result";
-const RM_GET_RULE_QUERY = "SELECT public.kf_rm_get_rule(?::bigint) AS result";
+  "SELECT public.kf_rm_set_rule_status(?::uuid, ?::bigint, ?::text) AS result";
+const RM_GET_RULE_QUERY = "SELECT public.kf_rm_get_rule(?::uuid, ?::bigint) AS result";
 const RM_UPSERT_RULE_V2_QUERY = "SELECT public.kf_rm_upsert_rule_v2(?::jsonb) AS result";
 const RM_USER_ATTR_CATALOG_QUERY = "SELECT public.kf_rm_list_user_attribute_catalog() AS result";
-const RM_SEARCH_FUNCTIONS_QUERY = "SELECT public.kf_rm_search_functions(?, ?, ?) AS result";
+const RM_SEARCH_FUNCTIONS_QUERY =
+  "SELECT public.kf_rm_search_functions(?::uuid, ?, ?, ?) AS result";
 
 const DEFAULT_UC_OPERATORS = [
   "EQUALS",
@@ -287,17 +292,26 @@ export async function listRules(
 ): Promise<{ data: RuleListRow[] }> {
   const page = options.page ?? 1;
   const pageSize = options.pageSize ?? 200;
-  const res = await executeQuery<unknown>(RM_LIST_RULES_QUERY, [rulesetId, page, pageSize]);
+  const res = await executeQuery<unknown>(RM_LIST_RULES_QUERY, [
+    rmTenantId(),
+    rulesetId,
+    page,
+    pageSize,
+  ]);
   return { data: asArray<RuleListRow>(getKfResultData(res)) };
 }
 
 export async function toggleRuleStatus(ruleId: number, status: string): Promise<{ data: unknown }> {
-  const res = await executeQuery<unknown>(RM_TOGGLE_RULE_STATUS_QUERY, [ruleId, status]);
+  const res = await executeQuery<unknown>(RM_TOGGLE_RULE_STATUS_QUERY, [
+    rmTenantId(),
+    ruleId,
+    status,
+  ]);
   return { data: getKfResultData(res) };
 }
 
 export async function getRuleDetail(ruleId: number): Promise<{ data: RuleDetail | null }> {
-  const res = await executeQuery<unknown>(RM_GET_RULE_QUERY, [ruleId]);
+  const res = await executeQuery<unknown>(RM_GET_RULE_QUERY, [rmTenantId(), ruleId]);
   const data = getKfResultData(res);
   if (data && typeof data === "object" && !Array.isArray(data)) {
     return { data: data as RuleDetail };
@@ -337,16 +351,23 @@ export async function searchFunctions(
   privilegeKind?: string,
   limit: number = 50
 ): Promise<{ data: FunctionRow[] }> {
-  const res = await executeQuery<unknown>(RM_SEARCH_FUNCTIONS_QUERY, [query ?? "", privilegeKind ?? "", limit]);
+  const res = await executeQuery<unknown>(RM_SEARCH_FUNCTIONS_QUERY, [
+    rmTenantId(),
+    query ?? "",
+    privilegeKind ?? "",
+    limit,
+  ]);
   return { data: asArray<FunctionRow>(getKfResultData(res)) };
 }
 
 // --- Functions (catalog) ---
 const RM_LIST_FUNCTIONS_PAGED_QUERY =
   "SELECT public.kf_rm_list_functions_paged(?::uuid, NULL::varchar, NULL::varchar, ?::varchar, ?, ?) AS result";
-const RM_GET_FUNCTION_DETAIL_QUERY = "SELECT public.kf_rm_get_function(?::bigint) AS result";
+const RM_GET_FUNCTION_DETAIL_QUERY =
+  "SELECT public.kf_rm_get_function(?::uuid, ?::bigint) AS result";
 const RM_UPSERT_FUNCTION_QUERY = "SELECT public.kf_rm_upsert_function(?::jsonb) AS result";
-const RM_DELETE_FUNCTION_QUERY = "SELECT public.kf_rm_delete_function(?::bigint) AS result";
+const RM_DELETE_FUNCTION_QUERY =
+  "SELECT public.kf_rm_delete_function(?::uuid, ?::bigint) AS result";
 const RM_SEARCH_PRIVILEGES_QUERY =
   "SELECT public.kf_rm_search_privileges(?::uuid, ?, NULL, ?) AS result";
 
@@ -434,7 +455,7 @@ export async function listFunctionsPaged(
       ? String(params.status).trim()
       : "";
   const res = await executeQuery<unknown>(RM_LIST_FUNCTIONS_PAGED_QUERY, [
-    RM_TENANT_ID,
+    rmTenantId(),
     status,
     page,
     pageSize,
@@ -445,7 +466,10 @@ export async function listFunctionsPaged(
 export async function getFunctionDetail(
   functionId: number
 ): Promise<{ data: FunctionDetail | null }> {
-  const res = await executeQuery<unknown>(RM_GET_FUNCTION_DETAIL_QUERY, [functionId]);
+  const res = await executeQuery<unknown>(RM_GET_FUNCTION_DETAIL_QUERY, [
+    rmTenantId(),
+    functionId,
+  ]);
   const data = getKfResultData(res);
   if (data && typeof data === "object" && !Array.isArray(data)) {
     return { data: data as FunctionDetail };
@@ -459,17 +483,20 @@ export async function upsertFunction(input: UpsertFunctionInput): Promise<{ data
 }
 
 export async function deleteFunction(functionId: number): Promise<{ data: unknown }> {
-  const res = await executeQuery<unknown>(RM_DELETE_FUNCTION_QUERY, [functionId]);
+  const res = await executeQuery<unknown>(RM_DELETE_FUNCTION_QUERY, [
+    rmTenantId(),
+    functionId,
+  ]);
   return { data: getKfResultData(res) };
 }
 
-/** `kf_rm_search_privileges(NULL::uuid, system_type, NULL, limit)` — filter by text in the UI; search is not bound. */
+/** `kf_rm_search_privileges(tenant_id, system_type, NULL, limit)` — filter by text in the UI; search is not bound. */
 export async function searchPrivileges(
   systemType: string = "GENERIC",
   limit: number = 50
 ): Promise<{ data: PrivilegeSearchRow[] }> {
   const res = await executeQuery<unknown>(RM_SEARCH_PRIVILEGES_QUERY, [
-    RM_TENANT_ID,
+    rmTenantId(),
     systemType,
     limit,
   ]);

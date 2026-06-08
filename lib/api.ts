@@ -3,6 +3,8 @@ import { PaginatedResponse, CertAnalyticsResponse } from "@/types/api";
 import { string } from "yup";
 import { apiRequestWithAuth, checkTokenExpiredError, getCookie, COOKIE_NAMES } from "./auth";
 import { getOriginalFetch } from "./authFetch";
+import { getActiveTenantId } from "./tenant";
+import { tenantId as defaultTenantId } from "./config";
 
 const BASE_URL = "https://preview.keyforge.ai/certification/api/v1/ACMECOM";
 
@@ -404,11 +406,15 @@ export async function getCatalogEntitlements<T>(
   });
 }
 
+function resolveEntitiesTenant(): string {
+  return getActiveTenantId() || defaultTenantId?.trim() || "ACMECOM";
+}
+
 export async function executeQuery<T>(
   query: string,
   parameters: any[]
 ): Promise<T> {
-  const endpoint = "https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery";
+  const endpoint = `https://preview.keyforge.ai/entities/api/v1/${resolveEntitiesTenant()}/executeQuery`;
   
   const payload = {
     query,
