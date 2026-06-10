@@ -70,7 +70,14 @@ export default function MitigationsPageClient() {
           </div>
         )}
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left min-w-[640px]">
+          <table className="w-full min-w-[640px] table-fixed border-collapse text-sm text-left">
+            <colgroup>
+              <col className="w-[16%]" />
+              <col className="w-[34%]" />
+              <col className="w-[16%]" />
+              <col className="w-[16%]" />
+              <col className="w-[18%]" />
+            </colgroup>
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-gray-600">
                 <th className="py-2.5 px-3 font-medium">Code</th>
@@ -87,8 +94,8 @@ export default function MitigationsPageClient() {
                 const statLk = lookupLabel(statuses.data, m.status);
                 return (
                   <tr key={m.mitigation_id} className="border-b border-gray-100 last:border-0">
-                    <td className="py-2.5 px-3 font-semibold text-gray-900">{m.mitigation_code}</td>
-                    <td className="py-2.5 px-3 text-gray-800">{m.mitigation_name}</td>
+                    <td className="py-2.5 px-3 font-semibold text-gray-900 truncate">{m.mitigation_code}</td>
+                    <td className="py-2.5 px-3 text-gray-800 truncate">{m.mitigation_name}</td>
                     <td className="py-2.5 px-3">
                       <Badge
                         label={typeLk?.value_name ?? m.control_type}

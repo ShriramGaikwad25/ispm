@@ -95,13 +95,21 @@ export default function AnalysisRunsPageClient() {
           </div>
         )}
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left min-w-[800px]">
+          <table className="w-full min-w-[800px] table-fixed border-collapse text-sm text-left">
+            <colgroup>
+              <col className="w-[8%]" />
+              <col className="w-[14%]" />
+              <col className="w-[14%]" />
+              <col className="w-[10%]" />
+              <col className="w-[27%]" />
+              <col className="w-[27%]" />
+            </colgroup>
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-gray-600">
                 <th className="py-2.5 px-3 font-medium">Run</th>
                 <th className="py-2.5 px-3 font-medium">Type</th>
                 <th className="py-2.5 px-3 font-medium">Status</th>
-                <th className="py-2.5 px-3 font-medium">Violations</th>
+                <th className="py-2.5 px-3 font-medium text-center">Violations</th>
                 <th className="py-2.5 px-3 font-medium">Started</th>
                 <th className="py-2.5 px-3 font-medium">Completed</th>
               </tr>
@@ -112,14 +120,14 @@ export default function AnalysisRunsPageClient() {
                 return (
                   <tr key={r.run_id} className="border-b border-gray-100 last:border-0">
                     <td className="py-2.5 px-3 font-medium tabular-nums">#{r.run_id}</td>
-                    <td className="py-2.5 px-3 text-slate-800">{r.run_type}</td>
+                    <td className="py-2.5 px-3 text-slate-800 truncate">{r.run_type}</td>
                     <td className="py-2.5 px-3">
                       <Badge
                         label={st?.value_name ?? r.run_status}
                         color={st?.color_hex ?? "#64748b"}
                       />
                     </td>
-                    <td className="py-2.5 px-3 tabular-nums">{r.total_violations}</td>
+                    <td className="py-2.5 px-3 text-center tabular-nums">{r.total_violations}</td>
                     <td className="py-2.5 px-3 text-slate-500 text-xs whitespace-nowrap">
                       {r.started_at ? new Date(r.started_at).toLocaleString() : "—"}
                     </td>

@@ -197,7 +197,16 @@ export default function ViolationsPageClient() {
         )}
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left min-w-[900px]">
+          <table className="w-full min-w-[900px] table-fixed border-collapse text-sm text-left">
+            <colgroup>
+              <col className="w-[14%]" />
+              <col className="w-[16%]" />
+              <col className="w-[12%]" />
+              <col className="w-[10%]" />
+              <col className="w-[10%]" />
+              <col className="w-[28%]" />
+              <col className="w-[10%]" />
+            </colgroup>
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-gray-600">
                 <th className="py-2.5 px-3 font-medium">User</th>
@@ -206,7 +215,7 @@ export default function ViolationsPageClient() {
                 <th className="py-2.5 px-3 font-medium">Severity</th>
                 <th className="py-2.5 px-3 font-medium">Status</th>
                 <th className="py-2.5 px-3 font-medium">Detail</th>
-                <th className="py-2.5 px-3 font-medium">Detected</th>
+                <th className="py-2.5 px-3 font-medium whitespace-nowrap">Detected</th>
               </tr>
             </thead>
             <tbody>
@@ -235,9 +244,9 @@ export default function ViolationsPageClient() {
                       color={v.status_color ?? "#64748b"}
                     />
                   </td>
-                  <td className="py-2.5 px-3 text-xs text-slate-600 max-w-[280px]">
+                  <td className="py-2.5 px-3 text-xs text-slate-600">
                     {v.details?.map((d, i) => (
-                      <div key={i} className="mb-0.5 last:mb-0">
+                      <div key={i} className="mb-0.5 last:mb-0 truncate">
                         {d.system_type ? `[${d.system_type}] ` : ""}
                         {d.function_code}
                         {d.scope_name ? ` @ ${d.scope_type}:${d.scope_name}` : ""}

@@ -136,18 +136,29 @@ export default function RulesPageClient() {
         )}
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left min-w-[960px]">
+          <table className="w-full min-w-[960px] table-fixed border-collapse text-sm text-left">
+            <colgroup>
+              <col className="w-[9%]" />
+              <col className="w-[22%]" />
+              <col className="w-[13%]" />
+              <col className="w-[10%]" />
+              <col className="w-[6%]" />
+              <col className="w-[8%]" />
+              <col className="w-[8%]" />
+              <col className="w-[10%]" />
+              <col className="w-[14%]" />
+            </colgroup>
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-gray-600">
                 <th className="py-2.5 px-3 font-medium">Code</th>
                 <th className="py-2.5 px-3 font-medium">Name</th>
                 <th className="py-2.5 px-3 font-medium">Type</th>
                 <th className="py-2.5 px-3 font-medium">Severity</th>
-                <th className="py-2.5 px-3 font-medium">Risk</th>
-                <th className="py-2.5 px-3 font-medium">Functions</th>
-                <th className="py-2.5 px-3 font-medium">User conds</th>
+                <th className="py-2.5 px-3 font-medium text-center">Risk</th>
+                <th className="py-2.5 px-3 font-medium text-center">Functions</th>
+                <th className="py-2.5 px-3 font-medium text-center">User conds</th>
                 <th className="py-2.5 px-3 font-medium">Status</th>
-                <th className="py-2.5 px-3 font-medium w-[1%]">Actions</th>
+                <th className="py-2.5 px-3 font-medium text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -156,8 +167,8 @@ export default function RulesPageClient() {
                 const condB = (r.conditions ?? []).filter((c) => c.condition_side === "B").length;
                 return (
                   <tr key={r.rule_id} className="border-b border-gray-100 last:border-0">
-                    <td className="py-2.5 px-3 font-semibold text-gray-900">{r.rule_code}</td>
-                    <td className="py-2.5 px-3 text-gray-800">{r.rule_name}</td>
+                    <td className="py-2.5 px-3 font-semibold text-gray-900 truncate">{r.rule_code}</td>
+                    <td className="py-2.5 px-3 text-gray-800 truncate">{r.rule_name}</td>
                     <td className="py-2.5 px-3">
                       <Badge
                         label={lookupName(ruleTypes.data, r.rule_type)}
@@ -170,22 +181,22 @@ export default function RulesPageClient() {
                         color={lookupColor(severities.data, r.severity)}
                       />
                     </td>
-                    <td className="py-2.5 px-3 tabular-nums">{r.risk_score ?? 0}</td>
-                    <td className="py-2.5 px-3 text-xs text-slate-600">
+                    <td className="py-2.5 px-3 text-center tabular-nums">{r.risk_score ?? 0}</td>
+                    <td className="py-2.5 px-3 text-center text-xs text-slate-600 tabular-nums">
                       {condA} / {condB}
                     </td>
-                    <td className="py-2.5 px-3 text-xs text-slate-500">—</td>
+                    <td className="py-2.5 px-3 text-center text-xs text-slate-500">—</td>
                     <td className="py-2.5 px-3">
                       <Badge
                         label={lookupName(statuses.data, r.status)}
                         color={lookupColor(statuses.data, r.status)}
                       />
                     </td>
-                    <td className="py-2.5 px-3">
-                      <div className="flex flex-wrap gap-1">
+                    <td className="py-2.5 pl-3 pr-2 text-right whitespace-nowrap">
+                      <div className="inline-flex items-center justify-end gap-1">
                         <button
                           type="button"
-                          className="inline-flex items-center justify-center rounded border border-gray-200 p-1.5 hover:bg-gray-50"
+                          className="inline-flex shrink-0 items-center justify-center rounded border border-gray-200 p-1.5 hover:bg-gray-50"
                           title="View"
                           onClick={() => {
                             setOpenRuleId(r.rule_id);
@@ -197,7 +208,7 @@ export default function RulesPageClient() {
                         </button>
                         <button
                           type="button"
-                          className="inline-flex items-center justify-center rounded border border-gray-200 p-1.5 hover:bg-gray-50"
+                          className="inline-flex shrink-0 items-center justify-center rounded border border-gray-200 p-1.5 hover:bg-gray-50"
                           title="Edit"
                           onClick={() => {
                             setOpenRuleId(r.rule_id);
@@ -209,7 +220,7 @@ export default function RulesPageClient() {
                         </button>
                         <button
                           type="button"
-                          className="rounded border border-gray-200 px-2 py-1 text-xs font-medium text-gray-800 hover:bg-gray-50"
+                          className="shrink-0 rounded border border-gray-200 px-2 py-1 text-xs font-medium text-gray-800 hover:bg-gray-50 whitespace-nowrap"
                           onClick={() =>
                             void toggle.mutate({
                               id: r.rule_id,

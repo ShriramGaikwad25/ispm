@@ -71,7 +71,15 @@ export default function ErpSystemsPageClient() {
           </p>
         )}
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left min-w-[720px]">
+          <table className="w-full min-w-[720px] table-fixed border-collapse text-sm text-left">
+            <colgroup>
+              <col className="w-[12%]" />
+              <col className="w-[18%]" />
+              <col className="w-[12%]" />
+              <col className="w-[12%]" />
+              <col className="w-[32%]" />
+              <col className="w-[14%]" />
+            </colgroup>
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-gray-600">
                 <th className="py-2.5 px-3 font-medium">Code</th>
@@ -85,8 +93,8 @@ export default function ErpSystemsPageClient() {
             <tbody>
               {(instances.data as ErpInstance[] | undefined)?.map((i) => (
                 <tr key={i.erp_instance_id} className="border-b border-gray-100 last:border-0">
-                  <td className="py-2.5 px-3 font-semibold">{i.instance_code}</td>
-                  <td className="py-2.5 px-3">{i.instance_name}</td>
+                  <td className="py-2.5 px-3 font-semibold truncate">{i.instance_code}</td>
+                  <td className="py-2.5 px-3 truncate">{i.instance_name}</td>
                   <td className="py-2.5 px-3">
                     <Badge
                       label={i.system_type_name ?? i.system_type}
@@ -94,7 +102,7 @@ export default function ErpSystemsPageClient() {
                     />
                   </td>
                   <td className="py-2.5 px-3">{i.environment}</td>
-                  <td className="py-2.5 px-3 text-slate-500 text-xs max-w-[240px] truncate" title={i.endpoint_url ?? ""}>
+                  <td className="py-2.5 px-3 text-slate-500 text-xs truncate" title={i.endpoint_url ?? ""}>
                     {i.endpoint_url}
                   </td>
                   <td className="py-2.5 px-3">
@@ -135,7 +143,13 @@ export default function ErpSystemsPageClient() {
         </p>
         {templates.isLoading && <p className="text-sm text-slate-500">Loading templates…</p>}
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left min-w-[640px]">
+          <table className="w-full min-w-[640px] table-fixed border-collapse text-sm text-left">
+            <colgroup>
+              <col className="w-[22%]" />
+              <col className="w-[12%]" />
+              <col className="w-[22%]" />
+              <col className="w-[44%]" />
+            </colgroup>
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-gray-600">
                 <th className="py-2.5 px-3 font-medium">Artifact</th>
@@ -148,16 +162,16 @@ export default function ErpSystemsPageClient() {
               {(templates.data as ExtractTemplate[] | undefined)?.map((t) => (
                 <tr key={t.extract_id} className="border-b border-gray-100 last:border-0">
                   <td className="py-2.5 px-3">
-                    <b>{t.artifact_code}</b>
+                    <b className="truncate block">{t.artifact_code}</b>
                     {t.artifact_name && (
-                      <div className="text-slate-500 text-xs mt-0.5">{t.artifact_name}</div>
+                      <div className="text-slate-500 text-xs mt-0.5 truncate">{t.artifact_name}</div>
                     )}
                   </td>
                   <td className="py-2.5 px-3">
                     <Badge label={t.source_kind} />
                   </td>
-                  <td className="py-2.5 px-3 text-slate-500 text-xs font-mono">{t.landing_table}</td>
-                  <td className="py-2.5 px-3">{t.description}</td>
+                  <td className="py-2.5 px-3 text-slate-500 text-xs font-mono truncate">{t.landing_table}</td>
+                  <td className="py-2.5 px-3 truncate">{t.description}</td>
                 </tr>
               ))}
               {templates.data && (templates.data as ExtractTemplate[]).length === 0 && !templates.isLoading && (

@@ -150,40 +150,49 @@ export default function LookupsPageClient() {
           )}
 
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left min-w-[720px]">
+            <table className="w-full min-w-[720px] table-fixed border-collapse text-sm text-left">
+              <colgroup>
+                <col className="w-[14%]" />
+                <col className="w-[26%]" />
+                <col className="w-[8%]" />
+                <col className="w-[10%]" />
+                <col className="w-[18%]" />
+                <col className="w-[8%]" />
+                <col className="w-[16%]" />
+              </colgroup>
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50 text-gray-600">
                   <th className="py-2.5 px-3 font-medium">Code</th>
                   <th className="py-2.5 px-3 font-medium">Name</th>
-                  <th className="py-2.5 px-3 font-medium">Sort</th>
-                  <th className="py-2.5 px-3 font-medium">Weight</th>
+                  <th className="py-2.5 px-3 font-medium text-center">Sort</th>
+                  <th className="py-2.5 px-3 font-medium text-center">Weight</th>
                   <th className="py-2.5 px-3 font-medium">Color</th>
-                  <th className="py-2.5 px-3 font-medium">Default</th>
-                  <th className="py-2.5 px-3 font-medium w-[1%]">Actions</th>
+                  <th className="py-2.5 px-3 font-medium text-center">Default</th>
+                  <th className="py-2.5 px-3 font-medium text-right whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {values.data?.map((v) => (
                   <tr key={v.lookup_value_id || v.value_code} className="border-b border-gray-100 last:border-0">
-                    <td className="py-2.5 px-3">
+                    <td className="py-2.5 px-3 truncate">
                       <code className="text-xs text-gray-800">{v.value_code}</code>
                     </td>
-                    <td className="py-2.5 px-3 text-gray-800">{v.value_name}</td>
-                    <td className="py-2.5 px-3 tabular-nums">{v.sort_order ?? "—"}</td>
-                    <td className="py-2.5 px-3 tabular-nums">{v.numeric_meta ?? "—"}</td>
-                    <td className="py-2.5 px-3">
+                    <td className="py-2.5 px-3 text-gray-800 truncate">{v.value_name}</td>
+                    <td className="py-2.5 px-3 text-center tabular-nums">{v.sort_order ?? "—"}</td>
+                    <td className="py-2.5 px-3 text-center tabular-nums">{v.numeric_meta ?? "—"}</td>
+                    <td className="py-2.5 px-3 truncate">
                       {v.color_hex && (
-                        <span className="inline-flex items-center gap-1.5">
+                        <span className="inline-flex items-center gap-1.5 max-w-full">
                           <span
                             className="h-3.5 w-3.5 rounded border border-gray-200 shrink-0"
                             style={{ background: v.color_hex }}
                           />
-                          <code className="text-xs">{v.color_hex}</code>
+                          <code className="text-xs truncate">{v.color_hex}</code>
                         </span>
                       )}
                     </td>
-                    <td className="py-2.5 px-3">{v.is_default ? "✓" : ""}</td>
-                    <td className="py-2.5 px-3">
+                    <td className="py-2.5 px-3 text-center">{v.is_default ? "✓" : ""}</td>
+                    <td className="py-2.5 pl-3 pr-2 text-right whitespace-nowrap">
                       {typeRow?.allow_user_edit && !v.is_system && (
                         <div className="inline-flex items-center gap-1">
                           <button

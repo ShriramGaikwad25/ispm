@@ -107,27 +107,37 @@ export default function FunctionsPageClient() {
         )}
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left min-w-[900px]">
+          <table className="w-full min-w-[900px] table-fixed border-collapse text-sm text-left">
+            <colgroup>
+              <col className="w-[10%]" />
+              <col className="w-[26%]" />
+              <col className="w-[10%]" />
+              <col className="w-[8%]" />
+              <col className="w-[10%]" />
+              <col className="w-[7%]" />
+              <col className="w-[10%]" />
+              <col className="w-[19%]" />
+            </colgroup>
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-gray-600">
                 <th className="py-2.5 px-3 font-medium">Code</th>
                 <th className="py-2.5 px-3 font-medium">Name</th>
                 <th className="py-2.5 px-3 font-medium">System</th>
-                <th className="py-2.5 px-3 font-medium">Privileges</th>
-                <th className="py-2.5 px-3 font-medium">Required perms</th>
-                <th className="py-2.5 px-3 font-medium">Rules</th>
+                <th className="py-2.5 px-3 font-medium text-center">Privileges</th>
+                <th className="py-2.5 px-3 font-medium text-center">Required perms</th>
+                <th className="py-2.5 px-3 font-medium text-center">Rules</th>
                 <th className="py-2.5 px-3 font-medium">Status</th>
-                <th className="py-2.5 px-3 font-medium w-[1%]">Actions</th>
+                <th className="py-2.5 px-3 font-medium text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((f: FunctionListRow) => (
                 <tr key={f.function_id} className="border-b border-gray-100 last:border-0">
-                  <td className="py-2.5 px-3 font-semibold text-gray-900">{f.function_code}</td>
+                  <td className="py-2.5 px-3 font-semibold text-gray-900 truncate">{f.function_code}</td>
                   <td className="py-2.5 px-3 text-gray-800">
-                    {f.function_name}
+                    <div className="truncate">{f.function_name}</div>
                     {f.description && (
-                      <div className="text-[11px] text-slate-500 mt-0.5">{f.description}</div>
+                      <div className="text-[11px] text-slate-500 mt-0.5 truncate">{f.description}</div>
                     )}
                   </td>
                   <td className="py-2.5 px-3">
@@ -135,10 +145,10 @@ export default function FunctionsPageClient() {
                       {f.system_type}
                     </span>
                   </td>
-                  <td className="py-2.5 px-3 tabular-nums">{f.privilege_count}</td>
-                  <td className="py-2.5 px-3 text-sm">
+                  <td className="py-2.5 px-3 text-center tabular-nums">{f.privilege_count}</td>
+                  <td className="py-2.5 px-3 text-center text-sm">
                     {f.required_permission_count > 0 ? (
-                      <span title="SAP value-level rule expression" className="inline-flex items-center gap-1">
+                      <span title="SAP value-level rule expression" className="inline-flex items-center justify-center gap-1">
                         <Wrench className="h-3 w-3 text-amber-700" />
                         {f.required_permission_count}
                       </span>
@@ -146,15 +156,15 @@ export default function FunctionsPageClient() {
                       "—"
                     )}
                   </td>
-                  <td className="py-2.5 px-3 tabular-nums">{f.rule_count}</td>
+                  <td className="py-2.5 px-3 text-center tabular-nums">{f.rule_count}</td>
                   <td className="py-2.5 px-3">
                     <Badge
                       label={f.status}
                       color={f.status === "ACTIVE" ? "#16a34a" : "#64748b"}
                     />
                   </td>
-                  <td className="py-2.5 px-3">
-                    <div className="flex gap-1">
+                  <td className="py-2.5 pl-3 pr-2 text-right whitespace-nowrap">
+                    <div className="inline-flex items-center justify-end gap-1">
                       <button
                         type="button"
                         className="inline-flex items-center justify-center rounded border border-gray-200 p-1.5 hover:bg-gray-50"

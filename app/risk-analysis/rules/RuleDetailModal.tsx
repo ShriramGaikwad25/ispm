@@ -169,13 +169,13 @@ export function RuleDetailModal({
         rule_name: form.rule_name,
         description: form.description,
         remediation: form.remediation_guidance,
-        side_a_function_ids: form.functions
+        side_a_function_ids: (form.functions ?? [])
           .filter((f) => f.condition_side === "A")
           .map((f) => f.function_id),
-        side_b_function_ids: form.functions
+        side_b_function_ids: (form.functions ?? [])
           .filter((f) => f.condition_side === "B")
           .map((f) => f.function_id),
-        user_conditions: form.user_conditions,
+        user_conditions: form.user_conditions ?? [],
         status: form.status,
       });
     },
@@ -196,8 +196,10 @@ export function RuleDetailModal({
     );
   }
 
-  const sideA = form.functions.filter((f) => f.condition_side === "A");
-  const sideB = form.functions.filter((f) => f.condition_side === "B");
+  const functions = form.functions ?? [];
+  const userConditions = form.user_conditions ?? [];
+  const sideA = functions.filter((f) => f.condition_side === "A");
+  const sideB = functions.filter((f) => f.condition_side === "B");
 
   const updateForm = <K extends keyof RuleDetail>(k: K, v: RuleDetail[K]) =>
     setForm((prev) => (prev ? { ...prev, [k]: v } : null));
@@ -261,7 +263,7 @@ export function RuleDetailModal({
                 ? `Side A (${sideA.length})`
                 : t === "SIDE_B"
                   ? `Side B (${sideB.length})`
-                  : `User Conditions (${form.user_conditions.length})`;
+                  : `User Conditions (${userConditions.length})`;
           return (
             <button
               key={t}
@@ -294,7 +296,7 @@ export function RuleDetailModal({
           side="A"
           editMode={editMode}
           functions={sideA}
-          allFunctions={form.functions}
+          allFunctions={functions}
           onChange={(fns) => updateForm("functions", fns)}
         />
       )}
@@ -304,14 +306,14 @@ export function RuleDetailModal({
           side="B"
           editMode={editMode}
           functions={sideB}
-          allFunctions={form.functions}
+          allFunctions={functions}
           onChange={(fns) => updateForm("functions", fns)}
         />
       )}
       {tab === "USER_CONDITIONS" && (
         <UserConditionsEditor
           editMode={editMode}
-          conditions={form.user_conditions}
+          conditions={userConditions}
           onChange={(uc) => updateForm("user_conditions", uc)}
         />
       )}

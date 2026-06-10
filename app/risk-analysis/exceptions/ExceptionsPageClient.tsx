@@ -52,7 +52,16 @@ export default function ExceptionsPageClient() {
           </div>
         )}
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left min-w-[860px]">
+          <table className="w-full min-w-[860px] table-fixed border-collapse text-sm text-left">
+            <colgroup>
+              <col className="w-[8%]" />
+              <col className="w-[8%]" />
+              <col className="w-[24%]" />
+              <col className="w-[12%]" />
+              <col className="w-[12%]" />
+              <col className="w-[12%]" />
+              <col className="w-[14%]" />
+            </colgroup>
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-gray-600">
                 <th className="py-2.5 px-3 font-medium">Exception</th>
@@ -61,7 +70,7 @@ export default function ExceptionsPageClient() {
                 <th className="py-2.5 px-3 font-medium">Status</th>
                 <th className="py-2.5 px-3 font-medium">Effective</th>
                 <th className="py-2.5 px-3 font-medium">Expires</th>
-                <th className="py-2.5 px-3 font-medium w-[1%]">Actions</th>
+                <th className="py-2.5 px-3 font-medium text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -71,7 +80,7 @@ export default function ExceptionsPageClient() {
                   <tr key={e.exception_id} className="border-b border-gray-100 last:border-0">
                     <td className="py-2.5 px-3 tabular-nums font-medium">#{e.exception_id}</td>
                     <td className="py-2.5 px-3 tabular-nums">#{e.violation_id}</td>
-                    <td className="py-2.5 px-3 text-gray-800">
+                    <td className="py-2.5 px-3 text-gray-800 truncate">
                       {e.requested_by_name ?? e.requested_by ?? "—"}
                     </td>
                     <td className="py-2.5 px-3">
@@ -86,7 +95,7 @@ export default function ExceptionsPageClient() {
                     <td className="py-2.5 px-3 text-slate-700 whitespace-nowrap">
                       {formatDate(e.effective_to)}
                     </td>
-                    <td className="py-2.5 px-3">
+                    <td className="py-2.5 pl-3 pr-2 text-right whitespace-nowrap">
                       {e.exception_status === "PENDING" && (
                         <button
                           type="button"

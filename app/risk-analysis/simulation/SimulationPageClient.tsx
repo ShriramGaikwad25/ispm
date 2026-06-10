@@ -531,16 +531,25 @@ export default function SimulationPageClient() {
               )}
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[900px]">
+              <table className="w-full min-w-[900px] table-fixed border-collapse text-sm text-left">
+                <colgroup>
+                  <col className="w-[4%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[28%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[8%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[10%]" />
+                </colgroup>
                 <thead>
                   <tr className="border-b border-gray-200 bg-gray-50 text-gray-600 text-left">
-                    <th className="p-2 w-8" />
+                    <th className="p-2" />
                     <th className="p-2">Change</th>
                     <th className="p-2">Rule</th>
                     <th className="p-2">Severity</th>
-                    <th className="p-2">Risk</th>
-                    <th className="p-2">Current</th>
-                    <th className="p-2">Projected</th>
+                    <th className="p-2 text-center">Risk</th>
+                    <th className="p-2 text-center">Current</th>
+                    <th className="p-2 text-center">Projected</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -582,8 +591,8 @@ export default function SimulationPageClient() {
                           />
                         </td>
                         <td className="p-1.5">
-                          <div className="font-semibold">{v.rule_name ?? v.rule_code}</div>
-                          <code className="text-[11px] text-slate-500">{v.rule_code}</code>
+                          <div className="font-semibold truncate">{v.rule_name ?? v.rule_code}</div>
+                          <code className="text-[11px] text-slate-500 truncate block">{v.rule_code}</code>
                         </td>
                         <td className="p-1.5">
                           <Badge
@@ -591,9 +600,9 @@ export default function SimulationPageClient() {
                             color={v.severity_color}
                           />
                         </td>
-                        <td className="p-1.5 tabular-nums">{v.risk_score}</td>
-                        <td className="p-1.5">{v.current_violation ? "❗" : ""}</td>
-                        <td className="p-1.5">{v.projected_violation ? "❗" : ""}</td>
+                        <td className="p-1.5 text-center tabular-nums">{v.risk_score}</td>
+                        <td className="p-1.5 text-center">{v.current_violation ? "❗" : ""}</td>
+                        <td className="p-1.5 text-center">{v.projected_violation ? "❗" : ""}</td>
                       </tr>
                       {expanded[v.rule_id] && (
                         <tr>

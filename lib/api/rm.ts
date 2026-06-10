@@ -5,6 +5,7 @@ import type { RmDashboardData, RmRuleset, RulesetCsvRow } from "@/types/rm-dashb
 import type {
   FunctionRow,
   RuleDetail,
+  RuleFunctionBinding,
   RuleListRow,
   UpsertRuleV2Input,
   UserAttributeCatalog,
@@ -284,6 +285,49 @@ function asArray<T>(raw: unknown): T[] {
   return [];
 }
 
+/** `kf_rm_get_rule` may return `conditions` instead of `functions`; normalize for the UI. */
+function normalizeRuleDetail(raw: Record<string, unknown>): RuleDetail {
+  const conditions = asArray<Record<string, unknown>>(raw.conditions);
+  const functionsRaw = asArray<Record<string, unknown>>(raw.functions);
+  const source = functionsRaw.length ? functionsRaw : conditions;
+
+  const functions: RuleFunctionBinding[] = source.map((c, idx) => ({
+    rule_condition_id: Number(c.rule_condition_id ?? c.condition_id ?? idx) || 0,
+    condition_side: c.condition_side === "B" ? "B" : "A",
+    function_id: Number(c.function_id) || 0,
+    function_code: String(c.function_code ?? ""),
+    function_name: String(c.function_name ?? ""),
+    system_type: String(c.system_type ?? ""),
+    privileges: asArray(c.privileges),
+  }));
+
+  return {
+    rule_id: Number(raw.rule_id) || 0,
+    ruleset_id: Number(raw.ruleset_id) || 0,
+    ruleset_code: raw.ruleset_code != null ? String(raw.ruleset_code) : undefined,
+    rule_code: String(raw.rule_code ?? ""),
+    rule_name: String(raw.rule_name ?? ""),
+    description: raw.description != null ? String(raw.description) : null,
+    remediation_guidance:
+      raw.remediation_guidance != null
+        ? String(raw.remediation_guidance)
+        : raw.remediation != null
+          ? String(raw.remediation)
+          : null,
+    rule_type: String(raw.rule_type ?? "SOD"),
+    severity: String(raw.severity ?? "HIGH"),
+    risk_score: Number(raw.risk_score) || 0,
+    scope_enforcement: String(raw.scope_enforcement ?? "SAME_SCOPE"),
+    status: String(raw.status ?? "ACTIVE"),
+    functions,
+    user_conditions: asArray(raw.user_conditions),
+    mitigations: asArray(raw.mitigations),
+    open_violation_count: Number(raw.open_violation_count) || 0,
+    created_at: String(raw.created_at ?? ""),
+    updated_at: String(raw.updated_at ?? ""),
+  };
+}
+
 export type ListRulesOptions = { page?: number; pageSize?: number };
 
 export async function listRules(
@@ -314,7 +358,7 @@ export async function getRuleDetail(ruleId: number): Promise<{ data: RuleDetail 
   const res = await executeQuery<unknown>(RM_GET_RULE_QUERY, [rmTenantId(), ruleId]);
   const data = getKfResultData(res);
   if (data && typeof data === "object" && !Array.isArray(data)) {
-    return { data: data as RuleDetail };
+    return { data: normalizeRuleDetail(data as Record<string, unknown>) };
   }
   return { data: null };
 }
@@ -364,7 +408,7 @@ export async function searchFunctions(
 const RM_LIST_FUNCTIONS_PAGED_QUERY =
   "SELECT public.kf_rm_list_functions_paged(?::uuid, NULL::varchar, NULL::varchar, ?::varchar, ?, ?) AS result";
 const RM_GET_FUNCTION_DETAIL_QUERY =
-  "SELECT public.kf_rm_get_function(?::uuid, ?::bigint) AS result";
+  "SELECT public.kf_rm_get_function_detail(?::uuid, ?::bigint) AS result";
 const RM_UPSERT_FUNCTION_QUERY = "SELECT public.kf_rm_upsert_function(?::jsonb) AS result";
 const RM_DELETE_FUNCTION_QUERY =
   "SELECT public.kf_rm_delete_function(?::uuid, ?::bigint) AS result";

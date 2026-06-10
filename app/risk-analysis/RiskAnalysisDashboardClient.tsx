@@ -266,20 +266,25 @@ export default function RiskAnalysisDashboardClient() {
             <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
               <h2 className="text-base font-semibold text-gray-900 mb-3">Top Risky Users</h2>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm border-collapse">
+                <table className="w-full table-fixed border-collapse text-sm text-left">
+                  <colgroup>
+                    <col className="w-[50%]" />
+                    <col className="w-[25%]" />
+                    <col className="w-[25%]" />
+                  </colgroup>
                   <thead>
                     <tr className="border-b border-gray-200 text-left text-gray-600">
-                      <th className="py-2 pr-3 font-medium">User</th>
-                      <th className="py-2 pr-3 font-medium">Violations</th>
-                      <th className="py-2 font-medium">Risk Score</th>
+                      <th className="py-2 px-3 font-medium">User</th>
+                      <th className="py-2 px-3 font-medium text-center">Violations</th>
+                      <th className="py-2 px-3 font-medium text-center">Risk Score</th>
                     </tr>
                   </thead>
                   <tbody>
                     {d.top_risky_users.map((u) => (
                       <tr key={u.userid} className="border-b border-gray-100 last:border-0">
-                        <td className="py-2 pr-3 text-gray-900">{u.displayname || u.username}</td>
-                        <td className="py-2 pr-3 tabular-nums text-gray-800">{u.violation_count}</td>
-                        <td className="py-2 font-semibold text-red-600 tabular-nums">{u.risk_score}</td>
+                        <td className="py-2 px-3 text-gray-900 truncate">{u.displayname || u.username}</td>
+                        <td className="py-2 px-3 text-center tabular-nums text-gray-800">{u.violation_count}</td>
+                        <td className="py-2 px-3 text-center font-semibold text-red-600 tabular-nums">{u.risk_score}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -291,31 +296,39 @@ export default function RiskAnalysisDashboardClient() {
           <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm mt-4">
             <h2 className="text-base font-semibold text-gray-900 mb-3">Recent Analysis Runs</h2>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm border-collapse min-w-[640px]">
+              <table className="w-full min-w-[640px] table-fixed border-collapse text-sm text-left">
+                <colgroup>
+                  <col className="w-[8%]" />
+                  <col className="w-[18%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[36%]" />
+                </colgroup>
                 <thead>
                   <tr className="border-b border-gray-200 text-left text-gray-600">
-                    <th className="py-2 pr-3 font-medium">Run</th>
-                    <th className="py-2 pr-3 font-medium">Ruleset</th>
-                    <th className="py-2 pr-3 font-medium">Type</th>
-                    <th className="py-2 pr-3 font-medium">Status</th>
-                    <th className="py-2 pr-3 font-medium">Violations</th>
-                    <th className="py-2 font-medium">Started</th>
+                    <th className="py-2 px-3 font-medium">Run</th>
+                    <th className="py-2 px-3 font-medium">Ruleset</th>
+                    <th className="py-2 px-3 font-medium">Type</th>
+                    <th className="py-2 px-3 font-medium">Status</th>
+                    <th className="py-2 px-3 font-medium text-center">Violations</th>
+                    <th className="py-2 px-3 font-medium">Started</th>
                   </tr>
                 </thead>
                 <tbody>
                   {d.recent_runs.map((r) => (
                     <tr key={r.run_id} className="border-b border-gray-100 last:border-0">
-                      <td className="py-2 pr-3 text-gray-900">#{r.run_id}</td>
-                      <td className="py-2 pr-3 text-gray-800">{r.ruleset_code}</td>
-                      <td className="py-2 pr-3 text-gray-800">{r.run_type}</td>
-                      <td className="py-2 pr-3">
+                      <td className="py-2 px-3 text-gray-900 tabular-nums">#{r.run_id}</td>
+                      <td className="py-2 px-3 text-gray-800 truncate">{r.ruleset_code}</td>
+                      <td className="py-2 px-3 text-gray-800 truncate">{r.run_type}</td>
+                      <td className="py-2 px-3">
                         <RunStatusBadge
                           label={r.run_status_name || r.run_status || "—"}
                           color={r.run_status_color}
                         />
                       </td>
-                      <td className="py-2 pr-3 tabular-nums">{r.total_violations}</td>
-                      <td className="py-2 text-gray-500 text-xs whitespace-nowrap">
+                      <td className="py-2 px-3 text-center tabular-nums">{r.total_violations}</td>
+                      <td className="py-2 px-3 text-gray-500 text-xs whitespace-nowrap">
                         {r.started_at ? new Date(r.started_at).toLocaleString() : "—"}
                       </td>
                     </tr>

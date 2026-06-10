@@ -86,25 +86,32 @@ export default function RulesetsPage() {
           </div>
         )}
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left min-w-[640px]">
+          <table className="w-full min-w-[640px] table-fixed border-collapse text-sm text-left">
+            <colgroup>
+              <col className="w-[16%]" />
+              <col className="w-[28%]" />
+              <col className="w-[14%]" />
+              <col className="w-[8%]" />
+              <col className="w-[34%]" />
+            </colgroup>
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-gray-600">
                 <th className="py-2.5 px-3 font-medium">Code</th>
                 <th className="py-2.5 px-3 font-medium">Name</th>
                 <th className="py-2.5 px-3 font-medium">Status</th>
-                <th className="py-2.5 px-3 font-medium">Rules</th>
-                <th className="py-2.5 px-3 font-medium w-[1%]">Actions</th>
+                <th className="py-2.5 px-3 font-medium text-center">Rules</th>
+                <th className="py-2.5 px-3 font-medium text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody>
               {q.data?.map((r) => (
                 <tr key={r.ruleset_id} className="border-b border-gray-100 last:border-0">
-                  <td className="py-2.5 px-3">
+                  <td className="py-2.5 px-3 truncate">
                     <span className="font-semibold text-gray-900">
                       {r.ruleset_code ?? "—"}
                     </span>
                   </td>
-                  <td className="py-2.5 px-3 text-gray-800">{r.ruleset_name ?? "—"}</td>
+                  <td className="py-2.5 px-3 text-gray-800 truncate">{r.ruleset_name ?? "—"}</td>
                   <td className="py-2.5 px-3">
                     {r.status != null && r.status !== "" ? (
                       <Badge label={r.status} color={statusColor(r.status)} />
@@ -112,11 +119,11 @@ export default function RulesetsPage() {
                       "—"
                     )}
                   </td>
-                  <td className="py-2.5 px-3 tabular-nums text-gray-800">
+                  <td className="py-2.5 px-3 text-center tabular-nums text-gray-800">
                     {r.active_rule_count ?? 0}
                   </td>
-                  <td className="py-2.5 px-3">
-                    <div className="flex flex-wrap gap-1.5">
+                  <td className="py-2.5 pl-3 pr-2 text-right whitespace-nowrap">
+                    <div className="inline-flex items-center justify-end gap-1.5">
                       <button
                         type="button"
                         className="inline-flex items-center gap-1 rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
