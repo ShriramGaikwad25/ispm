@@ -265,7 +265,8 @@ const RM_TOGGLE_RULE_STATUS_QUERY =
   "SELECT public.kf_rm_set_rule_status(?::uuid, ?::bigint, ?::text) AS result";
 const RM_GET_RULE_QUERY = "SELECT public.kf_rm_get_rule(?::uuid, ?::bigint) AS result";
 const RM_UPSERT_RULE_V2_QUERY = "SELECT public.kf_rm_upsert_rule_v2(?::jsonb) AS result";
-const RM_USER_ATTR_CATALOG_QUERY = "SELECT public.kf_rm_list_user_attribute_catalog() AS result";
+const RM_LIST_USER_ATTRIBUTES_QUERY =
+  "SELECT public.kf_rm_list_user_attributes(?::uuid) AS result";
 const RM_SEARCH_FUNCTIONS_QUERY =
   "SELECT public.kf_rm_search_functions(?::uuid, ?, ?, ?) AS result";
 
@@ -372,7 +373,7 @@ export async function listUserAttributes(): Promise<{
   data: UserAttributeCatalog[];
   operators: string[];
 }> {
-  const res = await executeQuery<unknown>(RM_USER_ATTR_CATALOG_QUERY, []);
+  const res = await executeQuery<unknown>(RM_LIST_USER_ATTRIBUTES_QUERY, [rmTenantId()]);
   const raw = getKfResultData(res);
   if (raw && typeof raw === "object" && !Array.isArray(raw)) {
     const o = raw as Record<string, unknown>;
