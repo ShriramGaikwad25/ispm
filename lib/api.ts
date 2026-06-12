@@ -689,6 +689,15 @@ export function isAiAgentOnboardApplicationType(type: string | undefined): boole
   return isGroupedOnboardApplicationType(type);
 }
 
+/** Integration field keys hidden in the Database onboarding UI (still allowed in API payloads if set). */
+export function filterIntegrationFieldsForApplicationType(
+  applicationType: string,
+  fieldKeys: string[]
+): string[] {
+  if (applicationType.trim() !== "Database") return fieldKeys;
+  return fieldKeys.filter((k) => k.trim().toLowerCase() !== "driver");
+}
+
 function connectionTestAuthHeaders(): Headers {
   const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
   if (!accessToken) {

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
   ChevronLeft,
@@ -62,13 +62,12 @@ import {
   buildGroupedApplicationDetailsForNewApp,
   pickViewGetAllUsersFromStep3,
   VIEW_GET_ALL_USERS_FIELD,
+  filterIntegrationFieldsForApplicationType,
   testDatabaseConnection,
   buildDatabaseTestConnectionPayload,
   isDatabaseTestConnectionPayloadComplete,
   fetchDatabaseSchema,
   fetchDatabaseSuggestMapping,
-  confirmDatabaseMapping,
-  buildDatabaseConfirmMappingDecisions,
   applyDatabaseSuggestMappingToRows,
   attributeMappingsFromFetchSchemaJson,
   testRestServiceConnection,
@@ -348,6 +347,27 @@ export default function AddApplicationPage() {
   const [dbMappingFilter, setDbMappingFilter] = useState("");
   const dbMappingAnchorRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const dbMappingDropdownPortalRef = useRef<HTMLDivElement | null>(null);
+  const scimDropdownSearchRef = useRef("");
+
+  const normalizeScimAttributesList = (raw: unknown): string[] => {
+    if (!Array.isArray(raw)) return [];
+    return (raw as unknown[])
+      .map((item) => {
+        if (typeof item === "string") return item.trim();
+        if (item != null && typeof item === "object") {
+          const o = item as Record<string, unknown>;
+          return String(o.name ?? o.attribute ?? o.Attribute ?? o.value ?? "").trim();
+        }
+        return String(item ?? "").trim();
+      })
+      .filter(Boolean);
+  };
+
+  const filterScimAttributeList = (attrs: string[], searchTerm: string): string[] => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return attrs;
+    return attrs.filter((attr) => attr.toLowerCase().includes(term));
+  };
 
   // Application types from API (optional advancedSetting → three summary cards on step 1)
   type ApplicationTypeOption = {
@@ -1029,21 +1049,6 @@ export default function AddApplicationPage() {
         }
         setWizardRegisteredAppId(appId);
 
-        if (isAiAgentWizard && appType === "Database") {
-          const sessionId =
-            databaseSessionId?.trim() || String(step3.dbSessionId ?? "").trim();
-          if (!sessionId) {
-            throw new Error(
-              "Database session is missing. Run Test Connection and load schema before submitting."
-            );
-          }
-          setSubmitProgressToast("Confirming schema mapping...");
-          await confirmDatabaseMapping({
-            session_id: sessionId,
-            decisions: buildDatabaseConfirmMappingDecisions(attributeMappingData),
-          });
-        }
-
         // 2) POST mapfields — save schema mapping using app id from newApp
         setSubmitProgressToast("Update Schema mapping...");
         const provisioningAttrMap: Record<string, { variable: string }> = {};
@@ -1226,8 +1231,9 @@ export default function AddApplicationPage() {
 
       const data = await response.json();
       if (data.status === "success" && Array.isArray(data.scimAttributes)) {
-        setScimAttributes(data.scimAttributes);
-        setFilteredAttributes(data.scimAttributes);
+        const attrs = normalizeScimAttributesList(data.scimAttributes);
+        setScimAttributes(attrs);
+        setFilteredAttributes(filterScimAttributeList(attrs, scimDropdownSearchRef.current));
       } else {
         console.error("Invalid API response format");
         setScimAttributes([]);
@@ -1247,30 +1253,29 @@ export default function AddApplicationPage() {
     if (scimAttributes.length === 0 && !isLoadingAttributes) {
       fetchScimAttributes();
     }
-    setIsDropdownOpen(!isDropdownOpen);
-    setFilteredAttributes(scimAttributes);
+    const nextOpen = !isDropdownOpen;
+    setIsDropdownOpen(nextOpen);
+    if (nextOpen) {
+      filterAttributes(sourceAttributeValue, false);
+    }
   };
 
   const handleEditDropdownToggle = () => {
     if (scimAttributes.length === 0 && !isLoadingAttributes) {
       fetchScimAttributes();
     }
-    setIsEditDropdownOpen(!isEditDropdownOpen);
-    setFilteredAttributes(scimAttributes);
+    const nextOpen = !isEditDropdownOpen;
+    setIsEditDropdownOpen(nextOpen);
+    if (nextOpen) {
+      filterAttributes(editSourceAttributeValue, true);
+    }
   };
 
   // Filter attributes based on search input
   const filterAttributes = (searchTerm: string, isEdit: boolean = false) => {
-    if (searchTerm === "") {
-      setFilteredAttributes(scimAttributes);
-    } else {
-      const search = searchTerm.toLowerCase();
-      const filtered = scimAttributes.filter((attr) =>
-        attr.toLowerCase().includes(search)
-      );
-      setFilteredAttributes(filtered);
-    }
-    
+    scimDropdownSearchRef.current = searchTerm;
+    setFilteredAttributes(filterScimAttributeList(scimAttributes, searchTerm));
+
     if (isEdit) {
       setEditSourceAttributeValue(searchTerm);
     } else {
@@ -1570,9 +1575,13 @@ export default function AddApplicationPage() {
       setFetchSchemaFeedback({
         type: "success",
         message: suggestApplied
-          ? `Loaded ${rows.length} column(s) with mapping suggestions. You can continue to Schema Mapping.`
+          ? `Loaded ${rows.length} column(s) with mapping suggestions.`
           : `Loaded ${rows.length} column(s). Mapping suggestions were unavailable; you can map attributes manually.`,
       });
+      if (isAiAgentWizard && formData.step1.type === "Database") {
+        setSubmitRequestError(null);
+        setCurrentStep(4);
+      }
     } catch (err) {
       setDatabaseSchemaLoaded(false);
       setFetchSchemaFeedback({
@@ -1900,7 +1909,7 @@ export default function AddApplicationPage() {
     );
   };
 
-  /** Full SCIM list for database mapping dropdown (always show all, not filtered by input). */
+  /** SCIM list for database mapping dropdown (includes row suggestions + full SCIM catalog). */
   const databaseMappingDropdownOptions = (mapping: AttributeMapping | undefined): string[] => {
     const seen = new Set<string>();
     const add = (v: string | undefined) => {
@@ -1920,7 +1929,11 @@ export default function AddApplicationPage() {
     ? attributeMappingData.find((m) => m.id === dbMappingOpenRowId)
     : undefined;
 
-  const dbMappingDropdownOptions = databaseMappingDropdownOptions(dbMappingOpenRow);
+  /** SCIM options for database mapping dropdown, filtered by the row search input. */
+  const dbMappingDropdownOptions = useMemo(() => {
+    const base = databaseMappingDropdownOptions(dbMappingOpenRow);
+    return filterScimAttributeList(base, dbMappingFilter);
+  }, [dbMappingOpenRowId, dbMappingFilter, scimAttributes, attributeMappingData]);
 
   const syncDbMappingDropdownPosition = useCallback(() => {
     if (!dbMappingOpenRowId) return;
@@ -2494,6 +2507,7 @@ export default function AddApplicationPage() {
                           fetchScimAttributes();
                         }
                         setIsEditDropdownOpen(true);
+                        filterAttributes(editSourceAttributeValue || editingAttribute?.source || "", true);
                       }}
                       placeholder="Select or enter source attribute"
                     />
@@ -2611,6 +2625,7 @@ export default function AddApplicationPage() {
                           fetchScimAttributes();
                         }
                         setIsDropdownOpen(true);
+                        filterAttributes(sourceAttributeValue, false);
                       }}
                       placeholder="Select or enter source attribute"
                     />
@@ -4873,7 +4888,10 @@ export default function AddApplicationPage() {
                             </button>
                             {expanded && (
                               <div className="px-3 pb-3 pt-3 flex flex-col gap-2 bg-white">
-                                {group.fields.map((fk) => renderField(fk))}
+                                {filterIntegrationFieldsForApplicationType(
+                                  selectedAppType,
+                                  group.fields
+                                ).map((fk) => renderField(fk))}
                               </div>
                             )}
                           </div>
@@ -4886,7 +4904,8 @@ export default function AddApplicationPage() {
                   <div>
                     <div className="text-sm font-medium text-gray-700 mb-3">{selectedAppType} Settings</div>
                     <div className="flex flex-col gap-3">
-                      {typeFields.reduce<string[][]>((rows, field, idx) => {
+                      {filterIntegrationFieldsForApplicationType(selectedAppType, typeFields)
+                        .reduce<string[][]>((rows, field, idx) => {
                         if (idx % 2 === 0) rows.push([field]);
                         else rows[rows.length - 1].push(field);
                         return rows;
@@ -5231,22 +5250,6 @@ export default function AddApplicationPage() {
                     <div className="flex-1 relative">
                       <input
                         type="text"
-                        value={formData.step3.driver || ""}
-                        onChange={(e) => handleInputChange("step3", "driver", e.target.value)}
-                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
-                        placeholder=" "
-                      />
-                      <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                        formData.step3.driver
-                          ? 'top-0.5 text-xs text-blue-600' 
-                          : 'top-3.5 text-sm text-gray-500'
-                      }`}>
-                        Driver *
-                      </label>
-                    </div>
-                    <div className="flex-1 relative">
-                      <input
-                        type="text"
                         value={formData.step3.username || ""}
                         onChange={(e) => handleInputChange("step3", "username", e.target.value)}
                         className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
@@ -5260,8 +5263,6 @@ export default function AddApplicationPage() {
                         Username *
                       </label>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3">
                     <div className="flex-1 relative">
                       <input
                         type="password"
@@ -5278,6 +5279,8 @@ export default function AddApplicationPage() {
                         Password *
                       </label>
                     </div>
+                  </div>
+                  <div className="flex items-center gap-3">
                     <div className="flex-1 relative">
                       <input
                         type="text"
@@ -5294,8 +5297,6 @@ export default function AddApplicationPage() {
                         View Get All Users *
                       </label>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3">
                     <div className="flex-1 relative">
                       <input
                         type="text"
@@ -5312,6 +5313,8 @@ export default function AddApplicationPage() {
                         View Get All Groups *
                       </label>
                     </div>
+                  </div>
+                  <div className="flex items-center gap-3">
                     <div className="flex-1 relative">
                       <input
                         type="text"
@@ -11330,6 +11333,10 @@ export default function AddApplicationPage() {
                                 fetchScimAttributes();
                               }
                               setIsEditDropdownOpen(true);
+                              filterAttributes(
+                                editSourceAttributeValue || editingAttribute?.source || "",
+                                true
+                              );
                             }}
                             placeholder="Select or enter source attribute"
                           />
@@ -11438,6 +11445,7 @@ export default function AddApplicationPage() {
                                 fetchScimAttributes();
                               }
                               setIsDropdownOpen(true);
+                              filterAttributes(sourceAttributeValue, false);
                             }}
                             placeholder="Select or enter source attribute"
                           />
