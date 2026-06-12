@@ -2901,6 +2901,100 @@ export type ApplicationTypeIntegrationFieldGroup = {
   fields: string[];
 };
 
+export const VIEW_GET_ALL_USERS_FIELD = "viewGetAllUsers";
+
+const VIEW_NAME_STEP3_ALIASES = ["view_name", "viewName"] as const;
+
+/** Database ApplicationDetails keys sent on newApp even when the wizard leaves them blank. */
+export const DATABASE_ALWAYS_INCLUDE_APPLICATION_DETAIL_FIELDS = [
+  "viewGetAllGroups",
+  "viewGetAllRoleContents",
+  "viewGetUser",
+  "viewGetGroup",
+  "viewGetRoleContent",
+  "uniqueIDSchemaMap",
+  "spRevokeGroupMembership",
+  "revokeGroupMembershipDefinition",
+  "revokeGroupMembershipResponseDefinition",
+  "spAddGroupMembership",
+  "addGroupMembershipDefinition",
+  "addGroupMembershipResponseDefinition",
+  "groupSchemaMap",
+  "roleContentSchemaMap",
+  "spCreateAccount",
+  "createAccountDefinition",
+  "createAccountResponseDefinition",
+  "spUpdateAccount",
+  "updateAccountDefinition",
+  "updateAccountResponseDefinition",
+  "spDeleteAccount",
+  "deleteAccountDefinition",
+  "deleteAccountResponseDefinition",
+  "spEnableAccount",
+  "enableAccountDefinition",
+  "enableAccountResponseDefinition",
+  "spDisableAccount",
+  "disableAccountDefinition",
+  "disableAccountResponseDefinition",
+] as const;
+
+/** Flat + integration-group field keys from a supported-objects application type record. */
+export function collectSupportedObjectsFieldKeys(
+  flatFields: string[],
+  integrationGroups: ApplicationTypeIntegrationFieldGroup[] | null | undefined
+): string[] {
+  const seen = new Set<string>();
+  const ordered: string[] = [];
+  const add = (key: string) => {
+    const k = key.trim();
+    if (!k || seen.has(k)) return;
+    seen.add(k);
+    ordered.push(k);
+  };
+  for (const fk of flatFields) add(fk);
+  for (const group of integrationGroups ?? []) {
+    for (const fk of group.fields) add(fk);
+  }
+  return ordered;
+}
+
+/** Resolves Get All Users from step3 (API key viewGetAllUsers or legacy view_name / viewName). */
+export function pickViewGetAllUsersFromStep3(step3: Record<string, unknown>): string {
+  return pickStep3String(step3, VIEW_GET_ALL_USERS_FIELD, ...VIEW_NAME_STEP3_ALIASES);
+}
+
+function pickStep3ValueForSupportedApiField(
+  apiFieldKey: string,
+  step3: Record<string, unknown>
+): string {
+  if (apiFieldKey === VIEW_GET_ALL_USERS_FIELD) {
+    return pickViewGetAllUsersFromStep3(step3);
+  }
+  return pickStep3String(step3, apiFieldKey);
+}
+
+/** ApplicationDetails for newApp — only supported-objects fields; view name aliases map to viewGetAllUsers. */
+export function buildGroupedApplicationDetailsForNewApp(
+  step3: Record<string, unknown>,
+  supportedFieldKeys: string[],
+  appType?: string
+): Record<string, string> {
+  const alwaysIncludeEmpty = new Set<string>(
+    appType === "Database" ? [...DATABASE_ALWAYS_INCLUDE_APPLICATION_DETAIL_FIELDS] : []
+  );
+  const keysToEmit = [
+    ...new Set([...supportedFieldKeys, ...alwaysIncludeEmpty]),
+  ];
+  const ApplicationDetails: Record<string, string> = {};
+  for (const apiKey of keysToEmit) {
+    const val = pickStep3ValueForSupportedApiField(apiKey, step3);
+    if (val || alwaysIncludeEmpty.has(apiKey)) {
+      ApplicationDetails[apiKey] = val;
+    }
+  }
+  return ApplicationDetails;
+}
+
 const INTEGRATION_FIELD_LABEL_ACRONYMS = new Set([
   "api",
   "db",

@@ -58,6 +58,10 @@ import {
   isGroupedOnboardApplicationType,
   isAiAgentOnboardApplicationType,
   GROUPED_ONBOARD_APPLICATION_TYPES,
+  collectSupportedObjectsFieldKeys,
+  buildGroupedApplicationDetailsForNewApp,
+  pickViewGetAllUsersFromStep3,
+  VIEW_GET_ALL_USERS_FIELD,
   testDatabaseConnection,
   buildDatabaseTestConnectionPayload,
   isDatabaseTestConnectionPayloadComplete,
@@ -204,19 +208,14 @@ function buildApplicationDetailsFromStep3(step3: Record<string, unknown>): Recor
   return ApplicationDetails;
 }
 
-/** ApplicationDetails for newApp — grouped types send all step 3 scalar fields. */
+/** ApplicationDetails for newApp — grouped types send supported-objects fields only. */
 function buildApplicationDetailsForNewApp(
   step3: Record<string, unknown>,
-  appType: string
+  appType: string,
+  supportedFieldKeys: string[]
 ): Record<string, string> {
   if (isGroupedOnboardApplicationType(appType)) {
-    const ApplicationDetails: Record<string, string> = {};
-    Object.entries(step3).forEach(([k, v]) => {
-      if (v == null || typeof v === "object") return;
-      const strVal = String(v).trim();
-      if (strVal) ApplicationDetails[k] = strVal;
-    });
-    return ApplicationDetails;
+    return buildGroupedApplicationDetailsForNewApp(step3, supportedFieldKeys, appType);
   }
   return buildApplicationDetailsFromStep3(step3);
 }
@@ -1006,7 +1005,15 @@ export default function AddApplicationPage() {
 
       if (usesNewAppRegistration) {
         const step3 = (formData.step3 || {}) as Record<string, unknown>;
-        const ApplicationDetails = buildApplicationDetailsForNewApp(step3, appType);
+        const supportedFieldKeys = collectSupportedObjectsFieldKeys(
+          applicationTypeFields[appType] ?? [],
+          applicationTypeIntegrationGroups[appType]
+        );
+        const ApplicationDetails = buildApplicationDetailsForNewApp(
+          step3,
+          appType,
+          supportedFieldKeys
+        );
 
         // 1) POST newApp — register application and get app id
         setSubmitProgressToast("Request Received...");
@@ -1365,7 +1372,7 @@ export default function AddApplicationPage() {
     String((formData.step3 as Record<string, unknown>)[key] ?? "").trim();
 
   const isDatabaseOnboardType = isAiAgentWizard && formData.step1.type === "Database";
-  const databaseViewName = getStep3Trim("view_name");
+  const databaseViewName = pickViewGetAllUsersFromStep3(formData.step3 as Record<string, unknown>);
   // Step 4 (Schema Mapping): load rows from schemamapper getmappedschema
   useEffect(() => {
     if (currentStep !== 4 || typeof window === "undefined") return;
@@ -1515,7 +1522,7 @@ export default function AddApplicationPage() {
 
   const handleFetchDatabaseSchema = async () => {
     const sessionId = databaseSessionId?.trim() || getStep3Trim("dbSessionId");
-    const view_name = getStep3Trim("view_name");
+    const view_name = pickViewGetAllUsersFromStep3(formData.step3 as Record<string, unknown>);
     if (!sessionId) {
       setFetchSchemaFeedback({
         type: "error",
@@ -1585,7 +1592,7 @@ export default function AddApplicationPage() {
     Boolean(
       databaseSchemaLoaded &&
         (databaseSessionId?.trim() || getStep3Trim("dbSessionId")) &&
-        getStep3Trim("view_name")
+        pickViewGetAllUsersFromStep3(formData.step3 as Record<string, unknown>)
     );
 
   // Filter loaded users by current input (client-side only)
@@ -1632,7 +1639,7 @@ export default function AddApplicationPage() {
     const target = targetAttributeValue.trim();
     if (!source || !target) return;
     setAttributeMappingData((prev) => [
-      ...prev,
+      ...(keyfieldChecked ? prev.map((m) => ({ ...m, keyfieldMapping: false })) : prev),
       {
         id: `new-${Date.now()}`,
         source,
@@ -1654,19 +1661,21 @@ export default function AddApplicationPage() {
   const saveEdit = () => {
     if (!editingAttribute?.id) return;
     const source = (editSourceAttributeValue || editingAttribute.source || "").trim();
+    const isKeyfield = editingAttribute.keyfieldMapping ?? false;
     setAttributeMappingData((prev) =>
-      prev.map((m) =>
-        m.id === editingAttribute.id
-          ? {
-              ...m,
-              source,
-              target: (editingAttribute.target || "").trim(),
-              defaultValue: editingAttribute.defaultValue ?? "",
-              type: editingAttribute.type || "direct",
-              keyfieldMapping: editingAttribute.keyfieldMapping ?? false,
-            }
-          : m
-      )
+      prev.map((m) => {
+        if (m.id === editingAttribute.id) {
+          return {
+            ...m,
+            source,
+            target: (editingAttribute.target || "").trim(),
+            defaultValue: editingAttribute.defaultValue ?? "",
+            type: editingAttribute.type || "direct",
+            keyfieldMapping: isKeyfield,
+          };
+        }
+        return isKeyfield ? { ...m, keyfieldMapping: false } : m;
+      })
     );
     setIsEditingAttribute(false);
     setEditingAttribute(null);
@@ -2889,7 +2898,10 @@ export default function AddApplicationPage() {
                 <SummaryRow key={row.label} label={row.label} value={row.value} />
               ))
             )}
-            <SummaryRow label="Get All Users" value={getStep3Trim("view_name") || "—"} />
+            <SummaryRow
+              label="Get All Users"
+              value={pickViewGetAllUsersFromStep3(formData.step3 as Record<string, unknown>) || "—"}
+            />
             <SummaryRow
               label="Connection session"
               value={databaseSessionId || getStep3Trim("dbSessionId") || "—"}
@@ -4750,14 +4762,16 @@ export default function AddApplicationPage() {
                       <div className="relative min-w-0 max-w-md">
                         <input
                           type="text"
-                          value={getStep3Trim("view_name")}
-                          onChange={(e) => handleInputChange("step3", "view_name", e.target.value)}
+                          value={pickViewGetAllUsersFromStep3(formData.step3 as Record<string, unknown>)}
+                          onChange={(e) =>
+                            handleInputChange("step3", VIEW_GET_ALL_USERS_FIELD, e.target.value)
+                          }
                           className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                           placeholder=" "
                         />
                         <label
                           className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                            getStep3Trim("view_name")
+                            pickViewGetAllUsersFromStep3(formData.step3 as Record<string, unknown>)
                               ? "top-0.5 text-xs text-blue-600"
                               : "top-3.5 text-sm text-gray-500"
                           }`}
@@ -4800,12 +4814,12 @@ export default function AddApplicationPage() {
                           disabled={
                             fetchSchemaLoading ||
                             (!databaseSessionId && !getStep3Trim("dbSessionId")) ||
-                            !getStep3Trim("view_name")
+                            !pickViewGetAllUsersFromStep3(formData.step3 as Record<string, unknown>)
                           }
                           className={`shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium ${
                             fetchSchemaLoading ||
                             (!databaseSessionId && !getStep3Trim("dbSessionId")) ||
-                            !getStep3Trim("view_name")
+                            !pickViewGetAllUsersFromStep3(formData.step3 as Record<string, unknown>)
                               ? "bg-gray-200 text-gray-500 cursor-not-allowed"
                               : "bg-blue-600 text-white hover:bg-blue-700"
                           }`}
