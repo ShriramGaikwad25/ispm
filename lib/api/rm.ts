@@ -604,8 +604,10 @@ export async function approveException(
 }
 
 // --- Simulation (what-if) — align SQL with your `public.kf_rm_*` definitions ---
-const RM_SEARCH_USERS_SIM = "SELECT public.kf_rm_search_users(?, ?) AS result";
-const RM_SEARCH_ENTITLEMENTS_SIM = "SELECT public.kf_rm_search_entitlements(?, ?) AS result";
+const RM_SEARCH_USERS_SIM =
+  "SELECT public.kf_rm_search_users(?::uuid, ?, ?) AS result";
+const RM_SEARCH_ENTITLEMENTS_SIM =
+  "SELECT public.kf_rm_search_entitlements(?::uuid, ?, ?) AS result";
 const RM_GET_USER_ACCESS_SIM = "SELECT public.kf_rm_get_user_access(?::text) AS result";
 const RM_SIMULATE_USER_ACCESS = "SELECT public.kf_rm_simulate_user_access(?::jsonb) AS result";
 const RM_SIMULATE_ROLE = "SELECT public.kf_rm_simulate_role(?, ?::bigint) AS result";
@@ -634,7 +636,11 @@ export async function searchUsers(
   query: string,
   limit: number = 15
 ): Promise<{ data: UserSearchRow[] }> {
-  const res = await executeQuery<unknown>(RM_SEARCH_USERS_SIM, [query, limit]);
+  const res = await executeQuery<unknown>(RM_SEARCH_USERS_SIM, [
+    RM_TENANT_ID,
+    query,
+    limit,
+  ]);
   return { data: asArray<UserSearchRow>(getKfResultData(res)) };
 }
 
@@ -642,7 +648,11 @@ export async function searchEntitlements(
   query: string,
   limit: number = 15
 ): Promise<{ data: EntitlementSearchRow[] }> {
-  const res = await executeQuery<unknown>(RM_SEARCH_ENTITLEMENTS_SIM, [query, limit]);
+  const res = await executeQuery<unknown>(RM_SEARCH_ENTITLEMENTS_SIM, [
+    RM_TENANT_ID,
+    query,
+    limit,
+  ]);
   return { data: asArray<EntitlementSearchRow>(getKfResultData(res)) };
 }
 
