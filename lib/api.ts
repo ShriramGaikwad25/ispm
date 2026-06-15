@@ -3048,6 +3048,181 @@ function formatIntegrationGroupLabel(sectionId: string): string {
   return formatIntegrationFieldLabel(sectionId);
 }
 
+/** Preferred tab order for Connection Parameters → Basic → Advanced on settings / configuration UI. */
+export const INTEGRATION_SETTING_GROUP_TAB_ORDER = [
+  CONNECTION_PARAMETERS_GROUP_ID,
+  "basic",
+  "advanced",
+] as const;
+
+export function normalizeIntegrationFieldKeyForMatch(key: string): string {
+  return key.replace(/^\uFEFF/, "").trim().toLowerCase().replace(/_/g, "");
+}
+
+export function sortIntegrationFieldGroups(
+  groups: ApplicationTypeIntegrationFieldGroup[]
+): ApplicationTypeIntegrationFieldGroup[] {
+  const order = new Map(
+    INTEGRATION_SETTING_GROUP_TAB_ORDER.map((id, index) => [id.toLowerCase(), index])
+  );
+  return [...groups].sort((a, b) => {
+    const ai = order.get(a.id.toLowerCase()) ?? 999;
+    const bi = order.get(b.id.toLowerCase()) ?? 999;
+    return ai - bi || a.label.localeCompare(b.label);
+  });
+}
+
+/** Maps saved ApplicationDetails keys into supported-objects integration groups. */
+export function partitionApplicationDetailsByIntegrationGroups(
+  details: Record<string, unknown> | null | undefined,
+  groups: ApplicationTypeIntegrationFieldGroup[]
+): {
+  groupedFields: { group: ApplicationTypeIntegrationFieldGroup; fieldKeys: string[] }[];
+  ungroupedFieldKeys: string[];
+} {
+  if (!details || typeof details !== "object" || !groups.length) {
+    return { groupedFields: [], ungroupedFieldKeys: details ? Object.keys(details) : [] };
+  }
+
+  const detailKeys = Object.keys(details);
+  const assigned = new Set<string>();
+
+  const groupedFields = sortIntegrationFieldGroups(groups).map((group) => {
+    const groupNormSet = new Set(
+      group.fields.map((f) => normalizeIntegrationFieldKeyForMatch(f))
+    );
+    const fieldKeys: string[] = [];
+    for (const dk of detailKeys) {
+      if (assigned.has(dk)) continue;
+      if (groupNormSet.has(normalizeIntegrationFieldKeyForMatch(dk))) {
+        fieldKeys.push(dk);
+        assigned.add(dk);
+      }
+    }
+    return { group, fieldKeys };
+  });
+
+  const ungroupedFieldKeys = detailKeys.filter((k) => !assigned.has(k));
+  return { groupedFields, ungroupedFieldKeys };
+}
+
+/** Operation sub-tabs shown inside the Advanced integration group (settings + onboarding). */
+export type AdvancedIntegrationOperationTabDef = {
+  id: string;
+  label: string;
+  fieldKeys: readonly string[];
+};
+
+export const ADVANCED_INTEGRATION_OPERATION_TABS: AdvancedIntegrationOperationTabDef[] = [
+  {
+    id: "create",
+    label: "Create",
+    fieldKeys: ["spCreateAccount", "createAccountDefinition", "createAccountResponseDefinition"],
+  },
+  {
+    id: "update",
+    label: "Update",
+    fieldKeys: ["spUpdateAccount", "updateAccountDefinition", "updateAccountResponseDefinition"],
+  },
+  {
+    id: "delete",
+    label: "Delete",
+    fieldKeys: ["spDeleteAccount", "deleteAccountDefinition", "deleteAccountResponseDefinition"],
+  },
+  {
+    id: "disable",
+    label: "Disable",
+    fieldKeys: ["spDisableAccount", "disableAccountDefinition", "disableAccountResponseDefinition"],
+  },
+  {
+    id: "enable",
+    label: "Enable",
+    fieldKeys: ["spEnableAccount", "enableAccountDefinition", "enableAccountResponseDefinition"],
+  },
+  {
+    id: "revokeGroup",
+    label: "Revoke Group",
+    fieldKeys: [
+      "spRevokeGroupMembership",
+      "revokeGroupMembershipDefinition",
+      "revokeGroupMembershipResponseDefinition",
+    ],
+  },
+  {
+    id: "addGroup",
+    label: "Add Group",
+    fieldKeys: [
+      "spAddGroupMembership",
+      "addGroupMembershipDefinition",
+      "addGroupMembershipResponseDefinition",
+      "groupSchemaMap",
+    ],
+  },
+  {
+    id: "roleContent",
+    label: "Role Content",
+    fieldKeys: ["viewGetAllRoleContents", "viewGetRoleContent", "roleContentSchemaMap"],
+  },
+];
+
+export function isAdvancedIntegrationGroupId(groupId: string | undefined): boolean {
+  return groupId?.trim().toLowerCase() === "advanced";
+}
+
+function inferAdvancedOperationTabId(normalizedFieldKey: string): string | null {
+  if (normalizedFieldKey.includes("create") && normalizedFieldKey.includes("account")) return "create";
+  if (normalizedFieldKey.includes("update") && normalizedFieldKey.includes("account")) return "update";
+  if (normalizedFieldKey.includes("delete") && normalizedFieldKey.includes("account")) return "delete";
+  if (normalizedFieldKey.includes("disable") && normalizedFieldKey.includes("account")) return "disable";
+  if (normalizedFieldKey.includes("enable") && normalizedFieldKey.includes("account")) return "enable";
+  if (normalizedFieldKey.includes("revoke") && normalizedFieldKey.includes("group")) return "revokeGroup";
+  if (
+    normalizedFieldKey.includes("add") &&
+    normalizedFieldKey.includes("group") &&
+    !normalizedFieldKey.includes("role")
+  ) {
+    return "addGroup";
+  }
+  if (normalizedFieldKey.includes("rolecontent")) return "roleContent";
+  return null;
+}
+
+/** Splits advanced-group field keys into the 8 provisioning operation tabs. */
+export function partitionFieldsByAdvancedOperationTabs(
+  sourceFieldKeys: string[]
+): { tab: AdvancedIntegrationOperationTabDef; fieldKeys: string[] }[] {
+  const assigned = new Set<string>();
+  const partitioned = ADVANCED_INTEGRATION_OPERATION_TABS.map((tab) => ({
+    tab,
+    fieldKeys: [] as string[],
+  }));
+
+  const assignToTab = (fieldKey: string, tabId: string) => {
+    const entry = partitioned.find((p) => p.tab.id === tabId);
+    if (!entry || assigned.has(fieldKey)) return;
+    entry.fieldKeys.push(fieldKey);
+    assigned.add(fieldKey);
+  };
+
+  for (const fk of sourceFieldKeys) {
+    const norm = normalizeIntegrationFieldKeyForMatch(fk);
+    let matched = false;
+    for (const tab of ADVANCED_INTEGRATION_OPERATION_TABS) {
+      if (tab.fieldKeys.some((k) => normalizeIntegrationFieldKeyForMatch(k) === norm)) {
+        assignToTab(fk, tab.id);
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      const inferred = inferAdvancedOperationTabId(norm);
+      if (inferred) assignToTab(fk, inferred);
+    }
+  }
+
+  return partitioned;
+}
+
 /** Reads `advancedSetting: [ { connectionParameters: [...] }, { basic: [...] }, ... ]` from a type's field array. */
 export function extractIntegrationAdvancedGroupsFromFieldsArray(
   fieldsVal: unknown

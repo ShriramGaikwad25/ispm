@@ -2,7 +2,12 @@
 
 import React, { useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { coerceSupportedObjectsFieldKey, type ApplicationTypeIntegrationFieldGroup } from "@/lib/api";
+import {
+  coerceSupportedObjectsFieldKey,
+  isAdvancedIntegrationGroupId,
+  type ApplicationTypeIntegrationFieldGroup,
+} from "@/lib/api";
+import AdvancedIntegrationOperationTabs from "../../components/AdvancedIntegrationOperationTabs";
 
 export type IntegrationAdvancedSettingGroupsProps = {
   groups: ApplicationTypeIntegrationFieldGroup[];
@@ -33,7 +38,7 @@ export default function IntegrationAdvancedSettingGroups({
     const value = values[key] ?? "";
     const isPasswordLike = /password|secret|token|passphrase/i.test(key);
     return (
-      <div key={key} className="flex-1 relative">
+      <div key={key} className="relative min-w-0">
         <input
           type={isPasswordLike ? "password" : "text"}
           value={value}
@@ -56,14 +61,14 @@ export default function IntegrationAdvancedSettingGroups({
   return (
     <div className={className}>
       <div className="text-sm font-medium text-gray-700 mb-3">{sectionTitle}</div>
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-3">
         {groups.map((group) => {
           const expandKey = `${expandStateKeyPrefix}::${group.id}`;
           const isOpen = expanded[expandKey] ?? false;
           return (
             <div
               key={group.id}
-              className="border border-slate-200 rounded-lg bg-white shadow-sm overflow-hidden"
+              className="border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden"
             >
               <button
                 type="button"
@@ -73,22 +78,35 @@ export default function IntegrationAdvancedSettingGroups({
                     [expandKey]: !(prev[expandKey] ?? false),
                   }))
                 }
-                className={`flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left bg-slate-50/90 hover:bg-slate-100/80 transition-colors ${
+                className={`flex w-full items-center justify-between gap-3 px-5 py-4 min-h-[3.25rem] text-left bg-slate-50/90 hover:bg-slate-100/80 transition-colors ${
                   isOpen ? "border-b border-slate-200/80" : ""
                 }`}
                 aria-expanded={isOpen}
               >
-                <span className="text-sm font-semibold text-slate-800 min-w-0">{group.label}</span>
+                <span className="text-base font-semibold text-slate-800 min-w-0">{group.label}</span>
                 {isOpen ? (
-                  <ChevronUp className="w-4 h-4 text-slate-600 shrink-0" aria-hidden />
+                  <ChevronUp className="w-5 h-5 text-slate-600 shrink-0" aria-hidden />
                 ) : (
-                  <ChevronDown className="w-4 h-4 text-slate-600 shrink-0" aria-hidden />
+                  <ChevronDown className="w-5 h-5 text-slate-600 shrink-0" aria-hidden />
                 )}
               </button>
               {isOpen && (
-                <div className="px-3 pb-3 pt-3 flex flex-col gap-2 bg-white">
+                isAdvancedIntegrationGroupId(group.id) ? (
+                  <div className="px-5 pb-5 pt-4 bg-white">
+                    <AdvancedIntegrationOperationTabs
+                      fieldKeys={group.fields.map((fk) => coerceSupportedObjectsFieldKey(fk)).filter(Boolean) as string[]}
+                      renderFields={(keys) => (
+                        <div className="grid grid-cols-2 gap-4">
+                          {keys.map((fk) => renderField(fk))}
+                        </div>
+                      )}
+                    />
+                  </div>
+                ) : (
+                <div className="px-5 pb-5 pt-4 grid grid-cols-2 gap-4 bg-white">
                   {group.fields.map((fk) => renderField(fk))}
                 </div>
+                )
               )}
             </div>
           );

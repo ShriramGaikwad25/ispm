@@ -107,7 +107,7 @@ export default function TabbedIntegrationOnboardGroups({
 
       <div className="border border-slate-200 rounded-lg bg-white shadow-sm p-4 sm:p-5">
         <h4 className="text-sm font-semibold text-slate-800 mb-4">{activeGroup.label}</h4>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4">
           {visibleFields.map((fk) => renderField(fk))}
         </div>
 

@@ -728,10 +728,6 @@ useEffect(() => {
     router.push("/settings/app-inventory/add-application");
   };
 
-  const handleAddApplicationAiAgent = () => {
-    router.push("/settings/app-inventory/add-application-ai-agent");
-  };
-
   if (!mounted || isLoading) {
     return (
       <div className="h-screen flex flex-col">
@@ -799,16 +795,6 @@ useEffect(() => {
             />
 
             <div className="ml-auto flex items-center gap-2">
-              <button
-                type="button"
-                className="flex items-center gap-2 rounded-full px-4 py-2 bg-violet-100 text-violet-800 hover:bg-violet-200 text-sm font-medium transition-colors"
-                onClick={handleAddApplicationAiAgent}
-                title="Add Application (AI Agent)"
-                aria-label="Add Application (AI Agent)"
-              >
-                <Plus className="w-4 h-4" />
-                Add Application (AI Agent)
-              </button>
               <button
                 type="button"
                 className="flex items-center gap-2 rounded-full px-4 py-2 bg-blue-100 text-blue-700 hover:bg-blue-200 text-sm font-medium transition-colors"

@@ -26,7 +26,7 @@ import {
   FolderTree,
   Users,
 } from "lucide-react";
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   getAllSupportedApplicationTypesViaProxy,
   executeQuery,
@@ -57,12 +57,12 @@ import {
   CONNECTION_PARAMETERS_GROUP_ID,
   isGroupedOnboardApplicationType,
   isAiAgentOnboardApplicationType,
-  GROUPED_ONBOARD_APPLICATION_TYPES,
   collectSupportedObjectsFieldKeys,
   buildGroupedApplicationDetailsForNewApp,
   pickViewGetAllUsersFromStep3,
   VIEW_GET_ALL_USERS_FIELD,
   filterIntegrationFieldsForApplicationType,
+  isAdvancedIntegrationGroupId,
   testDatabaseConnection,
   buildDatabaseTestConnectionPayload,
   isDatabaseTestConnectionPayloadComplete,
@@ -76,6 +76,7 @@ import {
   type ApplicationTypeIntegrationFieldGroup,
 } from "@/lib/api";
 import TabbedIntegrationOnboardGroups from "../components/TabbedIntegrationOnboardGroups";
+import AdvancedIntegrationOperationTabs from "../components/AdvancedIntegrationOperationTabs";
 import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
 
 interface FormData {
@@ -83,6 +84,8 @@ interface FormData {
     applicationName: string;
     type: string;
     oauthType: string;
+    /** When true, Database / RESTService use the AI Agent onboarding wizard. */
+    aiAgentOnboard: boolean;
   };
   step2: {
     applicationName: string;
@@ -245,9 +248,6 @@ const APPLICATION_SOURCE_TYPE_OPTIONS = [
 
 export default function AddApplicationPage() {
   const router = useRouter();
-  const pathname = usePathname();
-  const isAiAgentWizard = pathname?.includes("/add-application-ai-agent") ?? false;
-  const wizardSteps = isAiAgentWizard ? aiAgentWizardSteps : steps;
   const { isVisible: isSidebarVisible, sidebarWidthPx } = useLeftSidebar();
   const searchParams = useSearchParams();
   const completeIntegrationRaw = searchParams.get("completeIntegration")?.trim().toLowerCase() ?? "";
@@ -417,6 +417,7 @@ export default function AddApplicationPage() {
       applicationName: "",
       type: "",
       oauthType: "",
+      aiAgentOnboard: false,
     },
     step2: {
       applicationName: "",
@@ -446,6 +447,10 @@ export default function AddApplicationPage() {
       goLiveDate: "",
     },
   });
+
+  const isAiAgentWizard =
+    formData.step1.aiAgentOnboard && isAiAgentOnboardApplicationType(formData.step1.type);
+  const wizardSteps = isAiAgentWizard ? aiAgentWizardSteps : steps;
 
   // When opening from Settings for a non-integrated app, start at step 3 (Integration Setting)
   useEffect(() => {
@@ -730,12 +735,14 @@ export default function AddApplicationPage() {
     });
   };
 
-  const toggleStep1ApplicationType = (typeId: string) => {
-    setFormData((prev) =>
-      prev.step1.type === typeId
-        ? { ...prev, step1: { ...prev.step1, type: "", oauthType: "" } }
-        : { ...prev, step1: { ...prev.step1, type: typeId } }
-    );
+  const toggleStep1ApplicationType = (typeId: string, aiAgentOnboard = false) => {
+    setFormData((prev) => {
+      const isSameSelection =
+        prev.step1.type === typeId && prev.step1.aiAgentOnboard === aiAgentOnboard;
+      return isSameSelection
+        ? { ...prev, step1: { ...prev.step1, type: "", oauthType: "", aiAgentOnboard: false } }
+        : { ...prev, step1: { ...prev.step1, type: typeId, aiAgentOnboard } };
+    });
   };
 
   const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -1732,7 +1739,7 @@ export default function AddApplicationPage() {
 
         {/* Remaining Integration Settings – only when NOT manually fulfilled */}
         {!manuallyFulfillChecked && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div className="relative">
               <input
                 type="text"
@@ -3040,22 +3047,46 @@ export default function AddApplicationPage() {
                    </div>
                  ) : (
                    applicationTypes
-                     .filter((type) => {
-                       const isAiAgentType = isAiAgentOnboardApplicationType(type.id);
-                       if (isAiAgentWizard && !isAiAgentType) return false;
-                       return (
-                         searchQuery === "" ||
-                         type.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         type.subtitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         type.id.toLowerCase().includes(searchQuery.toLowerCase())
-                       );
+                     .flatMap((type) => {
+                       const cards: Array<{
+                         type: ApplicationTypeOption;
+                         aiAgentOnboard: boolean;
+                         displayTitle: string;
+                         cardKey: string;
+                       }> = [
+                         {
+                           type,
+                           aiAgentOnboard: false,
+                           displayTitle: type.title,
+                           cardKey: type.id,
+                         },
+                       ];
+                       if (isAiAgentOnboardApplicationType(type.id)) {
+                         cards.push({
+                           type,
+                           aiAgentOnboard: true,
+                           displayTitle: `${type.title} (AI Agent)`,
+                           cardKey: `${type.id}::ai-agent`,
+                         });
+                       }
+                       return cards;
                      })
-                     .map((type) => (
+                     .filter(({ displayTitle, type }) =>
+                       searchQuery === "" ||
+                       displayTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                       type.subtitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                       type.id.toLowerCase().includes(searchQuery.toLowerCase())
+                     )
+                     .map(({ type, aiAgentOnboard, displayTitle, cardKey }) => {
+                       const isSelected =
+                         formData.step1.type === type.id &&
+                         formData.step1.aiAgentOnboard === aiAgentOnboard;
+                       return (
                    <div
-                     key={type.id}
-                     onClick={() => toggleStep1ApplicationType(type.id)}
+                     key={cardKey}
+                     onClick={() => toggleStep1ApplicationType(type.id, aiAgentOnboard)}
                      className={`p-3.5 border rounded-lg cursor-pointer transition-all duration-200 hover:shadow-md ${
-                       formData.step1.type === type.id
+                       isSelected
                          ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500/30"
                          : "border-gray-200 bg-white hover:border-gray-300"
                      }`}
@@ -3068,7 +3099,7 @@ export default function AddApplicationPage() {
                          <AppTypeCardIcon typeId={type.id} />
                        </div>
                        <div className="min-w-0 flex-1">
-                         <h3 className="font-medium text-gray-900 text-sm leading-snug">{type.title}</h3>
+                         <h3 className="font-medium text-gray-900 text-sm leading-snug">{displayTitle}</h3>
                          <p className="text-xs text-gray-500 mt-0.5 line-clamp-2 leading-snug">{type.subtitle}</p>
                          {type.advancedSettingParts && (
                            <div className="mt-2 pt-2 border-t border-slate-200/90 grid grid-cols-3 gap-1.5">
@@ -3094,7 +3125,7 @@ export default function AddApplicationPage() {
                            </div>
                          )}
                        </div>
-                       {formData.step1.type === type.id && (
+                       {isSelected && (
                          <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center shrink-0 mt-0.5">
                            <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -3103,7 +3134,8 @@ export default function AddApplicationPage() {
                        )}
                      </div>
                    </div>
-                     ))
+                       );
+                     })
                  )}
                </div>
                )}
@@ -3118,7 +3150,14 @@ export default function AddApplicationPage() {
               <div className="flex flex-wrap gap-4">
                 <div>
                   <span className="font-medium">Selected System:</span>{' '}
-                  <span>{formData.step1.type || "Not selected"}</span>
+                  <span>
+                    {formData.step1.type
+                      ? formData.step1.aiAgentOnboard &&
+                        isAiAgentOnboardApplicationType(formData.step1.type)
+                        ? `${formData.step1.type} (AI Agent)`
+                        : formData.step1.type
+                      : "Not selected"}
+                  </span>
                 </div>
               </div>
             </div>
@@ -3276,25 +3315,6 @@ export default function AddApplicationPage() {
 
       case 3:
         const selectedAppType = formData.step1.type;
-
-        if (isAiAgentWizard && !isAiAgentOnboardApplicationType(selectedAppType)) {
-          return (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 space-y-4">
-              <h3 className="text-lg font-semibold text-amber-900">Select an application type</h3>
-              <p className="text-sm text-amber-800">
-                AI Agent onboarding supports{" "}
-                {GROUPED_ONBOARD_APPLICATION_TYPES.join(" and ")} only.
-              </p>
-              <button
-                type="button"
-                onClick={() => setCurrentStep(1)}
-                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700"
-              >
-                Go to Select System
-              </button>
-            </div>
-          );
-        }
 
         // For Disconnected Application (both create and edit), step 3 = Integration Settings
         if (selectedAppType === "Disconnected Application") {
@@ -3482,7 +3502,7 @@ export default function AddApplicationPage() {
                       </div>
                     )}
                     {/* Row 1: Uid Attribute * | Status Field */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-4">
                       <div className="relative rounded-md border-2 border-dashed border-transparent transition-colors hover:border-gray-200">
                         <input
                           type="text"
@@ -3529,7 +3549,7 @@ export default function AddApplicationPage() {
                       </div>
                     </div>
                     {/* Row 2: Date Format | Multivalued Field */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-4">
                       <div className="relative">
                         <input
                           type="text"
@@ -3658,7 +3678,7 @@ export default function AddApplicationPage() {
                                     </label>
                                   </div>
                                 </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-2 gap-4">
                                   <div className="relative">
                                     <input
                                       type="text"
@@ -3684,7 +3704,7 @@ export default function AddApplicationPage() {
                                     </label>
                                   </div>
                                 </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-2 gap-4">
                                   <div className="relative">
                                     <input
                                       type="text"
@@ -3824,7 +3844,7 @@ export default function AddApplicationPage() {
                               </span>
                             ))}
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="grid grid-cols-2 gap-4">
                             <div className="relative">
                               <input
                                 type="text"
@@ -3880,7 +3900,7 @@ export default function AddApplicationPage() {
                               JDBC URL
                             </label>
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="grid grid-cols-2 gap-4">
                             <div className="relative">
                               <input
                                 type="text"
@@ -3918,7 +3938,7 @@ export default function AddApplicationPage() {
                               </label>
                             </div>
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="grid grid-cols-2 gap-4">
                             <div className="relative">
                               <input
                                 type="text"
@@ -3956,7 +3976,7 @@ export default function AddApplicationPage() {
                               </label>
                             </div>
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="grid grid-cols-2 gap-4">
                             <div className="relative">
                               <input
                                 type="text"
@@ -4026,7 +4046,7 @@ export default function AddApplicationPage() {
                               )}
                             </button>
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+                          <div className="grid grid-cols-2 gap-4 items-end">
                             <div className="relative">
                               <input
                                 type="text"
@@ -4082,7 +4102,7 @@ export default function AddApplicationPage() {
                               </span>
                             ))}
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="grid grid-cols-2 gap-4">
                             <div className="relative">
                               <input
                                 type="text"
@@ -4120,7 +4140,7 @@ export default function AddApplicationPage() {
                               </label>
                             </div>
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="grid grid-cols-2 gap-4">
                             <div className="relative">
                               <input
                                 type="text"
@@ -4172,7 +4192,7 @@ export default function AddApplicationPage() {
                               </button>
                             </div>
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="grid grid-cols-2 gap-4">
                             <div className="relative">
                               <input
                                 type="text"
@@ -4228,7 +4248,7 @@ export default function AddApplicationPage() {
                               CCSID
                             </label>
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+                          <div className="grid grid-cols-2 gap-4 items-end">
                             <div className="flex items-center gap-2 pb-2 sm:pb-1.5">
                               <input
                                 type="checkbox"
@@ -4337,7 +4357,7 @@ export default function AddApplicationPage() {
                               </span>
                             ))}
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="grid grid-cols-2 gap-4">
                             <div className="relative">
                               <input
                                 type="text"
@@ -4375,7 +4395,7 @@ export default function AddApplicationPage() {
                               </label>
                             </div>
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="grid grid-cols-2 gap-4">
                             <div className="relative">
                               <input
                                 type="text"
@@ -4413,7 +4433,7 @@ export default function AddApplicationPage() {
                               </label>
                             </div>
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="grid grid-cols-2 gap-4">
                             <div className="relative">
                               <input
                                 type="text"
@@ -4451,7 +4471,7 @@ export default function AddApplicationPage() {
                               </label>
                             </div>
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+                          <div className="grid grid-cols-2 gap-4 items-end">
                             <div className="flex items-center gap-2 pb-2 sm:pb-1.5">
                               <input
                                 type="checkbox"
@@ -4507,7 +4527,7 @@ export default function AddApplicationPage() {
                     )}
                     {writeChannelVal === "api" && (
                         <div className="space-y-4">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="grid grid-cols-2 gap-4">
                             <div className="relative">
                               <input
                                 type="text"
@@ -4545,7 +4565,7 @@ export default function AddApplicationPage() {
                               </label>
                             </div>
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="grid grid-cols-2 gap-4">
                             <div className="relative">
                               <input
                                 type="text"
@@ -4583,7 +4603,7 @@ export default function AddApplicationPage() {
                               </label>
                             </div>
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="grid grid-cols-2 gap-4">
                             <div className="relative">
                               <input
                                 type="text"
@@ -4621,7 +4641,7 @@ export default function AddApplicationPage() {
                               </label>
                             </div>
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+                          <div className="grid grid-cols-2 gap-4 items-end">
                             <div className="flex items-center gap-2 pb-2 sm:pb-1.5">
                               <input
                                 type="checkbox"
@@ -4710,7 +4730,7 @@ export default function AddApplicationPage() {
               const value = (formData.step3 as any)[key] ?? "";
               const isPasswordLike = /password|secret|token|passphrase/i.test(key);
               return (
-                <div className="flex-1 relative" key={key}>
+                <div className="flex-1 relative min-w-0" key={key}>
                   <input
                     type={isPasswordLike ? "password" : "text"}
                     value={value}
@@ -4774,7 +4794,8 @@ export default function AddApplicationPage() {
                       <p className="text-xs text-slate-500">
                         Enter Get All Users and load columns before Schema Mapping.
                       </p>
-                      <div className="relative min-w-0 max-w-md">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="relative min-w-0">
                         <input
                           type="text"
                           value={pickViewGetAllUsersFromStep3(formData.step3 as Record<string, unknown>)}
@@ -4793,6 +4814,7 @@ export default function AddApplicationPage() {
                         >
                           Get All Users *
                         </label>
+                        </div>
                       </div>
                       {(databaseSessionId || getStep3Trim("dbSessionId")) && (
                         <p className="text-xs text-slate-500 font-mono truncate">
@@ -4855,14 +4877,14 @@ export default function AddApplicationPage() {
                     <div className="text-sm font-medium text-gray-700 mb-3">
                       Advanced settings (grouped)
                     </div>
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-3">
                       {integrationGroupsForType.map((group) => {
                         const expandKey = `${selectedAppType}::${group.id}`;
                         const expanded = integrationGroupExpanded[expandKey] ?? false;
                         return (
                           <div
                             key={group.id}
-                            className="border border-slate-200 rounded-lg bg-white shadow-sm overflow-hidden"
+                            className="border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden"
                           >
                             <button
                               type="button"
@@ -4872,27 +4894,43 @@ export default function AddApplicationPage() {
                                   [expandKey]: !(prev[expandKey] ?? false),
                                 }))
                               }
-                              className={`flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left bg-slate-50/90 hover:bg-slate-100/80 transition-colors ${
+                              className={`flex w-full items-center justify-between gap-3 px-5 py-4 min-h-[3.25rem] text-left bg-slate-50/90 hover:bg-slate-100/80 transition-colors ${
                                 expanded ? "border-b border-slate-200/80" : ""
                               }`}
                               aria-expanded={expanded}
                             >
-                              <span className="text-sm font-semibold text-slate-800 min-w-0">
+                              <span className="text-base font-semibold text-slate-800 min-w-0">
                                 {group.label}
                               </span>
                               {expanded ? (
-                                <ChevronUp className="w-4 h-4 text-slate-600 shrink-0" aria-hidden />
+                                <ChevronUp className="w-5 h-5 text-slate-600 shrink-0" aria-hidden />
                               ) : (
-                                <ChevronDown className="w-4 h-4 text-slate-600 shrink-0" aria-hidden />
+                                <ChevronDown className="w-5 h-5 text-slate-600 shrink-0" aria-hidden />
                               )}
                             </button>
                             {expanded && (
-                              <div className="px-3 pb-3 pt-3 flex flex-col gap-2 bg-white">
+                              isAdvancedIntegrationGroupId(group.id) ? (
+                                <div className="px-5 pb-5 pt-4 bg-white">
+                                  <AdvancedIntegrationOperationTabs
+                                    fieldKeys={filterIntegrationFieldsForApplicationType(
+                                      selectedAppType,
+                                      group.fields
+                                    )}
+                                    renderFields={(keys) => (
+                                      <div className="grid grid-cols-2 gap-4">
+                                        {keys.map((fk) => renderField(fk))}
+                                      </div>
+                                    )}
+                                  />
+                                </div>
+                              ) : (
+                              <div className="px-5 pb-5 pt-4 grid grid-cols-2 gap-4 bg-white">
                                 {filterIntegrationFieldsForApplicationType(
                                   selectedAppType,
                                   group.fields
                                 ).map((fk) => renderField(fk))}
                               </div>
+                              )
                             )}
                           </div>
                         );
@@ -4903,52 +4941,26 @@ export default function AddApplicationPage() {
                 {typeFields.length > 0 && (
                   <div>
                     <div className="text-sm font-medium text-gray-700 mb-3">{selectedAppType} Settings</div>
-                    <div className="flex flex-col gap-3">
-                      {filterIntegrationFieldsForApplicationType(selectedAppType, typeFields)
-                        .reduce<string[][]>((rows, field, idx) => {
-                        if (idx % 2 === 0) rows.push([field]);
-                        else rows[rows.length - 1].push(field);
-                        return rows;
-                      }, []).map((row, i) => (
-                        <div className="flex items-center gap-3" key={`type-row-${i}`}>
-                          {row.map((f) => renderField(f))}
-                          {row.length === 1 && <div className="flex-1" />}
-                        </div>
-                      ))}
+                    <div className="grid grid-cols-2 gap-4">
+                      {filterIntegrationFieldsForApplicationType(selectedAppType, typeFields).map(
+                        (f) => renderField(f)
+                      )}
                     </div>
                   </div>
                 )}
                 {oauthFieldsForType.length > 0 && (
                   <div>
                     <div className="text-sm font-medium text-gray-700 mb-3">{selectedOauth} OAuth Settings</div>
-                    <div className="flex flex-col gap-3">
-                      {oauthFieldsForType.reduce<string[][]>((rows, field, idx) => {
-                        if (idx % 2 === 0) rows.push([field]);
-                        else rows[rows.length - 1].push(field);
-                        return rows;
-                      }, []).map((row, i) => (
-                        <div className="flex items-center gap-3" key={`oauth-row-${i}`}>
-                          {row.map((f) => renderField(f))}
-                          {row.length === 1 && <div className="flex-1" />}
-                        </div>
-                      ))}
+                    <div className="grid grid-cols-2 gap-4">
+                      {oauthFieldsForType.map((f) => renderField(f))}
                     </div>
                   </div>
                 )}
                 {customFieldKeys.length > 0 && (
                   <div>
                     <div className="text-sm font-medium text-gray-700 mb-3">Custom fields</div>
-                    <div className="flex flex-col gap-3">
-                      {customFieldKeys.reduce<string[][]>((rows, field, idx) => {
-                        if (idx % 2 === 0) rows.push([field]);
-                        else rows[rows.length - 1].push(field);
-                        return rows;
-                      }, []).map((row, i) => (
-                        <div className="flex items-center gap-3" key={`custom-row-${i}`}>
-                          {row.map((f) => renderField(f))}
-                          {row.length === 1 && <div className="flex-1" />}
-                        </div>
-                      ))}
+                    <div className="grid grid-cols-2 gap-4">
+                      {customFieldKeys.map((f) => renderField(f))}
                     </div>
                   </div>
                 )}
@@ -10186,7 +10198,7 @@ export default function AddApplicationPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="relative rounded-md border-2 border-dashed border-transparent transition-colors hover:border-gray-200">
                       <input
                         type="text"
@@ -10273,7 +10285,7 @@ export default function AddApplicationPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="relative">
                       <input
                         type="text"
@@ -11808,15 +11820,6 @@ export default function AddApplicationPage() {
       <div className="h-[64px] sm:h-[68px]" aria-hidden />
 
       <div className="w-full pt-0 pb-8 px-3 sm:px-4">
-        {isAiAgentWizard && (
-          <div className="mb-4">
-            <h1 className="text-xl font-semibold text-gray-900">Add Application (AI Agent)</h1>
-            <p className="text-sm text-gray-600 mt-1">
-              Onboard Database or REST Service applications with connection testing and AI-assisted
-              schema mapping.
-            </p>
-          </div>
-        )}
         {submitRequestError && (
           <div className="mb-4 px-4 py-3 bg-red-50 text-red-700 text-sm rounded-md border border-red-100">
             {submitRequestError}

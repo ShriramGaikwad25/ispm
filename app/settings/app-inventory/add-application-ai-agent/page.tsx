@@ -1,7 +1,6 @@
-"use client";
+import { redirect } from "next/navigation";
 
-/**
- * AI Agent onboarding wizard — Database & RESTService integration flow
- * (tabbed integration, test connection, DB schema mapping with suggestions).
- */
-export { default } from "../add-application/page";
+/** Legacy route — AI Agent types are now in the main Add Application flow. */
+export default function AddApplicationAiAgentPage() {
+  redirect("/settings/app-inventory/add-application");
+}

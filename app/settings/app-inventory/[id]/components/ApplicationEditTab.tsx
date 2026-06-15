@@ -2,8 +2,17 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { getApplicationDetails } from "@/lib/api";
+import {
+  getApplicationDetails,
+  getAllSupportedApplicationTypesViaProxy,
+  parseSupportedObjectsApplicationTypeItem,
+  partitionApplicationDetailsByIntegrationGroups,
+  sortIntegrationFieldGroups,
+  isAdvancedIntegrationGroupId,
+  type ApplicationTypeIntegrationFieldGroup,
+} from "@/lib/api";
 import { Edit } from "lucide-react";
+import AdvancedIntegrationOperationTabs from "../../components/AdvancedIntegrationOperationTabs";
 
 interface ApplicationEditTabProps {
   applicationId: string;
@@ -77,6 +86,10 @@ export default function ApplicationEditTab({ applicationId, onBackToInventory }:
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [integrationGroups, setIntegrationGroups] = useState<ApplicationTypeIntegrationFieldGroup[]>(
+    []
+  );
+  const [activeConfigGroupIndex, setActiveConfigGroupIndex] = useState(0);
 
   useEffect(() => {
     const fetchDetails = async () => {
@@ -88,9 +101,30 @@ export default function ApplicationEditTab({ applicationId, onBackToInventory }:
       setIsLoading(true);
       setError(null);
       try {
-        const data = await getApplicationDetails(applicationId, apiToken);
+        const [data, supported] = await Promise.all([
+          getApplicationDetails(applicationId, apiToken),
+          getAllSupportedApplicationTypesViaProxy().catch(() => null),
+        ]);
         setAppDetails(data);
         setEditedApp(data);
+
+        const app = data?.Application ?? data ?? {};
+        const category = String(
+          app.category ?? app.Category ?? app.applicationType ?? app.ApplicationType ?? ""
+        ).trim();
+
+        let groups: ApplicationTypeIntegrationFieldGroup[] = [];
+        if (category && supported?.applicationType && Array.isArray(supported.applicationType)) {
+          for (const raw of supported.applicationType as unknown[]) {
+            const parsed = parseSupportedObjectsApplicationTypeItem(raw);
+            if (parsed?.typeName === category && parsed.integrationFieldGroups?.length) {
+              groups = sortIntegrationFieldGroups(parsed.integrationFieldGroups);
+              break;
+            }
+          }
+        }
+        setIntegrationGroups(groups);
+        setActiveConfigGroupIndex(0);
       } catch (err) {
         console.error("Error fetching application details:", err);
         setError(err instanceof Error ? err.message : "Failed to fetch application details");
@@ -147,7 +181,8 @@ export default function ApplicationEditTab({ applicationId, onBackToInventory }:
     maskPassword: boolean,
     fieldKey?: string,
     editable: boolean = false,
-    onChange?: (newValue: string) => void
+    onChange?: (newValue: string) => void,
+    compact: boolean = false
   ) => {
     const isSensitiveField =
       maskPassword ||
@@ -168,17 +203,25 @@ export default function ApplicationEditTab({ applicationId, onBackToInventory }:
     const isJson = displayValue.startsWith("{") || displayValue.startsWith("[");
     const noScroll = fieldKey?.toLowerCase() === "uniqueidschemamap";
 
+    const fieldShell = compact
+      ? "min-w-0 rounded-md border border-gray-100 bg-gray-50/60 px-2 py-2 h-full"
+      : "min-w-0 rounded-lg border border-gray-100 bg-gray-50/60 px-3 py-3 h-full";
+    const labelClass = compact
+      ? "text-[11px] font-medium text-gray-500 mb-1"
+      : "text-xs font-medium text-gray-500 mb-1.5";
+    const valueClass = compact
+      ? "text-xs text-gray-900 break-words leading-snug"
+      : "text-sm text-gray-900 break-words leading-snug";
+
     if (editable) {
       const secretPlain = coerceSecretPlaintext(value);
       if ((isSensitiveField || keyIsExactlyPassword) && secretPlain !== null) {
         return (
-          <div className="flex flex-col gap-1 py-2 border-b border-gray-100 last:border-b-0">
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-sm font-medium text-gray-700 shrink-0">{label}:</span>
-            </div>
+          <div className={fieldShell}>
+            <label className={`block ${labelClass}`}>{label}</label>
             <input
               type="password"
-              className="mt-1 w-full text-sm text-gray-900 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full text-xs text-gray-900 border border-gray-300 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
               value={secretPlain}
               onChange={(e) => onChange?.(e.target.value)}
               autoComplete="off"
@@ -193,13 +236,11 @@ export default function ApplicationEditTab({ applicationId, onBackToInventory }:
         (editString.startsWith("{") || editString.startsWith("["));
 
       return (
-        <div className="flex flex-col gap-1 py-2 border-b border-gray-100 last:border-b-0">
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-sm font-medium text-gray-700 shrink-0">{label}:</span>
-          </div>
+        <div className={fieldShell}>
+          <label className={`block ${labelClass}`}>{label}</label>
           <textarea
-            className="mt-1 w-full text-sm text-gray-900 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-vertical"
-            rows={editLooksLikeJson ? 5 : 2}
+            className="w-full text-xs text-gray-900 border border-gray-300 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-vertical bg-white"
+            rows={editLooksLikeJson ? 4 : compact ? 2 : 2}
             value={editString}
             onChange={(e) => onChange?.(e.target.value)}
           />
@@ -207,41 +248,98 @@ export default function ApplicationEditTab({ applicationId, onBackToInventory }:
       );
     }
     return (
-      <div className="flex flex-col gap-1 py-2 border-b border-gray-100 last:border-b-0">
-        <div className="flex items-center justify-between gap-4">
-          <span className="text-sm font-medium text-gray-700 shrink-0">{label}:</span>
-        </div>
+      <div className={fieldShell}>
+        <div className={labelClass}>{label}</div>
         {isJson ? (
-          <pre className={`text-xs text-gray-700 bg-gray-50 p-2 rounded border border-gray-200 font-mono ${noScroll ? "overflow-visible whitespace-pre-wrap break-words" : "overflow-auto max-h-48"}`}>
+          <pre
+            className={`text-[11px] text-gray-800 bg-white p-2 rounded border border-gray-200 font-mono ${
+              noScroll
+                ? "overflow-visible whitespace-pre-wrap break-words"
+                : "overflow-auto max-h-32"
+            }`}
+          >
             {displayValue}
           </pre>
         ) : (
-          <span className="text-sm text-gray-900 break-all min-w-0 text-right">{displayValue}</span>
+          <div className={valueClass}>{displayValue}</div>
         )}
       </div>
     );
   };
 
-  const renderSection = (title: string, data: any) => {
+  const renderSection = (
+    title: string,
+    data: any,
+    options?: {
+      fieldKeys?: string[];
+      hideTitle?: boolean;
+      sectionKind?: "Application Details" | "OAuth Details";
+      compact?: boolean;
+      singleColumn?: boolean;
+    }
+  ) => {
     if (!data || typeof data !== "object") return null;
-    const fields = Object.keys(data).filter((key) => {
+    const sectionKind = options?.sectionKind ?? (title as "Application Details" | "OAuth Details");
+    const compact = options?.compact ?? false;
+    const singleColumn = options?.singleColumn ?? false;
+    let fields = Object.keys(data).filter((key) => {
       const value = data[key];
       if (
         !isEditing &&
-        title === "OAuth Details" &&
+        sectionKind === "OAuth Details" &&
         (key.toLowerCase() === "clientsecret" || key.toLowerCase() === "adminpassword")
       ) {
         return false;
       }
       return isDisplayableValue(value);
     });
-    if (fields.length === 0) return null;
+    if (options?.fieldKeys) {
+      const allowed = new Set(options.fieldKeys);
+      fields = fields.filter((key) => allowed.has(key));
+      if (options.fieldKeys.length > 0) {
+        fields.sort((a, b) => options.fieldKeys!.indexOf(a) - options.fieldKeys!.indexOf(b));
+      }
+    }
+    if (fields.length === 0) {
+      return (
+        <div className="flex flex-col h-full">
+          {!options?.hideTitle && (
+            <h2
+              className={
+                compact
+                  ? "text-base font-semibold text-gray-900 mb-3 pb-2 border-b border-gray-200"
+                  : "text-lg font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200"
+              }
+            >
+              {title}
+            </h2>
+          )}
+          <p className="text-sm text-gray-500 py-4">No fields configured for this section.</p>
+        </div>
+      );
+    }
     return (
       <div className="flex flex-col h-full">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">
-          {title}
-        </h2>
-        <div className="flex-1 space-y-0">
+        {!options?.hideTitle && (
+          <h2
+            className={
+              compact
+                ? "text-base font-semibold text-gray-900 mb-3 pb-2 border-b border-gray-200"
+                : "text-lg font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200"
+            }
+          >
+            {title}
+          </h2>
+        )}
+        <div
+          className={
+            singleColumn
+              ? "grid grid-cols-1 gap-3 items-start"
+              : compact
+                ? "grid grid-cols-1 gap-2 items-start"
+                : "grid grid-cols-2 gap-4 items-start"
+          }
+        >
           {fields.map((field) => {
             const value = data[field];
             const fieldLower = field.toLowerCase();
@@ -251,7 +349,7 @@ export default function ApplicationEditTab({ applicationId, onBackToInventory }:
 
             if (
               isEditing &&
-              title === "OAuth Details" &&
+              sectionKind === "OAuth Details" &&
               (fieldLower === "clientsecret" || fieldLower === "adminpassword")
             ) {
               const buttonLabel =
@@ -259,10 +357,10 @@ export default function ApplicationEditTab({ applicationId, onBackToInventory }:
               return (
                 <div
                   key={field}
-                  className="flex flex-col gap-1 py-2 border-b border-gray-100 last:border-b-0"
+                  className="col-span-2 min-w-0 rounded-lg border border-gray-100 bg-gray-50/60 px-3 py-3"
                 >
                   <div className="flex items-center justify-between gap-4">
-                    <span className="text-sm font-medium text-gray-700 shrink-0">{label}:</span>
+                    <span className="text-xs font-medium text-gray-500">{label}</span>
                     <button
                       type="button"
                       className="inline-flex items-center rounded-full px-3 py-1.5 bg-blue-100 text-blue-700 hover:bg-blue-200 text-xs font-medium transition-colors"
@@ -297,7 +395,7 @@ export default function ApplicationEditTab({ applicationId, onBackToInventory }:
                       const updated = { ...prev };
                       const rootApp = updated.Application ?? updated;
 
-                      if (title === "Application Details") {
+                      if (sectionKind === "Application Details") {
                         const detailsKey =
                           "ApplicationDetails" in rootApp
                             ? "ApplicationDetails"
@@ -305,7 +403,7 @@ export default function ApplicationEditTab({ applicationId, onBackToInventory }:
                         const details = { ...(rootApp[detailsKey] || {}) };
                         details[field] = newValue;
                         rootApp[detailsKey] = details;
-                      } else if (title === "OAuth Details") {
+                      } else if (sectionKind === "OAuth Details") {
                         const oauthKey =
                           "OAuthDetails" in rootApp ? "OAuthDetails" : "oauthDetails";
                         const oauth = { ...(rootApp[oauthKey] || {}) };
@@ -325,11 +423,93 @@ export default function ApplicationEditTab({ applicationId, onBackToInventory }:
 
             return (
               <React.Fragment key={field}>
-                {renderFieldRow(label, value, maskPassword, field, isEditing, handleChange)}
+                {renderFieldRow(label, value, maskPassword, field, isEditing, handleChange, compact)}
               </React.Fragment>
             );
           })}
         </div>
+      </div>
+    );
+  };
+
+  const applicationDetails =
+    application?.ApplicationDetails ?? application?.applicationDetails ?? {};
+
+  const { groupedFields, ungroupedFieldKeys } = partitionApplicationDetailsByIntegrationGroups(
+    applicationDetails,
+    integrationGroups
+  );
+
+  const hasGroupedConfig = integrationGroups.length > 0;
+  const activeGroupEntry =
+    hasGroupedConfig && groupedFields[activeConfigGroupIndex]
+      ? groupedFields[activeConfigGroupIndex]
+      : null;
+
+  const renderConfigurationPanel = () => {
+    if (!hasGroupedConfig) {
+      return renderSection("Application Details", applicationDetails, {
+        sectionKind: "Application Details",
+      });
+    }
+
+    return (
+      <div className="flex flex-col h-full min-w-0 w-full">
+        <div className="flex flex-wrap gap-2 mb-5 border-b border-gray-200 pb-3">
+          {groupedFields.map(({ group }, index) => (
+            <button
+              key={group.id}
+              type="button"
+              onClick={() => setActiveConfigGroupIndex(index)}
+              className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                activeConfigGroupIndex === index
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+            >
+              {group.label}
+            </button>
+          ))}
+          {ungroupedFieldKeys.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setActiveConfigGroupIndex(groupedFields.length)}
+              className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                activeConfigGroupIndex === groupedFields.length
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+            >
+              Other
+            </button>
+          )}
+        </div>
+        {activeConfigGroupIndex < groupedFields.length && activeGroupEntry ? (
+          isAdvancedIntegrationGroupId(activeGroupEntry.group.id) ? (
+            <AdvancedIntegrationOperationTabs
+              fieldKeys={activeGroupEntry.fieldKeys}
+              renderFields={(keys) =>
+                renderSection(activeGroupEntry.group.label, applicationDetails, {
+                  fieldKeys: keys,
+                  hideTitle: true,
+                  sectionKind: "Application Details",
+                })
+              }
+            />
+          ) : (
+            renderSection(activeGroupEntry.group.label, applicationDetails, {
+              fieldKeys: activeGroupEntry.fieldKeys,
+              hideTitle: true,
+              sectionKind: "Application Details",
+            })
+          )
+        ) : (
+          renderSection("Other", applicationDetails, {
+            fieldKeys: ungroupedFieldKeys,
+            hideTitle: true,
+            sectionKind: "Application Details",
+          })
+        )}
       </div>
     );
   };
@@ -529,17 +709,15 @@ export default function ApplicationEditTab({ applicationId, onBackToInventory }:
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-6">
-          <div className="bg-white rounded-lg shadow-sm p-6 space-y-6">
-            {renderSection(
-              "Application Details",
-              application?.ApplicationDetails ?? application?.applicationDetails
-            )}
+        <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6 w-full">
+          <div className="bg-white rounded-lg shadow-sm p-5 sm:p-6 space-y-6 min-h-[20rem] min-w-0 w-full">
+            {renderConfigurationPanel()}
           </div>
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white rounded-lg shadow-sm p-5 sm:p-6 min-w-0 w-full">
             {renderSection(
               "OAuth Details",
-              application?.OAuthDetails ?? application?.oauthDetails
+              application?.OAuthDetails ?? application?.oauthDetails,
+              { sectionKind: "OAuth Details" }
             )}
           </div>
         </div>
