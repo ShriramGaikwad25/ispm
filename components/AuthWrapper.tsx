@@ -1,6 +1,13 @@
 'use client';
 
 import { useAuth } from '@/contexts/AuthContext';
+import { isLogoutRedirectPending } from '@/lib/auth';
+import {
+  getTenantLoginPath,
+  hasActiveTenant,
+  isLoggedOutPath,
+  isTenantAuthPath,
+} from '@/lib/tenant';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Header } from '@/components/Header';
@@ -8,30 +15,55 @@ import { Navigation } from '@/components/Navigation';
 import { useLeftSidebar } from '@/contexts/LeftSidebarContext';
 
 export function AuthWrapper({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isOAuthRedirecting, isCompletingOAuth, authType } = useAuth();
   const { isVisible: isSidebarVisible, sidebarWidthPx } = useLeftSidebar();
   const pathname = usePathname();
   const router = useRouter();
   const [isRedirecting, setIsRedirecting] = useState(false);
 
-  const isPublicAuthRoute =
-    pathname === '/login' || pathname?.startsWith('/oauth/callback');
+  const pendingLoggedOut = isLogoutRedirectPending();
+  const onLoggedOutPage = isLoggedOutPath(pathname ?? '');
 
-  // Handle redirects with proper state management
+  const isPublicAuthRoute =
+    onLoggedOutPage ||
+    pendingLoggedOut ||
+    isTenantAuthPath(pathname ?? '') ||
+    pathname?.startsWith('/oauth/callback');
+
+  const isTenantSsoBootstrap =
+    !onLoggedOutPage &&
+    !pendingLoggedOut &&
+    hasActiveTenant() &&
+    !isAuthenticated &&
+    (isOAuthRedirecting || isCompletingOAuth || (authType != null && authType !== 'LOCAL'));
+
   useEffect(() => {
-    if (!isAuthenticated && !isPublicAuthRoute) {
+    if (onLoggedOutPage) {
+      setIsRedirecting(false);
+      return;
+    }
+
+    if (pendingLoggedOut) {
+      window.location.replace('/logged-out');
+      return;
+    }
+
+    if (!isAuthenticated && !isPublicAuthRoute && !isTenantSsoBootstrap) {
       setIsRedirecting(true);
-      router.push('/login');
-    } else if (isAuthenticated && pathname === '/login') {
+      router.push(getTenantLoginPath());
+    } else if (isAuthenticated && isTenantAuthPath(pathname ?? '')) {
       setIsRedirecting(true);
       router.push('/');
     } else {
       setIsRedirecting(false);
     }
-  }, [isAuthenticated, pathname, router]);
+  }, [isAuthenticated, pathname, router, isTenantSsoBootstrap, pendingLoggedOut, onLoggedOutPage, isPublicAuthRoute]);
 
-  // Show loading state during redirects
-  if (isRedirecting) {
+  if (onLoggedOutPage) {
+    return <>{children}</>;
+  }
+
+  if (isRedirecting && !pendingLoggedOut) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -42,20 +74,18 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // If not authenticated, show login page
   if (!isAuthenticated) {
     return <>{children}</>;
   }
 
-  // AI Agent Inventory: wide layout with a modest edge gutter (px-4 vs default p-6 elsewhere).
   const mainPadClass =
     typeof pathname === "string" &&
-    (pathname.startsWith("/non-human-identity/ai-agent-inventory") ||
+    (pathname.startsWith("/non-human-identity-2") ||
+      pathname.startsWith("/non-human-identity/ai-agent-inventory") ||
       pathname.startsWith("/non-human-identity-1/agents"))
       ? "py-6 px-4"
       : "p-6";
 
-  // Show main app layout for authenticated users. Sidebar is fixed so main needs margin-left.
   return (
     <div className="flex flex-col min-h-screen">
       <Header />

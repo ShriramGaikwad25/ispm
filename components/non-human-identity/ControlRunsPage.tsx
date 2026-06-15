@@ -12,8 +12,7 @@ import {
   PointElement,
   Tooltip,
 } from "chart.js";
-import { executeQuery } from "@/lib/api";
-import { extractResultRows } from "@/lib/nhi-dashboard";
+import { runNhiRows, type NhiApiMode } from "@/lib/nhi-v2-query";
 
 ChartJS.register(
   BarElement,
@@ -70,7 +69,7 @@ function statusTone(status: string): string {
   return "bg-slate-50 text-slate-700 border-slate-200";
 }
 
-export function ControlRunsPage() {
+export function ControlRunsPage({ apiMode = "legacy" }: { apiMode?: NhiApiMode } = {}) {
   const [rows, setRows] = useState<RunRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -82,19 +81,18 @@ export function ControlRunsPage() {
     setLoading(true);
     setError(null);
     try {
-      const result = extractResultRows(
-        await executeQuery<unknown>(
-          `SELECT cr.run_id, cr.control_id, c.control_code, c.name AS control_name,
-                  c.framework, c.severity,
-                  cr.status, cr.result_count, cr.duration_ms,
-                  cr.executed_at, cr.error_message
-             FROM public.kf_nhi_control_run cr
-             JOIN public.kf_nhi_control c ON c.control_id = cr.control_id
-            WHERE cr.tenant_id = ?::uuid
-            ORDER BY cr.executed_at DESC
-            LIMIT 500`,
-          [TENANT_ID]
-        )
+      const result = await runNhiRows(
+        apiMode,
+        `SELECT cr.run_id, cr.control_id, c.control_code, c.name AS control_name,
+                c.framework, c.severity,
+                cr.status, cr.result_count, cr.duration_ms,
+                cr.executed_at, cr.error_message
+           FROM public.kf_nhi_control_run cr
+           JOIN public.kf_nhi_control c ON c.control_id = cr.control_id
+          WHERE cr.tenant_id = ?::uuid
+          ORDER BY cr.executed_at DESC
+          LIMIT 500`,
+        [TENANT_ID]
       );
       setRows(
         result.map((r) => ({

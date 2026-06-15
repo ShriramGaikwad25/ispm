@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { executeQuery } from "@/lib/api";
-import { extractResultRows } from "@/lib/nhi-dashboard";
+import { runNhiRows, runNhiScalar, type NhiApiMode } from "@/lib/nhi-v2-query";
 import { RotateCw } from "lucide-react";
 
 type Row = Record<string, unknown>;
@@ -18,17 +17,12 @@ function asNum(v: unknown): number {
   return 0;
 }
 
-async function runRows(query: string, parameters: unknown[] = []): Promise<Row[]> {
-  const resp = await executeQuery<unknown>(query, parameters);
-  return extractResultRows(resp);
+async function runRows(mode: NhiApiMode, query: string, parameters: unknown[] = []): Promise<Row[]> {
+  return runNhiRows(mode, query, parameters);
 }
 
-async function runScalar(query: string, parameters: unknown[] = []): Promise<unknown> {
-  const rows = await runRows(query, parameters);
-  const first = rows[0];
-  if (!first) return null;
-  const key = Object.keys(first)[0];
-  return key ? first[key] : null;
+async function runScalar(mode: NhiApiMode, query: string, parameters: unknown[] = []): Promise<unknown> {
+  return runNhiScalar(mode, query, parameters);
 }
 
 type CategoryRow = { category: string; n: number };
@@ -44,7 +38,7 @@ type LookupRow = {
   is_system: boolean;
 };
 
-export function LookupCatalogPage() {
+export function LookupCatalogPage({ apiMode = "legacy" }: { apiMode?: NhiApiMode } = {}) {
   const [cats, setCats] = useState<CategoryRow[]>([]);
   const [cat, setCat] = useState<string | null>(null);
   const [rows, setRows] = useState<LookupRow[]>([]);
@@ -63,7 +57,7 @@ export function LookupCatalogPage() {
   });
 
   const loadCategories = useCallback(async () => {
-    const r = await runRows(
+    const r = await runRows(apiMode,
       `SELECT category, count(*)::int AS n
          FROM public.kf_nhi_lookup
         GROUP BY category
@@ -80,7 +74,7 @@ export function LookupCatalogPage() {
 
   const loadCategory = useCallback(async () => {
     if (!cat) return;
-    const r = await runRows(
+    const r = await runRows(apiMode,
       `SELECT lookup_id, category, code, label, description,
               color_hex, sort_order, is_active, is_system
          FROM public.kf_nhi_lookup
@@ -143,7 +137,7 @@ export function LookupCatalogPage() {
     setBusy(true);
     setError(null);
     try {
-      await runScalar(
+      await runScalar(apiMode,
         `SELECT public.kf_nhi_lookup_upsert(?, ?, ?, NULL, ?::int, ?) AS r`,
         [cat, form.code.trim(), form.label.trim(), String(form.sort_order || 100), form.color_hex.trim() || null]
       );
@@ -161,9 +155,9 @@ export function LookupCatalogPage() {
     setError(null);
     try {
       if (row.is_active) {
-        await runScalar(`SELECT public.kf_nhi_lookup_deactivate(?, ?) AS r`, [row.category, row.code]);
+        await runScalar(apiMode,`SELECT public.kf_nhi_lookup_deactivate(?, ?) AS r`, [row.category, row.code]);
       } else {
-        await runScalar(
+        await runScalar(apiMode,
           `SELECT public.kf_nhi_lookup_upsert(?, ?, ?, NULL, ?::int, ?) AS r`,
           [row.category, row.code, row.label, String(row.sort_order || 100), row.color_hex || null]
         );

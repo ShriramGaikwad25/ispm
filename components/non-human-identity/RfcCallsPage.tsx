@@ -11,8 +11,7 @@ import {
   LinearScale,
   Tooltip,
 } from "chart.js";
-import { executeQuery } from "@/lib/api";
-import { extractResultRows } from "@/lib/nhi-dashboard";
+import { runNhiRows, type NhiApiMode } from "@/lib/nhi-v2-query";
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 const Bar = dynamic(() => import("react-chartjs-2").then((m) => m.Bar), { ssr: false });
@@ -42,7 +41,7 @@ function outcomeColor(name: string, i: number): string {
   return PALETTE[i % PALETTE.length];
 }
 
-export function RfcCallsPage() {
+export function RfcCallsPage({ apiMode = "legacy" }: { apiMode?: NhiApiMode } = {}) {
   const [agents, setAgents] = useState<Row[]>([]);
   const [sel, setSel] = useState("");
   const [calls, setCalls] = useState<Row[]>([]);
@@ -63,24 +62,23 @@ export function RfcCallsPage() {
     setLoading(true);
     setError(null);
     try {
-      const rows = extractResultRows(
-        await executeQuery<unknown>(
-          `SELECT l.action_log_id as action_id, l.occurred_at, l.intent, l.outcome,
-                  l.target_object_key          AS rfc_name,
-                  (l.request_params->>'comm_user_nhi_id')::uuid AS comm_user_nhi_id,
-                  l.request_params->>'comm_user_name'           AS comm_user_name,
-                  l.request_params,
-                  l.response_summary,
-                  l.amount, l.currency, l.latency_ms, l.correlation_id,
-                  null requires_approval, null approved_by
-             FROM public.kf_nhi_agent_action_log l
-            WHERE l.tenant_id = ?::uuid
-              AND l.nhi_id    = ?::uuid
-              AND l.target_object_type = 'rfc_call'
-         ORDER BY l.occurred_at DESC
-            LIMIT 500`,
-          [TENANT_ID, agentNhiId]
-        )
+      const rows = await runNhiRows(
+        apiMode,
+        `SELECT l.action_log_id as action_id, l.occurred_at, l.intent, l.outcome,
+                l.target_object_key          AS rfc_name,
+                (l.request_params->>'comm_user_nhi_id')::uuid AS comm_user_nhi_id,
+                l.request_params->>'comm_user_name'           AS comm_user_name,
+                l.request_params,
+                l.response_summary,
+                l.amount, l.currency, l.latency_ms, l.correlation_id,
+                null requires_approval, null approved_by
+           FROM public.kf_nhi_agent_action_log l
+          WHERE l.tenant_id = ?::uuid
+            AND l.nhi_id    = ?::uuid
+            AND l.target_object_type = 'rfc_call'
+       ORDER BY l.occurred_at DESC
+          LIMIT 500`,
+        [TENANT_ID, agentNhiId]
       );
       setCalls(rows);
 
@@ -90,15 +88,14 @@ export function RfcCallsPage() {
         return;
       }
       const placeholders = ids.map(() => "?::uuid").join(", ");
-      const cRows = extractResultRows(
-        await executeQuery<unknown>(
-          `SELECT i.nhi_id, i.name, i.displayname, i.state, i.risk_level,
-                  i.criticality, i.customattributes, i.tags, i.description
-             FROM public.kf_nhi_identity i
-            WHERE i.tenant_id = ?::uuid
-              AND i.nhi_id IN (${placeholders})`,
-          [TENANT_ID, ...ids]
-        )
+      const cRows = await runNhiRows(
+        apiMode,
+        `SELECT i.nhi_id, i.name, i.displayname, i.state, i.risk_level,
+                i.criticality, i.customattributes, i.tags, i.description
+           FROM public.kf_nhi_identity i
+          WHERE i.tenant_id = ?::uuid
+            AND i.nhi_id IN (${placeholders})`,
+        [TENANT_ID, ...ids]
       );
       const map: Record<string, Row> = {};
       for (const c of cRows) map[text(c.nhi_id)] = c;
@@ -108,26 +105,25 @@ export function RfcCallsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [apiMode]);
 
   useEffect(() => {
     (async () => {
       setError(null);
       try {
-        const rows = extractResultRows(
-          await executeQuery<unknown>(
-            `SELECT i.nhi_id, i.name, i.displayname, i.nhi_type,
-                    COALESCE(ap.model_name, '') AS model_name,
-                    COALESCE(ap.vendor,     '') AS vendor
-               FROM public.kf_nhi_identity i
-          LEFT JOIN public.kf_nhi_agent_profile ap
-                    ON ap.tenant_id = i.tenant_id AND ap.nhi_id = i.nhi_id
-              WHERE i.tenant_id = ?::uuid
-                AND i.nhi_type IN ('agent','service_account')
-           ORDER BY CASE WHEN ap.vendor <> '' THEN 0 ELSE 1 END,
-                    i.displayname, i.name`,
-            [TENANT_ID]
-          )
+        const rows = await runNhiRows(
+          apiMode,
+          `SELECT i.nhi_id, i.name, i.displayname, i.nhi_type,
+                  COALESCE(ap.model_name, '') AS model_name,
+                  COALESCE(ap.vendor,     '') AS vendor
+             FROM public.kf_nhi_identity i
+        LEFT JOIN public.kf_nhi_agent_profile ap
+                  ON ap.tenant_id = i.tenant_id AND ap.nhi_id = i.nhi_id
+            WHERE i.tenant_id = ?::uuid
+              AND i.nhi_type IN ('agent','service_account')
+         ORDER BY CASE WHEN ap.vendor <> '' THEN 0 ELSE 1 END,
+                  i.displayname, i.name`,
+          [TENANT_ID]
         );
         setAgents(rows);
         const auto = rows.find(

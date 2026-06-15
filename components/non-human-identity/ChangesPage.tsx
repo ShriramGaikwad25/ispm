@@ -11,8 +11,7 @@ import {
   LinearScale,
   Tooltip,
 } from "chart.js";
-import { executeQuery } from "@/lib/api";
-import { extractResultRows } from "@/lib/nhi-dashboard";
+import { runNhiRows, type NhiApiMode } from "@/lib/nhi-v2-query";
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 const Bar = dynamic(() => import("react-chartjs-2").then((m) => m.Bar), { ssr: false });
@@ -77,7 +76,7 @@ function statusTone(st: string): string {
   return "bg-slate-50 text-slate-700 border-slate-200";
 }
 
-export function ChangesPage() {
+export function ChangesPage({ apiMode = "legacy" }: { apiMode?: NhiApiMode } = {}) {
   const [rows, setRows] = useState<ChangeRow[]>([]);
   const [status, setStatus] = useState<(typeof STATUS_OPTIONS)[number]>("all");
   const [loading, setLoading] = useState(true);
@@ -104,7 +103,7 @@ export function ChangesPage() {
           ? `${baseSql} ORDER BY cr.requested_at DESC LIMIT 500`
           : `${baseSql} AND cr.status = ? ORDER BY cr.requested_at DESC LIMIT 500`;
       const params = status === "all" ? [TENANT_ID] : [TENANT_ID, status];
-      const result = extractResultRows(await executeQuery<unknown>(sql, params));
+      const result = await runNhiRows(apiMode, sql, params);
       setRows(
         result.map((r) => ({
           request_id: asText(r.request_id),

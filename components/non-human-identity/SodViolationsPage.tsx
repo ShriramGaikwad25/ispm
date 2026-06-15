@@ -10,8 +10,7 @@ import {
   LinearScale,
   Tooltip,
 } from "chart.js";
-import { executeQuery } from "@/lib/api";
-import { extractResultRows } from "@/lib/nhi-dashboard";
+import { runNhiRows, type NhiApiMode } from "@/lib/nhi-v2-query";
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 const Bar = dynamic(() => import("react-chartjs-2").then((m) => m.Bar), { ssr: false });
@@ -76,7 +75,8 @@ function severityTone(sev: string): string {
 export function SodViolationsPage({
   suppressPageHeader,
   refreshNonce = 0,
-}: { suppressPageHeader?: boolean; refreshNonce?: number } = {}) {
+  apiMode = "legacy",
+}: { suppressPageHeader?: boolean; refreshNonce?: number; apiMode?: NhiApiMode } = {}) {
   const [rows, setRows] = useState<SodRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -88,20 +88,19 @@ export function SodViolationsPage({
     setLoading(true);
     setError(null);
     try {
-      const result = extractResultRows(
-        await executeQuery<unknown>(
-          `SELECT v.violation_id, r.rule_code, r.rule_name, v.severity,
-                  v.subject_type, v.subject_id, v.detected_at,
-                  v.resolved_at IS NOT NULL AS is_resolved,
-                  v.resolution
-             FROM public.kf_nhi_sod_violation v
-        LEFT JOIN public.kf_nhi_sod_rule r
-               ON r.sod_rule_id = v.sod_rule_id AND r.tenant_id = v.tenant_id
-            WHERE v.tenant_id = ?::uuid
-            ORDER BY v.detected_at DESC
-            LIMIT 500`,
-          [TENANT_ID]
-        )
+      const result = await runNhiRows(
+        apiMode,
+        `SELECT v.violation_id, r.rule_code, r.rule_name, v.severity,
+                v.subject_type, v.subject_id, v.detected_at,
+                v.resolved_at IS NOT NULL AS is_resolved,
+                v.resolution
+           FROM public.kf_nhi_sod_violation v
+      LEFT JOIN public.kf_nhi_sod_rule r
+             ON r.sod_rule_id = v.sod_rule_id AND r.tenant_id = v.tenant_id
+          WHERE v.tenant_id = ?::uuid
+          ORDER BY v.detected_at DESC
+          LIMIT 500`,
+        [TENANT_ID]
       );
       setRows(
         result.map((r) => ({

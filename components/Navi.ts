@@ -27,8 +27,10 @@ import {
   ShieldAlert,
   PlusCircle,
   LineChart,
+  Activity,
+  UserCheck,
 } from "lucide-react";
-import { NHI_NAV_ITEMS } from "@/lib/nhi-shell";
+import { NHI_2_NAV_ITEMS, NHI_NAV_ITEMS } from "@/lib/nhi-shell";
 import { riskAnalysisSubItems } from "@/lib/risk-analysis-routes";
 
 export interface NavItem {
@@ -54,6 +56,22 @@ const nhiPrimarySubItems: NavItem[] = NHI_NAV_ITEMS.map((item, i) => ({
   name: item.label,
   href: item.href,
   icon: NHI_PRIMARY_ICONS[i] ?? Bot,
+}));
+
+const NHI_2_ICONS = [
+  LayoutDashboard,
+  UserCheck,
+  Bot,
+  Users,
+  Activity,
+  Shield,
+  Settings,
+] as const;
+
+const nhi2SubItems: NavItem[] = NHI_2_NAV_ITEMS.map((item, i) => ({
+  name: item.label,
+  href: item.href,
+  icon: NHI_2_ICONS[i] ?? Bot,
 }));
 
 export const navLinks: NavItem[] = [
@@ -106,6 +124,12 @@ export const navLinks: NavItem[] = [
     href: "/non-human-identity",
     icon: Bot,
     subItems: nhiPrimarySubItems,
+  },
+  {
+    name: "Non Human Identity-2",
+    href: "/non-human-identity-2",
+    icon: Bot,
+    subItems: nhi2SubItems,
   },
   {
     name: "Risk Analysis",

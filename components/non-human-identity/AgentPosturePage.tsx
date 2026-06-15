@@ -17,12 +17,11 @@ import {
 } from "chart.js";
 import Link from "next/link";
 import { Eye, RotateCw, Search } from "lucide-react";
-import { executeQuery } from "@/lib/api";
+import { getNhiV2TenantId, nhiV2ExecuteQuery } from "@/lib/nhi-v2-api";
 import {
   AGENT_POSTURE_LIST_QUERY,
   computeAgentSummary,
   formatUsd,
-  NHI_TENANT_ID,
   parseAgentPostureListRows,
   type NhiAgentRow,
 } from "@/lib/nhi-agents";
@@ -98,8 +97,8 @@ export function AgentPosturePage() {
     setError(null);
     setLoading(true);
     try {
-      const listRes = await executeQuery<unknown>(AGENT_POSTURE_LIST_QUERY, [
-        NHI_TENANT_ID,
+      const { rows: listRes } = await nhiV2ExecuteQuery(AGENT_POSTURE_LIST_QUERY, [
+        getNhiV2TenantId(),
       ]);
       setAgents(parseAgentPostureListRows(listRes));
     } catch (e) {

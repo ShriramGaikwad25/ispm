@@ -22,6 +22,7 @@ const RESERVED_FIRST_SEGMENTS = new Set(
     'entitlement-owner',
     'non-human-identity',
     'non-human-identity-1',
+    'non-human-identity-2',
     'oracle-reports',
     'profile',
     'profiles',

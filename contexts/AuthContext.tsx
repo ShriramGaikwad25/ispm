@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import {
   requestToken,
   clearAllAuthCookies,
@@ -22,8 +23,18 @@ import {
   shouldRedirectToOAuthProvider,
   markOAuthRedirectAttempt,
   AUTH_SESSION_KEYS,
+  clearLastAuthTypeOnLocalLogin,
+  performUserLogout,
+  syncAuthTypeToSession,
 } from '@/lib/auth';
-import { tenantId } from '@/lib/config';
+import {
+  getActiveTenantId,
+  hasActiveTenant,
+  isLoggedOutPath,
+  isTenantAuthPath,
+  parseTenantFromPathname,
+  setActiveTenantId,
+} from '@/lib/tenant';
 import { ensureAuthFetchPatched } from '@/lib/authFetch';
 import { clearJitAccessHistoryStore } from '@/lib/jitAccessHistoryStorage';
 
@@ -37,6 +48,7 @@ interface AuthContextType {
   isOAuthRedirecting: boolean;
   isCompletingOAuth: boolean;
   authError: string | null;
+  activeTenantId: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -44,8 +56,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 function applySessionToState(
   setIsAuthenticated: (v: boolean) => void,
   setUser: (u: { email: string; tenantId?: string } | null) => void,
-  serverSession: Awaited<ReturnType<typeof fetchServerSession>>,
-  resolvedAuthType: string
+  serverSession: Awaited<ReturnType<typeof fetchServerSession>>
 ) {
   const session = restoreSessionFromCookies();
   const email = String(
@@ -57,13 +68,18 @@ function applySessionToState(
   setIsAuthenticated(true);
   setUser({
     email,
-    tenantId: serverSession.user?.tenantId ?? session.user?.tenantId ?? tenantId,
+    tenantId:
+      serverSession.user?.tenantId ??
+      session.user?.tenantId ??
+      getActiveTenantId() ??
+      undefined,
   });
   sessionStorage.removeItem(AUTH_SESSION_KEYS.OAUTH_CALLBACK_FAILED);
   sessionStorage.removeItem(AUTH_SESSION_KEYS.OAUTH_REDIRECT_AT);
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<{ email: string; tenantId?: string } | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -72,6 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isOAuthRedirecting, setIsOAuthRedirecting] = useState(false);
   const [isCompletingOAuth, setIsCompletingOAuth] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [activeTenantId, setActiveTenantIdState] = useState<string | null>(null);
 
   ensureAuthFetchPatched();
 
@@ -81,6 +98,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       try {
         setAuthError(null);
+        const path = pathname ?? window.location.pathname;
+
+        const pathTenant = parseTenantFromPathname(path);
+        if (pathTenant) {
+          setActiveTenantId(pathTenant);
+        }
+        const tenant = getActiveTenantId();
+        setActiveTenantIdState(tenant);
+
+        if (isLoggedOutPath(path)) {
+          setAuthType(null);
+          setIsAuthenticated(false);
+          setUser(null);
+          return;
+        }
+
+        if (!tenant) {
+          setAuthType(null);
+          setIsAuthenticated(false);
+          setUser(null);
+          return;
+        }
+
         normalizeAuthCookiesFromBrowser();
         const oauthCallback = getOAuthCallbackParamsFromUrl();
         const serverSession = await fetchServerSession();
@@ -89,11 +129,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
         const hasSession = serverSession.authenticated || hasClientSession;
 
-        // 1) OAuth return with code — exchange via our API proxy, then stay in app
         if (oauthCallback && !hasSession) {
           setIsCompletingOAuth(true);
           try {
-            console.log('AuthContext: exchanging OAuth code');
             const tokens = await completeOAuthCallback(
               oauthCallback.code,
               oauthCallback.state
@@ -101,11 +139,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             await establishAuthenticatedSession({
               ...tokens,
               skipJwtGeneration: false,
+              tenantId: tenant,
             });
             clearOAuthCallbackParamsFromUrl();
             const afterSession = await fetchServerSession();
             setAuthType('OAUTH');
-            applySessionToState(setIsAuthenticated, setUser, afterSession, 'OAUTH');
+            syncAuthTypeToSession('OAUTH', 'IDCS');
+            applySessionToState(setIsAuthenticated, setUser, afterSession);
             window.location.replace('/');
             return;
           } catch (oauthError) {
@@ -126,32 +166,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        // 2) Already have tokens on this origin — restore, do not send user to IdP again
         if (hasSession) {
-          const resolvedAuthType =
+          let resolvedAuthType =
             getPersistedAuthType() && getPersistedAuthType() !== 'LOCAL'
               ? getPersistedAuthType()!
               : oauthCallback
                 ? 'OAUTH'
-                : 'LOCAL';
-          console.log('AuthContext: restoring session from cookies');
+                : null;
+          if (!resolvedAuthType) {
+            try {
+              const appAuth = await fetchApplicationAuthType(tenant);
+              resolvedAuthType = getApplicationAuthType(appAuth);
+            } catch {
+              resolvedAuthType = 'LOCAL';
+            }
+          }
           if (oauthCallback) clearOAuthCallbackParamsFromUrl();
           setAuthType(resolvedAuthType);
-          applySessionToState(setIsAuthenticated, setUser, serverSession, resolvedAuthType);
-          if (
-            oauthCallback ||
-            window.location.pathname === '/login' ||
-            window.location.pathname.startsWith('/oauth/callback')
-          ) {
+          syncAuthTypeToSession(resolvedAuthType);
+          applySessionToState(setIsAuthenticated, setUser, serverSession);
+          if (oauthCallback || isTenantAuthPath(path) || path.startsWith('/oauth/callback')) {
             window.location.replace('/');
           }
           return;
         }
 
-        const appAuth = await fetchApplicationAuthType();
+        const appAuth = await fetchApplicationAuthType(tenant);
         const resolvedAuthType = getApplicationAuthType(appAuth);
         setAuthType(resolvedAuthType);
-        console.log('AuthContext: applicationType resolved:', resolvedAuthType, appAuth.AuthMethod);
+        syncAuthTypeToSession(resolvedAuthType, appAuth.AuthMethod);
 
         if (isLocalApplicationAuth(appAuth)) {
           sessionStorage.removeItem(AUTH_SESSION_KEYS.OAUTH_CALLBACK_FAILED);
@@ -161,10 +204,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        // 3) No session — redirect to IdP once (not in a loop)
         const oauthUrl = getOAuthRequestUrl(appAuth);
         if (usesExternalAuthFlow(appAuth) && shouldRedirectToOAuthProvider(oauthUrl)) {
-          console.log('AuthContext: redirecting to SSO provider');
           markOAuthRedirectAttempt();
           redirectingToOAuth = true;
           setIsOAuthRedirecting(true);
@@ -174,7 +215,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (usesExternalAuthFlow(appAuth)) {
           setAuthError(
-            'Unable to start SSO. Sign-in was not attempted again to avoid a redirect loop. Refresh the page or contact support.'
+            `Unable to start SSO. Refresh /${tenant} to try again.`
           );
         }
         setIsAuthenticated(false);
@@ -182,13 +223,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         console.error('Auth initialization error:', error);
         const serverSession = await fetchServerSession();
-        if (serverSession.authenticated || normalizeAuthCookiesFromBrowser()) {
-          const persistedAuthType = getPersistedAuthType();
-          setAuthType(persistedAuthType && persistedAuthType !== 'LOCAL' ? persistedAuthType : 'OAUTH');
-          applySessionToState(setIsAuthenticated, setUser, serverSession, 'OAUTH');
+        if (hasActiveTenant() && (serverSession.authenticated || normalizeAuthCookiesFromBrowser())) {
+          const fallbackAuth = getPersistedAuthType() ?? 'OAUTH';
+          setAuthType(fallbackAuth);
+          syncAuthTypeToSession(fallbackAuth);
+          applySessionToState(setIsAuthenticated, setUser, serverSession);
           if (getOAuthCallbackParamsFromUrl()) clearOAuthCallbackParamsFromUrl();
         } else {
-          setAuthType('LOCAL');
+          setAuthType(null);
           setIsAuthenticated(false);
           setUser(null);
           setAuthError(
@@ -197,6 +239,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } finally {
         setIsCompletingOAuth(false);
+        setActiveTenantIdState(getActiveTenantId());
         if (!redirectingToOAuth) {
           setIsInitialized(true);
         }
@@ -204,7 +247,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     initializeAuth();
-  }, []);
+  }, [pathname]);
 
   const login = async (userid: string, password: string): Promise<boolean> => {
     if (authType && authType !== 'LOCAL') {
@@ -213,16 +256,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setIsLoading(true);
     try {
-      const tokenResponse = await requestToken(userid, password);
+      const path = pathname ?? (typeof window !== 'undefined' ? window.location.pathname : '');
+      const loginApp = getActiveTenantId() ?? parseTenantFromPathname(path);
+      if (!loginApp) {
+        throw new Error('Open the app at /YOUR_TENANT_ID (e.g. /ACMECOM or /KFPRODOCI).');
+      }
+      const tokenResponse = await requestToken(userid, password, loginApp);
       const { accessToken, userUniqueID, userAdminRoles } = tokenResponse.tokenResponse;
       await establishAuthenticatedSession({
         accessToken,
         userUniqueID,
         userAdminRoles,
         userid,
+        tenantId: loginApp,
       });
+      clearLastAuthTypeOnLocalLogin();
       setIsAuthenticated(true);
-      setUser({ email: userid, tenantId });
+      setUser({ email: userid, tenantId: loginApp });
       return true;
     } catch (error) {
       console.error('Login error:', error);
@@ -236,11 +286,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    clearAllAuthCookies();
-    clearJitAccessHistoryStore();
-    setIsAuthenticated(false);
-    setUser(null);
-    setAuthError(null);
+    const tenant = getActiveTenantId() ?? user?.tenantId;
+    performUserLogout(authType, tenant);
   };
 
   if (!isInitialized || isOAuthRedirecting || isCompletingOAuth) {
@@ -272,6 +319,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isOAuthRedirecting,
         isCompletingOAuth,
         authError,
+        activeTenantId,
       }}
     >
       {children}

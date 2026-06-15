@@ -1,5 +1,11 @@
 // Authentication API endpoints and utilities
-import { tenantId as configTenantId } from '@/lib/config';
+import {
+  clearActiveTenantId,
+  getActiveTenantId,
+  getTenantLoginPath,
+  REGISTERED_APP_COOKIE,
+  redirectToTenantLogin,
+} from '@/lib/tenant';
 import { clearJitAccessHistoryStore } from '@/lib/jitAccessHistoryStorage';
 
 /** Best-effort message from KeyForge / gateway / PG JSON error bodies. */
@@ -42,6 +48,12 @@ export const AUTH_SESSION_KEYS = {
   AUTH_TYPE: 'kf_auth_type',
   AUTH_METHOD: 'kf_auth_method',
   LOGOUT_URL: 'kf_logout_url',
+  /** Survives clearAllAuthCookies so logout can detect SSO vs LOCAL. */
+  LAST_AUTH_TYPE: 'kf_last_auth_type',
+  /** Set before navigation so AuthWrapper does not redirect to tenant login mid-logout. */
+  LOGOUT_REDIRECT: 'kf_logout_redirect',
+  /** Set when user signed in via SSO (OAUTH/IDCS); used to route logout to /logged-out. */
+  USES_EXTERNAL_AUTH: 'kf_uses_external_auth',
   OAUTH_CALLBACK_FAILED: 'kf_oauth_callback_failed',
   OAUTH_REDIRECT_AT: 'kf_oauth_redirect_at',
 } as const;
@@ -208,24 +220,122 @@ export async function fetchServerSession(): Promise<ServerSessionCheck> {
 
 export function deleteCookie(name: string): void {
   if (typeof document === 'undefined') return;
-  // Set cookie with expired date to delete it
-  // Also clear for both secure and non-secure contexts
-  document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;`;
-  document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;secure;`;
+  const expired = 'Thu, 01 Jan 1970 00:00:00 UTC';
+  document.cookie = `${name}=;expires=${expired};path=/;`;
+  document.cookie = `${name}=;expires=${expired};path=/;secure;`;
+  document.cookie = `${name}=;expires=${expired};path=/;samesite=strict;`;
+  document.cookie = `${name}=;expires=${expired};path=/;samesite=strict;secure;`;
 }
 
-export function clearAllAuthCookies(): void {
-  Object.values(COOKIE_NAMES).forEach(cookieName => {
-    deleteCookie(cookieName);
-  });
+/** All cookie names used by auth (for client + server logout). */
+export const AUTH_COOKIE_NAMES_TO_CLEAR = [
+  ...Object.values(COOKIE_NAMES),
+  ...ACCESS_TOKEN_COOKIE_ALIASES,
+  ...JWT_TOKEN_COOKIE_ALIASES,
+  REGISTERED_APP_COOKIE,
+] as const;
+
+function getBrowserCookieNames(): string[] {
+  if (typeof document === 'undefined') return [];
+  return document.cookie
+    .split(';')
+    .map((part) => part.split('=')[0]?.trim())
+    .filter((name): name is string => !!name);
+}
+
+function clearAuthSessionStorage(preserveLogoutRedirect = false): void {
+  if (typeof window === 'undefined') return;
+  const keepRedirect = preserveLogoutRedirect
+    ? sessionStorage.getItem(AUTH_SESSION_KEYS.LOGOUT_REDIRECT)
+    : null;
+  const keepExternal = preserveLogoutRedirect
+    ? sessionStorage.getItem(AUTH_SESSION_KEYS.USES_EXTERNAL_AUTH)
+    : null;
+  const keys = [
+    AUTH_SESSION_KEYS.AUTH_TYPE,
+    AUTH_SESSION_KEYS.AUTH_METHOD,
+    AUTH_SESSION_KEYS.LOGOUT_URL,
+    AUTH_SESSION_KEYS.LAST_AUTH_TYPE,
+    AUTH_SESSION_KEYS.OAUTH_CALLBACK_FAILED,
+    AUTH_SESSION_KEYS.OAUTH_REDIRECT_AT,
+    'kf_active_tenant',
+  ];
+  for (const key of keys) {
+    try {
+      sessionStorage.removeItem(key);
+    } catch {
+      /* ignore */
+    }
+  }
+  if (preserveLogoutRedirect) {
+    try {
+      if (keepRedirect) {
+        sessionStorage.setItem(AUTH_SESSION_KEYS.LOGOUT_REDIRECT, keepRedirect);
+      }
+      if (keepExternal) {
+        sessionStorage.setItem(AUTH_SESSION_KEYS.USES_EXTERNAL_AUTH, keepExternal);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+export function markUsesExternalAuth(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.setItem(AUTH_SESSION_KEYS.USES_EXTERNAL_AUTH, '1');
+  } catch {
+    /* ignore */
+  }
+}
+
+export function hadExternalAuthSession(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return sessionStorage.getItem(AUTH_SESSION_KEYS.USES_EXTERNAL_AUTH) === '1';
+  } catch {
+    return false;
+  }
+}
+
+/** Clears every auth-related and visible browser cookie, plus auth session keys. */
+export function clearAllAuthCookies(options?: { preserveLogoutRedirect?: boolean }): void {
+  const preserveLogoutRedirect = options?.preserveLogoutRedirect ?? false;
+
+  const names = new Set<string>([...AUTH_COOKIE_NAMES_TO_CLEAR]);
+  for (const name of getBrowserCookieNames()) {
+    names.add(name);
+  }
+
+  for (const name of names) {
+    deleteCookie(name);
+  }
+
+  clearActiveTenantId();
+  clearAuthSessionStorage(preserveLogoutRedirect);
   clearPersistedApplicationAuthType();
+}
+
+/** Server logout API — clears HttpOnly cookies the browser JS cannot remove. */
+export async function clearAuthCookiesOnServer(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  try {
+    await fetch('/api/auth/logout', {
+      method: 'POST',
+      credentials: 'include',
+      cache: 'no-store',
+    });
+  } catch {
+    /* ignore */
+  }
 }
 
 // Force logout when tokens fail - clears cookies and redirects to login
 export function forceLogout(reason?: string): void {
   console.error('🚨 FORCE LOGOUT TRIGGERED 🚨:', reason || 'Token verification/generation failed');
-  
-  // Clear cookies first
+
+  void clearAuthCookiesOnServer();
   try {
     clearAllAuthCookies();
     console.log('Cookies cleared');
@@ -239,32 +349,7 @@ export function forceLogout(reason?: string): void {
     /* ignore */
   }
   
-  // Redirect to login page immediately - use multiple methods to ensure redirect
-  if (typeof window !== 'undefined') {
-    console.log('Redirecting to login page...');
-    try {
-      // Method 1: Use replace (doesn't add to history)
-      window.location.replace('/login');
-    } catch (e) {
-      console.error('Replace failed, trying href:', e);
-      try {
-        // Method 2: Use href
-        window.location.href = '/login';
-      } catch (e2) {
-        console.error('Href failed, trying assign:', e2);
-        // Method 3: Use assign
-        window.location.assign('/login');
-      }
-    }
-    
-    // Fallback: Force redirect after a short delay if still not redirected
-    setTimeout(() => {
-      if (window.location.pathname !== '/login') {
-        console.error('Still not on login page, forcing redirect again');
-        window.location.href = '/login';
-      }
-    }, 50);
-  }
+  redirectToTenantLogin();
 }
 
 // Check if response contains token expired error and attempt refresh before logout
@@ -293,9 +378,7 @@ export async function checkTokenExpiredError(data: any): Promise<boolean> {
         console.error('🚨 TOKEN REFRESH FAILED - FORCING LOGOUT 🚨');
         clearAllAuthCookies();
         forceLogout('Token Expired - Refresh failed');
-        if (typeof window !== 'undefined') {
-          window.location.href = '/login';
-        }
+        redirectToTenantLogin();
         return true;
       }
     }
@@ -304,8 +387,17 @@ export async function checkTokenExpiredError(data: any): Promise<boolean> {
   return false;
 }
 
+/** Tenant from URL path or cookie only (e.g. /KFPRODOCI). Not used for standard /login. */
+function registeredAppNameOrNull(): string | null {
+  return getActiveTenantId()?.trim() || null;
+}
+
 function registeredAppName(): string {
-  return configTenantId;
+  const fromUrl = registeredAppNameOrNull();
+  if (fromUrl) return fromUrl;
+  const fromUser = getCurrentUser()?.tenantId?.trim();
+  if (fromUser) return fromUser;
+  throw new Error('No tenant configured. Open /YOUR_TENANT_ID (e.g. /ACMECOM).');
 }
 
 /** AuthType from applicationType API (defaults to LOCAL when missing). */
@@ -481,6 +573,8 @@ export async function completeOAuthCallback(
   userid?: string;
 }> {
   const params = new URLSearchParams({ code, state });
+  const tenant = registeredAppNameOrNull();
+  if (tenant) params.set('registeredAppName', tenant);
   const response = await fetch(`/api/auth/oauth/callback?${params.toString()}`, {
     method: 'GET',
     headers: { Accept: 'application/json' },
@@ -533,16 +627,22 @@ export async function establishAuthenticatedSession(options: {
   userUniqueID?: string;
   userAdminRoles?: string;
   userid?: string;
+  tenantId?: string;
   /** When true and jwtToken cookie exists, skip generateJWTToken (SSO redirect already set tokens). */
   skipJwtGeneration?: boolean;
 }): Promise<void> {
-  const { accessToken, userUniqueID, userAdminRoles, userid, skipJwtGeneration } = options;
+  const { accessToken, userUniqueID, userAdminRoles, userid, tenantId, skipJwtGeneration } =
+    options;
   const resolvedUserid = userid ?? userUniqueID ?? '';
+  const resolvedTenantId = tenantId?.trim() || registeredAppNameOrNull() || '';
 
   setCookie(COOKIE_NAMES.ACCESS_TOKEN, accessToken);
   setCookie(
     COOKIE_NAMES.UID_TENANT,
-    JSON.stringify({ userid: resolvedUserid, tenantId: configTenantId })
+    JSON.stringify({
+      userid: resolvedUserid,
+      tenantId: resolvedTenantId,
+    })
   );
 
   if (userUniqueID) {
@@ -577,17 +677,71 @@ export function restoreExternalAuthFromExistingCookies(
 export function persistApplicationAuthType(response: ApplicationAuthTypeResponse): void {
   if (typeof window === 'undefined') return;
   try {
-    sessionStorage.setItem(
-      AUTH_SESSION_KEYS.AUTH_TYPE,
-      getApplicationAuthType(response)
-    );
-    sessionStorage.setItem(AUTH_SESSION_KEYS.AUTH_METHOD, String(response.AuthMethod ?? ''));
+    const authType = getApplicationAuthType(response);
+    const authMethod = String(response.AuthMethod ?? '');
+    sessionStorage.setItem(AUTH_SESSION_KEYS.AUTH_TYPE, authType);
+    sessionStorage.setItem(AUTH_SESSION_KEYS.LAST_AUTH_TYPE, authType);
+    sessionStorage.setItem(AUTH_SESSION_KEYS.AUTH_METHOD, authMethod);
     if (response.logoutURL?.trim()) {
       sessionStorage.setItem(AUTH_SESSION_KEYS.LOGOUT_URL, response.logoutURL.trim());
+    }
+    if (isExternalAuthType(authType, authMethod)) {
+      markUsesExternalAuth();
     }
   } catch {
     /* ignore */
   }
+}
+
+export function syncAuthTypeToSession(authType: string, authMethod?: string): void {
+  if (typeof window === 'undefined') return;
+  const t = String(authType).trim().toUpperCase();
+  if (!t) return;
+  try {
+    sessionStorage.setItem(AUTH_SESSION_KEYS.AUTH_TYPE, t);
+    sessionStorage.setItem(AUTH_SESSION_KEYS.LAST_AUTH_TYPE, t);
+    if (authMethod != null) {
+      sessionStorage.setItem(AUTH_SESSION_KEYS.AUTH_METHOD, String(authMethod));
+    }
+    if (isExternalAuthType(t, authMethod)) {
+      markUsesExternalAuth();
+    } else if (t === 'LOCAL') {
+      sessionStorage.removeItem(AUTH_SESSION_KEYS.USES_EXTERNAL_AUTH);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+export function getPersistedAuthMethod(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return sessionStorage.getItem(AUTH_SESSION_KEYS.AUTH_METHOD);
+  } catch {
+    return null;
+  }
+}
+
+/** Auth type/method for logout routing (read before clearAllAuthCookies). */
+export function resolveAuthTypeForLogout(reactAuthType?: string | null): string | null {
+  if (hadExternalAuthSession()) return 'OAUTH';
+  const fromPersisted = getPersistedAuthType();
+  if (fromPersisted && fromPersisted !== 'LOCAL') return fromPersisted;
+  if (reactAuthType && reactAuthType !== 'LOCAL') return reactAuthType;
+  try {
+    const last = sessionStorage.getItem(AUTH_SESSION_KEYS.LAST_AUTH_TYPE)?.trim();
+    if (last && last !== 'LOCAL') return last;
+  } catch {
+    /* ignore */
+  }
+  const method = getPersistedAuthMethod()?.trim().toUpperCase();
+  if (method && method !== 'NATIVE') return 'OAUTH';
+  return fromPersisted ?? reactAuthType ?? null;
+}
+
+export function shouldLogoutToLoggedOutPage(reactAuthType?: string | null): boolean {
+  const authType = resolveAuthTypeForLogout(reactAuthType);
+  return isExternalAuthType(authType, getPersistedAuthMethod()) || hadExternalAuthSession();
 }
 
 export function getPersistedAuthType(): string | null {
@@ -599,12 +753,100 @@ export function getPersistedAuthType(): string | null {
   }
 }
 
+/** True for OAUTH / IDCS / SAML etc. — not LOCAL username/password. */
+export function isExternalAuthType(
+  authType: string | null | undefined,
+  authMethod?: string | null
+): boolean {
+  const method = String(authMethod ?? getPersistedAuthMethod() ?? '')
+    .trim()
+    .toUpperCase();
+  if (method === 'NATIVE') return false;
+  if (method && method !== '') return true;
+
+  const t = String(authType ?? '')
+    .trim()
+    .toUpperCase();
+  return t !== '' && t !== 'LOCAL';
+}
+
+export function performUserLogout(
+  reactAuthType?: string | null,
+  tenantId?: string | null
+): void {
+  if (typeof window === 'undefined') return;
+
+  const external = shouldLogoutToLoggedOutPage(reactAuthType);
+  const target = external
+    ? '/logged-out'
+    : tenantId?.trim()
+      ? `/${tenantId.trim()}`
+      : getTenantLoginPath();
+
+  try {
+    if (external) {
+      sessionStorage.setItem(AUTH_SESSION_KEYS.LOGOUT_REDIRECT, '/logged-out');
+      markUsesExternalAuth();
+    } else {
+      sessionStorage.removeItem(AUTH_SESSION_KEYS.LOGOUT_REDIRECT);
+      sessionStorage.removeItem(AUTH_SESSION_KEYS.USES_EXTERNAL_AUTH);
+    }
+  } catch {
+    /* ignore */
+  }
+
+  clearAllAuthCookies({ preserveLogoutRedirect: external });
+  try {
+    clearJitAccessHistoryStore();
+  } catch {
+    /* ignore */
+  }
+
+  // Navigate immediately so AuthWrapper cannot redirect to tenant login first.
+  window.location.replace(target);
+
+  void clearAuthCookiesOnServer();
+}
+
+export function clearLogoutRedirectFlag(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.removeItem(AUTH_SESSION_KEYS.LOGOUT_REDIRECT);
+    sessionStorage.removeItem(AUTH_SESSION_KEYS.USES_EXTERNAL_AUTH);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function isLogoutRedirectPending(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return sessionStorage.getItem(AUTH_SESSION_KEYS.LOGOUT_REDIRECT) === '/logged-out';
+  } catch {
+    return false;
+  }
+}
+
 export function clearPersistedApplicationAuthType(): void {
   if (typeof window === 'undefined') return;
   try {
     sessionStorage.removeItem(AUTH_SESSION_KEYS.AUTH_TYPE);
     sessionStorage.removeItem(AUTH_SESSION_KEYS.AUTH_METHOD);
     sessionStorage.removeItem(AUTH_SESSION_KEYS.LOGOUT_URL);
+    // LAST_AUTH_TYPE intentionally kept for logout routing
+  } catch {
+    /* ignore */
+  }
+}
+
+export function clearLastAuthTypeOnLocalLogin(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.setItem(AUTH_SESSION_KEYS.LAST_AUTH_TYPE, 'LOCAL');
+    sessionStorage.setItem(AUTH_SESSION_KEYS.AUTH_TYPE, 'LOCAL');
+    sessionStorage.setItem(AUTH_SESSION_KEYS.AUTH_METHOD, 'NATIVE');
+    sessionStorage.removeItem(AUTH_SESSION_KEYS.LOGOUT_REDIRECT);
+    sessionStorage.removeItem(AUTH_SESSION_KEYS.USES_EXTERNAL_AUTH);
   } catch {
     /* ignore */
   }
@@ -614,12 +856,16 @@ export function clearPersistedApplicationAuthType(): void {
 export async function fetchApplicationAuthType(
   registeredApp?: string
 ): Promise<ApplicationAuthTypeResponse> {
-  const appName = (registeredApp ?? configTenantId).trim();
+  const appName = (registeredApp ?? registeredAppNameOrNull() ?? '').trim();
+  if (!appName) {
+    throw new Error('Tenant is required for applicationType');
+  }
   const useProxy = typeof window !== 'undefined';
   const response = useProxy
     ? await fetch('/api/auth/application-type', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ registeredAppName: appName }),
         cache: 'no-store',
       })
     : await fetch(`${AUTH_BASE_URL}/applicationType`, {
@@ -646,7 +892,16 @@ export async function fetchApplicationAuthType(
 }
 
 // API functions
-export async function requestToken(userid: string, password: string): Promise<TokenResponse> {
+export async function requestToken(
+  userid: string,
+  password: string,
+  registeredApp?: string
+): Promise<TokenResponse> {
+  const appName = (registeredApp ?? registeredAppNameOrNull())?.trim();
+  if (!appName) {
+    throw new Error('Open the app at /YOUR_TENANT_ID (e.g. /ACMECOM or /KFPRODOCI).');
+  }
+
   try {
     const response = await fetch(`${AUTH_BASE_URL}/requestToken`, {
       method: 'POST',
@@ -655,7 +910,7 @@ export async function requestToken(userid: string, password: string): Promise<To
       },
       body: JSON.stringify({
         requestToken: {
-          registeredAppName: registeredAppName(),
+          registeredAppName: appName,
           userid: userid,
           password: password
         }
@@ -989,10 +1244,6 @@ export async function apiRequestWithAuth<T>(
             clearAllAuthCookies();
             // Force logout immediately - this will redirect
             forceLogout(`JWT token status is ${statusStr}`);
-            // Use a synchronous redirect to ensure it happens
-            if (typeof window !== 'undefined') {
-              window.location.href = '/login';
-            }
             // Don't continue - redirect should happen
             throw new Error(`JWT token status is ${statusStr}`);
           }
@@ -1003,9 +1254,6 @@ export async function apiRequestWithAuth<T>(
           console.error('!!! JWT TOKEN RESPONSE CONTAINS ERROR - FORCING LOGOUT !!!');
           clearAllAuthCookies();
           forceLogout('JWT token response contains error');
-          if (typeof window !== 'undefined') {
-            window.location.href = '/login';
-          }
           throw new Error('JWT token response contains error');
         }
         
@@ -1017,9 +1265,6 @@ export async function apiRequestWithAuth<T>(
             console.error('!!! JWT TOKEN MESSAGE INDICATES ERROR - FORCING LOGOUT !!!');
             clearAllAuthCookies();
             forceLogout(`JWT token message indicates error: ${message}`);
-            if (typeof window !== 'undefined') {
-              window.location.href = '/login';
-            }
             throw new Error(`JWT token message indicates error: ${message}`);
           }
         }
@@ -1100,7 +1345,7 @@ export function restoreSessionFromCookies(): {
     authenticated: true,
     user: {
       email,
-      tenantId: stored?.tenantId ?? configTenantId,
+      tenantId: stored?.tenantId ?? registeredAppNameOrNull() ?? undefined,
     },
   };
 }

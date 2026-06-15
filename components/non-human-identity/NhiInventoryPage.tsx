@@ -13,8 +13,7 @@ import {
 } from "chart.js";
 import Link from "next/link";
 import { Eye, Plus, RotateCw, Search } from "lucide-react";
-import { executeQuery } from "@/lib/api";
-import { extractResultRows } from "@/lib/nhi-dashboard";
+import { getNhiV2TenantId, nhiV2ExecuteQuery } from "@/lib/nhi-v2-api";
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
@@ -25,7 +24,6 @@ const Bar = dynamic(() => import("react-chartjs-2").then((m) => m.Bar), {
   ssr: false,
 });
 
-const NHI_TENANT_ID = "a0000000-0000-0000-0000-000000000001";
 const NHI_IDENTITIES_QUERY = `SELECT i.nhi_id, i.name, i.nhi_type, i.state, i.risk_level,
                 i.criticality, i.execution_type, i.load_source,
                 i.createddate,
@@ -170,9 +168,10 @@ export function NhiInventoryPage() {
     setError(null);
     setLoading(true);
     try {
-      const response = await executeQuery<unknown>(NHI_IDENTITIES_QUERY, [NHI_TENANT_ID]);
-      const resultRows = extractResultRows(response);
-      setRows(resultRows.map((r) => parseIdentityRow(r as Record<string, unknown>)));
+      const { rows: resultRows } = await nhiV2ExecuteQuery(NHI_IDENTITIES_QUERY, [
+        getNhiV2TenantId(),
+      ]);
+      setRows(resultRows.map((r) => parseIdentityRow(r)));
     } catch (e) {
       setRows([]);
       setError(e instanceof Error ? e.message : "Failed to load NHI inventory");

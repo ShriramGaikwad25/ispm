@@ -1,15 +1,36 @@
-import { NextResponse } from 'next/server';
-import appConfig from '@/config.json';
+import { NextRequest, NextResponse } from 'next/server';
+import { getRegisteredAppFromCookies } from '@/lib/tenant-server';
 
 const AUTH_BASE_URL = 'https://preview.keyforge.ai/RequestJWTToken/TokenProvider';
 
 /** Server proxy for applicationType (avoids browser CORS). */
-export async function POST() {
+export async function POST(request: NextRequest) {
+  let registeredAppName = await getRegisteredAppFromCookies();
+
+  if (!registeredAppName) {
+    try {
+      const body = (await request.json()) as { registeredAppName?: string };
+      registeredAppName = body?.registeredAppName?.trim() || null;
+    } catch {
+      /* empty or invalid body */
+    }
+  }
+
+  if (!registeredAppName) {
+    return NextResponse.json(
+      {
+        status: 'failed',
+        statusMessage: 'Tenant required. Open the app via /YOUR_TENANT_ID (e.g. /KFPRODOCI).',
+      },
+      { status: 400 }
+    );
+  }
+
   try {
     const response = await fetch(`${AUTH_BASE_URL}/applicationType`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ registeredAppName: appConfig.tenantId }),
+      body: JSON.stringify({ registeredAppName }),
       cache: 'no-store',
     });
 

@@ -79,6 +79,17 @@ export function Navigation() {
   }, [pathname]);
 
   useEffect(() => {
+    const nhi2Item = navigation.find((i) => i.name === "Non Human Identity-2");
+    if (
+      nhi2Item?.subItems?.length &&
+      (routeMatches(nhi2Item.href) ||
+        nhi2Item.subItems.some((s) => routeMatches(s.href)))
+    ) {
+      setExpandedItems(new Set(["Non Human Identity-2"]));
+    }
+  }, [pathname]);
+
+  useEffect(() => {
     const raItem = navigation.find((i) => i.name === "Risk Analysis");
     if (
       raItem?.subItems?.length &&

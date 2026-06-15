@@ -10,8 +10,7 @@ import {
   LinearScale,
   Tooltip,
 } from "chart.js";
-import { executeQuery } from "@/lib/api";
-import { extractResultRows } from "@/lib/nhi-dashboard";
+import { runNhiRows, type NhiApiMode } from "@/lib/nhi-v2-query";
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 const Bar = dynamic(() => import("react-chartjs-2").then((m) => m.Bar), { ssr: false });
@@ -87,7 +86,7 @@ function groupCount(rows: ReviewRow[], key: keyof ReviewRow): { name: string; va
     .sort((a, b) => b.value - a.value);
 }
 
-export function ReviewsPage() {
+export function ReviewsPage({ apiMode = "legacy" }: { apiMode?: NhiApiMode } = {}) {
   const [rows, setRows] = useState<ReviewRow[]>([]);
   const [status, setStatus] = useState<(typeof STATUS_OPTIONS)[number]>("all");
   const [loading, setLoading] = useState(true);
@@ -116,7 +115,7 @@ export function ReviewsPage() {
           ? `${baseSql} ORDER BY rc.due_at NULLS LAST, rc.opened_at DESC LIMIT 500`
           : `${baseSql} AND rc.status = ? ORDER BY rc.due_at NULLS LAST, rc.opened_at DESC LIMIT 500`;
       const params = status === "all" ? [TENANT_ID] : [TENANT_ID, status];
-      const result = extractResultRows(await executeQuery<unknown>(sql, params));
+      const result = await runNhiRows(apiMode, sql, params);
       setRows(
         result.map((r) => ({
           review_id: asText(r.review_id),

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Copy, MoreHorizontal, Pencil, Power, Search } from "lucide-react";
-import { executeQuery } from "@/lib/api";
+import { runNhiQueryRaw, type NhiApiMode } from "@/lib/nhi-v2-query";
 import {
   parseRotationPolicyGridResponse,
   ROTATION_POLICY_GRID_QUERY,
@@ -43,7 +43,7 @@ function rowMatchesFrequencyFilter(row: RotationPolicyGridRow, freq: string): bo
   return row.frequencyLabel.includes(freq);
 }
 
-export function RotationPolicyListPage() {
+export function RotationPolicyListPage({ apiMode = "legacy" }: { apiMode?: NhiApiMode } = {}) {
   const [policies, setPolicies] = useState<RotationPolicyGridRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +57,7 @@ export function RotationPolicyListPage() {
     setError(null);
     setLoading(true);
     try {
-      const response = await executeQuery<unknown>(ROTATION_POLICY_GRID_QUERY, []);
+      const response = await runNhiQueryRaw(apiMode, ROTATION_POLICY_GRID_QUERY, []);
       setPolicies(parseRotationPolicyGridResponse(response));
     } catch (e) {
       setPolicies([]);

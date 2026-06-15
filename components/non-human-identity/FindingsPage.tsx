@@ -10,8 +10,7 @@ import {
   LinearScale,
   Tooltip,
 } from "chart.js";
-import { executeQuery } from "@/lib/api";
-import { extractResultRows } from "@/lib/nhi-dashboard";
+import { runNhiRows, type NhiApiMode } from "@/lib/nhi-v2-query";
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 const Bar = dynamic(() => import("react-chartjs-2").then((m) => m.Bar), { ssr: false });
@@ -108,11 +107,13 @@ export function FindingsPage({
   refreshNonce = 0,
   statusFilter,
   onStatusFilterChange,
+  apiMode = "legacy",
 }: {
   suppressPageHeader?: boolean;
   refreshNonce?: number;
   statusFilter?: FindingsStatusFilter;
   onStatusFilterChange?: (v: FindingsStatusFilter) => void;
+  apiMode?: NhiApiMode;
 } = {}) {
   const [rows, setRows] = useState<FindingRow[]>([]);
   const [internalStatus, setInternalStatus] = useState<FindingsStatusFilter>("open");
@@ -146,7 +147,7 @@ export function FindingsPage({
           : `${baseSql} AND f.status = ? ORDER BY f.detected_at DESC LIMIT 500`;
       const params = status === "all" ? [TENANT_ID] : [TENANT_ID, status];
 
-      const result = extractResultRows(await executeQuery<unknown>(sql, params));
+      const result = await runNhiRows(apiMode, sql, params);
       setRows(
         result.map((r) => ({
           finding_id: asText(r.finding_id),

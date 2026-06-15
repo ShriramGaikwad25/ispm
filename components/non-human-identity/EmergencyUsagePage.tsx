@@ -10,8 +10,7 @@ import {
   LinearScale,
   Tooltip,
 } from "chart.js";
-import { executeQuery } from "@/lib/api";
-import { extractResultRows } from "@/lib/nhi-dashboard";
+import { runNhiRows, type NhiApiMode } from "@/lib/nhi-v2-query";
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 const Bar = dynamic(() => import("react-chartjs-2").then((m) => m.Bar), { ssr: false });
@@ -77,7 +76,7 @@ function groupCount<T extends Record<string, unknown>>(rows: T[], key: keyof T):
     .sort((a, b) => b.value - a.value);
 }
 
-export function EmergencyUsagePage() {
+export function EmergencyUsagePage({ apiMode = "legacy" }: { apiMode?: NhiApiMode } = {}) {
   const [rows, setRows] = useState<EmergencyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -89,21 +88,20 @@ export function EmergencyUsagePage() {
     setLoading(true);
     setError(null);
     try {
-      const result = extractResultRows(
-        await executeQuery<unknown>(
-          `SELECT e.emergency_id, e.nhi_id, i.name AS nhi_name,
-                  e.invoked_by, e.reason, e.ticket_reference, e.incident_severity,
-                  e.started_at, e.ended_at, e.reviewed_at, e.review_outcome,
-                  (e.ended_at   IS NULL) AS still_active,
-                  (e.reviewed_at IS NULL) AS pending_review
-             FROM public.kf_nhi_emergency_usage e
-        LEFT JOIN public.kf_nhi_identity i
-               ON i.nhi_id = e.nhi_id AND i.tenant_id = e.tenant_id
-            WHERE e.tenant_id = ?::uuid
-            ORDER BY e.started_at DESC
-            LIMIT 500`,
-          [TENANT_ID]
-        )
+      const result = await runNhiRows(
+        apiMode,
+        `SELECT e.emergency_id, e.nhi_id, i.name AS nhi_name,
+                e.invoked_by, e.reason, e.ticket_reference, e.incident_severity,
+                e.started_at, e.ended_at, e.reviewed_at, e.review_outcome,
+                (e.ended_at   IS NULL) AS still_active,
+                (e.reviewed_at IS NULL) AS pending_review
+           FROM public.kf_nhi_emergency_usage e
+      LEFT JOIN public.kf_nhi_identity i
+             ON i.nhi_id = e.nhi_id AND i.tenant_id = e.tenant_id
+          WHERE e.tenant_id = ?::uuid
+          ORDER BY e.started_at DESC
+          LIMIT 500`,
+        [TENANT_ID]
       );
       setRows(
         result.map((r) => ({

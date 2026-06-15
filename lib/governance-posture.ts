@@ -10,6 +10,8 @@ export const GOVERNANCE_TENANT_ID = "a0000000-0000-0000-0000-000000000001";
 export const DASHBOARD_V2_QUERY =
   "SELECT public.kf_nhi_get_dashboard_v2(?::uuid) AS result";
 
+export const DASHBOARD_V1_QUERY = "SELECT * FROM public.kf_nhi_get_dashboard()";
+
 export const FINDINGS_SEVERITY_QUERY = `SELECT severity, count(*)::int AS n
            FROM public.kf_nhi_finding
           WHERE tenant_id = ?::uuid AND status IN ('open','triaged','in_progress','blocked')
