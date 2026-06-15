@@ -120,13 +120,13 @@ export const navLinks: NavItem[] = [
     ],
   },
   {
-    name: "Non-Human Identity",
+    name: "Legacy NHI",
     href: "/non-human-identity",
     icon: Bot,
     subItems: nhiPrimarySubItems,
   },
   {
-    name: "Non Human Identity-2",
+    name: "Non Human Identity",
     href: "/non-human-identity-2",
     icon: Bot,
     subItems: nhi2SubItems,

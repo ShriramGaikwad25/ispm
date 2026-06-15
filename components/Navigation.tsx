@@ -68,24 +68,24 @@ export function Navigation() {
     routeMatchesExact(subItem.href);
 
   useEffect(() => {
-    const nhiItem = navigation.find((i) => i.name === "Non-Human Identity");
+    const nhiItem = navigation.find((i) => i.name === "Legacy NHI");
     if (
       nhiItem?.subItems?.length &&
       (routeMatches(nhiItem.href) ||
         nhiItem.subItems.some((s) => routeMatches(s.href)))
     ) {
-      setExpandedItems(new Set(["Non-Human Identity"]));
+      setExpandedItems(new Set(["Legacy NHI"]));
     }
   }, [pathname]);
 
   useEffect(() => {
-    const nhi2Item = navigation.find((i) => i.name === "Non Human Identity-2");
+    const nhi2Item = navigation.find((i) => i.name === "Non Human Identity");
     if (
       nhi2Item?.subItems?.length &&
       (routeMatches(nhi2Item.href) ||
         nhi2Item.subItems.some((s) => routeMatches(s.href)))
     ) {
-      setExpandedItems(new Set(["Non Human Identity-2"]));
+      setExpandedItems(new Set(["Non Human Identity"]));
     }
   }, [pathname]);
 
@@ -226,7 +226,7 @@ export function Navigation() {
       return { href: '/non-human-identity/nhi-inventory', label: 'Back to NHI Inventory' };
     }
     if (pathname === '/non-human-identity/request-access') {
-      return { href: '/non-human-identity', label: 'Back to Non-Human Identity' };
+      return { href: '/non-human-identity', label: 'Back to Legacy NHI' };
     }
     if (pathname.match(/^\/non-human-identity\/nhi-inventory\/[^/]+$/)) {
       return { href: '/non-human-identity/nhi-inventory', label: 'Back to NHI Inventory' };
