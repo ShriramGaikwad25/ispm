@@ -225,7 +225,7 @@ export function Nhi2InventoryPage() {
                     <tr key={nhiId} className="hover:bg-slate-50/80">
                       <td className="px-3 py-2 align-top font-medium text-slate-900 whitespace-normal break-words">
                         <Link
-                          href={`/non-human-identity/nhi-inventory/${encodeURIComponent(nhiId)}`}
+                          href={`/non-human-identity-2/nhis/${encodeURIComponent(nhiId)}`}
                           className="text-blue-700 hover:underline break-words"
                         >
                           {cellText(r.name)}
@@ -241,7 +241,7 @@ export function Nhi2InventoryPage() {
                       <td className="px-3 py-2 align-top text-slate-700 whitespace-normal break-words">{formatCreated(r.createddate)}</td>
                       <td className="px-3 py-2 align-top">
                         <Link
-                          href={`/non-human-identity/nhi-inventory/${encodeURIComponent(nhiId)}`}
+                          href={`/non-human-identity-2/nhis/${encodeURIComponent(nhiId)}`}
                           className="text-xs font-medium text-blue-700 hover:underline"
                         >
                           Edit →

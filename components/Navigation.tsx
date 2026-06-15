@@ -231,6 +231,9 @@ export function Navigation() {
     if (pathname.match(/^\/non-human-identity\/nhi-inventory\/[^/]+$/)) {
       return { href: '/non-human-identity/nhi-inventory', label: 'Back to NHI Inventory' };
     }
+    if (pathname.match(/^\/non-human-identity-2\/nhis\/[^/]+$/)) {
+      return { href: '/non-human-identity-2/nhis', label: 'Back to NHIs' };
+    }
     if (pathname.match(/^\/non-human-identity\/ai-agent-inventory\/[^/]+$/)) {
       return { href: '/non-human-identity/ai-agent-inventory', label: 'Back to AI Agent Inventory' };
     }

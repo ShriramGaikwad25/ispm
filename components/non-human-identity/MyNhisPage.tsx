@@ -228,7 +228,7 @@ function NhiCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <Link
-              href={`/non-human-identity/nhi-inventory/${encodeURIComponent(nhiId)}`}
+              href={`/non-human-identity-2/nhis/${encodeURIComponent(nhiId)}`}
               className="text-base font-semibold text-slate-900 hover:text-blue-700"
             >
               {displayName}
@@ -441,7 +441,7 @@ function NhiCard({
 
           <div className="mt-3 flex flex-wrap gap-2">
             <Link
-              href={`/non-human-identity/nhi-inventory/${encodeURIComponent(nhiId)}`}
+              href={`/non-human-identity-2/nhis/${encodeURIComponent(nhiId)}`}
               className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
               View
