@@ -778,11 +778,21 @@ function databaseColumnNameFromEntry(entry: unknown): string {
       o,
       "column_name",
       "columnName",
+      "column",
+      "target",
       "name",
       "field",
       "attribute",
       "Attribute",
-      "key"
+      "key",
+      "rest_field",
+      "restField",
+      "connector_attribute",
+      "connectorAttribute",
+      "json_path",
+      "jsonPath",
+      "source_field",
+      "sourceField"
     );
   }
   return "";
@@ -804,7 +814,11 @@ function parseDatabaseSchemaMappingEntry(
       "best_match",
       "bestMatch",
       "best_match_attribute",
-      "bestMatchAttribute"
+      "bestMatchAttribute",
+      "variable",
+      "source",
+      "source_attribute",
+      "sourceAttribute"
     );
     option2 = pickSchemaFieldString(
       o,
@@ -815,6 +829,15 @@ function parseDatabaseSchemaMappingEntry(
       "second_match",
       "secondMatch"
     );
+    if (!bestMatch && o.suggested != null) {
+      bestMatch = displayFromSuggestOption(o.suggested);
+    }
+    if (!option2) {
+      const other = o.other_options ?? o.otherOptions;
+      if (Array.isArray(other) && other.length > 0) {
+        option2 = displayFromSuggestOption(other[0]);
+      }
+    }
   }
 
   return {
@@ -850,8 +873,26 @@ function collectDatabaseSchemaMappingEntries(node: unknown, depth = 0): unknown[
     "column_names",
     "schema",
     "mappings",
+    "schema_mappings",
+    "schemaMappings",
+    "user_columns",
+    "userColumns",
+    "user_attributes",
+    "userAttributes",
+    "users_schema",
+    "user_schema",
+    "userSchema",
+    "rest_columns",
+    "restColumns",
     "data",
     "result",
+    "response",
+    "body",
+    "users",
+    "content",
+    "items",
+    "records",
+    "results",
   ];
   for (const key of listKeys) {
     if (key in o) {
@@ -915,6 +956,324 @@ export async function fetchDatabaseSchema(payload: DatabaseFetchSchemaPayload): 
   return data;
 }
 
+export type RestUsersSchemaPayload = {
+  users_url: string;
+  user_url: string;
+  groups_url: string;
+  headers: Record<string, string>;
+};
+
+function normalizeBearerAuthorization(raw: string): string {
+  const t = raw.trim();
+  if (!t) return "";
+  if (/^bearer\s+/i.test(t)) {
+    return `bearer ${t.replace(/^bearer\s+/i, "").trim()}`;
+  }
+  return `bearer ${t}`;
+}
+
+/** Maps wizard step3 fields to gatewayassist schemamapper/rest/users payload. */
+export function buildRestUsersSchemaPayload(step3: Record<string, unknown>): RestUsersSchemaPayload {
+  const users_url = pickViewGetAllUsersFromStep3(step3);
+  const user_url = pickStep3String(step3, "getUserService", "user_url", "userUrl");
+  const groups_url = pickStep3String(
+    step3,
+    "getAllGroupsService",
+    "groups_url",
+    "groupsUrl",
+    "getGroupService"
+  );
+
+  const headers: Record<string, string> = {};
+  const jwtToken = getCookie(COOKIE_NAMES.JWT_TOKEN)?.trim();
+  if (jwtToken) {
+    headers.Authorization = normalizeBearerAuthorization(jwtToken);
+  } else {
+    const authRaw = pickStep3String(
+      step3,
+      "bearerToken",
+      "authorization",
+      "accessToken",
+      "access_token",
+      "Authorization"
+    );
+    if (authRaw) {
+      headers.Authorization = normalizeBearerAuthorization(authRaw);
+    }
+  }
+
+  const headerAttributes = pickStep3String(step3, "headerAttributes");
+  if (headerAttributes) {
+    try {
+      const parsed = JSON.parse(headerAttributes) as unknown;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+          const val = value != null ? String(value).trim() : "";
+          if (val) headers[key] = val;
+        }
+      }
+    } catch {
+      // ignore invalid headerAttributes JSON
+    }
+  }
+
+  return { users_url, user_url, groups_url, headers };
+}
+
+export function isRestUsersSchemaPayloadComplete(payload: RestUsersSchemaPayload): boolean {
+  return Boolean(payload.users_url.trim() && Object.keys(payload.headers).length > 0);
+}
+
+/** POST gatewayassist schemamapper/rest/users — RESTService schema mapping. */
+export async function fetchRestUsersSchema(
+  payload: RestUsersSchemaPayload,
+  tenantId?: string
+): Promise<unknown> {
+  const tenant = tenantId?.trim() || resolveEntitiesTenant();
+  const endpoint = `https://preview.keyforge.ai/gatewayassist/api/v1/${encodeURIComponent(tenant)}/schemamapper/rest/users`;
+  const fetchFn = typeof window !== "undefined" ? getOriginalFetch() : fetch;
+  const response = await fetchFn(endpoint, {
+    method: "POST",
+    headers: connectionTestAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const text = await response.text();
+  let data: unknown = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    if (!response.ok) {
+      throw new Error(text || `rest/users failed: ${response.status}`);
+    }
+  }
+  if (data != null && (await checkTokenExpiredError(data))) {
+    throw new Error("Token Expired");
+  }
+  if (!response.ok) {
+    const msg =
+      data != null && typeof data === "object"
+        ? String((data as Record<string, unknown>).message ?? (data as Record<string, unknown>).errorMessage ?? text)
+        : text;
+    throw new Error(msg || `rest/users failed: ${response.status}`);
+  }
+  if (data != null && typeof data === "object" && (data as Record<string, unknown>).success === false) {
+    throw new Error(
+      String((data as Record<string, unknown>).message ?? "Failed to fetch REST user schema.")
+    );
+  }
+  return data;
+}
+
+function restSchemaMappingEntriesFromJson(json: unknown): Record<string, unknown>[] {
+  if (json == null) return [];
+  if (Array.isArray(json)) {
+    return json.filter((item): item is Record<string, unknown> => item != null && typeof item === "object");
+  }
+  if (typeof json !== "object") return [];
+
+  const root = json as Record<string, unknown>;
+  const listKeys = [
+    "mappings",
+    "schema_mappings",
+    "schemaMappings",
+    "fields",
+    "columns",
+    "attributes",
+    "user_columns",
+    "userColumns",
+    "user_attributes",
+    "userAttributes",
+    "users_schema",
+    "user_schema",
+    "userSchema",
+    "rest_columns",
+    "restColumns",
+    "data",
+    "result",
+    "response",
+    "body",
+  ];
+  for (const key of listKeys) {
+    const node = root[key];
+    if (Array.isArray(node)) {
+      return node.filter((item): item is Record<string, unknown> => item != null && typeof item === "object");
+    }
+    if (node != null && typeof node === "object" && !Array.isArray(node)) {
+      const nested = restSchemaMappingEntriesFromJson(node);
+      if (nested.length > 0) return nested;
+    }
+  }
+  return [];
+}
+
+function findRestUserSampleRecords(json: unknown, depth = 0): Record<string, unknown>[] | null {
+  if (json == null || depth > 6) return null;
+  if (Array.isArray(json)) {
+    if (
+      json.length > 0 &&
+      json.every((item) => item != null && typeof item === "object" && !Array.isArray(item))
+    ) {
+      return json as Record<string, unknown>[];
+    }
+    return null;
+  }
+  if (typeof json !== "object") return null;
+  const o = json as Record<string, unknown>;
+  for (const key of ["users", "accounts", "content", "items", "records", "data", "results", "value"]) {
+    if (!(key in o)) continue;
+    const found = findRestUserSampleRecords(o[key], depth + 1);
+    if (found) return found;
+  }
+  return null;
+}
+
+/** Maps schemamapper/rest/users `detected_fields` + `mapping_suggestions` response. */
+function attributeMappingsFromRestDetectedFieldsJson(json: unknown): WizardSchemaMappingRow[] {
+  if (json == null || typeof json !== "object") return [];
+  const root = json as Record<string, unknown>;
+
+  const suggestionByField = new Map<string, Record<string, unknown>>();
+  const suggestionsRaw = root.mapping_suggestions ?? root.mappingSuggestions;
+  if (Array.isArray(suggestionsRaw)) {
+    for (const item of suggestionsRaw) {
+      if (item == null || typeof item !== "object") continue;
+      const o = item as Record<string, unknown>;
+      const field = String(o.source_field ?? o.sourceField ?? "").trim();
+      if (field) suggestionByField.set(field.toLowerCase(), o);
+    }
+  }
+
+  const buildRow = (
+    columnName: string,
+    suggestion: Record<string, unknown> | undefined,
+    idx: number
+  ): WizardSchemaMappingRow => {
+    const suggestedScim = suggestion
+      ? String(suggestion.suggested_scim ?? suggestion.suggestedScim ?? "").trim()
+      : "";
+    const autoAccept = suggestion ? Boolean(suggestion.auto_accept ?? suggestion.autoAccept) : false;
+    return {
+      id: `rest-detected-${idx}`,
+      target: columnName,
+      source: autoAccept ? suggestedScim : "",
+      bestMatch: suggestedScim,
+      option2: "",
+      defaultValue: "",
+      type: "direct",
+      keyfieldMapping: false,
+    };
+  };
+
+  const detectedRaw = root.detected_fields ?? root.detectedFields;
+  const rows: WizardSchemaMappingRow[] = [];
+  if (Array.isArray(detectedRaw)) {
+    let idx = 0;
+    for (const field of detectedRaw) {
+      if (field == null || typeof field !== "object") continue;
+      const o = field as Record<string, unknown>;
+      const columnName = String(o.column_name ?? o.columnName ?? "").trim();
+      if (!columnName) continue;
+      rows.push(buildRow(columnName, suggestionByField.get(columnName.toLowerCase()), idx));
+      idx += 1;
+    }
+  }
+
+  if (rows.length > 0) return rows;
+
+  if (suggestionByField.size > 0) {
+    let idx = 0;
+    for (const [fieldKey, suggestion] of suggestionByField.entries()) {
+      const columnName = String(suggestion.source_field ?? suggestion.sourceField ?? fieldKey).trim();
+      if (!columnName) continue;
+      rows.push(buildRow(columnName, suggestion, idx));
+      idx += 1;
+    }
+  }
+
+  return rows;
+}
+
+/** Maps schemamapper/rest/users response to wizard schema mapping rows. */
+export function attributeMappingsFromRestUsersSchemaJson(json: unknown): WizardSchemaMappingRow[] {
+  let rows = attributeMappingsFromRestDetectedFieldsJson(json);
+  if (rows.length > 0) return rows;
+
+  rows = attributeMappingsFromFetchSchemaJson(json);
+  if (rows.length > 0) return rows;
+
+  const entries = restSchemaMappingEntriesFromJson(json);
+  const seen = new Set<string>();
+  let idx = 0;
+  for (const entry of entries) {
+    const row = parseDatabaseSchemaMappingEntry(entry, idx);
+    if (!row) continue;
+    const key = row.target.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rows.push(row);
+    idx += 1;
+  }
+  if (rows.length > 0) return rows;
+
+  rows = attributeMappingsFromSuggestMappingJson(json);
+  if (rows.length > 0) return rows;
+
+  rows = attributeMappingsFromGetMappedSchemaJson(json);
+  if (rows.length > 0) return rows;
+
+  const samples = findRestUserSampleRecords(json);
+  if (samples?.length) {
+    const keys = Object.keys(samples[0]).filter((k) => k.trim() && !k.startsWith("_"));
+    rows = keys.map((key, i) => ({
+      id: `rest-user-field-${i}`,
+      target: key,
+      source: "",
+      defaultValue: "",
+      type: "direct",
+      keyfieldMapping: false,
+    }));
+    if (rows.length > 0) return rows;
+  }
+
+  const deepEntries = collectRestSchemaColumnEntriesDeep(json);
+  for (const entry of deepEntries) {
+    const row = parseDatabaseSchemaMappingEntry(entry, idx);
+    if (!row) continue;
+    const key = row.target.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rows.push(row);
+    idx += 1;
+  }
+
+  return rows;
+}
+
+function collectRestSchemaColumnEntriesDeep(node: unknown, depth = 0): unknown[] {
+  if (node == null || depth > 8) return [];
+  if (Array.isArray(node)) {
+    if (node.length > 0 && node.every((item) => typeof item === "string")) {
+      return node;
+    }
+    const objectRows = node.filter((item) => databaseColumnNameFromEntry(item));
+    if (objectRows.length > 0) return objectRows;
+    for (const item of node) {
+      const found = collectRestSchemaColumnEntriesDeep(item, depth + 1);
+      if (found.length > 0) return found;
+    }
+    return [];
+  }
+  if (typeof node === "object") {
+    const o = node as Record<string, unknown>;
+    if (databaseColumnNameFromEntry(o)) return [o];
+    for (const value of Object.values(o)) {
+      const found = collectRestSchemaColumnEntriesDeep(value, depth + 1);
+      if (found.length > 0) return found;
+    }
+  }
+  return [];
+}
+
 export type DatabaseSuggestMappingPayload = {
   session_id: string;
   top_n: number;
@@ -973,8 +1332,50 @@ function suggestMappingEntriesFromJson(json: unknown): Record<string, unknown>[]
         (item): item is Record<string, unknown> => item != null && typeof item === "object"
       );
     }
+    for (const key of [
+      "schema_mappings",
+      "schemaMappings",
+      "fields",
+      "columns",
+      "attributes",
+      "data",
+      "result",
+      "response",
+      "body",
+    ]) {
+      const node = root[key];
+      if (Array.isArray(node)) {
+        return node.filter(
+          (item): item is Record<string, unknown> => item != null && typeof item === "object"
+        );
+      }
+      if (node != null && typeof node === "object") {
+        const nested = suggestMappingEntriesFromJson(node);
+        if (nested.length > 0) return nested;
+      }
+    }
   }
   return [];
+}
+
+function suggestMappingColumnName(entry: Record<string, unknown>): string {
+  return pickSchemaFieldString(
+    entry,
+    "column_name",
+    "columnName",
+    "column",
+    "target",
+    "field",
+    "attribute",
+    "name",
+    "key",
+    "rest_field",
+    "restField",
+    "connector_attribute",
+    "connectorAttribute",
+    "json_path",
+    "jsonPath"
+  );
 }
 
 /** Parse KEYFORGE suggest-mapping response: bestMatch = suggested.display, option2 = other_options[0].display. */
@@ -983,7 +1384,7 @@ export function databaseColumnSuggestionsFromJson(
 ): Map<string, DatabaseColumnSuggestion> {
   const map = new Map<string, DatabaseColumnSuggestion>();
   for (const entry of suggestMappingEntriesFromJson(json)) {
-    const columnName = pickSchemaFieldString(entry, "column_name", "columnName");
+    const columnName = suggestMappingColumnName(entry);
     if (!columnName) continue;
     const displays = suggestionDisplaysFromMappingEntry(entry);
     const autoAccept = Boolean(entry.auto_accept ?? entry.autoAccept);
@@ -1181,7 +1582,7 @@ export function attributeMappingsFromSuggestMappingJson(
   const rows: WizardSchemaMappingRow[] = [];
   let idx = 0;
   for (const entry of suggestMappingEntriesFromJson(json)) {
-    const columnName = pickSchemaFieldString(entry, "column_name", "columnName");
+    const columnName = suggestMappingColumnName(entry);
     if (!columnName) continue;
     const hint = byColumn.get(columnName.toLowerCase());
     if (!hint) continue;
@@ -2947,6 +3348,98 @@ export const DATABASE_ALWAYS_INCLUDE_APPLICATION_DETAIL_FIELDS = [
   "disableAccountResponseDefinition",
 ] as const;
 
+/** RESTService ApplicationDetails keys always sent on newApp (empty string when unset). */
+export const REST_SERVICE_ALWAYS_INCLUDE_APPLICATION_DETAIL_FIELDS = [
+  "clientID",
+  "updateUserPayloadPath",
+  "createUserPayloadPath",
+  "usersGroupIDAttributePath",
+  "revokeAccessFromGroupService",
+  "usersEntitlementAttributePath",
+  "groupMembersIDAttributePath",
+  "getALLUserService",
+  "getGroupService",
+  "groupsPayloadPath",
+  "password",
+  "eachGroupPayloadPath",
+  "usersGroupAttributePath",
+  "totalResultsAttributeForGroups",
+  "userUIDAttribute",
+  "assignAccessToGroupService",
+  "getAllGroupsService",
+  "scope",
+  "eachUserPayloadPath",
+  "authorizationType",
+  "clientSecret",
+  "usersEntitlementIDAttributePath",
+  "totalResultsAttrForGroupsPath",
+  "authUserName",
+  "deleteUserService",
+  "totalResultsAttrForUsersPath",
+  "usersRoleDisplayAttributePath",
+  "revokeAccessFromUserService",
+  "totalResultsAttributeForUsers",
+  "createUserService",
+  "usersPayloadPath",
+  "usersRoleAttributePath",
+  "getUserService",
+  "usersGroupDisplayAttributePath",
+  "groupMembersAttributePath",
+  "bearerToken",
+  "authorizationURL",
+  "updateUserService",
+  "groupDisplayNameAttribute",
+  "assignAccessToUserService",
+  "grantType",
+  "headerAttributes",
+  "usersRoleIDAttributePath",
+  "usersEntitlementDisplayAttributePath",
+  "refreshToken",
+  "groupIDAttribute",
+] as const;
+
+const REST_SERVICE_APPLICATION_DETAIL_DEFAULTS: Readonly<Record<string, string>> = {
+  usersGroupIDAttributePath: "groups[].value",
+  usersGroupAttributePath: "groups[]",
+  usersGroupDisplayAttributePath: "groups[].display",
+  usersPayloadPath: "Resources[]",
+  userUIDAttribute: "userId",
+  authorizationType: "bearer",
+};
+
+function buildRestGetAllUserServiceValue(step3: Record<string, unknown>): string {
+  const direct = pickStep3String(step3, "getALLUserService", "getAllUserService");
+  if (direct) return direct;
+  const usersUrl = pickViewGetAllUsersFromStep3(step3);
+  if (!usersUrl) return "";
+  try {
+    const parsed = JSON.parse(usersUrl) as unknown;
+    if (parsed != null && typeof parsed === "object" && "url" in (parsed as object)) {
+      return usersUrl;
+    }
+  } catch {
+    // plain URL from Get All Users field
+  }
+  return JSON.stringify({
+    url: usersUrl,
+    operation: "GET",
+    tenantid: resolveEntitiesTenant(),
+  });
+}
+
+function pickRestServiceApplicationDetailValue(
+  apiFieldKey: string,
+  step3: Record<string, unknown>
+): string {
+  if (apiFieldKey === "getALLUserService") {
+    return buildRestGetAllUserServiceValue(step3);
+  }
+  if (apiFieldKey === "clientID") {
+    return pickStep3String(step3, "clientID", "clientId");
+  }
+  return pickStep3ValueForSupportedApiField(apiFieldKey, step3);
+}
+
 /** Flat + integration-group field keys from a supported-objects application type record. */
 export function collectSupportedObjectsFieldKeys(
   flatFields: string[],
@@ -2982,24 +3475,31 @@ function pickStep3ValueForSupportedApiField(
   return pickStep3String(step3, apiFieldKey);
 }
 
-/** ApplicationDetails for newApp — only supported-objects fields; view name aliases map to viewGetAllUsers. */
+/** ApplicationDetails for newApp — all supported-objects fields (empty string when unset). */
 export function buildGroupedApplicationDetailsForNewApp(
   step3: Record<string, unknown>,
   supportedFieldKeys: string[],
   appType?: string
 ): Record<string, string> {
+  const isRestService = appType === "RESTService Application";
   const alwaysIncludeEmpty = new Set<string>(
-    appType === "Database" ? [...DATABASE_ALWAYS_INCLUDE_APPLICATION_DETAIL_FIELDS] : []
+    appType === "Database"
+      ? [...DATABASE_ALWAYS_INCLUDE_APPLICATION_DETAIL_FIELDS]
+      : isRestService
+        ? [...REST_SERVICE_ALWAYS_INCLUDE_APPLICATION_DETAIL_FIELDS]
+        : []
   );
-  const keysToEmit = [
-    ...new Set([...supportedFieldKeys, ...alwaysIncludeEmpty]),
-  ];
+  const keysToEmit = [...new Set([...supportedFieldKeys, ...alwaysIncludeEmpty])];
   const ApplicationDetails: Record<string, string> = {};
   for (const apiKey of keysToEmit) {
-    const val = pickStep3ValueForSupportedApiField(apiKey, step3);
-    if (val || alwaysIncludeEmpty.has(apiKey)) {
-      ApplicationDetails[apiKey] = val;
+    if (isRestService && apiKey === VIEW_GET_ALL_USERS_FIELD) continue;
+    let val = isRestService
+      ? pickRestServiceApplicationDetailValue(apiKey, step3)
+      : pickStep3ValueForSupportedApiField(apiKey, step3);
+    if (!val && isRestService && apiKey in REST_SERVICE_APPLICATION_DETAIL_DEFAULTS) {
+      val = REST_SERVICE_APPLICATION_DETAIL_DEFAULTS[apiKey];
     }
+    ApplicationDetails[apiKey] = val;
   }
   return ApplicationDetails;
 }

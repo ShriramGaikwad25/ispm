@@ -78,13 +78,18 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
+  const isAppInventoryRoute =
+    typeof pathname === "string" && pathname.startsWith("/settings/app-inventory");
+
   const mainPadClass =
     typeof pathname === "string" &&
     (pathname.startsWith("/non-human-identity-2") ||
       pathname.startsWith("/non-human-identity/ai-agent-inventory") ||
       pathname.startsWith("/non-human-identity-1/agents"))
       ? "py-6 px-4"
-      : "p-6";
+      : isAppInventoryRoute
+        ? "py-3 px-3"
+        : "p-6";
 
   return (
     <div className="flex flex-col min-h-screen">

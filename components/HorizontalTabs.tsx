@@ -82,7 +82,7 @@ const HorizontalTabs: React.FC<TabsProps> = ({
   }, [defaultIndex, isControlled]);
 
   return (
-    <div className="w-full h-full flex flex-col">
+    <div className="w-full h-full flex flex-col min-w-0">
       {/* Tab Headers */}
       <div 
         role="tablist" 
@@ -126,7 +126,7 @@ const HorizontalTabs: React.FC<TabsProps> = ({
         id={panelId(activeIndex)}
         aria-labelledby={tabId(activeIndex)}
         tabIndex={0}
-        className="mt-4 flex-1 flex flex-col overflow-visible"
+        className="mt-4 flex-1 flex flex-col overflow-visible w-full min-w-0"
       >
         {ActiveComponent && <ActiveComponent key={tabsKey} />}
       </div>

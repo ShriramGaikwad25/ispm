@@ -1,11 +1,13 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Loader2, Pencil, Network, Sliders } from "lucide-react";
+import { ArrowLeft, Loader2, Pencil, Network, Sliders, Edit } from "lucide-react";
 import { getApplicationDetails } from "@/lib/api";
 import HorizontalTabs from "@/components/HorizontalTabs";
-import ApplicationEditTab from "../components/ApplicationEditTab";
+import ApplicationEditTab, {
+  type ApplicationEditTabHandle,
+} from "../components/ApplicationEditTab";
 import SchemaMappingTab from "../components/SchemaMappingTab";
 import AdvanceSettingTab from "../components/AdvanceSettingTab";
 
@@ -33,10 +35,16 @@ export default function AppInventorySettingsPage() {
   const [activeTabIndex, setActiveTabIndex] = useState(() => tabIdToIndex(tabFromUrl));
   const [appName, setAppName] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isConfigEditing, setIsConfigEditing] = useState(false);
+  const configTabRef = useRef<ApplicationEditTabHandle>(null);
 
   useEffect(() => {
     setActiveTabIndex(tabIdToIndex(tabFromUrl));
   }, [tabFromUrl]);
+
+  useEffect(() => {
+    if (activeTabIndex !== 0) setIsConfigEditing(false);
+  }, [activeTabIndex]);
 
   useEffect(() => {
     if (!applicationId) {
@@ -71,8 +79,12 @@ export default function AppInventorySettingsPage() {
   const tabsData = useMemo(() => {
     const EditTab = () => (
       <ApplicationEditTab
+        ref={configTabRef}
         applicationId={applicationId}
         onBackToInventory={handleBack}
+        isEditing={isConfigEditing}
+        onEditingChange={setIsConfigEditing}
+        hideToolbar
       />
     );
     const SchemaTab = () => (
@@ -90,7 +102,7 @@ export default function AppInventorySettingsPage() {
       { label: "Schema Mapping", component: SchemaTab, icon: Network },
       { label: "Advance Setting", component: AdvanceTab, icon: Sliders },
     ];
-  }, [applicationId]);
+  }, [applicationId, isConfigEditing]);
 
   if (isLoading) {
     return (
@@ -119,22 +131,57 @@ export default function AppInventorySettingsPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col">
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={handleBack}
-            className="p-2 rounded-full hover:bg-gray-100 text-gray-600 hover:text-gray-900 transition-colors"
-            aria-label="Back"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <h1 className="text-2xl font-bold text-gray-900">{appName}</h1>
+    <div className="h-screen flex flex-col w-full min-w-0">
+      <div className="bg-white border-b border-gray-200 px-4 py-4 w-full">
+        <div className="flex items-center justify-between gap-4 w-full min-w-0">
+          <div className="flex items-center gap-4 min-w-0">
+            <button
+              type="button"
+              onClick={handleBack}
+              className="p-2 rounded-full hover:bg-gray-100 text-gray-600 hover:text-gray-900 transition-colors shrink-0"
+              aria-label="Back"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <h1 className="text-2xl font-bold text-gray-900 truncate">{appName}</h1>
+          </div>
+          {activeTabIndex === 0 && (
+            <div className="flex items-center gap-2 shrink-0">
+              {isConfigEditing ? (
+                <>
+                  <button
+                    type="button"
+                    className="flex items-center gap-2 rounded-full px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors text-sm font-medium"
+                    onClick={() => configTabRef.current?.cancelEdit()}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="flex items-center gap-2 rounded-full px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 transition-colors text-sm font-medium"
+                    onClick={() => void configTabRef.current?.submit()}
+                  >
+                    Submit
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="flex items-center gap-2 rounded-full px-4 py-2 bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors text-sm font-medium"
+                  onClick={() => configTabRef.current?.startEdit()}
+                  aria-label="Edit Application"
+                  title="Edit Application"
+                >
+                  <Edit className="w-4 h-4" />
+                  Edit
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col min-h-0 px-6 py-4">
+      <div className="flex-1 flex flex-col min-h-0 w-full min-w-0 py-3">
         <HorizontalTabs
           tabs={tabsData}
           defaultIndex={0}

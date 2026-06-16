@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useImperativeHandle, forwardRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   getApplicationDetails,
@@ -14,10 +14,20 @@ import {
 import { Edit } from "lucide-react";
 import AdvancedIntegrationOperationTabs from "../../components/AdvancedIntegrationOperationTabs";
 
+export type ApplicationEditTabHandle = {
+  submit: () => Promise<void>;
+  cancelEdit: () => void;
+  startEdit: () => void;
+};
+
 interface ApplicationEditTabProps {
   applicationId: string;
   /** Called after successful submit (e.g. navigate back to inventory). If not provided, uses router.push("/settings/app-inventory"). */
   onBackToInventory?: () => void;
+  isEditing?: boolean;
+  onEditingChange?: (editing: boolean) => void;
+  /** When true, Edit/Cancel/Submit are not rendered inside the tab (e.g. header toolbar). */
+  hideToolbar?: boolean;
 }
 
 /** Match API keys like Password, admin_password, PWD, Passphrase, etc. */
@@ -70,11 +80,26 @@ function coerceSecretPlaintext(value: unknown): string | null {
   return null;
 }
 
-export default function ApplicationEditTab({ applicationId, onBackToInventory }: ApplicationEditTabProps) {
+export default forwardRef<ApplicationEditTabHandle, ApplicationEditTabProps>(
+  function ApplicationEditTab(
+    {
+      applicationId,
+      onBackToInventory,
+      isEditing: isEditingProp,
+      onEditingChange,
+      hideToolbar = false,
+    },
+    ref
+  ) {
   const router = useRouter();
   const [appDetails, setAppDetails] = useState<any>(null);
   const [editedApp, setEditedApp] = useState<any | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
+  const [internalEditing, setInternalEditing] = useState(false);
+  const isEditing = isEditingProp ?? internalEditing;
+  const setIsEditing = (value: boolean) => {
+    if (isEditingProp === undefined) setInternalEditing(value);
+    onEditingChange?.(value);
+  };
   const [secretModal, setSecretModal] = useState<{
     open: boolean;
     label: string;
@@ -135,20 +160,6 @@ export default function ApplicationEditTab({ applicationId, onBackToInventory }:
 
     fetchDetails();
   }, [applicationId]);
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-gray-500">Loading application details...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="py-6 text-center text-red-600">Error: {error}</div>
-    );
-  }
 
   const currentData = isEditing ? editedApp : appDetails;
   const application = currentData?.Application ?? currentData;
@@ -668,19 +679,47 @@ export default function ApplicationEditTab({ applicationId, onBackToInventory }:
     }
   };
 
+  const startEdit = () => {
+    setEditedApp(appDetails);
+    setIsEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setEditedApp(appDetails);
+    setIsEditing(false);
+  };
+
+  useImperativeHandle(ref, () => ({
+    submit: handleSubmit,
+    cancelEdit,
+    startEdit,
+  }));
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-gray-500">Loading application details...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="py-6 text-center text-red-600">Error: {error}</div>
+    );
+  }
+
   return (
     <>
-      <div className="flex flex-col">
+      <div className="flex flex-col w-full min-w-0">
+        {!hideToolbar && (
         <div className="flex justify-end gap-2 mb-4">
           {isEditing ? (
             <>
               <button
                 type="button"
                 className="flex items-center gap-2 rounded-full px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors text-sm font-medium"
-                onClick={() => {
-                  setEditedApp(appDetails);
-                  setIsEditing(false);
-                }}
+                onClick={cancelEdit}
               >
                 Cancel
               </button>
@@ -696,10 +735,7 @@ export default function ApplicationEditTab({ applicationId, onBackToInventory }:
             <button
               type="button"
               className="flex items-center gap-2 rounded-full px-4 py-2 bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors text-sm font-medium"
-              onClick={() => {
-                setEditedApp(appDetails);
-                setIsEditing(true);
-              }}
+              onClick={startEdit}
               aria-label="Edit Application"
               title="Edit Application"
             >
@@ -708,6 +744,7 @@ export default function ApplicationEditTab({ applicationId, onBackToInventory }:
             </button>
           )}
         </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6 w-full">
           <div className="bg-white rounded-lg shadow-sm p-5 sm:p-6 space-y-6 min-h-[20rem] min-w-0 w-full">
@@ -756,4 +793,4 @@ export default function ApplicationEditTab({ applicationId, onBackToInventory }:
       )}
     </>
   );
-}
+});

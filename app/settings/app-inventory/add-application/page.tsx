@@ -70,6 +70,9 @@ import {
   fetchDatabaseSuggestMapping,
   applyDatabaseSuggestMappingToRows,
   attributeMappingsFromFetchSchemaJson,
+  attributeMappingsFromRestUsersSchemaJson,
+  buildRestUsersSchemaPayload,
+  fetchRestUsersSchema,
   testRestServiceConnection,
   parseConnectionTestResult,
   type SupportedAppTypeAdvancedParts,
@@ -987,11 +990,13 @@ export default function AddApplicationPage() {
       isAiAgentWizard &&
       !isCompleteIntegration &&
       currentStep === 3 &&
-      formData.step1.type === "Database"
+      isGroupedOnboardApplicationType(formData.step1.type)
     ) {
-      if (!isDatabaseSchemaStepReady()) {
+      if (!isIntegrationSchemaStepReady()) {
         setSubmitRequestError(
-          "Test the connection, enter Get All Users, load schema, then continue to Schema Mapping."
+          formData.step1.type === "RESTService Application"
+            ? "Enter Get All Users, load schema, then continue to Schema Mapping."
+            : "Test the connection, enter Get All Users, load schema, then continue to Schema Mapping."
         );
         return;
       }
@@ -1384,12 +1389,16 @@ export default function AddApplicationPage() {
     String((formData.step3 as Record<string, unknown>)[key] ?? "").trim();
 
   const isDatabaseOnboardType = isAiAgentWizard && formData.step1.type === "Database";
+  const isRestServiceOnboardType =
+    isAiAgentWizard && formData.step1.type === "RESTService Application";
+  const isGroupedSchemaOnboardType =
+    isDatabaseOnboardType || isRestServiceOnboardType;
   const databaseViewName = pickViewGetAllUsersFromStep3(formData.step3 as Record<string, unknown>);
   // Step 4 (Schema Mapping): load rows from schemamapper getmappedschema
   useEffect(() => {
     if (currentStep !== 4 || typeof window === "undefined") return;
     if (isAiAgentWizard && !isCompleteIntegration) return;
-    if (isDatabaseOnboardType && !isCompleteIntegration) return;
+    if (isGroupedSchemaOnboardType && !isCompleteIntegration) return;
     const appId = (isCompleteIntegration ? appIdFromUrl?.trim() : wizardRegisteredAppId?.trim()) || "";
     if (!appId) return;
     let cancelled = false;
@@ -1414,20 +1423,20 @@ export default function AddApplicationPage() {
     isCompleteIntegration,
     appIdFromUrl,
     wizardRegisteredAppId,
-    isDatabaseOnboardType,
+    isGroupedSchemaOnboardType,
     isAiAgentWizard,
   ]);
 
-  // Database schema mapping: preload SCIM source attributes for row dropdowns
+  // Database / REST schema mapping: preload SCIM source attributes for row dropdowns
   useEffect(() => {
-    if (currentStep !== 4 || !isDatabaseOnboardType || isCompleteIntegration) return;
+    if (currentStep !== 4 || !isGroupedSchemaOnboardType || isCompleteIntegration) return;
     if (!databaseSchemaLoaded) return;
     if (scimAttributes.length === 0 && !isLoadingAttributes) {
       fetchScimAttributes();
     }
   }, [
     currentStep,
-    isDatabaseOnboardType,
+    isGroupedSchemaOnboardType,
     isCompleteIntegration,
     databaseSchemaLoaded,
     scimAttributes.length,
@@ -1439,7 +1448,7 @@ export default function AddApplicationPage() {
       setGroupedIntegrationTab(CONNECTION_PARAMETERS_GROUP_ID);
       setTestConnectionFeedback(null);
     }
-    if (!isAiAgentWizard || formData.step1.type !== "Database") {
+    if (!isAiAgentWizard || !isGroupedOnboardApplicationType(formData.step1.type)) {
       setDatabaseSessionId(null);
       setDatabaseSchemaLoaded(false);
       setFetchSchemaFeedback(null);
@@ -1447,12 +1456,12 @@ export default function AddApplicationPage() {
   }, [formData.step1.type, isAiAgentWizard]);
 
   useEffect(() => {
-    if (!isDatabaseOnboardType) return;
+    if (!isGroupedSchemaOnboardType) return;
     setDatabaseSchemaLoaded(false);
     setFetchSchemaFeedback(null);
     setAttributeMappingData([]);
     setAttributeMappingPage(1);
-  }, [isDatabaseOnboardType, databaseViewName]);
+  }, [isGroupedSchemaOnboardType, databaseViewName]);
 
   const handleTestConnection = async () => {
     const appType = formData.step1.type?.trim() || "";
@@ -1533,19 +1542,60 @@ export default function AddApplicationPage() {
   };
 
   const handleFetchDatabaseSchema = async () => {
-    const sessionId = databaseSessionId?.trim() || getStep3Trim("dbSessionId");
-    const view_name = pickViewGetAllUsersFromStep3(formData.step3 as Record<string, unknown>);
-    if (!sessionId) {
-      setFetchSchemaFeedback({
-        type: "error",
-        message: "Test the connection first to obtain a session.",
-      });
-      return;
-    }
+    const appType = formData.step1.type?.trim() || "";
+    const step3 = formData.step3 as Record<string, unknown>;
+    const view_name = pickViewGetAllUsersFromStep3(step3);
+
     if (!view_name) {
       setFetchSchemaFeedback({
         type: "error",
         message: "Enter Get All Users before loading schema.",
+      });
+      return;
+    }
+
+    if (appType === "RESTService Application") {
+      const restPayload = buildRestUsersSchemaPayload(step3);
+
+      setFetchSchemaLoading(true);
+      setFetchSchemaFeedback(null);
+      setSubmitRequestError(null);
+      try {
+        const data = await fetchRestUsersSchema(restPayload);
+        const rows = attributeMappingsFromRestUsersSchemaJson(data);
+        if (rows.length === 0) {
+          throw new Error("No columns were returned for this users URL.");
+        }
+
+        setAttributeMappingData(rows);
+        setAttributeMappingPage(1);
+        setDatabaseSchemaLoaded(true);
+        setFetchSchemaFeedback({
+          type: "success",
+          message: `Loaded ${rows.length} column(s).`,
+        });
+        if (isAiAgentWizard) {
+          setSubmitRequestError(null);
+          setCurrentStep(4);
+        }
+      } catch (err) {
+        setDatabaseSchemaLoaded(false);
+        setFetchSchemaFeedback({
+          type: "error",
+          message: err instanceof Error ? err.message : "Failed to fetch schema",
+        });
+      } finally {
+        setFetchSchemaLoading(false);
+      }
+      return;
+    }
+
+    let sessionId = databaseSessionId?.trim() || getStep3Trim("dbSessionId");
+
+    if (!sessionId) {
+      setFetchSchemaFeedback({
+        type: "error",
+        message: "Test the connection first to obtain a session.",
       });
       return;
     }
@@ -1585,7 +1635,7 @@ export default function AddApplicationPage() {
           ? `Loaded ${rows.length} column(s) with mapping suggestions.`
           : `Loaded ${rows.length} column(s). Mapping suggestions were unavailable; you can map attributes manually.`,
       });
-      if (isAiAgentWizard && formData.step1.type === "Database") {
+      if (isAiAgentWizard && isGroupedOnboardApplicationType(appType)) {
         setSubmitRequestError(null);
         setCurrentStep(4);
       }
@@ -1604,12 +1654,12 @@ export default function AddApplicationPage() {
     testConnectionFeedback?.type === "success" &&
     Boolean(databaseSessionId?.trim() || getStep3Trim("dbSessionId"));
 
-  const isDatabaseSchemaStepReady = (): boolean =>
-    Boolean(
-      databaseSchemaLoaded &&
-        (databaseSessionId?.trim() || getStep3Trim("dbSessionId")) &&
-        pickViewGetAllUsersFromStep3(formData.step3 as Record<string, unknown>)
-    );
+  const isIntegrationSchemaStepReady = (): boolean => {
+    const hasView = Boolean(pickViewGetAllUsersFromStep3(formData.step3 as Record<string, unknown>));
+    if (!databaseSchemaLoaded || !hasView) return false;
+    if (isRestServiceOnboardType) return true;
+    return Boolean(databaseSessionId?.trim() || getStep3Trim("dbSessionId"));
+  };
 
   // Filter loaded users by current input (client-side only)
   const getFilteredOwnerUsers = (field: OwnerField): UserSearchHit[] => {
@@ -4771,9 +4821,102 @@ export default function AddApplicationPage() {
                   : connGroup
                     ? connGroup.fields.every((fk) => getStep3Trim(fk) !== "")
                     : false;
+              const getAllUsersValue = pickViewGetAllUsersFromStep3(
+                formData.step3 as Record<string, unknown>
+              );
+              const showReconciliationSection =
+                (selectedAppType === "Database" && isDatabaseConnectionTestSuccessful()) ||
+                selectedAppType === "RESTService Application";
+              const loadSchemaBlocked =
+                fetchSchemaLoading ||
+                !getAllUsersValue ||
+                (selectedAppType === "Database" &&
+                  !databaseSessionId &&
+                  !getStep3Trim("dbSessionId"));
+
+              const getAllUsersField = showReconciliationSection ? (
+                <div className="w-full max-w-md overflow-visible">
+                  <div className="relative w-full">
+                    <input
+                      type="text"
+                      value={getAllUsersValue}
+                      onChange={(e) =>
+                        handleInputChange("step3", VIEW_GET_ALL_USERS_FIELD, e.target.value)
+                      }
+                      className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+                      placeholder=" "
+                      required
+                    />
+                    <label
+                      className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                        getAllUsersValue
+                          ? "top-0.5 text-xs text-blue-600"
+                          : "top-3.5 text-sm text-gray-500"
+                      }`}
+                    >
+                      Get All Users *
+                    </label>
+                  </div>
+                </div>
+              ) : null;
+
+              const loadSchemaSection = showReconciliationSection ? (
+                <div className="space-y-3">
+                  {(databaseSessionId || getStep3Trim("dbSessionId")) && (
+                    <p className="text-xs text-slate-500 font-mono truncate">
+                      Session: {databaseSessionId || getStep3Trim("dbSessionId")}
+                    </p>
+                  )}
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="min-w-0">
+                      {fetchSchemaFeedback ? (
+                        <p
+                          className={`text-sm ${
+                            fetchSchemaFeedback.type === "success"
+                              ? "text-green-700"
+                              : "text-red-600"
+                          }`}
+                          role="status"
+                        >
+                          {fetchSchemaFeedback.message}
+                        </p>
+                      ) : databaseSchemaLoaded ? (
+                        <p className="text-sm text-green-700" role="status">
+                          Schema loaded ({attributeMappingData.length} columns). Schema Mapping step
+                          is unlocked.
+                        </p>
+                      ) : (
+                        <p className="text-xs text-slate-500">
+                          Load schema to unlock the next step.
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleFetchDatabaseSchema}
+                      disabled={loadSchemaBlocked}
+                      className={`shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium ${
+                        loadSchemaBlocked
+                          ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                          : "bg-blue-600 text-white hover:bg-blue-700"
+                      }`}
+                    >
+                      {fetchSchemaLoading ? "Loading schema…" : "Load Schema"}
+                    </button>
+                  </div>
+                </div>
+              ) : null;
+
+              const reconciliationSection = showReconciliationSection ? (
+                <div className="border border-slate-200 rounded-lg bg-white shadow-sm p-4 sm:p-5 space-y-4">
+                  {getAllUsersField}
+                  {loadSchemaSection}
+                </div>
+              ) : null;
 
               return (
-                <div className="space-y-6">
+                <div className="space-y-6 w-full overflow-visible">
+                  {selectedAppType === "RESTService Application" && getAllUsersField}
                   <TabbedIntegrationOnboardGroups
                     applicationType={selectedAppType}
                     groups={integrationGroupsForType}
@@ -4783,89 +4926,15 @@ export default function AddApplicationPage() {
                     onActiveTabChange={setGroupedIntegrationTab}
                     testConnectionLoading={testConnectionLoading}
                     testConnectionFeedback={testConnectionFeedback}
-                    onTestConnection={handleTestConnection}
+                    onTestConnection={
+                      selectedAppType === "Database" ? handleTestConnection : undefined
+                    }
                     canTestConnection={canTestConnection}
+                    collapsible={selectedAppType === "RESTService Application"}
+                    hideIntro={selectedAppType === "RESTService Application"}
                   />
-                  {selectedAppType === "Database" && isDatabaseConnectionTestSuccessful() && (
-                    <div className="border border-slate-200 rounded-lg bg-white shadow-sm p-4 sm:p-5 space-y-4">
-                      <h4 className="text-sm font-semibold text-slate-800">
-                        Reconciliation/Aggregation
-                      </h4>
-                      <p className="text-xs text-slate-500">
-                        Enter Get All Users and load columns before Schema Mapping.
-                      </p>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="relative min-w-0">
-                        <input
-                          type="text"
-                          value={pickViewGetAllUsersFromStep3(formData.step3 as Record<string, unknown>)}
-                          onChange={(e) =>
-                            handleInputChange("step3", VIEW_GET_ALL_USERS_FIELD, e.target.value)
-                          }
-                          className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder=" "
-                        />
-                        <label
-                          className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                            pickViewGetAllUsersFromStep3(formData.step3 as Record<string, unknown>)
-                              ? "top-0.5 text-xs text-blue-600"
-                              : "top-3.5 text-sm text-gray-500"
-                          }`}
-                        >
-                          Get All Users *
-                        </label>
-                        </div>
-                      </div>
-                      {(databaseSessionId || getStep3Trim("dbSessionId")) && (
-                        <p className="text-xs text-slate-500 font-mono truncate">
-                          Session: {databaseSessionId || getStep3Trim("dbSessionId")}
-                        </p>
-                      )}
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2 border-t border-slate-100">
-                        <div className="min-w-0">
-                          {fetchSchemaFeedback ? (
-                            <p
-                              className={`text-sm ${
-                                fetchSchemaFeedback.type === "success"
-                                  ? "text-green-700"
-                                  : "text-red-600"
-                              }`}
-                              role="status"
-                            >
-                              {fetchSchemaFeedback.message}
-                            </p>
-                          ) : databaseSchemaLoaded ? (
-                            <p className="text-sm text-green-700" role="status">
-                              Schema loaded ({attributeMappingData.length} columns). Schema Mapping step
-                              is unlocked.
-                            </p>
-                          ) : (
-                            <p className="text-xs text-slate-500">
-                              Load schema to unlock the next step.
-                            </p>
-                          )}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={handleFetchDatabaseSchema}
-                          disabled={
-                            fetchSchemaLoading ||
-                            (!databaseSessionId && !getStep3Trim("dbSessionId")) ||
-                            !pickViewGetAllUsersFromStep3(formData.step3 as Record<string, unknown>)
-                          }
-                          className={`shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium ${
-                            fetchSchemaLoading ||
-                            (!databaseSessionId && !getStep3Trim("dbSessionId")) ||
-                            !pickViewGetAllUsersFromStep3(formData.step3 as Record<string, unknown>)
-                              ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                              : "bg-blue-600 text-white hover:bg-blue-700"
-                          }`}
-                        >
-                          {fetchSchemaLoading ? "Loading schema…" : "Load Schema"}
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                  {selectedAppType === "RESTService Application" && loadSchemaSection}
+                  {selectedAppType !== "RESTService Application" && reconciliationSection}
                 </div>
               );
             }
@@ -9907,8 +9976,8 @@ export default function AddApplicationPage() {
 
         return (
           <div className="space-y-6 w-full">
-            <div className="flex flex-wrap gap-6 items-start w-full min-w-0 overflow-x-auto">
-              <div className="flex-1 space-y-6 min-w-0">
+            <div className="flex flex-wrap gap-6 items-start w-full min-w-0">
+              <div className="flex-1 space-y-6 min-w-0 overflow-visible">
                 <div className="mb-4">
                   <h3 className="text-lg font-medium text-gray-900 mb-2">
                     {selectedAppType === "Flatfile"
@@ -11083,17 +11152,26 @@ export default function AddApplicationPage() {
 
         if (
           isAiAgentWizard &&
-          formData.step1.type === "Database" &&
+          isGroupedOnboardApplicationType(formData.step1.type) &&
           !isCompleteIntegration &&
-          !isDatabaseSchemaStepReady()
+          !isIntegrationSchemaStepReady()
         ) {
           return (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 space-y-4">
               <h3 className="text-lg font-semibold text-amber-900">Schema Mapping not ready</h3>
               <p className="text-sm text-amber-800">
-                On the Integration step, test the database connection, enter Get All Users, and
-                click <strong>Load Schema</strong>. Then you can map columns to source attributes
-                here.
+                {formData.step1.type === "RESTService Application" ? (
+                  <>
+                    On the Integration step, enter Get All Users and click <strong>Load Schema</strong>.
+                    Then you can map columns to source attributes here.
+                  </>
+                ) : (
+                  <>
+                    On the Integration step, test the database connection, enter Get All Users, and
+                    click <strong>Load Schema</strong>. Then you can map columns to source attributes
+                    here.
+                  </>
+                )}
               </p>
               <button
                 type="button"
@@ -11106,7 +11184,7 @@ export default function AddApplicationPage() {
           );
         }
 
-        if (isAiAgentWizard && formData.step1.type === "Database" && !isCompleteIntegration) {
+        if (isAiAgentWizard && isGroupedOnboardApplicationType(formData.step1.type) && !isCompleteIntegration) {
           return renderDatabaseSchemaMappingStep();
         }
 
@@ -11634,13 +11712,14 @@ export default function AddApplicationPage() {
                   : isDisconnected
                     ? steps
                     : steps.filter((s) => s.id <= 5);
-              const isDatabase = isAiAgentWizard && formData.step1.type === "Database";
+              const needsSchemaGating =
+                isAiAgentWizard && isGroupedOnboardApplicationType(formData.step1.type);
               return stepsShown.map((step, index) => {
                 const stepReachable =
                   isCompleteIntegration ||
                   step.id <= 3 ||
-                  !isDatabase ||
-                  isDatabaseSchemaStepReady();
+                  !needsSchemaGating ||
+                  isIntegrationSchemaStepReady();
                 const isClickable = (isCompleteIntegration || step.id > 1) && stepReachable;
                 const displayNumber =
                   isCompleteIntegration || isAiAgentWizard ? index + 1 : step.id;
@@ -11717,8 +11796,8 @@ export default function AddApplicationPage() {
                   (currentStep === 2 && !formData.step2.sourceType?.trim()) ||
                   (isAiAgentWizard &&
                     currentStep === 3 &&
-                    formData.step1.type === "Database" &&
-                    !isDatabaseSchemaStepReady())
+                    isGroupedOnboardApplicationType(formData.step1.type) &&
+                    !isIntegrationSchemaStepReady())
                 }
                 className={`flex items-center px-4 py-2 rounded-md text-sm font-medium ${
                   submitRequestLoading

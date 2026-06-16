@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useMemo } from "react";
-import { Loader2 } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import {
   CONNECTION_PARAMETERS_GROUP_ID,
   coerceSupportedObjectsFieldKey,
@@ -21,6 +21,11 @@ export type TabbedIntegrationOnboardGroupsProps = {
   testConnectionFeedback?: { type: "success" | "error"; message: string } | null;
   onTestConnection?: () => void;
   canTestConnection?: boolean;
+  /** When true, connection parameters render inside a collapsible card. */
+  collapsible?: boolean;
+  defaultExpanded?: boolean;
+  /** Hide the intro paragraph above connection fields. */
+  hideIntro?: boolean;
 };
 
 function connectionParametersGroup(
@@ -45,7 +50,11 @@ export default function TabbedIntegrationOnboardGroups({
   testConnectionFeedback = null,
   onTestConnection,
   canTestConnection = false,
+  collapsible = false,
+  defaultExpanded = true,
+  hideIntro = false,
 }: TabbedIntegrationOnboardGroupsProps) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const activeGroup = useMemo(() => connectionParametersGroup(groups), [groups]);
   const visibleFields = useMemo(
     () =>
@@ -96,63 +105,95 @@ export default function TabbedIntegrationOnboardGroups({
     );
   };
 
+  const fieldsContent = (
+    <>
+      <div className="grid grid-cols-2 gap-4">
+        {visibleFields.map((fk) => renderField(fk))}
+      </div>
+
+      {onTestConnection && (
+        <div className="mt-5 pt-4 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="min-w-0">
+            {testConnectionFeedback ? (
+              <p
+                className={`text-sm ${
+                  testConnectionFeedback.type === "success" ? "text-green-700" : "text-red-600"
+                }`}
+                role="status"
+              >
+                {testConnectionFeedback.message}
+              </p>
+            ) : (
+              <p className="text-xs text-slate-500">
+                {applicationType === "Database"
+                  ? "Use Connection URL as host:port/database (e.g. localhost:5432/keyforgedb) or a JDBC URL, then test."
+                  : "Fill in all connection fields, then test before continuing."}
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={onTestConnection}
+            disabled={testConnectionLoading || !canTestConnection}
+            className={`shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium ${
+              testConnectionLoading || !canTestConnection
+                ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                : "bg-green-600 text-white hover:bg-green-700"
+            }`}
+          >
+            {testConnectionLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
+                Testing…
+              </>
+            ) : (
+              "Test Connection"
+            )}
+          </button>
+        </div>
+      )}
+    </>
+  );
+
   return (
     <div className="space-y-4">
-      <div>
-        <p className="text-sm text-gray-600">
-          Configure {applicationType} connection settings. Test the connection after filling in the
-          fields below.
-        </p>
-      </div>
-
-      <div className="border border-slate-200 rounded-lg bg-white shadow-sm p-4 sm:p-5">
-        <h4 className="text-sm font-semibold text-slate-800 mb-4">{activeGroup.label}</h4>
-        <div className="grid grid-cols-2 gap-4">
-          {visibleFields.map((fk) => renderField(fk))}
+      {!hideIntro && (
+        <div>
+          <p className="text-sm text-gray-600">
+            {applicationType === "RESTService Application"
+              ? `Configure ${applicationType} connection settings, then enter Get All Users and load schema below.`
+              : `Configure ${applicationType} connection settings. Test the connection after filling in the fields below.`}
+          </p>
         </div>
+      )}
 
-        {onTestConnection && (
-          <div className="mt-5 pt-4 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="min-w-0">
-              {testConnectionFeedback ? (
-                <p
-                  className={`text-sm ${
-                    testConnectionFeedback.type === "success" ? "text-green-700" : "text-red-600"
-                  }`}
-                  role="status"
-                >
-                  {testConnectionFeedback.message}
-                </p>
-              ) : (
-                <p className="text-xs text-slate-500">
-                  {applicationType === "Database"
-                    ? "Use Connection URL as host:port/database (e.g. localhost:5432/keyforgedb) or a JDBC URL, then test."
-                    : "Fill in all connection fields, then test before continuing."}
-                </p>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={onTestConnection}
-              disabled={testConnectionLoading || !canTestConnection}
-              className={`shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium ${
-                testConnectionLoading || !canTestConnection
-                  ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                  : "bg-green-600 text-white hover:bg-green-700"
-              }`}
-            >
-              {testConnectionLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
-                  Testing…
-                </>
-              ) : (
-                "Test Connection"
-              )}
-            </button>
-          </div>
-        )}
-      </div>
+      {collapsible ? (
+        <div className="border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setExpanded((prev) => !prev)}
+            className={`flex w-full items-center justify-between gap-3 px-5 py-4 min-h-[3.25rem] text-left bg-slate-50/90 hover:bg-slate-100/80 transition-colors ${
+              expanded ? "border-b border-slate-200/80" : ""
+            }`}
+            aria-expanded={expanded}
+          >
+            <span className="text-base font-semibold text-slate-800 min-w-0">
+              {activeGroup.label}
+            </span>
+            {expanded ? (
+              <ChevronUp className="w-5 h-5 text-slate-600 shrink-0" aria-hidden />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-slate-600 shrink-0" aria-hidden />
+            )}
+          </button>
+          {expanded && <div className="px-5 pb-5 pt-4 bg-white">{fieldsContent}</div>}
+        </div>
+      ) : (
+        <div className="border border-slate-200 rounded-lg bg-white shadow-sm p-4 sm:p-5">
+          <h4 className="text-sm font-semibold text-slate-800 mb-4">{activeGroup.label}</h4>
+          {fieldsContent}
+        </div>
+      )}
     </div>
   );
 }
