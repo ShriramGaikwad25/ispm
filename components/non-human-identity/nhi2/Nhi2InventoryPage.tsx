@@ -12,7 +12,7 @@ import {
   Tooltip,
   Legend,
 } from "chart.js";
-import { RotateCw } from "lucide-react";
+import { RotateCw, Search } from "lucide-react";
 import { getNhiV2TenantId, nhiV2ExecuteQuery } from "@/lib/nhi-v2-api";
 import { groupCount, NHI_V2_PALETTE } from "@/lib/nhi-v2-charts";
 import { NHI2_PAGE_SHELL_CLASS } from "@/lib/nhi-shell";
@@ -76,6 +76,7 @@ export function Nhi2InventoryPage() {
   const [rows, setRows] = useState<IdentityRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
@@ -101,16 +102,37 @@ export function Nhi2InventoryPage() {
   const byState = useMemo(() => groupCount(rows, "state"), [rows]);
   const byCriticality = useMemo(() => groupCount(rows, "criticality"), [rows]);
 
-  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((r) =>
+      [
+        r.name,
+        r.nhi_id,
+        r.nhi_type,
+        r.state,
+        r.risk_level,
+        r.criticality,
+        r.execution_type,
+        r.review_status,
+        r.load_source,
+      ]
+        .map((v) => cellText(v).toLowerCase())
+        .join(" ")
+        .includes(q)
+    );
+  }, [rows, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const pageSafe = Math.min(page, totalPages);
   const pageRows = useMemo(() => {
     const start = (pageSafe - 1) * pageSize;
-    return rows.slice(start, start + pageSize);
-  }, [rows, pageSafe, pageSize]);
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, pageSafe, pageSize]);
 
   useEffect(() => {
     setPage(1);
-  }, [pageSize]);
+  }, [search, pageSize]);
 
   if (loading) {
     return (
@@ -171,8 +193,25 @@ export function Nhi2InventoryPage() {
 
       <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
-          <h2 className="text-sm font-semibold text-slate-900">Identities ({rows.length})</h2>
-          <label className="flex items-center gap-2 text-xs text-slate-600">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+            <div className="relative w-full min-w-[12rem] max-w-xs">
+              <Search
+                className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                aria-hidden
+              />
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by name or NHI id…"
+                autoComplete="off"
+                aria-label="Search identities"
+                className="w-full rounded-md border border-slate-300 bg-white py-1.5 pl-9 pr-3 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              />
+            </div>
+            <h2 className="text-sm font-semibold text-slate-900">Identities ({filtered.length})</h2>
+          </div>
+          <label className="flex shrink-0 items-center gap-2 text-xs text-slate-600">
             <span>Rows per page</span>
             <select
               value={pageSize}
@@ -253,11 +292,13 @@ export function Nhi2InventoryPage() {
               )}
             </tbody>
           </table>
-        {rows.length > 0 && (
+        {filtered.length > 0 && (
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 text-xs text-slate-600">
             <span>
-              Showing {(pageSafe - 1) * pageSize + 1}–{Math.min(pageSafe * pageSize, rows.length)} of {rows.length}{" "}
-              · page {pageSafe} / {totalPages}
+              Showing {(pageSafe - 1) * pageSize + 1}–{Math.min(pageSafe * pageSize, filtered.length)} of{" "}
+              {filtered.length}
+              {search.trim() && filtered.length !== rows.length ? ` (filtered from ${rows.length})` : ""} · page{" "}
+              {pageSafe} / {totalPages}
             </span>
             <div className="flex items-center gap-2">
               <button
