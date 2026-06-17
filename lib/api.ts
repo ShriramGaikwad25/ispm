@@ -3,6 +3,7 @@ import { PaginatedResponse, CertAnalyticsResponse } from "@/types/api";
 import { string } from "yup";
 import { apiRequestWithAuth, checkTokenExpiredError, getCookie, COOKIE_NAMES } from "./auth";
 import { getOriginalFetch } from "./authFetch";
+import { mergeSupportedObjectsExtensions } from "./supported-objects-extensions";
 import { getActiveTenantId } from "./tenant";
 import { tenantId as defaultTenantId } from "./config";
 
@@ -540,7 +541,7 @@ export async function getAllSupportedApplicationTypes(): Promise<any> {
   if (await checkTokenExpiredError(data)) {
     throw new Error("Token Expired");
   }
-  return data;
+  return mergeSupportedObjectsExtensions(data);
 }
 
 // Get all registered applications
@@ -675,6 +676,7 @@ export const CONNECTION_PARAMETERS_GROUP_ID = "connectionParameters";
 export const GROUPED_ONBOARD_APPLICATION_TYPES = [
   "Database",
   "RESTService Application",
+  "ScreenScrapping",
 ] as const;
 
 export type GroupedOnboardApplicationType = (typeof GROUPED_ONBOARD_APPLICATION_TYPES)[number];
@@ -684,9 +686,21 @@ export function isGroupedOnboardApplicationType(type: string | undefined): type 
   return (GROUPED_ONBOARD_APPLICATION_TYPES as readonly string[]).includes(type.trim());
 }
 
-/** Application types with the specialized AI Agent wizard flow (Database + REST). Also available in normal Add Application. */
+/** REST-style AI Agent onboard types (URL-first integration, no DB session). */
+export function isRestLikeGroupedOnboardApplicationType(type: string | undefined): boolean {
+  if (!type?.trim()) return false;
+  const t = type.trim();
+  return t === "RESTService Application" || t === "ScreenScrapping";
+}
+
+/** Application types with the specialized AI Agent wizard flow. Also available in normal Add Application. */
 export function isAiAgentOnboardApplicationType(type: string | undefined): boolean {
   return isGroupedOnboardApplicationType(type);
+}
+
+/** Types that only appear as the (AI Agent) card — no standard onboard card. */
+export function isAiAgentOnlyOnboardApplicationType(type: string | undefined): boolean {
+  return type?.trim() === "ScreenScrapping";
 }
 
 /** Integration field keys hidden in the Database onboarding UI (still allowed in API payloads if set). */
@@ -1922,6 +1936,37 @@ export async function testDatabaseConnection(
   return data;
 }
 
+/** POST screenagent testconnection — ScreenScrapping connection parameters. */
+export async function testScreenScrappingConnection(
+  payload: Record<string, string>
+): Promise<unknown> {
+  const endpoint =
+    "https://preview.keyforge.ai/aiagentcontroller/api/v1/ACMECOM/screenagent/testconnection";
+  const fetchFn = typeof window !== "undefined" ? getOriginalFetch() : fetch;
+  const response = await fetchFn(endpoint, {
+    method: "POST",
+    headers: connectionTestAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const text = await response.text();
+  let data: unknown = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    if (!response.ok) {
+      throw new Error(text || `Connection test failed: ${response.status}`);
+    }
+  }
+  if (data != null && (await checkTokenExpiredError(data))) {
+    throw new Error("Token Expired");
+  }
+  if (!response.ok) {
+    const parsed = parseConnectionTestResult(data);
+    throw new Error(parsed.message || text || `Connection test failed: ${response.status}`);
+  }
+  return data;
+}
+
 /** POST restagent testconnection — RESTService Application connection parameters. */
 export async function testRestServiceConnection(
   payload: Record<string, string>
@@ -1949,6 +1994,49 @@ export async function testRestServiceConnection(
   if (!response.ok) {
     const parsed = parseConnectionTestResult(data);
     throw new Error(parsed.message || text || `Connection test failed: ${response.status}`);
+  }
+  return data;
+}
+
+/** Maps wizard step3 fields to gatewayassist schemamapper/screen/users payload. */
+export const buildScreenUsersSchemaPayload = buildRestUsersSchemaPayload;
+
+/** POST gatewayassist schemamapper/screen/users — ScreenScrapping schema mapping. */
+export async function fetchScreenUsersSchema(
+  payload: RestUsersSchemaPayload,
+  tenantId?: string
+): Promise<unknown> {
+  const tenant = tenantId?.trim() || resolveEntitiesTenant();
+  const endpoint = `https://preview.keyforge.ai/gatewayassist/api/v1/${encodeURIComponent(tenant)}/schemamapper/screen/users`;
+  const fetchFn = typeof window !== "undefined" ? getOriginalFetch() : fetch;
+  const response = await fetchFn(endpoint, {
+    method: "POST",
+    headers: connectionTestAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const text = await response.text();
+  let data: unknown = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    if (!response.ok) {
+      throw new Error(text || `screen/users failed: ${response.status}`);
+    }
+  }
+  if (data != null && (await checkTokenExpiredError(data))) {
+    throw new Error("Token Expired");
+  }
+  if (!response.ok) {
+    const msg =
+      data != null && typeof data === "object"
+        ? String((data as Record<string, unknown>).message ?? (data as Record<string, unknown>).errorMessage ?? text)
+        : text;
+    throw new Error(msg || `screen/users failed: ${response.status}`);
+  }
+  if (data != null && typeof data === "object" && (data as Record<string, unknown>).success === false) {
+    throw new Error(
+      String((data as Record<string, unknown>).message ?? "Failed to fetch screen scraping user schema.")
+    );
   }
   return data;
 }

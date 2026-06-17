@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAccessTokenFromRequest, withRegisterScimAuthHeader } from '@/lib/serverAuth';
+import { mergeSupportedObjectsExtensions } from '@/lib/supported-objects-extensions';
 
 const SUPPORTED_OBJECTS_URL =
   'https://preview.keyforge.ai/registerscimapp/registerfortenant/ACMECOM/getAllSupportedObjects';
@@ -38,6 +39,8 @@ export async function GET(request: NextRequest) {
     } catch {
       data = { message: text };
     }
+
+    data = mergeSupportedObjectsExtensions(data);
 
     return NextResponse.json(data, {
       status: 200,

@@ -26,6 +26,8 @@ export type TabbedIntegrationOnboardGroupsProps = {
   defaultExpanded?: boolean;
   /** Hide the intro paragraph above connection fields. */
   hideIntro?: boolean;
+  /** Render only the field grid (no outer card or collapsible wrapper). */
+  bare?: boolean;
 };
 
 function connectionParametersGroup(
@@ -53,6 +55,7 @@ export default function TabbedIntegrationOnboardGroups({
   collapsible = false,
   defaultExpanded = true,
   hideIntro = false,
+  bare = false,
 }: TabbedIntegrationOnboardGroupsProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const activeGroup = useMemo(() => connectionParametersGroup(groups), [groups]);
@@ -156,18 +159,21 @@ export default function TabbedIntegrationOnboardGroups({
   );
 
   return (
-    <div className="space-y-4">
-      {!hideIntro && (
+    <div className={bare ? undefined : "space-y-4"}>
+      {!bare && !hideIntro && (
         <div>
           <p className="text-sm text-gray-600">
-            {applicationType === "RESTService Application"
+            {applicationType === "RESTService Application" ||
+            applicationType === "ScreenScrapping"
               ? `Configure ${applicationType} connection settings, then enter Get All Users and load schema below.`
               : `Configure ${applicationType} connection settings. Test the connection after filling in the fields below.`}
           </p>
         </div>
       )}
 
-      {collapsible ? (
+      {bare ? (
+        fieldsContent
+      ) : collapsible ? (
         <div className="border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden">
           <button
             type="button"

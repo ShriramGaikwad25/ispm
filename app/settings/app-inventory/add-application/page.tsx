@@ -57,6 +57,7 @@ import {
   CONNECTION_PARAMETERS_GROUP_ID,
   isGroupedOnboardApplicationType,
   isAiAgentOnboardApplicationType,
+  isAiAgentOnlyOnboardApplicationType,
   collectSupportedObjectsFieldKeys,
   buildGroupedApplicationDetailsForNewApp,
   pickViewGetAllUsersFromStep3,
@@ -73,7 +74,11 @@ import {
   attributeMappingsFromRestUsersSchemaJson,
   buildRestUsersSchemaPayload,
   fetchRestUsersSchema,
+  fetchScreenUsersSchema,
+  buildScreenUsersSchemaPayload,
   testRestServiceConnection,
+  testScreenScrappingConnection,
+  isRestLikeGroupedOnboardApplicationType,
   parseConnectionTestResult,
   type SupportedAppTypeAdvancedParts,
   type ApplicationTypeIntegrationFieldGroup,
@@ -140,7 +145,13 @@ function AppTypeCardIcon({ typeId }: { typeId: string }) {
   if (t.includes("scim")) {
     return <Users className={cn} strokeWidth={stroke} aria-hidden />;
   }
-  if (t.includes("rest") || t.includes("web service") || (t.includes("api") && !t.includes("jdbc"))) {
+  if (
+    t.includes("rest") ||
+    t.includes("web service") ||
+    t.includes("screen") ||
+    t.includes("scrap") ||
+    (t.includes("api") && !t.includes("jdbc"))
+  ) {
     return <Globe className={cn} strokeWidth={stroke} aria-hidden />;
   }
   if (t.includes("jdbc") || t.includes("sql")) {
@@ -992,9 +1003,9 @@ export default function AddApplicationPage() {
       currentStep === 3 &&
       isGroupedOnboardApplicationType(formData.step1.type)
     ) {
-      if (!isIntegrationSchemaStepReady()) {
+      if (!isIntegrationStepThreeReady()) {
         setSubmitRequestError(
-          formData.step1.type === "RESTService Application"
+          isScreenScrappingAiAgent || isRestLikeOnboardType
             ? "Enter Get All Users, load schema, then continue to Schema Mapping."
             : "Test the connection, enter Get All Users, load schema, then continue to Schema Mapping."
         );
@@ -1389,11 +1400,17 @@ export default function AddApplicationPage() {
     String((formData.step3 as Record<string, unknown>)[key] ?? "").trim();
 
   const isDatabaseOnboardType = isAiAgentWizard && formData.step1.type === "Database";
-  const isRestServiceOnboardType =
-    isAiAgentWizard && formData.step1.type === "RESTService Application";
+  const isScreenScrappingAiAgent =
+    isAiAgentWizard && isAiAgentOnlyOnboardApplicationType(formData.step1.type);
+  const isRestLikeOnboardType =
+    isAiAgentWizard &&
+    isRestLikeGroupedOnboardApplicationType(formData.step1.type) &&
+    !isScreenScrappingAiAgent;
   const isGroupedSchemaOnboardType =
-    isDatabaseOnboardType || isRestServiceOnboardType;
+    isDatabaseOnboardType || isRestLikeOnboardType || isScreenScrappingAiAgent;
   const databaseViewName = pickViewGetAllUsersFromStep3(formData.step3 as Record<string, unknown>);
+  const hasGetAllUsersValue = (): boolean => Boolean(databaseViewName?.trim());
+
   // Step 4 (Schema Mapping): load rows from schemamapper getmappedschema
   useEffect(() => {
     if (currentStep !== 4 || typeof window === "undefined") return;
@@ -1513,7 +1530,10 @@ export default function AddApplicationPage() {
           const v = getStep3Trim(fk);
           if (v) payload[fk] = v;
         });
-        data = await testRestServiceConnection(payload);
+        data =
+          appType === "ScreenScrapping"
+            ? await testScreenScrappingConnection(payload)
+            : await testRestServiceConnection(payload);
       }
       const result = parseConnectionTestResult(data);
       if (appType === "Database" && result.ok) {
@@ -1554,17 +1574,27 @@ export default function AddApplicationPage() {
       return;
     }
 
-    if (appType === "RESTService Application") {
-      const restPayload = buildRestUsersSchemaPayload(step3);
+    if (isRestLikeGroupedOnboardApplicationType(appType)) {
+      const schemaPayload =
+        appType === "ScreenScrapping"
+          ? buildScreenUsersSchemaPayload(step3)
+          : buildRestUsersSchemaPayload(step3);
 
       setFetchSchemaLoading(true);
       setFetchSchemaFeedback(null);
       setSubmitRequestError(null);
       try {
-        const data = await fetchRestUsersSchema(restPayload);
+        const data =
+          appType === "ScreenScrapping"
+            ? await fetchScreenUsersSchema(schemaPayload)
+            : await fetchRestUsersSchema(schemaPayload);
         const rows = attributeMappingsFromRestUsersSchemaJson(data);
         if (rows.length === 0) {
-          throw new Error("No columns were returned for this users URL.");
+          throw new Error(
+            appType === "ScreenScrapping"
+              ? "No columns were returned for this target URL."
+              : "No columns were returned for this users URL."
+          );
         }
 
         setAttributeMappingData(rows);
@@ -1655,11 +1685,16 @@ export default function AddApplicationPage() {
     Boolean(databaseSessionId?.trim() || getStep3Trim("dbSessionId"));
 
   const isIntegrationSchemaStepReady = (): boolean => {
-    const hasView = Boolean(pickViewGetAllUsersFromStep3(formData.step3 as Record<string, unknown>));
+    const hasView = hasGetAllUsersValue();
     if (!databaseSchemaLoaded || !hasView) return false;
-    if (isRestServiceOnboardType) return true;
+    if (isRestLikeGroupedOnboardApplicationType(formData.step1.type) && !isScreenScrappingAiAgent) {
+      return true;
+    }
+    if (isScreenScrappingAiAgent) return true;
     return Boolean(databaseSessionId?.trim() || getStep3Trim("dbSessionId"));
   };
+
+  const isIntegrationStepThreeReady = (): boolean => isIntegrationSchemaStepReady();
 
   // Filter loaded users by current input (client-side only)
   const getFilteredOwnerUsers = (field: OwnerField): UserSearchHit[] => {
@@ -3103,14 +3138,24 @@ export default function AddApplicationPage() {
                          aiAgentOnboard: boolean;
                          displayTitle: string;
                          cardKey: string;
-                       }> = [
-                         {
+                       }> = [];
+
+                       if (isAiAgentOnlyOnboardApplicationType(type.id)) {
+                         cards.push({
                            type,
-                           aiAgentOnboard: false,
-                           displayTitle: type.title,
-                           cardKey: type.id,
-                         },
-                       ];
+                           aiAgentOnboard: true,
+                           displayTitle: `${type.title} (AI Agent)`,
+                           cardKey: `${type.id}::ai-agent`,
+                         });
+                         return cards;
+                       }
+
+                       cards.push({
+                         type,
+                         aiAgentOnboard: false,
+                         displayTitle: type.title,
+                         cardKey: type.id,
+                       });
                        if (isAiAgentOnboardApplicationType(type.id)) {
                          cards.push({
                            type,
@@ -4801,7 +4846,7 @@ export default function AddApplicationPage() {
             if (
               isAiAgentWizard &&
               isGroupedOnboardApplicationType(selectedAppType) &&
-              integrationGroupsForType.length > 0
+              (integrationGroupsForType.length > 0 || selectedAppType === "ScreenScrapping")
             ) {
               const connGroup = integrationGroupsForType.find(
                 (g) => g.id === CONNECTION_PARAMETERS_GROUP_ID
@@ -4826,7 +4871,7 @@ export default function AddApplicationPage() {
               );
               const showReconciliationSection =
                 (selectedAppType === "Database" && isDatabaseConnectionTestSuccessful()) ||
-                selectedAppType === "RESTService Application";
+                isRestLikeGroupedOnboardApplicationType(selectedAppType);
               const loadSchemaBlocked =
                 fetchSchemaLoading ||
                 !getAllUsersValue ||
@@ -4835,28 +4880,28 @@ export default function AddApplicationPage() {
                   !getStep3Trim("dbSessionId"));
 
               const getAllUsersField = showReconciliationSection ? (
-                <div className="w-full max-w-md overflow-visible">
-                  <div className="relative w-full">
-                    <input
-                      type="text"
-                      value={getAllUsersValue}
-                      onChange={(e) =>
-                        handleInputChange("step3", VIEW_GET_ALL_USERS_FIELD, e.target.value)
-                      }
-                      className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
-                      placeholder=" "
-                      required
-                    />
-                    <label
-                      className={`absolute left-4 transition-all duration-200 pointer-events-none ${
-                        getAllUsersValue
-                          ? "top-0.5 text-xs text-blue-600"
-                          : "top-3.5 text-sm text-gray-500"
-                      }`}
-                    >
-                      Get All Users *
-                    </label>
-                  </div>
+                <div className="relative w-full">
+                  <input
+                    type="text"
+                    value={getAllUsersValue}
+                    onChange={(e) =>
+                      handleInputChange("step3", VIEW_GET_ALL_USERS_FIELD, e.target.value)
+                    }
+                    className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder=" "
+                    required
+                  />
+                  <label
+                    className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                      getAllUsersValue
+                        ? "top-0.5 text-xs text-blue-600"
+                        : "top-3.5 text-sm text-gray-500"
+                    }`}
+                  >
+                    {isRestLikeGroupedOnboardApplicationType(selectedAppType)
+                      ? "Get All Users URL *"
+                      : "Get All Users *"}
+                  </label>
                 </div>
               ) : null;
 
@@ -4914,27 +4959,70 @@ export default function AddApplicationPage() {
                 </div>
               ) : null;
 
+              const isRestServiceAiAgentType = selectedAppType === "RESTService Application";
+              const isScreenScrappingAiAgentType = selectedAppType === "ScreenScrapping";
+
+              const screenScrappingIntegrationCard = showReconciliationSection ? (
+                <div className="border border-slate-200 rounded-lg bg-white shadow-sm p-4 sm:p-5 space-y-4">
+                  {getAllUsersField}
+                  {loadSchemaSection}
+                </div>
+              ) : null;
+
+              const restLikeIntegrationCard = showReconciliationSection ? (
+                <div className="border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden">
+                  <div className="px-5 py-5 border-b border-slate-200/80 bg-slate-50/40">
+                    <h4 className="text-sm font-semibold text-slate-800 mb-1">Get All Users</h4>
+                    <p className="text-xs text-slate-500 mb-4">
+                      Enter the URL that returns all users.
+                    </p>
+                    {getAllUsersField}
+                  </div>
+                  <div className="px-5 py-5 border-b border-slate-200/80">
+                    <h4 className="text-sm font-semibold text-slate-800 mb-4">
+                      {connGroup?.label ?? "Connection Parameters"}
+                    </h4>
+                    <TabbedIntegrationOnboardGroups
+                      applicationType={selectedAppType}
+                      groups={integrationGroupsForType}
+                      values={integrationValues}
+                      onChange={(key, value) => handleInputChange("step3", key, value)}
+                      activeTabId={groupedIntegrationTab}
+                      onActiveTabChange={setGroupedIntegrationTab}
+                      bare
+                      hideIntro
+                    />
+                  </div>
+                  <div className="px-5 py-5">
+                    <h4 className="text-sm font-semibold text-slate-800 mb-4">Load Schema</h4>
+                    {loadSchemaSection}
+                  </div>
+                </div>
+              ) : null;
+
               return (
                 <div className="space-y-6 w-full overflow-visible">
-                  {selectedAppType === "RESTService Application" && getAllUsersField}
-                  <TabbedIntegrationOnboardGroups
-                    applicationType={selectedAppType}
-                    groups={integrationGroupsForType}
-                    values={integrationValues}
-                    onChange={(key, value) => handleInputChange("step3", key, value)}
-                    activeTabId={groupedIntegrationTab}
-                    onActiveTabChange={setGroupedIntegrationTab}
-                    testConnectionLoading={testConnectionLoading}
-                    testConnectionFeedback={testConnectionFeedback}
-                    onTestConnection={
-                      selectedAppType === "Database" ? handleTestConnection : undefined
-                    }
-                    canTestConnection={canTestConnection}
-                    collapsible={selectedAppType === "RESTService Application"}
-                    hideIntro={selectedAppType === "RESTService Application"}
-                  />
-                  {selectedAppType === "RESTService Application" && loadSchemaSection}
-                  {selectedAppType !== "RESTService Application" && reconciliationSection}
+                  {isScreenScrappingAiAgentType ? (
+                    screenScrappingIntegrationCard
+                  ) : isRestServiceAiAgentType ? (
+                    restLikeIntegrationCard
+                  ) : (
+                    <>
+                      <TabbedIntegrationOnboardGroups
+                        applicationType={selectedAppType}
+                        groups={integrationGroupsForType}
+                        values={integrationValues}
+                        onChange={(key, value) => handleInputChange("step3", key, value)}
+                        activeTabId={groupedIntegrationTab}
+                        onActiveTabChange={setGroupedIntegrationTab}
+                        testConnectionLoading={testConnectionLoading}
+                        testConnectionFeedback={testConnectionFeedback}
+                        onTestConnection={handleTestConnection}
+                        canTestConnection={canTestConnection}
+                      />
+                      {reconciliationSection}
+                    </>
+                  )}
                 </div>
               );
             }
@@ -11160,7 +11248,7 @@ export default function AddApplicationPage() {
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 space-y-4">
               <h3 className="text-lg font-semibold text-amber-900">Schema Mapping not ready</h3>
               <p className="text-sm text-amber-800">
-                {formData.step1.type === "RESTService Application" ? (
+                {isScreenScrappingAiAgent || isRestLikeOnboardType ? (
                   <>
                     On the Integration step, enter Get All Users and click <strong>Load Schema</strong>.
                     Then you can map columns to source attributes here.
@@ -11797,7 +11885,7 @@ export default function AddApplicationPage() {
                   (isAiAgentWizard &&
                     currentStep === 3 &&
                     isGroupedOnboardApplicationType(formData.step1.type) &&
-                    !isIntegrationSchemaStepReady())
+                    !isIntegrationStepThreeReady())
                 }
                 className={`flex items-center px-4 py-2 rounded-md text-sm font-medium ${
                   submitRequestLoading
