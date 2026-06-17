@@ -61,7 +61,13 @@ import {
   collectSupportedObjectsFieldKeys,
   buildGroupedApplicationDetailsForNewApp,
   pickViewGetAllUsersFromStep3,
+  pickScreenScrappingBaseUrlFromStep3,
+  pickScreenScrappingJsonFromStep3,
+  isScreenScrappingIntegrationInputComplete,
   VIEW_GET_ALL_USERS_FIELD,
+  SCREEN_SCRAPPING_BASE_URL_FIELD,
+  SCREEN_SCRAPPING_JSON_FILE_FIELD,
+  SCREEN_SCRAPPING_JSON_FILE_NAME_FIELD,
   filterIntegrationFieldsForApplicationType,
   isAdvancedIntegrationGroupId,
   testDatabaseConnection,
@@ -294,6 +300,7 @@ export default function AddApplicationPage() {
   const flatfileFileRef = useRef<File | null>(null);
   const flatfilePerFieldFileInputRef = useRef<HTMLInputElement>(null);
   const flatfileUploadForFieldRef = useRef<string | null>(null);
+  const screenScrappingJsonFileInputRef = useRef<HTMLInputElement>(null);
   const [flatfileMetadataUsers, setFlatfileMetadataUsers] = useState<any>(null);
   const [flatfilePreviewPage, setFlatfilePreviewPage] = useState(1);
   const [flatfilePreviewCollapsed, setFlatfilePreviewCollapsed] = useState(false);
@@ -1005,7 +1012,9 @@ export default function AddApplicationPage() {
     ) {
       if (!isIntegrationStepThreeReady()) {
         setSubmitRequestError(
-          isScreenScrappingAiAgent || isRestLikeOnboardType
+          isScreenScrappingAiAgent
+            ? "Enter baseURL, upload a JSON file, load schema, then continue to Schema Mapping."
+            : isRestLikeOnboardType
             ? "Enter Get All Users, load schema, then continue to Schema Mapping."
             : "Test the connection, enter Get All Users, load schema, then continue to Schema Mapping."
         );
@@ -1409,7 +1418,23 @@ export default function AddApplicationPage() {
   const isGroupedSchemaOnboardType =
     isDatabaseOnboardType || isRestLikeOnboardType || isScreenScrappingAiAgent;
   const databaseViewName = pickViewGetAllUsersFromStep3(formData.step3 as Record<string, unknown>);
-  const hasGetAllUsersValue = (): boolean => Boolean(databaseViewName?.trim());
+  const screenScrappingBaseUrl = pickScreenScrappingBaseUrlFromStep3(
+    formData.step3 as Record<string, unknown>
+  );
+  const screenScrappingJsonFile = pickScreenScrappingJsonFromStep3(
+    formData.step3 as Record<string, unknown>
+  );
+  const integrationSchemaSourceKey = isScreenScrappingAiAgent
+    ? `${screenScrappingBaseUrl}::${screenScrappingJsonFile}::${String(
+        formData.step3.screenScrapingJsonFileName ?? ""
+      )}`
+    : databaseViewName;
+  const hasGetAllUsersValue = (): boolean => {
+    if (isScreenScrappingAiAgent) {
+      return isScreenScrappingIntegrationInputComplete(formData.step3 as Record<string, unknown>);
+    }
+    return Boolean(databaseViewName?.trim());
+  };
 
   // Step 4 (Schema Mapping): load rows from schemamapper getmappedschema
   useEffect(() => {
@@ -1478,7 +1503,7 @@ export default function AddApplicationPage() {
     setFetchSchemaFeedback(null);
     setAttributeMappingData([]);
     setAttributeMappingPage(1);
-  }, [isGroupedSchemaOnboardType, databaseViewName]);
+  }, [isGroupedSchemaOnboardType, integrationSchemaSourceKey]);
 
   const handleTestConnection = async () => {
     const appType = formData.step1.type?.trim() || "";
@@ -1561,12 +1586,78 @@ export default function AddApplicationPage() {
     }
   };
 
+  const handleScreenScrappingJsonUpload = (file: File) => {
+    const isJsonFile =
+      file.name.toLowerCase().endsWith(".json") ||
+      file.type === "application/json" ||
+      file.type === "text/json";
+    if (!isJsonFile) {
+      setFetchSchemaFeedback({
+        type: "error",
+        message: "Only JSON files are allowed.",
+      });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const text = String(reader.result ?? "");
+        JSON.parse(text);
+        setFormData((prev) => ({
+          ...prev,
+          step3: {
+            ...prev.step3,
+            [SCREEN_SCRAPPING_JSON_FILE_FIELD]: text,
+            [SCREEN_SCRAPPING_JSON_FILE_NAME_FIELD]: file.name,
+          },
+        }));
+        setFetchSchemaFeedback(null);
+      } catch {
+        setFetchSchemaFeedback({
+          type: "error",
+          message: "Invalid JSON file. Upload a valid JSON document.",
+        });
+      }
+    };
+    reader.onerror = () => {
+      setFetchSchemaFeedback({
+        type: "error",
+        message: "Failed to read the JSON file.",
+      });
+    };
+    reader.readAsText(file);
+  };
+
+  const handleClearScreenScrappingJsonFile = () => {
+    setFormData((prev) => ({
+      ...prev,
+      step3: {
+        ...prev.step3,
+        [SCREEN_SCRAPPING_JSON_FILE_FIELD]: "",
+        [SCREEN_SCRAPPING_JSON_FILE_NAME_FIELD]: "",
+      },
+    }));
+    setFetchSchemaFeedback(null);
+    if (screenScrappingJsonFileInputRef.current) {
+      screenScrappingJsonFileInputRef.current.value = "";
+    }
+  };
+
   const handleFetchDatabaseSchema = async () => {
     const appType = formData.step1.type?.trim() || "";
     const step3 = formData.step3 as Record<string, unknown>;
     const view_name = pickViewGetAllUsersFromStep3(step3);
 
-    if (!view_name) {
+    if (appType === "ScreenScrapping") {
+      if (!isScreenScrappingIntegrationInputComplete(step3)) {
+        setFetchSchemaFeedback({
+          type: "error",
+          message: "Enter baseURL and upload a JSON file before loading schema.",
+        });
+        return;
+      }
+    } else if (!view_name) {
       setFetchSchemaFeedback({
         type: "error",
         message: "Enter Get All Users before loading schema.",
@@ -4869,15 +4960,26 @@ export default function AddApplicationPage() {
               const getAllUsersValue = pickViewGetAllUsersFromStep3(
                 formData.step3 as Record<string, unknown>
               );
+              const screenScrappingBaseUrlValue = pickScreenScrappingBaseUrlFromStep3(
+                formData.step3 as Record<string, unknown>
+              );
+              const screenScrappingJsonFileName = String(
+                formData.step3.screenScrapingJsonFileName ?? ""
+              );
               const showReconciliationSection =
                 (selectedAppType === "Database" && isDatabaseConnectionTestSuccessful()) ||
                 isRestLikeGroupedOnboardApplicationType(selectedAppType);
+              const isScreenScrappingAiAgentType = selectedAppType === "ScreenScrapping";
               const loadSchemaBlocked =
                 fetchSchemaLoading ||
-                !getAllUsersValue ||
-                (selectedAppType === "Database" &&
-                  !databaseSessionId &&
-                  !getStep3Trim("dbSessionId"));
+                (isScreenScrappingAiAgentType
+                  ? !isScreenScrappingIntegrationInputComplete(
+                      formData.step3 as Record<string, unknown>
+                    )
+                  : !getAllUsersValue ||
+                    (selectedAppType === "Database" &&
+                      !databaseSessionId &&
+                      !getStep3Trim("dbSessionId")));
 
               const getAllUsersField = showReconciliationSection ? (
                 <div className="relative w-full">
@@ -4960,11 +5062,89 @@ export default function AddApplicationPage() {
               ) : null;
 
               const isRestServiceAiAgentType = selectedAppType === "RESTService Application";
-              const isScreenScrappingAiAgentType = selectedAppType === "ScreenScrapping";
+
+              const screenScrappingBaseUrlField = showReconciliationSection ? (
+                <div className="relative w-full">
+                  <input
+                    type="text"
+                    value={screenScrappingBaseUrlValue}
+                    onChange={(e) =>
+                      handleInputChange("step3", SCREEN_SCRAPPING_BASE_URL_FIELD, e.target.value)
+                    }
+                    className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder=" "
+                    required
+                  />
+                  <label
+                    className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                      screenScrappingBaseUrlValue
+                        ? "top-0.5 text-xs text-blue-600"
+                        : "top-3.5 text-sm text-gray-500"
+                    }`}
+                  >
+                    baseURL *
+                  </label>
+                </div>
+              ) : null;
+
+              const screenScrappingJsonUploadField = showReconciliationSection ? (
+                <div className="space-y-3">
+                  <input
+                    type="file"
+                    ref={screenScrappingJsonFileInputRef}
+                    className="hidden"
+                    accept=".json,application/json,text/json"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleScreenScrappingJsonUpload(file);
+                      e.target.value = "";
+                    }}
+                  />
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => screenScrappingJsonFileInputRef.current?.click()}
+                      className="shrink-0 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
+                    >
+                      {screenScrappingJsonFileName ? "Change JSON" : "Upload JSON"}
+                    </button>
+                    {screenScrappingJsonFileName ? (
+                      <>
+                        <div className="flex-1 relative min-w-0">
+                          <input
+                            type="text"
+                            readOnly
+                            value={screenScrappingJsonFileName}
+                            onClick={() => screenScrappingJsonFileInputRef.current?.click()}
+                            className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md bg-gray-50 cursor-pointer"
+                            placeholder=" "
+                            title="Click to choose a different JSON file"
+                          />
+                          <label className="absolute left-4 top-0.5 text-xs text-blue-600 pointer-events-none">
+                            JSON file *
+                          </label>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleClearScreenScrappingJsonFile}
+                          className="shrink-0 p-2 border border-gray-300 rounded-md text-gray-500 hover:text-red-600 hover:bg-red-50 hover:border-red-200"
+                          title="Remove uploaded file"
+                          aria-label="Remove uploaded file"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </>
+                    ) : (
+                      <p className="text-xs text-slate-500">Only .json files are accepted.</p>
+                    )}
+                  </div>
+                </div>
+              ) : null;
 
               const screenScrappingIntegrationCard = showReconciliationSection ? (
                 <div className="border border-slate-200 rounded-lg bg-white shadow-sm p-4 sm:p-5 space-y-4">
-                  {getAllUsersField}
+                  {screenScrappingBaseUrlField}
+                  {screenScrappingJsonUploadField}
                   {loadSchemaSection}
                 </div>
               ) : null;
@@ -11248,7 +11428,13 @@ export default function AddApplicationPage() {
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 space-y-4">
               <h3 className="text-lg font-semibold text-amber-900">Schema Mapping not ready</h3>
               <p className="text-sm text-amber-800">
-                {isScreenScrappingAiAgent || isRestLikeOnboardType ? (
+                {isScreenScrappingAiAgent ? (
+                  <>
+                    On the Integration step, enter <strong>baseURL</strong>, upload a JSON file, and
+                    click <strong>Load Schema</strong>. Then you can map columns to source attributes
+                    here.
+                  </>
+                ) : isRestLikeOnboardType ? (
                   <>
                     On the Integration step, enter Get All Users and click <strong>Load Schema</strong>.
                     Then you can map columns to source attributes here.

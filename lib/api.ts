@@ -1999,11 +1999,29 @@ export async function testRestServiceConnection(
 }
 
 /** Maps wizard step3 fields to gatewayassist schemamapper/screen/users payload. */
-export const buildScreenUsersSchemaPayload = buildRestUsersSchemaPayload;
+export type ScreenUsersSchemaPayload = RestUsersSchemaPayload & {
+  baseURL: string;
+  config_json: string;
+};
+
+export function buildScreenUsersSchemaPayload(step3: Record<string, unknown>): ScreenUsersSchemaPayload {
+  const baseURL = pickScreenScrappingBaseUrlFromStep3(step3);
+  const config_json = pickScreenScrappingJsonFromStep3(step3);
+  const restPayload = buildRestUsersSchemaPayload({
+    ...step3,
+    [VIEW_GET_ALL_USERS_FIELD]: baseURL,
+  });
+  return {
+    ...restPayload,
+    users_url: baseURL,
+    baseURL,
+    config_json,
+  };
+}
 
 /** POST gatewayassist schemamapper/screen/users — ScreenScrapping schema mapping. */
 export async function fetchScreenUsersSchema(
-  payload: RestUsersSchemaPayload,
+  payload: ScreenUsersSchemaPayload,
   tenantId?: string
 ): Promise<unknown> {
   const tenant = tenantId?.trim() || resolveEntitiesTenant();
@@ -3401,6 +3419,10 @@ export type ApplicationTypeIntegrationFieldGroup = {
 
 export const VIEW_GET_ALL_USERS_FIELD = "viewGetAllUsers";
 
+export const SCREEN_SCRAPPING_BASE_URL_FIELD = "baseURL";
+export const SCREEN_SCRAPPING_JSON_FILE_FIELD = "screenScrapingJsonFile";
+export const SCREEN_SCRAPPING_JSON_FILE_NAME_FIELD = "screenScrapingJsonFileName";
+
 const VIEW_NAME_STEP3_ALIASES = ["view_name", "viewName"] as const;
 
 /** Database ApplicationDetails keys sent on newApp even when the wizard leaves them blank. */
@@ -3553,6 +3575,21 @@ export function pickViewGetAllUsersFromStep3(step3: Record<string, unknown>): st
   return pickStep3String(step3, VIEW_GET_ALL_USERS_FIELD, ...VIEW_NAME_STEP3_ALIASES);
 }
 
+export function pickScreenScrappingBaseUrlFromStep3(step3: Record<string, unknown>): string {
+  return pickStep3String(step3, SCREEN_SCRAPPING_BASE_URL_FIELD, "baseUrl");
+}
+
+export function pickScreenScrappingJsonFromStep3(step3: Record<string, unknown>): string {
+  return pickStep3String(step3, SCREEN_SCRAPPING_JSON_FILE_FIELD);
+}
+
+export function isScreenScrappingIntegrationInputComplete(step3: Record<string, unknown>): boolean {
+  return Boolean(
+    pickScreenScrappingBaseUrlFromStep3(step3).trim() &&
+      pickScreenScrappingJsonFromStep3(step3).trim()
+  );
+}
+
 function pickStep3ValueForSupportedApiField(
   apiFieldKey: string,
   step3: Record<string, unknown>
@@ -3570,12 +3607,19 @@ export function buildGroupedApplicationDetailsForNewApp(
   appType?: string
 ): Record<string, string> {
   const isRestService = appType === "RESTService Application";
+  const isScreenScrapping = appType === "ScreenScrapping";
   const alwaysIncludeEmpty = new Set<string>(
     appType === "Database"
       ? [...DATABASE_ALWAYS_INCLUDE_APPLICATION_DETAIL_FIELDS]
       : isRestService
         ? [...REST_SERVICE_ALWAYS_INCLUDE_APPLICATION_DETAIL_FIELDS]
-        : []
+        : isScreenScrapping
+          ? [
+              SCREEN_SCRAPPING_BASE_URL_FIELD,
+              SCREEN_SCRAPPING_JSON_FILE_FIELD,
+              SCREEN_SCRAPPING_JSON_FILE_NAME_FIELD,
+            ]
+          : []
   );
   const keysToEmit = [...new Set([...supportedFieldKeys, ...alwaysIncludeEmpty])];
   const ApplicationDetails: Record<string, string> = {};
@@ -3583,7 +3627,13 @@ export function buildGroupedApplicationDetailsForNewApp(
     if (isRestService && apiKey === VIEW_GET_ALL_USERS_FIELD) continue;
     let val = isRestService
       ? pickRestServiceApplicationDetailValue(apiKey, step3)
-      : pickStep3ValueForSupportedApiField(apiKey, step3);
+      : isScreenScrapping && apiKey === SCREEN_SCRAPPING_BASE_URL_FIELD
+        ? pickScreenScrappingBaseUrlFromStep3(step3)
+        : isScreenScrapping && apiKey === SCREEN_SCRAPPING_JSON_FILE_FIELD
+          ? pickScreenScrappingJsonFromStep3(step3)
+          : isScreenScrapping && apiKey === SCREEN_SCRAPPING_JSON_FILE_NAME_FIELD
+            ? pickStep3String(step3, SCREEN_SCRAPPING_JSON_FILE_NAME_FIELD)
+            : pickStep3ValueForSupportedApiField(apiKey, step3);
     if (!val && isRestService && apiKey in REST_SERVICE_APPLICATION_DETAIL_DEFAULTS) {
       val = REST_SERVICE_APPLICATION_DETAIL_DEFAULTS[apiKey];
     }

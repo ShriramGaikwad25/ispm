@@ -24,6 +24,15 @@ function findSupportedObjectsTypeEntry(
   return found ? (found as Record<string, unknown>) : null;
 }
 
+function normalizeScreenScrappingSupportedFields(fields: unknown): unknown {
+  if (!Array.isArray(fields)) return fields;
+  const out = fields.map((field) => (field === "viewGetAllUsers" ? "baseURL" : field));
+  for (const extra of ["screenScrapingJsonFile", "screenScrapingJsonFileName"]) {
+    if (!out.includes(extra)) out.push(extra);
+  }
+  return out;
+}
+
 function cloneSupportedObjectsTypeEntry(
   sourceEntry: Record<string, unknown>,
   sourceTypeName: string,
@@ -31,8 +40,12 @@ function cloneSupportedObjectsTypeEntry(
 ): Record<string, unknown> {
   const fields = sourceEntry[sourceTypeName];
   const adv = sourceEntry.advancedSetting ?? sourceEntry.AdvancedSetting;
+  const clonedFields =
+    targetTypeName === SCREEN_SCRAPPING_APPLICATION_TYPE
+      ? normalizeScreenScrappingSupportedFields(structuredClone(fields))
+      : structuredClone(fields);
   const out: Record<string, unknown> = {
-    [targetTypeName]: structuredClone(fields),
+    [targetTypeName]: clonedFields,
   };
   if (adv !== undefined) {
     out.advancedSetting = structuredClone(adv);
@@ -69,7 +82,9 @@ export function buildScreenScrappingSupportedObjectsEntry(
           },
         ],
       },
-      "viewGetAllUsers",
+      "baseURL",
+      "screenScrapingJsonFile",
+      "screenScrapingJsonFileName",
     ],
     advancedSetting: {
       hook: [],
