@@ -12,9 +12,11 @@ type ModalProps = {
   wide?: boolean;
   /** Rule editor (~900px) */
   extraWide?: boolean;
+  /** Policy statement tables — wider, no inner scroll */
+  policyPanel?: boolean;
 };
 
-export default function Modal({ open, title, children, onClose, footer, wide, extraWide }: ModalProps) {
+export default function Modal({ open, title, children, onClose, footer, wide, extraWide, policyPanel }: ModalProps) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -35,16 +37,22 @@ export default function Modal({ open, title, children, onClose, footer, wide, ex
         onClick={onClose}
       />
       <div
-        className={`relative z-10 w-full rounded-lg border border-gray-200 bg-white shadow-xl ${
-          extraWide ? "max-w-[900px]" : wide ? "max-w-2xl" : "max-w-md"
-        } max-h-[min(92vh,900px)] flex flex-col`}
+        className={`relative z-10 w-full rounded-lg border border-gray-200 bg-white shadow-xl flex flex-col ${
+          policyPanel
+            ? "max-w-[min(1120px,96vw)]"
+            : extraWide
+              ? "max-w-[900px]"
+              : wide
+                ? "max-w-2xl"
+                : "max-w-md"
+        } ${policyPanel ? "" : "max-h-[min(92vh,900px)]"}`}
       >
         {title && (
           <div className="border-b border-gray-200 px-4 py-3">
             <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
           </div>
         )}
-        <div className="overflow-y-auto p-4 flex-1 min-h-0 text-sm text-gray-700">{children}</div>
+        <div className={`p-4 text-sm text-gray-700 ${policyPanel ? "overflow-visible" : "overflow-y-auto flex-1 min-h-0"}`}>{children}</div>
         {footer && <div className="border-t border-gray-200 px-4 py-3 flex flex-wrap justify-end gap-2">{footer}</div>}
       </div>
     </div>

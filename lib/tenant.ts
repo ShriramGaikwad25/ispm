@@ -23,6 +23,8 @@ const RESERVED_FIRST_SEGMENTS = new Set(
     'non-human-identity',
     'non-human-identity-1',
     'non-human-identity-2',
+    'oci-policy-analysis',
+    'oci-policy-risk-management',
     'oracle-reports',
     'profile',
     'profiles',
