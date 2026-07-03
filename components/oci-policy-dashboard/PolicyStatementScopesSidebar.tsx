@@ -181,16 +181,21 @@ function DefinedTagsTable({ tags }: { tags: PolicyScopeDefinedTag[] }) {
 
   return (
     <div className="overflow-x-auto rounded-md border border-blue-100">
-      <table className="min-w-full border-collapse text-sm">
+      <table className="w-full table-fixed border-collapse text-xs">
+        <colgroup>
+          <col className="w-[30%]" />
+          <col className="w-[22%]" />
+          <col className="w-[48%]" />
+        </colgroup>
         <thead>
           <tr className="bg-blue-50/90">
-            <th className="border-b border-blue-100 px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-blue-800">
+            <th className="border-b border-blue-100 px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-blue-800">
               Namespace
             </th>
-            <th className="border-b border-blue-100 px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-blue-800">
+            <th className="border-b border-blue-100 px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-blue-800">
               Key
             </th>
-            <th className="border-b border-blue-100 px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-blue-800">
+            <th className="border-b border-blue-100 px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-blue-800">
               Value
             </th>
           </tr>
@@ -198,9 +203,9 @@ function DefinedTagsTable({ tags }: { tags: PolicyScopeDefinedTag[] }) {
         <tbody className="bg-white">
           {tags.map((tag, index) => (
             <tr key={`${tag.namespace}-${tag.key}-${index}`} className="border-b border-gray-100 last:border-b-0 hover:bg-gray-50">
-              <td className="px-2.5 py-1.5 text-gray-800 [overflow-wrap:anywhere]">{tag.namespace}</td>
-              <td className="px-2.5 py-1.5 text-gray-800 [overflow-wrap:anywhere]">{tag.key}</td>
-              <td className="px-2.5 py-1.5 text-gray-800 [overflow-wrap:anywhere]">{tag.value}</td>
+              <td className="break-words px-2 py-1.5 text-gray-800 [overflow-wrap:anywhere]">{tag.namespace}</td>
+              <td className="break-words px-2 py-1.5 text-gray-800 [overflow-wrap:anywhere]">{tag.key}</td>
+              <td className="break-words px-2 py-1.5 text-gray-800 [overflow-wrap:anywhere]">{tag.value}</td>
             </tr>
           ))}
         </tbody>
