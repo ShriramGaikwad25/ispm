@@ -14,6 +14,7 @@ const RESERVED_FIRST_SEGMENTS = new Set(
     'api',
     '_next',
     'access-request',
+    'jit-access',
     'access-review',
     'applications',
     'app-owner',

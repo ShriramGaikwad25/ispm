@@ -35,6 +35,7 @@ import {
   Tags,
   Target,
   Wrench,
+  Zap,
 } from "lucide-react";
 import { NHI_2_NAV_ITEMS, NHI_NAV_ITEMS } from "@/lib/nhi-shell";
 import { riskAnalysisSubItems } from "@/lib/risk-analysis-routes";
@@ -106,6 +107,7 @@ export const navLinks: NavItem[] = [
     icon: ClipboardList,
     subItems: [
       { name: "Access Request", href: "/access-request", icon: ClipboardList },
+      { name: "JIT Access", href: "/jit-access", icon: Zap },
       { name: "Track Request", href: "/track-request", icon: Search },
       {
         name: "My Approvals",

@@ -470,8 +470,7 @@ export function buildApplicationInstanceConfiguration(
 
 /** executeQuery: register new app via DB function after SCIM registration. */
 export async function executeAddNewAppFunction(applicationName: string): Promise<unknown> {
-  const escaped = applicationName.replace(/'/g, "''");
-  return executeQuery(`select kf_app_add_new_app_fn('${escaped}')`, []);
+  return executeQuery(`select kf_app_add_new_app_fn(?)`, [applicationName]);
 }
 
 /** executeQuery: persist applicationinstance configuration (identity matching attrs). */
