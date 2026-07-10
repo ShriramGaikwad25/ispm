@@ -314,6 +314,10 @@ export function Navigation() {
     if (pathname === '/reports/filter') {
       return { href: '/reports', label: 'Back to Reports' };
     }
+    // OCI Policy workspace (detail page)
+    if (pathname.match(/^\/oci-policy-analysis\/policies\/[^/]+$/)) {
+      return { href: '/oci-policy-analysis', label: 'Back to Policy Dashboard' };
+    }
     // Oracle Reports
     if (pathname.startsWith('/oracle-reports/') && pathname !== '/oracle-reports') {
       return { href: '/oracle-reports', label: 'Back to Oracle Reports' };

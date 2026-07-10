@@ -49,8 +49,8 @@ function statusClass(status: string): string {
   return "bg-blue-100 text-blue-800";
 }
 
-function policyGraphHref(policyName: string): string {
-  return `/oci-policy-analysis/policies/${encodeURIComponent(policyName)}/graph`;
+function policyWorkspaceHref(policyName: string): string {
+  return `/oci-policy-analysis/policies/${encodeURIComponent(policyName)}`;
 }
 
 export function OciPoliciesTable({
@@ -290,9 +290,9 @@ export function OciPoliciesTable({
                     </td>
                     <td className={TD_ACTION}>
                       <Link
-                        href={policyGraphHref(row.name)}
+                        href={policyWorkspaceHref(row.name)}
                         className="inline-flex items-center justify-center rounded-md border border-blue-200 bg-white p-1.5 text-blue-700 shadow-sm transition-colors hover:border-blue-400 hover:bg-blue-50"
-                        aria-label={`View policy graph for ${row.name}`}
+                        aria-label={`View policy workspace for ${row.name}`}
                         title={`View ${row.name}`}
                       >
                         <Eye className="h-4 w-4" aria-hidden />

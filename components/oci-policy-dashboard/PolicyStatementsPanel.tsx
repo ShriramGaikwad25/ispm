@@ -53,12 +53,14 @@ export function PolicyStatementsPanel({
   isLoading = false,
   selectedStatementIndex = null,
   onStatementClick,
+  hideStatementColumn = false,
 }: {
   policyName: string;
   statements: PolicyListStatement[];
   isLoading?: boolean;
   selectedStatementIndex?: number | null;
   onStatementClick?: (index: number, statement: PolicyListStatement) => void;
+  hideStatementColumn?: boolean;
 }) {
   return (
     <section
@@ -79,18 +81,18 @@ export function PolicyStatementsPanel({
           No statement text returned from the API for {policyName}.
         </p>
       ) : (
-        <div className="overflow-x-auto">
+        <div>
           <table className="w-full table-fixed border-collapse text-sm">
             <colgroup>
               <col style={{ width: "2.75rem" }} />
-              <col />
-              <col style={{ width: "16%" }} />
-              <col style={{ width: "12%" }} />
-              <col style={{ width: "6%" }} />
-              <col style={{ width: "10%" }} />
-              <col style={{ width: "12%" }} />
-              <col style={{ width: "8%" }} />
-              <col style={{ width: "7%" }} />
+              {!hideStatementColumn && <col />}
+              <col style={{ width: hideStatementColumn ? "28%" : "16%" }} />
+              <col style={{ width: hideStatementColumn ? "18%" : "12%" }} />
+              <col style={{ width: hideStatementColumn ? "5%"  : "5%"  }} />
+              <col style={{ width: hideStatementColumn ? "10%" : "8%"  }} />
+              <col style={{ width: hideStatementColumn ? "20%" : "12%" }} />
+              <col style={{ width: hideStatementColumn ? "6%"  : "6%"  }} />
+              <col style={{ width: hideStatementColumn ? "5%"  : "5%"  }} />
               <col style={{ width: ACTION_COLUMN_WIDTH }} />
             </colgroup>
             <thead>
@@ -98,9 +100,11 @@ export function PolicyStatementsPanel({
                 <th scope="col" className={STATEMENT_TH_CENTER}>
                   #
                 </th>
-                <th scope="col" className={STATEMENT_TH}>
-                  {GRAPH_NODE_KIND_LABELS.PolicyStatement}
-                </th>
+                {!hideStatementColumn && (
+                  <th scope="col" className={STATEMENT_TH}>
+                    {GRAPH_NODE_KIND_LABELS.PolicyStatement}
+                  </th>
+                )}
                 <th scope="col" className={STATEMENT_TH}>
                   {GRAPH_NODE_KIND_LABELS.Condition}
                 </th>
@@ -160,15 +164,17 @@ export function PolicyStatementsPanel({
                     >
                       {formatStatementRef(statement.ref, index)}
                     </td>
-                    <td className={STATEMENT_TD}>
-                      <pre
-                        className={`m-0 whitespace-pre-wrap font-mono text-sm leading-relaxed [overflow-wrap:anywhere] ${
-                          isSelected ? "text-blue-950" : "text-slate-800"
-                        }`}
-                      >
-                        {statement.text}
-                      </pre>
-                    </td>
+                    {!hideStatementColumn && (
+                      <td className={STATEMENT_TD}>
+                        <pre
+                          className={`m-0 whitespace-pre-wrap font-mono text-sm leading-relaxed [overflow-wrap:anywhere] ${
+                            isSelected ? "text-blue-950" : "text-slate-800"
+                          }`}
+                        >
+                          {statement.text}
+                        </pre>
+                      </td>
+                    )}
                     <td className={STATEMENT_TD_MUTED}>
                       <StatementFieldCell value={fields.condition} />
                     </td>

@@ -293,7 +293,7 @@ export function OciPolicyGraphView({
       </div>
 
       {!isLoading && !isError && forceData.nodes.length > 0 ? (
-        <div className="shrink-0 flex flex-wrap items-center gap-2 border-b border-gray-200 bg-white px-4 py-2">
+        <div className="shrink-0 flex items-center gap-2 overflow-x-auto border-b border-gray-200 bg-white px-4 py-2">
           <span className="text-xs font-medium text-gray-500">Counts:</span>
           {LEGEND.map(({ kind, label }) => {
             const count = nodeCountsByKind.get(kind) ?? 0;
@@ -393,23 +393,6 @@ export function OciPolicyGraphView({
         )}
       </div>
 
-      {graph && !isLoading && (
-        <div className="shrink-0 border-t border-gray-200 px-4 py-2.5 text-xs text-gray-500 tabular-nums">
-          <span>
-            {graph.nodes.length} nodes · {graph.links.length} relationships
-          </span>
-          {nodeCountsByKind.size > 0 ? (
-            <span className="mt-1 block text-gray-600">
-              {LEGEND.filter(({ kind }) => (nodeCountsByKind.get(kind) ?? 0) > 0)
-                .map(({ kind, label }) => `${label} ${nodeCountsByKind.get(kind)}`)
-                .join(" · ")}
-            </span>
-          ) : null}
-          <span className="mt-1 block text-gray-400">
-            Hover for details · drag to rearrange · scroll to zoom
-          </span>
-        </div>
-      )}
     </div>
   );
 }
