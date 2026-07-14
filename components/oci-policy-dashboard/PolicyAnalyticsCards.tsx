@@ -51,6 +51,72 @@ function GraphShortcutCard({ className }: { className?: string }) {
   );
 }
 
+function ResourcesCard({ analytics, className }: { analytics: PolicyListAnalytics; className?: string }) {
+  return (
+    <div className={`${CARD_SHELL} ${className ?? ""}`}>
+      <p className="mb-2 text-xs leading-snug text-gray-500">Resources</p>
+      <div className="flex items-stretch gap-2">
+        <div className="flex flex-1 flex-col items-center justify-center rounded-md bg-gray-50 px-3 py-2">
+          <span className="text-2xl font-semibold tabular-nums text-gray-900">
+            {analytics.distinctResources}
+          </span>
+          <span className="mt-0.5 text-[10px] uppercase tracking-wide text-gray-400">distinct</span>
+        </div>
+        <div className="flex flex-1 flex-col items-center justify-center rounded-md bg-red-50 px-3 py-2">
+          <span className={`text-2xl font-semibold tabular-nums ${analytics.highRiskStatements > 0 ? "text-red-700" : "text-gray-900"}`}>
+            {analytics.highRiskStatements}
+          </span>
+          <span className="mt-0.5 text-[10px] uppercase tracking-wide text-red-400">high risk</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PoliciesCard({ analytics, className }: { analytics: PolicyListAnalytics; className?: string }) {
+  return (
+    <div className={`${CARD_SHELL} ${className ?? ""}`}>
+      <p className="mb-2 text-xs leading-snug text-gray-500">Policies</p>
+      <div className="flex items-stretch gap-2">
+        <div className="flex flex-1 flex-col items-center justify-center rounded-md bg-blue-50 px-3 py-2">
+          <span className="text-2xl font-semibold tabular-nums text-blue-700">
+            {analytics.totalPolicies}
+          </span>
+          <span className="mt-0.5 text-[10px] uppercase tracking-wide text-blue-400">total</span>
+        </div>
+        <div className="flex flex-1 flex-col items-center justify-center rounded-md bg-red-50 px-3 py-2">
+          <span className={`text-2xl font-semibold tabular-nums ${analytics.highRiskStatements > 0 ? "text-red-700" : "text-gray-900"}`}>
+            {analytics.highRiskStatements}
+          </span>
+          <span className="mt-0.5 text-[10px] uppercase tracking-wide text-red-400">high risk</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatementsCard({ analytics, className }: { analytics: PolicyListAnalytics; className?: string }) {
+  return (
+    <div className={`${CARD_SHELL} ${className ?? ""}`}>
+      <p className="mb-2 text-xs leading-snug text-gray-500">Statements</p>
+      <div className="flex items-stretch gap-2">
+        <div className="flex flex-1 flex-col items-center justify-center rounded-md bg-blue-50 px-3 py-2">
+          <span className="text-2xl font-semibold tabular-nums text-blue-700">
+            {analytics.totalStatements}
+          </span>
+          <span className="mt-0.5 text-[10px] uppercase tracking-wide text-blue-400">total</span>
+        </div>
+        <div className="flex flex-1 flex-col items-center justify-center rounded-md bg-amber-50 px-3 py-2">
+          <span className={`text-2xl font-semibold tabular-nums ${analytics.conditionalStatements > 0 ? "text-amber-700" : "text-gray-900"}`}>
+            {analytics.conditionalStatements}
+          </span>
+          <span className="mt-0.5 text-[10px] uppercase tracking-wide text-amber-400">conditional</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DistinctSubjectsCard({ analytics }: { analytics: PolicyListAnalytics }) {
   return (
     <div className={CARD_SHELL}>
@@ -83,16 +149,12 @@ function DistinctSubjectsCard({ analytics }: { analytics: PolicyListAnalytics })
 export function PolicyAnalyticsCards({ analytics }: { analytics: PolicyListAnalytics }) {
   return (
     <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5 xl:grid-rows-2">
-      <SummaryStatBox
-        label="Total policies"
-        value={analytics.totalPolicies}
-        accent="text-blue-700"
+      <PoliciesCard
+        analytics={analytics}
         className="xl:col-start-1 xl:row-start-1"
       />
-      <SummaryStatBox
-        label="Total statements"
-        value={analytics.totalStatements}
-        accent="text-blue-700"
+      <StatementsCard
+        analytics={analytics}
         className="xl:col-start-2 xl:row-start-1"
       />
       <SummaryStatBox
@@ -100,9 +162,8 @@ export function PolicyAnalyticsCards({ analytics }: { analytics: PolicyListAnaly
         value={analytics.distinctCompartments}
         className="xl:col-start-3 xl:row-start-1"
       />
-      <SummaryStatBox
-        label="Distinct resources"
-        value={analytics.distinctResources}
+      <ResourcesCard
+        analytics={analytics}
         className="xl:col-start-1 xl:row-start-2"
       />
       <SummaryStatBox
@@ -112,9 +173,8 @@ export function PolicyAnalyticsCards({ analytics }: { analytics: PolicyListAnaly
         className="xl:col-start-2 xl:row-start-2"
       />
       <SummaryStatBox
-        label="Conditional statements"
-        value={analytics.conditionalStatements}
-        accent="text-amber-700"
+        label="Tags"
+        value={analytics.totalTags}
         className="xl:col-start-3 xl:row-start-2"
       />
 

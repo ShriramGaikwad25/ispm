@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Shield, WifiOff } from "lucide-react";
+import { Loader2, WifiOff } from "lucide-react";
 import { useOciPolicyList } from "@/hooks/useOciPolicyList";
 import {
   storeOciTenancyId,
@@ -47,7 +47,6 @@ export default function OciPolicyDashboardPage() {
     setSelectedTenancyId,
     displayLabel,
     isLoading: tenanciesLoading,
-    isFetching: tenanciesFetching,
   } = useOciTenancyOptions(policyTenancies);
 
   const [page, setPage] = useState(1);
@@ -84,13 +83,7 @@ export default function OciPolicyDashboardPage() {
   return (
     <div className="w-full min-w-0">
       <div className="mb-4 shrink-0">
-        <div className="mb-2 flex flex-wrap items-start justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="shrink-0 rounded-lg bg-blue-50 p-2 text-blue-600">
-              <Shield className="h-6 w-6" aria-hidden />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900">Policy Dashboard</h1>
-          </div>
+        <div className="mb-2 flex flex-wrap items-start justify-end gap-3">
           <OciTenancySelect
             tenancies={tenancies}
             value={selectedTenancyId}

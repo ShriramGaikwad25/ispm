@@ -36,6 +36,7 @@ import {
   Target,
   Wrench,
   Zap,
+  Sparkles,
 } from "lucide-react";
 import { NHI_2_NAV_ITEMS, NHI_NAV_ITEMS } from "@/lib/nhi-shell";
 import { riskAnalysisSubItems } from "@/lib/risk-analysis-routes";
@@ -162,7 +163,7 @@ export const navLinks: NavItem[] = [
     ],
   },
   {
-    name: "OCI Policy Management",
+    name: "Policy Dashboard",
     href: "/oci-policy-analysis",
     icon: ShieldAlert,
     subItems: [
@@ -170,6 +171,7 @@ export const navLinks: NavItem[] = [
       { name: "Policy Optimization", href: "/oci-policy-analysis/policy-optimization", icon: Target },
       { name: "Group Access", href: "/oci-policy-analysis/group-access", icon: Users },
       { name: "Tags", href: "/oci-policy-analysis/tags", icon: Tags },
+      { name: "Tags-2", href: "/oci-policy-analysis/tags-2", icon: Sparkles },
       { name: "Policy Builder", href: "/oci-policy-analysis/policy-builder", icon: FileCode2 },
       { name: "Risk Overview", href: "/oci-policy-risk-management", icon: LayoutDashboard },
       { name: "Tenant Posture", href: "/oci-policy-risk-management/tenant-posture", icon: Building2 },

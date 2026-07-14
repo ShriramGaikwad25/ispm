@@ -54,6 +54,7 @@ export function PolicyStatementsPanel({
   selectedStatementIndex = null,
   onStatementClick,
   hideStatementColumn = false,
+  statementOnlyMode = false,
 }: {
   policyName: string;
   statements: PolicyListStatement[];
@@ -61,6 +62,7 @@ export function PolicyStatementsPanel({
   selectedStatementIndex?: number | null;
   onStatementClick?: (index: number, statement: PolicyListStatement) => void;
   hideStatementColumn?: boolean;
+  statementOnlyMode?: boolean;
 }) {
   return (
     <section
@@ -84,51 +86,77 @@ export function PolicyStatementsPanel({
         <div>
           <table className="w-full table-fixed border-collapse text-sm">
             <colgroup>
-              <col style={{ width: "2.75rem" }} />
-              {!hideStatementColumn && <col />}
-              <col style={{ width: hideStatementColumn ? "28%" : "16%" }} />
-              <col style={{ width: hideStatementColumn ? "18%" : "12%" }} />
-              <col style={{ width: hideStatementColumn ? "5%"  : "5%"  }} />
-              <col style={{ width: hideStatementColumn ? "10%" : "8%"  }} />
-              <col style={{ width: hideStatementColumn ? "20%" : "12%" }} />
-              <col style={{ width: hideStatementColumn ? "6%"  : "6%"  }} />
-              <col style={{ width: hideStatementColumn ? "5%"  : "5%"  }} />
-              <col style={{ width: ACTION_COLUMN_WIDTH }} />
+              {statementOnlyMode ? (
+                <>
+                  <col />
+                  <col style={{ width: "7%" }} />
+                  <col style={{ width: "14%" }} />
+                </>
+              ) : (
+                <>
+                  {!hideStatementColumn && <col />}
+                  <col style={{ width: "7%" }} />
+                  <col style={{ width: hideStatementColumn ? "20%" : "14%" }} />
+                  <col style={{ width: "6%" }} />
+                  <col style={{ width: "10%" }} />
+                  <col style={{ width: hideStatementColumn ? "13%" : "10%" }} />
+                  <col style={{ width: hideStatementColumn ? "18%" : "13%" }} />
+                  <col style={{ width: "6%" }} />
+                  <col style={{ width: hideStatementColumn ? "13%" : "10%" }} />
+                  <col style={{ width: ACTION_COLUMN_WIDTH }} />
+                </>
+              )}
             </colgroup>
             <thead>
               <tr>
-                <th scope="col" className={STATEMENT_TH_CENTER}>
-                  #
-                </th>
-                {!hideStatementColumn && (
-                  <th scope="col" className={STATEMENT_TH}>
-                    {GRAPH_NODE_KIND_LABELS.PolicyStatement}
-                  </th>
+                {statementOnlyMode ? (
+                  <>
+                    <th scope="col" className={STATEMENT_TH}>
+                      {GRAPH_NODE_KIND_LABELS.PolicyStatement}
+                    </th>
+                    <th scope="col" className={STATEMENT_TH_CENTER}>
+                      Risk
+                    </th>
+                    <th scope="col" className={STATEMENT_TH}>
+                      Impact
+                    </th>
+                  </>
+                ) : (
+                  <>
+                    {!hideStatementColumn && (
+                      <th scope="col" className={STATEMENT_TH}>
+                        {GRAPH_NODE_KIND_LABELS.PolicyStatement}
+                      </th>
+                    )}
+                    <th scope="col" className={STATEMENT_TH}>
+                      {GRAPH_NODE_KIND_LABELS.StatementType}
+                    </th>
+                    <th scope="col" className={STATEMENT_TH}>
+                      {GRAPH_NODE_KIND_LABELS.Group}
+                    </th>
+                    <th scope="col" className={STATEMENT_TH}>
+                      {GRAPH_NODE_KIND_LABELS.Action}
+                    </th>
+                    <th scope="col" className={STATEMENT_TH}>
+                      {GRAPH_NODE_KIND_LABELS.ResourceType}
+                    </th>
+                    <th scope="col" className={STATEMENT_TH}>
+                      {GRAPH_NODE_KIND_LABELS.Compartment}
+                    </th>
+                    <th scope="col" className={STATEMENT_TH}>
+                      {GRAPH_NODE_KIND_LABELS.Condition}
+                    </th>
+                    <th scope="col" className={STATEMENT_TH_CENTER}>
+                      Risk
+                    </th>
+                    <th scope="col" className={STATEMENT_TH}>
+                      Impact
+                    </th>
+                    <th scope="col" className={STATEMENT_TH_ACTION} aria-label="View scopes">
+                      <span className="sr-only">View scopes</span>
+                    </th>
+                  </>
                 )}
-                <th scope="col" className={STATEMENT_TH}>
-                  {GRAPH_NODE_KIND_LABELS.Condition}
-                </th>
-                <th scope="col" className={STATEMENT_TH}>
-                  {GRAPH_NODE_KIND_LABELS.Compartment}
-                </th>
-                <th scope="col" className={STATEMENT_TH}>
-                  {GRAPH_NODE_KIND_LABELS.StatementType}
-                </th>
-                <th scope="col" className={STATEMENT_TH}>
-                  {GRAPH_NODE_KIND_LABELS.ResourceType}
-                </th>
-                <th scope="col" className={STATEMENT_TH}>
-                  {GRAPH_NODE_KIND_LABELS.Group}
-                </th>
-                <th scope="col" className={STATEMENT_TH}>
-                  {GRAPH_NODE_KIND_LABELS.Action}
-                </th>
-                <th scope="col" className={STATEMENT_TH_CENTER}>
-                  Risk
-                </th>
-                <th scope="col" className={STATEMENT_TH_ACTION} aria-label="View scopes">
-                  <span className="sr-only">View scopes</span>
-                </th>
               </tr>
             </thead>
             <tbody>
@@ -157,57 +185,79 @@ export function PolicyStatementsPanel({
                         : "hover:bg-slate-50"
                     }`}
                   >
-                    <td
-                      className={`${STATEMENT_TD} font-mono text-xs tabular-nums whitespace-nowrap text-center ${
-                        isSelected ? "font-semibold text-blue-700" : "text-slate-500"
-                      }`}
-                    >
-                      {formatStatementRef(statement.ref, index)}
-                    </td>
-                    {!hideStatementColumn && (
-                      <td className={STATEMENT_TD}>
-                        <pre
-                          className={`m-0 whitespace-pre-wrap font-mono text-sm leading-relaxed [overflow-wrap:anywhere] ${
-                            isSelected ? "text-blue-950" : "text-slate-800"
+                    {statementOnlyMode ? (
+                      <>
+                        <td className={STATEMENT_TD}>
+                          <pre
+                            className={`m-0 whitespace-pre-wrap font-mono text-sm leading-relaxed [overflow-wrap:anywhere] ${
+                              isSelected ? "text-blue-950" : "text-slate-800"
+                            }`}
+                          >
+                            {statement.text}
+                          </pre>
+                        </td>
+                        <td className={`${STATEMENT_TD} text-center whitespace-nowrap ${statementRiskClass(risk)}`}>
+                          {risk}
+                        </td>
+                        <td className={STATEMENT_TD_MUTED}>
+                          <span className="block text-xs">442 resources</span>
+                          <span className="block text-xs">12 compartments</span>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        {!hideStatementColumn && (
+                          <td className={STATEMENT_TD}>
+                            <pre
+                              className={`m-0 whitespace-pre-wrap font-mono text-sm leading-relaxed [overflow-wrap:anywhere] ${
+                                isSelected ? "text-blue-950" : "text-slate-800"
+                              }`}
+                            >
+                              {statement.text}
+                            </pre>
+                          </td>
+                        )}
+                        <td className={STATEMENT_TD_MUTED}>
+                          <StatementFieldCell value={fields.type} />
+                        </td>
+                        <td className={STATEMENT_TD_MUTED}>
+                          <StatementFieldCell value={fields.subject} />
+                        </td>
+                        <td className={STATEMENT_TD_MUTED}>
+                          <StatementFieldCell value={fields.verb} />
+                        </td>
+                        <td className={STATEMENT_TD_MUTED}>
+                          <StatementFieldCell value={fields.resource} />
+                        </td>
+                        <td className={STATEMENT_TD_MUTED}>
+                          <StatementFieldCell value={fields.compartment} />
+                        </td>
+                        <td className={STATEMENT_TD_MUTED}>
+                          <StatementFieldCell value={fields.condition} />
+                        </td>
+                        <td className={`${STATEMENT_TD} text-center whitespace-nowrap ${statementRiskClass(risk)}`}>
+                          {risk}
+                        </td>
+                        <td className={STATEMENT_TD_MUTED}>
+                          <span className="block text-xs">442 resources</span>
+                          <span className="block text-xs">12 compartments</span>
+                        </td>
+                      </>
+                    )}
+                    {!statementOnlyMode && (
+                      <td className={STATEMENT_TD_ACTION}>
+                        <span
+                          className={`inline-flex h-8 w-8 items-center justify-center rounded-md border bg-white shadow-sm ${
+                            isSelected
+                              ? "border-blue-400 text-blue-700"
+                              : "border-blue-200 text-blue-600"
                           }`}
+                          aria-hidden
                         >
-                          {statement.text}
-                        </pre>
+                          <ChevronRight className="h-4 w-4" />
+                        </span>
                       </td>
                     )}
-                    <td className={STATEMENT_TD_MUTED}>
-                      <StatementFieldCell value={fields.condition} />
-                    </td>
-                    <td className={STATEMENT_TD_MUTED}>
-                      <StatementFieldCell value={fields.compartment} />
-                    </td>
-                    <td className={STATEMENT_TD_MUTED}>
-                      <StatementFieldCell value={fields.type} />
-                    </td>
-                    <td className={STATEMENT_TD_MUTED}>
-                      <StatementFieldCell value={fields.resource} />
-                    </td>
-                    <td className={STATEMENT_TD_MUTED}>
-                      <StatementFieldCell value={fields.subject} />
-                    </td>
-                    <td className={STATEMENT_TD_MUTED}>
-                      <StatementFieldCell value={fields.verb} />
-                    </td>
-                    <td className={`${STATEMENT_TD} text-center whitespace-nowrap ${statementRiskClass(risk)}`}>
-                      {risk}
-                    </td>
-                    <td className={STATEMENT_TD_ACTION}>
-                      <span
-                        className={`inline-flex h-8 w-8 items-center justify-center rounded-md border bg-white shadow-sm ${
-                          isSelected
-                            ? "border-blue-400 text-blue-700"
-                            : "border-blue-200 text-blue-600"
-                        }`}
-                        aria-hidden
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </span>
-                    </td>
                   </tr>
                 );
               })}

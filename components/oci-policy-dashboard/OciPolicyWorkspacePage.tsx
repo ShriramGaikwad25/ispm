@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, Shield, X } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Activity, ChevronDown, Copy, Eye, FilePen, Loader2, SendHorizonal, Shield, Trash2, X } from "lucide-react";
 import { useOciPolicyList } from "@/hooks/useOciPolicyList";
 import { useOciPolicyGraph } from "@/hooks/useOciPolicyGraph";
 import { OciPolicyGraphView } from "@/components/OciPolicyGraphView";
@@ -10,6 +10,7 @@ import {
   PolicyStatementsPanel,
 } from "@/components/oci-policy-dashboard/PolicyStatementsPanel";
 import PolicyStatementScopesSidebar from "@/components/oci-policy-dashboard/PolicyStatementScopesSidebar";
+import { ImpactAnalysisPanel } from "@/components/oci-policy-dashboard/ImpactAnalysisPanel";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import type { PolicyListStatement } from "@/types/oci-policy";
 
@@ -62,6 +63,14 @@ export default function OciPolicyWorkspacePage({ policyName }: { policyName: str
   const [statementsView, setStatementsView] = useState<"full" | "statement">("full");
   const [showEditor, setShowEditor] = useState(false);
   const [selectedStatementIndex, setSelectedStatementIndex] = useState<number | null>(null);
+  const [expandedVersions, setExpandedVersions] = useState<Set<string>>(new Set());
+
+  const toggleVersion = (id: string) =>
+    setExpandedVersions((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
   const [scopeStatement, setScopeStatement] = useState<{
     index: number;
     statement: PolicyListStatement;
@@ -87,6 +96,17 @@ export default function OciPolicyWorkspacePage({ policyName }: { policyName: str
   const distinctSubjects = useMemo(
     () =>
       new Set(statements.flatMap((s) => s.subjects?.map((sub) => sub.name) ?? [])).size,
+    [statements]
+  );
+
+  const criticalResources = useMemo(
+    () =>
+      new Set(
+        statements
+          .filter((s) => s.risk === "High")
+          .map((s) => s.resource)
+          .filter(Boolean)
+      ).size,
     [statements]
   );
 
@@ -257,7 +277,7 @@ export default function OciPolicyWorkspacePage({ policyName }: { policyName: str
                 <div className="grid w-full grid-cols-2 gap-2.5">
                   {[
                     { label: "Statements", value: String(policy.statementCount), cls: "text-gray-900" },
-                    { label: "Overall risk", value: policy.risk, cls: riskTextClass(policy.risk) },
+                    { label: "Critical resources", value: String(criticalResources || "—"), cls: criticalResources > 0 ? "text-red-600" : "text-gray-900" },
                     { label: "Subjects", value: String(subjectCount || "—"), cls: "text-gray-900" },
                     { label: "Resources", value: String(distinctResources || "—"), cls: "text-gray-900" },
                     { label: "Conditions", value: String(conditionCount), cls: "text-gray-900" },
@@ -283,7 +303,6 @@ export default function OciPolicyWorkspacePage({ policyName }: { policyName: str
                     { label: "Created on", value: formatDate(policy.createdOn) },
                     { label: "Last modified", value: formatDate(policy.lastModified) },
                     { label: "Last synchronized", value: formatDate(policy.lastSync) },
-                    { label: "Compartment", value: policy.compartment || "—" },
                     { label: "Owner", value: policy.owner || "—" },
                   ].map((info) => (
                     <div key={info.label} className="rounded-lg border border-gray-200 p-3">
@@ -336,56 +355,20 @@ export default function OciPolicyWorkspacePage({ policyName }: { policyName: str
             )}
 
             {statementsView === "statement" && (
-              <div className="flex flex-col gap-2">
-                {statements.length === 0 ? (
-                  <p className="py-6 text-sm text-gray-500">No statements available.</p>
-                ) : (
-                  statements.map((s, i) => (
-                    <div
-                      key={`${s.id}-${i}`}
-                      className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3"
-                    >
-                      <span className="mr-3 font-mono text-xs font-semibold text-gray-400">
-                        {formatStatementRef(s.ref, i)}
-                      </span>
-                      <span className="font-mono text-sm text-gray-800">{s.text}</span>
-                    </div>
-                  ))
-                )}
-              </div>
+              <PolicyStatementsPanel
+                policyName={policy.name}
+                statements={statements}
+                isLoading={listLoading}
+                selectedStatementIndex={selectedStatementIndex}
+                onStatementClick={handleStatementClick}
+                statementOnlyMode
+              />
             )}
           </div>
         )}
 
         {/* ── IMPACT ANALYSIS ── */}
-        {activeTab === "impact" && (
-          <div>
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-              <p className="text-sm font-semibold text-amber-900">No draft changes to compare</p>
-              <p className="mt-1 text-sm text-amber-700">
-                Impact analysis compares an enforced version with a pending draft. Use the
-                Policy Optimization page to detect redundant or overprivileged statements.
-              </p>
-            </div>
-
-            <h2 className="mb-3 mt-6 text-sm font-semibold text-blue-900">Risk breakdown</h2>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-              {[
-                { label: "Total statements", value: policy.statementCount, cls: "text-gray-900" },
-                { label: "High risk", value: policy.highCount, cls: "text-red-600" },
-                { label: "Medium risk", value: policy.mediumCount, cls: "text-yellow-600" },
-                { label: "Low risk", value: policy.lowCount, cls: "text-green-700" },
-                { label: "With conditions", value: conditionCount, cls: "text-gray-900" },
-                { label: "Subjects", value: subjectCount, cls: "text-gray-900" },
-              ].map((m) => (
-                <div key={m.label} className="rounded-lg border border-gray-200 p-3">
-                  <div className={`text-2xl font-bold ${m.cls}`}>{m.value}</div>
-                  <div className="mt-0.5 text-xs text-gray-500">{m.label}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {activeTab === "impact" && <ImpactAnalysisPanel policyName={policy.name} />}
 
         {/* ── VERSIONS ── */}
         {activeTab === "versions" && (
@@ -402,41 +385,117 @@ export default function OciPolicyWorkspacePage({ policyName }: { policyName: str
               <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr>
-                    {["Version", "Status", "Created", "Changed by", "Statements", "Risk"].map(
-                      (h) => (
-                        <th
-                          key={h}
-                          className="whitespace-nowrap border-b border-blue-100 bg-blue-50/80 px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-blue-800"
-                        >
-                          {h}
-                        </th>
-                      )
-                    )}
+                    {["Version", "Status", "Created", "Enforced", "Created by", "Impact Analysis", "Actions"].map((h) => (
+                      <th key={h} className="whitespace-nowrap border-b border-blue-100 bg-blue-50/80 px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-blue-800">
+                        {h}
+                      </th>
+                    ))}
+                    <th className="border-b border-blue-100 bg-blue-50/80 px-3 py-3 w-10" />
                   </tr>
                 </thead>
                 <tbody>
-                  <tr className="border-b border-gray-100">
-                    <td className="px-3 py-3 font-semibold text-gray-900">Current</td>
-                    <td className="px-3 py-3">
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusPillClass(policy.status)}`}
-                      >
-                        {policy.status}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 text-gray-600">{formatDate(policy.createdOn)}</td>
-                    <td className="px-3 py-3 text-gray-700">{policy.createdBy || "—"}</td>
-                    <td className="px-3 py-3 tabular-nums text-gray-700">
-                      {policy.statementCount}
-                    </td>
-                    <td className={`px-3 py-3 ${riskTextClass(policy.risk)}`}>{policy.risk}</td>
-                  </tr>
+                  {([
+                    { id: "draft",    label: "Draft",    status: "Draft",            created: "2025-01-20", enforced: null,          by: policy.createdBy || "—", impact: "Not run" },
+                    { id: "pending",  label: "v5",       status: "Pending Approval",  created: "2024-12-10", enforced: null,          by: policy.createdBy || "—", impact: "In progress" },
+                    { id: "rejected", label: "v4",       status: "Rejected",           created: "2024-11-05", enforced: null,          by: policy.createdBy || "—", impact: "Failed" },
+                    { id: "current",  label: "Current",  status: "Active",             created: policy.createdOn, enforced: policy.createdOn, by: policy.createdBy || "—", impact: "Completed" },
+                    { id: "v2",       label: "v2",       status: "Superseded",         created: "2024-09-10", enforced: "2024-09-10",  by: policy.createdBy || "—", impact: "Outdated" },
+                    { id: "v1",       label: "v1",       status: "Superseded",         created: "2024-06-01", enforced: "2024-06-01",  by: policy.createdBy || "—", impact: "Completed" },
+                  ] as const).map((ver) => {
+                    const isDraft = ver.status === "Draft";
+                    const isSuperseded = ver.status === "Superseded";
+                    const isCurrent = ver.status === "Active";
+                    const expanded = expandedVersions.has(ver.id);
+
+                    const actions: { label: string; icon: React.ElementType; bg: string; fg: string }[] = [
+                      ...(isDraft     ? [{ label: "Edit",                icon: FilePen,       bg: "bg-blue-100",   fg: "text-blue-600" }]   : []),
+                      ...(isSuperseded? [{ label: "View",                icon: Eye,           bg: "bg-indigo-100", fg: "text-indigo-600" }] : []),
+                      ...(isSuperseded? [{ label: "Create as Draft",     icon: Copy,          bg: "bg-teal-100",   fg: "text-teal-600" }]   : []),
+                      ...(isDraft     ? [{ label: "Submit for Approval", icon: SendHorizonal, bg: "bg-green-100",  fg: "text-green-600" }]  : []),
+                      ...(isDraft     ? [{ label: "Run Impact Analysis", icon: Activity,      bg: "bg-purple-100", fg: "text-purple-600" }] : []),
+                      ...(isDraft     ? [{ label: "Delete",              icon: Trash2,        bg: "bg-red-100",    fg: "text-red-600" }]    : []),
+                    ];
+
+                    const statusBadge =
+                      ver.status === "Draft"            ? "bg-orange-100 text-orange-700"   :
+                      ver.status === "Pending Approval" ? "bg-sky-100 text-sky-700"         :
+                      ver.status === "Rejected"         ? "bg-rose-100 text-rose-700"       :
+                      ver.status === "Active"           ? "bg-emerald-100 text-emerald-700" :
+                                                          "bg-slate-100 text-slate-600";
+
+                    const impactBadge =
+                      ver.impact === "Completed"   ? "bg-teal-100 text-teal-700"     :
+                      ver.impact === "In progress" ? "bg-violet-100 text-violet-700" :
+                      ver.impact === "Failed"      ? "bg-red-100 text-red-700"       :
+                      ver.impact === "Outdated"    ? "bg-yellow-100 text-yellow-700" :
+                                                     "bg-gray-100 text-gray-500";
+
+                    return (
+                      <React.Fragment key={ver.id}>
+                        <tr className={`border-b border-gray-100 ${!isCurrent ? "cursor-pointer hover:bg-slate-50" : ""}`}
+                          onClick={() => { if (!isCurrent) toggleVersion(ver.id); }}
+                        >
+                          <td className="px-3 py-3 font-medium text-gray-900">{ver.label}</td>
+                          <td className="px-3 py-3">
+                            <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusBadge}`}>
+                              {ver.status}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 text-gray-600">{formatDate(ver.created)}</td>
+                          <td className="px-3 py-3 text-gray-600">{formatDate(ver.enforced)}</td>
+                          <td className="px-3 py-3 text-gray-700">{ver.by}</td>
+                          <td className="px-3 py-3">
+                            <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${impactBadge}`}>
+                              {ver.impact}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center gap-1">
+                              {actions.map((a) => (
+                                <button
+                                  key={a.label}
+                                  type="button"
+                                  title={a.label}
+                                  className={`flex h-8 w-8 items-center justify-center rounded-full transition-opacity hover:opacity-80 ${a.bg} ${a.fg}`}
+                                >
+                                  <a.icon className="h-4.5 w-4.5 h-[18px] w-[18px]" />
+                                </button>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="px-3 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                            {!isCurrent && (
+                              <button type="button" onClick={() => toggleVersion(ver.id)}>
+                                <ChevronDown className={`h-5 w-5 text-gray-400 transition-transform ${expanded ? "rotate-180" : ""}`} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                        {expanded && (
+                          <tr className="border-b border-gray-100 bg-gray-50">
+                            <td colSpan={8} className="px-6 py-3">
+                              <div className="flex flex-col border-l-2 border-blue-200">
+                                {statements.length === 0 ? (
+                                  <p className="pl-4 text-xs text-gray-400">No statements available.</p>
+                                ) : (
+                                  statements.map((s, i) => (
+                                    <div key={`${ver.id}-s-${i}`} className={`px-4 py-2 font-mono text-sm text-gray-700 ${i % 2 === 0 ? "bg-white" : "bg-gray-50"}`}>
+                                      {s.text}
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
             <p className="mt-3 text-xs text-gray-400">
-              Full version history requires KeyForge version tracking to be enabled for this
-              policy.
+              Full version history requires KeyForge version tracking to be enabled for this policy.
             </p>
           </div>
         )}
@@ -493,7 +552,7 @@ export default function OciPolicyWorkspacePage({ policyName }: { policyName: str
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           onClick={(e) => { if (e.target === e.currentTarget) setShowEditor(false); }}
         >
-          <div className="flex w-full max-w-5xl max-h-[90vh] flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+          <div className="flex w-full max-w-7xl max-h-[95vh] flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
             {/* Modal header */}
             <div className="flex items-start justify-between border-b border-gray-200 px-5 py-4">
               <div>
@@ -520,7 +579,7 @@ export default function OciPolicyWorkspacePage({ policyName }: { policyName: str
                 <h3 className="text-sm font-semibold text-blue-900">OCI policy statements</h3>
                 <textarea
                   readOnly
-                  className="h-72 w-full resize-none rounded-lg border border-gray-300 bg-gray-50 p-3 font-mono text-xs leading-relaxed text-gray-800 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20"
+                  className="h-[28rem] w-full resize-none rounded-lg border border-gray-300 bg-gray-50 p-3 font-mono text-xs leading-relaxed text-gray-800 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20"
                   value={statements.map((s) => s.text).join("\n\n")}
                   aria-label="Policy statements"
                 />

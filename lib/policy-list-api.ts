@@ -523,6 +523,7 @@ function parsePolicyAnalytics(record: Record<string, unknown> | null): PolicyLis
         "high_risk_statements",
         "highRiskStatementCount"
       ) ?? 0,
+    totalTags: readOptionalNumber(analytics, "totalTags", "total_tags") ?? 0,
   };
 }
 

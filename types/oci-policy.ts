@@ -107,6 +107,7 @@ export interface PolicyListAnalytics {
   conditionalStatements: number;
   unparsableStatements: number;
   highRiskStatements: number;
+  totalTags: number;
 }
 
 export interface PolicyOptimizationGrant {
