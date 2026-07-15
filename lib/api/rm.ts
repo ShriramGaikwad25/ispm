@@ -263,7 +263,8 @@ const RM_LIST_RULES_QUERY =
   "SELECT public.kf_rm_list_rules(?::uuid, ?::bigint, NULL, NULL, NULL, NULL, ?, ?) AS result";
 const RM_TOGGLE_RULE_STATUS_QUERY =
   "SELECT public.kf_rm_set_rule_status(?::uuid, ?::bigint, ?::text) AS result";
-const RM_GET_RULE_QUERY = "SELECT public.kf_rm_get_rule(?::uuid, ?::bigint) AS result";
+const RM_GET_RULE_QUERY =
+  "SELECT public.kf_rm_get_rule_detail(?::uuid, ?::bigint, ?) AS result";
 const RM_UPSERT_RULE_V2_QUERY = "SELECT public.kf_rm_upsert_rule_v2(?::jsonb) AS result";
 const RM_LIST_USER_ATTRIBUTES_QUERY =
   "SELECT public.kf_rm_list_user_attributes(?::uuid) AS result";
@@ -355,8 +356,11 @@ export async function toggleRuleStatus(ruleId: number, status: string): Promise<
   return { data: getKfResultData(res) };
 }
 
-export async function getRuleDetail(ruleId: number): Promise<{ data: RuleDetail | null }> {
-  const res = await executeQuery<unknown>(RM_GET_RULE_QUERY, [rmTenantId(), ruleId]);
+export async function getRuleDetail(
+  ruleId: number,
+  locale: string = "en"
+): Promise<{ data: RuleDetail | null }> {
+  const res = await executeQuery<unknown>(RM_GET_RULE_QUERY, [rmTenantId(), ruleId, locale]);
   const data = getKfResultData(res);
   if (data && typeof data === "object" && !Array.isArray(data)) {
     return { data: normalizeRuleDetail(data as Record<string, unknown>) };
