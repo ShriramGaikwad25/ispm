@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   DndContext,
   DragEndEvent,
@@ -31,6 +31,7 @@ import {
   Zap,
 } from "lucide-react";
 import ToggleSwitch from "@/components/ToggleSwitch";
+import { executeQuery } from "@/lib/api";
 import { STEP_PALETTE, type StepPaletteEntry } from "./step-palette";
 
 type StepTemplate = {
@@ -293,6 +294,84 @@ function stepTemplatesFromPaletteEntries(entries: readonly StepPaletteEntry[]): 
       matchCodes: [code],
     };
   });
+}
+
+/** Normalize a kf_wf_f_get_step_types() row's default_stage_bucket to a Guided section. */
+function normalizeStageBucket(raw: unknown): GuidedSection | null {
+  const b = String(raw ?? "").toUpperCase().trim();
+  if (!b) return null;
+  if (b.includes("VALID")) return "validate";
+  if (b.includes("APPROV")) return "approval";
+  if (b.includes("FULFIL") || b.includes("FULFUL")) return "fulfillment";
+  return null;
+}
+
+function normalizeStepKind(raw: unknown): StepTemplate["kind"] {
+  const k = String(raw ?? "").toUpperCase().trim();
+  if (k === "HUMAN") return "HUMAN";
+  if (k === "AI") return "AI";
+  return "SYSTEM";
+}
+
+function normalizeStepType(raw: unknown): StepTemplate["type"] {
+  const t = String(raw ?? "").toUpperCase().trim();
+  if (t === "APPROVAL") return "APPROVAL";
+  if (t === "FULFILLMENT") return "FULFILLMENT";
+  if (t === "AI AGENT" || t === "AI_AGENT") return "AI AGENT";
+  if (t === "LOGIC") return "LOGIC";
+  return "CUSTOM";
+}
+
+/** Maps a raw row from `SELECT * FROM kf_wf_f_get_step_types()` to a Guided step template + bucket. */
+function mapApiStepTypeRow(row: any): { bucket: GuidedSection; template: StepTemplate } | null {
+  if (!row || typeof row !== "object") return null;
+
+  const rawCode =
+    row.step_code ?? row.STEP_CODE ?? row.code ?? row.CODE ?? row.type_code ?? row.TYPE_CODE ?? null;
+  const rawLabel =
+    row.step_name ??
+    row.STEP_NAME ??
+    row.label ??
+    row.LABEL ??
+    row.name ??
+    row.NAME ??
+    row.title ??
+    row.TITLE ??
+    null;
+  const label = String(rawLabel ?? rawCode ?? "").trim();
+  if (!label && !rawCode) return null;
+
+  const bucket = normalizeStageBucket(
+    row.default_stage_bucket ??
+      row.DEFAULT_STAGE_BUCKET ??
+      row.stage_bucket ??
+      row.STAGE_BUCKET ??
+      row.bucket ??
+      row.BUCKET
+  );
+  if (!bucket) return null;
+
+  const code = normalizeStepCode(String(rawCode ?? label));
+  const description = String(
+    row.description ??
+      row.DESCRIPTION ??
+      row.step_description ??
+      row.STEP_DESCRIPTION ??
+      label
+  ).trim();
+
+  return {
+    bucket,
+    template: {
+      id: code.toLowerCase().replace(/_/g, "-"),
+      label: label || code,
+      shortLabel: (label || code).toUpperCase(),
+      description,
+      kind: normalizeStepKind(row.step_kind ?? row.STEP_KIND ?? row.kind ?? row.KIND),
+      type: normalizeStepType(row.step_type ?? row.STEP_TYPE ?? row.type ?? row.TYPE),
+      matchCodes: [code],
+    },
+  };
 }
 
 const VALIDATE_ADD_MENU: StepTemplate[] = [
@@ -585,6 +664,73 @@ export const GuidedPolicyBuilder: React.FC<GuidedPolicyBuilderProps> = ({
   const [expanded, setExpanded] = useState<GuidedSection | null>(null);
   const [showFlow, setShowFlow] = useState(true);
   const [addMenuSection, setAddMenuSection] = useState<GuidedSection | null>(null);
+
+  const [apiStepTypesByBucket, setApiStepTypesByBucket] = useState<
+    Record<GuidedSection, StepTemplate[]>
+  >({ validate: [], approval: [], fulfillment: [] });
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await executeQuery<any>(
+          "SELECT * FROM kf_wf_f_get_step_types()",
+          []
+        );
+        const rows: any[] = Array.isArray(response)
+          ? response
+          : Array.isArray(response?.resultSet)
+            ? response.resultSet
+            : Array.isArray(response?.rows)
+              ? response.rows
+              : [];
+
+        const grouped: Record<GuidedSection, StepTemplate[]> = {
+          validate: [],
+          approval: [],
+          fulfillment: [],
+        };
+        const seen = new Set<string>();
+        rows.forEach((row) => {
+          const mapped = mapApiStepTypeRow(row);
+          if (!mapped) return;
+          const key = `${mapped.bucket}:${mapped.template.id}`;
+          if (seen.has(key)) return;
+          seen.add(key);
+          grouped[mapped.bucket].push(mapped.template);
+        });
+
+        if (!cancelled) setApiStepTypesByBucket(grouped);
+      } catch (e) {
+        console.error("Failed to load step types from kf_wf_f_get_step_types():", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const validateAddMenu = useMemo(
+    () =>
+      apiStepTypesByBucket.validate.length > 0
+        ? [...apiStepTypesByBucket.validate, GUIDED_CUSTOM_VALIDATE]
+        : VALIDATE_ADD_MENU,
+    [apiStepTypesByBucket]
+  );
+  const approvalAddMenu = useMemo(
+    () =>
+      apiStepTypesByBucket.approval.length > 0
+        ? [...apiStepTypesByBucket.approval, GUIDED_CUSTOM_APPROVAL]
+        : APPROVAL_ADD_MENU,
+    [apiStepTypesByBucket]
+  );
+  const fulfillmentAddMenu = useMemo(
+    () =>
+      apiStepTypesByBucket.fulfillment.length > 0
+        ? [...apiStepTypesByBucket.fulfillment, GUIDED_CUSTOM_FULFILLMENT]
+        : FULFILLMENT_ADD_MENU,
+    [apiStepTypesByBucket]
+  );
 
   const approvalStepsFlat = useMemo(() => {
     return approvalStages.flatMap((s: any) =>
@@ -1315,7 +1461,7 @@ export const GuidedPolicyBuilder: React.FC<GuidedPolicyBuilderProps> = ({
           </div>
           {renderAddStepMenu(
             "approval",
-            APPROVAL_ADD_MENU,
+            approvalAddMenu,
             mergedSteps,
             (t) => toggleApprovalTemplate(t, true)
           )}
@@ -1484,7 +1630,7 @@ export const GuidedPolicyBuilder: React.FC<GuidedPolicyBuilderProps> = ({
           validateStage?.steps?.length ?? 0,
           parallelValidate,
           validatePills,
-          renderSectionBody("validate", validateStage, VALIDATE_TEMPLATES, VALIDATE_ADD_MENU, {
+          renderSectionBody("validate", validateStage, VALIDATE_TEMPLATES, validateAddMenu, {
             accent: "blue",
             border: "border-blue-200",
             bg: "bg-[#E5EEFC]/60",
@@ -1515,7 +1661,7 @@ export const GuidedPolicyBuilder: React.FC<GuidedPolicyBuilderProps> = ({
           fulfillmentStage?.steps?.length ?? 0,
           parallelFulfillment,
           fulfillmentPills,
-          renderSectionBody("fulfillment", fulfillmentStage, FULFILLMENT_CORE, FULFILLMENT_ADD_MENU, {
+          renderSectionBody("fulfillment", fulfillmentStage, FULFILLMENT_CORE, fulfillmentAddMenu, {
             accent: "green",
             border: "border-green-200",
             bg: "bg-green-50/80",
