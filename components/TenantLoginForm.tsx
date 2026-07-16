@@ -4,10 +4,22 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { getCookie, COOKIE_NAMES, AUTH_SESSION_KEYS } from '@/lib/auth';
+import { isRestrictedNavUser, RESTRICTED_LANDING_PATH } from '@/lib/restricted-nav-users';
 
 type TenantLoginFormProps = {
   tenantId: string;
 };
+
+function getLandingPathFromUidTenantCookie(): string {
+  const uidTenant = getCookie(COOKIE_NAMES.UID_TENANT);
+  if (!uidTenant) return '/';
+  try {
+    const { userid } = JSON.parse(uidTenant) as { userid?: string };
+    return isRestrictedNavUser(userid) ? RESTRICTED_LANDING_PATH : '/';
+  } catch {
+    return '/';
+  }
+}
 
 export function TenantLoginForm({ tenantId }: TenantLoginFormProps) {
   const [userid, setUserid] = useState('');
@@ -33,7 +45,7 @@ export function TenantLoginForm({ tenantId }: TenantLoginFormProps) {
     const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
     const jwtToken = getCookie(COOKIE_NAMES.JWT_TOKEN);
     if (accessToken && jwtToken && isAuthenticated) {
-      window.location.replace('/');
+      window.location.replace(getLandingPathFromUidTenantCookie());
       return;
     }
     setIsCheckingToken(false);
@@ -46,7 +58,7 @@ export function TenantLoginForm({ tenantId }: TenantLoginFormProps) {
     try {
       const success = await login(userid, password);
       if (success) {
-        window.location.href = '/';
+        window.location.href = isRestrictedNavUser(userid) ? RESTRICTED_LANDING_PATH : '/';
       } else {
         setError('Invalid user ID or password');
       }

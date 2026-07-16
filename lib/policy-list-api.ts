@@ -471,9 +471,11 @@ function mergePoliciesByName(policies: PolicyListItem[]): PolicyListItem[] {
 
     byName.set(policy.name, {
       ...existing,
+      uid: existing.uid ?? policy.uid,
       description: existing.description !== "—" ? existing.description : policy.description,
       owner: existing.owner !== "—" ? existing.owner : policy.owner,
       compartment: existing.compartment !== "—" ? existing.compartment : policy.compartment,
+      compartmentId: existing.compartmentId ?? policy.compartmentId,
       statementCount: Math.max(
         existing.statementCount,
         policy.statementCount,
@@ -570,7 +572,29 @@ function parsePolicyRecord(item: unknown, index: number): PolicyListItem | null 
   const oracleCreatedBy = readOracleTagCreatedBy(record);
   const oracleCreatedOn = readOracleTagCreatedOn(record);
 
+  const uid =
+    readOptionalString(
+      record,
+      "uid",
+      "policyUid",
+      "policy_uid",
+      "ocid",
+      "policyId",
+      "policy_id",
+      "id"
+    ) ?? null;
+
+  const compartmentId =
+    readOptionalString(
+      record,
+      "compartmentId",
+      "compartment_id",
+      "compartmentOcid",
+      "compartment_ocid"
+    ) ?? null;
+
   return {
+    uid,
     name,
     description: readString(record, "description", "policyDescription", "policy_description"),
     owner: readString(record, "owner", "createdBy", "created_by"),
@@ -595,6 +619,7 @@ function parsePolicyRecord(item: unknown, index: number): PolicyListItem | null 
     risk: normalizeRisk(readOptionalString(record, "risk"), highCount, mediumCount),
     status: normalizePolicyStatus(statusRaw ?? ""),
     compartment,
+    compartmentId,
     groups,
     compartments,
     statementCount,

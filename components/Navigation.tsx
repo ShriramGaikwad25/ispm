@@ -4,8 +4,10 @@ import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight, ChevronLeft, Search } from 'lucide-react';
-import {navLinks as navigation, NavItem} from './Navi';
+import {navLinks as allNavLinks, NavItem} from './Navi';
 import { useLeftSidebar } from '@/contexts/LeftSidebarContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { isRestrictedNavUser, RESTRICTED_NAV_ITEM_NAMES } from '@/lib/restricted-nav-users';
 
 export function Navigation() {
   const pathname = usePathname();
@@ -14,6 +16,11 @@ export function Navigation() {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState('');
   const { isVisible, setSidebarWidthPx } = useLeftSidebar();
+  const { user } = useAuth();
+
+  const navigation = isRestrictedNavUser(user?.email)
+    ? allNavLinks.filter((item) => RESTRICTED_NAV_ITEM_NAMES.includes(item.name))
+    : allNavLinks;
 
   useEffect(() => {
     setSidebarWidthPx(isSidebarExpanded ? 280 : 64);

@@ -27,6 +27,7 @@ export type PolicyListRisk = "High" | "Medium" | "Low";
 export type PolicyListStatus = "Active" | "Inactive" | "Deleted" | string;
 
 export interface PolicyListItem {
+  uid: string | null;
   name: string;
   description: string;
   owner: string;
@@ -37,6 +38,7 @@ export interface PolicyListItem {
   risk: PolicyListRisk;
   status: PolicyListStatus;
   compartment: string;
+  compartmentId: string | null;
   groups: string[];
   compartments: string[];
   statementCount: number;
@@ -62,6 +64,46 @@ export interface PolicyListStatement {
   compartmentName?: string;
   condition?: string | null;
   risk?: PolicyListRisk;
+}
+
+export interface PolicyActivityEvent {
+  id: string;
+  event: string;
+  versionNo: number | null;
+  status: string | null;
+  origin: string | null;
+  basedOnVersion: number | null;
+  changedBy: string | null;
+  added: number | null;
+  modified: number | null;
+  removed: number | null;
+  changeLabel: string | null;
+  createdAt: string | null;
+  enforcedAt: string | null;
+  impactStatus: string | null;
+  raw: unknown;
+}
+
+export interface PolicyActivityResult {
+  events: PolicyActivityEvent[];
+}
+
+export interface PolicyImpactSummary {
+  blastRadius: string | null;
+  principalsAffected: number | null;
+  permissionsAdded: number | null;
+  permissionsRemoved: number | null;
+  resourceFamiliesAffected: number | null;
+  compartmentsAffected: number | null;
+  overallRiskFrom: string | null;
+  overallRiskTo: string | null;
+  criticalExposures: number | null;
+  privilegeExpansions: number | null;
+  accessLosses: number | null;
+  comparedWithVersion: string | null;
+  analyzedOn: string | null;
+  summary: string | null;
+  raw: unknown;
 }
 
 export type PolicyListDateField = "" | "createdOn";

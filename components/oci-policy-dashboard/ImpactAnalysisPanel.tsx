@@ -1,7 +1,8 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import { AlertTriangle, ChevronDown, Info, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
+import { AlertTriangle, ChevronDown, Info, Loader2, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
+import { useOciPolicyImpactSummary } from "@/hooks/useOciPolicyImpactSummary";
 
 type ImpactSubTab = "summary" | "principals" | "resources" | "graph" | "findings";
 
@@ -286,11 +287,13 @@ function ExpandButton({ open, onClick }: { open: boolean; onClick: () => void })
 
 export function ImpactAnalysisPanel({
   policyName,
+  policyUid,
   draftLabel = "Draft v5",
   enforcedLabel = "v4",
-  analyzedOn = "Jul 10, 2026 · 2:24 PM",
+  analyzedOn: analyzedOnFallback = "Jul 10, 2026 · 2:24 PM",
 }: {
   policyName: string;
+  policyUid?: string | null;
   draftLabel?: string;
   enforcedLabel?: string;
   analyzedOn?: string;
@@ -299,30 +302,59 @@ export function ImpactAnalysisPanel({
   const [expandedPrincipal, setExpandedPrincipal] = useState<string | null>(null);
   const [expandedResource, setExpandedResource] = useState<string | null>(null);
 
+  const {
+    data: impactSummary,
+    isLoading: summaryLoading,
+    isError: summaryIsError,
+    error: summaryError,
+  } = useOciPolicyImpactSummary(policyUid);
+
+  const blastRadius = impactSummary?.blastRadius ?? "High";
+  const principalsAffected = impactSummary?.principalsAffected ?? 14;
+  const compartmentsAffected = impactSummary?.compartmentsAffected ?? 3;
+  const resourceFamiliesAffected = impactSummary?.resourceFamiliesAffected ?? 8;
+  const criticalExposures = impactSummary?.criticalExposures ?? 2;
+  const privilegeExpansions = impactSummary?.privilegeExpansions ?? 4;
+  const accessLosses = impactSummary?.accessLosses ?? 3;
+  const permissionsAdded = impactSummary?.permissionsAdded ?? 8;
+  const permissionsRemoved = impactSummary?.permissionsRemoved ?? 3;
+  const overallRiskFrom = impactSummary?.overallRiskFrom ?? "Medium";
+  const overallRiskTo = impactSummary?.overallRiskTo ?? "High";
+  const comparedWithVersion = impactSummary?.comparedWithVersion ?? enforcedLabel;
+  const analyzedOn = impactSummary?.analyzedOn ?? analyzedOnFallback;
+
   return (
     <div>
+      {summaryIsError && (
+        <p className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+          {summaryError instanceof Error ? summaryError.message : "Failed to load impact summary."}
+        </p>
+      )}
+
       {/* Header strip */}
       <div className="mb-4 flex flex-wrap items-start justify-between gap-4 rounded-lg border border-gray-200 bg-white p-4">
         <div>
           <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
             <Pill tone="blue">{policyName}</Pill>
             <Pill tone="gray">{draftLabel}</Pill>
-            <span>Compared with enforced version {enforcedLabel}</span>
+            <span>Compared with enforced version {comparedWithVersion}</span>
             <span>· Analysis completed {analyzedOn}</span>
+            {summaryLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" aria-hidden />}
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-4">
             <div>
               <p className="text-sm font-bold text-gray-900">
-                Blast radius: <span className="text-red-600">High</span>
+                Blast radius: <span className="text-red-600">{blastRadius}</span>
               </p>
               <p className="text-xs text-gray-500">
-                14 principals affected across 3 compartments and 8 resource families.
+                {principalsAffected} principals affected across {compartmentsAffected} compartments and{" "}
+                {resourceFamiliesAffected} resource families.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Pill tone="red">2 critical exposures</Pill>
-              <Pill tone="orange">4 privilege expansions</Pill>
-              <Pill tone="purple">3 effective access losses</Pill>
+              <Pill tone="red">{criticalExposures} critical exposures</Pill>
+              <Pill tone="orange">{privilegeExpansions} privilege expansions</Pill>
+              <Pill tone="purple">{accessLosses} effective access losses</Pill>
             </div>
           </div>
         </div>
@@ -362,12 +394,12 @@ export function ImpactAnalysisPanel({
         <div>
           <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             {[
-              { label: "Principals affected", value: "14", cls: "text-gray-900" },
-              { label: "Permissions added", value: "8", cls: "text-gray-900" },
-              { label: "Permissions removed", value: "3", cls: "text-gray-900" },
-              { label: "Resource families affected", value: "8", cls: "text-gray-900" },
-              { label: "Compartments affected", value: "3", cls: "text-gray-900" },
-              { label: "Overall risk", value: "Medium → High", cls: "text-red-600" },
+              { label: "Principals affected", value: String(principalsAffected), cls: "text-gray-900" },
+              { label: "Permissions added", value: String(permissionsAdded), cls: "text-gray-900" },
+              { label: "Permissions removed", value: String(permissionsRemoved), cls: "text-gray-900" },
+              { label: "Resource families affected", value: String(resourceFamiliesAffected), cls: "text-gray-900" },
+              { label: "Compartments affected", value: String(compartmentsAffected), cls: "text-gray-900" },
+              { label: "Overall risk", value: `${overallRiskFrom} → ${overallRiskTo}`, cls: "text-red-600" },
             ].map((m) => (
               <div key={m.label} className="rounded-lg border border-gray-200 p-3">
                 <div className={`text-lg font-bold ${m.cls}`}>{m.value}</div>

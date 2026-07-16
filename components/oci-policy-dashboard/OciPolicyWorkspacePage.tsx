@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, ChevronDown, Copy, Eye, FilePen, Loader2, SendHorizonal, Shield, Trash2, X } from "lucide-react";
 import { useOciPolicyList } from "@/hooks/useOciPolicyList";
 import { useOciPolicyGraph } from "@/hooks/useOciPolicyGraph";
+import { useOciPolicyActivity } from "@/hooks/useOciPolicyActivity";
 import { OciPolicyGraphView } from "@/components/OciPolicyGraphView";
 import {
   formatStatementRef,
@@ -12,6 +13,10 @@ import {
 import PolicyStatementScopesSidebar from "@/components/oci-policy-dashboard/PolicyStatementScopesSidebar";
 import { ImpactAnalysisPanel } from "@/components/oci-policy-dashboard/ImpactAnalysisPanel";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
+import { validatePolicySyntax, type PolicyValidationResult } from "@/lib/oci-policy-validate-api";
+import { savePolicyDraft } from "@/lib/oci-policy-draft-api";
+import { restorePolicyVersion } from "@/lib/oci-policy-restore-api";
+import { runPolicyImpactAnalysis } from "@/lib/oci-policy-impact-analysis-api";
 import type { PolicyListStatement } from "@/types/oci-policy";
 
 type TabId = "overview" | "statements" | "impact" | "versions" | "activity";
@@ -62,6 +67,20 @@ export default function OciPolicyWorkspacePage({ policyName }: { policyName: str
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [statementsView, setStatementsView] = useState<"full" | "statement">("full");
   const [showEditor, setShowEditor] = useState(false);
+  const [draftStatements, setDraftStatements] = useState<string[] | null>(null);
+  const [isValidatingSyntax, setIsValidatingSyntax] = useState(false);
+  const [validationResult, setValidationResult] = useState<PolicyValidationResult | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [changeLabel, setChangeLabel] = useState("");
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [saveDraftError, setSaveDraftError] = useState<string | null>(null);
+  const [saveDraftSuccess, setSaveDraftSuccess] = useState(false);
+  const [restoringVersionId, setRestoringVersionId] = useState<string | null>(null);
+  const [restoreVersionError, setRestoreVersionError] = useState<string | null>(null);
+  const [restoreVersionSuccess, setRestoreVersionSuccess] = useState<string | null>(null);
+  const [runningImpactVersionId, setRunningImpactVersionId] = useState<string | null>(null);
+  const [impactAnalysisError, setImpactAnalysisError] = useState<string | null>(null);
+  const [impactAnalysisSuccess, setImpactAnalysisSuccess] = useState<string | null>(null);
   const [selectedStatementIndex, setSelectedStatementIndex] = useState<number | null>(null);
   const [expandedVersions, setExpandedVersions] = useState<Set<string>>(new Set());
 
@@ -80,6 +99,15 @@ export default function OciPolicyWorkspacePage({ policyName }: { policyName: str
     () => listData?.policies.find((p) => p.name === policyName),
     [listData?.policies, policyName]
   );
+
+  const {
+    data: activityData,
+    isLoading: activityLoading,
+    isError: activityIsError,
+    error: activityError,
+  } = useOciPolicyActivity(policy?.uid);
+
+  const policyVersions = activityData?.events ?? [];
 
   const statements = policy?.statements ?? [];
 
@@ -201,7 +229,24 @@ export default function OciPolicyWorkspacePage({ policyName }: { policyName: str
           <div className="flex shrink-0 flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => setShowEditor(true)}
+              onClick={() => {
+                const seen = new Set<string>();
+                const uniqueStatements = statements
+                  .map((s) => s.text)
+                  .filter((text) => {
+                    const key = text.trim().toLowerCase();
+                    if (seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                  });
+                setDraftStatements(uniqueStatements);
+                setValidationResult(null);
+                setValidationError(null);
+                setChangeLabel("");
+                setSaveDraftError(null);
+                setSaveDraftSuccess(false);
+                setShowEditor(true);
+              }}
               className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
               Edit policy
@@ -216,6 +261,249 @@ export default function OciPolicyWorkspacePage({ policyName }: { policyName: str
           </div>
         </div>
       </div>
+
+      {/* Edit Policy modal */}
+      {showEditor && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) { setShowEditor(false); setDraftStatements(null); setValidationResult(null); setValidationError(null); setChangeLabel(""); setSaveDraftError(null); setSaveDraftSuccess(false); } }}
+        >
+          <div className="flex h-[90vh] w-[95vw] max-w-none flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+            {/* Modal header */}
+            <div className="flex items-start justify-between border-b border-gray-200 px-5 py-4">
+              <div>
+                <p className="font-semibold text-gray-900">
+                  Edit {policy.name}
+                </p>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  The enforced version remains unchanged until a draft is approved and enforced.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setShowEditor(false); setDraftStatements(null); setValidationResult(null); setValidationError(null); setChangeLabel(""); setSaveDraftError(null); setSaveDraftSuccess(false); }}
+                className="ml-4 shrink-0 rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                aria-label="Close editor"
+              >
+                <X className="h-5 w-5" aria-hidden />
+              </button>
+            </div>
+
+            {/* Modal body */}
+            <div className="min-h-0 flex-1 overflow-y-auto p-5">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-blue-900">OCI policy statements</h3>
+                {validationResult && (
+                  <span
+                    className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                      validationResult.valid
+                        ? "bg-green-100 text-green-800"
+                        : "bg-red-100 text-red-800"
+                    }`}
+                  >
+                    {validationResult.valid ? "Syntax valid" : "Syntax errors found"}
+                    {(() => {
+                      const findingCount = validationResult.results.reduce(
+                        (sum, r) => sum + r.findings.length,
+                        0
+                      );
+                      return findingCount > 0 ? ` · ${findingCount} finding${findingCount !== 1 ? "s" : ""}` : "";
+                    })()}
+                  </span>
+                )}
+              </div>
+
+              {validationError && (
+                <p className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                  {validationError}
+                </p>
+              )}
+
+              <div className="grid grid-cols-1 gap-3">
+                {(draftStatements ?? []).map((text, i) => {
+                  const statementResult = validationResult?.results[i];
+                  return (
+                    <div
+                      key={i}
+                      className={`rounded-lg border bg-white p-3 ${
+                        statementResult && !statementResult.valid
+                          ? "border-red-300"
+                          : "border-gray-300"
+                      }`}
+                    >
+                      <div className="mb-1.5 flex items-center justify-between">
+                        <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                          Statement {i + 1}
+                        </span>
+                        {statementResult && (
+                          <span
+                            className={`text-[11px] font-medium ${
+                              statementResult.valid ? "text-green-700" : "text-red-700"
+                            }`}
+                          >
+                            {statementResult.valid ? "Valid" : "Invalid"}
+                          </span>
+                        )}
+                      </div>
+                      <textarea
+                        ref={(el) => {
+                          if (el) {
+                            el.style.height = "auto";
+                            el.style.height = `${el.scrollHeight}px`;
+                          }
+                        }}
+                        value={text}
+                        onChange={(e) => {
+                          const el = e.target;
+                          el.style.height = "auto";
+                          el.style.height = `${el.scrollHeight}px`;
+                          setDraftStatements((prev) => {
+                            const next = [...(prev ?? [])];
+                            next[i] = el.value;
+                            return next;
+                          });
+                        }}
+                        rows={1}
+                        className="w-full resize-none overflow-hidden rounded-md border border-gray-200 bg-white p-2 font-mono text-xs leading-relaxed text-gray-800 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20"
+                        aria-label={`Policy statement ${i + 1}`}
+                      />
+                      {statementResult && statementResult.findings.length > 0 && (
+                        <ul className="mt-2 flex flex-col gap-1">
+                          {statementResult.findings.map((finding, fi) => {
+                            const isWarning = finding.severity.toUpperCase() === "WARNING";
+                            return (
+                              <li
+                                key={fi}
+                                className={`rounded-md border px-2.5 py-1.5 text-[11px] leading-relaxed ${
+                                  isWarning
+                                    ? "border-amber-200 bg-amber-50 text-amber-800"
+                                    : "border-red-200 bg-red-50 text-red-700"
+                                }`}
+                              >
+                                <span className="font-semibold uppercase">{finding.severity}</span>
+                                {finding.found ? (
+                                  <>
+                                    {" · "}
+                                    <span className="font-mono">{finding.found}</span>
+                                  </>
+                                ) : null}
+                                {": "}
+                                {finding.message}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="mt-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                Editing here creates a new draft version. Submit the draft for approval to enforce these changes.
+              </p>
+
+              <div className="mt-3">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                  Change label
+                </label>
+                <input
+                  type="text"
+                  value={changeLabel}
+                  onChange={(e) => setChangeLabel(e.target.value)}
+                  placeholder="e.g. Risk scope update"
+                  className="w-full rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-800 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20"
+                />
+              </div>
+
+              {saveDraftError && (
+                <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                  {saveDraftError}
+                </p>
+              )}
+
+              {saveDraftSuccess && (
+                <p className="mt-3 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">
+                  Draft saved successfully.
+                </p>
+              )}
+            </div>
+
+            {/* Modal footer */}
+            <div className="flex justify-end gap-2 border-t border-gray-200 px-5 py-3">
+              <button
+                type="button"
+                onClick={() => { setShowEditor(false); setDraftStatements(null); setValidationResult(null); setValidationError(null); setChangeLabel(""); setSaveDraftError(null); setSaveDraftSuccess(false); }}
+                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isValidatingSyntax}
+                onClick={async () => {
+                  setValidationError(null);
+                  setValidationResult(null);
+                  setIsValidatingSyntax(true);
+                  try {
+                    const policyText = (draftStatements ?? []).join("\n");
+                    const result = await validatePolicySyntax(policyText);
+                    setValidationResult(result);
+                  } catch (err) {
+                    setValidationError(
+                      err instanceof Error ? err.message : "Failed to validate policy syntax."
+                    );
+                  } finally {
+                    setIsValidatingSyntax(false);
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isValidatingSyntax && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}
+                Validate syntax
+              </button>
+              <button
+                type="button"
+                disabled={isSavingDraft}
+                onClick={async () => {
+                  setSaveDraftError(null);
+                  setSaveDraftSuccess(false);
+
+                  if (!policy.uid) {
+                    setSaveDraftError("No policy identifier available to save a draft.");
+                    return;
+                  }
+                  if (!changeLabel.trim()) {
+                    setSaveDraftError("Change label is required.");
+                    return;
+                  }
+
+                  setIsSavingDraft(true);
+                  try {
+                    await savePolicyDraft(policy.uid, {
+                      name: policy.name,
+                      description: policy.description,
+                      compartmentId: policy.compartmentId ?? "",
+                      statements: draftStatements ?? [],
+                      changeLabel: changeLabel.trim(),
+                    });
+                    setSaveDraftSuccess(true);
+                  } catch (err) {
+                    setSaveDraftError(
+                      err instanceof Error ? err.message : "Failed to save draft."
+                    );
+                  } finally {
+                    setIsSavingDraft(false);
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 rounded-md border border-blue-600 bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSavingDraft && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}
+                Save draft
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="mt-4 flex border-b border-gray-200 bg-white px-1 pt-1 rounded-t-lg border border-blue-100 border-b-0 shadow-sm">
@@ -368,7 +656,9 @@ export default function OciPolicyWorkspacePage({ policyName }: { policyName: str
         )}
 
         {/* ── IMPACT ANALYSIS ── */}
-        {activeTab === "impact" && <ImpactAnalysisPanel policyName={policy.name} />}
+        {activeTab === "impact" && (
+          <ImpactAnalysisPanel policyName={policy.name} policyUid={policy.uid} />
+        )}
 
         {/* ── VERSIONS ── */}
         {activeTab === "versions" && (
@@ -381,6 +671,45 @@ export default function OciPolicyWorkspacePage({ policyName }: { policyName: str
                 </p>
               </div>
             </div>
+
+            {restoreVersionError && (
+              <p className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                {restoreVersionError}
+              </p>
+            )}
+            {restoreVersionSuccess && (
+              <p className="mb-3 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">
+                {restoreVersionSuccess}
+              </p>
+            )}
+            {impactAnalysisError && (
+              <p className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                {impactAnalysisError}
+              </p>
+            )}
+            {impactAnalysisSuccess && (
+              <p className="mb-3 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">
+                {impactAnalysisSuccess}
+              </p>
+            )}
+
+            {!policy.uid ? (
+              <p className="text-sm text-gray-400">
+                No policy identifier available to look up version history.
+              </p>
+            ) : activityLoading ? (
+              <div className="flex items-center gap-2 py-6 text-sm text-gray-600">
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                Loading versions…
+              </div>
+            ) : activityIsError ? (
+              <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                {activityError instanceof Error ? activityError.message : "Failed to load policy versions."}
+              </p>
+            ) : policyVersions.length === 0 ? (
+              <p className="text-sm text-gray-400">No versions recorded for this policy.</p>
+            ) : (
+            <>
             <div className="overflow-x-auto rounded-lg border border-blue-100">
               <table className="w-full border-collapse text-sm">
                 <thead>
@@ -394,59 +723,134 @@ export default function OciPolicyWorkspacePage({ policyName }: { policyName: str
                   </tr>
                 </thead>
                 <tbody>
-                  {([
-                    { id: "draft",    label: "Draft",    status: "Draft",            created: "2025-01-20", enforced: null,          by: policy.createdBy || "—", impact: "Not run" },
-                    { id: "pending",  label: "v5",       status: "Pending Approval",  created: "2024-12-10", enforced: null,          by: policy.createdBy || "—", impact: "In progress" },
-                    { id: "rejected", label: "v4",       status: "Rejected",           created: "2024-11-05", enforced: null,          by: policy.createdBy || "—", impact: "Failed" },
-                    { id: "current",  label: "Current",  status: "Active",             created: policy.createdOn, enforced: policy.createdOn, by: policy.createdBy || "—", impact: "Completed" },
-                    { id: "v2",       label: "v2",       status: "Superseded",         created: "2024-09-10", enforced: "2024-09-10",  by: policy.createdBy || "—", impact: "Outdated" },
-                    { id: "v1",       label: "v1",       status: "Superseded",         created: "2024-06-01", enforced: "2024-06-01",  by: policy.createdBy || "—", impact: "Completed" },
-                  ] as const).map((ver) => {
-                    const isDraft = ver.status === "Draft";
-                    const isSuperseded = ver.status === "Superseded";
-                    const isCurrent = ver.status === "Active";
+                  {policyVersions.map((ver) => {
+                    const statusLower = (ver.status ?? "").toLowerCase();
+                    const isDraft = statusLower.includes("draft");
+                    const isSuperseded = statusLower.includes("supersed");
+                    const isCurrent = statusLower.includes("active") || statusLower.includes("enforced");
                     const expanded = expandedVersions.has(ver.id);
+                    const label = ver.versionNo != null ? `v${ver.versionNo}` : ver.status ?? "—";
 
-                    const actions: { label: string; icon: React.ElementType; bg: string; fg: string }[] = [
+                    const versionNo = ver.versionNo;
+                    const isRestoring = restoringVersionId === ver.id;
+
+                    const handleCreateAsDraft = async () => {
+                      setRestoreVersionError(null);
+                      setRestoreVersionSuccess(null);
+
+                      if (!policy.uid) {
+                        setRestoreVersionError("No policy identifier available to restore this version.");
+                        return;
+                      }
+                      if (versionNo == null) {
+                        setRestoreVersionError(`Unable to determine version number for ${label}.`);
+                        return;
+                      }
+
+                      setRestoringVersionId(ver.id);
+                      try {
+                        await restorePolicyVersion(policy.uid, versionNo);
+                        setRestoreVersionSuccess(`${label} was restored as a new draft.`);
+                      } catch (err) {
+                        setRestoreVersionError(
+                          err instanceof Error ? err.message : `Failed to restore ${label} as a draft.`
+                        );
+                      } finally {
+                        setRestoringVersionId(null);
+                      }
+                    };
+
+                    const isRunningImpactAnalysis = runningImpactVersionId === ver.id;
+
+                    const handleRunImpactAnalysis = async () => {
+                      setImpactAnalysisError(null);
+                      setImpactAnalysisSuccess(null);
+
+                      if (!policy.uid) {
+                        setImpactAnalysisError("No policy identifier available to run impact analysis.");
+                        return;
+                      }
+
+                      setRunningImpactVersionId(ver.id);
+                      try {
+                        await runPolicyImpactAnalysis(policy.uid);
+                        setImpactAnalysisSuccess(`Impact analysis started for ${label}.`);
+                      } catch (err) {
+                        setImpactAnalysisError(
+                          err instanceof Error
+                            ? err.message
+                            : `Failed to run impact analysis for ${label}.`
+                        );
+                      } finally {
+                        setRunningImpactVersionId(null);
+                      }
+                    };
+
+                    const actions: {
+                      label: string;
+                      icon: React.ElementType;
+                      bg: string;
+                      fg: string;
+                      onClick?: () => void;
+                      disabled?: boolean;
+                      loading?: boolean;
+                    }[] = [
                       ...(isDraft     ? [{ label: "Edit",                icon: FilePen,       bg: "bg-blue-100",   fg: "text-blue-600" }]   : []),
                       ...(isSuperseded? [{ label: "View",                icon: Eye,           bg: "bg-indigo-100", fg: "text-indigo-600" }] : []),
-                      ...(isSuperseded? [{ label: "Create as Draft",     icon: Copy,          bg: "bg-teal-100",   fg: "text-teal-600" }]   : []),
+                      ...(isSuperseded? [{
+                        label: "Create as Draft",
+                        icon: Copy,
+                        bg: "bg-teal-100",
+                        fg: "text-teal-600",
+                        onClick: handleCreateAsDraft,
+                        disabled: isRestoring,
+                        loading: isRestoring,
+                      }]   : []),
                       ...(isDraft     ? [{ label: "Submit for Approval", icon: SendHorizonal, bg: "bg-green-100",  fg: "text-green-600" }]  : []),
-                      ...(isDraft     ? [{ label: "Run Impact Analysis", icon: Activity,      bg: "bg-purple-100", fg: "text-purple-600" }] : []),
+                      ...(isDraft     ? [{
+                        label: "Run Impact Analysis",
+                        icon: Activity,
+                        bg: "bg-purple-100",
+                        fg: "text-purple-600",
+                        onClick: handleRunImpactAnalysis,
+                        disabled: isRunningImpactAnalysis,
+                        loading: isRunningImpactAnalysis,
+                      }] : []),
                       ...(isDraft     ? [{ label: "Delete",              icon: Trash2,        bg: "bg-red-100",    fg: "text-red-600" }]    : []),
                     ];
 
                     const statusBadge =
-                      ver.status === "Draft"            ? "bg-orange-100 text-orange-700"   :
-                      ver.status === "Pending Approval" ? "bg-sky-100 text-sky-700"         :
-                      ver.status === "Rejected"         ? "bg-rose-100 text-rose-700"       :
-                      ver.status === "Active"           ? "bg-emerald-100 text-emerald-700" :
-                                                          "bg-slate-100 text-slate-600";
+                      statusLower.includes("draft")   ? "bg-orange-100 text-orange-700"   :
+                      statusLower.includes("pending") ? "bg-sky-100 text-sky-700"         :
+                      statusLower.includes("reject")  ? "bg-rose-100 text-rose-700"       :
+                      isCurrent                       ? "bg-emerald-100 text-emerald-700" :
+                                                         "bg-slate-100 text-slate-600";
 
+                    const impactLower = (ver.impactStatus ?? "").toLowerCase();
                     const impactBadge =
-                      ver.impact === "Completed"   ? "bg-teal-100 text-teal-700"     :
-                      ver.impact === "In progress" ? "bg-violet-100 text-violet-700" :
-                      ver.impact === "Failed"      ? "bg-red-100 text-red-700"       :
-                      ver.impact === "Outdated"    ? "bg-yellow-100 text-yellow-700" :
-                                                     "bg-gray-100 text-gray-500";
+                      impactLower.includes("complet")  ? "bg-teal-100 text-teal-700"     :
+                      impactLower.includes("progress") ? "bg-violet-100 text-violet-700" :
+                      impactLower.includes("fail")     ? "bg-red-100 text-red-700"       :
+                      impactLower.includes("outdat")   ? "bg-yellow-100 text-yellow-700" :
+                                                          "bg-gray-100 text-gray-500";
 
                     return (
                       <React.Fragment key={ver.id}>
                         <tr className={`border-b border-gray-100 ${!isCurrent ? "cursor-pointer hover:bg-slate-50" : ""}`}
                           onClick={() => { if (!isCurrent) toggleVersion(ver.id); }}
                         >
-                          <td className="px-3 py-3 font-medium text-gray-900">{ver.label}</td>
+                          <td className="px-3 py-3 font-medium text-gray-900">{label}</td>
                           <td className="px-3 py-3">
                             <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusBadge}`}>
-                              {ver.status}
+                              {ver.status || "—"}
                             </span>
                           </td>
-                          <td className="px-3 py-3 text-gray-600">{formatDate(ver.created)}</td>
-                          <td className="px-3 py-3 text-gray-600">{formatDate(ver.enforced)}</td>
-                          <td className="px-3 py-3 text-gray-700">{ver.by}</td>
+                          <td className="px-3 py-3 text-gray-600">{formatDate(ver.createdAt)}</td>
+                          <td className="px-3 py-3 text-gray-600">{formatDate(ver.enforcedAt)}</td>
+                          <td className="px-3 py-3 text-gray-700">{ver.changedBy || "—"}</td>
                           <td className="px-3 py-3">
                             <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${impactBadge}`}>
-                              {ver.impact}
+                              {ver.impactStatus || "—"}
                             </span>
                           </td>
                           <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
@@ -456,9 +860,17 @@ export default function OciPolicyWorkspacePage({ policyName }: { policyName: str
                                   key={a.label}
                                   type="button"
                                   title={a.label}
-                                  className={`flex h-8 w-8 items-center justify-center rounded-full transition-opacity hover:opacity-80 ${a.bg} ${a.fg}`}
+                                  disabled={a.disabled}
+                                  onClick={a.onClick}
+                                  className={`flex h-8 w-8 items-center justify-center rounded-full transition-opacity hover:opacity-80 ${a.bg} ${a.fg} ${
+                                    a.disabled ? "cursor-not-allowed opacity-50" : ""
+                                  }`}
                                 >
-                                  <a.icon className="h-4.5 w-4.5 h-[18px] w-[18px]" />
+                                  {a.loading ? (
+                                    <Loader2 className="h-[18px] w-[18px] animate-spin" aria-hidden />
+                                  ) : (
+                                    <a.icon className="h-4.5 w-4.5 h-[18px] w-[18px]" />
+                                  )}
                                 </button>
                               ))}
                             </div>
@@ -497,6 +909,8 @@ export default function OciPolicyWorkspacePage({ policyName }: { policyName: str
             <p className="mt-3 text-xs text-gray-400">
               Full version history requires KeyForge version tracking to be enabled for this policy.
             </p>
+            </>
+            )}
           </div>
         )}
 
@@ -504,116 +918,47 @@ export default function OciPolicyWorkspacePage({ policyName }: { policyName: str
         {activeTab === "activity" && (
           <div>
             <h2 className="mb-4 text-sm font-semibold text-blue-900">Policy activity</h2>
-            <div className="relative ml-3 border-l-2 border-gray-200 pl-6">
-              {(
-                [
-                  policy.lastSync
-                    ? {
-                        event: "Policy synchronized",
-                        date: formatDate(policy.lastSync),
-                        by: "System",
-                      }
-                    : null,
-                  policy.lastModified && policy.lastModified !== policy.createdOn
-                    ? {
-                        event: "Policy last modified",
-                        date: formatDate(policy.lastModified),
-                        by: policy.owner || policy.createdBy || "—",
-                      }
-                    : null,
-                  policy.createdOn
-                    ? {
-                        event: "Policy created",
-                        date: formatDate(policy.createdOn),
-                        by: policy.createdBy || "—",
-                      }
-                    : null,
-                ] as ({ event: string; date: string; by: string } | null)[]
-              )
-                .filter(
-                  (item): item is { event: string; date: string; by: string } => item !== null
-                )
-                .map((item, i) => (
-                  <div key={i} className="relative mb-5">
+
+            {!policy.uid ? (
+              <p className="text-sm text-gray-400">
+                No policy identifier available to look up activity history.
+              </p>
+            ) : activityLoading ? (
+              <div className="flex items-center gap-2 py-6 text-sm text-gray-600">
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                Loading activity…
+              </div>
+            ) : activityIsError ? (
+              <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                {activityError instanceof Error
+                  ? activityError.message
+                  : "Failed to load policy activity."}
+              </p>
+            ) : !activityData?.events.length ? (
+              <p className="text-sm text-gray-400">No activity recorded for this policy.</p>
+            ) : (
+              <div className="relative ml-3 border-l-2 border-gray-200 pl-6">
+                {activityData.events.map((item) => (
+                  <div key={item.id} className="relative mb-5">
                     <div className="absolute -left-[1.625rem] top-1 h-3.5 w-3.5 rounded-full border-2 border-blue-400 bg-white" />
-                    <p className="font-medium text-gray-800">{item.event}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-gray-800">{item.event}</p>
+                      {item.versionNo != null && (
+                        <span className="inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-800">
+                          v{item.versionNo}
+                        </span>
+                      )}
+                    </div>
                     <p className="mt-0.5 text-xs text-gray-500">
-                      {item.by} · {item.date}
+                      {item.changedBy || "—"} · {formatDate(item.createdAt)}
                     </p>
                   </div>
                 ))}
-            </div>
+              </div>
+            )}
           </div>
         )}
       </div>
-      {/* Edit Policy modal */}
-      {showEditor && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          onClick={(e) => { if (e.target === e.currentTarget) setShowEditor(false); }}
-        >
-          <div className="flex w-full max-w-7xl max-h-[95vh] flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
-            {/* Modal header */}
-            <div className="flex items-start justify-between border-b border-gray-200 px-5 py-4">
-              <div>
-                <p className="font-semibold text-gray-900">
-                  Edit {policy.name}
-                </p>
-                <p className="mt-0.5 text-xs text-gray-500">
-                  The enforced version remains unchanged until a draft is approved and enforced.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowEditor(false)}
-                className="ml-4 shrink-0 rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-                aria-label="Close editor"
-              >
-                <X className="h-5 w-5" aria-hidden />
-              </button>
-            </div>
-
-            {/* Modal body */}
-            <div className="flex min-h-0 flex-1 overflow-auto p-5">
-              <div className="flex w-full flex-col gap-2">
-                <h3 className="text-sm font-semibold text-blue-900">OCI policy statements</h3>
-                <textarea
-                  readOnly
-                  className="h-[28rem] w-full resize-none rounded-lg border border-gray-300 bg-gray-50 p-3 font-mono text-xs leading-relaxed text-gray-800 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20"
-                  value={statements.map((s) => s.text).join("\n\n")}
-                  aria-label="Policy statements"
-                />
-                <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                  Statement editing is read-only in this view. Contact your KeyForge administrator to modify enforced policies.
-                </p>
-              </div>
-            </div>
-
-            {/* Modal footer */}
-            <div className="flex justify-end gap-2 border-t border-gray-200 px-5 py-3">
-              <button
-                type="button"
-                onClick={() => setShowEditor(false)}
-                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Validate syntax
-              </button>
-              <button
-                type="button"
-                className="rounded-md border border-blue-600 bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-              >
-                Save draft
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
