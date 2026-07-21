@@ -1571,63 +1571,55 @@ export default function ApplicationDetailPage() {
               </div>
             ) : (
               <>
-                <div className="mt-2 flex items-center gap-2">
-                  <div className="flex-1">
-                    {localEditMode ? (
-                      <input
-                        type="text"
-                        value={
-                          (localEditableData?.["Ent Name"] ||
-                            localEditableData?.entitlementName ||
-                            "") as string
-                        }
-                        onChange={(e) => {
-                          setLocalEditableData((prev: any) => ({
-                            ...prev,
-                            "Ent Name": e.target.value,
-                            entitlementName: e.target.value,
-                          }));
-                        }}
-                        className="w-full px-2 py-1.5 border border-gray-300 rounded text-md font-semibold focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    ) : (
-                      <div className="text-md font-semibold text-gray-900 break-words break-all whitespace-normal max-w-full">
-                        {finalData?.["Ent Name"] ||
-                          (finalData as any)?.entitlementName ||
-                          "-"}
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!localEditMode) {
-                        setLocalEditableData({ ...finalData });
-                        setLocalExpandedFrames({
-                          general: true,
-                          business: true,
-                          technical: true,
-                          security: true,
-                          lifecycle: true,
-                        });
-                        setLocalEditMode(true);
-                      } else {
-                        setLocalEditMode(false);
-                        setLocalEditableData(null);
-                      }
+                {localEditMode && (
+                  <input
+                    type="text"
+                    value={
+                      (localEditableData?.["Ent Name"] ||
+                        localEditableData?.entitlementName ||
+                        "") as string
+                    }
+                    onChange={(e) => {
+                      setLocalEditableData((prev: any) => ({
+                        ...prev,
+                        "Ent Name": e.target.value,
+                        entitlementName: e.target.value,
+                      }));
                     }}
-                    className={`p-1.5 rounded transition-colors flex-shrink-0 ${
-                      localEditMode 
-                        ? "bg-blue-500 hover:bg-blue-600" 
-                        : "hover:bg-gray-200"
-                    }`}
-                    title={localEditMode ? "Save changes" : "Edit entitlement"}
-                  >
-                    <Edit className={`w-4 h-4 ${localEditMode ? "text-white" : "text-gray-600 hover:text-blue-600"}`} />
-                  </button>
-                </div>
-                <div className="mt-3">
-                  <span className="text-xs uppercase text-gray-500">Description:</span>
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-md font-semibold focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                )}
+                <div className={localEditMode ? "mt-2" : ""}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs uppercase text-gray-500">Description:</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!localEditMode) {
+                          setLocalEditableData({ ...finalData });
+                          setLocalExpandedFrames({
+                            general: true,
+                            business: true,
+                            technical: true,
+                            security: true,
+                            lifecycle: true,
+                          });
+                          setLocalEditMode(true);
+                        } else {
+                          setLocalEditMode(false);
+                          setLocalEditableData(null);
+                        }
+                      }}
+                      className={`p-1.5 rounded transition-colors flex-shrink-0 ${
+                        localEditMode
+                          ? "bg-blue-500 hover:bg-blue-600"
+                          : "hover:bg-gray-200"
+                      }`}
+                      title={localEditMode ? "Save changes" : "Edit entitlement"}
+                    >
+                      <Edit className={`w-4 h-4 ${localEditMode ? "text-white" : "text-gray-600 hover:text-blue-600"}`} />
+                    </button>
+                  </div>
                   {localEditMode ? (
                     <textarea
                       value={
@@ -1652,57 +1644,6 @@ export default function ApplicationDetailPage() {
                         "-"}
                     </p>
                   )}
-                </div>
-                <div className="mt-3 flex space-x-2">
-                  <button
-                    onClick={handleApprove}
-                    title="Approve"
-                    className={`p-1 rounded transition-colors duration-200 ${
-                      lastAction === "Approve"
-                        ? "bg-green-500"
-                        : "hover:bg-green-100"
-                    }`}
-                  >
-                    <CircleCheck
-                      className="cursor-pointer"
-                      color="#1c821cff"
-                      strokeWidth="1"
-                      size="32"
-                      fill={lastAction === "Approve" ? "#1c821cff" : "none"}
-                    />
-                  </button>
-                  <button
-                    onClick={handleRevoke}
-                    title="Revoke"
-                    className={`p-1 rounded ${
-                      finalData?.status === "Rejected" ? "bg-red-100" : ""
-                    }`}
-                  >
-                    <CircleX
-                      className="cursor-pointer hover:opacity-80 transform rotate-90"
-                      color="#FF2D55"
-                      strokeWidth="1"
-                      size="32"
-                      fill={finalData?.status === "Rejected" ? "#FF2D55" : "none"}
-                    />
-                  </button>
-                  <button
-                    onClick={handleComment}
-                    title="Comment"
-                    className="p-1 rounded"
-                  >
-                    <svg
-                      width="30"
-                      height="30"
-                      viewBox="0 0 32 32"
-                      className="cursor-pointer hover:opacity-80"
-                    >
-                      <path
-                        d="M0.700195 0V19.5546H3.5802V25.7765C3.57994 25.9525 3.62203 26.1247 3.70113 26.2711C3.78022 26.4176 3.89277 26.5318 4.02449 26.5992C4.15621 26.6666 4.30118 26.6842 4.44101 26.6498C4.58085 26.6153 4.70926 26.5304 4.80996 26.4058C6.65316 24.1232 10.3583 19.5546 10.3583 19.5546H25.1802V0H0.700195ZM2.1402 1.77769H23.7402V17.7769H9.76212L5.0202 23.6308V17.7769H2.1402V1.77769ZM5.0202 5.33307V7.11076H16.5402V5.33307H5.0202ZM26.6202 5.33307V7.11076H28.0602V23.11H25.1802V28.9639L20.4383 23.11H9.34019L7.9002 24.8877H19.8421C19.8421 24.8877 23.5472 29.4563 25.3904 31.7389C25.4911 31.8635 25.6195 31.9484 25.7594 31.9828C25.8992 32.0173 26.0442 31.9997 26.1759 31.9323C26.3076 31.8648 26.4202 31.7507 26.4993 31.6042C26.5784 31.4578 26.6204 31.2856 26.6202 31.1096V24.8877H29.5002V5.33307H26.6202ZM5.0202 8.88845V10.6661H10.7802V8.88845H5.0202ZM5.0202 12.4438V14.2215H19.4202V12.4438H5.0202Z"
-                        fill="#2684FF"
-                      />
-                    </svg>
-                  </button>
                 </div>
               </>
             )}
@@ -1997,13 +1938,13 @@ export default function ApplicationDetailPage() {
                     {renderSideBySideFieldLocal(
                       "Requestable",
                       finalData?.["Requestable"],
-                      "Pre-Requisite",
+                      "Training Code",
                       finalData?.["Pre- Requisite"],
                       "Requestable",
                       "Pre- Requisite"
                     )}
                     {renderSingleFieldLocal(
-                      "Pre-Req Details",
+                      "Training Details",
                       finalData?.["Pre-Requisite Details"],
                       "Pre-Requisite Details"
                     )}
@@ -2235,7 +2176,9 @@ export default function ApplicationDetailPage() {
     };
 
     // Use the global sidebar instead of local state
-    openSidebar(<EntitlementDetailsSidebarContent />, { widthPx: 500, title: "Entitlement Details" });
+    const entitlementName =
+      finalData?.["Ent Name"] || (finalData as any)?.entitlementName || "Entitlement Details";
+    openSidebar(<EntitlementDetailsSidebarContent />, { widthPx: 500, title: entitlementName });
   };
 
   const toggleFrame = (frame: keyof typeof expandedFrames) => {

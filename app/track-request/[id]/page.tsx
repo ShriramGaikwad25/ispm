@@ -11,6 +11,7 @@ interface InstanceStep {
   date: string;
   userActor: string;
   status: string;
+  sodViolations?: Array<{ message: string; severity: string }>;
 }
 
 interface RequestDetails {
@@ -358,9 +359,32 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
           return taskName || "CUSTOM APPROVAL";
         };
 
-        const mapInstanceSteps = (steps: any[]): InstanceStep[] =>
+        const mapInstanceSteps = (
+          steps: any[],
+          trainingValidation?: any,
+          sodValidation?: any
+        ): InstanceStep[] =>
           steps.map((step) => {
             const actionFromCode = stepCodeToAction(step?.step_code);
+            const isTrainingCheckStep = String(step?.step_code ?? "").toUpperCase().includes("TRAINING");
+            const trainingStatus = trainingValidation?.status ?? trainingValidation?.Status;
+            const trainingWarnings = trainingValidation?.warnings ?? trainingValidation?.Warnings;
+            const trainingCompletedNotRequired =
+              isTrainingCheckStep &&
+              String(trainingStatus ?? "").toUpperCase() === "COMPLETED" &&
+              Array.isArray(trainingWarnings) &&
+              trainingWarnings.length === 0;
+
+            const isSodStep = String(step?.step_code ?? "").toUpperCase().includes("SOD");
+            const sodViolationsRaw = sodValidation?.violations ?? sodValidation?.Violations;
+            const sodViolations =
+              isSodStep && Array.isArray(sodViolationsRaw) && sodViolationsRaw.length > 0
+                ? sodViolationsRaw.map((v: any) => ({
+                    message: String(v?.message ?? v?.Message ?? ""),
+                    severity: String(v?.severity ?? v?.Severity ?? ""),
+                  }))
+                : undefined;
+
             const actionFromFields =
               step?.action ??
               step?.action_item ??
@@ -408,17 +432,20 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
                 ""
             ),
             status: String(
-              normalizeStatus(
-                step?.status ??
-                  step?.tasks?.[0]?.task_status ??
-                  step?.tasks?.[0]?.step_state ??
-                  step?.step_status ??
-                  step?.stepStatus ??
-                  step?.state ??
-                  step?.current_status ??
-                  step?.currentStatus
-              )
+              trainingCompletedNotRequired
+                ? "Completed / Training not required"
+                : normalizeStatus(
+                    step?.status ??
+                      step?.tasks?.[0]?.task_status ??
+                      step?.tasks?.[0]?.step_state ??
+                      step?.step_status ??
+                      step?.stepStatus ??
+                      step?.state ??
+                      step?.current_status ??
+                      step?.currentStatus
+                  )
             ),
+            sodViolations,
           };
           });
 
@@ -521,6 +548,16 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
             requestJson,
             row
           );
+          const trainingValidation =
+            requestJson?.workflow_instance?.context_json?.validation?.training ??
+            requestJson?.workflowInstance?.context_json?.validation?.training ??
+            requestJson?.workflow_instance?.contextJson?.validation?.training ??
+            requestJson?.workflowInstance?.contextJson?.validation?.training;
+          const sodValidation =
+            requestJson?.workflow_instance?.context_json?.validation?.sod ??
+            requestJson?.workflowInstance?.context_json?.validation?.sod ??
+            requestJson?.workflow_instance?.contextJson?.validation?.sod ??
+            requestJson?.workflowInstance?.contextJson?.validation?.sod;
           const rowLevelAiRecommendations = toAiRecommendationArray(
             row.ai_recommendation ??
               row.aiRecommendation ??
@@ -534,7 +571,9 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
           const lineItems: RequestLineItem[] = accessItems.map((item) => {
             const lineCatalog = item?.catalog ?? {};
             const instanceSteps = mapInstanceSteps(
-              sortStepsByTemplateOrder(toStepsArray(item?.instance_steps))
+              sortStepsByTemplateOrder(toStepsArray(item?.instance_steps)),
+              trainingValidation,
+              sodValidation
             );
             const lineDisplayName =
               lineCatalog.name || lineCatalog.entitlementname || lineCatalog.applicationname || "";
@@ -705,7 +744,9 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
                   },
                 ];
           const mappedWorkflowSteps = mapInstanceSteps(
-            sortStepsByTemplateOrder(requestJsonStepsRaw)
+            sortStepsByTemplateOrder(requestJsonStepsRaw),
+            trainingValidation,
+            sodValidation
           );
           const submittedStep: InstanceStep[] = requestedOn
             ? [
@@ -969,21 +1010,21 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
         <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
           <div className="overflow-x-auto">
             <table className="w-full border border-gray-200 text-xs">
-              <thead className="bg-gray-50">
+              <thead className="bg-blue-100">
                 <tr>
-                  <th className="px-3 py-1.5 text-left font-medium text-gray-500 uppercase">
+                  <th className="px-3 py-1.5 text-left font-medium text-blue-900 uppercase">
                     S. No
                   </th>
-                  <th className="px-3 py-1.5 text-left font-medium text-gray-500 uppercase">
+                  <th className="px-3 py-1.5 text-left font-medium text-blue-900 uppercase">
                     Action
                   </th>
-                  <th className="px-3 py-1.5 text-left font-medium text-gray-500 uppercase">
+                  <th className="px-3 py-1.5 text-left font-medium text-blue-900 uppercase">
                     Date
                   </th>
-                  <th className="px-3 py-1.5 text-left font-medium text-gray-500 uppercase">
+                  <th className="px-3 py-1.5 text-left font-medium text-blue-900 uppercase">
                     User
                   </th>
-                  <th className="px-3 py-1.5 text-left font-medium text-gray-500 uppercase">
+                  <th className="px-3 py-1.5 text-left font-medium text-blue-900 uppercase">
                     Status
                   </th>
                 </tr>
@@ -992,19 +1033,45 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
                 {visibleInstanceSteps.map((step, idx) => {
                   const hideMetaColumns = firstPendingIndex !== -1 && idx >= firstPendingIndex;
                   return (
-                    <tr key={`${step.action}-${step.date}-${idx}`}>
-                      <td className="px-3 py-1.5 text-gray-900">{idx + 1}</td>
-                      <td className="px-3 py-1.5 text-gray-900">{step.action || "-"}</td>
-                      <td className="px-3 py-1.5 text-gray-500">
-                        {hideMetaColumns ? "" : (step.date || "-")}
-                      </td>
-                      <td className="px-3 py-1.5 text-gray-500">
-                        {hideMetaColumns ? "" : (step.userActor || "-")}
-                      </td>
-                      <td className="px-3 py-1.5 text-gray-500">
-                        {hideMetaColumns ? "" : (step.status || "-")}
-                      </td>
-                    </tr>
+                    <React.Fragment key={`${step.action}-${step.date}-${idx}`}>
+                      <tr>
+                        <td className="px-3 py-1.5 text-gray-900">{idx + 1}</td>
+                        <td className="px-3 py-1.5 text-gray-900">{step.action || "-"}</td>
+                        <td className="px-3 py-1.5 text-gray-500">
+                          {hideMetaColumns ? "" : (step.date || "-")}
+                        </td>
+                        <td className="px-3 py-1.5 text-gray-500">
+                          {hideMetaColumns ? "" : (step.userActor || "-")}
+                        </td>
+                        <td className="px-3 py-1.5 text-gray-500">
+                          {hideMetaColumns ? "" : (step.status || "-")}
+                        </td>
+                      </tr>
+                      {!hideMetaColumns && step.sodViolations && step.sodViolations.length > 0 && (
+                        <tr>
+                          <td></td>
+                          <td colSpan={4} className="px-3 py-2">
+                            <div className="space-y-1.5">
+                              {step.sodViolations.map((violation, vIdx) => (
+                                <div key={vIdx} className="flex items-center gap-2 text-xs">
+                                  <span className="font-semibold uppercase tracking-wide text-blue-400 text-[10px] shrink-0">
+                                    Message:
+                                  </span>
+                                  <span className="text-gray-700">{violation.message || "-"}</span>
+                                  <span className="text-gray-300">|</span>
+                                  <span className="font-semibold uppercase tracking-wide text-blue-400 text-[10px] shrink-0">
+                                    Severity:
+                                  </span>
+                                  <span className="font-semibold text-gray-800 shrink-0">
+                                    {violation.severity || "-"}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   );
                 })}
               </tbody>

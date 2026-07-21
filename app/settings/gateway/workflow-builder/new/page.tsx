@@ -56,6 +56,50 @@ const APPROVAL_FN_TO_UI: Record<string, string> = {
   FN_RESOLVE_CUSTOM: "custom",
 };
 
+/**
+ * Fallback Condition (CEL) text applied when editing an existing workflow whose
+ * definition_json step has no condition of its own. Matched by workflow name (exact,
+ * case-insensitive) + step code substring, so the default only applies to that
+ * specific saved record instead of every workflow.
+ */
+const DEFAULT_CONDITION_BY_WORKFLOW_AND_CODE: Array<{
+  workflowName: string;
+  match: string;
+  condition: string;
+}> = [
+  {
+    workflowName: "Oracle Access Governance Orchastration",
+    match: "SOD",
+    condition: [
+      "context.sod.risklevel.approval.required={'HIGH','CRITICAL'},",
+      "context.ag.approval.sod.risklevelcheck={'HIGH','CRITICAL'},",
+      "context.sod.risklevel.approval.warning={'MEDIUM','LOW'},",
+    ].join("\n"),
+  },
+  {
+    workflowName: "Oracle Access Governance Orchastration",
+    match: "TRAINING",
+    condition: [
+      "context.validation.training.mode={'ADVISORY'},",
+      "context.validation.training.notificationtemplate={'TEMPLATE_TRNG01'},",
+      "context.ag.approval.trainingComplete={},",
+      "context.validation.training.trainingCheckIntervalMinutes: 240",
+    ].join("\n"),
+  },
+];
+
+function defaultConditionForCode(stepCodeUpper: string, workflowName?: string): string | null {
+  const normalizedWorkflowName = (workflowName || "").trim().toLowerCase();
+  if (!normalizedWorkflowName) return null;
+
+  const hit = DEFAULT_CONDITION_BY_WORKFLOW_AND_CODE.find(
+    (entry) =>
+      entry.workflowName.trim().toLowerCase() === normalizedWorkflowName &&
+      stepCodeUpper.includes(entry.match)
+  );
+  return hit ? hit.condition : null;
+}
+
 function approverFieldsFromApiConfig(config: any, stepCodeUpper: string) {
   const cfg = config || {};
   const isCustomApprovalCode =
@@ -2159,6 +2203,12 @@ export default function WorkflowBuilderCreatePage() {
                   step.conditionExpr ||
                   step.config?.conditionExpr ||
                   null;
+                // "true" is the builder's own placeholder for "no condition set" — treat it
+                // the same as missing so a workflow-specific default can still fill it in.
+                const hasRealConditionExpr = !!conditionExpr && conditionExpr !== "true";
+                const fallbackCondition = hasRealConditionExpr
+                  ? null
+                  : defaultConditionForCode(upperCode, data.name);
 
                 const prettyLabelSource: string =
                   step.name || step.id || rawCode || `Step ${stepIdx + 1}`;
@@ -2172,7 +2222,7 @@ export default function WorkflowBuilderCreatePage() {
                   code: upperCode,
                   kind,
                   type,
-                  condition: conditionExpr || "true",
+                  condition: fallbackCondition || conditionExpr || "true",
                 };
 
                 if (type === "APPROVAL") {
