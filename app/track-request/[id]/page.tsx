@@ -12,6 +12,8 @@ interface InstanceStep {
   userActor: string;
   status: string;
   sodViolations?: Array<{ message: string; severity: string }>;
+  trainingWarnings?: Array<{ message: string }>;
+  trainingNotRequired?: boolean;
 }
 
 interface RequestDetails {
@@ -368,12 +370,18 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
             const actionFromCode = stepCodeToAction(step?.step_code);
             const isTrainingCheckStep = String(step?.step_code ?? "").toUpperCase().includes("TRAINING");
             const trainingStatus = trainingValidation?.status ?? trainingValidation?.Status;
-            const trainingWarnings = trainingValidation?.warnings ?? trainingValidation?.Warnings;
+            const trainingWarningsRaw = trainingValidation?.warnings ?? trainingValidation?.Warnings;
             const trainingCompletedNotRequired =
               isTrainingCheckStep &&
               String(trainingStatus ?? "").toUpperCase() === "COMPLETED" &&
-              Array.isArray(trainingWarnings) &&
-              trainingWarnings.length === 0;
+              Array.isArray(trainingWarningsRaw) &&
+              trainingWarningsRaw.length === 0;
+            const trainingWarnings =
+              isTrainingCheckStep && Array.isArray(trainingWarningsRaw) && trainingWarningsRaw.length > 0
+                ? trainingWarningsRaw.map((w: any) => ({
+                    message: String(w?.message ?? w?.Message ?? ""),
+                  }))
+                : undefined;
 
             const isSodStep = String(step?.step_code ?? "").toUpperCase().includes("SOD");
             const sodViolationsRaw = sodValidation?.violations ?? sodValidation?.Violations;
@@ -432,20 +440,20 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
                 ""
             ),
             status: String(
-              trainingCompletedNotRequired
-                ? "Completed / Training not required"
-                : normalizeStatus(
-                    step?.status ??
-                      step?.tasks?.[0]?.task_status ??
-                      step?.tasks?.[0]?.step_state ??
-                      step?.step_status ??
-                      step?.stepStatus ??
-                      step?.state ??
-                      step?.current_status ??
-                      step?.currentStatus
-                  )
+              normalizeStatus(
+                step?.status ??
+                  step?.tasks?.[0]?.task_status ??
+                  step?.tasks?.[0]?.step_state ??
+                  step?.step_status ??
+                  step?.stepStatus ??
+                  step?.state ??
+                  step?.current_status ??
+                  step?.currentStatus
+              )
             ),
             sodViolations,
+            trainingWarnings,
+            trainingNotRequired: trainingCompletedNotRequired,
           };
           });
 
@@ -1067,6 +1075,36 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
                                   </span>
                                 </div>
                               ))}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      {!hideMetaColumns && step.trainingWarnings && step.trainingWarnings.length > 0 && (
+                        <tr>
+                          <td></td>
+                          <td colSpan={4} className="px-3 py-2">
+                            <div className="space-y-1.5">
+                              {step.trainingWarnings.map((warning, wIdx) => (
+                                <div key={wIdx} className="flex items-center gap-2 text-xs">
+                                  <span className="font-semibold uppercase tracking-wide text-blue-400 text-[10px] shrink-0">
+                                    Message:
+                                  </span>
+                                  <span className="text-gray-700">{warning.message || "-"}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      {!hideMetaColumns && step.trainingNotRequired && (
+                        <tr>
+                          <td></td>
+                          <td colSpan={4} className="px-3 py-2">
+                            <div className="flex items-center gap-2 text-xs">
+                              <span className="font-semibold uppercase tracking-wide text-blue-400 text-[10px] shrink-0">
+                                Message:
+                              </span>
+                              <span className="text-gray-700">Training not required</span>
                             </div>
                           </td>
                         </tr>

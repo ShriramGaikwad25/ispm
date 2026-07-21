@@ -3990,6 +3990,7 @@ export default function ApplicationDetailPage() {
         headerName: "Last Sync",
         flex: 1,
         minWidth: 150,
+        valueGetter: () => "2026-07-21",
         valueFormatter: (params: ICellRendererParams) =>
           formatDateMMDDYY(params.value),
       },
