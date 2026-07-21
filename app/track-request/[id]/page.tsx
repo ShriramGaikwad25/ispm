@@ -194,6 +194,19 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
       return normalized ? normalized.replace(/_/g, " ") : "";
     };
 
+    const getTemplateStepOrder = (step: any): number => {
+      const raw =
+        step?.template_step_id ??
+        step?.templateStepId ??
+        step?.templatestepid ??
+        step?.template_stepid;
+      const num = Number(raw);
+      return Number.isFinite(num) ? num : Number.POSITIVE_INFINITY;
+    };
+
+    const sortStepsByTemplateOrder = (steps: any[]): any[] =>
+      [...steps].sort((a, b) => getTemplateStepOrder(a) - getTemplateStepOrder(b));
+
     fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -520,7 +533,9 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
           );
           const lineItems: RequestLineItem[] = accessItems.map((item) => {
             const lineCatalog = item?.catalog ?? {};
-            const instanceSteps = mapInstanceSteps(toStepsArray(item?.instance_steps));
+            const instanceSteps = mapInstanceSteps(
+              sortStepsByTemplateOrder(toStepsArray(item?.instance_steps))
+            );
             const lineDisplayName =
               lineCatalog.name || lineCatalog.entitlementname || lineCatalog.applicationname || "";
             const lineApplicationName =
@@ -537,10 +552,11 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
             const lineRisk = String(lineCatalog.risk ?? "").toLowerCase();
             const lineNameKey = String(lineDisplayName).trim();
             const lineIdKey = String(lineCatalog.catalogId ?? lineCatalog.catalogid ?? "").trim();
-            const lineHasConflict =
+            const lineHasConflict = Boolean(
               hasGlobalSodConflict &&
-              primaryConflictingRole &&
-              (lineNameKey === primaryConflictingRole || lineIdKey === primaryConflictingRole);
+                primaryConflictingRole &&
+                (lineNameKey === primaryConflictingRole || lineIdKey === primaryConflictingRole)
+            );
             const lineHasTrainingCheck = (() => {
               const raw =
                 lineCatalog?.training_code ??
@@ -688,7 +704,9 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
                     instanceSteps: [],
                   },
                 ];
-          const mappedWorkflowSteps = mapInstanceSteps(requestJsonStepsRaw);
+          const mappedWorkflowSteps = mapInstanceSteps(
+            sortStepsByTemplateOrder(requestJsonStepsRaw)
+          );
           const submittedStep: InstanceStep[] = requestedOn
             ? [
                 {
@@ -868,9 +886,17 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
 
   // Hide the "Assigned for SOD Approval" row since it represents the same
   // logical event as the initial "Request Submitted" entry.
-  const visibleInstanceSteps = topInstanceSteps.filter(
+  const stepsWithoutSodCheck = topInstanceSteps.filter(
     (step) => step.action !== "Assigned for SOD Approval"
   );
+
+  // Provisioning is always the terminal step, but some backends return it
+  // earlier in instance_steps than the approvals that must precede it, so
+  // pin it to the end here instead of trusting raw array order.
+  const visibleInstanceSteps = [
+    ...stepsWithoutSodCheck.filter((step) => step.action !== "Request Fulfillment"),
+    ...stepsWithoutSodCheck.filter((step) => step.action === "Request Fulfillment"),
+  ];
 
   const firstPendingIndex = visibleInstanceSteps.findIndex((step) =>
     String(step.status ?? "").toLowerCase().includes("pending")
