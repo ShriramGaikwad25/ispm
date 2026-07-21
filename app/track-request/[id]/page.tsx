@@ -12,6 +12,8 @@ interface InstanceStep {
   userActor: string;
   status: string;
   sodViolations?: Array<{ message: string; severity: string }>;
+  sodClean?: boolean;
+  sodStatus?: string;
   trainingWarnings?: Array<{ message: string }>;
   trainingNotRequired?: boolean;
 }
@@ -385,6 +387,7 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
 
             const isSodStep = String(step?.step_code ?? "").toUpperCase().includes("SOD");
             const sodViolationsRaw = sodValidation?.violations ?? sodValidation?.Violations;
+            const sodStatusRaw = sodValidation?.status ?? sodValidation?.Status;
             const sodViolations =
               isSodStep && Array.isArray(sodViolationsRaw) && sodViolationsRaw.length > 0
                 ? sodViolationsRaw.map((v: any) => ({
@@ -392,6 +395,8 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
                     severity: String(v?.severity ?? v?.Severity ?? ""),
                   }))
                 : undefined;
+            const sodClean =
+              isSodStep && Array.isArray(sodViolationsRaw) && sodViolationsRaw.length === 0;
 
             const actionFromFields =
               step?.action ??
@@ -452,6 +457,8 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
               )
             ),
             sodViolations,
+            sodClean,
+            sodStatus: sodClean ? String(sodStatusRaw ?? "") : undefined,
             trainingWarnings,
             trainingNotRequired: trainingCompletedNotRequired,
           };
@@ -1075,6 +1082,26 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
                                   </span>
                                 </div>
                               ))}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      {!hideMetaColumns && step.sodClean && (
+                        <tr>
+                          <td></td>
+                          <td colSpan={4} className="px-3 py-2">
+                            <div className="flex items-center gap-2 text-xs">
+                              <span className="font-semibold uppercase tracking-wide text-blue-400 text-[10px] shrink-0">
+                                Message:
+                              </span>
+                              <span className="text-gray-700">No SOD violation found</span>
+                              <span className="text-gray-300">|</span>
+                              <span className="font-semibold uppercase tracking-wide text-blue-400 text-[10px] shrink-0">
+                                Status:
+                              </span>
+                              <span className="font-semibold text-gray-800 shrink-0">
+                                {step.sodStatus || "-"}
+                              </span>
                             </div>
                           </td>
                         </tr>

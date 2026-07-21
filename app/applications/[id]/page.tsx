@@ -578,11 +578,15 @@ export default function ApplicationDetailPage() {
 
   const filteredEntRowData = useMemo(() => {
     const q = entitlementsSearchQuery.trim().toLowerCase();
-    if (!q) return entRowData;
-    return entRowData.filter((row: any) => {
-      const name = getEntitlementNameForFilter(row);
-      return name.toLowerCase().includes(q);
-    });
+    const base = !q
+      ? entRowData
+      : entRowData.filter((row: any) => {
+          const name = getEntitlementNameForFilter(row);
+          return name.toLowerCase().includes(q);
+        });
+    return [...base].sort((a: any, b: any) =>
+      String(b?.["Ent Owner"] ?? "").localeCompare(String(a?.["Ent Owner"] ?? ""))
+    );
   }, [entRowData, entitlementsSearchQuery]);
 
   // Build separate row for description under each entitlement row (for Entitlements tab)
