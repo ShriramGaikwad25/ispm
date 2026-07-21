@@ -1,5 +1,5 @@
 /** Users restricted to only the Non Human Identity and Policy Dashboard pages. */
-const RESTRICTED_USERNAMES = ['josh.hammer', 'atul.goyal', 'george.hong'];
+const RESTRICTED_USERNAMES = ['josh.hammer', 'atul.goyal', 'george.hong', 'tushar.rao'];
 
 export const RESTRICTED_NAV_ITEM_NAMES = ['Non Human Identity', 'Policy Dashboard'];
 

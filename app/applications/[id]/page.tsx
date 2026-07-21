@@ -1227,7 +1227,7 @@ export default function ApplicationDetailPage() {
         }
 
         return (
-          <div className="text-sm text-gray-700">
+          <div className="text-sm text-gray-700 break-all min-w-0">
             <strong>{label}:</strong> {val?.toString() || "N/A"}
           </div>
         );
