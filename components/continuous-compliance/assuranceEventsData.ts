@@ -43,7 +43,7 @@ export const assuranceEvents: AssuranceEvent[] = [
     risk: "High",
     confidence: 88,
     status: "Pending Review",
-    detected: "2026-07-30 08:15",
+    detected: "2026-07-27 08:15",
     reviewer: "Application Owner",
     impact: "241 active members · high request volume · SOX-relevant finance access",
     evidence:
@@ -63,7 +63,7 @@ export const assuranceEvents: AssuranceEvent[] = [
     risk: "Critical",
     confidence: 91,
     status: "Approved",
-    detected: "2026-07-30 07:42",
+    detected: "2026-07-27 07:42",
     reviewer: "Application Owner",
     impact: "Vendor master access · SoD-sensitive · 76 active members",
     evidence:
@@ -83,7 +83,7 @@ export const assuranceEvents: AssuranceEvent[] = [
     risk: "Medium",
     confidence: 83,
     status: "Reasoned",
-    detected: "2026-07-30 09:05",
+    detected: "2026-07-27 09:05",
     reviewer: "Application Owner",
     impact: "Change approval authority · 112 active members",
     evidence:
@@ -100,10 +100,10 @@ export const assuranceEvents: AssuranceEvent[] = [
     recommended: "Reassign owner to Priya Nair, current EBS Payables integration lead.",
     owner: "IAM Governance",
     risk: "Critical",
-    confidence: 96,
-    status: "Fulfilled",
-    detected: "2026-07-30 06:58",
-    reviewer: "Auto-remediated",
+    confidence: 85,
+    status: "Pending Review",
+    detected: "2026-07-27 06:58",
+    reviewer: "AppOwner",
     impact:
       "Privileged service account · used by nightly payables integration · password rotation due in 9 days",
     evidence:
@@ -122,7 +122,7 @@ export const assuranceEvents: AssuranceEvent[] = [
     risk: "High",
     confidence: 78,
     status: "Pending Review",
-    detected: "2026-07-30 08:49",
+    detected: "2026-07-27 08:49",
     reviewer: "Workgroup Manager",
     impact: "Batch job account · vendor master update path · no accountable owner",
     evidence:
@@ -142,7 +142,7 @@ export const assuranceEvents: AssuranceEvent[] = [
     risk: "Medium",
     confidence: 72,
     status: "Detected",
-    detected: "2026-07-30 09:21",
+    detected: "2026-07-27 09:21",
     reviewer: "IAM Governance",
     impact: "HR-to-learning data synchronization account · owner does not match operating team",
     evidence:
@@ -161,7 +161,7 @@ export const assuranceEvents: AssuranceEvent[] = [
     risk: "Critical",
     confidence: 93,
     status: "Pending Review",
-    detected: "2026-07-30 06:34",
+    detected: "2026-07-27 06:34",
     reviewer: "IS Risk",
     impact: "Compensation fields · 39 users · contains salary and employee identifiers",
     evidence:
@@ -180,7 +180,7 @@ export const assuranceEvents: AssuranceEvent[] = [
     risk: "High",
     confidence: 89,
     status: "Reasoned",
-    detected: "2026-07-30 08:03",
+    detected: "2026-07-27 08:03",
     reviewer: "Application Owner",
     impact: "Vendor bank metadata · finance data · 24 active members",
     evidence:
@@ -199,7 +199,7 @@ export const assuranceEvents: AssuranceEvent[] = [
     risk: "Low",
     confidence: 81,
     status: "Closed",
-    detected: "2026-07-29 16:21",
+    detected: "2026-07-26 16:21",
     reviewer: "Application Owner",
     impact: "Knowledge publishing role · no sensitive-data evidence",
     evidence:
@@ -218,7 +218,7 @@ export const assuranceEvents: AssuranceEvent[] = [
     risk: "Critical",
     confidence: 84,
     status: "Pending Review",
-    detected: "2026-07-30 07:18",
+    detected: "2026-07-27 07:18",
     reviewer: "Training Compliance",
     impact: "126 current members · 37 missing updated training · payment release authority",
     evidence:
@@ -237,7 +237,7 @@ export const assuranceEvents: AssuranceEvent[] = [
     risk: "High",
     confidence: 92,
     status: "Reasoned",
-    detected: "2026-07-30 08:26",
+    detected: "2026-07-27 08:26",
     reviewer: "IAM Governance",
     impact: "PO release authority · SoD-sensitive · 58 active members",
     evidence:
@@ -256,7 +256,7 @@ export const assuranceEvents: AssuranceEvent[] = [
     risk: "Medium",
     confidence: 86,
     status: "Approved",
-    detected: "2026-07-30 09:12",
+    detected: "2026-07-27 09:12",
     reviewer: "Training Compliance",
     impact: "Manager access · inactive ELMS course code · 14 users missing replacement training",
     evidence:
@@ -275,7 +275,7 @@ export const assuranceEvents: AssuranceEvent[] = [
     risk: "Critical",
     confidence: 94,
     status: "Pending Review",
-    detected: "2026-07-30 06:47",
+    detected: "2026-07-27 06:47",
     reviewer: "IAM Governance",
     impact: "Vendor creation capability · conflicts with payment release and invoice approval",
     evidence:
@@ -294,7 +294,7 @@ export const assuranceEvents: AssuranceEvent[] = [
     risk: "High",
     confidence: 90,
     status: "Failed",
-    detected: "2026-07-30 08:52",
+    detected: "2026-07-27 08:52",
     reviewer: "IAM Governance",
     impact: "GL posting authority · financial close control · write-back failed after approval",
     evidence:
@@ -314,7 +314,7 @@ export const assuranceEvents: AssuranceEvent[] = [
     risk: "Low",
     confidence: 87,
     status: "Closed",
-    detected: "2026-07-29 15:38",
+    detected: "2026-07-26 15:38",
     reviewer: "Application Owner",
     impact: "Read-only access · no toxic-combination signal · no privileged action",
     evidence:

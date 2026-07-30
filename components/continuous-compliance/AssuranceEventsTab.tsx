@@ -31,6 +31,12 @@ function agentPillClass(agent: string): string {
   return AGENT_PILL_CLASSES[agent] ?? "bg-gray-100 text-gray-600";
 }
 
+const HIDE_DEFER_CREATE_TICKET_TYPES = new Set([
+  "Entitlement description missing",
+  "Entitlement description incomplete",
+  "Service account owner inactive",
+]);
+
 const STATUS_DOT_CLASSES: Record<AssuranceEventStatus, string> = {
   Detected: "bg-blue-500",
   Reasoned: "bg-purple-500",
@@ -141,29 +147,35 @@ function AssuranceEventDetail({
           className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors"
           onClick={() => onAction("Approve")}
         >
-          Approve
+          {event.type === "Entitlement description incomplete" ? "Approved" : "Approve"}
         </button>
-        <button
-          type="button"
-          className="px-3 py-2 rounded-lg bg-red-50 text-red-700 border border-red-200 text-sm font-semibold hover:bg-red-100 transition-colors"
-          onClick={() => onAction("Reject")}
-        >
-          Reject
-        </button>
-        <button
-          type="button"
-          className="px-3 py-2 rounded-lg bg-white border border-gray-300 text-sm font-semibold hover:bg-gray-50 transition-colors"
-          onClick={() => onAction("Defer")}
-        >
-          Defer
-        </button>
-        <button
-          type="button"
-          className="px-3 py-2 rounded-lg bg-white border border-gray-300 text-sm font-semibold hover:bg-gray-50 transition-colors"
-          onClick={() => onAction("Create Ticket")}
-        >
-          Create Ticket
-        </button>
+        {event.type !== "Entitlement description incomplete" && (
+          <button
+            type="button"
+            className="px-3 py-2 rounded-lg bg-red-50 text-red-700 border border-red-200 text-sm font-semibold hover:bg-red-100 transition-colors"
+            onClick={() => onAction("Reject")}
+          >
+            Reject
+          </button>
+        )}
+        {!HIDE_DEFER_CREATE_TICKET_TYPES.has(event.type) && (
+          <>
+            <button
+              type="button"
+              className="px-3 py-2 rounded-lg bg-white border border-gray-300 text-sm font-semibold hover:bg-gray-50 transition-colors"
+              onClick={() => onAction("Defer")}
+            >
+              Defer
+            </button>
+            <button
+              type="button"
+              className="px-3 py-2 rounded-lg bg-white border border-gray-300 text-sm font-semibold hover:bg-gray-50 transition-colors"
+              onClick={() => onAction("Create Ticket")}
+            >
+              Create Ticket
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
