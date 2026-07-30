@@ -81,6 +81,11 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
   const isAppInventoryRoute =
     typeof pathname === "string" && pathname.startsWith("/settings/app-inventory");
 
+  const isFullWidthNoHorizontalPadRoute =
+    typeof pathname === "string" &&
+    (pathname.startsWith("/settings/gateway/continuous-compliance-event-definitions") ||
+      pathname.startsWith("/settings/gateway/agent-task-library"));
+
   const mainPadClass =
     typeof pathname === "string" &&
     (pathname.startsWith("/non-human-identity-2") ||
@@ -89,7 +94,9 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
       ? "py-6 px-4"
       : isAppInventoryRoute
         ? "py-3 px-3"
-        : "p-6";
+        : isFullWidthNoHorizontalPadRoute
+          ? "py-6"
+          : "p-6";
 
   return (
     <div className="flex flex-col min-h-screen">

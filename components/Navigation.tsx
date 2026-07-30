@@ -222,6 +222,8 @@ export function Navigation() {
         pathname === '/settings/gateway/general' || pathname === '/settings/gateway/scheduler' ||
         pathname === '/settings/gateway/manage-business-roles' || pathname === '/settings/gateway/manage-approval-policies' ||
         pathname === '/settings/gateway/ai-insights-configuration' || pathname === '/settings/gateway/continuous-compliance' ||
+        pathname === '/settings/gateway/continuous-compliance-event-definitions' ||
+        pathname === '/settings/gateway/agent-task-library' ||
         pathname === '/settings/gateway/nhi-settings' || pathname === '/settings/gateway/lookup-custom-approvers' ||
         pathname === '/settings/gateway/transformation-provider') {
       return { href: '/settings/gateway', label: 'Back to Generic' };

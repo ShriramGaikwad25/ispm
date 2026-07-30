@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from 'next/navigation';
 import { useState, useMemo } from 'react';
-import { Settings, FileText, Users, Shield, Mail, ShieldCheck, Clock, Lock, Search, GraduationCap, Brain, Bot, UserSearch, ArrowLeftRight } from 'lucide-react';
+import { Settings, FileText, Users, Shield, Mail, ShieldCheck, Lock, Search, GraduationCap, Brain, Bot, UserSearch, ArrowLeftRight, ListChecks, Cpu } from 'lucide-react';
 
 export default function GatewaySettings() {
   const router = useRouter();
@@ -66,11 +66,18 @@ export default function GatewaySettings() {
       icon: <ShieldCheck className="w-5 h-5 text-gray-600" />,
     },
     {
-      id: 'continuous-compliance-settings',
-      title: 'Continuous Compliance Settings',
-      subtitle: 'Configure continuous controls, checks, and notifications.',
-      href: '/settings/gateway/continuous-compliance',
-      icon: <Clock className="w-5 h-5 text-gray-600" />,
+      id: 'continuous-compliance-event-definitions',
+      title: 'Continuous Compliance Event Definitions',
+      subtitle: 'Define triggers for assurance events and access reviews.',
+      href: '/settings/gateway/continuous-compliance-event-definitions',
+      icon: <ListChecks className="w-5 h-5 text-gray-600" />,
+    },
+    {
+      id: 'agent-task-library',
+      title: 'Agent Task Library',
+      subtitle: 'Browse reusable AI, ML, and internal workflow tasks.',
+      href: '/settings/gateway/agent-task-library',
+      icon: <Cpu className="w-5 h-5 text-gray-600" />,
     },
     {
       id: 'ai-insights-configuration',
