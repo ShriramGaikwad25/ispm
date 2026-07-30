@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from 'next/navigation';
 import { useState, useMemo } from 'react';
-import { Settings, FileText, Users, Shield, Mail, ShieldCheck, Lock, Search, GraduationCap, Brain, Bot, UserSearch, ArrowLeftRight, ListChecks, Cpu } from 'lucide-react';
+import { Settings, FileText, Users, Shield, Mail, ShieldCheck, Lock, Search, GraduationCap, Brain, Bot, UserSearch, ArrowLeftRight, ListChecks, Cpu, Timer } from 'lucide-react';
 
 export default function GatewaySettings() {
   const router = useRouter();
@@ -71,6 +71,13 @@ export default function GatewaySettings() {
       subtitle: 'Define triggers for assurance events and access reviews.',
       href: '/settings/gateway/continuous-compliance-event-definitions',
       icon: <ListChecks className="w-5 h-5 text-gray-600" />,
+    },
+    {
+      id: 'sla-escalation-policies',
+      title: 'SLA & Escalation Policies',
+      subtitle: 'Define response timelines, reminders, and escalation rules for compliance events.',
+      href: '/settings/gateway/sla-escalation-policies',
+      icon: <Timer className="w-5 h-5 text-gray-600" />,
     },
     {
       id: 'agent-task-library',
