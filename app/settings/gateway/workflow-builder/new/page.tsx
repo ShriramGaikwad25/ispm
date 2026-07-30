@@ -2275,6 +2275,20 @@ export default function WorkflowBuilderCreatePage() {
         setValue("tags", data.tags ?? "", { shouldValidate: false });
       }
 
+      const workflowTypeFromData = String(
+        data.business_object_type ?? data.workflow_type ?? ""
+      )
+        .replace(/_/g, " ")
+        .trim();
+      if (workflowTypeFromData) {
+        setValue("workflowType", workflowTypeFromData, { shouldValidate: true });
+      }
+
+      const eventTypeFromData = data.code ? String(data.code).trim() : "";
+      if (eventTypeFromData) {
+        setValue("eventType", eventTypeFromData, { shouldValidate: true });
+      }
+
       // Keep local step1 snapshot in sync during edit prefill.
       // Without this, Next can remain disabled until any field is manually changed.
       setFormData((prev) => ({
@@ -2285,6 +2299,8 @@ export default function WorkflowBuilderCreatePage() {
           description: data.description ?? "",
           owner: ownerFromData ?? "",
           tags: data.tags ?? "",
+          workflowType: workflowTypeFromData || prev.step1.workflowType,
+          eventType: eventTypeFromData || prev.step1.eventType,
         },
       }));
 
@@ -2327,10 +2343,18 @@ export default function WorkflowBuilderCreatePage() {
                   type = "APPROVAL";
                 } else if (
                   upperCode.endsWith("FULFILLMENT") ||
-                  upperCode.startsWith("SCIM_")
+                  upperCode.startsWith("SCIM_") ||
+                  upperCode.includes("ITSM") ||
+                  upperCode.includes("JIT_GRANT")
                 ) {
                   kind = "SYSTEM";
                   type = "FULFILLMENT";
+                } else if (
+                  upperCode.startsWith("AGENT_") ||
+                  upperCode.startsWith("CUSTOM_")
+                ) {
+                  kind = "AI";
+                  type = "CUSTOM";
                 } else {
                   kind = "SYSTEM";
                   type = "LOGIC";
@@ -2361,6 +2385,7 @@ export default function WorkflowBuilderCreatePage() {
                   kind,
                   type,
                   condition: fallbackCondition || conditionExpr || "true",
+                  skipLogic: hasRealConditionExpr ? "condition" : "never",
                 };
 
                 if (type === "APPROVAL") {
