@@ -31,6 +31,8 @@ import { useSearchParams } from "next/navigation";
 import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
 import { GuidedPolicyBuilder } from "./guided-policy-builder";
 import { STEP_PALETTE } from "./step-palette";
+import { INITIAL_EVENT_DEFINITIONS } from "@/components/continuous-compliance/eventDefinitionsData";
+import { AGENT_TASKS } from "@/lib/agent-task-library";
 
 const STAGE_COLUMN_HEADING_CLASS = [
   "bg-sky-100 text-sky-900",
@@ -154,9 +156,19 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
   const [stepConfig, setStepConfig] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<"General" | "Conditions" | "AI Context" | "Approvers">("General");
+  const [activeTab, setActiveTab] = useState<"General" | "Conditions" | "AI Context" | "Approvers" | "Context">("General");
   const [editingStageId, setEditingStageId] = useState<string | null>(null);
   const [editingStageName, setEditingStageName] = useState<string>("");
+  const conditionTextareaRef = React.useRef<HTMLTextAreaElement | null>(null);
+
+  const handleSkipLogicChange = (value: string) => {
+    updateStepConfig("skipLogic", value);
+    if (value === "condition") {
+      requestAnimationFrame(() => {
+        conditionTextareaRef.current?.focus();
+      });
+    }
+  };
 
   const stages = formData.step2.stages || [];
 
@@ -690,6 +702,8 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                       ? (["General", "Conditions", "AI Context"] as const)
                       : selectedStep.type === "APPROVAL"
                       ? (["General", "Conditions", "Approvers"] as const)
+                      : selectedStep.type === "CUSTOM"
+                      ? (["General", "Conditions", "Context"] as const)
                       : (["General", "Conditions"] as const)
                   ).map((tab) => (
                     <button
@@ -766,30 +780,37 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                   <div className="space-y-4">
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">
-                        Condition (CEL / expression)
-                      </label>
-                      <textarea
-                        value={stepConfig?.condition && stepConfig.condition !== "true" ? stepConfig.condition : ""}
-                        onChange={(e) => updateStepConfig("condition", e.target.value)}
-                        rows={6}
-                        placeholder='e.g. risk >= "HIGH" || entitlement.tags.contains("SOX")'
-                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
                         Skip logic (no-code hint)
                       </label>
                       <select
                         value={stepConfig?.skipLogic || "never"}
-                        onChange={(e) => updateStepConfig("skipLogic", e.target.value)}
+                        onChange={(e) => handleSkipLogicChange(e.target.value)}
                         className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                       >
                         <option value="never">Never skip</option>
                         <option value="risk-low">Skip when risk = LOW</option>
                         <option value="display-only">Skip display-only entitlements</option>
+                        <option value="condition">Skip on Condition</option>
                       </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Condition (CEL / expression)
+                      </label>
+                      <textarea
+                        ref={conditionTextareaRef}
+                        value={stepConfig?.condition && stepConfig.condition !== "true" ? stepConfig.condition : ""}
+                        onChange={(e) => updateStepConfig("condition", e.target.value)}
+                        disabled={stepConfig?.skipLogic !== "condition"}
+                        rows={6}
+                        placeholder='e.g. risk >= "HIGH" || entitlement.tags.contains("SOX")'
+                        className={`w-full px-2.5 py-1.5 text-xs border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono ${
+                          stepConfig?.skipLogic !== "condition"
+                            ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
+                            : "border-gray-300"
+                        }`}
+                      />
                     </div>
                   </div>
                 )}
@@ -1001,30 +1022,37 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                   <div className="space-y-4">
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">
-                        Condition (CEL / expression)
-                      </label>
-                      <textarea
-                        value={stepConfig?.condition && stepConfig.condition !== "true" ? stepConfig.condition : ""}
-                        onChange={(e) => updateStepConfig("condition", e.target.value)}
-                        rows={6}
-                        placeholder='e.g. risk >= "HIGH" || entitlement.tags.contains("SOX")'
-                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
                         Skip logic (no-code hint)
                       </label>
                       <select
                         value={stepConfig?.skipLogic || "never"}
-                        onChange={(e) => updateStepConfig("skipLogic", e.target.value)}
+                        onChange={(e) => handleSkipLogicChange(e.target.value)}
                         className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                       >
                         <option value="never">Never skip</option>
                         <option value="risk-low">Skip when risk = LOW</option>
                         <option value="display-only">Skip display-only entitlements</option>
+                        <option value="condition">Skip on Condition</option>
                       </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Condition (CEL / expression)
+                      </label>
+                      <textarea
+                        ref={conditionTextareaRef}
+                        value={stepConfig?.condition && stepConfig.condition !== "true" ? stepConfig.condition : ""}
+                        onChange={(e) => updateStepConfig("condition", e.target.value)}
+                        disabled={stepConfig?.skipLogic !== "condition"}
+                        rows={6}
+                        placeholder='e.g. risk >= "HIGH" || entitlement.tags.contains("SOX")'
+                        className={`w-full px-2.5 py-1.5 text-xs border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono ${
+                          stepConfig?.skipLogic !== "condition"
+                            ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
+                            : "border-gray-300"
+                        }`}
+                      />
                     </div>
                   </div>
                 )}
@@ -1141,30 +1169,37 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                   <div className="space-y-4">
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">
-                        Condition (CEL / expression)
-                      </label>
-                      <textarea
-                        value={stepConfig?.condition && stepConfig.condition !== "true" ? stepConfig.condition : ""}
-                        onChange={(e) => updateStepConfig("condition", e.target.value)}
-                        rows={6}
-                        placeholder='e.g. risk >= "HIGH" || entitlement.tags.contains("SOX")'
-                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
                         Skip logic (no-code hint)
                       </label>
                       <select
                         value={stepConfig?.skipLogic || "never"}
-                        onChange={(e) => updateStepConfig("skipLogic", e.target.value)}
+                        onChange={(e) => handleSkipLogicChange(e.target.value)}
                         className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                       >
                         <option value="never">Never skip</option>
                         <option value="risk-low">Skip when risk = LOW</option>
                         <option value="display-only">Skip display-only entitlements</option>
+                        <option value="condition">Skip on Condition</option>
                       </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Condition (CEL / expression)
+                      </label>
+                      <textarea
+                        ref={conditionTextareaRef}
+                        value={stepConfig?.condition && stepConfig.condition !== "true" ? stepConfig.condition : ""}
+                        onChange={(e) => updateStepConfig("condition", e.target.value)}
+                        disabled={stepConfig?.skipLogic !== "condition"}
+                        rows={6}
+                        placeholder='e.g. risk >= "HIGH" || entitlement.tags.contains("SOX")'
+                        className={`w-full px-2.5 py-1.5 text-xs border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono ${
+                          stepConfig?.skipLogic !== "condition"
+                            ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
+                            : "border-gray-300"
+                        }`}
+                      />
                     </div>
                   </div>
                 )}
@@ -1172,13 +1207,19 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                 {selectedStep.type === "CUSTOM" && activeTab === "General" && (
                   <>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Step label</label>
-                      <input
-                        type="text"
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Select Agent Task</label>
+                      <select
                         value={stepConfig?.label || ""}
                         onChange={(e) => updateStepConfig("label", e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      >
+                        <option value="">Select an agent task</option>
+                        {AGENT_TASKS.map((task) => (
+                          <option key={task.id} value={task.name}>
+                            {task.name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
                     <div>
@@ -1227,31 +1268,91 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                   <div className="space-y-4">
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">
-                        Condition (CEL / expression)
-                      </label>
-                      <textarea
-                        value={stepConfig?.condition && stepConfig.condition !== "true" ? stepConfig.condition : ""}
-                        onChange={(e) => updateStepConfig("condition", e.target.value)}
-                        rows={6}
-                        placeholder='e.g. risk >= "HIGH" || entitlement.tags.contains("SOX")'
-                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
                         Skip logic (no-code hint)
                       </label>
                       <select
                         value={stepConfig?.skipLogic || "never"}
-                        onChange={(e) => updateStepConfig("skipLogic", e.target.value)}
+                        onChange={(e) => handleSkipLogicChange(e.target.value)}
                         className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                       >
                         <option value="never">Never skip</option>
                         <option value="risk-low">Skip when risk = LOW</option>
                         <option value="display-only">Skip display-only entitlements</option>
+                        <option value="condition">Skip on Condition</option>
                       </select>
                     </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Condition (CEL / expression)
+                      </label>
+                      <textarea
+                        ref={conditionTextareaRef}
+                        value={stepConfig?.condition && stepConfig.condition !== "true" ? stepConfig.condition : ""}
+                        onChange={(e) => updateStepConfig("condition", e.target.value)}
+                        disabled={stepConfig?.skipLogic !== "condition"}
+                        rows={6}
+                        placeholder='e.g. risk >= "HIGH" || entitlement.tags.contains("SOX")'
+                        className={`w-full px-2.5 py-1.5 text-xs border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono ${
+                          stepConfig?.skipLogic !== "condition"
+                            ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
+                            : "border-gray-300"
+                        }`}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {selectedStep.type === "CUSTOM" && activeTab === "Context" && (
+                  <div className="space-y-6">
+                    {(() => {
+                      const selectedAgentTask = AGENT_TASKS.find((t) => t.name === stepConfig?.label);
+                      return (
+                        <>
+                          <div>
+                            <h5 className="text-xs font-semibold text-gray-900 mb-2">Input Signals</h5>
+                            {selectedAgentTask ? (
+                              <div className="flex flex-wrap gap-2">
+                                {selectedAgentTask.inputs.map((input) => (
+                                  <span
+                                    key={input}
+                                    className="rounded-full border border-blue-300 bg-blue-50 px-2.5 py-1 text-[11px] text-blue-700"
+                                  >
+                                    {input}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-gray-500">
+                                Select an agent task in the General tab to see its input signals.
+                              </p>
+                            )}
+                          </div>
+
+                          <div>
+                            <h5 className="text-xs font-semibold text-gray-900 mb-2">Output Schema</h5>
+                            {selectedAgentTask ? (
+                              <div className="flex flex-wrap gap-2">
+                                {selectedAgentTask.schema.map((field) => (
+                                  <span
+                                    key={field.field}
+                                    title={field.description}
+                                    className="rounded-full border border-purple-300 bg-purple-50 px-2.5 py-1 text-[11px] text-purple-700"
+                                  >
+                                    {field.field}
+                                    <span className="text-purple-400"> · {field.type}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-gray-500">
+                                Select an agent task in the General tab to see its output schema.
+                              </p>
+                            )}
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 )}
 
@@ -1303,30 +1404,37 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                   <div className="space-y-4">
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">
-                        Condition (CEL / expression)
-                      </label>
-                      <textarea
-                        value={stepConfig?.condition && stepConfig.condition !== "true" ? stepConfig.condition : ""}
-                        onChange={(e) => updateStepConfig("condition", e.target.value)}
-                        rows={6}
-                        placeholder='e.g. risk >= "HIGH" || entitlement.tags.contains("SOX")'
-                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
                         Skip logic (no-code hint)
                       </label>
                       <select
                         value={stepConfig?.skipLogic || "never"}
-                        onChange={(e) => updateStepConfig("skipLogic", e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        onChange={(e) => handleSkipLogicChange(e.target.value)}
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                       >
                         <option value="never">Never skip</option>
                         <option value="risk-low">Skip when risk = LOW</option>
                         <option value="display-only">Skip display-only entitlements</option>
+                        <option value="condition">Skip on Condition</option>
                       </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Condition (CEL / expression)
+                      </label>
+                      <textarea
+                        ref={conditionTextareaRef}
+                        value={stepConfig?.condition && stepConfig.condition !== "true" ? stepConfig.condition : ""}
+                        onChange={(e) => updateStepConfig("condition", e.target.value)}
+                        disabled={stepConfig?.skipLogic !== "condition"}
+                        rows={6}
+                        placeholder='e.g. risk >= "HIGH" || entitlement.tags.contains("SOX")'
+                        className={`w-full px-2.5 py-1.5 text-xs border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono ${
+                          stepConfig?.skipLogic !== "condition"
+                            ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
+                            : "border-gray-300"
+                        }`}
+                      />
                     </div>
                   </div>
                 )}
@@ -1427,6 +1535,8 @@ const getInitialFormData = () => ({
     ownerUser: [] as any[],
     ownerGroup: [] as any[],
     certificationTemplate: "",
+    workflowType: "",
+    eventType: "",
     description: "",
     tags: "",
     owner: "",
@@ -1836,6 +1946,23 @@ function WorkflowReviewSubmit({ formData }: { formData: any }) {
             <dd className="text-right text-gray-900">{dash(s1.tags)}</dd>
           </div>
           <div className="flex items-center justify-between gap-4 py-2.5 text-sm">
+            <dt className="shrink-0 font-medium text-gray-600">Workflow Type</dt>
+            <dd className="text-right font-medium text-gray-900">{dash(s1.workflowType)}</dd>
+          </div>
+          {s1.workflowType === "Assurance Event" && (
+            <div className="flex items-start justify-between gap-4 py-2.5 text-sm">
+              <dt className="shrink-0 font-medium text-gray-600">Select Event Type</dt>
+              <dd className="max-w-[70%] text-right text-gray-900">
+                {dash(
+                  (() => {
+                    const matched = INITIAL_EVENT_DEFINITIONS.find((e) => e.id === s1.eventType);
+                    return matched ? `${matched.id} - ${matched.name}` : s1.eventType;
+                  })()
+                )}
+              </dd>
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-4 py-2.5 text-sm">
             <dt className="shrink-0 font-medium text-gray-600">User scope</dt>
             <dd className="text-right text-gray-900">{dashOptional(s1.userType)}</dd>
           </div>
@@ -2005,6 +2132,8 @@ export default function WorkflowBuilderCreatePage() {
       ownerUser: formData.step1.ownerUser || [],
       ownerGroup: formData.step1.ownerGroup || [],
       certificationTemplate: formData.step1.certificationTemplate || "",
+      workflowType: formData.step1.workflowType || "",
+      eventType: formData.step1.eventType || "",
       description: formData.step1.description || "",
       tags: formData.step1.tags || "",
       owner: formData.step1.owner || "",
@@ -2028,7 +2157,14 @@ export default function WorkflowBuilderCreatePage() {
   const groupListIsChecked = watch("groupListIsChecked");
   const excludeUsersIsChecked = watch("excludeUsersIsChecked");
   const selectData = watch("selectData");
+  const workflowType = watch("workflowType");
   const editPolicyId = searchParams.get("id");
+
+  useEffect(() => {
+    if (workflowType !== "Assurance Event") {
+      setValue("eventType", "", { shouldValidate: false });
+    }
+  }, [workflowType, setValue]);
 
   useEffect(() => {
     if (ownerType === "User") {
@@ -2099,6 +2235,8 @@ export default function WorkflowBuilderCreatePage() {
         ownerUser: fresh.step1.ownerUser,
         ownerGroup: fresh.step1.ownerGroup,
         certificationTemplate: fresh.step1.certificationTemplate,
+        workflowType: fresh.step1.workflowType,
+        eventType: fresh.step1.eventType,
         description: fresh.step1.description,
         tags: fresh.step1.tags,
         owner: fresh.step1.owner,
@@ -2265,6 +2403,8 @@ export default function WorkflowBuilderCreatePage() {
           ownerUser: values.ownerUser || [],
           ownerGroup: values.ownerGroup || [],
           certificationTemplate: values.certificationTemplate || "",
+          workflowType: values.workflowType || "",
+          eventType: values.eventType || "",
           description: values.description || "",
           tags: values.tags || "",
           owner: values.owner || "",
@@ -2292,6 +2432,8 @@ export default function WorkflowBuilderCreatePage() {
         return (
           !!(
             formData.step1.certificationTemplate &&
+            formData.step1.workflowType &&
+            (formData.step1.workflowType !== "Assurance Event" || formData.step1.eventType) &&
             formData.step1.description &&
             formData.step1.owner
           )
@@ -2309,67 +2451,135 @@ export default function WorkflowBuilderCreatePage() {
     switch (currentStep) {
       case 1:
         return (
-          <div className="w-full max-w-3xl mx-auto text-sm space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Name <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                {...register("certificationTemplate", { required: true })}
-              />
-              {errors.certificationTemplate?.message &&
-                typeof errors.certificationTemplate.message === "string" && (
-                  <p className="mt-1 text-red-500 text-xs">
-                    {errors.certificationTemplate.message}
-                  </p>
-                )}
+          <div className="w-full max-w-3xl mx-auto space-y-5">
+            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+              <ReviewSectionHeader icon={Layers} title="General Details" />
+              <p className="mb-4 text-xs text-gray-500">
+                Name this workflow and describe the process it automates.
+              </p>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Standard Access Request"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  {...register("certificationTemplate", { required: true })}
+                />
+                {errors.certificationTemplate?.message &&
+                  typeof errors.certificationTemplate.message === "string" && (
+                    <p className="mt-1 text-red-500 text-xs">
+                      {errors.certificationTemplate.message}
+                    </p>
+                  )}
+              </div>
+
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  placeholder="Explain when this workflow runs and what it's for"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+                  rows={3}
+                  {...register("description", { required: true })}
+                />
+                {errors.description?.message &&
+                  typeof errors.description.message === "string" && (
+                    <p className="mt-1 text-red-500 text-xs">
+                      {errors.description.message}
+                    </p>
+                  )}
+              </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Description <span className="text-red-500">*</span>
-              </label>
-              <textarea
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
-                rows={3}
-                {...register("description", { required: true })}
-              />
-              {errors.description?.message &&
-                typeof errors.description.message === "string" && (
-                  <p className="mt-1 text-red-500 text-xs">
-                    {errors.description.message}
-                  </p>
-                )}
-            </div>
+            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+              <ReviewSectionHeader icon={ShieldCheck} title="Ownership & Classification" />
+              <p className="mb-4 text-xs text-gray-500">
+                Assign who's accountable for this workflow, tag it for discovery, and classify what kind of process it is.
+              </p>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Owners <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                {...register("owner", { required: true })}
-              />
-              {errors.owner?.message &&
-                typeof errors.owner.message === "string" && (
-                  <p className="mt-1 text-red-500 text-xs">
-                    {errors.owner.message}
-                  </p>
-                )}
-            </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Owners <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. jane.doe@company.com"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    {...register("owner", { required: true })}
+                  />
+                  {errors.owner?.message &&
+                    typeof errors.owner.message === "string" && (
+                      <p className="mt-1 text-red-500 text-xs">
+                        {errors.owner.message}
+                      </p>
+                    )}
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tags
-              </label>
-              <input
-                type="text"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                {...register("tags")}
-              />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Tags
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. finance, sox"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    {...register("tags")}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Workflow Type <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    {...register("workflowType", { required: true })}
+                  >
+                    <option value="">Select workflow type</option>
+                    <option value="Access Request">Access Request</option>
+                    <option value="Access Review">Access Review</option>
+                    <option value="Assurance Event">Assurance Event</option>
+                  </select>
+                  {errors.workflowType?.message &&
+                    typeof errors.workflowType.message === "string" && (
+                      <p className="mt-1 text-red-500 text-xs">
+                        {errors.workflowType.message}
+                      </p>
+                    )}
+                </div>
+
+                {workflowType === "Assurance Event" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Select Event Type <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      {...register("eventType", { required: workflowType === "Assurance Event" })}
+                    >
+                      <option value="">Select event type</option>
+                      {INITIAL_EVENT_DEFINITIONS.map((event) => (
+                        <option key={event.id} value={event.id}>
+                          {event.id} - {event.name}
+                        </option>
+                      ))}
+                    </select>
+                    {errors.eventType?.message &&
+                      typeof errors.eventType.message === "string" && (
+                        <p className="mt-1 text-red-500 text-xs">
+                          {errors.eventType.message}
+                        </p>
+                      )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         );
@@ -2484,11 +2694,8 @@ export default function WorkflowBuilderCreatePage() {
         </div>
       ) : (
         // Step 1: centered form layout
-        <div className="max-w-6xl mx-auto px-6 pt-4 pb-10">
+        <div className="max-w-6xl mx-auto px-6 pb-10">
           <div className="w-full mb-6 min-h-[400px]">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 text-center">
-              {steps[currentStep - 1].title}
-            </h3>
             <div className="flex justify-center">{renderStepContent()}</div>
           </div>
         </div>

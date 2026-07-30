@@ -23,6 +23,7 @@ import "@/lib/ag-grid-setup";
 import { useRouter } from "next/navigation";
 import sodViolations from "@/public/SodVoilations.json";
 import continuousComplianceJson from "@/public/ContinousCompliance.json";
+import AssuranceEventsTab from "@/components/continuous-compliance/AssuranceEventsTab";
 
 type CcJsonRow = {
   Entity?: string;
@@ -66,29 +67,6 @@ function mapContinuousComplianceRow(item: CcJsonRow) {
   };
 }
 
-function parseDateForCompliance(value: unknown): Date | null {
-  const s = String(value ?? "").trim();
-  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (iso) {
-    const y = Number(iso[1]);
-    const m = Number(iso[2]);
-    const d = Number(iso[3]);
-    if (!y || !m || !d) return null;
-    const dt = new Date(y, m - 1, d);
-    dt.setHours(0, 0, 0, 0);
-    return dt;
-  }
-  const mmdd = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (!mmdd) return null;
-  const mm = Number(mmdd[1]);
-  const dd = Number(mmdd[2]);
-  const yyyy = Number(mmdd[3]);
-  if (!mm || !dd || !yyyy) return null;
-  const dt = new Date(yyyy, mm - 1, dd);
-  dt.setHours(0, 0, 0, 0);
-  return dt;
-}
-
 const ccPayload = continuousComplianceJson as { data?: CcJsonRow[] };
 const ccRowsFromJson = Array.isArray(ccPayload.data)
   ? ccPayload.data.map(mapContinuousComplianceRow)
@@ -124,29 +102,11 @@ const AgGridReact = dynamic(
 export default function ContinuousCompliancePage() {
   const router = useRouter();
   const rows = ccRowsFromJson;
-  const [activeTab, setActiveTab] = useState(0); // 0 = Open, 1 = Complete
+  const [activeTab, setActiveTab] = useState(0); // 0 = Review Events, 1 = Assurance Events
   const [searchTerm, setSearchTerm] = useState<string>("");
 
-  const today = useMemo(() => {
-    const t = new Date();
-    t.setHours(0, 0, 0, 0);
-    return t;
-  }, []);
-
-  const { openRows, completeRows } = useMemo(() => {
-    // Open tab shows all rows from public/ContinousCompliance.json.
-    const open = rows;
-
-    // Keep Complete as an optional subset of expired rows.
-    const complete = rows.filter((r) => {
-      const expiresOn = r?.expiresOn ?? r?.dueOn ?? "";
-      const d = parseDateForCompliance(expiresOn);
-      return !!d && d < today;
-    });
-
-    return { openRows: open, completeRows: complete };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, today]);
+  // Review Events tab shows all rows from public/ContinousCompliance.json.
+  const openRows = rows;
 
   const filteredOpenRows = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
@@ -186,62 +146,12 @@ export default function ContinuousCompliancePage() {
     return openRows.filter((r) => rowMatchesSearch(r));
   }, [openRows, searchTerm]);
 
-  const filteredCompleteRows = useMemo(() => {
-    const q = searchTerm.trim().toLowerCase();
-    if (!q) return completeRows;
-
-    const rowMatchesSearch = (r: any) => {
-      const entries = Object.entries(r ?? {});
-      for (const [key, value] of entries) {
-        if (String(key).toLowerCase().includes(q)) return true;
-
-        if (value === null || value === undefined) continue;
-        if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-          if (String(value).toLowerCase().includes(q)) return true;
-          continue;
-        }
-
-        if (Array.isArray(value)) {
-          if (
-            value.some((v) => v !== null && v !== undefined && String(v).toLowerCase().includes(q))
-          ) {
-            return true;
-          }
-          continue;
-        }
-
-        try {
-          if (JSON.stringify(value).toLowerCase().includes(q)) return true;
-        } catch {
-          // ignore
-        }
-      }
-      return false;
-    };
-
-    return completeRows.filter((r) => rowMatchesSearch(r));
-  }, [completeRows, searchTerm]);
-
-  const displayedRows = activeTab === 0 ? filteredOpenRows : filteredCompleteRows;
-
-  // Keep Open as the safe default view when data loads.
+  // Keep Review Events as the safe default view when data loads.
   useEffect(() => {
     if (rows.length > 0) {
       setActiveTab(0);
     }
   }, [rows.length]);
-
-  // If Complete is selected but has no records, switch back to Open automatically.
-  useEffect(() => {
-    if (
-      activeTab === 1 &&
-      searchTerm.trim() === "" &&
-      completeRows.length === 0 &&
-      openRows.length > 0
-    ) {
-      setActiveTab(0);
-    }
-  }, [activeTab, searchTerm, completeRows.length, openRows.length]);
 
   const handleReviewClick = (rowData: any) => {
     if (
@@ -702,14 +612,6 @@ export default function ContinuousCompliancePage() {
     <div className="min-h-screen bg-gray-50">
       <div className="w-full">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-2xl font-semibold text-gray-900">
-                Continuous Compliance
-              </h1>
-            </div>
-          </div>
-
           <div className="mt-4">
             {/* Open / Complete tabs (inline to avoid remounting input on every keystroke) */}
             <div
@@ -733,7 +635,7 @@ export default function ContinuousCompliancePage() {
                 ) : (
                   <ChevronUp size={16} className="text-gray-500" />
                 )}
-                Open
+                Review Events
               </button>
 
               <button
@@ -752,57 +654,61 @@ export default function ContinuousCompliancePage() {
                 ) : (
                   <ChevronUp size={16} className="text-gray-500" />
                 )}
-                Complete
+                Assurance Events
               </button>
             </div>
 
             {/* Tab panel */}
             <div role="tabpanel" className="mt-4 flex flex-col">
-              <div className="w-full flex flex-col">
-                <div className="mb-3 flex items-center gap-3 justify-between flex-wrap">
-                  <div
-                    className="relative bg-white rounded-md border border-gray-300"
-                    style={{
-                      display: "flex",
-                      padding: "6px 10px",
-                      alignItems: "center",
-                      gap: "8px",
-                      alignSelf: "stretch",
-                      flex: "1 1 320px",
-                      minWidth: 260,
-                    }}
-                  >
-                    <Search className="text-gray-400 w-4 h-4" />
-                    <input
-                      type="text"
-                      placeholder="Search"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="border-0 bg-transparent text-gray-700 focus:outline-none flex-1"
+              {activeTab === 0 ? (
+                <div className="w-full flex flex-col">
+                  <div className="mb-3 flex items-center gap-3 justify-between flex-wrap">
+                    <div
+                      className="relative bg-white rounded-md border border-gray-300"
+                      style={{
+                        display: "flex",
+                        padding: "6px 10px",
+                        alignItems: "center",
+                        gap: "8px",
+                        alignSelf: "stretch",
+                        flex: "1 1 320px",
+                        minWidth: 260,
+                      }}
+                    >
+                      <Search className="text-gray-400 w-4 h-4" />
+                      <input
+                        type="text"
+                        placeholder="Search"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="border-0 bg-transparent text-gray-700 focus:outline-none flex-1"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="ag-theme-alpine w-full">
+                    <AgGridReact
+                      theme={themeQuartz}
+                      rowData={filteredOpenRows}
+                      columnDefs={columnDefs}
+                      defaultColDef={{
+                        sortable: true,
+                        filter: true,
+                        resizable: true,
+                        flex: 1,
+                      }}
+                      domLayout="autoHeight"
                     />
                   </div>
+                  {filteredOpenRows.length === 0 && (
+                    <div className="mt-3 text-sm text-gray-500">
+                      No records found.
+                    </div>
+                  )}
                 </div>
-
-                <div className="ag-theme-alpine w-full">
-                  <AgGridReact
-                    theme={themeQuartz}
-                    rowData={displayedRows}
-                    columnDefs={columnDefs}
-                    defaultColDef={{
-                      sortable: true,
-                      filter: true,
-                      resizable: true,
-                      flex: 1,
-                    }}
-                    domLayout="autoHeight"
-                  />
-                </div>
-                {displayedRows.length === 0 && (
-                  <div className="mt-3 text-sm text-gray-500">
-                    No records found.
-                  </div>
-                )}
-              </div>
+              ) : (
+                <AssuranceEventsTab />
+              )}
             </div>
           </div>
         </div>
