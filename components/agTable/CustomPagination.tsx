@@ -23,8 +23,10 @@ const CustomPagination: React.FC<CustomPaginationProps> = ({
   onPageSizeChange,
   pageSizeOptions = [10, 25, 50, 100, "all"],
 }) => {
+  const safeTotalPages = totalPages > 0 ? totalPages : 1;
+
   const goToPage = (page: number) => {
-    if (page < 1 || page > totalPages) return;
+    if (page < 1 || page > safeTotalPages) return;
     onPageChange(page);
   };
 
@@ -81,10 +83,10 @@ const CustomPagination: React.FC<CustomPaginationProps> = ({
           </div>
           <button
             className={`flex items-center gap-1 text-sm ${
-              currentPage === totalPages ? "text-gray-400 cursor-not-allowed" : "text-gray-600 hover:text-gray-800 cursor-pointer"
+              currentPage >= safeTotalPages ? "text-gray-400 cursor-not-allowed" : "text-gray-600 hover:text-gray-800 cursor-pointer"
             }`}
             onClick={() => goToPage(currentPage + 1)}
-            disabled={currentPage === totalPages}
+            disabled={currentPage >= safeTotalPages}
           >
             <span>Next</span>
             <ChevronRight className="w-4 h-4" />

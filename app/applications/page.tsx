@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 const AgGridReact = dynamic(() => import("ag-grid-react").then(mod => mod.AgGridReact), { ssr: false });
 import "@/lib/ag-grid-setup";
-import { ColDef } from "ag-grid-enterprise";
+import { ColDef, GridApi, PaginationChangedEvent } from "ag-grid-enterprise";
 import Accordion from "@/components/Accordion";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 import { Doughnut } from "react-chartjs-2";
@@ -23,17 +23,30 @@ export default function Application() {
   const [rowData, setRowData] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
-  const [pageSize, setPageSize] = useState(20);
+  const [gridApi, setGridApi] = useState<GridApi | null>(null);
+  const [gridCurrentPage, setGridCurrentPage] = useState(1);
+  const [gridTotalPages, setGridTotalPages] = useState(1);
+  const [gridPageSize, setGridPageSize] = useState<number>(20);
+  const [gridRowCount, setGridRowCount] = useState(0);
+
+  const syncPaginationState = (api: GridApi) => {
+    setGridCurrentPage(api.paginationGetCurrentPage() + 1);
+    setGridTotalPages(Math.max(1, api.paginationGetTotalPages()));
+    setGridPageSize(api.paginationGetPageSize());
+    setGridRowCount(api.paginationGetRowCount());
+  };
+
+  const handlePaginationChanged = (event: PaginationChangedEvent) => {
+    syncPaginationState(event.api);
+  };
 
   // Fetch data from API
   useEffect(() => {
     setMounted(true);
     const fetchData = async () => {
       try {
-        const response = await fetch(`https://preview.keyforge.ai/entities/api/v1/ACMECOM/getApplications/430ea9e6-3cff-449c-a24e-59c057f81e3d?page=${currentPage}&page_size=${pageSize}`);
+        const response = await fetch(`https://preview.keyforge.ai/entities/api/v1/ACMECOM/getApplications/430ea9e6-3cff-449c-a24e-59c057f81e3d?page=1&page_size=1000`);
         // Fire parallel background requests alongside getApplications
         const accessToken = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
         if (accessToken) {
@@ -47,16 +60,16 @@ export default function Application() {
         void fetch("https://preview.keyforge.ai/schemamapper/getmappedschema/ACMECOM/16APLDOY").catch(() => null);
         const data = await response.json();
         if (data.executionStatus === "success") {
-          setRowData(data.items);
-          setTotalPages(data.total_pages);
-          setTotalItems(data.total_items);
+          const items = Array.isArray(data.items) ? data.items : [];
+          setRowData(items);
+          setTotalItems(data.total_items || items.length);
         }
       } catch (error) {
         console.error("Error fetching data:", error);
       }
     };
     fetchData();
-  }, [currentPage, pageSize]);
+  }, []);
 
   // Filter data based on search query
   useEffect(() => {
@@ -278,7 +291,7 @@ export default function Application() {
 
   return (
     !mounted ? null :
-    <div className="ag-theme-alpine" style={{ height: 600, width: "100%" }}>
+    <div className="ag-theme-alpine" style={{ width: "100%" }}>
       <div className="relative mb-2">
         <h1 className="text-xl font-bold border-b border-gray-300 pb-2 text-blue-950">
           Applications
@@ -325,44 +338,50 @@ export default function Application() {
         </div>
         {}
       </div>
-      
-      {/* Top pagination */}
+
+      {/* Top pagination - mirrors the grid's own pagination state */}
       <div className="mb-2">
         <CustomPagination
-          totalItems={searchQuery ? filteredData.length : totalItems}
-          currentPage={currentPage}
-          totalPages={totalPages}
-          pageSize={pageSize}
-          onPageChange={setCurrentPage}
+          totalItems={gridRowCount}
+          currentPage={gridCurrentPage}
+          totalPages={gridTotalPages}
+          pageSize={gridPageSize}
+          onPageChange={(page) => gridApi?.paginationGoToPage(page - 1)}
           onPageSizeChange={(newPageSize) => {
-            setPageSize(newPageSize);
-            setCurrentPage(1); // Reset to first page when changing page size
+            if (newPageSize !== "all") gridApi?.setGridOption("paginationPageSize", newPageSize);
           }}
           pageSizeOptions={[10, 20, 50, 100]}
         />
       </div>
-      
+
       <AgGridReact
         rowData={filteredData}
         columnDefs={columnDefs}
-        pagination={false}
+        pagination={true}
+        paginationPageSize={20}
+        paginationPageSizeSelector={[10, 20, 50, 100]}
+        suppressPaginationPanel={true}
         domLayout="autoHeight"
         onRowClicked={handleRowClick}
+        onGridReady={(event) => {
+          setGridApi(event.api);
+          syncPaginationState(event.api);
+        }}
+        onPaginationChanged={handlePaginationChanged}
         rowHeight={60}
         headerHeight={50}
       />
-      
-      {/* Bottom pagination */}
+
+      {/* Bottom pagination - same custom bar, mirrors the grid's own pagination state */}
       <div className="mt-1">
         <CustomPagination
-          totalItems={searchQuery ? filteredData.length : totalItems}
-          currentPage={currentPage}
-          totalPages={totalPages}
-          pageSize={pageSize}
-          onPageChange={setCurrentPage}
+          totalItems={gridRowCount}
+          currentPage={gridCurrentPage}
+          totalPages={gridTotalPages}
+          pageSize={gridPageSize}
+          onPageChange={(page) => gridApi?.paginationGoToPage(page - 1)}
           onPageSizeChange={(newPageSize) => {
-            setPageSize(newPageSize);
-            setCurrentPage(1); // Reset to first page when changing page size
+            if (newPageSize !== "all") gridApi?.setGridOption("paginationPageSize", newPageSize);
           }}
           pageSizeOptions={[10, 20, 50, 100]}
         />
