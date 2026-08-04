@@ -1,24 +1,22 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
-  ArrowDown,
   Check,
-  Clock,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Code,
   Compass,
   GitBranch,
   Layers,
-  List,
   Minus,
   Plus,
   Settings,
   ShieldCheck,
   Bell,
+  SquarePen,
   X,
-  Zap,
 } from "lucide-react";
 import { useForm, Control, FieldValues, UseFormSetValue, UseFormWatch } from "react-hook-form";
 import MultiSelect from "@/components/MultiSelect";
@@ -27,12 +25,13 @@ import { asterisk, downArrow, userGroups, excludeUsers, defaultExpression } from
 import ExpressionBuilder from "@/components/ExpressionBuilder";
 import ToggleSwitch from "@/components/ToggleSwitch";
 import FileDropzone from "@/components/FileDropzone";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useLeftSidebar } from "@/contexts/LeftSidebarContext";
 import { GuidedPolicyBuilder } from "./guided-policy-builder";
-import { STEP_PALETTE } from "./step-palette";
+import { STEP_PALETTE, type StepPaletteEntry } from "./step-palette";
 import { INITIAL_EVENT_DEFINITIONS } from "@/components/continuous-compliance/eventDefinitionsData";
 import { AGENT_TASKS } from "@/lib/agent-task-library";
+import { executeQuery } from "@/lib/api";
 
 const STAGE_COLUMN_HEADING_CLASS = [
   "bg-sky-100 text-sky-900",
@@ -146,12 +145,163 @@ function applyApprovalStepToWorkflowJson(stepJSON: { config: any }, step: any) {
   stepJSON.config.skipSelf = step.skipIfRequestorIsApprover !== false;
 }
 
+/** Same three buckets the Guided tab groups steps into (validate/approval/fulfillment). */
+type StepPaletteCategory = "VALIDATE" | "APPROVAL" | "FULFILLMENT";
+
+/** Normalize a kf_wf_f_get_step_types() row's default_stage_bucket into a palette category. */
+function normalizePaletteBucket(raw: unknown): StepPaletteCategory | null {
+  const b = String(raw ?? "").toUpperCase().trim();
+  if (!b) return null;
+  if (b.includes("VALID")) return "VALIDATE";
+  if (b.includes("APPROV")) return "APPROVAL";
+  if (b.includes("FULFIL") || b.includes("FULFUL")) return "FULFILLMENT";
+  return null;
+}
+
+function normalizePaletteKind(raw: unknown): StepPaletteEntry["kind"] {
+  const k = String(raw ?? "").toUpperCase().trim();
+  if (k === "HUMAN") return "HUMAN";
+  if (k === "AI") return "AI";
+  return "SYSTEM";
+}
+
+function normalizePaletteType(
+  raw: unknown,
+  kind: StepPaletteEntry["kind"],
+  bucket: StepPaletteCategory
+): StepPaletteEntry["type"] {
+  const t = String(raw ?? "").toUpperCase().trim();
+  if (t === "APPROVAL") return "APPROVAL";
+  if (t === "FULFILLMENT") return "FULFILLMENT";
+  if (t === "AI AGENT" || t === "AI_AGENT") return "AI AGENT";
+  if (t === "LOGIC") return "LOGIC";
+  if (kind === "AI") return "AI AGENT";
+  if (bucket === "APPROVAL") return "APPROVAL";
+  if (bucket === "FULFILLMENT") return "FULFILLMENT";
+  return "LOGIC";
+}
+
+/** Maps a raw row from `SELECT * FROM kf_wf_f_get_step_types()` to a palette entry + category. */
+function mapApiStepTypeRow(
+  row: any
+): { category: StepPaletteCategory; entry: StepPaletteEntry } | null {
+  if (!row || typeof row !== "object") return null;
+
+  const rawCode =
+    row.step_code ?? row.STEP_CODE ?? row.code ?? row.CODE ?? row.type_code ?? row.TYPE_CODE ?? null;
+  const rawLabel =
+    row.step_name ??
+    row.STEP_NAME ??
+    row.label ??
+    row.LABEL ??
+    row.name ??
+    row.NAME ??
+    row.title ??
+    row.TITLE ??
+    null;
+  const label = String(rawLabel ?? rawCode ?? "").trim();
+  if (!label && !rawCode) return null;
+
+  const category = normalizePaletteBucket(
+    row.default_stage_bucket ??
+      row.DEFAULT_STAGE_BUCKET ??
+      row.stage_bucket ??
+      row.STAGE_BUCKET ??
+      row.bucket ??
+      row.BUCKET
+  );
+  if (!category) return null;
+
+  const code = String(rawCode ?? label).toUpperCase().replace(/-/g, "_").trim();
+  const kind = normalizePaletteKind(row.step_kind ?? row.STEP_KIND ?? row.kind ?? row.KIND);
+  const type = normalizePaletteType(
+    row.step_type ?? row.STEP_TYPE ?? row.type ?? row.TYPE,
+    kind,
+    category
+  );
+
+  return {
+    category,
+    entry: {
+      id: code.toLowerCase().replace(/_/g, "-"),
+      label: label || code,
+      kind,
+      type,
+    },
+  };
+}
+
+/** Always-available fallback per category, same as Guided's "Custom step/approval/fulfillment". */
+const CUSTOM_STEP_ENTRY: Record<StepPaletteCategory, StepPaletteEntry> = {
+  VALIDATE: { id: "custom-step", label: "Custom Step", kind: "SYSTEM", type: "CUSTOM" },
+  APPROVAL: { id: "custom-approval", label: "Custom Approval", kind: "HUMAN", type: "APPROVAL" },
+  FULFILLMENT: {
+    id: "custom-fulfillment",
+    label: "Custom Fulfillment",
+    kind: "SYSTEM",
+    type: "FULFILLMENT",
+  },
+};
+
 interface PolicyBuilderProps {
   formData: any;
   setFormData: any;
+  hideStepPalette?: boolean;
 }
 
-const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) => {
+const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData, hideStepPalette = false }) => {
+  const [apiStepPalette, setApiStepPalette] = useState<Record<StepPaletteCategory, StepPaletteEntry[]>>({
+    VALIDATE: [],
+    APPROVAL: [],
+    FULFILLMENT: [],
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await executeQuery<any>("SELECT * FROM kf_wf_f_get_step_types()", []);
+        const rows: any[] = Array.isArray(response)
+          ? response
+          : Array.isArray(response?.resultSet)
+            ? response.resultSet
+            : Array.isArray(response?.rows)
+              ? response.rows
+              : [];
+
+        const grouped: Record<StepPaletteCategory, StepPaletteEntry[]> = {
+          VALIDATE: [],
+          APPROVAL: [],
+          FULFILLMENT: [],
+        };
+        const seen = new Set<string>();
+        rows.forEach((row) => {
+          const mapped = mapApiStepTypeRow(row);
+          if (!mapped) return;
+          const key = `${mapped.category}:${mapped.entry.id}`;
+          if (seen.has(key)) return;
+          seen.add(key);
+          grouped[mapped.category].push(mapped.entry);
+        });
+
+        if (!cancelled) setApiStepPalette(grouped);
+      } catch (e) {
+        console.error("Failed to load step types from kf_wf_f_get_step_types():", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const stepPalette: Record<StepPaletteCategory, StepPaletteEntry[]> = {
+    VALIDATE: apiStepPalette.VALIDATE.length
+      ? apiStepPalette.VALIDATE
+      : [...STEP_PALETTE.LOGIC, ...STEP_PALETTE.AI_AGENTS],
+    APPROVAL: apiStepPalette.APPROVAL.length ? apiStepPalette.APPROVAL : STEP_PALETTE.APPROVALS,
+    FULFILLMENT: apiStepPalette.FULFILLMENT.length ? apiStepPalette.FULFILLMENT : STEP_PALETTE.FULFILLMENT,
+  };
+
   const [policyUiTab, setPolicyUiTab] = useState<"guided" | "advanced">("guided");
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
@@ -159,7 +309,20 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
   const [activeTab, setActiveTab] = useState<"General" | "Conditions" | "AI Context" | "Approvers" | "Context">("General");
   const [editingStageId, setEditingStageId] = useState<string | null>(null);
   const [editingStageName, setEditingStageName] = useState<string>("");
+  const [addStepMenuStageId, setAddStepMenuStageId] = useState<string | null>(null);
   const conditionTextareaRef = React.useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    if (!addStepMenuStageId) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest("[data-add-step-menu]")) {
+        setAddStepMenuStageId(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [addStepMenuStageId]);
 
   const handleSkipLogicChange = (value: string) => {
     updateStepConfig("skipLogic", value);
@@ -234,30 +397,82 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
     setStepConfig(newStep);
   };
 
-  const addCustomStep = (stageId: string) => {
-    const newStep = {
-      id: `step-${Date.now()}`,
-      label: "Custom Step",
-      code: "CUSTOM_STEP",
-      kind: "SYSTEM",
-      type: "CUSTOM",
-      condition: "true",
-    };
+  /** Same convention Guided uses: first stage = validate, last = fulfillment, middle = approval. */
+  const categoryForStageIndex = (index: number): StepPaletteCategory => {
+    if (index === 0) return "VALIDATE";
+    if (stages.length >= 2 && index === stages.length - 1) return "FULFILLMENT";
+    return "APPROVAL";
+  };
 
-    setFormData((prev: any) => ({
-      ...prev,
-      step2: {
-        ...prev.step2,
-        stages: prev.step2.stages.map((stage: any) =>
-          stage.id === stageId
-            ? { ...stage, steps: [...stage.steps, newStep] }
-            : stage
-        ),
-      },
-    }));
-
-    setSelectedStepId(newStep.id);
-    setStepConfig(newStep);
+  const renderAddStepMenu = (
+    stageId: string,
+    category: StepPaletteCategory,
+    variant: "chip" | "empty" = "chip"
+  ) => {
+    const entries = stepPalette[category];
+    const customEntry = CUSTOM_STEP_ENTRY[category];
+    return (
+      <div
+        data-add-step-menu
+        className={`relative ${variant === "empty" ? "w-full" : "inline-block"}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={() =>
+            setAddStepMenuStageId((current) => (current === stageId ? null : stageId))
+          }
+          className={
+            variant === "empty"
+              ? "flex w-full items-center justify-center gap-1 py-2 text-xs text-gray-500 border-2 border-dashed border-gray-300 rounded bg-white hover:border-blue-400 hover:text-blue-600"
+              : "mt-2 inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
+          }
+        >
+          {variant === "empty" ? "+ Add Step" : "+ Step"}
+          <ChevronDown
+            className={`h-3 w-3 transition-transform ${addStepMenuStageId === stageId ? "rotate-180" : ""}`}
+          />
+        </button>
+        {addStepMenuStageId === stageId && (
+          <div className="absolute left-0 top-full z-30 mt-1 max-h-64 w-56 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+            <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+              {category}
+            </p>
+            {entries.length === 0 ? (
+              <p className="px-2.5 py-1.5 text-xs text-gray-400">No step types available.</p>
+            ) : (
+              entries.map((entry) => (
+                <button
+                  key={entry.id}
+                  type="button"
+                  onClick={() => {
+                    addStepToStage(stageId, entry);
+                    setAddStepMenuStageId(null);
+                  }}
+                  className={`w-full rounded-md px-2 py-1.5 text-left text-xs hover:bg-blue-50 ${
+                    entry.type === "AI AGENT" ? "text-purple-700" : "text-gray-800"
+                  }`}
+                >
+                  {entry.label}
+                </button>
+              ))
+            )}
+            <div className="mt-1 border-t border-gray-100 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  addStepToStage(stageId, customEntry);
+                  setAddStepMenuStageId(null);
+                }}
+                className="w-full rounded-md px-2 py-1.5 text-left text-xs text-gray-600 hover:bg-blue-50"
+              >
+                {customEntry.label}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   const removeStep = (stageId: string, stepId: string) => {
@@ -461,43 +676,45 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
       ) : (
       <div className="flex h-[600px] gap-4 w-full mb-4">
         {/* Left Panel - Step Palette */}
-        <div className="flex h-full w-64 flex-col rounded-lg border border-gray-200 bg-gray-50 p-3">
-          <h3 className="mb-2 text-xs font-semibold tracking-wide text-gray-900">STEP PALETTE</h3>
-          <div className="flex-1 grid grid-cols-1 gap-3 overflow-hidden">
-            {Object.entries(STEP_PALETTE).map(([category, steps]) => (
-              <div key={category} className="flex flex-col min-h-0">
-                <h4 className="text-[10px] font-semibold text-gray-700 mb-1 uppercase">
-                  {category.replace(/_/g, " ")}
-                </h4>
-                <div className="flex-1 space-y-1 overflow-y-auto">
-                  {steps.map((step) => (
-                    <button
-                      key={step.id}
-                      type="button"
-                      onClick={() => {
-                        if (selectedStageId) {
-                          addStepToStage(selectedStageId, step);
-                        } else {
-                          alert("Please select a stage first");
-                        }
-                      }}
-                      className={`w-full text-left px-2 py-1 text-[11px] border rounded transition-colors ${
-                        step.type === "AI AGENT"
-                          ? "bg-purple-50 border-purple-300 text-purple-700 hover:bg-purple-100 hover:border-purple-400"
-                          : "bg-white border-gray-300 hover:bg-blue-50 hover:border-blue-400"
-                      }`}
-                    >
-                      {step.label}
-                    </button>
-                  ))}
+        {!hideStepPalette && (
+          <div className="flex h-full w-64 flex-col rounded-lg border border-gray-200 bg-gray-50 p-3">
+            <h3 className="mb-2 text-xs font-semibold tracking-wide text-gray-900">STEP PALETTE</h3>
+            <div className="flex-1 grid grid-cols-1 gap-3 overflow-hidden">
+              {Object.entries(stepPalette).map(([category, steps]) => (
+                <div key={category} className="flex flex-col min-h-0">
+                  <h4 className="text-[10px] font-semibold text-gray-700 mb-1 uppercase">
+                    {category.replace(/_/g, " ")}
+                  </h4>
+                  <div className="flex-1 space-y-1 overflow-y-auto">
+                    {steps.map((step) => (
+                      <button
+                        key={step.id}
+                        type="button"
+                        onClick={() => {
+                          if (selectedStageId) {
+                            addStepToStage(selectedStageId, step);
+                          } else {
+                            alert("Please select a stage first");
+                          }
+                        }}
+                        className={`w-full text-left px-2 py-1 text-[11px] border rounded transition-colors ${
+                          step.type === "AI AGENT"
+                            ? "bg-purple-50 border-purple-300 text-purple-700 hover:bg-purple-100 hover:border-purple-400"
+                            : "bg-white border-gray-300 hover:bg-blue-50 hover:border-blue-400"
+                        }`}
+                      >
+                        {step.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+            <p className="text-[10px] text-gray-500 mt-2 pt-2 border-t border-gray-200 leading-tight">
+              Select a stage, then click a chip to add that step. This prototype runs entirely in the browser.
+            </p>
           </div>
-          <p className="text-[10px] text-gray-500 mt-2 pt-2 border-t border-gray-200 leading-tight">
-            Select a stage, then click a chip to add that step. This prototype runs entirely in the browser.
-          </p>
-        </div>
+        )}
 
         {/* Center Panel - Workflow Canvas */}
         <div className="flex-1 overflow-x-auto rounded-xl border border-gray-200 bg-gradient-to-b from-white via-gray-50 to-gray-100 p-4 shadow-sm">
@@ -627,26 +844,12 @@ const PolicyBuilder: React.FC<PolicyBuilderProps> = ({ formData, setFormData }) 
                           </span>
                         )}
                       </div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          addCustomStep(stage.id);
-                        }}
-                        className="mt-2 text-xs text-blue-600 hover:text-blue-700"
-                      >
-                        + Step
-                      </button>
                     </div>
                   ))}
-                  {stage.steps.length === 0 && (
-                    <button
-                      type="button"
-                      onClick={() => addCustomStep(stage.id)}
-                      className="w-full py-2 text-xs text-gray-500 border-2 border-dashed border-gray-300 rounded bg-white hover:border-blue-400 hover:text-blue-600"
-                    >
-                      + Add Step
-                    </button>
+                  {renderAddStepMenu(
+                    stage.id,
+                    categoryForStageIndex(stageIndex),
+                    stage.steps.length === 0 ? "empty" : "chip"
                   )}
                 </div>
               </div>
@@ -1723,49 +1926,20 @@ function ReviewSectionHeader({
   icon: Icon,
   title,
   iconClassName,
+  action,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   title: string;
   iconClassName?: string;
+  action?: React.ReactNode;
 }) {
   return (
-    <div className="mb-3 flex items-center gap-2">
-      <Icon className={`h-4 w-4 shrink-0 ${iconClassName ?? "text-sky-600"}`} />
-      <h3 className="text-sm font-semibold tracking-tight text-sky-700">{title}</h3>
-    </div>
-  );
-}
-
-function ReviewStepKindPills({ step }: { step: any }) {
-  const isAi = step.kind === "AI" || step.type === "AI AGENT";
-  const isHuman = step.kind === "HUMAN" || step.type === "APPROVAL";
-  const blocking = step.blocking !== false && isHuman;
-
-  return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      {isAi && (
-        <span className="inline-flex items-center gap-0.5 rounded-md bg-violet-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-violet-800">
-          <Zap className="h-2.5 w-2.5" aria-hidden />
-          AI agent
-        </span>
-      )}
-      {isHuman && (
-        <span className="inline-flex items-center gap-0.5 rounded-md bg-sky-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-sky-900">
-          <Clock className="h-2.5 w-2.5" aria-hidden />
-          Human
-        </span>
-      )}
-      {!isAi && !isHuman && (
-        <span className="inline-flex items-center gap-0.5 rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-700">
-          <Clock className="h-2.5 w-2.5" aria-hidden />
-          System
-        </span>
-      )}
-      {blocking && (
-        <span className="rounded-md bg-blue-600 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white">
-          Blocking
-        </span>
-      )}
+    <div className="mb-3 flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2">
+        <Icon className={`h-4 w-4 shrink-0 ${iconClassName ?? "text-sky-600"}`} />
+        <h3 className="text-sm font-semibold tracking-tight text-sky-700">{title}</h3>
+      </div>
+      {action}
     </div>
   );
 }
@@ -1780,15 +1954,37 @@ function formatStep1Owners(s1: any): string {
   return s1.owner ? String(s1.owner) : "";
 }
 
-const STAGE_SUMMARY_TONES: [string, string][] = [
-  ["bg-amber-100", "text-amber-950"],
-  ["bg-sky-100", "text-sky-950"],
-  ["bg-rose-100", "text-rose-950"],
-  ["bg-violet-100", "text-violet-950"],
-  ["bg-teal-100", "text-teal-950"],
+const STAGE_HEADER_TONES = [
+  "bg-slate-800 text-white",
+  "bg-amber-500 text-white",
+  "bg-blue-600 text-white",
+  "bg-emerald-600 text-white",
+  "bg-violet-600 text-white",
+  "bg-rose-600 text-white",
 ];
 
-function WorkflowReviewSubmit({ formData }: { formData: any }) {
+function SectionEditButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"
+    >
+      <SquarePen className="h-3.5 w-3.5" />
+      Edit
+    </button>
+  );
+}
+
+function WorkflowReviewSubmit({
+  formData,
+  fullWidth = false,
+  onEditSection,
+}: {
+  formData: any;
+  fullWidth?: boolean;
+  onEditSection?: (step: 1 | 2) => void;
+}) {
   const [jsonOpen, setJsonOpen] = useState(false);
   const stages = formData?.step2?.stages || [];
 
@@ -1816,114 +2012,14 @@ function WorkflowReviewSubmit({ formData }: { formData: any }) {
     return s || "—";
   };
 
-  const summaryPill = (label: string, count: number, bg: string, text: string) => (
-    <div
-      className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wide shadow-sm ${bg} ${text}`}
-    >
-      <span>{label}</span>
-      <span className="rounded-md bg-white/60 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums">
-        {count} {count === 1 ? "step" : "steps"}
-      </span>
-    </div>
-  );
-
-  const stageModeTag = (parallel: boolean) =>
-    parallel ? (
-      <span className="inline-flex items-center gap-1 rounded-md bg-violet-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-violet-800">
-        <GitBranch className="h-3 w-3" aria-hidden />
-        Parallel
-      </span>
-    ) : (
-      <span className="inline-flex items-center gap-1 rounded-md bg-sky-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-sky-900">
-        <List className="h-3 w-3" aria-hidden />
-        Sequential
-      </span>
-    );
-
-  const parallelBanner = (
-    <div className="mb-3 flex items-center justify-center gap-2 rounded-lg bg-violet-100 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.08em] text-violet-900">
-      <GitBranch className="h-3.5 w-3.5 shrink-0" aria-hidden />
-      All run simultaneously
-    </div>
-  );
-
-  const renderParallelStepGrid = (stepsList: any[]) => (
-    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-      {stepsList.map((step: any, si: number) => (
-        <div
-          key={step.id != null && String(step.id) !== "" ? String(step.id) : `par-${si}`}
-          className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 shadow-sm"
-        >
-          <ReviewStepKindPills step={step} />
-          <p className="mt-2 text-xs font-bold uppercase tracking-tight text-slate-900">
-            {String(step.label || "").toUpperCase()}
-          </p>
-        </div>
-      ))}
-    </div>
-  );
-
-  const renderSequentialSteps = (stepsList: any[]) => (
-    <div className="space-y-0">
-      {stepsList.map((step: any, idx: number) => (
-        <div
-          key={step.id != null && String(step.id) !== "" ? String(step.id) : `seq-${idx}`}
-        >
-          <div className="flex items-start gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2.5 shadow-sm">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-600 text-[11px] font-bold leading-none text-white">
-              {idx + 1}
-            </span>
-            <div className="min-w-0 flex-1">
-              <ReviewStepKindPills step={step} />
-              <p className="mt-2 text-xs font-bold uppercase tracking-tight text-slate-900">
-                {String(step.label || "").toUpperCase()}
-              </p>
-            </div>
-          </div>
-          {idx < stepsList.length - 1 && (
-            <div className="flex justify-center py-1">
-              <ArrowDown className="h-3.5 w-3.5 text-sky-500" aria-hidden />
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-
-  const detailCard = (
-    title: string,
-    parallel: boolean,
-    stepsList: any[],
-    emptyHint: string,
-    orderHint?: string
-  ) => (
-    <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0">
-          <h4 className="text-xs font-bold uppercase tracking-[0.12em] text-sky-800">{title}</h4>
-          {orderHint && (
-            <p className="mt-0.5 text-[10px] font-medium text-gray-500">Stage order: {orderHint}</p>
-          )}
-        </div>
-        {stageModeTag(parallel)}
-      </div>
-      {stepsList.length === 0 ? (
-        <p className="text-xs text-gray-400">{emptyHint}</p>
-      ) : parallel ? (
-        <>
-          {parallelBanner}
-          {renderParallelStepGrid(stepsList)}
-        </>
-      ) : (
-        renderSequentialSteps(stepsList)
-      )}
-    </div>
-  );
-
   return (
-    <div className="mx-auto max-w-4xl space-y-5 pb-6">
+    <div className={fullWidth ? "w-full space-y-5 pb-6" : "mx-auto max-w-4xl space-y-5 pb-6"}>
       <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <ReviewSectionHeader icon={Layers} title="Basic Information (Step 1)" />
+        <ReviewSectionHeader
+          icon={Layers}
+          title="Basic Information (Step 1)"
+          action={onEditSection && <SectionEditButton onClick={() => onEditSection(1)} />}
+        />
         <dl className="divide-y divide-gray-100">
           <div className="flex items-center justify-between gap-4 py-2.5 text-sm">
             <dt className="shrink-0 font-medium text-gray-600">Name</dt>
@@ -1962,14 +2058,6 @@ function WorkflowReviewSubmit({ formData }: { formData: any }) {
               </dd>
             </div>
           )}
-          <div className="flex items-center justify-between gap-4 py-2.5 text-sm">
-            <dt className="shrink-0 font-medium text-gray-600">User scope</dt>
-            <dd className="text-right text-gray-900">{dashOptional(s1.userType)}</dd>
-          </div>
-          <div className="flex items-center justify-between gap-4 py-2.5 text-sm">
-            <dt className="shrink-0 font-medium text-gray-600">Request object type</dt>
-            <dd className="text-right text-gray-900">{dashOptional(s1.selectData)}</dd>
-          </div>
           {(s1.excludeUsersIsChecked || s1.groupListIsChecked) && (
             <div className="py-2.5 text-sm">
               <dt className="font-medium text-gray-600">Additional scope options</dt>
@@ -1987,45 +2075,71 @@ function WorkflowReviewSubmit({ formData }: { formData: any }) {
       </div>
 
       <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <ReviewSectionHeader icon={GitBranch} title="Workflow Stages & Steps (Step 2)" />
+        <ReviewSectionHeader
+          icon={GitBranch}
+          title="Workflow Stages & Steps (Step 2)"
+          action={onEditSection && <SectionEditButton onClick={() => onEditSection(2)} />}
+        />
         {stages.length === 0 ? (
-          <p className="text-xs text-gray-500">No stages configured yet.</p>
+          <p className="text-xs text-gray-500">Add stages in Policy Builder to see them here.</p>
         ) : (
-          <div className="flex flex-wrap items-center justify-center gap-1 sm:justify-start">
-            {stages.map((stage: any, i: number) => {
-              const count = stage.steps?.length ?? 0;
-              const [bg, fg] = STAGE_SUMMARY_TONES[i % STAGE_SUMMARY_TONES.length];
-              const label = String(stage.name || `Stage ${i + 1}`).toUpperCase();
-              return (
-                <React.Fragment key={stage.id ?? i}>
-                  {i > 0 && (
-                    <ChevronRight className="h-4 w-4 shrink-0 text-sky-500" aria-hidden />
-                  )}
-                  {summaryPill(label, count, bg, fg)}
-                </React.Fragment>
-              );
-            })}
-          </div>
-        )}
-      </div>
+          <div className="w-full min-w-0 overflow-x-auto">
+            <div className="w-max min-w-full flex flex-nowrap items-center gap-1.5 sm:gap-2">
+              <div className="h-18 w-18 shrink-0 rounded-full border-2 border-slate-200 bg-white text-center flex items-center justify-center px-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-700 leading-tight">
+                  Request Submitted
+                </span>
+              </div>
+              <span className="text-slate-400 text-base shrink-0 self-center">→</span>
 
-      <div className="space-y-4">
-        {stages.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-gray-200 bg-gray-50/80 px-4 py-6 text-center text-xs text-gray-500">
-            Add stages in Policy Builder to see them here.
-          </p>
-        ) : (
-          stages.map((stage: any, idx: number) => (
-            <React.Fragment key={stage.id ?? `review-stage-${idx}`}>
-              {detailCard(
-                String(stage.name || `Stage ${idx + 1}`).toUpperCase(),
-                !!stage.parallelExecution,
-                stage.steps || [],
-                "No steps in this stage.",
-                String(stage.order ?? idx + 1)
-              )}
-            </React.Fragment>
-          ))
+              {stages.map((stage: any, idx: number) => {
+                const stepsList = stage.steps || [];
+                return (
+                  <React.Fragment key={stage.id ?? `flow-stage-${idx}`}>
+                    <div className="min-w-[160px] flex-1">
+                      <div
+                        className={`rounded-md px-2.5 py-2 text-center text-[11px] font-semibold ${
+                          STAGE_HEADER_TONES[idx % STAGE_HEADER_TONES.length]
+                        }`}
+                      >
+                        {String(stage.name || `Stage ${idx + 1}`).toUpperCase()}
+                      </div>
+                      <div className="mt-2 space-y-2">
+                        {stepsList.length === 0 ? (
+                          <p className="text-[10px] text-gray-400 text-center">No steps in this stage.</p>
+                        ) : (
+                          stepsList.map((step: any, stepIdx: number) => (
+                            <div
+                              key={step.id ?? `${stage.id ?? idx}-step-${stepIdx}`}
+                              className={`rounded-md border px-2.5 py-2 text-center ${
+                                idx % 2 === 0
+                                  ? "border-slate-200 bg-white"
+                                  : "border-amber-200 bg-amber-50/40"
+                              }`}
+                            >
+                              <div className="text-xs font-semibold text-slate-700 leading-tight">
+                                {String(step.label || `Step ${stepIdx + 1}`).toUpperCase()}
+                              </div>
+                              <div className="mt-1 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-800">
+                                {step.code || "N/A"}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                    <span className="text-slate-400 text-base shrink-0 self-center">→</span>
+                  </React.Fragment>
+                );
+              })}
+
+              <div className="h-18 w-18 shrink-0 rounded-full border-2 border-slate-200 bg-white text-center flex items-center justify-center px-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-700 leading-tight">
+                  Request Completed
+                </span>
+              </div>
+            </div>
+          </div>
         )}
       </div>
 
@@ -2097,19 +2211,17 @@ function WorkflowReviewSubmit({ formData }: { formData: any }) {
         )}
       </div>
 
-      <div className="rounded-lg border border-sky-200 bg-sky-50/80 px-4 py-3 text-center text-xs text-sky-900">
-        This summary reflects <strong>Basic Information</strong>, your <strong>Policy Builder</strong>{" "}
-        stages and steps, and <strong>Notifications</strong> when configured. Use{" "}
-        <strong>Submit</strong> in the step bar when ready.
-      </div>
     </div>
   );
 }
 
 export default function WorkflowBuilderCreatePage() {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [formData, setFormData] = useState(getInitialFormData);
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const [currentStep, setCurrentStep] = useState(() =>
+    searchParams.get("step") === "2" ? 2 : 1
+  );
+  const [formData, setFormData] = useState(getInitialFormData);
   const { isVisible: isSidebarVisible, sidebarWidthPx } = useLeftSidebar();
 
   const steps = [
@@ -2159,6 +2271,16 @@ export default function WorkflowBuilderCreatePage() {
   const selectData = watch("selectData");
   const workflowType = watch("workflowType");
   const editPolicyId = searchParams.get("id");
+  const isViewMode = searchParams.get("view") === "1" && Boolean(editPolicyId);
+  const isEditFromView = isViewMode && searchParams.get("edit") === "1";
+  const jumpToSection = searchParams.get("step");
+  const policyBuilderSectionRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (isEditFromView && jumpToSection === "2") {
+      policyBuilderSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [isEditFromView, jumpToSection]);
 
   useEffect(() => {
     if (workflowType !== "Assurance Event") {
@@ -2472,11 +2594,9 @@ export default function WorkflowBuilderCreatePage() {
     }
   };
 
-  const renderStepContent = () => {
-    switch (currentStep) {
-      case 1:
-        return (
-          <div className="w-full max-w-3xl mx-auto space-y-5">
+  const renderBasicInfo = (sideBySide: boolean) => (
+    <div className={sideBySide ? "w-full" : "w-full max-w-3xl mx-auto"}>
+          <div className={sideBySide ? "grid grid-cols-1 items-stretch gap-5 lg:grid-cols-2" : "space-y-5"}>
             <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
               <ReviewSectionHeader icon={Layers} title="General Details" />
               <p className="mb-4 text-xs text-gray-500">
@@ -2607,9 +2727,19 @@ export default function WorkflowBuilderCreatePage() {
               </div>
             </div>
           </div>
-        );
+    </div>
+  );
+
+  const policyBuilderSection = (
+    <PolicyBuilder formData={formData} setFormData={setFormData} hideStepPalette />
+  );
+
+  const renderStepContent = () => {
+    switch (currentStep) {
+      case 1:
+        return renderBasicInfo(false);
       case 2:
-        return <PolicyBuilder formData={formData} setFormData={setFormData} />;
+        return policyBuilderSection;
       case 3:
         return <WorkflowReviewSubmit formData={formData} />;
       default:
@@ -2631,8 +2761,90 @@ export default function WorkflowBuilderCreatePage() {
 
   const handleSubmit = () => {
     console.log("Form submitted:", formData);
-    alert("Workflow created successfully!");
+    alert(editPolicyId ? "Workflow updated successfully!" : "Workflow created successfully!");
   };
+
+  if (isViewMode && isEditFromView) {
+    return (
+      <div className="relative min-h-screen bg-gradient-to-b from-slate-50 to-gray-100">
+        <div className="w-full">
+          <div className="space-y-4 px-6 pb-10">
+            <div className="rounded-xl border border-blue-100 bg-white px-5 py-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h1 className="text-2xl font-bold text-gray-900">
+                    Edit Workflow Policy
+                  </h1>
+                  <p className="mt-1 text-xs text-gray-600">
+                    Update the policy from this page without using the step form.
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!editPolicyId) return;
+                      router.push(
+                        `/settings/gateway/workflow-builder/new?id=${encodeURIComponent(editPolicyId)}&view=1`
+                      );
+                    }}
+                    className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSubmit}
+                    className="inline-flex items-center gap-2 rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700"
+                  >
+                    <Check className="h-4 w-4" />
+                    Update Policy
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              {renderBasicInfo(true)}
+              <div ref={policyBuilderSectionRef}>{policyBuilderSection}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isViewMode && !isEditFromView) {
+    return (
+      <div className="relative min-h-screen bg-gradient-to-b from-slate-50 to-gray-100">
+        <div className="w-full">
+          <div className="space-y-4 px-6">
+            <div className="rounded-xl border border-blue-100 bg-white px-5 py-4 shadow-sm">
+              <div className="min-w-0">
+                <h1 className="text-2xl font-bold text-gray-900">
+                  Review Workflow Policy
+                </h1>
+                <p className="mt-1 text-xs text-gray-600">
+                  Review policy details before making updates.
+                </p>
+              </div>
+            </div>
+
+            <WorkflowReviewSubmit
+              formData={formData}
+              fullWidth
+              onEditSection={(step) => {
+                if (!editPolicyId) return;
+                router.push(
+                  `/settings/gateway/workflow-builder/new?id=${encodeURIComponent(editPolicyId)}&view=1&edit=1&step=${step}`
+                );
+              }}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full pt-16">

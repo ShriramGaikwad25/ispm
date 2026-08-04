@@ -665,6 +665,18 @@ export const GuidedPolicyBuilder: React.FC<GuidedPolicyBuilderProps> = ({
   const [showFlow, setShowFlow] = useState(true);
   const [addMenuSection, setAddMenuSection] = useState<GuidedSection | null>(null);
 
+  useEffect(() => {
+    if (!addMenuSection) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest("[data-add-step-menu]")) {
+        setAddMenuSection(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [addMenuSection]);
+
   const [apiStepTypesByBucket, setApiStepTypesByBucket] = useState<
     Record<GuidedSection, StepTemplate[]>
   >({ validate: [], approval: [], fulfillment: [] });
@@ -1039,7 +1051,7 @@ export const GuidedPolicyBuilder: React.FC<GuidedPolicyBuilderProps> = ({
           ? "border-green-200 bg-white text-green-900 hover:bg-green-50"
           : "border-blue-200 bg-white text-[#1759e4] hover:bg-[#E5EEFC]";
     return (
-      <div className="relative mt-3">
+      <div data-add-step-menu className="relative mt-3">
         <button
           type="button"
           onClick={() => setAddMenuSection((c) => (c === section ? null : section))}

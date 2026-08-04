@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { themeQuartz } from "ag-grid-community";
-import { Plus, SquarePen } from "lucide-react";
+import { Eye, Plus } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import type { ColDef } from "ag-grid-enterprise";
@@ -235,8 +235,8 @@ export default function WorkflowBuilderPage() {
             <button
               type="button"
               className="p-1 rounded hover:bg-gray-100 flex items-center justify-center"
-              title="Edit"
-              aria-label="Edit"
+              title="View"
+              aria-label="View"
               onClick={() => {
                 try {
                   if (typeof window !== "undefined") {
@@ -248,10 +248,10 @@ export default function WorkflowBuilderPage() {
                 } catch {
                   // ignore storage errors
                 }
-                router.push(`/settings/gateway/workflow-builder/new?id=${encodeURIComponent(row.id)}`);
+                router.push(`/settings/gateway/workflow-builder/new?id=${encodeURIComponent(row.id)}&view=1`);
               }}
             >
-              <SquarePen className="w-4 h-4 text-blue-600" />
+              <Eye className="w-4 h-4 text-blue-600" />
             </button>
           );
         },
