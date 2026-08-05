@@ -60,7 +60,7 @@ export default function IntegrationAdvancedSettingGroups({
 
   return (
     <div className={className}>
-      <div className="text-sm font-medium text-gray-700 mb-3">{sectionTitle}</div>
+      {sectionTitle && <div className="text-sm font-medium text-gray-700 mb-3">{sectionTitle}</div>}
       <div className="flex flex-col gap-3">
         {groups.map((group) => {
           const expandKey = `${expandStateKeyPrefix}::${group.id}`;

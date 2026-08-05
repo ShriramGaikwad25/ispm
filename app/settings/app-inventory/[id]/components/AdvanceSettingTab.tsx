@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback, forwardRef, useImperativeHandle, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronRight, ChevronUp, Edit, Trash2, X, Plus, Calendar, Loader2, Code2 } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Edit, Trash2, X, Plus, PlusCircle, Ban, Calendar, Loader2, Plug, Workflow, Webhook, Gauge, LogIn, LogOut, ListChecks, type LucideIcon } from "lucide-react";
 import {
   updateAppConfig,
   getApplicationDetails,
@@ -19,6 +19,46 @@ import {
 import IntegrationAdvancedSettingGroups from "./IntegrationAdvancedSettingGroups";
 
 type EventTabId = "pre-process" | "post-process";
+
+type AdvancedSectionId = "connection" | "transformation" | "hooks" | "threshold";
+
+const ADVANCED_SECTION_META: Record<
+  AdvancedSectionId,
+  { label: string; icon: LucideIcon; active: string; iconActive: string; idle: string; iconIdle: string }
+> = {
+  connection: {
+    label: "Connection Parameters",
+    icon: Plug,
+    active: "bg-white shadow-sm text-blue-700 border border-blue-300",
+    iconActive: "text-blue-600",
+    idle: "bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 hover:border-blue-300",
+    iconIdle: "text-blue-500",
+  },
+  transformation: {
+    label: "Transformation Provider",
+    icon: Workflow,
+    active: "bg-white shadow-sm text-violet-700 border border-violet-300",
+    iconActive: "text-violet-600",
+    idle: "bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 hover:border-violet-300",
+    iconIdle: "text-violet-500",
+  },
+  hooks: {
+    label: "Hooks",
+    icon: Webhook,
+    active: "bg-white shadow-sm text-indigo-700 border border-indigo-300",
+    iconActive: "text-indigo-600",
+    idle: "bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 hover:border-indigo-300",
+    iconIdle: "text-indigo-500",
+  },
+  threshold: {
+    label: "Target System Provisioning Threshold",
+    icon: Gauge,
+    active: "bg-white shadow-sm text-amber-700 border border-amber-300",
+    iconActive: "text-amber-600",
+    idle: "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 hover:border-amber-300",
+    iconIdle: "text-amber-500",
+  },
+};
 
 type ServiceRow = {
   id: string;
@@ -38,6 +78,34 @@ type SdkRow = {
 };
 
 type ThresholdOp = "disable" | "create" | "delete";
+
+const THRESHOLD_OP_META: Record<
+  ThresholdOp,
+  { icon: LucideIcon; border: string; iconBadge: string; eyebrow: string; ring: string }
+> = {
+  disable: {
+    icon: Ban,
+    border: "border-l-amber-400",
+    iconBadge: "bg-amber-100 text-amber-700",
+    eyebrow: "text-amber-700",
+    ring: "focus:ring-amber-500 focus:border-amber-500",
+  },
+  create: {
+    icon: PlusCircle,
+    border: "border-l-emerald-400",
+    iconBadge: "bg-emerald-100 text-emerald-700",
+    eyebrow: "text-emerald-700",
+    ring: "focus:ring-emerald-500 focus:border-emerald-500",
+  },
+  delete: {
+    icon: Trash2,
+    border: "border-l-rose-400",
+    iconBadge: "bg-rose-100 text-rose-700",
+    eyebrow: "text-rose-700",
+    ring: "focus:ring-rose-500 focus:border-rose-500",
+  },
+};
+
 type ThresholdState = { maxLimit: number; minutes: number; action: string; email: string };
 type PeakDayRange = { id: string; startDate: string; endDate: string };
 type ExceptionalState = {
@@ -56,8 +124,8 @@ const initialThresholdState: ThresholdState = {
 };
 
 const initialExceptionalState: ExceptionalState = {
-  isExceptionalExpanded: true,
-  isPeakDaysExpanded: true,
+  isExceptionalExpanded: false,
+  isPeakDaysExpanded: false,
   isPeakTimeExpanded: false,
   peakDays: [{ id: "peak-1", startDate: "", endDate: "" }],
   peakTimes: [{ id: "peak-time-1", startDate: "", endDate: "" }],
@@ -66,8 +134,8 @@ const initialExceptionalState: ExceptionalState = {
 const SHOW_SDK_SECTION = false;
 
 const initialEventTabState = {
-  isServiceExpanded: true,
-  isSDKExpanded: true,
+  isServiceExpanded: false,
+  isSDKExpanded: false,
   activeOperation: "create" as const,
   activeSDKOperation: "create" as const,
 };
@@ -196,8 +264,11 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
   ref
 ) {
   const router = useRouter();
-  const [isTransformationExpanded, setIsTransformationExpanded] = useState(true);
-  const [isInboundTransformationExpanded, setIsInboundTransformationExpanded] = useState(true);
+  const [activeAdvancedSection, setActiveAdvancedSection] = useState<AdvancedSectionId>(
+    showIntegrationAdvancedGroups ? "connection" : "transformation"
+  );
+  const didInitAdvancedSection = useRef(false);
+  const [isInboundTransformationExpanded, setIsInboundTransformationExpanded] = useState(false);
   const [isOutboundTransformationExpanded, setIsOutboundTransformationExpanded] = useState(false);
   const [inboundIgaField, setInboundIgaField] = useState("");
   const [inboundTransformationProvider, setInboundTransformationProvider] = useState("");
@@ -225,7 +296,6 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
   const [isTransformationSaving, setIsTransformationSaving] = useState(false);
   const [transformationSaveError, setTransformationSaveError] = useState<string | null>(null);
   const [transformationSaveSuccess, setTransformationSaveSuccess] = useState(false);
-  const [isHooksExpanded, setIsHooksExpanded] = useState(false);
   const [loadedIntegrationGroups, setLoadedIntegrationGroups] = useState<ApplicationTypeIntegrationFieldGroup[]>(
     []
   );
@@ -239,7 +309,6 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
     "pre-process": { ...initialEventTabState },
     "post-process": { ...initialEventTabState },
   });
-  const [isThresholdExpanded, setIsThresholdExpanded] = useState(false);
   const [hookName, setHookName] = useState("");
   // Process Event modal (Add Service)
   const [isProcessEventModalOpen, setIsProcessEventModalOpen] = useState(false);
@@ -867,60 +936,94 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
     }));
   };
 
+  const visibleSections: AdvancedSectionId[] = [
+    ...(showIntegrationSection ? (["connection"] as const) : []),
+    ...(showHooksThresholdAndTransformation ? (["transformation", "hooks", "threshold"] as const) : []),
+  ];
+  // Always land on whichever tab is actually first in the strip, even if Connection
+  // Parameters' data (async) wasn't ready yet on the very first render.
+  useEffect(() => {
+    if (didInitAdvancedSection.current || visibleSections.length === 0) return;
+    didInitAdvancedSection.current = true;
+    setActiveAdvancedSection(visibleSections[0]);
+  }, [visibleSections]);
+  // Content below Hooks/Threshold headers still gates on these; now derived from the active tab
+  // instead of independent collapse state, since the whole card is already tab-gated.
+  const isHooksExpanded = activeAdvancedSection === "hooks";
+  const isThresholdExpanded = activeAdvancedSection === "threshold";
+
   return (
     <div className="p-6">
+          {visibleSections.length > 1 && (
+            <div className="flex flex-wrap items-center gap-1.5 mb-6 w-fit">
+              {visibleSections.map((id) => {
+                const meta = ADVANCED_SECTION_META[id];
+                const isActive = activeAdvancedSection === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setActiveAdvancedSection(id)}
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      isActive ? meta.active : meta.idle
+                    }`}
+                  >
+                    <meta.icon className={`w-4 h-4 ${isActive ? meta.iconActive : meta.iconIdle}`} aria-hidden />
+                    {meta.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           {integrationGroupsLoading && showIntegrationAdvancedGroups && !integrationFieldGroupsProp?.length ? (
             <div className="mb-6 flex items-center gap-2 text-sm text-gray-500">
               <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
               Loading integration advanced settings...
             </div>
           ) : null}
-          {showIntegrationSection ? (
+          {showIntegrationSection && activeAdvancedSection === "connection" ? (
             <IntegrationAdvancedSettingGroups
               className="mb-6"
               groups={integrationGroups}
               values={integrationValues}
               onChange={handleIntegrationFieldChange}
               expandStateKeyPrefix={applicationId || "app"}
-              sectionTitle="Advanced settings (grouped)"
+              sectionTitle=""
             />
           ) : null}
           {showHooksThresholdAndTransformation && (
             <>
-          {/* Transformation Provider - same card style as Hooks / Threshold */}
+          {/* Transformation Provider */}
+          {activeAdvancedSection === "transformation" && (
           <div className="mb-6 border border-slate-200 rounded-xl overflow-visible bg-slate-50/60 shadow-sm">
             <div
-              className="flex items-center justify-between cursor-pointer border-l-4 border-amber-500 bg-white px-5 py-3.5 hover:bg-slate-50 transition-colors"
-              onClick={() => setIsTransformationExpanded(!isTransformationExpanded)}
-              role="button"
-              aria-expanded={isTransformationExpanded}
+              className="flex items-center gap-2 border-l-4 border-violet-500 bg-white px-5 py-3.5"
             >
               <h3 className="text-md font-semibold text-slate-800 flex items-center gap-2">
-                <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-amber-100 text-amber-700">
-                  <Code2 className="w-4 h-4" aria-hidden />
+                <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-violet-100 text-violet-700">
+                  <Workflow className="w-4 h-4" aria-hidden />
                 </span>
                 Transformation Provider
               </h3>
-              {isTransformationExpanded ? (
-                <ChevronDown className="w-5 h-5 text-slate-500" />
-              ) : (
-                <ChevronUp className="w-5 h-5 text-slate-500" />
-              )}
             </div>
-            {isTransformationExpanded && (
-              <div className="p-5 border-t border-slate-200 bg-white flex flex-col gap-3">
+            <div className="p-5 border-t border-slate-200 bg-white flex flex-col gap-3">
                 <div className="border border-slate-200 rounded-lg bg-white shadow-sm overflow-visible">
                   <button
                     type="button"
                     onClick={() => setIsInboundTransformationExpanded((v) => !v)}
-                    className={`flex w-full items-start justify-between gap-4 px-4 py-4 text-left bg-slate-50/90 hover:bg-slate-100/80 transition-colors ${
-                      isInboundTransformationExpanded ? "border-b border-slate-200/80" : ""
+                    className={`flex w-full items-start justify-between gap-4 px-4 py-4 text-left bg-sky-50 hover:bg-sky-100/70 transition-colors ${
+                      isInboundTransformationExpanded ? "border-b border-sky-100" : ""
                     }`}
                     aria-expanded={isInboundTransformationExpanded}
                   >
                     <div className="flex flex-1 flex-col gap-1 min-w-0 pr-2">
-                      <span className="text-sm font-semibold text-slate-800">InBound Transformation</span>
-                      <p className="text-xs text-gray-600 leading-relaxed">
+                      <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                        <span className="flex items-center justify-center w-6 h-6 rounded-md bg-sky-100 text-sky-700 shrink-0">
+                          <LogIn className="w-3.5 h-3.5" aria-hidden />
+                        </span>
+                        InBound Transformation
+                      </span>
+                      <p className="text-xs text-gray-600 leading-relaxed pl-8">
                         Inbound transformation happens when data is coming into the IGA system from a target
                         application (HR system, Active Directory, database, cloud app, etc.).
                       </p>
@@ -1087,14 +1190,19 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
                   <button
                     type="button"
                     onClick={() => setIsOutboundTransformationExpanded((v) => !v)}
-                    className={`flex w-full items-start justify-between gap-4 px-4 py-4 text-left bg-slate-50/90 hover:bg-slate-100/80 transition-colors ${
-                      isOutboundTransformationExpanded ? "border-b border-slate-200/80" : ""
+                    className={`flex w-full items-start justify-between gap-4 px-4 py-4 text-left bg-emerald-50 hover:bg-emerald-100/70 transition-colors ${
+                      isOutboundTransformationExpanded ? "border-b border-emerald-100" : ""
                     }`}
                     aria-expanded={isOutboundTransformationExpanded}
                   >
                     <div className="flex flex-1 flex-col gap-1 min-w-0 pr-2">
-                      <span className="text-sm font-semibold text-slate-800">OutBound Transformation</span>
-                      <p className="text-xs text-gray-600 leading-relaxed">
+                      <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                        <span className="flex items-center justify-center w-6 h-6 rounded-md bg-emerald-100 text-emerald-700 shrink-0">
+                          <LogOut className="w-3.5 h-3.5" aria-hidden />
+                        </span>
+                        OutBound Transformation
+                      </span>
+                      <p className="text-xs text-gray-600 leading-relaxed pl-8">
                         Outbound transformation occurs when data moves from IGA to a target application during
                         provisioning or updates.
                       </p>
@@ -1229,31 +1337,20 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
                   </button>
                 </div>
               </div>
-            )}
           </div>
+          )}
 
 
-          {/* Hooks section: Name + Pre/Post Process Event (collapsible) - same style as Threshold card */}
+          {/* Hooks section */}
+          {activeAdvancedSection === "hooks" && (
           <div className="mb-6 border border-slate-200 rounded-xl overflow-hidden bg-slate-50/60 shadow-sm">
-            <div
-              className="flex items-center justify-between cursor-pointer border-l-4 border-amber-500 bg-white px-5 py-3.5 hover:bg-slate-50 transition-colors"
-              onClick={() => setIsHooksExpanded(!isHooksExpanded)}
-              role="button"
-              aria-expanded={isHooksExpanded}
-            >
+            <div className="flex items-center gap-2 border-l-4 border-indigo-500 bg-white px-5 py-3.5">
               <h3 className="text-md font-semibold text-slate-800 flex items-center gap-2">
-                <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-amber-100 text-amber-700">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                  </svg>
+                <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700">
+                  <Webhook className="w-4 h-4" aria-hidden />
                 </span>
                 Hooks
               </h3>
-              {isHooksExpanded ? (
-                <ChevronDown className="w-5 h-5 text-slate-500" />
-              ) : (
-                <ChevronUp className="w-5 h-5 text-slate-500" />
-              )}
             </div>
             {isHooksExpanded && (
             <div className="p-5 space-y-4 border-t border-slate-200 bg-white">
@@ -1262,35 +1359,38 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Name
                 </label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                  placeholder="Enter hook name"
-                  value={hookName}
-                  onChange={(e) => setHookName(e.target.value)}
-                />
+                <div className="relative">
+                  <Webhook className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400 pointer-events-none" aria-hidden />
+                  <input
+                    type="text"
+                    className="w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+                    placeholder="Enter hook name"
+                    value={hookName}
+                    onChange={(e) => setHookName(e.target.value)}
+                  />
+                </div>
               </div>
 
               {/* Pre / Post Process Event - card */}
-              <div className="border border-gray-200 rounded-lg bg-white shadow-sm overflow-hidden">
+              <div className="border border-slate-200 rounded-lg bg-white shadow-sm overflow-hidden">
             {/* Event Tabs: Pre Process Event | Post Process Event */}
-            <div className="border-b border-gray-200 bg-gray-50/80">
-              <div className="flex">
+            <div className="p-4 border-b border-slate-100 bg-slate-50/60">
+              <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-lg w-fit">
                 <button
-                  className={`px-6 py-3 text-sm font-medium ${
+                  className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
                     activeEventTab === "pre-process"
-                      ? "text-white bg-blue-600 border-b-2 border-blue-600"
-                      : "text-gray-500 hover:text-gray-700"
+                      ? "bg-white shadow-sm text-indigo-700"
+                      : "text-slate-500 hover:text-slate-700"
                   }`}
                   onClick={() => setActiveEventTab("pre-process")}
                 >
                   Pre Process Event
                 </button>
                 <button
-                  className={`px-6 py-3 text-sm font-medium ${
+                  className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
                     activeEventTab === "post-process"
-                      ? "text-white bg-blue-600 border-b-2 border-blue-600"
-                      : "text-gray-500 hover:text-gray-700"
+                      ? "bg-white shadow-sm text-indigo-700"
+                      : "text-slate-500 hover:text-slate-700"
                   }`}
                   onClick={() => setActiveEventTab("post-process")}
                 >
@@ -1304,74 +1404,70 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
             {/* Service Section */}
             <div className="space-y-4">
               <div
-                className="flex items-center justify-between cursor-pointer bg-blue-50 hover:bg-blue-100 p-2 rounded"
+                className="flex items-center justify-between cursor-pointer bg-indigo-50 hover:bg-indigo-100/70 transition-colors p-3 rounded-lg"
                 onClick={() => setTabState({ isServiceExpanded: !tabState.isServiceExpanded })}
               >
-                <h3 className="text-md font-semibold text-gray-800 flex items-center">
-                  <svg
-                    className="w-5 h-5 text-gray-600 mr-2"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="M3 3h18v2H3V3zm0 4h18v2H3V7zm0 4h18v2H3v-2zm0 4h18v2H3v-2zm0 4h18v2H3v-2z" />
-                  </svg>
+                <h3 className="text-md font-semibold text-slate-800 flex items-center gap-2.5">
+                  <span className="flex items-center justify-center w-7 h-7 rounded-md bg-indigo-100 text-indigo-700">
+                    <ListChecks className="w-4 h-4" aria-hidden />
+                  </span>
                   Service
                 </h3>
                 {tabState.isServiceExpanded ? (
-                  <ChevronDown className="w-5 h-5 text-gray-500" />
+                  <ChevronDown className="w-5 h-5 text-indigo-500" />
                 ) : (
-                  <ChevronUp className="w-5 h-5 text-gray-500" />
+                  <ChevronUp className="w-5 h-5 text-indigo-500" />
                 )}
               </div>
 
               {tabState.isServiceExpanded && (
                 <>
-                  <div className="flex space-x-2 mb-4">
+                  <div className="flex flex-wrap gap-2 mb-4">
                     <button
-                      className={`px-4 py-2 text-sm font-medium rounded ${
+                      className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                         tabState.activeOperation === "create"
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          ? "bg-indigo-600 text-white shadow-sm"
+                          : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
                       }`}
                       onClick={() => setTabState({ activeOperation: "create" })}
                     >
                       Create
                     </button>
                     <button
-                      className={`px-4 py-2 text-sm font-medium rounded ${
+                      className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                         tabState.activeOperation === "update"
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          ? "bg-indigo-600 text-white shadow-sm"
+                          : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
                       }`}
                       onClick={() => setTabState({ activeOperation: "update" })}
                     >
                       Update
                     </button>
                     <button
-                      className={`px-4 py-2 text-sm font-medium rounded ${
+                      className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                         tabState.activeOperation === "delete"
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          ? "bg-indigo-600 text-white shadow-sm"
+                          : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
                       }`}
                       onClick={() => setTabState({ activeOperation: "delete" })}
                     >
                       Delete
                     </button>
                     <button
-                      className={`px-4 py-2 text-sm font-medium rounded ${
+                      className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                         tabState.activeOperation === "getuser"
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          ? "bg-indigo-600 text-white shadow-sm"
+                          : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
                       }`}
                       onClick={() => setTabState({ activeOperation: "getuser" })}
                     >
                       GetUser
                     </button>
                     <button
-                      className={`px-4 py-2 text-sm font-medium rounded ${
+                      className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                         tabState.activeOperation === "getalluser"
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          ? "bg-indigo-600 text-white shadow-sm"
+                          : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
                       }`}
                       onClick={() => setTabState({ activeOperation: "getalluser" })}
                     >
@@ -1379,54 +1475,47 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
                     </button>
                   </div>
 
-                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <div className="border border-slate-200 rounded-lg overflow-hidden">
                     <table className="w-full">
-                      <thead className="bg-gray-50">
+                      <thead className="bg-slate-50">
                         <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">
                             Endpoint
                           </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">
                             Authorization
                           </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">
                             Operation
                           </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">
                             Actions
                           </th>
                         </tr>
                       </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
+                      <tbody className="bg-white divide-y divide-slate-100">
                         {(() => {
                           const rowsForOperation = (serviceRowsByEventTab[activeEventTab] || []).filter(
                             (r) => r.operation === operationLabel(tabState.activeOperation)
                           );
                           return rowsForOperation.length === 0 ? (
                           <tr>
-                            <td className="px-4 py-3 text-sm text-gray-500">-</td>
-                            <td className="px-4 py-3 text-sm text-gray-500">-</td>
-                            <td className="px-4 py-3 text-sm text-gray-500">-</td>
-                            <td className="px-4 py-3 text-sm text-gray-500">
-                              <div className="flex space-x-2">
-                                <button type="button" className="text-gray-400 cursor-default" disabled>
-                                  <Edit className="w-4 h-4" />
-                                </button>
-                                <button type="button" className="text-gray-400 cursor-default" disabled>
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                            <td colSpan={4} className="px-4 py-8 text-center text-sm text-slate-400">
+                              <div className="flex flex-col items-center gap-1.5">
+                                <ListChecks className="w-5 h-5 text-slate-300" aria-hidden />
+                                No {operationLabel(tabState.activeOperation)} services configured yet.
                               </div>
                             </td>
                           </tr>
                         ) : (
                           rowsForOperation.map((row) => (
-                            <tr key={row.id}>
-                              <td className="px-4 py-3 text-sm text-gray-900">{row.endpoint}</td>
-                              <td className="px-4 py-3 text-sm text-gray-900">{row.authorization}</td>
-                              <td className="px-4 py-3 text-sm text-gray-900">{row.operation}</td>
-                              <td className="px-4 py-3 text-sm text-gray-500">
-                                <div className="flex space-x-2">
-                                  <button type="button" className="text-blue-600 hover:text-blue-800">
+                            <tr key={row.id} className="hover:bg-slate-50 transition-colors">
+                              <td className="px-4 py-3 text-sm text-slate-900">{row.endpoint}</td>
+                              <td className="px-4 py-3 text-sm text-slate-900">{row.authorization}</td>
+                              <td className="px-4 py-3 text-sm text-slate-900">{row.operation}</td>
+                              <td className="px-4 py-3 text-sm text-slate-500">
+                                <div className="flex items-center gap-3">
+                                  <button type="button" className="text-indigo-600 hover:text-indigo-800">
                                     <Edit className="w-4 h-4" />
                                   </button>
                                   <button
@@ -1449,19 +1538,20 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
                     <button
                       type="button"
                       onClick={openProcessEventModal}
-                      className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700"
+                      className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
                     >
+                      <Plus className="w-4 h-4" aria-hidden />
                       Add Service
                     </button>
-                    <div className="flex items-center space-x-2">
-                      <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">
-                        &lt;
+                    <div className="flex items-center gap-1.5">
+                      <button className="p-1.5 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50" aria-label="Previous page">
+                        <ChevronLeft className="w-4 h-4" />
                       </button>
-                      <button className="px-3 py-1 text-sm bg-blue-600 text-white rounded">
+                      <button className="w-8 h-8 flex items-center justify-center text-sm font-medium bg-indigo-600 text-white rounded-lg">
                         1
                       </button>
-                      <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">
-                        &gt;
+                      <button className="p-1.5 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50" aria-label="Next page">
+                        <ChevronRight className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
@@ -1646,26 +1736,18 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
           </div>
             )}
           </div>
+          )}
 
-          {/* Target System Provisioning Threshold - separate section (distinct style) */}
+          {/* Target System Provisioning Threshold */}
+          {activeAdvancedSection === "threshold" && (
           <div className="mt-8 border border-slate-200 rounded-xl overflow-hidden bg-slate-50/60 shadow-sm">
-            <div
-              className="flex items-center justify-between cursor-pointer border-l-4 border-amber-500 bg-white px-5 py-3.5 hover:bg-slate-50 transition-colors"
-              onClick={() => setIsThresholdExpanded(!isThresholdExpanded)}
-            >
+            <div className="flex items-center gap-2 border-l-4 border-amber-500 bg-white px-5 py-3.5">
               <h3 className="text-md font-semibold text-slate-800 flex items-center gap-2">
                 <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-amber-100 text-amber-700">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
+                  <Gauge className="w-4 h-4" aria-hidden />
                 </span>
                 Target System Provisioning Threshold
               </h3>
-              {isThresholdExpanded ? (
-                <ChevronDown className="w-5 h-5 text-slate-500" />
-              ) : (
-                <ChevronUp className="w-5 h-5 text-slate-500" />
-              )}
             </div>
 
             {isThresholdExpanded && (
@@ -1675,19 +1757,25 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
                   const exc = exceptionalByOperation[op];
                   const opLabel = op.charAt(0).toUpperCase() + op.slice(1);
                   const showExceptional = th.maxLimit > 0;
+                  const opMeta = THRESHOLD_OP_META[op];
                   return (
                     <div
                       key={op}
-                      className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm border-l-4 border-l-amber-400"
+                      className={`rounded-lg border border-slate-200 bg-white p-4 shadow-sm border-l-4 ${opMeta.border}`}
                     >
-                      <div className="text-xs font-medium uppercase tracking-wide text-amber-700 mb-3">
-                        {opLabel} Operation
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className={`flex items-center justify-center w-6 h-6 rounded-md ${opMeta.iconBadge}`}>
+                          <opMeta.icon className="w-3.5 h-3.5" aria-hidden />
+                        </span>
+                        <span className={`text-xs font-semibold uppercase tracking-wide ${opMeta.eyebrow}`}>
+                          {opLabel} Operation
+                        </span>
                       </div>
                       <div className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
                         <span>If the {opLabel} Operation exceeds the maximum limit of</span>
                         <input
                           type="number"
-                          className="w-16 px-2 py-1.5 border border-slate-300 rounded-md text-center text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                          className={`w-16 px-2 py-1.5 border border-slate-300 rounded-md text-center text-sm focus:ring-2 ${opMeta.ring}`}
                           value={th.maxLimit === -1 ? "" : th.maxLimit}
                           onChange={(e) => {
                             const v = e.target.value;
@@ -1698,7 +1786,7 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
                         <span>operations within</span>
                         <input
                           type="number"
-                          className="w-16 px-2 py-1.5 border border-slate-300 rounded-md text-center text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                          className={`w-16 px-2 py-1.5 border border-slate-300 rounded-md text-center text-sm focus:ring-2 ${opMeta.ring}`}
                           value={th.minutes || ""}
                           onChange={(e) =>
                             setThreshold(op, { minutes: parseInt(e.target.value, 10) || 0 })
@@ -1707,7 +1795,7 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
                         />
                         <span>minutes then</span>
                         <select
-                          className="px-2 py-1.5 border border-slate-300 rounded-md bg-white text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                          className={`px-2 py-1.5 border border-slate-300 rounded-md bg-white text-sm focus:ring-2 ${opMeta.ring}`}
                           value={th.action}
                           onChange={(e) => setThreshold(op, { action: e.target.value })}
                         >
@@ -1718,7 +1806,7 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
                         <span>further operations and send alert to email</span>
                         <input
                           type="email"
-                          className="w-52 px-2 py-1.5 border border-slate-300 rounded-md text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                          className={`w-44 px-2 py-1.5 border border-slate-300 rounded-md text-sm focus:ring-2 ${opMeta.ring}`}
                           placeholder="email@example.com"
                           value={th.email}
                           onChange={(e) => setThreshold(op, { email: e.target.value })}
@@ -1902,6 +1990,7 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
               </div>
             )}
           </div>
+          )}
 
             </>
           )}
