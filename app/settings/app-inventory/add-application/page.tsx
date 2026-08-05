@@ -25,6 +25,9 @@ import {
   Unplug,
   FolderTree,
   Users,
+  Tag,
+  FileText,
+  User,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -173,6 +176,16 @@ function AppTypeCardIcon({ typeId }: { typeId: string }) {
     return <Key className={cn} strokeWidth={stroke} aria-hidden />;
   }
   return <Layers className={cn} strokeWidth={stroke} aria-hidden />;
+}
+
+/** Up to 2 initials from a resolved owner's display name, for the small avatar chip. */
+function ownerInitials(name: string): string {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("");
 }
 
 /** Backend uses "IBM AS 400"; older aliases kept for compatibility. */
@@ -348,6 +361,8 @@ export default function AddApplicationPage() {
   /** AS400 main cards: expand/collapse independently (not tied to step3.integrationSettings). */
   const [as400ReadOperationsExpanded, setAs400ReadOperationsExpanded] = useState(false);
   const [as400WriteOperationsExpanded, setAs400WriteOperationsExpanded] = useState(false);
+  /** Active Directory Domain: Directory & Vault Settings card expand/collapse. */
+  const [adDomainVaultSettingsExpanded, setAdDomainVaultSettingsExpanded] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [attributeMappingPage, setAttributeMappingPage] = useState(1);
@@ -763,6 +778,26 @@ export default function AddApplicationPage() {
     getFlatfileAppMetadataUsers()
       .then((data) => setFlatfileMetadataUsers(data))
       .catch(() => setFlatfileMetadataUsers(null));
+  }, [currentStep, formData.step1.type]);
+
+  // Active Directory Domain: seed sensible LDAP defaults the first time its settings are shown.
+  useEffect(() => {
+    if (currentStep !== 3 || formData.step1.type !== "Active Directory Domain") return;
+    setFormData((prev) => {
+      if (prev.step3.userSearchBase !== undefined) return prev;
+      return {
+        ...prev,
+        step3: {
+          ...prev.step3,
+          userSearchBase: "dc=keyforge-ca",
+          groupSearchBase: "dc=local",
+          deletedOu: "cn=users,dc=keyforge-ca,dc=local",
+          contactOu: "cn=users,dc=keyforge-ca,dc=local",
+          deleteAcctOnTermination: "N",
+          revokeMembershipOnTermination: "Y",
+        },
+      };
+    });
   }, [currentStep, formData.step1.type]);
 
   const handleInputChange = (step: keyof FormData, field: string, value: any) => {
@@ -3401,49 +3436,62 @@ export default function AddApplicationPage() {
         );
 
       case 2:
+        const step1TypeLabel = formData.step1.type
+          ? formData.step1.aiAgentOnboard && isAiAgentOnboardApplicationType(formData.step1.type)
+            ? `${formData.step1.type} (AI Agent)`
+            : formData.step1.type
+          : "Not selected";
         return (
           <div className="space-y-6">
-            {/* Selected summary from Step 1 */}
-            <div className="p-4 border border-blue-100 rounded-md bg-blue-50 text-sm text-blue-800">
-              <div className="flex flex-wrap gap-4">
-                <div>
-                  <span className="font-medium">Selected System:</span>{' '}
-                  <span>
-                    {formData.step1.type
-                      ? formData.step1.aiAgentOnboard &&
-                        isAiAgentOnboardApplicationType(formData.step1.type)
-                        ? `${formData.step1.type} (AI Agent)`
-                        : formData.step1.type
-                      : "Not selected"}
-                  </span>
-                </div>
+            {/* Connector strip: what was picked in Step 1, with a way back */}
+            <div className="flex items-center gap-3 p-3 border border-blue-100 rounded-xl bg-blue-50">
+              <div className="w-9 h-9 rounded-md flex items-center justify-center shrink-0 bg-white border border-blue-100">
+                <AppTypeCardIcon typeId={formData.step1.type || ""} />
               </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold text-gray-900 truncate">{step1TypeLabel}</div>
+                <div className="text-xs text-gray-500 truncate">Selected in Step 1</div>
+              </div>
+              <button
+                type="button"
+                onClick={handlePrevious}
+                className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 shrink-0"
+              >
+                <Edit className="w-3.5 h-3.5" aria-hidden />
+                Change
+              </button>
             </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="relative min-w-0">
+                <Tag className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-500 pointer-events-none" aria-hidden />
                 <input
                   type="text"
                   value={formData.step2.applicationName}
                   onChange={(e) => handleInputChange("step2", "applicationName", e.target.value)}
-                  className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                  className="w-full pl-10 pr-9 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
                   placeholder=" "
                 />
-                <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                <label className={`absolute left-10 transition-all duration-200 pointer-events-none ${
                   formData.step2.applicationName
-                    ? 'top-0.5 text-xs text-blue-600' 
+                    ? 'top-0.5 text-xs text-blue-600'
                     : 'top-3.5 text-sm text-gray-500'
                 }`}>
                   Application Name *
                 </label>
+                {formData.step2.applicationName.trim() && (
+                  <Check className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-600" aria-hidden />
+                )}
               </div>
               <div className="relative min-w-0">
+                <Layers className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-500 pointer-events-none" aria-hidden />
                 <select
                   id="applicationSourceType"
                   value={formData.step2.sourceType}
                   onChange={(e) =>
                     handleInputChange("step2", "sourceType", e.target.value)
                   }
-                  className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
+                  className="w-full pl-10 pr-9 pt-5 pb-1.5 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
                 >
                   <option value="" disabled>
                     {" "}
@@ -3460,7 +3508,7 @@ export default function AddApplicationPage() {
                 />
                 <label
                   htmlFor="applicationSourceType"
-                  className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                  className={`absolute left-10 transition-all duration-200 pointer-events-none ${
                     formData.step2.sourceType
                       ? "top-0.5 text-xs text-blue-600"
                       : "top-3.5 text-sm text-gray-500"
@@ -3471,38 +3519,51 @@ export default function AddApplicationPage() {
               </div>
             </div>
             <div className="relative">
+              <FileText className="absolute left-3.5 top-5 w-4 h-4 text-amber-500 pointer-events-none" aria-hidden />
               <textarea
                 value={formData.step2.description}
                 onChange={(e) => handleInputChange("step2", "description", e.target.value)}
-                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline resize-none"
+                className="w-full pl-10 pr-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline resize-none"
                 rows={3}
                 placeholder=" "
               />
-              <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+              <label className={`absolute left-10 transition-all duration-200 pointer-events-none ${
                 formData.step2.description
-                  ? 'top-0.5 text-xs text-blue-600' 
+                  ? 'top-0.5 text-xs text-blue-600'
                   : 'top-3.5 text-sm text-gray-500'
               }`}>
                 Description *
               </label>
+              <div className="text-right text-xs text-gray-400 mt-1">
+                {formData.step2.description.length} characters
+              </div>
             </div>
             <div className="flex items-center gap-3">
               <div className="flex-1 relative" ref={technicalOwnerDropdownRef}>
+                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500 pointer-events-none" aria-hidden />
                 <input
                   type="text"
                   value={formData.step2.technicalOwner}
                   onChange={(e) => handleOwnerInputChange("technicalOwner", e.target.value)}
                   onFocus={() => setUserSearchField("technicalOwner")}
-                  className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                  className="w-full pl-10 pr-11 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
                   placeholder=" "
                 />
-                <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                <label className={`absolute left-10 transition-all duration-200 pointer-events-none ${
                   formData.step2.technicalOwner
-                    ? 'top-0.5 text-xs text-blue-600' 
+                    ? 'top-0.5 text-xs text-blue-600'
                     : 'top-3.5 text-sm text-gray-500'
                 }`}>
                   Technical Owner *
                 </label>
+                {formData.step2.technicalOwnerEmail && (
+                  <div
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-semibold flex items-center justify-center"
+                    title={formData.step2.technicalOwnerEmail}
+                  >
+                    {ownerInitials(formData.step2.technicalOwner)}
+                  </div>
+                )}
                 {userSearchField === "technicalOwner" && (
                   <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-48 overflow-y-auto">
                     {userSearchLoading && (
@@ -3528,21 +3589,30 @@ export default function AddApplicationPage() {
                 )}
               </div>
               <div className="flex-1 relative" ref={businessOwnerDropdownRef}>
+                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500 pointer-events-none" aria-hidden />
                 <input
                   type="text"
                   value={formData.step2.businessOwner}
                   onChange={(e) => handleOwnerInputChange("businessOwner", e.target.value)}
                   onFocus={() => setUserSearchField("businessOwner")}
-                  className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                  className="w-full pl-10 pr-11 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
                   placeholder=" "
                 />
-                <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                <label className={`absolute left-10 transition-all duration-200 pointer-events-none ${
                   formData.step2.businessOwner
-                    ? 'top-0.5 text-xs text-blue-600' 
+                    ? 'top-0.5 text-xs text-blue-600'
                     : 'top-3.5 text-sm text-gray-500'
                 }`}>
                   Business Owner *
                 </label>
+                {formData.step2.businessOwnerEmail && (
+                  <div
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-semibold flex items-center justify-center"
+                    title={formData.step2.businessOwnerEmail}
+                  >
+                    {ownerInitials(formData.step2.businessOwner)}
+                  </div>
+                )}
                 {userSearchField === "businessOwner" && (
                   <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-48 overflow-y-auto">
                     {userSearchLoading && (
@@ -5109,6 +5179,252 @@ export default function AddApplicationPage() {
                       Contact Ou
                     </label>
                   </div>
+                </div>
+              </div>
+            );
+          }
+
+          // Active Directory Domain: dedicated static field layout (not API-driven), same reasoning
+          // as the PowerShell connector above — must run before the dynamic/custom-fields block.
+          if (selectedAppType === "Active Directory Domain") {
+            return (
+              <div className="space-y-6">
+                <h3 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-3">
+                  Active Directory Domain Settings
+                </h3>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 relative">
+                    <input
+                      type="text"
+                      value={formData.step3.hostname || ""}
+                      onChange={(e) => handleInputChange("step3", "hostname", e.target.value)}
+                      className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                      placeholder=" "
+                    />
+                    <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                      formData.step3.hostname
+                        ? 'top-0.5 text-xs text-blue-600'
+                        : 'top-3.5 text-sm text-gray-500'
+                    }`}>
+                      Hostname *
+                    </label>
+                  </div>
+                  <div className="flex-1 relative">
+                    <input
+                      type="text"
+                      value={formData.step3.username || ""}
+                      onChange={(e) => handleInputChange("step3", "username", e.target.value)}
+                      className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                      placeholder=" "
+                    />
+                    <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                      formData.step3.username
+                        ? 'top-0.5 text-xs text-blue-600'
+                        : 'top-3.5 text-sm text-gray-500'
+                    }`}>
+                      UserName *
+                    </label>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 relative">
+                    <input
+                      type="password"
+                      value={formData.step3.password || ""}
+                      onChange={(e) => handleInputChange("step3", "password", e.target.value)}
+                      className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                      placeholder=" "
+                    />
+                    <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                      formData.step3.password
+                        ? 'top-0.5 text-xs text-blue-600'
+                        : 'top-3.5 text-sm text-gray-500'
+                    }`}>
+                      Password *
+                    </label>
+                  </div>
+                  <div className="flex-1 relative">
+                    <input
+                      type="text"
+                      value={formData.step3.domain || ""}
+                      onChange={(e) => handleInputChange("step3", "domain", e.target.value)}
+                      className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                      placeholder=" "
+                    />
+                    <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                      formData.step3.domain
+                        ? 'top-0.5 text-xs text-blue-600'
+                        : 'top-3.5 text-sm text-gray-500'
+                    }`}>
+                      Domain *
+                    </label>
+                  </div>
+                </div>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={formData.step3.backupHostname || ""}
+                    onChange={(e) => handleInputChange("step3", "backupHostname", e.target.value)}
+                    className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                    placeholder=" "
+                  />
+                  <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                    formData.step3.backupHostname
+                      ? 'top-0.5 text-xs text-blue-600'
+                      : 'top-3.5 text-sm text-gray-500'
+                  }`}>
+                    Backup Hostname
+                  </label>
+                </div>
+
+                <div className="border border-gray-200 rounded-lg bg-white shadow-sm overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setAdDomainVaultSettingsExpanded((e) => !e)}
+                    className="flex items-center justify-between gap-3 w-full px-4 py-4 min-h-[3.5rem] text-left bg-gray-50 hover:bg-gray-100 transition-colors"
+                    aria-expanded={adDomainVaultSettingsExpanded}
+                  >
+                    <span className="text-base font-semibold text-gray-900 min-w-0 pr-2">Advanced</span>
+                    {adDomainVaultSettingsExpanded ? (
+                      <ChevronUp className="w-5 h-5 text-blue-600 shrink-0" aria-hidden />
+                    ) : (
+                      <ChevronDown className="w-5 h-5 text-blue-600 shrink-0" aria-hidden />
+                    )}
+                  </button>
+                  {adDomainVaultSettingsExpanded && (
+                  <div className="px-4 pb-4 pt-3 border-t border-gray-100 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 relative">
+                      <input
+                        type="text"
+                        value={formData.step3.userSearchBase ?? ""}
+                        onChange={(e) => handleInputChange("step3", "userSearchBase", e.target.value)}
+                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                        placeholder=" "
+                      />
+                      <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                        formData.step3.userSearchBase
+                          ? 'top-0.5 text-xs text-blue-600'
+                          : 'top-3.5 text-sm text-gray-500'
+                      }`}>
+                        User Search Base
+                      </label>
+                    </div>
+                    <div className="flex-1 relative">
+                      <input
+                        type="text"
+                        value={formData.step3.groupSearchBase ?? ""}
+                        onChange={(e) => handleInputChange("step3", "groupSearchBase", e.target.value)}
+                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                        placeholder=" "
+                      />
+                      <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                        formData.step3.groupSearchBase
+                          ? 'top-0.5 text-xs text-blue-600'
+                          : 'top-3.5 text-sm text-gray-500'
+                      }`}>
+                        Group Search Base
+                      </label>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 relative">
+                      <input
+                        type="text"
+                        value={formData.step3.deletedOu ?? ""}
+                        onChange={(e) => handleInputChange("step3", "deletedOu", e.target.value)}
+                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                        placeholder=" "
+                      />
+                      <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                        formData.step3.deletedOu
+                          ? 'top-0.5 text-xs text-blue-600'
+                          : 'top-3.5 text-sm text-gray-500'
+                      }`}>
+                        Deleted OU
+                      </label>
+                    </div>
+                    <div className="flex-1 relative">
+                      <input
+                        type="text"
+                        value={formData.step3.contactOu ?? ""}
+                        onChange={(e) => handleInputChange("step3", "contactOu", e.target.value)}
+                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                        placeholder=" "
+                      />
+                      <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                        formData.step3.contactOu
+                          ? 'top-0.5 text-xs text-blue-600'
+                          : 'top-3.5 text-sm text-gray-500'
+                      }`}>
+                        Contact OU
+                      </label>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <label className="flex-1 flex items-center gap-2 py-3.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                        checked={(formData.step3.deleteAcctOnTermination ?? "N") === "Y"}
+                        onChange={(e) =>
+                          handleInputChange("step3", "deleteAcctOnTermination", e.target.checked ? "Y" : "N")
+                        }
+                      />
+                      <span className="text-sm text-gray-700">
+                        Delete Acct on Termination
+                      </span>
+                    </label>
+                    <label className="flex-1 flex items-center gap-2 py-3.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                        checked={(formData.step3.revokeMembershipOnTermination ?? "Y") === "Y"}
+                        onChange={(e) =>
+                          handleInputChange("step3", "revokeMembershipOnTermination", e.target.checked ? "Y" : "N")
+                        }
+                      />
+                      <span className="text-sm text-gray-700">
+                        Revoke Membership on Termination
+                      </span>
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 relative">
+                      <input
+                        type="text"
+                        value={formData.step3.vaultName || ""}
+                        onChange={(e) => handleInputChange("step3", "vaultName", e.target.value)}
+                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                        placeholder=" "
+                      />
+                      <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                        formData.step3.vaultName
+                          ? 'top-0.5 text-xs text-blue-600'
+                          : 'top-3.5 text-sm text-gray-500'
+                      }`}>
+                        Vault Name
+                      </label>
+                    </div>
+                    <div className="flex-1 relative">
+                      <input
+                        type="text"
+                        value={formData.step3.vaultPath || ""}
+                        onChange={(e) => handleInputChange("step3", "vaultPath", e.target.value)}
+                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                        placeholder=" "
+                      />
+                      <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                        formData.step3.vaultPath
+                          ? 'top-0.5 text-xs text-blue-600'
+                          : 'top-3.5 text-sm text-gray-500'
+                      }`}>
+                        Vault Path
+                      </label>
+                    </div>
+                  </div>
+                  </div>
+                  )}
                 </div>
               </div>
             );
