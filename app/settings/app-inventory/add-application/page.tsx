@@ -266,6 +266,24 @@ const APPLICATION_SOURCE_TYPE_OPTIONS = [
   "LMS",
 ] as const;
 
+/** Active Directory Powershell Connector: Agent Pool choices, grouped by region. */
+const AD_POWERSHELL_AGENT_POOL_OPTIONS: Array<{
+  groupLabel: string | null;
+  value: string;
+  label: string;
+}> = [
+  { groupLabel: null, value: "__direct__", label: "No agent — direct or VPN connectivity" },
+  { groupLabel: "Middle East & Africa", value: "dpw-uae-jebelali", label: "Jebel Ali · 2 agents, healthy" },
+  { groupLabel: "Middle East & Africa", value: "dpw-uae-hq", label: "Dubai HQ · 2 agents, healthy" },
+  { groupLabel: "Middle East & Africa", value: "dpw-sn-dakar", label: "Dakar · 1 agent, healthy" },
+  { groupLabel: "Europe", value: "dpw-uk-southampton", label: "Southampton · 2 agents, healthy" },
+  { groupLabel: "Europe", value: "dpw-nl-rotterdam", label: "Rotterdam · 2 agents, healthy" },
+  { groupLabel: "Asia Pacific", value: "dpw-in-mundra", label: "Mundra · 2 agents, healthy" },
+  { groupLabel: "Asia Pacific", value: "dpw-au-sydney", label: "Sydney · 1 agent, degraded" },
+  { groupLabel: "Americas", value: "dpw-ca-princerupert", label: "Prince Rupert · 2 agents, healthy" },
+  { groupLabel: "Americas", value: "dpw-pe-callao", label: "Callao · 2 agents, healthy" },
+];
+
 export default function AddApplicationPage() {
   const router = useRouter();
   const { isVisible: isSidebarVisible, sidebarWidthPx } = useLeftSidebar();
@@ -354,6 +372,10 @@ export default function AddApplicationPage() {
   const [isLoadingAttributes, setIsLoadingAttributes] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isEditDropdownOpen, setIsEditDropdownOpen] = useState(false);
+  // Active Directory Powershell Connector: custom Agent Pool dropdown (native <select> can't be
+  // font-sized consistently across browsers, so this is a styled list instead).
+  const [isAgentPoolDropdownOpen, setIsAgentPoolDropdownOpen] = useState(false);
+  const agentPoolDropdownRef = useRef<HTMLDivElement>(null);
   const [sourceAttributeValue, setSourceAttributeValue] = useState("");
   const [editSourceAttributeValue, setEditSourceAttributeValue] = useState("");
   const [targetAttributeValue, setTargetAttributeValue] = useState("");
@@ -1340,6 +1362,12 @@ export default function AddApplicationPage() {
         !editDropdownRef.current.contains(event.target as Node)
       ) {
         setIsEditDropdownOpen(false);
+      }
+      if (
+        agentPoolDropdownRef.current &&
+        !agentPoolDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsAgentPoolDropdownOpen(false);
       }
       if (
         technicalOwnerDropdownRef.current &&
@@ -3217,6 +3245,50 @@ export default function AddApplicationPage() {
                  </div>
                ) : (
                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                 {(searchQuery === "" ||
+                   "active directory powershell connector".includes(searchQuery.toLowerCase()) ||
+                   "active directory".includes(searchQuery.toLowerCase())) && (() => {
+                   const isStaticAdSelected =
+                     formData.step1.type === "Active Directory Powershell Connector" &&
+                     !formData.step1.aiAgentOnboard;
+                   return (
+                     <div
+                       key="static-active-directory-powershell-connector"
+                       onClick={() =>
+                         toggleStep1ApplicationType("Active Directory Powershell Connector", false)
+                       }
+                       className={`p-3.5 border rounded-lg cursor-pointer transition-all duration-200 hover:shadow-md ${
+                         isStaticAdSelected
+                           ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500/30"
+                           : "border-gray-200 bg-white hover:border-gray-300"
+                       }`}
+                     >
+                       <div className="flex items-start gap-2.5">
+                         <div
+                           className="w-9 h-9 rounded-md flex items-center justify-center shrink-0 bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200/90 shadow-[0_1px_2px_rgba(15,23,42,0.06)]"
+                           aria-hidden
+                         >
+                           <AppTypeCardIcon typeId="Active Directory Powershell Connector" />
+                         </div>
+                         <div className="min-w-0 flex-1">
+                           <h3 className="font-medium text-gray-900 text-sm leading-snug">
+                             Active Directory Powershell Connector
+                           </h3>
+                           <p className="text-xs text-gray-500 mt-0.5 line-clamp-2 leading-snug">
+                             Onboard Active Directory using the PowerShell-based connector
+                           </p>
+                         </div>
+                         {isStaticAdSelected && (
+                           <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                             <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                               <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                             </svg>
+                           </div>
+                         )}
+                       </div>
+                     </div>
+                   );
+                 })()}
                  {applicationTypes.length === 0 ? (
                    <div className="col-span-full text-center text-gray-500 p-4">
                      No application types available. Please check the API connection.
@@ -4883,6 +4955,159 @@ export default function AddApplicationPage() {
                     )}
                     </div>
                     )}
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          // Active Directory Powershell Connector: dedicated static field layout (not API-driven),
+          // must be handled before the dynamic/custom-fields block below or a filled-in field
+          // (e.g. agentPool) would get treated as a "custom field" and hijack the render.
+          if (selectedAppType === "Active Directory Powershell Connector") {
+            return (
+              <div className="space-y-6">
+                <h3 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-3">
+                  PowerShell Connector Settings
+                </h3>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 relative">
+                    <input
+                      type="text"
+                      value={formData.step3.domainName || ""}
+                      onChange={(e) => handleInputChange("step3", "domainName", e.target.value)}
+                      className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                      placeholder=" "
+                    />
+                    <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                      formData.step3.domainName
+                        ? 'top-0.5 text-xs text-blue-600'
+                        : 'top-3.5 text-sm text-gray-500'
+                    }`}>
+                      Domain Name *
+                    </label>
+                  </div>
+                  <div className="flex-1 relative" ref={agentPoolDropdownRef}>
+                    <input
+                      type="text"
+                      readOnly
+                      value={
+                        AD_POWERSHELL_AGENT_POOL_OPTIONS.find(
+                          (o) => o.value === formData.step3.agentPool
+                        )?.label || ""
+                      }
+                      onClick={() => setIsAgentPoolDropdownOpen((open) => !open)}
+                      className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline cursor-pointer"
+                      placeholder=" "
+                    />
+                    <ChevronDown
+                      className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none transition-transform ${
+                        isAgentPoolDropdownOpen ? "rotate-180" : ""
+                      }`}
+                      aria-hidden
+                    />
+                    <label
+                      className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                        formData.step3.agentPool
+                          ? 'top-0.5 text-xs text-blue-600'
+                          : 'top-3.5 text-sm text-gray-500'
+                      }`}
+                    >
+                      Agent Pool *
+                    </label>
+                    {isAgentPoolDropdownOpen && (
+                      <div
+                        className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg overflow-y-auto"
+                        style={{ maxHeight: "16rem" }}
+                      >
+                        {(() => {
+                          let lastGroupLabel: string | null | undefined = undefined;
+                          return AD_POWERSHELL_AGENT_POOL_OPTIONS.map((option) => {
+                            const showGroupHeader =
+                              option.groupLabel !== null && option.groupLabel !== lastGroupLabel;
+                            lastGroupLabel = option.groupLabel;
+                            return (
+                              <div key={option.value}>
+                                {showGroupHeader && (
+                                  <div className="px-4 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-500 bg-gray-50">
+                                    {option.groupLabel}
+                                  </div>
+                                )}
+                                <div
+                                  className="px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 cursor-pointer"
+                                  onClick={() => {
+                                    handleInputChange("step3", "agentPool", option.value);
+                                    setIsAgentPoolDropdownOpen(false);
+                                  }}
+                                >
+                                  {option.label}
+                                </div>
+                              </div>
+                            );
+                          });
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={formData.step3.scriptBundleVersion || ""}
+                    onChange={(e) => handleInputChange("step3", "scriptBundleVersion", e.target.value)}
+                    className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                    placeholder=" "
+                  />
+                  <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                    formData.step3.scriptBundleVersion
+                      ? 'top-0.5 text-xs text-blue-600'
+                      : 'top-3.5 text-sm text-gray-500'
+                  }`}>
+                    Script Bundle Version (blank = current)
+                  </label>
+                </div>
+                <p className="text-xs text-gray-500">
+                  No credentials are configured here. The agent runs as a gMSA and PowerShell inherits
+                  its token, so scripts authenticate to the domain over integrated Kerberos. Agent
+                  pools are listed from registered agents — a pool is normally two agents at one site,
+                  so work continues if one is unavailable.
+                </p>
+
+                <h3 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-3 pt-2">
+                  Optional Overrides
+                </h3>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 relative">
+                    <input
+                      type="text"
+                      value={formData.step3.defaultUserOu || ""}
+                      onChange={(e) => handleInputChange("step3", "defaultUserOu", e.target.value)}
+                      className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                      placeholder=" "
+                    />
+                    <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                      formData.step3.defaultUserOu
+                        ? 'top-0.5 text-xs text-blue-600'
+                        : 'top-3.5 text-sm text-gray-500'
+                    }`}>
+                      Default User Ou
+                    </label>
+                  </div>
+                  <div className="flex-1 relative">
+                    <input
+                      type="text"
+                      value={formData.step3.contactOu || ""}
+                      onChange={(e) => handleInputChange("step3", "contactOu", e.target.value)}
+                      className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                      placeholder=" "
+                    />
+                    <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                      formData.step3.contactOu
+                        ? 'top-0.5 text-xs text-blue-600'
+                        : 'top-3.5 text-sm text-gray-500'
+                    }`}>
+                      Contact Ou
+                    </label>
                   </div>
                 </div>
               </div>
