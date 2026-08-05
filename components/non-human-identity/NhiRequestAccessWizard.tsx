@@ -2,6 +2,10 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Calendar, Check, ChevronLeft, ChevronRight, ShoppingCart, Plus, Trash2, Search } from "lucide-react";
+import dynamic from "next/dynamic";
+const AgGridReact = dynamic(() => import("ag-grid-react").then((mod) => mod.AgGridReact), { ssr: false });
+import "@/lib/ag-grid-setup";
+import type { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 import HorizontalTabs from "@/components/HorizontalTabs";
 import UserSearchTab from "@/app/access-request/UserSearchTab";
 import { useSelectedUsers } from "@/contexts/SelectedUsersContext";
@@ -136,8 +140,6 @@ export function NhiRequestAccessWizard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
   const [cart, setCart] = useState<NhiCartRow[]>([]);
 
   const [requestType, setRequestType] = useState<"Regular" | "Emergency">("Regular");
@@ -209,17 +211,6 @@ export function NhiRequestAccessWizard() {
     });
   }, [rows, search]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [search, pageSize]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const pageSafe = Math.min(page, totalPages);
-  const pageRows = useMemo(() => {
-    const start = (pageSafe - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, pageSafe, pageSize]);
-
   const addToCart = (r: NhiCartRow) => {
     setCart((prev) => {
       if (prev.some((x) => x.nhi_id === r.nhi_id)) return prev;
@@ -230,6 +221,68 @@ export function NhiRequestAccessWizard() {
   const removeFromCart = (nhiId: string) => {
     setCart((prev) => prev.filter((x) => x.nhi_id !== nhiId));
   };
+
+  const columnDefs = useMemo<ColDef[]>(
+    () => [
+      {
+        headerName: "Name",
+        field: "name",
+        cellClass: "truncate font-medium",
+      },
+      { headerName: "Type", field: "nhi_type" },
+      { headerName: "State", field: "state" },
+      { headerName: "Risk", field: "risk_level" },
+      { headerName: "Criticality", field: "criticality" },
+      { headerName: "Source", field: "load_source" },
+      {
+        headerName: "Associated app",
+        field: "associated_system",
+        tooltipField: "associated_system",
+        cellRenderer: (params: ICellRendererParams<NhiCartRow>) => (
+          <span className="block truncate" title={params.data?.associated_system}>
+            {params.data?.associated_system}
+          </span>
+        ),
+      },
+      {
+        headerName: "Action",
+        sortable: false,
+        filter: false,
+        flex: 0,
+        width: 64,
+        cellRenderer: (params: ICellRendererParams<NhiCartRow>) => {
+          const r = params.data as NhiCartRow;
+          const inCart = cart.some((c) => c.nhi_id === r.nhi_id);
+          return inCart ? (
+            <button
+              type="button"
+              onClick={() => removeFromCart(r.nhi_id)}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-800 hover:bg-red-100"
+              title="Remove from cart"
+              aria-label="Remove from cart"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => addToCart(r)}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100"
+              title="Add to cart"
+              aria-label="Add to cart"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          );
+        },
+      },
+    ],
+    [cart]
+  );
+
+  const defaultColDef = useMemo<ColDef>(() => ({ sortable: true, filter: false,
+      flex: 1,
+      minWidth: 100, resizable: true, wrapHeaderText: true, autoHeaderHeight: true, }), []);
 
   const canGoNext = () => {
     if (currentStep === 1) {
@@ -412,98 +465,24 @@ export function NhiRequestAccessWizard() {
                   className="w-full rounded-md border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm"
                 />
               </div>
-              <select
-                value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value))}
-                className="rounded-md border border-gray-200 bg-white px-2 py-2 text-sm"
-              >
-                <option value={10}>10 / page</option>
-                <option value={25}>25 / page</option>
-                <option value={50}>50 / page</option>
-              </select>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[960px] text-left text-xs">
-                <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
-                    <th className="px-3 py-2.5">Name</th>
-                    <th className="px-3 py-2.5">Type</th>
-                    <th className="px-3 py-2.5">State</th>
-                    <th className="px-3 py-2.5">Risk</th>
-                    <th className="px-3 py-2.5">Criticality</th>
-                    <th className="px-3 py-2.5">Source</th>
-                    <th className="px-3 py-2.5">Associated app</th>
-                    <th className="px-3 py-2.5 text-right w-36">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pageRows.map((r) => {
-                    const inCart = cart.some((c) => c.nhi_id === r.nhi_id);
-                    return (
-                      <tr key={r.nhi_id} className="border-b border-gray-50 hover:bg-slate-50/80">
-                        <td className="max-w-[200px] truncate px-3 py-2 font-medium text-slate-900">{r.name}</td>
-                        <td className="px-3 py-2 text-slate-700">{r.nhi_type}</td>
-                        <td className="px-3 py-2 text-slate-700">{r.state}</td>
-                        <td className="px-3 py-2 text-slate-700">{r.risk_level}</td>
-                        <td className="px-3 py-2 text-slate-700">{r.criticality}</td>
-                        <td className="px-3 py-2 text-slate-700">{r.load_source}</td>
-                        <td className="max-w-[180px] truncate px-3 py-2 text-slate-700" title={r.associated_system}>
-                          {r.associated_system}
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          {inCart ? (
-                            <button
-                              type="button"
-                              onClick={() => removeFromCart(r.nhi_id)}
-                              className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-medium text-red-800 hover:bg-red-100"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                              Remove
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => addToCart(r)}
-                              className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-medium text-blue-800 hover:bg-blue-100"
-                            >
-                              <Plus className="h-3.5 w-3.5" />
-                              Add to cart
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div
+            className="ag-theme-alpine nhi-compact-grid"
+            style={{ ["--ag-font-size" ]: "12px", ["--ag-header-font-size" ]: "12px" } as any}
+          >
+              <AgGridReact
+                rowData={filtered}
+                columnDefs={columnDefs}
+                defaultColDef={defaultColDef}
+                pagination={true}
+                paginationPageSize={25}
+                paginationPageSizeSelector={[10, 25, 50, 100]}
+                domLayout="autoHeight"
+                rowHeight={36}
+                headerHeight={32}
+              />
             </div>
-
-            {filtered.length > 0 && (
-              <div className="flex items-center justify-between border-t border-gray-100 px-4 py-3 text-xs text-slate-600">
-                <span>
-                  {filtered.length} rows · page {pageSafe} / {totalPages}
-                </span>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    disabled={pageSafe <= 1}
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    className="rounded border border-gray-200 bg-white px-2 py-1 font-medium hover:bg-gray-50 disabled:opacity-40"
-                  >
-                    Prev
-                  </button>
-                  <button
-                    type="button"
-                    disabled={pageSafe >= totalPages}
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    className="rounded border border-gray-200 bg-white px-2 py-1 font-medium hover:bg-gray-50 disabled:opacity-40"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            )}
 
             {cart.length > 0 && (
               <div className="border-t border-gray-100 bg-slate-50 px-4 py-3">

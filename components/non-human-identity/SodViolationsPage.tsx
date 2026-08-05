@@ -11,9 +11,14 @@ import {
   Tooltip,
 } from "chart.js";
 import { runNhiRows, type NhiApiMode } from "@/lib/nhi-v2-query";
+import "@/lib/ag-grid-setup";
+import type { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 const Bar = dynamic(() => import("react-chartjs-2").then((m) => m.Bar), { ssr: false });
+const AgGridReact = dynamic(() => import("ag-grid-react").then((mod) => mod.AgGridReact), {
+  ssr: false,
+});
 
 const TENANT_ID = "a0000000-0000-0000-0000-000000000001";
 
@@ -81,8 +86,6 @@ export function SodViolationsPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -141,16 +144,45 @@ export function SodViolationsPage({
     );
   }, [rows, search]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [search, pageSize]);
+  const columnDefs = useMemo<ColDef[]>(
+    () => [
+      { headerName: "Rule", field: "rule_code", cellRenderer: (params: ICellRendererParams<SodRow>) => params.data?.rule_code || "—" },
+      { headerName: "Name", field: "rule_name", cellRenderer: (params: ICellRendererParams<SodRow>) => params.data?.rule_name || "—" },
+      {
+        headerName: "Severity",
+        field: "severity",
+        cellRenderer: (params: ICellRendererParams<SodRow>) => {
+          const sev = params.data?.severity ?? "";
+          return (
+            <span className={`rounded-full border px-2 py-0.5 text-xs ${severityTone(sev)}`}>
+              {sev || "—"}
+            </span>
+          );
+        },
+      },
+      { headerName: "Subject", field: "subject_type", cellRenderer: (params: ICellRendererParams<SodRow>) => params.data?.subject_type || "—" },
+      { headerName: "Subject ID", field: "subject_id", cellRenderer: (params: ICellRendererParams<SodRow>) => params.data?.subject_id || "—" },
+      {
+        headerName: "Resolved",
+        field: "is_resolved",
+        cellRenderer: (params: ICellRendererParams<SodRow>) => (params.data?.is_resolved ? "yes" : "no"),
+      },
+      {
+        headerName: "Detected",
+        field: "detected_at",
+        cellRenderer: (params: ICellRendererParams<SodRow>) =>
+          params.data?.detected_at ? new Date(params.data.detected_at).toLocaleString() : "—",
+      },
+    ],
+    []
+  );
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const pageSafe = Math.min(page, totalPages);
-  const pageRows = useMemo(() => {
-    const start = (pageSafe - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, pageSafe, pageSize]);
+  const defaultColDef = useMemo<ColDef>(
+    () => ({ sortable: true, filter: false,
+      flex: 1,
+      minWidth: 100, resizable: true, wrapHeaderText: true, autoHeaderHeight: true, }),
+    []
+  );
 
   return (
     <div className={`w-full space-y-4 ${suppressPageHeader ? "" : "pb-8"}`}>
@@ -229,82 +261,27 @@ export function SodViolationsPage({
               placeholder={`Search ${rows.length} rows...`}
               className="w-56 rounded border border-slate-300 px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
             />
-            <select
-              value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value))}
-              className="rounded border border-slate-300 px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
-              aria-label="Rows per page"
-            >
-              <option value={10}>10 / page</option>
-              <option value={25}>25 / page</option>
-              <option value={50}>50 / page</option>
-              <option value={100}>100 / page</option>
-            </select>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] text-left text-xs">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
-                <th className="px-2 py-2">Rule</th>
-                <th className="px-2 py-2">Name</th>
-                <th className="px-2 py-2">Severity</th>
-                <th className="px-2 py-2">Subject</th>
-                <th className="px-2 py-2">Subject ID</th>
-                <th className="px-2 py-2">Resolved</th>
-                <th className="px-2 py-2">Detected</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pageRows.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-2 py-3 text-slate-500">
-                    No SoD violations.
-                  </td>
-                </tr>
-              ) : (
-                pageRows.map((r) => (
-                  <tr key={r.violation_id || `${r.rule_code}-${r.detected_at}`} className="border-b border-gray-50 hover:bg-slate-50/70">
-                    <td className="px-2 py-2 text-slate-700">{r.rule_code || "—"}</td>
-                    <td className="px-2 py-2 text-slate-700">{r.rule_name || "—"}</td>
-                    <td className="px-2 py-2">
-                      <span className={`rounded-full border px-2 py-0.5 text-xs ${severityTone(r.severity)}`}>{r.severity || "—"}</span>
-                    </td>
-                    <td className="px-2 py-2 text-slate-700">{r.subject_type || "—"}</td>
-                    <td className="px-2 py-2 text-slate-700">{r.subject_id || "—"}</td>
-                    <td className="px-2 py-2 text-slate-700">{r.is_resolved ? "yes" : "no"}</td>
-                    <td className="px-2 py-2 text-slate-700">{r.detected_at ? new Date(r.detected_at).toLocaleString() : "—"}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {filtered.length > 0 && (
-          <div className="mt-2 flex items-center justify-between border-t border-gray-100 pt-2 text-xs text-slate-600">
-            <span>
-              {filtered.length} rows · page {pageSafe} / {totalPages}
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={pageSafe <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="rounded border border-slate-300 bg-white px-2 py-1 hover:bg-slate-50 disabled:opacity-40"
-              >
-                Prev
-              </button>
-              <button
-                type="button"
-                disabled={pageSafe >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className="rounded border border-slate-300 bg-white px-2 py-1 hover:bg-slate-50 disabled:opacity-40"
-              >
-                Next
-              </button>
-            </div>
+        {filtered.length === 0 ? (
+          <div className="px-2 py-3 text-xs text-slate-500">No SoD violations.</div>
+        ) : (
+          <div
+            className="ag-theme-alpine nhi-compact-grid"
+            style={{ ["--ag-font-size" ]: "12px", ["--ag-header-font-size" ]: "12px" } as any}
+          >
+            <AgGridReact
+              rowData={filtered}
+              columnDefs={columnDefs}
+              defaultColDef={defaultColDef}
+              pagination={true}
+              paginationPageSize={25}
+              paginationPageSizeSelector={[10, 25, 50, 100]}
+              domLayout="autoHeight"
+              rowHeight={36}
+              headerHeight={32}
+            />
           </div>
         )}
       </section>

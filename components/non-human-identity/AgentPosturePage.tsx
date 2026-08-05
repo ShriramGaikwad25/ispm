@@ -25,21 +25,14 @@ import {
   parseAgentPostureListRows,
   type NhiAgentRow,
 } from "@/lib/nhi-agents";
+import "@/lib/ag-grid-setup";
+import type { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 
-const FILTER_ALL = "all" as const;
+const AgGridReact = dynamic(
+  () => import("ag-grid-react").then((mod) => mod.AgGridReact),
+  { ssr: false }
+);
 
-function displayCell(v: string | undefined): string {
-  const s = (v ?? "").trim();
-  return s.length ? s : "—";
-}
-
-function uniqueSortedOptions(rows: NhiAgentRow[], key: keyof NhiAgentRow): string[] {
-  const set = new Set<string>();
-  for (const r of rows) {
-    set.add(displayCell(r[key] as string | undefined));
-  }
-  return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
-}
 
 ChartJS.register(
   ArcElement,
@@ -84,13 +77,6 @@ export function AgentPosturePage() {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [agentNameSearch, setAgentNameSearch] = useState("");
-  const [interfaceTypeFilter, setInterfaceTypeFilter] = useState<string>(FILTER_ALL);
-  const [classificationFilter, setClassificationFilter] = useState<string>(FILTER_ALL);
-  const [platformFilter, setPlatformFilter] = useState<string>(FILTER_ALL);
-  const [environmentFilter, setEnvironmentFilter] = useState<string>(FILTER_ALL);
-  const [statusFilter, setStatusFilter] = useState<string>(FILTER_ALL);
-  const [businessOwnerFilter, setBusinessOwnerFilter] = useState<string>(FILTER_ALL);
-  const [page, setPage] = useState(1);
   const pageSize = 10;
 
   const load = useCallback(async () => {
@@ -192,73 +178,142 @@ export function AgentPosturePage() {
     };
   }, [topByActions]);
 
-  const filterOptions = useMemo(
-    () => ({
-      interfaceTypes: uniqueSortedOptions(agents, "interface_type"),
-      classifications: uniqueSortedOptions(agents, "identity_classification"),
-      platforms: uniqueSortedOptions(agents, "platform_name"),
-      environments: uniqueSortedOptions(agents, "environment_label"),
-      statuses: uniqueSortedOptions(agents, "identity_state"),
-      owners: uniqueSortedOptions(agents, "business_owner_name"),
-    }),
-    [agents]
+  const filtered = useMemo(() => {
+    if (!agentNameSearch.trim()) return agents;
+    const q = agentNameSearch.trim().toLowerCase();
+    return agents.filter((a) => (a.agent_name ?? "").toLowerCase().includes(q));
+  }, [agents, agentNameSearch]);
+
+  const columnDefs = useMemo<ColDef[]>(
+    () => [
+      {
+        headerName: "Agent",
+        field: "agent_name",
+        minWidth: 120,
+        cellRenderer: (params: ICellRendererParams<NhiAgentRow>) => (
+          <span className="block max-w-[200px] truncate font-medium text-slate-900">
+            {params.data?.agent_name ?? "—"}
+          </span>
+        ),
+      },
+      {
+        headerName: "Vendor",
+        field: "vendor",
+        valueFormatter: (params) => params.value ?? "—",
+      },
+      {
+        headerName: "Model",
+        field: "model_name",
+        cellRenderer: (params: ICellRendererParams<NhiAgentRow>) => (
+          <span className="block max-w-[140px] truncate">
+            {params.data?.model_name ?? "—"}
+          </span>
+        ),
+      },
+      {
+        headerName: "Version",
+        field: "model_version",
+        cellRenderer: (params: ICellRendererParams<NhiAgentRow>) => (
+          <span className="block max-w-[100px] truncate">
+            {params.data?.model_version ?? "—"}
+          </span>
+        ),
+      },
+      {
+        headerName: "Eval",
+        field: "evaluation_score",
+        valueFormatter: (params) =>
+          params.value != null
+            ? (Math.round(params.value * 10) / 10).toFixed(1)
+            : "—",
+      },
+      {
+        headerName: "Tools",
+        field: "tools_enabled",
+        valueFormatter: (params) => params.value ?? "—",
+      },
+      {
+        headerName: "Delegations",
+        field: "active_delegations",
+        minWidth: 115,
+        valueFormatter: (params) => params.value ?? "—",
+      },
+      {
+        headerName: "Actions 24h",
+        field: "actions_last_24h",
+        minWidth: 115,
+        valueFormatter: (params) => params.value ?? "—",
+      },
+      {
+        headerName: "Denied 24h",
+        field: "denied_last_24h",
+        minWidth: 115,
+        valueFormatter: (params) => params.value ?? "—",
+      },
+      {
+        headerName: "Hallucin. 7d",
+        field: "hallucinations_last_7d",
+        minWidth: 120,
+        valueFormatter: (params) => params.value ?? "—",
+      },
+      {
+        headerName: "Lat ms",
+        field: "avg_latency_ms_24h",
+        minWidth: 95,
+        valueFormatter: (params) => params.value ?? "—",
+      },
+      {
+        headerName: "Tokens 24h",
+        field: "tokens_last_24h",
+        minWidth: 115,
+        valueFormatter: (params) => params.value ?? "—",
+      },
+      {
+        headerName: "$ 24h",
+        field: "cost_usd_24h",
+        minWidth: 90,
+        cellRenderer: (params: ICellRendererParams<NhiAgentRow>) =>
+          formatUsd(params.data?.cost_usd_24h),
+      },
+      {
+        headerName: "View",
+        sortable: false,
+        filter: false,
+        flex: 0,
+        width: 80,
+        cellRenderer: (params: ICellRendererParams<NhiAgentRow>) => {
+          const a = params.data;
+          return a?.nhi_id ? (
+            <Link
+              href={`/non-human-identity/ai-agent-inventory/${encodeURIComponent(a.nhi_id)}`}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+              title="View agent details"
+              aria-label={`View details for ${a.agent_name ?? "agent"}`}
+            >
+              <Eye className="h-4 w-4" aria-hidden />
+            </Link>
+          ) : (
+            <span className="text-slate-300">—</span>
+          );
+        },
+      },
+    ],
+    []
   );
 
-  const filtered = useMemo(() => {
-    return agents.filter((a) => {
-      if (agentNameSearch.trim()) {
-        const q = agentNameSearch.trim().toLowerCase();
-        if (!(a.agent_name ?? "").toLowerCase().includes(q)) return false;
-      }
-      if (interfaceTypeFilter !== FILTER_ALL && displayCell(a.interface_type) !== interfaceTypeFilter) {
-        return false;
-      }
-      if (classificationFilter !== FILTER_ALL && displayCell(a.identity_classification) !== classificationFilter) {
-        return false;
-      }
-      if (platformFilter !== FILTER_ALL && displayCell(a.platform_name) !== platformFilter) {
-        return false;
-      }
-      if (environmentFilter !== FILTER_ALL && displayCell(a.environment_label) !== environmentFilter) {
-        return false;
-      }
-      if (statusFilter !== FILTER_ALL && displayCell(a.identity_state) !== statusFilter) {
-        return false;
-      }
-      if (businessOwnerFilter !== FILTER_ALL && displayCell(a.business_owner_name) !== businessOwnerFilter) {
-        return false;
-      }
-      return true;
-    });
-  }, [
-    agents,
-    agentNameSearch,
-    interfaceTypeFilter,
-    classificationFilter,
-    platformFilter,
-    environmentFilter,
-    statusFilter,
-    businessOwnerFilter,
-  ]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [
-    agentNameSearch,
-    interfaceTypeFilter,
-    classificationFilter,
-    platformFilter,
-    environmentFilter,
-    statusFilter,
-    businessOwnerFilter,
-  ]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const pageSafe = Math.min(page, totalPages);
-  const pageRows = useMemo(() => {
-    const start = (pageSafe - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, pageSafe]);
+  const defaultColDef = useMemo<ColDef>(
+    () => ({
+      sortable: true,
+      filter: false,
+      flex: 1,
+      minWidth: 90,
+      resizable: true,
+      wrapHeaderText: false,
+      autoHeaderHeight: false,
+      suppressHeaderMenuButton: true,
+    }),
+    []
+  );
 
   return (
     <div className="w-full min-w-0 space-y-6 pb-6">
@@ -427,12 +482,12 @@ export function AgentPosturePage() {
                 All agents
               </h2>
               <p className="mt-0.5 text-xs text-slate-500">
-                Filter by agent name and attributes (same pattern as Rotation Policy).
+                Search by agent name.
               </p>
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-4 max-w-sm">
             <div className="min-w-0">
               <label htmlFor="agent-inv-name" className="text-sm font-medium text-gray-700">
                 Agent name
@@ -452,229 +507,24 @@ export function AgentPosturePage() {
                 />
               </div>
             </div>
-            <div className="min-w-0">
-              <label htmlFor="agent-inv-interface" className="text-sm font-medium text-gray-700">
-                Interface type
-              </label>
-              <select
-                id="agent-inv-interface"
-                value={interfaceTypeFilter}
-                onChange={(e) => setInterfaceTypeFilter(e.target.value)}
-                className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-              >
-                <option value={FILTER_ALL}>All</option>
-                {filterOptions.interfaceTypes.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="min-w-0">
-              <label htmlFor="agent-inv-classification" className="text-sm font-medium text-gray-700">
-                Classification
-              </label>
-              <select
-                id="agent-inv-classification"
-                value={classificationFilter}
-                onChange={(e) => setClassificationFilter(e.target.value)}
-                className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-              >
-                <option value={FILTER_ALL}>All</option>
-                {filterOptions.classifications.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="min-w-0">
-              <label htmlFor="agent-inv-platform" className="text-sm font-medium text-gray-700">
-                Platform
-              </label>
-              <select
-                id="agent-inv-platform"
-                value={platformFilter}
-                onChange={(e) => setPlatformFilter(e.target.value)}
-                className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-              >
-                <option value={FILTER_ALL}>All</option>
-                {filterOptions.platforms.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="min-w-0">
-              <label htmlFor="agent-inv-env" className="text-sm font-medium text-gray-700">
-                Environment
-              </label>
-              <select
-                id="agent-inv-env"
-                value={environmentFilter}
-                onChange={(e) => setEnvironmentFilter(e.target.value)}
-                className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-              >
-                <option value={FILTER_ALL}>All</option>
-                {filterOptions.environments.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="min-w-0">
-              <label htmlFor="agent-inv-status" className="text-sm font-medium text-gray-700">
-                Status
-              </label>
-              <select
-                id="agent-inv-status"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-              >
-                <option value={FILTER_ALL}>All</option>
-                {filterOptions.statuses.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="min-w-0">
-              <label htmlFor="agent-inv-owner" className="text-sm font-medium text-gray-700">
-                Business owner
-              </label>
-              <select
-                id="agent-inv-owner"
-                value={businessOwnerFilter}
-                onChange={(e) => setBusinessOwnerFilter(e.target.value)}
-                className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-              >
-                <option value={FILTER_ALL}>All</option>
-                {filterOptions.owners.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1100px] text-left text-xs">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
-                <th className="whitespace-nowrap px-3 py-2.5">Agent</th>
-                <th className="whitespace-nowrap px-3 py-2.5">Vendor</th>
-                <th className="whitespace-nowrap px-3 py-2.5">Model</th>
-                <th className="whitespace-nowrap px-3 py-2.5">Version</th>
-                <th className="whitespace-nowrap px-3 py-2.5">Eval</th>
-                <th className="whitespace-nowrap px-3 py-2.5">Tools</th>
-                <th className="whitespace-nowrap px-3 py-2.5">Delegations</th>
-                <th className="whitespace-nowrap px-3 py-2.5">Actions 24h</th>
-                <th className="whitespace-nowrap px-3 py-2.5">Denied 24h</th>
-                <th className="whitespace-nowrap px-3 py-2.5">Hallucin. 7d</th>
-                <th className="whitespace-nowrap px-3 py-2.5">Lat ms</th>
-                <th className="whitespace-nowrap px-3 py-2.5">Tokens 24h</th>
-                <th className="whitespace-nowrap px-3 py-2.5">$ 24h</th>
-                <th className="whitespace-nowrap px-3 py-2.5 text-center w-14">View</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pageRows.map((a, idx) => (
-                <tr
-                  key={a.nhi_id ?? `${a.agent_name}-${idx}`}
-                  className="border-b border-gray-50 hover:bg-slate-50/80"
-                >
-                  <td className="max-w-[200px] truncate px-3 py-2 font-medium text-slate-900">
-                    {a.agent_name ?? "—"}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-slate-700">
-                    {a.vendor ?? "—"}
-                  </td>
-                  <td className="max-w-[140px] truncate px-3 py-2 text-slate-700">
-                    {a.model_name ?? "—"}
-                  </td>
-                  <td className="max-w-[100px] truncate px-3 py-2 text-slate-600">
-                    {a.model_version ?? "—"}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 tabular-nums text-slate-800">
-                    {a.evaluation_score != null
-                      ? (Math.round(a.evaluation_score * 10) / 10).toFixed(1)
-                      : "—"}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 tabular-nums">
-                    {a.tools_enabled ?? "—"}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 tabular-nums">
-                    {a.active_delegations ?? "—"}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 tabular-nums">
-                    {a.actions_last_24h ?? "—"}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 tabular-nums">
-                    {a.denied_last_24h ?? "—"}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 tabular-nums">
-                    {a.hallucinations_last_7d ?? "—"}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 tabular-nums text-slate-700">
-                    {a.avg_latency_ms_24h ?? "—"}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 tabular-nums text-slate-700">
-                    {a.tokens_last_24h ?? "—"}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 tabular-nums text-slate-800">
-                    {formatUsd(a.cost_usd_24h)}
-                  </td>
-                  <td className="px-2 py-2 text-center">
-                    {a.nhi_id ? (
-                      <Link
-                        href={`/non-human-identity/ai-agent-inventory/${encodeURIComponent(a.nhi_id)}`}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
-                        title="View agent details"
-                        aria-label={`View details for ${a.agent_name ?? "agent"}`}
-                      >
-                        <Eye className="h-4 w-4" aria-hidden />
-                      </Link>
-                    ) : (
-                      <span className="text-slate-300">—</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div
+            className="ag-theme-alpine"
+            style={{ ["--ag-font-size" ]: "12px", ["--ag-header-font-size" ]: "12px" } as any}
+          >
+          <AgGridReact
+            rowData={filtered}
+            columnDefs={columnDefs}
+            defaultColDef={defaultColDef}
+            pagination={true}
+            paginationPageSize={pageSize}
+            paginationPageSizeSelector={[10, 25, 50, 100]}
+            domLayout="autoHeight"
+            rowHeight={36}
+            headerHeight={32}
+          />
         </div>
-        {filtered.length > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 px-4 py-3 text-xs text-slate-600">
-            <span>
-              {filtered.length} rows · page {pageSafe} / {totalPages}
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={pageSafe <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium hover:bg-gray-50 disabled:opacity-40"
-              >
-                Previous
-              </button>
-              <button
-                type="button"
-                disabled={pageSafe >= totalPages}
-                onClick={() =>
-                  setPage((p) => Math.min(totalPages, p + 1))
-                }
-                className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium hover:bg-gray-50 disabled:opacity-40"
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

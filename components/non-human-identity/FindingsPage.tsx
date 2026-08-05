@@ -11,9 +11,14 @@ import {
   Tooltip,
 } from "chart.js";
 import { runNhiRows, type NhiApiMode } from "@/lib/nhi-v2-query";
+import "@/lib/ag-grid-setup";
+import type { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 const Bar = dynamic(() => import("react-chartjs-2").then((m) => m.Bar), { ssr: false });
+const AgGridReact = dynamic(() => import("ag-grid-react").then((mod) => mod.AgGridReact), {
+  ssr: false,
+});
 
 const TENANT_ID = "a0000000-0000-0000-0000-000000000001";
 
@@ -126,8 +131,6 @@ export function FindingsPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -189,16 +192,104 @@ export function FindingsPage({
     );
   }, [rows, search]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [status, search, pageSize]);
+  const columnDefs = useMemo<ColDef[]>(
+    () => [
+      {
+        headerName: "Title",
+        field: "title",
+        cellRenderer: (params: ICellRendererParams<FindingRow>) => (
+          <span>{params.data?.title || "—"}</span>
+        ),
+      },
+      {
+        headerName: "Source",
+        field: "source",
+        cellRenderer: (params: ICellRendererParams<FindingRow>) => (
+          <span>{params.data?.source || "—"}</span>
+        ),
+      },
+      {
+        headerName: "Severity",
+        field: "severity",
+        cellRenderer: (params: ICellRendererParams<FindingRow>) => {
+          const r = params.data;
+          if (!r) return "—";
+          return (
+            <span className={`rounded-full border px-2 py-0.5 text-xs ${toneForSeverity(r.severity)}`}>
+              {r.severity || "—"}
+            </span>
+          );
+        },
+      },
+      {
+        headerName: "Status",
+        field: "status",
+        cellRenderer: (params: ICellRendererParams<FindingRow>) => {
+          const r = params.data;
+          if (!r) return "—";
+          return (
+            <span className={`rounded-full border px-2 py-0.5 text-xs ${toneForStatus(r.status)}`}>
+              {r.status || "—"}
+            </span>
+          );
+        },
+      },
+      {
+        headerName: "Priority",
+        field: "priority_score",
+        cellRenderer: (params: ICellRendererParams<FindingRow>) => {
+          const r = params.data;
+          return <span>{r?.priority_score != null ? r.priority_score.toFixed(1) : "—"}</span>;
+        },
+      },
+      {
+        headerName: "Identity",
+        field: "nhi_name",
+        cellRenderer: (params: ICellRendererParams<FindingRow>) => (
+          <span>{params.data?.nhi_name || "—"}</span>
+        ),
+      },
+      {
+        headerName: "SLA",
+        field: "sla_breached",
+        cellRenderer: (params: ICellRendererParams<FindingRow>) => {
+          const r = params.data;
+          if (!r) return "—";
+          return r.sla_breached ? (
+            <span className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs text-red-700">
+              breached
+            </span>
+          ) : (
+            <span>ok</span>
+          );
+        },
+      },
+      {
+        headerName: "Detected",
+        field: "detected_at",
+        cellRenderer: (params: ICellRendererParams<FindingRow>) => {
+          const r = params.data;
+          return <span>{r?.detected_at ? new Date(r.detected_at).toLocaleString() : "—"}</span>;
+        },
+      },
+      {
+        headerName: "Due",
+        field: "sla_due_at",
+        cellRenderer: (params: ICellRendererParams<FindingRow>) => {
+          const r = params.data;
+          return <span>{r?.sla_due_at ? new Date(r.sla_due_at).toLocaleDateString() : "—"}</span>;
+        },
+      },
+    ],
+    []
+  );
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const pageSafe = Math.min(page, totalPages);
-  const pageRows = useMemo(() => {
-    const start = (pageSafe - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, pageSafe, pageSize]);
+  const defaultColDef = useMemo<ColDef>(
+    () => ({ sortable: true, filter: false,
+      flex: 1,
+      minWidth: 100, resizable: true, wrapHeaderText: true, autoHeaderHeight: true, }),
+    []
+  );
 
   const showLocalToolbar = !suppressPageHeader || !controlled;
 
@@ -291,94 +382,27 @@ export function FindingsPage({
               placeholder={`Search ${rows.length} rows...`}
               className="w-56 rounded border border-slate-300 px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
             />
-            <select
-              value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value))}
-              className="rounded border border-slate-300 px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
-              aria-label="Rows per page"
-            >
-              <option value={10}>10 / page</option>
-              <option value={25}>25 / page</option>
-              <option value={50}>50 / page</option>
-              <option value={100}>100 / page</option>
-            </select>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1150px] text-left text-xs">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
-                <th className="px-2 py-2">Title</th>
-                <th className="px-2 py-2">Source</th>
-                <th className="px-2 py-2">Severity</th>
-                <th className="px-2 py-2">Status</th>
-                <th className="px-2 py-2">Priority</th>
-                <th className="px-2 py-2">Identity</th>
-                <th className="px-2 py-2">SLA</th>
-                <th className="px-2 py-2">Detected</th>
-                <th className="px-2 py-2">Due</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pageRows.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="px-2 py-3 text-slate-500">
-                    No findings.
-                  </td>
-                </tr>
-              ) : (
-                pageRows.map((r) => (
-                  <tr key={r.finding_id || `${r.title}-${r.detected_at}`} className="border-b border-gray-50 hover:bg-slate-50/70">
-                    <td className="px-2 py-2 text-slate-700">{r.title || "—"}</td>
-                    <td className="px-2 py-2 text-slate-700">{r.source || "—"}</td>
-                    <td className="px-2 py-2">
-                      <span className={`rounded-full border px-2 py-0.5 text-xs ${toneForSeverity(r.severity)}`}>{r.severity || "—"}</span>
-                    </td>
-                    <td className="px-2 py-2">
-                      <span className={`rounded-full border px-2 py-0.5 text-xs ${toneForStatus(r.status)}`}>{r.status || "—"}</span>
-                    </td>
-                    <td className="px-2 py-2 text-slate-700">{r.priority_score != null ? r.priority_score.toFixed(1) : "—"}</td>
-                    <td className="px-2 py-2 text-slate-700">{r.nhi_name || "—"}</td>
-                    <td className="px-2 py-2">
-                      {r.sla_breached ? (
-                        <span className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs text-red-700">breached</span>
-                      ) : (
-                        "ok"
-                      )}
-                    </td>
-                    <td className="px-2 py-2 text-slate-700">{r.detected_at ? new Date(r.detected_at).toLocaleString() : "—"}</td>
-                    <td className="px-2 py-2 text-slate-700">{r.sla_due_at ? new Date(r.sla_due_at).toLocaleDateString() : "—"}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {filtered.length > 0 && (
-          <div className="mt-2 flex items-center justify-between border-t border-gray-100 pt-2 text-xs text-slate-600">
-            <span>
-              {filtered.length} rows · page {pageSafe} / {totalPages}
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={pageSafe <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="rounded border border-slate-300 bg-white px-2 py-1 hover:bg-slate-50 disabled:opacity-40"
-              >
-                Prev
-              </button>
-              <button
-                type="button"
-                disabled={pageSafe >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className="rounded border border-slate-300 bg-white px-2 py-1 hover:bg-slate-50 disabled:opacity-40"
-              >
-                Next
-              </button>
-            </div>
+        {filtered.length === 0 ? (
+          <div className="px-2 py-3 text-xs text-slate-500">No findings.</div>
+        ) : (
+          <div
+            className="ag-theme-alpine nhi-compact-grid"
+            style={{ ["--ag-font-size" ]: "12px", ["--ag-header-font-size" ]: "12px" } as any}
+          >
+            <AgGridReact
+              rowData={filtered}
+              columnDefs={columnDefs}
+              defaultColDef={defaultColDef}
+              pagination={true}
+              paginationPageSize={25}
+              paginationPageSizeSelector={[10, 25, 50, 100]}
+              domLayout="autoHeight"
+              rowHeight={36}
+              headerHeight={32}
+            />
           </div>
         )}
       </section>

@@ -153,6 +153,21 @@ div[role="row"]:not(.ag-header-row) {
   color: #1759e4 !important;
 }
 
+/* Non Human Identity grids: always show the full column name, wrap instead of truncating */
+.nhi-compact-grid .ag-header-cell-text {
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
+  line-height: 1.25;
+  text-align: center;
+}
+.nhi-compact-grid .ag-header-cell-label {
+  justify-content: center;
+}
+.nhi-compact-grid .ag-cell {
+  font-size: 12px;
+}
+
 .account-table-detail,
 .entitlement-table-detail {
   .ag-root-wrapper {

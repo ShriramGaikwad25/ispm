@@ -1,6 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
+const AgGridReact = dynamic(() => import("ag-grid-react").then((mod) => mod.AgGridReact), { ssr: false });
+import "@/lib/ag-grid-setup";
+import type { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 import { runNhiRows, runNhiScalar, type NhiApiMode } from "@/lib/nhi-v2-query";
 import { RotateCw } from "lucide-react";
 
@@ -46,8 +50,6 @@ export function LookupCatalogPage({ apiMode = "legacy" }: { apiMode?: NhiApiMode
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
 
   const [form, setForm] = useState({
     code: "",
@@ -150,7 +152,7 @@ export function LookupCatalogPage({ apiMode = "legacy" }: { apiMode?: NhiApiMode
     }
   };
 
-  const toggle = async (row: LookupRow) => {
+  const toggle = useCallback(async (row: LookupRow) => {
     setBusy(true);
     setError(null);
     try {
@@ -168,7 +170,7 @@ export function LookupCatalogPage({ apiMode = "legacy" }: { apiMode?: NhiApiMode
     } finally {
       setBusy(false);
     }
-  };
+  }, [apiMode, loadCategory]);
 
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -178,16 +180,78 @@ export function LookupCatalogPage({ apiMode = "legacy" }: { apiMode?: NhiApiMode
     );
   }, [rows, search]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [search, pageSize, cat]);
+  const columnDefs = useMemo<ColDef[]>(
+    () => [
+      {
+        headerName: "Code",
+        field: "code",
+        cellRenderer: (params: ICellRendererParams<LookupRow>) => params.data?.code || "—",
+      },
+      {
+        headerName: "Label",
+        field: "label",
+        cellRenderer: (params: ICellRendererParams<LookupRow>) => params.data?.label || "—",
+      },
+      {
+        headerName: "Color",
+        field: "color_hex",
+        cellRenderer: (params: ICellRendererParams<LookupRow>) => {
+          const colorHex = params.data?.color_hex;
+          if (!colorHex) return "—";
+          return (
+            <span className="inline-flex items-center gap-2">
+              <span
+                className="inline-block h-3 w-3 rounded border border-slate-300"
+                style={{ backgroundColor: colorHex }}
+              />
+              {colorHex}
+            </span>
+          );
+        },
+      },
+      {
+        headerName: "Order",
+        field: "sort_order",
+      },
+      {
+        headerName: "System",
+        cellRenderer: (params: ICellRendererParams<LookupRow>) => (params.data?.is_system ? "✓" : ""),
+      },
+      {
+        headerName: "Active",
+        sortable: false,
+        filter: false,
+        flex: 0,
+        width: 110,
+        cellRenderer: (params: ICellRendererParams<LookupRow>) => {
+          const r = params.data;
+          if (!r) return null;
+          return (
+            <button
+              type="button"
+              className="rounded border border-slate-300 bg-white px-2 py-1 text-xs hover:bg-slate-50 disabled:opacity-50"
+              onClick={() => void toggle(r)}
+              disabled={busy}
+            >
+              {r.is_active ? "✓ active" : "— inactive"}
+            </button>
+          );
+        },
+      },
+    ],
+    [busy, toggle]
+  );
 
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
-  const pageSafe = Math.min(page, totalPages);
-  const pageRows = useMemo(() => {
-    const start = (pageSafe - 1) * pageSize;
-    return filteredRows.slice(start, start + pageSize);
-  }, [filteredRows, pageSafe, pageSize]);
+  const defaultColDef = useMemo<ColDef>(
+    () => ({
+      sortable: true,
+      filter: false,
+      flex: 1,
+      minWidth: 100,
+      resizable: true, wrapHeaderText: true, autoHeaderHeight: true,
+    }),
+    []
+  );
 
   if (loading) return <div className="p-6 text-sm text-slate-500">Loading lookup catalog…</div>;
 
@@ -282,97 +346,32 @@ export function LookupCatalogPage({ apiMode = "legacy" }: { apiMode?: NhiApiMode
               placeholder={`Search ${rows.length} rows...`}
               className="w-56 rounded border border-slate-300 px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
             />
-            <select
-              value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value))}
-              className="rounded border border-slate-300 px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
-              aria-label="Rows per page"
-            >
-              <option value={10}>10 / page</option>
-              <option value={25}>25 / page</option>
-              <option value={50}>50 / page</option>
-              <option value={100}>100 / page</option>
-            </select>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[780px] text-left text-xs">
-              <thead>
-                <tr className="border-b border-gray-100 bg-gray-50 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
-                  <th className="px-2 py-2">Code</th>
-                  <th className="px-2 py-2">Label</th>
-                  <th className="px-2 py-2">Color</th>
-                  <th className="px-2 py-2">Order</th>
-                  <th className="px-2 py-2">System</th>
-                  <th className="px-2 py-2">Active</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pageRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-2 py-3 text-slate-500">
-                      No lookup values.
-                    </td>
-                  </tr>
-                ) : (
-                  pageRows.map((r) => (
-                    <tr key={r.lookup_id || `${r.category}-${r.code}`} className="border-b border-gray-50 hover:bg-slate-50/70">
-                      <td className="px-2 py-2 text-slate-700">{r.code || "—"}</td>
-                      <td className="px-2 py-2 text-slate-700">{r.label || "—"}</td>
-                      <td className="px-2 py-2 text-slate-700">
-                        {r.color_hex ? (
-                          <span className="inline-flex items-center gap-2">
-                            <span className="inline-block h-3 w-3 rounded border border-slate-300" style={{ backgroundColor: r.color_hex }} />
-                            {r.color_hex}
-                          </span>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td className="px-2 py-2 text-slate-700">{r.sort_order}</td>
-                      <td className="px-2 py-2 text-slate-700">{r.is_system ? "✓" : ""}</td>
-                      <td className="px-2 py-2">
-                        <button
-                          type="button"
-                          className="rounded border border-slate-300 bg-white px-2 py-1 text-xs hover:bg-slate-50 disabled:opacity-50"
-                          onClick={() => void toggle(r)}
-                          disabled={busy}
-                        >
-                          {r.is_active ? "✓ active" : "— inactive"}
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {filteredRows.length > 0 && (
-            <div className="mt-2 flex items-center justify-between border-t border-gray-100 pt-2 text-xs text-slate-600">
-              <span>
-                {filteredRows.length} rows · page {pageSafe} / {totalPages}
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={pageSafe <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  className="rounded border border-slate-300 bg-white px-2 py-1 hover:bg-slate-50 disabled:opacity-40"
-                >
-                  Prev
-                </button>
-                <button
-                  type="button"
-                  disabled={pageSafe >= totalPages}
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  className="rounded border border-slate-300 bg-white px-2 py-1 hover:bg-slate-50 disabled:opacity-40"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
+          {filteredRows.length === 0 && (
+            <div className="px-2 py-3 text-xs text-slate-500">No lookup values.</div>
           )}
+
+          <div
+            className="ag-theme-alpine nhi-compact-grid"
+            style={{ ["--ag-font-size" ]: "12px", ["--ag-header-font-size" ]: "12px" } as any}
+          >
+            <AgGridReact
+              rowData={filteredRows}
+              columnDefs={columnDefs}
+              defaultColDef={defaultColDef}
+              getRowId={(params) => {
+                const data = params.data as LookupRow;
+                return data.lookup_id || `${data.category}-${data.code}`;
+              }}
+              pagination={true}
+              paginationPageSize={25}
+              paginationPageSizeSelector={[10, 25, 50, 100]}
+              domLayout="autoHeight"
+              rowHeight={36}
+              headerHeight={32}
+            />
+          </div>
         </div>
       </section>
     </div>

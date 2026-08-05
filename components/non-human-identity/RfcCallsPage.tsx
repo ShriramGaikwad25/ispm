@@ -12,10 +12,13 @@ import {
   Tooltip,
 } from "chart.js";
 import { runNhiRows, type NhiApiMode } from "@/lib/nhi-v2-query";
+import "@/lib/ag-grid-setup";
+import type { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 const Bar = dynamic(() => import("react-chartjs-2").then((m) => m.Bar), { ssr: false });
 const Doughnut = dynamic(() => import("react-chartjs-2").then((m) => m.Doughnut), { ssr: false });
+const AgGridReact = dynamic(() => import("ag-grid-react").then((mod) => mod.AgGridReact), { ssr: false });
 
 const TENANT_ID = "a0000000-0000-0000-0000-000000000001";
 const PALETTE = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#06b6d4", "#a855f7", "#14b8a6", "#f472b6"];
@@ -49,8 +52,6 @@ export function RfcCallsPage({ apiMode = "legacy" }: { apiMode?: NhiApiMode } = 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [traceSearch, setTraceSearch] = useState("");
-  const [tracePage, setTracePage] = useState(1);
-  const [tracePageSize, setTracePageSize] = useState(25);
 
   const loadCalls = useCallback(async (agentNhiId: string) => {
     if (!agentNhiId || agentNhiId === "undefined") {
@@ -210,16 +211,80 @@ export function RfcCallsPage({ apiMode = "legacy" }: { apiMode?: NhiApiMode } = 
     });
   }, [calls, traceSearch, commMap]);
 
-  useEffect(() => {
-    setTracePage(1);
-  }, [traceSearch, tracePageSize, sel]);
+  const columnDefs = useMemo<ColDef[]>(
+    () => [
+      {
+        headerName: "When",
+        cellRenderer: (params: ICellRendererParams<Row>) => {
+          const c = params.data as Row;
+          return <>{text(c.occurred_at) ? new Date(text(c.occurred_at)).toLocaleString() : "—"}</>;
+        },
+      },
+      {
+        headerName: "RFC / BAPI",
+        cellRenderer: (params: ICellRendererParams<Row>) => {
+          const c = params.data as Row;
+          return <span className="font-mono text-[11px] text-slate-700">{text(c.rfc_name) || "—"}</span>;
+        },
+      },
+      {
+        headerName: "Intent",
+        cellRenderer: (params: ICellRendererParams<Row>) => {
+          const c = params.data as Row;
+          return <>{text(c.intent) || "—"}</>;
+        },
+      },
+      {
+        headerName: "Comm user",
+        cellRenderer: (params: ICellRendererParams<Row>) => {
+          const c = params.data as Row;
+          const commId = text(c.comm_user_nhi_id);
+          return <>{text(c.comm_user_name) || text(commMap[commId]?.name) || "—"}</>;
+        },
+      },
+      {
+        headerName: "Outcome",
+        cellRenderer: (params: ICellRendererParams<Row>) => {
+          const c = params.data as Row;
+          return <OutcomeBadge value={text(c.outcome)} />;
+        },
+      },
+      {
+        headerName: "Amount",
+        cellRenderer: (params: ICellRendererParams<Row>) => {
+          const c = params.data as Row;
+          return <>{c.amount != null ? `${num(c.amount).toLocaleString()} ${text(c.currency)}`.trim() : "—"}</>;
+        },
+      },
+      {
+        headerName: "Latency",
+        cellRenderer: (params: ICellRendererParams<Row>) => {
+          const c = params.data as Row;
+          return <>{c.latency_ms != null ? `${num(c.latency_ms)} ms` : "—"}</>;
+        },
+      },
+      {
+        headerName: "HITL",
+        cellRenderer: (params: ICellRendererParams<Row>) => {
+          const c = params.data as Row;
+          return <>{asHitl(c)}</>;
+        },
+      },
+      {
+        headerName: "Correlation",
+        cellRenderer: (params: ICellRendererParams<Row>) => {
+          const c = params.data as Row;
+          const corr = text(c.correlation_id);
+          return <span className="font-mono text-[11px] text-slate-700">{corr ? `${corr.slice(0, 8)}…` : "—"}</span>;
+        },
+      },
+    ],
+    [commMap]
+  );
 
-  const traceTotalPages = Math.max(1, Math.ceil(filteredTraceCalls.length / tracePageSize));
-  const tracePageSafe = Math.min(tracePage, traceTotalPages);
-  const traceRows = useMemo(() => {
-    const start = (tracePageSafe - 1) * tracePageSize;
-    return filteredTraceCalls.slice(start, start + tracePageSize);
-  }, [filteredTraceCalls, tracePageSafe, tracePageSize]);
+  const defaultColDef = useMemo<ColDef>(() => ({ sortable: true, filter: false,
+      flex: 1,
+      minWidth: 100, resizable: true, wrapHeaderText: true, autoHeaderHeight: true, }), []);
 
   return (
     <div className="w-full space-y-4 pb-8">
@@ -357,88 +422,24 @@ export function RfcCallsPage({ apiMode = "legacy" }: { apiMode?: NhiApiMode } = 
               placeholder={`Search ${calls.length} rows...`}
               className="w-60 rounded border border-slate-300 px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
             />
-            <select
-              value={tracePageSize}
-              onChange={(e) => setTracePageSize(Number(e.target.value))}
-              className="rounded border border-slate-300 px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
-              aria-label="Rows per page"
-            >
-              <option value={10}>10 / page</option>
-              <option value={25}>25 / page</option>
-              <option value={50}>50 / page</option>
-              <option value={100}>100 / page</option>
-            </select>
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1100px] text-left text-xs">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
-                <th className="px-2 py-2">When</th>
-                <th className="px-2 py-2">RFC / BAPI</th>
-                <th className="px-2 py-2">Intent</th>
-                <th className="px-2 py-2">Comm user</th>
-                <th className="px-2 py-2">Outcome</th>
-                <th className="px-2 py-2">Amount</th>
-                <th className="px-2 py-2">Latency</th>
-                <th className="px-2 py-2">HITL</th>
-                <th className="px-2 py-2">Correlation</th>
-              </tr>
-            </thead>
-            <tbody>
-              {traceRows.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="px-2 py-3 text-slate-500">
-                    No RFC calls yet for this agent.
-                  </td>
-                </tr>
-              ) : (
-                traceRows.map((c) => {
-                  const corr = text(c.correlation_id);
-                  const commId = text(c.comm_user_nhi_id);
-                  return (
-                    <tr key={text(c.action_id) || `${text(c.occurred_at)}-${corr}`} className="border-b border-gray-50 hover:bg-slate-50/70">
-                      <td className="px-2 py-2 text-slate-700">{text(c.occurred_at) ? new Date(text(c.occurred_at)).toLocaleString() : "—"}</td>
-                      <td className="px-2 py-2 font-mono text-[11px] text-slate-700">{text(c.rfc_name) || "—"}</td>
-                      <td className="px-2 py-2 text-slate-700">{text(c.intent) || "—"}</td>
-                      <td className="px-2 py-2 text-slate-700">{text(c.comm_user_name) || text(commMap[commId]?.name) || "—"}</td>
-                      <td className="px-2 py-2"><OutcomeBadge value={text(c.outcome)} /></td>
-                      <td className="px-2 py-2 text-slate-700">{c.amount != null ? `${num(c.amount).toLocaleString()} ${text(c.currency)}`.trim() : "—"}</td>
-                      <td className="px-2 py-2 text-slate-700">{c.latency_ms != null ? `${num(c.latency_ms)} ms` : "—"}</td>
-                      <td className="px-2 py-2 text-slate-700">{asHitl(c)}</td>
-                      <td className="px-2 py-2 font-mono text-[11px] text-slate-700">{corr ? `${corr.slice(0, 8)}…` : "—"}</td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+        <div
+            className="ag-theme-alpine nhi-compact-grid"
+            style={{ ["--ag-font-size" ]: "12px", ["--ag-header-font-size" ]: "12px" } as any}
+          >
+          <AgGridReact
+            rowData={filteredTraceCalls}
+            columnDefs={columnDefs}
+            defaultColDef={defaultColDef}
+            pagination={true}
+            paginationPageSize={25}
+            paginationPageSizeSelector={[10, 25, 50, 100]}
+            domLayout="autoHeight"
+            rowHeight={36}
+            headerHeight={32}
+          />
         </div>
-        {filteredTraceCalls.length > 0 && (
-          <div className="mt-2 flex items-center justify-between border-t border-gray-100 pt-2 text-xs text-slate-600">
-            <span>
-              {filteredTraceCalls.length} rows · page {tracePageSafe} / {traceTotalPages}
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={tracePageSafe <= 1}
-                onClick={() => setTracePage((p) => Math.max(1, p - 1))}
-                className="rounded border border-slate-300 bg-white px-2 py-1 hover:bg-slate-50 disabled:opacity-40"
-              >
-                Prev
-              </button>
-              <button
-                type="button"
-                disabled={tracePageSafe >= traceTotalPages}
-                onClick={() => setTracePage((p) => Math.min(traceTotalPages, p + 1))}
-                className="rounded border border-slate-300 bg-white px-2 py-1 hover:bg-slate-50 disabled:opacity-40"
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        )}
       </section>
     </div>
   );

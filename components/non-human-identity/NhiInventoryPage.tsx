@@ -14,6 +14,8 @@ import {
 import Link from "next/link";
 import { Eye, Plus, RotateCw, Search } from "lucide-react";
 import { getNhiV2TenantId, nhiV2ExecuteQuery } from "@/lib/nhi-v2-api";
+import "@/lib/ag-grid-setup";
+import type { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
@@ -21,6 +23,9 @@ const Doughnut = dynamic(() => import("react-chartjs-2").then((m) => m.Doughnut)
   ssr: false,
 });
 const Bar = dynamic(() => import("react-chartjs-2").then((m) => m.Bar), {
+  ssr: false,
+});
+const AgGridReact = dynamic(() => import("ag-grid-react").then((mod) => mod.AgGridReact), {
   ssr: false,
 });
 
@@ -161,8 +166,6 @@ export function NhiInventoryPage() {
   const [ownerFilter, setOwnerFilter] = useState<string>(FILTER_ALL);
   const [riskFilter, setRiskFilter] = useState<string>(FILTER_ALL);
   const [statusFilter, setStatusFilter] = useState<string>(FILTER_ALL);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
 
   const load = useCallback(async () => {
     setError(null);
@@ -251,29 +254,78 @@ export function NhiInventoryPage() {
     statusFilter,
   ]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [
-    identityNameSearch,
-    nhiTypeFilter,
-    identityTypeFilter,
-    environmentFilter,
-    associatedSystemFilter,
-    ownerFilter,
-    riskFilter,
-    statusFilter,
-    pageSize,
-  ]);
+  const columnDefs = useMemo<ColDef[]>(
+    () => [
+      {
+        headerName: "Name",
+        field: "name",
+        cellRenderer: (params: ICellRendererParams<NhiIdentity>) => (
+          <span className="block max-w-[240px] truncate font-medium text-slate-900">
+            {params.data?.name}
+          </span>
+        ),
+      },
+      { headerName: "Type", field: "nhi_type" },
+      { headerName: "State", field: "state" },
+      { headerName: "Risk", field: "risk_level" },
+      { headerName: "Criticality", field: "criticality" },
+      { headerName: "Execution", field: "execution_type" },
+      {
+        headerName: "Owner",
+        field: "owner_name",
+        cellRenderer: (params: ICellRendererParams<NhiIdentity>) => (
+          <span
+            className="block max-w-[200px] truncate"
+            title={displayCell(params.data?.owner_name)}
+          >
+            {displayCell(params.data?.owner_name)}
+          </span>
+        ),
+      },
+      { headerName: "Source", field: "load_source" },
+      {
+        headerName: "Created",
+        field: "createddate",
+        cellRenderer: (params: ICellRendererParams<NhiIdentity>) => (
+          <span>{formatDate(params.data?.createddate ?? "—")}</span>
+        ),
+      },
+      {
+        headerName: "View",
+        sortable: false,
+        filter: false,
+        flex: 0,
+        width: 70,
+        cellRenderer: (params: ICellRendererParams<NhiIdentity>) => {
+          const r = params.data;
+          if (!r || !r.nhi_id || r.nhi_id === "—") {
+            return <span className="text-slate-300">—</span>;
+          }
+          return (
+            <Link
+              href={`/non-human-identity/nhi-inventory/${encodeURIComponent(r.nhi_id)}`}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+              title="View NHI details"
+              aria-label={`View details for ${r.name}`}
+            >
+              <Eye className="h-4 w-4" aria-hidden />
+            </Link>
+          );
+        },
+      },
+    ],
+    []
+  );
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const pageSafe = Math.min(page, totalPages);
-  const pageRows = useMemo(() => {
-    const start = (pageSafe - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, pageSafe, pageSize]);
+  const defaultColDef = useMemo<ColDef>(
+    () => ({ sortable: true, filter: false,
+      flex: 1,
+      minWidth: 100, resizable: true, wrapHeaderText: true, autoHeaderHeight: true, }),
+    []
+  );
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6 pb-8">
+    <div className="w-full space-y-6 pb-8">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-3xl font-semibold text-slate-900">NHI Inventory</h1>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
@@ -392,23 +444,6 @@ export function NhiInventoryPage() {
               <p className="mt-0.5 text-xs text-slate-500">
                 Filter by name and attributes (same pattern as Rotation Policy).
               </p>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <label htmlFor="nhi-inv-page-size" className="text-sm font-medium text-gray-700">
-                Rows
-              </label>
-              <select
-                id="nhi-inv-page-size"
-                value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value))}
-                className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                aria-label="Rows per page"
-              >
-                <option value={10}>10 / page</option>
-                <option value={25}>25 / page</option>
-                <option value={50}>50 / page</option>
-                <option value={100}>100 / page</option>
-              </select>
             </div>
           </div>
 
@@ -561,80 +596,22 @@ export function NhiInventoryPage() {
             </div>
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1120px] text-left text-xs">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
-                <th className="whitespace-nowrap px-3 py-2.5">Name</th>
-                <th className="whitespace-nowrap px-3 py-2.5">Type</th>
-                <th className="whitespace-nowrap px-3 py-2.5">State</th>
-                <th className="whitespace-nowrap px-3 py-2.5">Risk</th>
-                <th className="whitespace-nowrap px-3 py-2.5">Criticality</th>
-                <th className="whitespace-nowrap px-3 py-2.5">Execution</th>
-                <th className="whitespace-nowrap px-3 py-2.5">Owner</th>
-                <th className="whitespace-nowrap px-3 py-2.5">Source</th>
-                <th className="whitespace-nowrap px-3 py-2.5">Created</th>
-                <th className="w-14 whitespace-nowrap px-2 py-2.5 text-center">View</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pageRows.map((r) => (
-                <tr key={r.nhi_id} className="border-b border-gray-50 hover:bg-slate-50/80">
-                  <td className="max-w-[240px] truncate px-3 py-2 font-medium text-slate-900">{r.name}</td>
-                  <td className="px-3 py-2 text-slate-700">{r.nhi_type}</td>
-                  <td className="px-3 py-2 text-slate-700">{r.state}</td>
-                  <td className="px-3 py-2 text-slate-700">{r.risk_level}</td>
-                  <td className="px-3 py-2 text-slate-700">{r.criticality}</td>
-                  <td className="px-3 py-2 text-slate-700">{r.execution_type}</td>
-                  <td className="max-w-[200px] truncate px-3 py-2 text-slate-700" title={displayCell(r.owner_name)}>
-                    {displayCell(r.owner_name)}
-                  </td>
-                  <td className="px-3 py-2 text-slate-700">{r.load_source}</td>
-                  <td className="px-3 py-2 text-slate-700">{formatDate(r.createddate)}</td>
-                  <td className="px-2 py-2 text-center">
-                    {r.nhi_id && r.nhi_id !== "—" ? (
-                      <Link
-                        href={`/non-human-identity/nhi-inventory/${encodeURIComponent(r.nhi_id)}`}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
-                        title="View NHI details"
-                        aria-label={`View details for ${r.name}`}
-                      >
-                        <Eye className="h-4 w-4" aria-hidden />
-                      </Link>
-                    ) : (
-                      <span className="text-slate-300">—</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div
+            className="ag-theme-alpine nhi-compact-grid"
+            style={{ ["--ag-font-size" ]: "12px", ["--ag-header-font-size" ]: "12px" } as any}
+          >
+          <AgGridReact
+            rowData={filtered}
+            columnDefs={columnDefs}
+            defaultColDef={defaultColDef}
+            pagination={true}
+            paginationPageSize={25}
+            paginationPageSizeSelector={[10, 25, 50, 100]}
+            domLayout="autoHeight"
+            rowHeight={36}
+            headerHeight={32}
+          />
         </div>
-        {filtered.length > 0 && (
-          <div className="flex items-center justify-between border-t border-gray-100 px-4 py-3 text-xs text-slate-600">
-            <span>
-              {filtered.length} rows · page {pageSafe} / {totalPages}
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={pageSafe <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="rounded border border-gray-200 bg-white px-2 py-1 font-medium hover:bg-gray-50 disabled:opacity-40"
-              >
-                Prev
-              </button>
-              <button
-                type="button"
-                disabled={pageSafe >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className="rounded border border-gray-200 bg-white px-2 py-1 font-medium hover:bg-gray-50 disabled:opacity-40"
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

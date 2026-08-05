@@ -12,10 +12,13 @@ import {
   Tooltip,
 } from "chart.js";
 import { runNhiRows, type NhiApiMode } from "@/lib/nhi-v2-query";
+import "@/lib/ag-grid-setup";
+import type { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 const Bar = dynamic(() => import("react-chartjs-2").then((m) => m.Bar), { ssr: false });
 const Doughnut = dynamic(() => import("react-chartjs-2").then((m) => m.Doughnut), { ssr: false });
+const AgGridReact = dynamic(() => import("ag-grid-react").then((mod) => mod.AgGridReact), { ssr: false });
 
 const TENANT_ID = "a0000000-0000-0000-0000-000000000001";
 const PALETTE = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#06b6d4", "#a855f7"];
@@ -82,8 +85,6 @@ export function ChangesPage({ apiMode = "legacy" }: { apiMode?: NhiApiMode } = {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -163,16 +164,87 @@ export function ChangesPage({ apiMode = "legacy" }: { apiMode?: NhiApiMode } = {
     );
   }, [rows, search]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [status, search, pageSize]);
+  const columnDefs = useMemo<ColDef[]>(
+    () => [
+      {
+        headerName: "Type",
+        field: "request_type",
+        valueFormatter: (p) => p.value || "—",
+      },
+      {
+        headerName: "Status",
+        field: "status",
+        cellRenderer: (params: ICellRendererParams<ChangeRow>) => {
+          const r = params.data as ChangeRow;
+          return (
+            <span className={`rounded-full border px-2 py-0.5 text-xs ${statusTone(r.status)}`}>
+              {r.status || "—"}
+            </span>
+          );
+        },
+      },
+      {
+        headerName: "Priority",
+        field: "priority",
+        valueFormatter: (p) => p.value || "—",
+      },
+      {
+        headerName: "NHI",
+        field: "nhi_name",
+        valueFormatter: (p) => p.value || "—",
+      },
+      {
+        headerName: "Process",
+        field: "business_process",
+        valueFormatter: (p) => p.value || "—",
+      },
+      {
+        headerName: "Risk",
+        field: "risk_score",
+        cellRenderer: (params: ICellRendererParams<ChangeRow>) => {
+          const r = params.data as ChangeRow;
+          return r.risk_score != null ? String(r.risk_score) : "—";
+        },
+      },
+      {
+        headerName: "ITSM ref",
+        field: "itsm_reference",
+        valueFormatter: (p) => p.value || "—",
+      },
+      {
+        headerName: "Requested",
+        field: "requested_at",
+        cellRenderer: (params: ICellRendererParams<ChangeRow>) => {
+          const r = params.data as ChangeRow;
+          return r.requested_at ? new Date(r.requested_at).toLocaleString() : "—";
+        },
+      },
+      {
+        headerName: "Decided",
+        field: "decided_at",
+        cellRenderer: (params: ICellRendererParams<ChangeRow>) => {
+          const r = params.data as ChangeRow;
+          return r.decided_at ? new Date(r.decided_at).toLocaleDateString() : "—";
+        },
+      },
+      {
+        headerName: "Completed",
+        field: "completed_at",
+        cellRenderer: (params: ICellRendererParams<ChangeRow>) => {
+          const r = params.data as ChangeRow;
+          return r.completed_at ? new Date(r.completed_at).toLocaleDateString() : "—";
+        },
+      },
+    ],
+    []
+  );
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const pageSafe = Math.min(page, totalPages);
-  const pageRows = useMemo(() => {
-    const start = (pageSafe - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, pageSafe, pageSize]);
+  const defaultColDef = useMemo<ColDef>(
+    () => ({ sortable: true, filter: false,
+      flex: 1,
+      minWidth: 100, resizable: true, wrapHeaderText: true, autoHeaderHeight: true, }),
+    []
+  );
 
   return (
     <div className="w-full space-y-4 pb-8">
@@ -260,88 +332,27 @@ export function ChangesPage({ apiMode = "legacy" }: { apiMode?: NhiApiMode } = {
               placeholder={`Search ${rows.length} rows...`}
               className="w-56 rounded border border-slate-300 px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
             />
-            <select
-              value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value))}
-              className="rounded border border-slate-300 px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
-              aria-label="Rows per page"
-            >
-              <option value={10}>10 / page</option>
-              <option value={25}>25 / page</option>
-              <option value={50}>50 / page</option>
-              <option value={100}>100 / page</option>
-            </select>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1200px] text-left text-xs">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
-                <th className="px-2 py-2">Type</th>
-                <th className="px-2 py-2">Status</th>
-                <th className="px-2 py-2">Priority</th>
-                <th className="px-2 py-2">NHI</th>
-                <th className="px-2 py-2">Process</th>
-                <th className="px-2 py-2">Risk</th>
-                <th className="px-2 py-2">ITSM ref</th>
-                <th className="px-2 py-2">Requested</th>
-                <th className="px-2 py-2">Decided</th>
-                <th className="px-2 py-2">Completed</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pageRows.length === 0 ? (
-                <tr>
-                  <td colSpan={10} className="px-2 py-3 text-slate-500">
-                    No change requests.
-                  </td>
-                </tr>
-              ) : (
-                pageRows.map((r) => (
-                  <tr key={r.request_id || `${r.request_type}-${r.requested_at}`} className="border-b border-gray-50 hover:bg-slate-50/70">
-                    <td className="px-2 py-2 text-slate-700">{r.request_type || "—"}</td>
-                    <td className="px-2 py-2">
-                      <span className={`rounded-full border px-2 py-0.5 text-xs ${statusTone(r.status)}`}>{r.status || "—"}</span>
-                    </td>
-                    <td className="px-2 py-2 text-slate-700">{r.priority || "—"}</td>
-                    <td className="px-2 py-2 text-slate-700">{r.nhi_name || "—"}</td>
-                    <td className="px-2 py-2 text-slate-700">{r.business_process || "—"}</td>
-                    <td className="px-2 py-2 text-slate-700">{r.risk_score != null ? String(r.risk_score) : "—"}</td>
-                    <td className="px-2 py-2 text-slate-700">{r.itsm_reference || "—"}</td>
-                    <td className="px-2 py-2 text-slate-700">{r.requested_at ? new Date(r.requested_at).toLocaleString() : "—"}</td>
-                    <td className="px-2 py-2 text-slate-700">{r.decided_at ? new Date(r.decided_at).toLocaleDateString() : "—"}</td>
-                    <td className="px-2 py-2 text-slate-700">{r.completed_at ? new Date(r.completed_at).toLocaleDateString() : "—"}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {filtered.length > 0 && (
-          <div className="mt-2 flex items-center justify-between border-t border-gray-100 pt-2 text-xs text-slate-600">
-            <span>
-              {filtered.length} rows · page {pageSafe} / {totalPages}
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={pageSafe <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="rounded border border-slate-300 bg-white px-2 py-1 hover:bg-slate-50 disabled:opacity-40"
-              >
-                Prev
-              </button>
-              <button
-                type="button"
-                disabled={pageSafe >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className="rounded border border-slate-300 bg-white px-2 py-1 hover:bg-slate-50 disabled:opacity-40"
-              >
-                Next
-              </button>
-            </div>
+        {filtered.length === 0 ? (
+          <div className="px-2 py-3 text-xs text-slate-500">No change requests.</div>
+        ) : (
+          <div
+            className="ag-theme-alpine nhi-compact-grid"
+            style={{ ["--ag-font-size" ]: "12px", ["--ag-header-font-size" ]: "12px" } as any}
+          >
+            <AgGridReact
+              rowData={filtered}
+              columnDefs={columnDefs}
+              defaultColDef={defaultColDef}
+              pagination={true}
+              paginationPageSize={25}
+              paginationPageSizeSelector={[10, 25, 50, 100]}
+              domLayout="autoHeight"
+              rowHeight={36}
+              headerHeight={32}
+            />
           </div>
         )}
       </section>

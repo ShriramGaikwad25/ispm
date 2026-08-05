@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
+const AgGridReact = dynamic(() => import("ag-grid-react").then((mod) => mod.AgGridReact), { ssr: false });
+import "@/lib/ag-grid-setup";
+import type { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 import {
   Chart as ChartJS,
   ArcElement,
@@ -126,6 +129,77 @@ export function Nhi2AgentPosturePage() {
     [agents]
   );
 
+  const agentColumnDefs = useMemo<ColDef[]>(
+    () => [
+      {
+        headerName: "Agent",
+        field: "agent_name",
+        flex: 4,
+        minWidth: 220,
+        cellRenderer: (params: ICellRendererParams<AgentRow>) => (
+          <span className="font-medium text-slate-900">{String(params.data?.agent_name ?? "—")}</span>
+        ),
+      },
+      { headerName: "Vendor", field: "vendor", valueFormatter: (p) => String(p.value ?? "—") },
+      { headerName: "Model", field: "model_name", valueFormatter: (p) => String(p.value ?? "—") },
+      { headerName: "Eval", field: "evaluation_score", valueFormatter: (p) => (p.value ?? "—") as string },
+      { headerName: "Tools", field: "tools_enabled", valueFormatter: (p) => (p.value ?? "—") as string },
+      {
+        headerName: "Delegations",
+        field: "active_delegations",
+        minWidth: 115,
+        valueFormatter: (p) => (p.value ?? "—") as string,
+      },
+      {
+        headerName: "Actions 24h",
+        field: "actions_last_24h",
+        minWidth: 115,
+        valueFormatter: (p) => (p.value ?? "—") as string,
+      },
+      {
+        headerName: "Denied 24h",
+        field: "denied_last_24h",
+        minWidth: 115,
+        valueFormatter: (p) => (p.value ?? "—") as string,
+      },
+      {
+        headerName: "Halluc. 7d",
+        field: "hallucinations_last_7d",
+        minWidth: 110,
+        valueFormatter: (p) => (p.value ?? "—") as string,
+      },
+      { headerName: "Lat ms", field: "avg_latency_ms_24h", minWidth: 95, valueFormatter: (p) => (p.value ?? "—") as string },
+      {
+        headerName: "Tokens 24h",
+        field: "tokens_last_24h",
+        minWidth: 110,
+        valueFormatter: (p) => (p.value ?? "—") as string,
+      },
+      {
+        headerName: "$ 24h",
+        field: "cost_usd_24h",
+        minWidth: 90,
+        cellRenderer: (params: ICellRendererParams<AgentRow>) =>
+          formatUsd(params.data?.cost_usd_24h as number | null),
+      },
+    ],
+    []
+  );
+
+  const agentDefaultColDef = useMemo<ColDef>(
+    () => ({
+      sortable: true,
+      filter: false,
+      flex: 1,
+      minWidth: 90,
+      resizable: true,
+      wrapHeaderText: false,
+      autoHeaderHeight: false,
+      suppressHeaderMenuButton: true,
+    }),
+    []
+  );
+
   if (loading) {
     return (
       <div className="flex min-h-[200px] items-center justify-center text-sm text-slate-500">
@@ -237,52 +311,20 @@ export function Nhi2AgentPosturePage() {
 
       <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
         <h2 className="border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-900">All agents</h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50">
-              <tr>
-                {[
-                  "Agent",
-                  "Vendor",
-                  "Model",
-                  "Eval",
-                  "Tools",
-                  "Delegations",
-                  "Actions 24h",
-                  "Denied 24h",
-                  "Halluc. 7d",
-                  "Lat ms",
-                  "Tokens 24h",
-                  "$ 24h",
-                ].map((h) => (
-                  <th
-                    key={h}
-                    className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {agents.map((a, i) => (
-                <tr key={String(a.nhi_id ?? i)} className="hover:bg-slate-50/80">
-                  <td className="px-3 py-2 font-medium text-slate-900">{String(a.agent_name ?? "—")}</td>
-                  <td className="px-3 py-2">{String(a.vendor ?? "—")}</td>
-                  <td className="px-3 py-2">{String(a.model_name ?? "—")}</td>
-                  <td className="px-3 py-2 tabular-nums">{a.evaluation_score ?? "—"}</td>
-                  <td className="px-3 py-2 tabular-nums">{a.tools_enabled ?? "—"}</td>
-                  <td className="px-3 py-2 tabular-nums">{a.active_delegations ?? "—"}</td>
-                  <td className="px-3 py-2 tabular-nums">{a.actions_last_24h ?? "—"}</td>
-                  <td className="px-3 py-2 tabular-nums">{a.denied_last_24h ?? "—"}</td>
-                  <td className="px-3 py-2 tabular-nums">{a.hallucinations_last_7d ?? "—"}</td>
-                  <td className="px-3 py-2 tabular-nums">{a.avg_latency_ms_24h ?? "—"}</td>
-                  <td className="px-3 py-2 tabular-nums">{a.tokens_last_24h ?? "—"}</td>
-                  <td className="px-3 py-2 tabular-nums">{formatUsd(a.cost_usd_24h as number | null)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="p-4">
+          <div className="ag-theme-alpine">
+            <AgGridReact
+              rowData={agents}
+              columnDefs={agentColumnDefs}
+              defaultColDef={agentDefaultColDef}
+              pagination={true}
+              paginationPageSize={25}
+              paginationPageSizeSelector={[10, 25, 50, 100]}
+              domLayout="autoHeight"
+              rowHeight={36}
+              headerHeight={32}
+            />
+          </div>
         </div>
       </section>
     </div>

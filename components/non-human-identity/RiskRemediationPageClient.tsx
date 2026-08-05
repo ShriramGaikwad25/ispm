@@ -16,7 +16,7 @@ export function RiskRemediationPageClient() {
   const [findingStatus, setFindingStatus] = useState<FindingsStatusFilter>("open");
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-4 pb-8">
+    <div className="w-full space-y-4 pb-8">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Risk &amp; Remediation</h1>
         <p className="mt-1 text-sm text-slate-600">

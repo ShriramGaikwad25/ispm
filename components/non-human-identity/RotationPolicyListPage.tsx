@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
+const AgGridReact = dynamic(() => import("ag-grid-react").then((mod) => mod.AgGridReact), { ssr: false });
+import "@/lib/ag-grid-setup";
+import type { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 import { Copy, MoreHorizontal, Pencil, Power, Search } from "lucide-react";
 import { runNhiQueryRaw, type NhiApiMode } from "@/lib/nhi-v2-query";
 import {
@@ -43,6 +47,82 @@ function rowMatchesFrequencyFilter(row: RotationPolicyGridRow, freq: string): bo
   return row.frequencyLabel.includes(freq);
 }
 
+function PolicyRowActions({ row }: { row: RotationPolicyGridRow }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  return (
+    <div className="flex h-full items-center justify-end gap-1">
+      <Link
+        href={`/non-human-identity/rotation-policy/${encodeURIComponent(row.id)}`}
+        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
+        title="Edit"
+        aria-label="Edit policy"
+      >
+        <Pencil className="h-4 w-4" />
+      </Link>
+      <button
+        type="button"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
+        title="Duplicate / copy"
+        aria-label="Duplicate policy"
+      >
+        <Copy className="h-4 w-4" />
+      </button>
+      <button
+        type="button"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
+        title="Disable"
+        aria-label="Disable policy"
+      >
+        <Power className="h-4 w-4" />
+      </button>
+      <div className="relative">
+        <button
+          type="button"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
+          title="More actions"
+          aria-expanded={menuOpen}
+          aria-haspopup="menu"
+          onClick={() => setMenuOpen((open) => !open)}
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </button>
+        {menuOpen && (
+          <div
+            role="menu"
+            className="absolute right-0 z-20 mt-1 w-48 rounded-md border border-gray-200 bg-white py-1 shadow-lg"
+          >
+            <button
+              type="button"
+              role="menuitem"
+              className="block w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+              onClick={() => setMenuOpen(false)}
+            >
+              Simulate
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="block w-full px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50"
+              onClick={() => setMenuOpen(false)}
+            >
+              Delete
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="block w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+              onClick={() => setMenuOpen(false)}
+            >
+              View audit log
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function RotationPolicyListPage({ apiMode = "legacy" }: { apiMode?: NhiApiMode } = {}) {
   const [policies, setPolicies] = useState<RotationPolicyGridRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,7 +131,6 @@ export function RotationPolicyListPage({ apiMode = "legacy" }: { apiMode?: NhiAp
   const [nhiFilter, setNhiFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [freqFilter, setFreqFilter] = useState<string>("all");
-  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -111,6 +190,114 @@ export function RotationPolicyListPage({ apiMode = "legacy" }: { apiMode?: NhiAp
     const coverageScopePct = Math.min(100, Math.round((identitiesCovered / denom) * 100));
     return { totalPolicies, identitiesCovered, reviewPolicies, coverageScopePct };
   }, [filtered]);
+
+  const columnDefs = useMemo<ColDef[]>(
+    () => [
+      {
+        headerName: "Policy name",
+        field: "name",
+        flex: 2,
+        minWidth: 220,
+        cellRenderer: (params: ICellRendererParams<RotationPolicyGridRow>) => {
+          const row = params.data as RotationPolicyGridRow;
+          return (
+            <div className="max-w-md py-1">
+              <div className="font-medium text-gray-900">{row.name}</div>
+              {row.description ? (
+                <div className="mt-1 line-clamp-2 text-sm text-gray-600">{row.description}</div>
+              ) : null}
+            </div>
+          );
+        },
+      },
+      {
+        headerName: "NHI types",
+        field: "nhiTypes",
+        flex: 1.5,
+        minWidth: 180,
+        cellRenderer: (params: ICellRendererParams<RotationPolicyGridRow>) => {
+          const row = params.data as RotationPolicyGridRow;
+          return (
+            <div className="flex flex-wrap items-center gap-1 py-1">
+              {row.nhiTypes.length === 0 ? (
+                <span className="text-gray-500">—</span>
+              ) : (
+                row.nhiTypes.map((t, i) => (
+                  <span
+                    key={`${row.id}-${t}-${i}`}
+                    className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${nhiBadgeClass(i)}`}
+                  >
+                    {t}
+                  </span>
+                ))
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        headerName: "Rotation frequency",
+        field: "frequencyLabel",
+        flex: 1,
+        minWidth: 160,
+      },
+      {
+        headerName: "# Identities",
+        field: "identityCount",
+        flex: 1,
+        minWidth: 130,
+        cellRenderer: (params: ICellRendererParams<RotationPolicyGridRow>) => {
+          const row = params.data as RotationPolicyGridRow;
+          return (
+            <Link
+              href="/non-human-identity/nhi-inventory"
+              className="font-semibold text-blue-600 hover:text-blue-800 hover:underline"
+            >
+              {row.identityCount}
+            </Link>
+          );
+        },
+      },
+      {
+        headerName: "Status",
+        field: "status",
+        flex: 1,
+        minWidth: 120,
+        cellRenderer: (params: ICellRendererParams<RotationPolicyGridRow>) => {
+          const row = params.data as RotationPolicyGridRow;
+          return (
+            <span
+              className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${statusBadgeClass(row.status)}`}
+            >
+              {row.status}
+            </span>
+          );
+        },
+      },
+      {
+        headerName: "Actions",
+        sortable: false,
+        filter: false,
+        flex: 0,
+        width: 180,
+        cellRenderer: (params: ICellRendererParams<RotationPolicyGridRow>) => (
+          <PolicyRowActions row={params.data as RotationPolicyGridRow} />
+        ),
+      },
+    ],
+    []
+  );
+
+  const defaultColDef = useMemo<ColDef>(
+    () => ({
+      sortable: true,
+      filter: false,
+      flex: 1,
+      minWidth: 100,
+      resizable: true, wrapHeaderText: true, autoHeaderHeight: true,
+    }),
+    []
+  );
 
   return (
     <div className="min-h-screen bg-white p-6">
@@ -237,148 +424,27 @@ export function RotationPolicyListPage({ apiMode = "legacy" }: { apiMode?: NhiAp
               Policies <span className="font-normal text-gray-500">({loading ? "…" : filtered.length})</span>
             </h2>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-left text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-600">
-                  <th className="whitespace-nowrap px-4 py-3">Policy name</th>
-                  <th className="whitespace-nowrap px-4 py-3">NHI types</th>
-                  <th className="whitespace-nowrap px-4 py-3">Rotation frequency</th>
-                  <th className="whitespace-nowrap px-4 py-3"># Identities</th>
-                  <th className="whitespace-nowrap px-4 py-3">Status</th>
-                  <th className="whitespace-nowrap px-4 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
-                      Loading policies…
-                    </td>
-                  </tr>
-                ) : filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
-                      {policies.length === 0 ? "No policies returned from the server." : "No policies match your filters."}
-                    </td>
-                  </tr>
-                ) : (
-                  filtered.map((row) => (
-                    <tr key={row.id} className="border-b border-gray-50 hover:bg-gray-50/80">
-                      <td className="max-w-md px-4 py-3">
-                        <div className="font-medium text-gray-900">{row.name}</div>
-                        {row.description ? (
-                          <div className="mt-1 line-clamp-2 text-sm text-gray-600">{row.description}</div>
-                        ) : null}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-1">
-                          {row.nhiTypes.length === 0 ? (
-                            <span className="text-gray-500">—</span>
-                          ) : (
-                            row.nhiTypes.map((t, i) => (
-                              <span
-                                key={`${row.id}-${t}-${i}`}
-                                className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${nhiBadgeClass(i)}`}
-                              >
-                                {t}
-                              </span>
-                            ))
-                          )}
-                        </div>
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-gray-800">{row.frequencyLabel}</td>
-                      <td className="px-4 py-3">
-                        <Link
-                          href="/non-human-identity/nhi-inventory"
-                          className="font-semibold text-blue-600 hover:text-blue-800 hover:underline"
-                        >
-                          {row.identityCount}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${statusBadgeClass(row.status)}`}
-                        >
-                          {row.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-1">
-                          <Link
-                            href={`/non-human-identity/rotation-policy/${encodeURIComponent(row.id)}`}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
-                            title="Edit"
-                            aria-label="Edit policy"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Link>
-                          <button
-                            type="button"
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
-                            title="Duplicate / copy"
-                            aria-label="Duplicate policy"
-                          >
-                            <Copy className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
-                            title="Disable"
-                            aria-label="Disable policy"
-                          >
-                            <Power className="h-4 w-4" />
-                          </button>
-                          <div className="relative">
-                            <button
-                              type="button"
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
-                              title="More actions"
-                              aria-expanded={menuOpenId === row.id}
-                              aria-haspopup="menu"
-                              onClick={() => setMenuOpenId((id) => (id === row.id ? null : row.id))}
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                            </button>
-                            {menuOpenId === row.id && (
-                              <div
-                                role="menu"
-                                className="absolute right-0 z-20 mt-1 w-48 rounded-md border border-gray-200 bg-white py-1 shadow-lg"
-                              >
-                                <button
-                                  type="button"
-                                  role="menuitem"
-                                  className="block w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                                  onClick={() => setMenuOpenId(null)}
-                                >
-                                  Simulate
-                                </button>
-                                <button
-                                  type="button"
-                                  role="menuitem"
-                                  className="block w-full px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50"
-                                  onClick={() => setMenuOpenId(null)}
-                                >
-                                  Delete
-                                </button>
-                                <button
-                                  type="button"
-                                  role="menuitem"
-                                  className="block w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                                  onClick={() => setMenuOpenId(null)}
-                                >
-                                  View audit log
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+          {loading && <p className="px-4 py-3 text-sm text-gray-500">Loading policies…</p>}
+          {!loading && filtered.length === 0 && (
+            <p className="px-4 py-3 text-sm text-gray-500">
+              {policies.length === 0 ? "No policies returned from the server." : "No policies match your filters."}
+            </p>
+          )}
+          <div
+            className="ag-theme-alpine nhi-compact-grid"
+            style={{ ["--ag-font-size" ]: "12px", ["--ag-header-font-size" ]: "12px" } as any}
+          >
+            <AgGridReact
+              rowData={filtered}
+              columnDefs={columnDefs}
+              defaultColDef={defaultColDef}
+              pagination={true}
+              paginationPageSize={25}
+              paginationPageSizeSelector={[10, 25, 50, 100]}
+              domLayout="autoHeight"
+              rowHeight={48}
+              headerHeight={36}
+            />
           </div>
         </div>
       </div>

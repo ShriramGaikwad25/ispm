@@ -11,9 +11,12 @@ import {
   Tooltip,
 } from "chart.js";
 import { runNhiRows, type NhiApiMode } from "@/lib/nhi-v2-query";
+import "@/lib/ag-grid-setup";
+import type { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 const Bar = dynamic(() => import("react-chartjs-2").then((m) => m.Bar), { ssr: false });
+const AgGridReact = dynamic(() => import("ag-grid-react").then((mod) => mod.AgGridReact), { ssr: false });
 
 const TENANT_ID = "a0000000-0000-0000-0000-000000000001";
 
@@ -81,8 +84,6 @@ export function EmergencyUsagePage({ apiMode = "legacy" }: { apiMode?: NhiApiMod
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -152,16 +153,93 @@ export function EmergencyUsagePage({ apiMode = "legacy" }: { apiMode?: NhiApiMod
     );
   }, [rows, search]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [search, pageSize]);
+  const columnDefs = useMemo<ColDef[]>(
+    () => [
+      {
+        headerName: "NHI",
+        field: "nhi_name",
+        flex: 1,
+        minWidth: 140,
+        valueFormatter: (p) => (p.value ? p.value : "—"),
+      },
+      {
+        headerName: "Severity",
+        field: "incident_severity",
+        flex: 1,
+        minWidth: 120,
+        cellRenderer: (params: ICellRendererParams<EmergencyRow>) => {
+          const sev = params.data?.incident_severity ?? "";
+          if (!sev) return "—";
+          return (
+            <span className={`rounded-full border px-2 py-0.5 text-xs ${sevTone(sev)}`}>{sev}</span>
+          );
+        },
+      },
+      {
+        headerName: "Reason",
+        field: "reason",
+        flex: 1.5,
+        minWidth: 160,
+        valueFormatter: (p) => (p.value ? p.value : "—"),
+      },
+      {
+        headerName: "Ticket",
+        field: "ticket_reference",
+        flex: 1,
+        minWidth: 120,
+        valueFormatter: (p) => (p.value ? p.value : "—"),
+      },
+      {
+        headerName: "Started",
+        field: "started_at",
+        flex: 1,
+        minWidth: 160,
+        valueFormatter: (p) => (p.value ? new Date(p.value).toLocaleString() : "—"),
+      },
+      {
+        headerName: "Ended",
+        field: "ended_at",
+        flex: 1,
+        minWidth: 160,
+        cellRenderer: (params: ICellRendererParams<EmergencyRow>) => {
+          const ended = params.data?.ended_at;
+          return ended ? new Date(ended).toLocaleString() : "active";
+        },
+      },
+      {
+        headerName: "Reviewed",
+        field: "pending_review",
+        flex: 0.8,
+        minWidth: 100,
+        cellRenderer: (params: ICellRendererParams<EmergencyRow>) => {
+          const pendingReview = Boolean(params.data?.pending_review);
+          if (pendingReview) {
+            return (
+              <span className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs text-red-700">
+                pending
+              </span>
+            );
+          }
+          return "yes";
+        },
+      },
+      {
+        headerName: "Outcome",
+        field: "review_outcome",
+        flex: 1,
+        minWidth: 140,
+        valueFormatter: (p) => (p.value ? p.value : "—"),
+      },
+    ],
+    []
+  );
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const pageSafe = Math.min(page, totalPages);
-  const pageRows = useMemo(() => {
-    const start = (pageSafe - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, pageSafe, pageSize]);
+  const defaultColDef = useMemo<ColDef>(
+    () => ({ sortable: true, filter: false,
+      flex: 1,
+      minWidth: 100, resizable: true, wrapHeaderText: true, autoHeaderHeight: true, }),
+    []
+  );
 
   return (
     <div className="w-full space-y-4 pb-8">
@@ -246,94 +324,31 @@ export function EmergencyUsagePage({ apiMode = "legacy" }: { apiMode?: NhiApiMod
               placeholder={`Search ${rows.length} rows...`}
               className="w-56 rounded border border-slate-300 px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
             />
-            <select
-              value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value))}
-              className="rounded border border-slate-300 px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
-              aria-label="Rows per page"
-            >
-              <option value={10}>10 / page</option>
-              <option value={25}>25 / page</option>
-              <option value={50}>50 / page</option>
-              <option value={100}>100 / page</option>
-            </select>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1100px] text-left text-xs">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
-                <th className="px-2 py-2">NHI</th>
-                <th className="px-2 py-2">Severity</th>
-                <th className="px-2 py-2">Reason</th>
-                <th className="px-2 py-2">Ticket</th>
-                <th className="px-2 py-2">Started</th>
-                <th className="px-2 py-2">Ended</th>
-                <th className="px-2 py-2">Reviewed</th>
-                <th className="px-2 py-2">Outcome</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pageRows.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-2 py-3 text-slate-500">
-                    No emergency invocations.
-                  </td>
-                </tr>
-              ) : (
-                pageRows.map((r) => (
-                  <tr key={r.emergency_id || `${r.nhi_id}-${r.started_at}`} className="border-b border-gray-50 hover:bg-slate-50/70">
-                    <td className="px-2 py-2 text-slate-700">{r.nhi_name || "—"}</td>
-                    <td className="px-2 py-2">
-                      {r.incident_severity ? (
-                        <span className={`rounded-full border px-2 py-0.5 text-xs ${sevTone(r.incident_severity)}`}>{r.incident_severity}</span>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td className="px-2 py-2 text-slate-700">{r.reason || "—"}</td>
-                    <td className="px-2 py-2 text-slate-700">{r.ticket_reference || "—"}</td>
-                    <td className="px-2 py-2 text-slate-700">{r.started_at ? new Date(r.started_at).toLocaleString() : "—"}</td>
-                    <td className="px-2 py-2 text-slate-700">{r.ended_at ? new Date(r.ended_at).toLocaleString() : "active"}</td>
-                    <td className="px-2 py-2">
-                      {r.pending_review ? (
-                        <span className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs text-red-700">pending</span>
-                      ) : (
-                        "yes"
-                      )}
-                    </td>
-                    <td className="px-2 py-2 text-slate-700">{r.review_outcome || "—"}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {filtered.length > 0 && (
-          <div className="mt-2 flex items-center justify-between border-t border-gray-100 pt-2 text-xs text-slate-600">
-            <span>
-              {filtered.length} rows · page {pageSafe} / {totalPages}
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={pageSafe <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="rounded border border-slate-300 bg-white px-2 py-1 hover:bg-slate-50 disabled:opacity-40"
-              >
-                Prev
-              </button>
-              <button
-                type="button"
-                disabled={pageSafe >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className="rounded border border-slate-300 bg-white px-2 py-1 hover:bg-slate-50 disabled:opacity-40"
-              >
-                Next
-              </button>
-            </div>
+        {filtered.length === 0 ? (
+          <div className="px-2 py-3 text-xs text-slate-500">No emergency invocations.</div>
+        ) : (
+          <div
+            className="ag-theme-alpine nhi-compact-grid"
+            style={{ ["--ag-font-size" ]: "12px", ["--ag-header-font-size" ]: "12px" } as any}
+          >
+            <AgGridReact
+              rowData={filtered}
+              columnDefs={columnDefs}
+              defaultColDef={defaultColDef}
+              pagination={true}
+              paginationPageSize={25}
+              paginationPageSizeSelector={[10, 25, 50, 100]}
+              domLayout="autoHeight"
+              rowHeight={36}
+              headerHeight={32}
+              getRowId={(params) => {
+                const data = params.data as EmergencyRow;
+                return data.emergency_id || `${data.nhi_id}-${data.started_at}`;
+              }}
+            />
           </div>
         )}
       </section>

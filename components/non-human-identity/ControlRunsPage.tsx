@@ -13,6 +13,8 @@ import {
   Tooltip,
 } from "chart.js";
 import { runNhiRows, type NhiApiMode } from "@/lib/nhi-v2-query";
+import "@/lib/ag-grid-setup";
+import type { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 
 ChartJS.register(
   BarElement,
@@ -25,6 +27,9 @@ ChartJS.register(
 );
 const Bar = dynamic(() => import("react-chartjs-2").then((m) => m.Bar), { ssr: false });
 const Line = dynamic(() => import("react-chartjs-2").then((m) => m.Line), { ssr: false });
+const AgGridReact = dynamic(() => import("ag-grid-react").then((mod) => mod.AgGridReact), {
+  ssr: false,
+});
 
 const TENANT_ID = "a0000000-0000-0000-0000-000000000001";
 
@@ -74,8 +79,6 @@ export function ControlRunsPage({ apiMode = "legacy" }: { apiMode?: NhiApiMode }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -165,16 +168,84 @@ export function ControlRunsPage({ apiMode = "legacy" }: { apiMode?: NhiApiMode }
     );
   }, [rows, search]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [search, pageSize]);
+  const columnDefs = useMemo<ColDef[]>(
+    () => [
+      {
+        headerName: "Control",
+        field: "control_code",
+        cellRenderer: (params: ICellRendererParams<RunRow>) => params.data?.control_code || "—",
+      },
+      {
+        headerName: "Name",
+        field: "control_name",
+        cellRenderer: (params: ICellRendererParams<RunRow>) => params.data?.control_name || "—",
+      },
+      {
+        headerName: "Framework",
+        field: "framework",
+        cellRenderer: (params: ICellRendererParams<RunRow>) => params.data?.framework || "—",
+      },
+      {
+        headerName: "Severity",
+        field: "severity",
+        cellRenderer: (params: ICellRendererParams<RunRow>) => {
+          const r = params.data;
+          if (!r || !r.severity) return "—";
+          return (
+            <span className={`rounded-full border px-2 py-0.5 text-xs ${severityTone(r.severity)}`}>
+              {r.severity}
+            </span>
+          );
+        },
+      },
+      {
+        headerName: "Status",
+        field: "status",
+        cellRenderer: (params: ICellRendererParams<RunRow>) => {
+          const r = params.data;
+          if (!r || !r.status) return "—";
+          return (
+            <span className={`rounded-full border px-2 py-0.5 text-xs ${statusTone(r.status)}`}>
+              {r.status}
+            </span>
+          );
+        },
+      },
+      {
+        headerName: "Count",
+        field: "result_count",
+        cellRenderer: (params: ICellRendererParams<RunRow>) => {
+          const r = params.data;
+          return r?.result_count != null ? String(r.result_count) : "—";
+        },
+      },
+      {
+        headerName: "ms",
+        field: "duration_ms",
+        cellRenderer: (params: ICellRendererParams<RunRow>) => {
+          const r = params.data;
+          return r?.duration_ms != null ? String(r.duration_ms) : "—";
+        },
+      },
+      {
+        headerName: "Executed",
+        field: "executed_at",
+        cellRenderer: (params: ICellRendererParams<RunRow>) => {
+          const r = params.data;
+          return r?.executed_at ? new Date(r.executed_at).toLocaleString() : "—";
+        },
+      },
+    ],
+    []
+  );
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const pageSafe = Math.min(page, totalPages);
-  const pageRows = useMemo(() => {
-    const start = (pageSafe - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, pageSafe, pageSize]);
+  const defaultColDef = useMemo<ColDef>(
+    () => ({ sortable: true, filter: false,
+      flex: 1,
+      minWidth: 100, resizable: true, wrapHeaderText: true, autoHeaderHeight: true,
+      suppressHeaderMenuButton: true, }),
+    []
+  );
 
   return (
     <div className="w-full space-y-4 pb-8">
@@ -270,86 +341,27 @@ export function ControlRunsPage({ apiMode = "legacy" }: { apiMode?: NhiApiMode }
                 placeholder={`Search ${rows.length} rows...`}
                 className="w-56 rounded border border-slate-300 px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
               />
-              <select
-                value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value))}
-                className="rounded border border-slate-300 px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
-                aria-label="Rows per page"
-              >
-                <option value={10}>10 / page</option>
-                <option value={25}>25 / page</option>
-                <option value={50}>50 / page</option>
-                <option value={100}>100 / page</option>
-              </select>
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full table-fixed text-left text-xs">
-              <thead>
-                <tr className="border-b border-gray-100 bg-gray-50 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
-                  <th className="pl-2 pr-1 py-2 whitespace-nowrap w-[12%]">Control</th>
-                  <th className="pl-2 pr-1 py-2 whitespace-nowrap w-[20%]">Name</th>
-                  <th className="pl-2 pr-1 py-2 whitespace-nowrap w-[12%]">Framework</th>
-                  <th className="pl-2 pr-1 py-2 whitespace-nowrap w-[12%]">Severity</th>
-                  <th className="pl-2 pr-1 py-2 whitespace-nowrap w-[12%]">Status</th>
-                  <th className="pl-2 pr-1 py-2 whitespace-nowrap w-[8%]">Count</th>
-                  <th className="pl-2 pr-1 py-2 whitespace-nowrap w-[7%]">ms</th>
-                  <th className="pl-2 pr-1 py-2 whitespace-nowrap w-[17%]">Executed</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pageRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="px-2 py-3 text-slate-500">
-                      No control runs.
-                    </td>
-                  </tr>
-                ) : (
-                  pageRows.map((r) => (
-                    <tr key={r.run_id || `${r.control_code}-${r.executed_at}`} className="border-b border-gray-50 hover:bg-slate-50/70">
-                      <td className="pl-2 pr-1 py-2 text-slate-700 whitespace-nowrap truncate">{r.control_code || "—"}</td>
-                      <td className="pl-2 pr-1 py-2 text-slate-700 whitespace-nowrap truncate">{r.control_name || "—"}</td>
-                      <td className="pl-2 pr-1 py-2 text-slate-700 whitespace-nowrap truncate">{r.framework || "—"}</td>
-                      <td className="pl-2 pr-1 py-2">
-                        <span className={`rounded-full border px-2 py-0.5 text-xs ${severityTone(r.severity)}`}>{r.severity || "—"}</span>
-                      </td>
-                      <td className="pl-2 pr-1 py-2">
-                        <span className={`rounded-full border px-2 py-0.5 text-xs ${statusTone(r.status)}`}>{r.status || "—"}</span>
-                      </td>
-                      <td className="pl-2 pr-1 py-2 text-slate-700 whitespace-nowrap">{r.result_count != null ? String(r.result_count) : "—"}</td>
-                      <td className="pl-2 pr-1 py-2 text-slate-700 whitespace-nowrap">{r.duration_ms != null ? String(r.duration_ms) : "—"}</td>
-                      <td className="pl-2 pr-1 py-2 text-slate-700 whitespace-nowrap truncate">{r.executed_at ? new Date(r.executed_at).toLocaleString() : "—"}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {filtered.length > 0 && (
-            <div className="mt-2 flex items-center justify-between border-t border-gray-100 pt-2 text-xs text-slate-600">
-              <span>
-                {filtered.length} rows · page {pageSafe} / {totalPages}
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={pageSafe <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  className="rounded border border-slate-300 bg-white px-2 py-1 hover:bg-slate-50 disabled:opacity-40"
-                >
-                  Prev
-                </button>
-                <button
-                  type="button"
-                  disabled={pageSafe >= totalPages}
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  className="rounded border border-slate-300 bg-white px-2 py-1 hover:bg-slate-50 disabled:opacity-40"
-                >
-                  Next
-                </button>
-              </div>
+          {filtered.length === 0 ? (
+            <p className="px-2 py-3 text-sm text-slate-500">No control runs.</p>
+          ) : (
+            <div
+            className="ag-theme-alpine nhi-compact-grid"
+            style={{ ["--ag-font-size" ]: "12px", ["--ag-header-font-size" ]: "12px" } as any}
+          >
+              <AgGridReact
+                rowData={filtered}
+                columnDefs={columnDefs}
+                defaultColDef={defaultColDef}
+                pagination={true}
+                paginationPageSize={25}
+                paginationPageSizeSelector={[10, 25, 50, 100]}
+                domLayout="autoHeight"
+                rowHeight={36}
+                headerHeight={32}
+              />
             </div>
           )}
         </section>

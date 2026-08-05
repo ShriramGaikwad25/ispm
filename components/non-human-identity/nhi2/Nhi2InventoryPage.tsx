@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
+const AgGridReact = dynamic(() => import("ag-grid-react").then((mod) => mod.AgGridReact), { ssr: false });
+import "@/lib/ag-grid-setup";
+import type { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 import Link from "next/link";
 import {
   Chart as ChartJS,
@@ -45,20 +48,6 @@ function chartFromGroups(groups: { name: string; value: number }[], offset = 0) 
   };
 }
 
-const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
-
-const TABLE_COLUMNS = [
-  { key: "name", label: "Name" },
-  { key: "nhi_type", label: "Type" },
-  { key: "state", label: "State" },
-  { key: "risk_level", label: "Risk" },
-  { key: "criticality", label: "Criticality" },
-  { key: "execution_type", label: "Execution" },
-  { key: "review_status", label: "Review" },
-  { key: "load_source", label: "Source" },
-  { key: "createddate", label: "Created" },
-] as const;
-
 function cellText(v: unknown): string {
   if (v == null || v === "") return "—";
   return String(v);
@@ -77,8 +66,6 @@ export function Nhi2InventoryPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -123,16 +110,72 @@ export function Nhi2InventoryPage() {
     );
   }, [rows, search]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const pageSafe = Math.min(page, totalPages);
-  const pageRows = useMemo(() => {
-    const start = (pageSafe - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, pageSafe, pageSize]);
+  const columnDefs = useMemo<ColDef[]>(
+    () => [
+      {
+        headerName: "Name",
+        field: "name",
+        minWidth: 160,
+        cellRenderer: (params: ICellRendererParams<IdentityRow>) => {
+          const nhiId = cellText(params.data?.nhi_id);
+          return (
+            <Link
+              href={`/non-human-identity-2/nhis/${encodeURIComponent(nhiId)}`}
+              className="font-medium text-blue-700 hover:underline break-words"
+            >
+              {cellText(params.data?.name)}
+            </Link>
+          );
+        },
+      },
+      { headerName: "Type", field: "nhi_type", valueFormatter: (p) => cellText(p.value) },
+      { headerName: "State", field: "state", valueFormatter: (p) => cellText(p.value) },
+      { headerName: "Risk", field: "risk_level", valueFormatter: (p) => cellText(p.value) },
+      { headerName: "Criticality", field: "criticality", minWidth: 110, valueFormatter: (p) => cellText(p.value) },
+      { headerName: "Execution", field: "execution_type", minWidth: 105, valueFormatter: (p) => cellText(p.value) },
+      { headerName: "Review", field: "review_status", valueFormatter: (p) => cellText(p.value) },
+      { headerName: "Source", field: "load_source", valueFormatter: (p) => cellText(p.value) },
+      {
+        headerName: "Created",
+        field: "createddate",
+        minWidth: 110,
+        valueFormatter: (p) => formatCreated(p.value),
+      },
+      {
+        headerName: "Actions",
+        sortable: false,
+        filter: false,
+        flex: 0,
+        width: 90,
+        cellRenderer: (params: ICellRendererParams<IdentityRow>) => {
+          const nhiId = cellText(params.data?.nhi_id);
+          return (
+            <Link
+              href={`/non-human-identity-2/nhis/${encodeURIComponent(nhiId)}`}
+              className="text-xs font-medium text-blue-700 hover:underline"
+            >
+              Edit →
+            </Link>
+          );
+        },
+      },
+    ],
+    []
+  );
 
-  useEffect(() => {
-    setPage(1);
-  }, [search, pageSize]);
+  const defaultColDef = useMemo<ColDef>(
+    () => ({
+      sortable: true,
+      filter: false,
+      flex: 1,
+      minWidth: 90,
+      resizable: true,
+      wrapHeaderText: false,
+      autoHeaderHeight: false,
+      suppressHeaderMenuButton: true,
+    }),
+    []
+  );
 
   if (loading) {
     return (
@@ -211,115 +254,22 @@ export function Nhi2InventoryPage() {
             </div>
             <h2 className="text-sm font-semibold text-slate-900">Identities ({filtered.length})</h2>
           </div>
-          <label className="flex shrink-0 items-center gap-2 text-xs text-slate-600">
-            <span>Rows per page</span>
-            <select
-              value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value))}
-              className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-              aria-label="Rows per page"
-            >
-              {PAGE_SIZE_OPTIONS.map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </label>
         </div>
-        <table className="w-full table-fixed text-left text-sm">
-            <colgroup>
-              <col className="w-[38%]" />
-              {TABLE_COLUMNS.slice(1).map((col) => (
-                <col key={col.key} />
-              ))}
-              <col className="w-[4.5rem]" />
-            </colgroup>
-            <thead className="bg-slate-50">
-              <tr>
-                {TABLE_COLUMNS.map((col) => (
-                  <th
-                    key={col.key}
-                    className="px-3 py-2.5 align-top text-xs font-semibold uppercase tracking-wide text-slate-600 whitespace-normal break-words"
-                  >
-                    {col.label}
-                  </th>
-                ))}
-                <th className="w-[4.5rem] px-3 py-2.5 align-top text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {pageRows.length === 0 ? (
-                <tr>
-                  <td colSpan={TABLE_COLUMNS.length + 1} className="px-4 py-8 text-center text-sm text-slate-500">
-                    No identities found.
-                  </td>
-                </tr>
-              ) : (
-                pageRows.map((r) => {
-                  const nhiId = cellText(r.nhi_id);
-                  return (
-                    <tr key={nhiId} className="hover:bg-slate-50/80">
-                      <td className="px-3 py-2 align-top font-medium text-slate-900 whitespace-normal break-words">
-                        <Link
-                          href={`/non-human-identity-2/nhis/${encodeURIComponent(nhiId)}`}
-                          className="text-blue-700 hover:underline break-words"
-                        >
-                          {cellText(r.name)}
-                        </Link>
-                      </td>
-                      <td className="px-3 py-2 align-top text-slate-700 whitespace-normal break-words">{cellText(r.nhi_type)}</td>
-                      <td className="px-3 py-2 align-top text-slate-700 whitespace-normal break-words">{cellText(r.state)}</td>
-                      <td className="px-3 py-2 align-top text-slate-700 whitespace-normal break-words">{cellText(r.risk_level)}</td>
-                      <td className="px-3 py-2 align-top text-slate-700 whitespace-normal break-words">{cellText(r.criticality)}</td>
-                      <td className="px-3 py-2 align-top text-slate-700 whitespace-normal break-words">{cellText(r.execution_type)}</td>
-                      <td className="px-3 py-2 align-top text-slate-700 whitespace-normal break-words">{cellText(r.review_status)}</td>
-                      <td className="px-3 py-2 align-top text-slate-700 whitespace-normal break-words">{cellText(r.load_source)}</td>
-                      <td className="px-3 py-2 align-top text-slate-700 whitespace-normal break-words">{formatCreated(r.createddate)}</td>
-                      <td className="px-3 py-2 align-top">
-                        <Link
-                          href={`/non-human-identity-2/nhis/${encodeURIComponent(nhiId)}`}
-                          className="text-xs font-medium text-blue-700 hover:underline"
-                        >
-                          Edit →
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        {filtered.length > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 text-xs text-slate-600">
-            <span>
-              Showing {(pageSafe - 1) * pageSize + 1}–{Math.min(pageSafe * pageSize, filtered.length)} of{" "}
-              {filtered.length}
-              {search.trim() && filtered.length !== rows.length ? ` (filtered from ${rows.length})` : ""} · page{" "}
-              {pageSafe} / {totalPages}
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={pageSafe <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="rounded border border-slate-200 bg-white px-3 py-1.5 font-medium hover:bg-slate-50 disabled:opacity-40"
-              >
-                Previous
-              </button>
-              <button
-                type="button"
-                disabled={pageSafe >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className="rounded border border-slate-200 bg-white px-3 py-1.5 font-medium hover:bg-slate-50 disabled:opacity-40"
-              >
-                Next
-              </button>
-            </div>
+        <div className="p-4">
+          <div className="ag-theme-alpine">
+            <AgGridReact
+              rowData={filtered}
+              columnDefs={columnDefs}
+              defaultColDef={defaultColDef}
+              pagination={true}
+              paginationPageSize={25}
+              paginationPageSizeSelector={[10, 25, 50, 100]}
+              domLayout="autoHeight"
+              rowHeight={36}
+              headerHeight={32}
+            />
           </div>
-        )}
+        </div>
       </section>
     </div>
   );
