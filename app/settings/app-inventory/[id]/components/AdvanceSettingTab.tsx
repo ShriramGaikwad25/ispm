@@ -154,6 +154,123 @@ const defaultAppAccessRule = {
 
 const defaultAutoRetry = { isEnabled: false, interval: -1, maximumRetry: 0 };
 
+/** Reverse of buildApplicationConfig(): hydrate hooks/threshold UI state from a fetched app's saved config. */
+function parseSavedApplicationConfig(app: Record<string, unknown>): {
+  hookName: string;
+  serviceRowsByEventTab: Record<EventTabId, ServiceRow[]>;
+  sdkRowsByEventTab: Record<EventTabId, SdkRow[]>;
+  thresholdByOperation: Partial<Record<ThresholdOp, ThresholdState>>;
+  exceptionalByOperation: Partial<Record<ThresholdOp, ExceptionalState>>;
+} | null {
+  const config =
+    (app.applicationConfigurationDetails as Record<string, unknown> | undefined) ??
+    (app.ApplicationConfigurationDetails as Record<string, unknown> | undefined) ??
+    (app.applicationConfig as Record<string, unknown> | undefined) ??
+    (app.ApplicationConfig as Record<string, unknown> | undefined) ??
+    null;
+  if (!config || typeof config !== "object") return null;
+
+  const hook = (config.hook ?? config.Hook ?? {}) as Record<string, unknown>;
+  const hookName = typeof hook.name === "string" ? hook.name : "";
+
+  const toRows = (events: unknown): { services: ServiceRow[]; sdks: SdkRow[] } => {
+    const services: ServiceRow[] = [];
+    const sdks: SdkRow[] = [];
+    if (!Array.isArray(events)) return { services, sdks };
+    events.forEach((raw, index) => {
+      if (!raw || typeof raw !== "object") return;
+      const e = raw as Record<string, unknown>;
+      const type = String(e.type ?? "").toLowerCase();
+      if (type === "sdk") {
+        const implementationClass = String(e.implementationClass ?? "").trim();
+        const agentId = String(e.agentId ?? "").trim();
+        if (!implementationClass && !agentId) return;
+        sdks.push({
+          id: `sdk-${index}-${Date.now()}`,
+          implementationClass,
+          agentId,
+          operation: String(e.operation ?? ""),
+          isEnabled: Boolean(e.isEnabled),
+        });
+      } else if (type === "service") {
+        const endpoint = String(e.endpoint ?? "").trim();
+        const authorization = String(e.authorization ?? "").trim();
+        if (!endpoint && !authorization) return;
+        const rawHeaders = e.customHeaders;
+        const customHeaders: Array<{ name: string; value: string }> = Array.isArray(rawHeaders)
+          ? rawHeaders
+              .filter((h) => h && typeof h === "object")
+              .map((h: any) => ({ name: String(h.name ?? ""), value: String(h.value ?? "") }))
+          : rawHeaders && typeof rawHeaders === "object"
+          ? Object.entries(rawHeaders as Record<string, unknown>).map(([name, value]) => ({
+              name,
+              value: String(value ?? ""),
+            }))
+          : [];
+        services.push({
+          id: `service-${index}-${Date.now()}`,
+          endpoint,
+          authorization,
+          operation: String(e.operation ?? ""),
+          isEnabled: Boolean(e.isEnabled),
+          customHeaders,
+        });
+      }
+    });
+    return { services, sdks };
+  };
+
+  const pre = toRows(hook.preProcessEvent ?? hook.PreProcessEvent);
+  const post = toRows(hook.postProcessEvent ?? hook.PostProcessEvent);
+
+  const thresholdList = (config.threshold ?? config.Threshold ?? []) as unknown[];
+  const thresholdByOperation: Partial<Record<ThresholdOp, ThresholdState>> = {};
+  const exceptionalByOperation: Partial<Record<ThresholdOp, ExceptionalState>> = {};
+  if (Array.isArray(thresholdList)) {
+    thresholdList.forEach((raw) => {
+      if (!raw || typeof raw !== "object") return;
+      const t = raw as Record<string, unknown>;
+      const opLabel = String(t.operation ?? "").toLowerCase();
+      const op: ThresholdOp | null =
+        opLabel === "disable" ? "disable" : opLabel === "create" ? "create" : opLabel === "delete" ? "delete" : null;
+      if (!op) return;
+      const cutOff = (t.cutOff ?? t.CutOff ?? {}) as Record<string, unknown>;
+      thresholdByOperation[op] = {
+        maxLimit: typeof cutOff.maximumAllowed === "number" ? cutOff.maximumAllowed : initialThresholdState.maxLimit,
+        minutes: typeof cutOff.durationInMinutes === "number" ? cutOff.durationInMinutes : initialThresholdState.minutes,
+        action: cutOff.stopFurtherOperations ? "stop" : "continue",
+        email: typeof cutOff.sendAlertTo === "string" ? cutOff.sendAlertTo : "",
+      };
+      const exceptionalCases = (t.exceptionalCases ?? t.ExceptionalCases ?? {}) as Record<string, unknown>;
+      const peakDaysRaw = Array.isArray(exceptionalCases.peakDays) ? exceptionalCases.peakDays : [];
+      const peakTimesRaw = Array.isArray(exceptionalCases.peakTime) ? exceptionalCases.peakTime : [];
+      exceptionalByOperation[op] = {
+        isExceptionalExpanded: false,
+        isPeakDaysExpanded: false,
+        isPeakTimeExpanded: false,
+        peakDays: peakDaysRaw.map((r: any, i: number) => ({
+          id: `peak-day-${op}-${i}`,
+          startDate: String(r?.startDate ?? ""),
+          endDate: String(r?.endData ?? ""),
+        })),
+        peakTimes: peakTimesRaw.map((r: any, i: number) => ({
+          id: `peak-time-${op}-${i}`,
+          startDate: String(r?.startTime ?? ""),
+          endDate: String(r?.endTime ?? ""),
+        })),
+      };
+    });
+  }
+
+  return {
+    hookName,
+    serviceRowsByEventTab: { "pre-process": pre.services, "post-process": post.services },
+    sdkRowsByEventTab: { "pre-process": pre.sdks, "post-process": post.sdks },
+    thresholdByOperation,
+    exceptionalByOperation,
+  };
+}
+
 const CEL_EXPRESSIONS_BASE = "/api/celmodule/expressions";
 /** Same endpoint as Schema Mapping Source Attribute list. */
 const SCIM_ATTRIBUTES_URL = "https://preview.keyforge.ai/schemamapper/getscim/ACMECOM";
@@ -599,6 +716,23 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
           if (v != null && typeof v !== "object") values[k] = String(v);
         });
         setLoadedIntegrationValues(values);
+
+        const parsedConfig = parseSavedApplicationConfig(app);
+        setHookName(parsedConfig?.hookName ?? "");
+        setServiceRowsByEventTab(
+          parsedConfig?.serviceRowsByEventTab ?? { "pre-process": [], "post-process": [] }
+        );
+        setSdkRowsByEventTab(parsedConfig?.sdkRowsByEventTab ?? { "pre-process": [], "post-process": [] });
+        setThresholdByOperation({
+          disable: { ...initialThresholdState, ...parsedConfig?.thresholdByOperation?.disable },
+          create: { ...initialThresholdState, ...parsedConfig?.thresholdByOperation?.create },
+          delete: { ...initialThresholdState, ...parsedConfig?.thresholdByOperation?.delete },
+        });
+        setExceptionalByOperation({
+          disable: { ...initialExceptionalState, ...parsedConfig?.exceptionalByOperation?.disable },
+          create: { ...initialExceptionalState, ...parsedConfig?.exceptionalByOperation?.create },
+          delete: { ...initialExceptionalState, ...parsedConfig?.exceptionalByOperation?.delete },
+        });
 
         let groups: ApplicationTypeIntegrationFieldGroup[] = [];
         if (category && supported?.applicationType && Array.isArray(supported.applicationType)) {

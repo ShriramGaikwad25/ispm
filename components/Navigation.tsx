@@ -136,6 +136,7 @@ export function Navigation() {
       pathname === '/settings/app-inventory/add-application' ||
       pathname === '/settings/app-inventory/add-application-ai-agent' ||
       pathname === '/settings/app-inventory/ai-assist-app' ||
+      pathname === '/settings/app-inventory/global-ad-config-management' ||
       /^\/settings\/app-inventory\/[^/]+\/(settings|schema-mapping)$/.test(pathname)
     ) {
       return { href: '/settings/app-inventory', label: 'Back to Integrations' };

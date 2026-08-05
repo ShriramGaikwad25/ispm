@@ -552,6 +552,15 @@ export default function AddApplicationPage() {
     }));
   }, [isCompleteIntegration, appNameFromUrl, appTypeFromUrl]);
 
+  // Fresh wizard entry with a type preselected (e.g. from Global AD config management), not resuming an existing app
+  useEffect(() => {
+    if (isCompleteIntegration || !appTypeFromUrl) return;
+    setFormData((prev) => ({
+      ...prev,
+      step1: { ...prev.step1, type: appTypeFromUrl },
+    }));
+  }, [isCompleteIntegration, appTypeFromUrl]);
+
   // Fetch and map application data from getallapp (getInProgressApplications) when in complete-integration mode
   useEffect(() => {
     if (!isCompleteIntegration || !appIdFromUrl || typeof window === "undefined") return;
@@ -3314,6 +3323,49 @@ export default function AddApplicationPage() {
                            </p>
                          </div>
                          {isStaticAdSelected && (
+                           <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                             <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                               <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                             </svg>
+                           </div>
+                         )}
+                       </div>
+                     </div>
+                   );
+                 })()}
+                 {(searchQuery === "" ||
+                   "global ad config management".includes(searchQuery.toLowerCase())) && (() => {
+                   const isGlobalAdConfigSelected =
+                     formData.step1.type === "Global AD config management" &&
+                     !formData.step1.aiAgentOnboard;
+                   return (
+                     <div
+                       key="static-global-ad-config-management"
+                       onClick={() =>
+                         toggleStep1ApplicationType("Global AD config management", false)
+                       }
+                       className={`p-3.5 border rounded-lg cursor-pointer transition-all duration-200 hover:shadow-md ${
+                         isGlobalAdConfigSelected
+                           ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500/30"
+                           : "border-gray-200 bg-white hover:border-gray-300"
+                       }`}
+                     >
+                       <div className="flex items-start gap-2.5">
+                         <div
+                           className="w-9 h-9 rounded-md flex items-center justify-center shrink-0 bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200/90 shadow-[0_1px_2px_rgba(15,23,42,0.06)]"
+                           aria-hidden
+                         >
+                           <AppTypeCardIcon typeId="Global AD config management" />
+                         </div>
+                         <div className="min-w-0 flex-1">
+                           <h3 className="font-medium text-gray-900 text-sm leading-snug">
+                             Global AD config management
+                           </h3>
+                           <p className="text-xs text-gray-500 mt-0.5 line-clamp-2 leading-snug">
+                             Centralized management of global Active Directory configuration settings
+                           </p>
+                         </div>
+                         {isGlobalAdConfigSelected && (
                            <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center shrink-0 mt-0.5">
                              <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />

@@ -83,6 +83,19 @@ export default function AppInventoryPage() {
   const [applicationsData, setApplicationsData] = useState<AppInventoryItem[]>([]);
   const [aiApplicationsData, setAiApplicationsData] = useState<AppInventoryItem[]>([]);
 
+  // Dummy placeholder record shown on the Integrations page
+  const dummyGlobalAdConfigItem: AppInventoryItem = {
+    id: "dummy-global-ad-config-management",
+    name: "Global AD config management",
+    description: "Centralized management of global Active Directory configuration settings across the organization",
+    category: "Active Directory",
+    riskLevel: "Low",
+    serviceUrl: "",
+    apiToken: "",
+    createdOn: new Date().toISOString().split("T")[0],
+    status: "Integrated",
+  };
+
   // Fetch applications from API (all apps + in-progress apps to set status)
   useEffect(() => {
     const fetchApplications = async () => {
@@ -214,7 +227,7 @@ export default function AppInventoryPage() {
             fromInProgressOnly.push(row);
           }
 
-          const merged = [...dedupedMain, ...fromInProgressOnly];
+          const merged = [dummyGlobalAdConfigItem, ...dedupedMain, ...fromInProgressOnly];
           setApplicationsData(merged);
         } else {
           throw new Error(response?.message || "Invalid response format: Applications array not found");
@@ -292,6 +305,7 @@ export default function AppInventoryPage() {
 
   // Sample data - fallback if API fails
   const sampleData: AppInventoryItem[] = [
+    dummyGlobalAdConfigItem,
     {
       id: "1",
       name: "Active Directory",
@@ -543,6 +557,7 @@ useEffect(() => {
         cellRenderer: (params: any) => {
           if (params.data?.__isDescRow) return null;
           const url = params.value ?? "";
+          if (!url) return <div className="flex items-center justify-center w-full h-full min-h-[42px]"><span className="text-sm text-gray-400">—</span></div>;
           return (
             <div className="flex items-center justify-center w-full h-full min-h-[42px]">
               <button
@@ -707,6 +722,10 @@ useEffect(() => {
   const handleSettings = (item: AppInventoryItem) => {
     const appId = item?.id ?? "";
     if (!appId) return;
+    if (appId === dummyGlobalAdConfigItem.id) {
+      router.push("/settings/app-inventory/global-ad-config-management");
+      return;
+    }
     const apiToken = item?.apiToken ?? "";
     if (typeof window !== "undefined") {
       sessionStorage.setItem(`app-inventory-token-${appId}`, apiToken);
