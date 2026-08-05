@@ -98,7 +98,7 @@ const SignOffModal: React.FC<SignOffModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">Sign Off</h2>
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">Sign Off</h2>
 
         {/* Error Message */}
         {error && (

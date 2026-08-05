@@ -4686,7 +4686,7 @@ export default function ApplicationDetailPage() {
       >
         <div className="relative mb-2 flex flex-col gap-2">
           <div className="flex items-center justify-between gap-4 flex-wrap">
-            <h1 className="text-xl font-bold text-blue-950 shrink-0">
+            <h1 className="text-2xl font-bold text-blue-950 shrink-0">
               Entitlements
             </h1>
             <div className="flex items-center gap-4 flex-1 justify-end min-w-0">
@@ -4753,7 +4753,7 @@ export default function ApplicationDetailPage() {
       >
         <div className="relative mb-2">
           <div className="flex items-center justify-between border-b border-gray-300 pb-2">
-            <h1 className="text-xl font-bold text-blue-950">
+            <h1 className="text-2xl font-bold text-blue-950">
               Accounts
             </h1>
             <button

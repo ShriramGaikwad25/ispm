@@ -454,7 +454,7 @@ const ChampaignActionButton: React.FC<ChampaignActionButtonProps> = ({
         createPortal(
           <div className="fixed inset-0 flex items-center justify-center bg-gray-900/50 px-3 z-[99]">
             <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-4" onClick={(e) => e.stopPropagation()}>
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">Send Reminder</h2>
+              <h2 className="text-lg font-semibold text-gray-800 mb-4">Send Reminder</h2>
               <p className="text-gray-600 mb-4">
                 Are you sure you want to send a reminder email to the reviewer?
               </p>
@@ -498,7 +498,7 @@ const ChampaignActionButton: React.FC<ChampaignActionButtonProps> = ({
         createPortal(
           <div className="fixed inset-0 flex items-center justify-center bg-gray-900/50 px-3 z-[99]">
             <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-4" onClick={(e) => e.stopPropagation()}>
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">Confirm Claim Action</h2>
+              <h2 className="text-lg font-semibold text-gray-800 mb-4">Confirm Claim Action</h2>
               <p className="text-gray-600 mb-4">
                 Are you sure you want to claim this review and reassign it to admin?
               </p>

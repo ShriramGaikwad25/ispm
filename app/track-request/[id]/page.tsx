@@ -907,7 +907,7 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
   if (loading) {
     return (
       <div className="p-6 space-y-4">
-        <h1 className="text-xl font-semibold text-gray-900">Loading request…</h1>
+        <h1 className="text-2xl font-semibold text-gray-900">Loading request…</h1>
       </div>
     );
   }
@@ -915,7 +915,7 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
   if (error) {
     return (
       <div className="p-6 space-y-4">
-        <h1 className="text-xl font-semibold text-gray-900">Unable to load request</h1>
+        <h1 className="text-2xl font-semibold text-gray-900">Unable to load request</h1>
         <p className="text-sm text-gray-600">{error}</p>
       </div>
     );
@@ -924,7 +924,7 @@ const TrackRequestDetailPage = ({ params }: { params: Promise<{ id: string }> })
   if (!request || !request.details) {
     return (
       <div className="p-6 space-y-4">
-        <h1 className="text-xl font-semibold text-gray-900">Request not found</h1>
+        <h1 className="text-2xl font-semibold text-gray-900">Request not found</h1>
       </div>
     );
   }

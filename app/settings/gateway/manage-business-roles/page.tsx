@@ -367,7 +367,7 @@ export default function ManageBusinessRolesSettings() {
     <div className="h-full p-2">
       <div className="mx-auto">
           <div className="mb-4 flex items-center justify-between">
-            <h1 className="text-xl font-semibold text-gray-900">
+            <h1 className="text-2xl font-semibold text-gray-900">
               Manage Business Roles
             </h1>
           </div>

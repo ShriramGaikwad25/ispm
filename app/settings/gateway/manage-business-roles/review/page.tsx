@@ -397,7 +397,7 @@ export default function BusinessRoleReviewPage() {
         </div>
 
         <div>
-          <h1 className="text-lg font-semibold text-gray-900">
+          <h1 className="text-2xl font-semibold text-gray-900">
             Review Business Role
           </h1>
           <p className="mt-1 text-xs text-gray-600">

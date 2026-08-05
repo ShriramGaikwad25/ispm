@@ -91,7 +91,7 @@ export default function EmailTemplateDetailPage() {
       <div className="flex items-center justify-between px-6 py-4 h-16 text-white" style={{ backgroundColor: '#27B973' }}>
         <div className="flex items-center gap-3">
           <Mail className="w-6 h-6 text-white" />
-          <h1 className="text-xl font-semibold text-white">
+          <h1 className="text-2xl font-semibold text-white">
             {template ? template.templateName : "Email Template Details"}
           </h1>
         </div>

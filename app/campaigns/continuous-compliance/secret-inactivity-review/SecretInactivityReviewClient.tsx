@@ -79,7 +79,7 @@ export default function SecretInactivityReviewClient() {
                   <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-900/80">
                     Violation
                   </p>
-                  <h1 className="mt-1 text-xl md:text-2xl font-bold text-gray-900 tracking-tight leading-snug">
+                  <h1 className="mt-1 text-2xl font-bold text-gray-900 tracking-tight leading-snug">
                     Secret Not Used for Over 120 Days
                   </h1>
                 </div>

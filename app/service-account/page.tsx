@@ -692,7 +692,7 @@ export default function ServiceAccountPage() {
         >
           <div className="relative mb-2">
             <div className="flex items-center justify-between border-b border-gray-300 pb-2">
-              <h1 className="text-xl font-bold text-blue-950">Service Accounts</h1>
+              <h1 className="text-2xl font-bold text-blue-950">Service Accounts</h1>
               <button
                 onClick={() => openSidebar(null)}
                 className="flex items-center space-x-2 px-3 py-2 bg-[#27B973] text-white rounded-md hover:bg-[#22a667] transition-all duration-200 text-sm font-medium"

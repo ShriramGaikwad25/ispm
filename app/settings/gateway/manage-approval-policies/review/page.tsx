@@ -562,7 +562,7 @@ export default function ApprovalPolicyReviewPage() {
       <div className="mx-auto w-full max-w-6xl">
         <div className="space-y-4 py-3 px-6">
         <div className="flex items-center justify-between gap-2 mb-1">
-          <h1 className="text-lg font-semibold text-gray-900">
+          <h1 className="text-2xl font-semibold text-gray-900">
             Review and Submit Approval Policy
           </h1>
           <div className="flex items-center gap-2">

@@ -339,7 +339,7 @@ export default function ManagerInactiveReviewPage() {
     <div className="min-h-screen bg-[#f4f5f8] py-5 px-0 md:px-0">
       <div className="w-full max-w-[1600px] mx-auto px-4 md:px-6">
         <div className="mb-4">
-          <h1 className="text-xl font-semibold text-gray-900">Users</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">Users</h1>
           <p className="text-sm text-gray-600 mt-1">
             Manager inactive — direct reports under review ({filteredRows.length} of{" "}
             {rowData.length} shown).

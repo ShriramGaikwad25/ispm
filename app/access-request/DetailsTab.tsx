@@ -255,7 +255,7 @@ const DetailsTab: React.FC = () => {
     <div className="w-full">
       {/* Global Access Duration and Comments Section */}
       <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-        <h3 className="text-base font-semibold text-gray-900 mb-4">Access Duration & Comments</h3>
+        <h3 className="text-sm font-semibold text-gray-900 mb-4">Access Duration & Comments</h3>
         
         <div className="space-y-4">
           {/* Access Type, Request Type, Start Date, End Date - all in one row, same height */}
@@ -385,7 +385,7 @@ const DetailsTab: React.FC = () => {
 
       {/* Items with Date Fields */}
       <div className="space-y-4">
-        <h3 className="text-base font-semibold text-gray-900 mb-2">Access Items</h3>
+        <h3 className="text-sm font-semibold text-gray-900 mb-2">Access Items</h3>
         {items.map((item) => {
           const dates = itemDates[item.id] || {
             startDate: globalSettings.startDate,

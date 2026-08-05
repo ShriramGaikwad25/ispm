@@ -83,7 +83,13 @@ const EditReassignButtons = <T extends { status?: string }>({
           setIsEditMode(false);
         }}
       />,
-      { widthPx: 500, title: "Edit Entitlement" }
+      {
+        widthPx: 500,
+        title:
+          (localNodeData as any)?.["Ent Name"] ||
+          (localNodeData as any)?.entitlementName ||
+          "Entitlement",
+      }
     );
 
     // Initialize editable fields with most recent node data

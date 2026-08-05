@@ -471,7 +471,7 @@ const TrackRequest: React.FC = () => {
 
   return (
     <div>
-      <h1 className="text-xl font-bold mb-3 border-b border-gray-300 pb-2 text-blue-950">
+      <h1 className="text-2xl font-bold mb-3 border-b border-gray-300 pb-2 text-blue-950">
         Track requests
       </h1>
 

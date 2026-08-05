@@ -1,8 +1,14 @@
 "use client";
 
 import { ChevronDown, ChevronRight, FolderIcon } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { formatDateMMDDYY } from "@/utils/utils";
+
+function autoResizeTextarea(el: HTMLTextAreaElement | null) {
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = `${el.scrollHeight}px`;
+}
 
 export type EntitlementDetailsSidebarProps = {
   data: any;
@@ -42,6 +48,7 @@ export default function EntitlementDetailsSidebar({
   onClose,
 }: EntitlementDetailsSidebarProps) {
   const [isEditModeLocal, setIsEditModeLocal] = useState<boolean>(editModeInitial);
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
   const [expandedFramesLocal, setExpandedFramesLocal] = useState<FramesState>({
     general: false,
     business: false,
@@ -50,6 +57,12 @@ export default function EntitlementDetailsSidebar({
     lifecycle: false,
   });
   const [editableFieldsLocal, setEditableFieldsLocal] = useState<any>({ ...(data as any) });
+
+  useEffect(() => {
+    if (isEditModeLocal) {
+      autoResizeTextarea(descriptionRef.current);
+    }
+  }, [isEditModeLocal, editableFieldsLocal["Ent Description"]]);
 
   const toggleFrameLocal = (frame: keyof FramesState) => {
     setExpandedFramesLocal((prev) => ({ ...prev, [frame]: !prev[frame] }));
@@ -111,7 +124,7 @@ export default function EntitlementDetailsSidebar({
 
   return (
     <div className="w-full">
-      <div className="p-4 border-b bg-gray-50">
+      <div className="p-4 bg-gray-50">
         <div className="flex justify-between items-start">
           <div className="flex-1">
             {errorMessage ? (
@@ -121,50 +134,26 @@ export default function EntitlementDetailsSidebar({
             ) : (
               <>
                 {isEditModeLocal ? (
-                  <input
-                    type="text"
-                    value={
-                      (editableFieldsLocal as any)["Ent Name"] ||
-                      (data as any)?.["Ent Name"] ||
-                      ""
-                    }
-                    onChange={(e) =>
-                      setEditableFieldsLocal((prev: any) => ({
-                        ...prev,
-                        "Ent Name": e.target.value,
-                      }))
-                    }
-                    className="form-input w-full text-md font-medium mt-2 rounded"
-                  />
-                ) : (
-                  <>
-                    <h3 className="text-md font-semibold text-gray-600">Entitlement Name :-</h3>
-                    <h4 className="text-md font-medium mt-2 break-words break-all whitespace-normal leading-snug max-w-full">
-                      {(data as any)?.["Ent Name"] ||
-                        (data as any)?.["entitlementName"] ||
-                        "Name: -"}
-                    </h4>
-                  </>
-                )}
-                {isEditModeLocal ? (
                   <textarea
+                    ref={descriptionRef}
                     value={
                       (editableFieldsLocal as any)["Ent Description"] ||
                       (data as any)?.["Ent Description"] ||
                       ""
                     }
-                    onChange={(e) =>
+                    onChange={(e) => {
                       setEditableFieldsLocal((prev: any) => ({
                         ...prev,
                         "Ent Description": e.target.value,
-                      }))
-                    }
-                    className="form-input w-full text-sm text-gray-600 mt-2 rounded"
+                      }));
+                      autoResizeTextarea(e.target);
+                    }}
+                    className="form-input w-full text-sm text-gray-600 mt-2 rounded overflow-hidden resize-none"
                     rows={2}
                   />
                 ) : (
                   <>
-                    <h3 className="text-md font-semibold text-gray-600 mt-4">Description :-</h3>
+                    <h3 className="text-md font-semibold text-gray-600">Description :-</h3>
                     <p className="text-sm text-gray-600 mt-1 break-words break-all whitespace-pre-wrap max-w-full">
                       {(data as any)?.["Ent Description"] ||
                         (data as any)?.["description"] ||
@@ -175,31 +164,6 @@ export default function EntitlementDetailsSidebar({
               </>
             )}
           </div>
-        </div>
-        <div className="mt-4 flex space-x-2">
-          {!isEditModeLocal && (
-            <button
-              type="button"
-              onClick={() => {
-                setIsEditModeLocal(true);
-                setEditableFieldsLocal({ ...(data as any) });
-              }}
-              className="p-1 rounded bg-blue-500 text-white hover:bg-blue-600 w-full"
-              aria-label="Edit entitlement"
-            >
-              Edit
-            </button>
-          )}
-          {isEditModeLocal && (
-            <button
-              type="button"
-              onClick={() => onSave(editableFieldsLocal)}
-              className="p-1 rounded bg-blue-500 text-white hover:bg-blue-600 w-full"
-              aria-label="Save edits"
-            >
-              Save
-            </button>
-          )}
         </div>
       </div>
 
@@ -519,15 +483,30 @@ export default function EntitlementDetailsSidebar({
         </div>
       </div>
 
-      <div className="p-4 border-t bg-gray-50 flex space-x-2">
-        <button
-          type="button"
-          onClick={onClose}
-          className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 text-gray-800 w-full"
-          aria-label="Close panel"
-        >
-          Close
-        </button>
+      <div className="p-4 bg-gray-50 flex space-x-2">
+        {!isEditModeLocal && (
+          <button
+            type="button"
+            onClick={() => {
+              setIsEditModeLocal(true);
+              setEditableFieldsLocal({ ...(data as any) });
+            }}
+            className="w-full rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+            aria-label="Edit entitlement"
+          >
+            Edit
+          </button>
+        )}
+        {isEditModeLocal && (
+          <button
+            type="button"
+            onClick={() => onSave(editableFieldsLocal)}
+            className="w-full rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+            aria-label="Save edits"
+          >
+            Save
+          </button>
+        )}
       </div>
     </div>
   );

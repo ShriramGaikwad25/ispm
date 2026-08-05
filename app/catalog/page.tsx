@@ -15,6 +15,12 @@ import {
   ChevronDown,
   ChevronRight,
   AlertTriangle,
+  Info,
+  Briefcase,
+  Cpu,
+  ShieldCheck,
+  RefreshCw,
+  MessageSquare,
 } from "lucide-react";
 import { getCatalogEntitlements } from "@/lib/api";
 import { getReviewerId } from "@/lib/auth";
@@ -1007,402 +1013,221 @@ const CatalogPageContent = () => {
                   const row = params?.data || {};
                   const InfoSidebar = () => {
                     const [sectionsOpen, setSectionsOpen] = useState({
-                      general: false,
+                      general: true,
                       business: false,
                       technical: false,
                       security: false,
                       lifecycle: false,
                     });
+                    const toggleSection = (key: keyof typeof sectionsOpen) =>
+                      setSectionsOpen((s) => ({ ...s, [key]: !s[key] }));
+
+                    const Field = ({
+                      label,
+                      value,
+                      badgeClass,
+                      full,
+                    }: {
+                      label: string;
+                      value: any;
+                      badgeClass?: string;
+                      full?: boolean;
+                    }) => (
+                      <div className={full ? "col-span-2" : ""}>
+                        <div className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
+                          {label}
+                        </div>
+                        {badgeClass ? (
+                          <span
+                            className={`mt-1 inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${badgeClass}`}
+                          >
+                            {value || "N/A"}
+                          </span>
+                        ) : (
+                          <div className="mt-1 text-sm text-gray-800 break-words whitespace-pre-wrap">
+                            {value === undefined || value === null || value === "" ? (
+                              <span className="text-gray-400">N/A</span>
+                            ) : (
+                              value.toString()
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+
+                    const badgeStyles = (value: any) => {
+                      const v = (value ?? "").toString().toLowerCase();
+                      if (v.includes("high") || v.includes("critical"))
+                        return "border-red-200 bg-red-50 text-red-700";
+                      if (v.includes("medium"))
+                        return "border-amber-200 bg-amber-50 text-amber-700";
+                      if (v.includes("low"))
+                        return "border-green-200 bg-green-50 text-green-700";
+                      return "border-gray-200 bg-gray-50 text-gray-600";
+                    };
+
+                    const sections: Array<{
+                      id: keyof typeof sectionsOpen;
+                      label: string;
+                      icon: typeof Info;
+                    }> = [
+                      { id: "general", label: "General", icon: Info },
+                      { id: "business", label: "Business", icon: Briefcase },
+                      { id: "technical", label: "Technical", icon: Cpu },
+                      { id: "security", label: "Security", icon: ShieldCheck },
+                      { id: "lifecycle", label: "Lifecycle", icon: RefreshCw },
+                    ];
 
                     return (
-                      <div className="flex flex-col h-full">
-                        <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                          {/* Header Section */}
-                          <div className="p-4 border-b bg-gray-50">
-                            <div className="flex justify-between items-start">
-                              <div className="flex-1">
-                                <h2 className="text-lg font-semibold">Entitlement Details</h2>
-                                <div className="mt-2">
-                                  <span className="text-xs uppercase text-gray-500">
-                                    Entitlement Name:
-                                  </span>
-                                  <div className="text-md font-medium break-words break-all whitespace-normal max-w-full">
-                                    {row?.["Ent Name"] ||
-                                      row?.entitlementName ||
-                                      row?.applicationName ||
-                                      "-"}
-                                  </div>
-                                </div>
-                                <div className="mt-2">
-                                  <span className="text-xs uppercase text-gray-500">
-                                    Description:
-                                  </span>
-                                  <p className="text-sm text-gray-700 break-words break-all whitespace-pre-wrap max-w-full">
-                                    {row?.["Ent Description"] ||
-                                      row?.description ||
-                                      row?.details ||
-                                      "-"}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="mt-3 flex space-x-2">
-                              <button
-                                onClick={handleApprove}
-                                title="Approve"
-                                aria-label="Approve entitlement"
-                                className={`p-1 rounded transition-colors duration-200 ${
-                                  lastAction === "Approve"
-                                    ? "bg-green-500"
-                                    : "hover:bg-green-100"
-                                }`}
-                              >
-                                <CircleCheck
-                                  className="cursor-pointer"
-                                  color="#1c821cff"
-                                  strokeWidth="1"
-                                  size="32"
-                                  fill={lastAction === "Approve" ? "#1c821cff" : "none"}
-                                />
-                              </button>
-                              <button
-                                onClick={handleRevoke}
-                                title="Revoke"
-                                aria-label="Revoke entitlement"
-                                className={`p-1 rounded ${
-                                  row?.status === "Rejected" ? "bg-red-100" : ""
-                                }`}
-                              >
-                                <CircleX
-                                  className="cursor-pointer hover:opacity-80 transform rotate-90"
-                                  color="#FF2D55"
-                                  strokeWidth="1"
-                                  size="32"
-                                  fill={row?.status === "Rejected" ? "#FF2D55" : "none"}
-                                />
-                              </button>
-                              <button
-                                onClick={handleComment}
-                                title="Comment"
-                                aria-label="Add comment"
-                                className="p-1 rounded"
-                              >
-                                <svg
-                                  width="30"
-                                  height="30"
-                                  viewBox="0 0 32 32"
-                                  className="cursor-pointer hover:opacity-80"
-                                >
-                                  <path
-                                    d="M0.700195 0V19.5546H3.5802V25.7765C3.57994 25.9525 3.62203 26.1247 3.70113 26.2711C3.78022 26.4176 3.89277 26.5318 4.02449 26.5992C4.15621 26.6666 4.30118 26.6842 4.44101 26.6498C4.58085 26.6153 4.70926 26.5304 4.80996 26.4058C6.65316 24.1232 10.3583 19.5546 10.3583 19.5546H25.1802V0H0.700195ZM2.1402 1.77769H23.7402V17.7769H9.76212L5.0202 23.6308V17.7769H2.1402V1.77769ZM5.0202 5.33307V7.11076H16.5402V5.33307H5.0202ZM26.6202 5.33307V7.11076H28.0602V23.11H25.1802V28.9639L20.4383 23.11H9.34019L7.9002 24.8877H19.8421C19.8421 24.8877 23.5472 29.4563 25.3904 31.7389C25.4911 31.8635 25.6195 31.9484 25.7594 31.9828C25.8992 32.0173 26.0442 31.9997 26.1759 31.9323C26.3076 31.8648 26.4202 31.7507 26.4993 31.6042C26.5784 31.4578 26.6204 31.2856 26.6202 31.1096V24.8877H29.5002V5.33307H26.6202ZM5.0202 8.88845V10.6661H10.7802V8.88845H5.0202ZM5.0202 12.4438V14.2215H19.4202V12.4438H5.0202Z"
-                                    fill="#2684FF"
-                                  />
-                                </svg>
-                              </button>
-                            </div>
+                      <div className="flex flex-col gap-3">
+                        {/* Summary card */}
+                        <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-4 shadow-sm">
+                          <div className="text-base font-semibold text-gray-900 break-words">
+                            {row?.["Ent Name"] ||
+                              row?.entitlementName ||
+                              row?.applicationName ||
+                              "-"}
                           </div>
-                          <div className="p-4 space-y-4">
-                            {/* General Accordion */}
-                            <div className="bg-white border border-gray-200 rounded-md shadow-sm">
-                              <button
-                                className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
-                                onClick={() =>
-                                  setSectionsOpen((s: any) => ({ ...s, general: !s.general }))
-                                }
-                              >
-                                {sectionsOpen.general ? (
-                                  <ChevronDown size={20} className="mr-2" />
-                                ) : (
-                                  <ChevronRight size={20} className="mr-2" />
-                                )}{" "}
-                                General
-                              </button>
-                              {sectionsOpen.general && (
-                                <div className="p-4 space-y-2">
-                                  <div className="flex space-x-4 text-sm text-gray-700">
-                                    <div className="flex-1">
-                                      <strong>Ent Type:</strong>{" "}
-                                      {row?.["Ent Type"] || row?.type || "N/A"}
-                                    </div>
-                                    <div className="flex-1">
-                                      <strong>#Assignments:</strong>{" "}
-                                      {row?.["Total Assignments"] ?? "N/A"}
-                                    </div>
-                                  </div>
-                                  <div className="flex space-x-4 text-sm text-gray-700">
-                                    <div className="flex-1">
-                                      <strong>App Name:</strong>{" "}
-                                      {row?.["App Name"] ||
-                                        row?.applicationName ||
-                                        "N/A"}
-                                    </div>
-                                    <div className="flex-1">
-                                      <strong>Tag(s):</strong>{" "}
-                                      {row?.["Dynamic Tag"] || "N/A"}
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                            {/* Business Accordion */}
-                            <div className="bg-white border border-gray-200 rounded-md shadow-sm">
-                              <button
-                                className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
-                                onClick={() =>
-                                  setSectionsOpen((s: any) => ({ ...s, business: !s.business }))
-                                }
-                              >
-                                {sectionsOpen.business ? (
-                                  <ChevronDown size={20} className="mr-2" />
-                                ) : (
-                                  <ChevronRight size={20} className="mr-2" />
-                                )}{" "}
-                                Business
-                              </button>
-                              {sectionsOpen.business && (
-                                <div className="p-4 space-y-2 text-sm text-gray-700">
-                                  <div>
-                                    <strong>Objective:</strong>{" "}
-                                    {row?.["Business Objective"] || "N/A"}
-                                  </div>
-                                  <div className="flex space-x-4">
-                                    <div className="flex-1">
-                                      <strong>Business Unit:</strong>{" "}
-                                      {row?.["Business Unit"] || "N/A"}
-                                    </div>
-                                    <div className="flex-1">
-                                      <strong>Business Owner:</strong>{" "}
-                                      {row?.["Ent Owner"] || "N/A"}
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <strong>Regulatory Scope:</strong>{" "}
-                                    {row?.["Compliance Type"] || "N/A"}
-                                  </div>
-                                  <div className="flex space-x-4">
-                                    <div className="flex-1">
-                                      <strong>Data Classification:</strong>{" "}
-                                      {row?.["Data Classification"] || "N/A"}
-                                    </div>
-                                    <div className="flex-1">
-                                      <strong>Cost Center:</strong>{" "}
-                                      {row?.["Cost Center"] || "N/A"}
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                            {/* Technical Accordion */}
-                            <div className="bg-white border border-gray-200 rounded-md shadow-sm">
-                              <button
-                                className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
-                                onClick={() =>
-                                  setSectionsOpen((s: any) => ({
-                                    ...s,
-                                    technical: !s.technical,
-                                  }))
-                                }
-                              >
-                                {sectionsOpen.technical ? (
-                                  <ChevronDown size={20} className="mr-2" />
-                                ) : (
-                                  <ChevronRight size={20} className="mr-2" />
-                                )}{" "}
-                                Technical
-                              </button>
-                              {sectionsOpen.technical && (
-                                <div className="p-4 space-y-2 text-sm text-gray-700">
-                                  <div className="flex space-x-4">
-                                    <div className="flex-1">
-                                      <strong>Created On:</strong>{" "}
-                                      {row?.["Created On"] || "N/A"}
-                                    </div>
-                                    <div className="flex-1">
-                                      <strong>Last Sync:</strong>{" "}
-                                      {row?.["Last Sync"] || "N/A"}
-                                    </div>
-                                  </div>
-                                  <div className="flex space-x-4">
-                                    <div className="flex-1">
-                                      <strong>App Name:</strong>{" "}
-                                      {row?.["App Name"] ||
-                                        row?.applicationName ||
-                                        "N/A"}
-                                    </div>
-                                    <div className="flex-1">
-                                      <strong>App Instance:</strong>{" "}
-                                      {row?.["App Instance"] || "N/A"}
-                                    </div>
-                                  </div>
-                                  <div className="flex space-x-4">
-                                    <div className="flex-1">
-                                      <strong>App Owner:</strong>{" "}
-                                      {row?.["App Owner"] || "N/A"}
-                                    </div>
-                                    <div className="flex-1">
-                                      <strong>Ent Owner:</strong>{" "}
-                                      {row?.["Ent Owner"] || "N/A"}
-                                    </div>
-                                  </div>
-                                  <div className="flex space-x-4">
-                                    <div className="flex-1">
-                                      <strong>Hierarchy:</strong>{" "}
-                                      {row?.["Hierarchy"] || "N/A"}
-                                    </div>
-                                    <div className="flex-1">
-                                      <strong>MFA Status:</strong>{" "}
-                                      {row?.["MFA Status"] || "N/A"}
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <strong>Assigned to/Member of:</strong>{" "}
-                                    {row?.["assignment"] || "N/A"}
-                                  </div>
-                                  <div>
-                                    <strong>License Type:</strong>{" "}
-                                    {row?.["License Type"] || "N/A"}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                            {/* Security Accordion */}
-                            <div className="bg-white border border-gray-200 rounded-md shadow-sm">
-                              <button
-                                className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
-                                onClick={() =>
-                                  setSectionsOpen((s: any) => ({ ...s, security: !s.security }))
-                                }
-                              >
-                                {sectionsOpen.security ? (
-                                  <ChevronDown size={20} className="mr-2" />
-                                ) : (
-                                  <ChevronRight size={20} className="mr-2" />
-                                )}{" "}
-                                Security
-                              </button>
-                              {sectionsOpen.security && (
-                                <div className="p-4 space-y-2 text-sm text-gray-700">
-                                  <div className="flex space-x-4">
-                                    <div className="flex-1">
-                                      <strong>Risk:</strong>{" "}
-                                      {row?.["Risk"] || row?.risk || "N/A"}
-                                    </div>
-                                    <div className="flex-1">
-                                      <strong>Certifiable:</strong>{" "}
-                                      {row?.["Certifiable"] || "N/A"}
-                                    </div>
-                                  </div>
-                                  <div className="flex space-x-4">
-                                    <div className="flex-1">
-                                      <strong>Revoke on Disable:</strong>{" "}
-                                      {row?.["Revoke on Disable"] || "N/A"}
-                                    </div>
-                                    <div className="flex-1">
-                                      <strong>Shared Pwd:</strong>{" "}
-                                      {row?.["Shared Pwd"] || "N/A"}
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <strong>SoD/Toxic Combination:</strong>{" "}
-                                    {row?.["SOD Check"] || "N/A"}
-                                  </div>
-                                  <div>
-                                    <strong>Access Scope:</strong>{" "}
-                                    {row?.["Access Scope"] || "N/A"}
-                                  </div>
-                                  <div className="flex space-x-4">
-                                    <div className="flex-1">
-                                      <strong>Review Schedule:</strong>{" "}
-                                      {row?.["Review Schedule"] || "N/A"}
-                                    </div>
-                                    <div className="flex-1">
-                                      <strong>Last Reviewed On:</strong>{" "}
-                                      {row?.["Last Reviewed on"] || "N/A"}
-                                    </div>
-                                  </div>
-                                  <div className="flex space-x-4">
-                                    <div className="flex-1">
-                                      <strong>Privileged:</strong>{" "}
-                                      {row?.["Privileged"] || "N/A"}
-                                    </div>
-                                    <div className="flex-1">
-                                      <strong>Non Persistent Access:</strong>{" "}
-                                      {row?.["Non Persistent Access"] || "N/A"}
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <strong>Audit Comments:</strong>{" "}
-                                    {row?.["Audit Comments"] || "N/A"}
-                                  </div>
-                                  <div>
-                                    <strong>Account Type Restriction:</strong>{" "}
-                                    {row?.["Account Type Restriction"] || "N/A"}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                            {/* Lifecycle Accordion */}
-                            <div className="bg-white border border-gray-200 rounded-md shadow-sm">
-                              <button
-                                className="flex items-center w-full text-left text-md font-semibold text-gray-800 p-3 bg-gray-50 rounded-t-md"
-                                onClick={() =>
-                                  setSectionsOpen((s: any) => ({
-                                    ...s,
-                                    lifecycle: !s.lifecycle,
-                                  }))
-                                }
-                              >
-                                {sectionsOpen.lifecycle ? (
-                                  <ChevronDown size={20} className="mr-2" />
-                                ) : (
-                                  <ChevronRight size={20} className="mr-2" />
-                                )}{" "}
-                                Lifecycle
-                              </button>
-                              {sectionsOpen.lifecycle && (
-                                <div className="p-4 space-y-2 text-sm text-gray-700">
-                                  <div className="flex space-x-4">
-                                    <div className="flex-1">
-                                      <strong>Requestable:</strong>{" "}
-                                      {row?.["Requestable"] || "N/A"}
-                                    </div>
-                                    <div className="flex-1">
-                                      <strong>Pre-Requisite:</strong>{" "}
-                                      {row?.["Pre- Requisite"] || "N/A"}
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <strong>Pre-Req Details:</strong>{" "}
-                                    {row?.["Pre-Requisite Details"] || "N/A"}
-                                  </div>
-                                  <div className="flex space-x-4">
-                                    <div className="flex-1">
-                                      <strong>Auto Assign Access Policy:</strong>{" "}
-                                      {row?.["Auto Assign Access Policy"] || "N/A"}
-                                    </div>
-                                    <div className="flex-1">
-                                      <strong>Provisioner Group:</strong>{" "}
-                                      {row?.["Provisioner Group"] || "N/A"}
-                                    </div>
-                                  </div>
-                                  <div className="flex space-x-4">
-                                    <div className="flex-1">
-                                      <strong>Provisioning Steps:</strong>{" "}
-                                      {row?.["Provisioning Steps"] || "N/A"}
-                                    </div>
-                                    <div className="flex-1">
-                                      <strong>Provisioning Mechanism:</strong>{" "}
-                                      {row?.["Provisioning Mechanism"] || "N/A"}
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <strong>Action on Native Change:</strong>{" "}
-                                    {row?.["Action on Native Change"] || "N/A"}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
+                          <p className="mt-1 text-sm text-gray-500 break-words whitespace-pre-wrap">
+                            {row?.["Ent Description"] ||
+                              row?.description ||
+                              row?.details ||
+                              "No description available"}
+                          </p>
+                          <div className="mt-3 flex items-center gap-2 border-t border-gray-100 pt-3">
+                            <button
+                              onClick={handleApprove}
+                              title="Approve"
+                              aria-label="Approve entitlement"
+                              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                                lastAction === "Approve"
+                                  ? "bg-green-600 text-white"
+                                  : "border border-green-200 bg-white text-green-700 hover:bg-green-50"
+                              }`}
+                            >
+                              <CircleCheck size={15} /> Approve
+                            </button>
+                            <button
+                              onClick={handleRevoke}
+                              title="Revoke"
+                              aria-label="Revoke entitlement"
+                              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                                row?.status === "Rejected"
+                                  ? "bg-red-600 text-white"
+                                  : "border border-red-200 bg-white text-red-600 hover:bg-red-50"
+                              }`}
+                            >
+                              <CircleX size={15} /> Revoke
+                            </button>
+                            <button
+                              onClick={handleComment}
+                              title="Comment"
+                              aria-label="Add comment"
+                              className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                            >
+                              <MessageSquare size={15} /> Comment
+                            </button>
                           </div>
+                        </div>
+
+                        {/* Accordion sections */}
+                        <div className="space-y-3">
+                          {sections.map(({ id, label, icon: Icon }) => (
+                            <div
+                              key={id}
+                              className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
+                            >
+                              <button
+                                type="button"
+                                onClick={() => toggleSection(id)}
+                                className="flex w-full items-center justify-between gap-2 bg-gray-50 px-4 py-3 text-left text-sm font-semibold text-gray-800 transition-colors hover:bg-gray-100"
+                              >
+                                <span className="flex items-center gap-2">
+                                  <Icon size={16} className="text-gray-500" />
+                                  {label}
+                                </span>
+                                {sectionsOpen[id] ? (
+                                  <ChevronDown size={18} className="text-gray-400" />
+                                ) : (
+                                  <ChevronRight size={18} className="text-gray-400" />
+                                )}
+                              </button>
+                              {sectionsOpen[id] && (
+                                <div className="grid grid-cols-2 gap-4 p-4">
+                                  {id === "general" && (
+                                    <>
+                                      <Field label="Ent Type" value={row?.["Ent Type"] || row?.type} />
+                                      <Field label="#Assignments" value={row?.["Total Assignments"]} />
+                                      <Field
+                                        label="App Name"
+                                        value={row?.["App Name"] || row?.applicationName}
+                                      />
+                                      <Field label="Tag(s)" value={row?.["Dynamic Tag"]} />
+                                    </>
+                                  )}
+                                  {id === "business" && (
+                                    <>
+                                      <Field full label="Objective" value={row?.["Business Objective"]} />
+                                      <Field label="Business Unit" value={row?.["Business Unit"]} />
+                                      <Field label="Business Owner" value={row?.["Ent Owner"]} />
+                                      <Field full label="Regulatory Scope" value={row?.["Compliance Type"]} />
+                                      <Field label="Data Classification" value={row?.["Data Classification"]} />
+                                      <Field label="Cost Center" value={row?.["Cost Center"]} />
+                                    </>
+                                  )}
+                                  {id === "technical" && (
+                                    <>
+                                      <Field label="Created On" value={row?.["Created On"]} />
+                                      <Field label="Last Sync" value={row?.["Last Sync"]} />
+                                      <Field
+                                        label="App Name"
+                                        value={row?.["App Name"] || row?.applicationName}
+                                      />
+                                      <Field label="App Instance" value={row?.["App Instance"]} />
+                                      <Field label="App Owner" value={row?.["App Owner"]} />
+                                      <Field label="Ent Owner" value={row?.["Ent Owner"]} />
+                                      <Field label="Hierarchy" value={row?.["Hierarchy"]} />
+                                      <Field label="MFA Status" value={row?.["MFA Status"]} />
+                                      <Field full label="Assigned to/Member of" value={row?.["assignment"]} />
+                                      <Field full label="License Type" value={row?.["License Type"]} />
+                                    </>
+                                  )}
+                                  {id === "security" && (
+                                    <>
+                                      <Field
+                                        label="Risk"
+                                        value={row?.["Risk"] || row?.risk}
+                                        badgeClass={badgeStyles(row?.["Risk"] || row?.risk)}
+                                      />
+                                      <Field label="Certifiable" value={row?.["Certifiable"]} />
+                                      <Field label="Revoke on Disable" value={row?.["Revoke on Disable"]} />
+                                      <Field label="Shared Pwd" value={row?.["Shared Pwd"]} />
+                                      <Field full label="SoD/Toxic Combination" value={row?.["SOD Check"]} />
+                                      <Field full label="Access Scope" value={row?.["Access Scope"]} />
+                                      <Field label="Review Schedule" value={row?.["Review Schedule"]} />
+                                      <Field label="Last Reviewed On" value={row?.["Last Reviewed on"]} />
+                                      <Field label="Privileged" value={row?.["Privileged"]} />
+                                      <Field label="Non Persistent Access" value={row?.["Non Persistent Access"]} />
+                                      <Field full label="Audit Comments" value={row?.["Audit Comments"]} />
+                                      <Field full label="Account Type Restriction" value={row?.["Account Type Restriction"]} />
+                                    </>
+                                  )}
+                                  {id === "lifecycle" && (
+                                    <>
+                                      <Field label="Requestable" value={row?.["Requestable"]} />
+                                      <Field label="Pre-Requisite" value={row?.["Pre- Requisite"]} />
+                                      <Field full label="Pre-Req Details" value={row?.["Pre-Requisite Details"]} />
+                                      <Field label="Auto Assign Access Policy" value={row?.["Auto Assign Access Policy"]} />
+                                      <Field label="Provisioner Group" value={row?.["Provisioner Group"]} />
+                                      <Field label="Provisioning Steps" value={row?.["Provisioning Steps"]} />
+                                      <Field label="Provisioning Mechanism" value={row?.["Provisioning Mechanism"]} />
+                                      <Field full label="Action on Native Change" value={row?.["Action on Native Change"]} />
+                                    </>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ))}
                         </div>
                       </div>
                     );
@@ -1479,7 +1304,7 @@ const CatalogPageContent = () => {
     return (
       <div className="ag-theme-alpine" style={{ height: 600, width: "100%" }}>
         <div className="relative mb-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold pb-2 text-blue-950">Entitlements</h1>
+          <h1 className="text-2xl font-bold pb-2 text-blue-950">Entitlements</h1>
         </div>
         <div className="flex items-center justify-center h-96">
           <div className="text-center">
@@ -1495,7 +1320,7 @@ const CatalogPageContent = () => {
     return (
       <div className="ag-theme-alpine" style={{ height: 600, width: "100%" }}>
         <div className="relative mb-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold pb-2 text-blue-950">Entitlements</h1>
+          <h1 className="text-2xl font-bold pb-2 text-blue-950">Entitlements</h1>
         </div>
         <div className="flex items-center justify-center h-96">
           <div className="text-center">
@@ -1526,7 +1351,7 @@ const CatalogPageContent = () => {
       `}</style>
       <div className="relative mb-4 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold pb-2 text-blue-950">Entitlements</h1>
+          <h1 className="text-2xl font-bold pb-2 text-blue-950">Entitlements</h1>
           {ccOwnerInactive && (
             <p className="text-sm text-gray-600 -mt-1">
               Owner inactive — review required (Continuous Compliance).

@@ -370,7 +370,7 @@ export default function Dashboard() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Dashboard</h1>
         </div>
 
         {/* Risk Posture - Top Section */}

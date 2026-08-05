@@ -293,7 +293,7 @@ export default function Application() {
     !mounted ? null :
     <div className="ag-theme-alpine" style={{ width: "100%" }}>
       <div className="relative mb-2">
-        <h1 className="text-xl font-bold border-b border-gray-300 pb-2 text-blue-950">
+        <h1 className="text-2xl font-bold border-b border-gray-300 pb-2 text-blue-950">
           Applications
         </h1>
         <div className="mb-1">

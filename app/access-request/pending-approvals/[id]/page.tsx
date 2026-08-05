@@ -1384,7 +1384,7 @@ const PendingApprovalDetailPage = ({
   if (loading) {
     return (
       <div className="p-6">
-        <h1 className="text-xl font-semibold text-gray-900">
+        <h1 className="text-2xl font-semibold text-gray-900">
           Loading request...
         </h1>
       </div>
@@ -1394,7 +1394,7 @@ const PendingApprovalDetailPage = ({
   if (error) {
     return (
       <div className="p-6 space-y-2">
-        <h1 className="text-xl font-semibold text-gray-900">
+        <h1 className="text-2xl font-semibold text-gray-900">
           Unable to load request
         </h1>
         <p className="text-sm text-gray-600">{error}</p>
@@ -1405,7 +1405,7 @@ const PendingApprovalDetailPage = ({
   if (!request) {
     return (
       <div className="p-6">
-        <h1 className="text-xl font-semibold text-gray-900">
+        <h1 className="text-2xl font-semibold text-gray-900">
           Request not found
         </h1>
       </div>

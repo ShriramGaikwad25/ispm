@@ -30,7 +30,7 @@ const AccessReview: React.FC = () => {
 
   return (
     <>
-      <h1 className="text-xl font-bold mb-3 border-b border-gray-300 pb-2 text-blue-950">
+      <h1 className="text-2xl font-bold mb-3 border-b border-gray-300 pb-2 text-blue-950">
         Access Review
       </h1>
       

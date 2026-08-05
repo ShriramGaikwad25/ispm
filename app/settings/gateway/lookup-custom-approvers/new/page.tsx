@@ -111,7 +111,7 @@ export default function LookupCustomApproverNewRulePage() {
       >
         <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
-            <h1 className="text-lg font-bold leading-tight text-gray-900">
+            <h1 className="text-2xl font-bold leading-tight text-gray-900">
               New condition rule
             </h1>
             <p className="mt-0.5 text-xs text-gray-500 line-clamp-1">

@@ -60,7 +60,7 @@ export default function ApiKeyRotationReviewClient() {
                   <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500">
                     Violation
                   </p>
-                  <h1 className="mt-1 text-xl md:text-2xl font-bold text-gray-900 tracking-tight leading-snug">
+                  <h1 className="mt-1 text-2xl font-bold text-gray-900 tracking-tight leading-snug">
                     API Key Overdue for Rotation
                   </h1>
                 </div>

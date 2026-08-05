@@ -98,7 +98,7 @@ const RightSidebar = ({
           {title && (
             <div className="flex items-center gap-2">
               <div className="w-1.5 h-6 bg-blue-600 rounded-full shrink-0" aria-hidden />
-              <h2 className="text-xl font-semibold text-gray-800">{title}</h2>
+              <h2 className="text-lg font-semibold text-gray-800">{title}</h2>
             </div>
           )}
           <button 
