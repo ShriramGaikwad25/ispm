@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useMemo, useCallback, forwardRef, useImperativeHandle, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Edit, Trash2, X, Plus, PlusCircle, Ban, Calendar, Loader2, Plug, Workflow, Webhook, Gauge, LogIn, LogOut, ListChecks, type LucideIcon } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Edit, Trash2, X, Plus, PlusCircle, Ban, Calendar, Loader2, Plug, Workflow, Webhook, Gauge, LogIn, LogOut, ListChecks, type LucideIcon } from "lucide-react";
+import ToggleSwitch from "@/components/ToggleSwitch";
 import {
   updateAppConfig,
   getApplicationDetails,
@@ -418,6 +419,11 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
   );
   const [loadedIntegrationValues, setLoadedIntegrationValues] = useState<Record<string, string>>({});
   const [integrationGroupsLoading, setIntegrationGroupsLoading] = useState(false);
+  const [detectedApplicationCategory, setDetectedApplicationCategory] = useState("");
+  /** Active Directory Domain: Advanced sub-section expand/collapse (same as add-application / Configuration tab). */
+  const [adDomainAdvancedExpanded, setAdDomainAdvancedExpanded] = useState(false);
+  /** Active Directory Domain: Inherited Global Policies — locked until its own Edit is clicked. */
+  const [inheritedPoliciesEditing, setInheritedPoliciesEditing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
@@ -469,8 +475,11 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
   const integrationGroups =
     integrationFieldGroupsProp?.length ? integrationFieldGroupsProp : loadedIntegrationGroups;
   const integrationValues = integrationFieldValuesProp ?? loadedIntegrationValues;
+  const isActiveDirectoryDomain =
+    (detectedApplicationCategory || applicationCategoryProp || "").trim() === "Active Directory Domain";
   const showIntegrationSection =
-    Boolean(showIntegrationAdvancedGroups || integrationFieldGroupsProp?.length) && integrationGroups.length > 0;
+    isActiveDirectoryDomain ||
+    (Boolean(showIntegrationAdvancedGroups || integrationFieldGroupsProp?.length) && integrationGroups.length > 0);
 
   const igaFieldsInTable = useMemo(
     () => new Set(inboundMappingRows.map((r) => r.igaField.trim().toLowerCase())),
@@ -709,6 +718,7 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
         const category =
           applicationCategoryProp?.trim() ||
           String(app.category ?? app.Category ?? app.applicationType ?? "").trim();
+        setDetectedApplicationCategory(category);
 
         const conn = (app.connectionDetails ?? app.ConnectionDetails ?? {}) as Record<string, unknown>;
         const values: Record<string, string> = {};
@@ -1070,6 +1080,250 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
     }));
   };
 
+  const adBoolValue = (key: string, fallback: boolean): boolean => {
+    const v = integrationValues[key];
+    return v === undefined ? fallback : v === "true";
+  };
+
+  const renderAdTextField = (key: string, label: string) => (
+    <div className="flex-1 relative">
+      <input
+        type="text"
+        value={integrationValues[key] ?? ""}
+        onChange={(e) => handleIntegrationFieldChange(key, e.target.value)}
+        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+        placeholder=" "
+      />
+      <label
+        className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+          integrationValues[key] ? "top-0.5 text-xs text-blue-600" : "top-3.5 text-sm text-gray-500"
+        }`}
+      >
+        {label}
+      </label>
+    </div>
+  );
+
+  const renderActiveDirectoryDomainAdvanced = () => (
+    <div className="border border-gray-200 rounded-lg bg-white shadow-sm overflow-hidden mb-6">
+      <button
+        type="button"
+        onClick={() => setAdDomainAdvancedExpanded((e) => !e)}
+        aria-expanded={adDomainAdvancedExpanded}
+        style={{
+          display: "flex",
+          width: "100%",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "16px",
+          minHeight: 56,
+          textAlign: "left",
+          background: "#f9fafb",
+          border: "none",
+          cursor: "pointer",
+        }}
+      >
+        <span style={{ fontSize: 16, fontWeight: 600, color: "#111827" }}>Advanced</span>
+        {adDomainAdvancedExpanded ? (
+          <ChevronUp style={{ width: 20, height: 20, color: "#2563eb", flexShrink: 0 }} aria-hidden />
+        ) : (
+          <ChevronDown style={{ width: 20, height: 20, color: "#2563eb", flexShrink: 0 }} aria-hidden />
+        )}
+      </button>
+      {adDomainAdvancedExpanded && (
+        <div className="px-4 pb-4 pt-3 border-t border-gray-100 space-y-4">
+          <div className="flex items-center gap-3">
+            {renderAdTextField("primaryDomainController", "Domain Controller")}
+            <div className="flex-1 relative">
+              <select
+                value={integrationValues.portSsl ?? ""}
+                onChange={(e) => handleIntegrationFieldChange("portSsl", e.target.value)}
+                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline appearance-none bg-white"
+              >
+                <option value=""></option>
+                <option value="389 - LDAP">389 - LDAP</option>
+                <option value="636 - LDAPS">636 - LDAPS</option>
+              </select>
+              <label
+                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                  integrationValues.portSsl ? "top-0.5 text-xs text-blue-600" : "top-3.5 text-sm text-gray-500"
+                }`}
+              >
+                Port / SSL
+              </label>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" aria-hidden />
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex-1 relative">
+              <select
+                value={integrationValues.vault ?? ""}
+                onChange={(e) => handleIntegrationFieldChange("vault", e.target.value)}
+                className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline appearance-none bg-white"
+              >
+                <option value=""></option>
+                <option value="DPW-Dubai-CyberArk">DPW-Dubai-CyberArk</option>
+                <option value="US-AD-OCI-Vault">US-AD-OCI-Vault</option>
+                <option value="NA-Shared-CyberArk">NA-Shared-CyberArk</option>
+                <option value="UK-HashiCorp-Vault">UK-HashiCorp-Vault</option>
+              </select>
+              <label
+                className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                  integrationValues.vault ? "top-0.5 text-xs text-blue-600" : "top-3.5 text-sm text-gray-500"
+                }`}
+              >
+                Vault
+              </label>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" aria-hidden />
+            </div>
+            {renderAdTextField("secretPath", "Secret Path")}
+          </div>
+          <div className="flex items-center gap-3">
+            {renderAdTextField("userSearchBase", "User Search Base")}
+            {renderAdTextField("groupSearchBase", "Group Search Base")}
+          </div>
+          <div className="flex items-center gap-3">
+            {renderAdTextField("deletedOu", "Deleted OU")}
+            {renderAdTextField("contactOu", "Contact OU")}
+          </div>
+          <div className="flex items-center gap-3">
+            {renderAdTextField("vaultName", "Vault Name")}
+            {renderAdTextField("vaultPath", "Vault Path")}
+          </div>
+
+          <div style={{ paddingTop: 8, marginTop: 8, borderTop: "1px solid #f3f4f6" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <h4 style={{ fontSize: 14, fontWeight: 600, color: "#111827", margin: 0 }}>Inherited Global Policies</h4>
+                {[
+                  { label: "Email uniqueness", border: "#93c5fd", text: "#2563eb", bg: "#eff6ff" },
+                  { label: "SAMaccount", border: "#d8b4fe", text: "#9333ea", bg: "#faf5ff" },
+                  { label: "UPN", border: "#6ee7b7", text: "#059669", bg: "#ecfdf5" },
+                ].map(({ label, border, text, bg }) => (
+                  <span
+                    key={label}
+                    title="Inherited from global validations — cannot be edited here"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      padding: "6px 12px",
+                      borderRadius: 999,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      border: `1px solid ${border}`,
+                      color: text,
+                      background: bg,
+                      cursor: "not-allowed",
+                    }}
+                  >
+                    {label}
+                  </span>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => setInheritedPoliciesEditing((v) => !v)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "6px 12px",
+                  borderRadius: 6,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  background: inheritedPoliciesEditing ? "#2563eb" : "#fff",
+                  color: inheritedPoliciesEditing ? "#fff" : "#374151",
+                  border: inheritedPoliciesEditing ? "1px solid #2563eb" : "1px solid #d1d5db",
+                }}
+              >
+                {inheritedPoliciesEditing ? (
+                  <>
+                    <Check style={{ width: 14, height: 14 }} aria-hidden />
+                    Save
+                  </>
+                ) : (
+                  <>
+                    <Edit style={{ width: 14, height: 14 }} aria-hidden />
+                    Edit
+                  </>
+                )}
+              </button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, borderRadius: 6, border: "1px solid #e5e7eb", background: "#f9fafb", padding: "10px 12px" }}>
+                <span style={{ fontSize: 14, color: "#4b5563" }}>Port</span>
+                <input
+                  type="text"
+                  value={integrationValues.inheritedPort ?? "636"}
+                  onChange={(e) => handleIntegrationFieldChange("inheritedPort", e.target.value)}
+                  disabled={!inheritedPoliciesEditing}
+                  style={{
+                    width: 80,
+                    textAlign: "right",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    borderRadius: 6,
+                    padding: "4px 8px",
+                    color: "#111827",
+                    background: inheritedPoliciesEditing ? "#fff" : "transparent",
+                    border: inheritedPoliciesEditing ? "1px solid #d1d5db" : "1px solid transparent",
+                    cursor: inheritedPoliciesEditing ? "text" : "not-allowed",
+                  }}
+                />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, borderRadius: 6, border: "1px solid #e5e7eb", background: "#f9fafb", padding: "10px 12px" }}>
+                <span style={{ fontSize: 14, color: "#4b5563" }}>SSL enabled</span>
+                <ToggleSwitch
+                  checked={adBoolValue("inheritedSslEnabled", true)}
+                  onChange={(v) => handleIntegrationFieldChange("inheritedSslEnabled", v ? "true" : "false")}
+                  disabled={!inheritedPoliciesEditing}
+                />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, borderRadius: 6, border: "1px solid #e5e7eb", background: "#f9fafb", padding: "10px 12px" }}>
+                <span style={{ fontSize: 14, color: "#4b5563" }}>Delete account on delete request</span>
+                <ToggleSwitch
+                  checked={adBoolValue("inheritedDeleteAcctOnDeleteRequest", false)}
+                  onChange={(v) => handleIntegrationFieldChange("inheritedDeleteAcctOnDeleteRequest", v ? "true" : "false")}
+                  disabled={!inheritedPoliciesEditing}
+                />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, borderRadius: 6, border: "1px solid #e5e7eb", background: "#f9fafb", padding: "10px 12px" }}>
+                <span style={{ fontSize: 14, color: "#4b5563" }}>Revoke membership</span>
+                <ToggleSwitch
+                  checked={adBoolValue("inheritedRevokeMembership", true)}
+                  onChange={(v) => handleIntegrationFieldChange("inheritedRevokeMembership", v ? "true" : "false")}
+                  disabled={!inheritedPoliciesEditing}
+                />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, borderRadius: 6, border: "1px solid #e5e7eb", background: "#f9fafb", padding: "10px 12px", gridColumn: "1 / -1" }}>
+                <span style={{ fontSize: 14, color: "#4b5563" }}>Primary Identity Attribute</span>
+                <input
+                  type="text"
+                  value={integrationValues.inheritedPrimaryIdentityAttribute ?? "samaccountname"}
+                  onChange={(e) => handleIntegrationFieldChange("inheritedPrimaryIdentityAttribute", e.target.value)}
+                  disabled={!inheritedPoliciesEditing}
+                  style={{
+                    width: 192,
+                    textAlign: "right",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    borderRadius: 6,
+                    padding: "4px 8px",
+                    color: "#111827",
+                    background: inheritedPoliciesEditing ? "#fff" : "transparent",
+                    border: inheritedPoliciesEditing ? "1px solid #d1d5db" : "1px solid transparent",
+                    cursor: inheritedPoliciesEditing ? "text" : "not-allowed",
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   const visibleSections: AdvancedSectionId[] = [
     ...(showIntegrationSection ? (["connection"] as const) : []),
     ...(showHooksThresholdAndTransformation ? (["transformation", "hooks", "threshold"] as const) : []),
@@ -1116,14 +1370,18 @@ const AdvanceSettingTab = forwardRef<AdvanceSettingTabRef, AdvanceSettingTabProp
             </div>
           ) : null}
           {showIntegrationSection && activeAdvancedSection === "connection" ? (
-            <IntegrationAdvancedSettingGroups
-              className="mb-6"
-              groups={integrationGroups}
-              values={integrationValues}
-              onChange={handleIntegrationFieldChange}
-              expandStateKeyPrefix={applicationId || "app"}
-              sectionTitle=""
-            />
+            isActiveDirectoryDomain ? (
+              renderActiveDirectoryDomainAdvanced()
+            ) : (
+              <IntegrationAdvancedSettingGroups
+                className="mb-6"
+                groups={integrationGroups}
+                values={integrationValues}
+                onChange={handleIntegrationFieldChange}
+                expandStateKeyPrefix={applicationId || "app"}
+                sectionTitle=""
+              />
+            )
           ) : null}
           {showHooksThresholdAndTransformation && (
             <>

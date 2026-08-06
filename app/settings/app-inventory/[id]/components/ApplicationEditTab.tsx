@@ -11,8 +11,9 @@ import {
   isAdvancedIntegrationGroupId,
   type ApplicationTypeIntegrationFieldGroup,
 } from "@/lib/api";
-import { Edit } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Edit } from "lucide-react";
 import AdvancedIntegrationOperationTabs from "../../components/AdvancedIntegrationOperationTabs";
+import ToggleSwitch from "@/components/ToggleSwitch";
 
 export type ApplicationEditTabHandle = {
   submit: () => Promise<void>;
@@ -115,6 +116,10 @@ export default forwardRef<ApplicationEditTabHandle, ApplicationEditTabProps>(
     []
   );
   const [activeConfigGroupIndex, setActiveConfigGroupIndex] = useState(0);
+  /** Active Directory Domain: Advanced sub-section expand/collapse (same as add-application). */
+  const [adDomainAdvancedExpanded, setAdDomainAdvancedExpanded] = useState(false);
+  /** Active Directory Domain: Inherited Global Policies — locked until its own Edit is clicked. */
+  const [inheritedPoliciesEditing, setInheritedPoliciesEditing] = useState(false);
 
   useEffect(() => {
     const fetchDetails = async () => {
@@ -446,6 +451,290 @@ export default forwardRef<ApplicationEditTabHandle, ApplicationEditTabProps>(
   const applicationDetails =
     application?.ApplicationDetails ?? application?.applicationDetails ?? {};
 
+  const appType = String(
+    application?.category ??
+      application?.Category ??
+      application?.applicationType ??
+      application?.ApplicationType ??
+      ""
+  ).trim();
+
+  /** Same update mechanism renderSection() uses per-field, exposed for the AD Domain custom fields (select/checkbox/toggle) below. */
+  const updateAppDetailField = (field: string, newValue: any) => {
+    setEditedApp((prev: any) => {
+      if (!prev) return prev;
+      const updated = { ...prev };
+      const rootApp = updated.Application ?? updated;
+      const detailsKey = "ApplicationDetails" in rootApp ? "ApplicationDetails" : "applicationDetails";
+      const details = { ...(rootApp[detailsKey] || {}) };
+      details[field] = newValue;
+      rootApp[detailsKey] = details;
+      if (updated.Application) {
+        updated.Application = rootApp;
+      } else {
+        Object.assign(updated, rootApp);
+      }
+      return updated;
+    });
+  };
+
+  const adFieldShell = "min-w-0 rounded-lg border border-gray-100 bg-gray-50/60 px-3 py-3 h-full";
+  const adLabelClass = "text-xs font-medium text-gray-500 mb-1.5";
+
+  /** Read-only or editable label+value cell for the AD Domain select/checkbox/toggle fields (renderFieldRow only supports text). */
+  const renderAdCustomField = (label: string, editingControl: React.ReactNode, displayValue: string) => (
+    <div className={adFieldShell}>
+      <div className={adLabelClass}>{label}</div>
+      {isEditing ? editingControl : <div className="text-sm text-gray-900 break-words leading-snug">{displayValue}</div>}
+    </div>
+  );
+
+  const renderActiveDirectoryDomainConfig = () => {
+    const d = applicationDetails;
+    return (
+      <div className="flex flex-col min-w-0 w-full space-y-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-1 pb-2 border-b border-gray-200">
+          Active Directory Domain Settings
+        </h2>
+
+        <div className="grid grid-cols-2 gap-4">
+          {renderFieldRow("Hostname", d.hostname, false, "hostname", isEditing, (v) => updateAppDetailField("hostname", v))}
+          {renderFieldRow("UserName", d.username, false, "username", isEditing, (v) => updateAppDetailField("username", v))}
+          {renderFieldRow("Password", d.password, true, "password", isEditing, (v) => updateAppDetailField("password", v))}
+          {renderFieldRow("Domain", d.domain, false, "domain", isEditing, (v) => updateAppDetailField("domain", v))}
+        </div>
+        {renderFieldRow("Backup Hostname", d.backupHostname, false, "backupHostname", isEditing, (v) => updateAppDetailField("backupHostname", v))}
+
+        <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", boxShadow: "0 1px 2px rgba(0,0,0,0.04)", overflow: "hidden" }}>
+          <button
+            type="button"
+            onClick={() => setAdDomainAdvancedExpanded((e) => !e)}
+            aria-expanded={adDomainAdvancedExpanded}
+            style={{
+              display: "flex",
+              width: "100%",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "16px",
+              minHeight: 56,
+              textAlign: "left",
+              background: "#f9fafb",
+              border: "none",
+              cursor: "pointer",
+            }}
+          >
+            <span style={{ fontSize: 16, fontWeight: 600, color: "#111827" }}>Advanced</span>
+            {adDomainAdvancedExpanded ? (
+              <ChevronUp style={{ width: 20, height: 20, color: "#2563eb", flexShrink: 0 }} aria-hidden />
+            ) : (
+              <ChevronDown style={{ width: 20, height: 20, color: "#2563eb", flexShrink: 0 }} aria-hidden />
+            )}
+          </button>
+          {adDomainAdvancedExpanded && (
+            <div className="px-4 pb-4 pt-3 border-t border-gray-100 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                {renderFieldRow(
+                  "Domain Controller",
+                  d.primaryDomainController,
+                  false,
+                  "primaryDomainController",
+                  isEditing,
+                  (v) => updateAppDetailField("primaryDomainController", v)
+                )}
+                {renderAdCustomField(
+                  "Port / SSL",
+                  <select
+                    value={d.portSsl ?? ""}
+                    onChange={(e) => updateAppDetailField("portSsl", e.target.value)}
+                    className="w-full text-xs text-gray-900 border border-gray-300 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                  >
+                    <option value=""></option>
+                    <option value="389 - LDAP">389 - LDAP</option>
+                    <option value="636 - LDAPS">636 - LDAPS</option>
+                  </select>,
+                  d.portSsl || "—"
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {renderAdCustomField(
+                  "Vault",
+                  <select
+                    value={d.vault ?? ""}
+                    onChange={(e) => updateAppDetailField("vault", e.target.value)}
+                    className="w-full text-xs text-gray-900 border border-gray-300 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                  >
+                    <option value=""></option>
+                    <option value="DPW-Dubai-CyberArk">DPW-Dubai-CyberArk</option>
+                    <option value="US-AD-OCI-Vault">US-AD-OCI-Vault</option>
+                    <option value="NA-Shared-CyberArk">NA-Shared-CyberArk</option>
+                    <option value="UK-HashiCorp-Vault">UK-HashiCorp-Vault</option>
+                  </select>,
+                  d.vault || "—"
+                )}
+                {renderFieldRow("Secret Path", d.secretPath, false, "secretPath", isEditing, (v) => updateAppDetailField("secretPath", v))}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {renderFieldRow(
+                  "User Search Base",
+                  d.userSearchBase,
+                  false,
+                  "userSearchBase",
+                  isEditing,
+                  (v) => updateAppDetailField("userSearchBase", v)
+                )}
+                {renderFieldRow(
+                  "Group Search Base",
+                  d.groupSearchBase,
+                  false,
+                  "groupSearchBase",
+                  isEditing,
+                  (v) => updateAppDetailField("groupSearchBase", v)
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {renderFieldRow("Deleted OU", d.deletedOu, false, "deletedOu", isEditing, (v) => updateAppDetailField("deletedOu", v))}
+                {renderFieldRow("Contact OU", d.contactOu, false, "contactOu", isEditing, (v) => updateAppDetailField("contactOu", v))}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {renderFieldRow("Vault Name", d.vaultName, false, "vaultName", isEditing, (v) => updateAppDetailField("vaultName", v))}
+                {renderFieldRow("Vault Path", d.vaultPath, false, "vaultPath", isEditing, (v) => updateAppDetailField("vaultPath", v))}
+              </div>
+
+              <div style={{ paddingTop: 8, marginTop: 8, borderTop: "1px solid #f3f4f6" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <h4 style={{ fontSize: 14, fontWeight: 600, color: "#111827", margin: 0 }}>Inherited Global Policies</h4>
+                    {[
+                      { label: "Email uniqueness", border: "#93c5fd", text: "#2563eb", bg: "#eff6ff" },
+                      { label: "SAMaccount", border: "#d8b4fe", text: "#9333ea", bg: "#faf5ff" },
+                      { label: "UPN", border: "#6ee7b7", text: "#059669", bg: "#ecfdf5" },
+                    ].map(({ label, border, text, bg }) => (
+                      <span
+                        key={label}
+                        title="Inherited from global validations — cannot be edited here"
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          padding: "6px 12px",
+                          borderRadius: 999,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          border: `1px solid ${border}`,
+                          color: text,
+                          background: bg,
+                          cursor: "not-allowed",
+                        }}
+                      >
+                        {label}
+                      </span>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setInheritedPoliciesEditing((v) => !v)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "6px 12px",
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      background: inheritedPoliciesEditing ? "#2563eb" : "#fff",
+                      color: inheritedPoliciesEditing ? "#fff" : "#374151",
+                      border: inheritedPoliciesEditing ? "1px solid #2563eb" : "1px solid #d1d5db",
+                    }}
+                  >
+                    {inheritedPoliciesEditing ? (
+                      <>
+                        <Check style={{ width: 14, height: 14 }} aria-hidden />
+                        Save
+                      </>
+                    ) : (
+                      <>
+                        <Edit style={{ width: 14, height: 14 }} aria-hidden />
+                        Edit
+                      </>
+                    )}
+                  </button>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, borderRadius: 6, border: "1px solid #e5e7eb", background: "#f9fafb", padding: "10px 12px" }}>
+                    <span style={{ fontSize: 14, color: "#4b5563" }}>Port</span>
+                    <input
+                      type="text"
+                      value={d.inheritedPort ?? "636"}
+                      onChange={(e) => updateAppDetailField("inheritedPort", e.target.value)}
+                      disabled={!inheritedPoliciesEditing}
+                      style={{
+                        width: 80,
+                        textAlign: "right",
+                        fontSize: 14,
+                        fontWeight: 600,
+                        borderRadius: 6,
+                        padding: "4px 8px",
+                        color: "#111827",
+                        background: inheritedPoliciesEditing ? "#fff" : "transparent",
+                        border: inheritedPoliciesEditing ? "1px solid #d1d5db" : "1px solid transparent",
+                        cursor: inheritedPoliciesEditing ? "text" : "not-allowed",
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, borderRadius: 6, border: "1px solid #e5e7eb", background: "#f9fafb", padding: "10px 12px" }}>
+                    <span style={{ fontSize: 14, color: "#4b5563" }}>SSL enabled</span>
+                    <ToggleSwitch
+                      checked={d.inheritedSslEnabled ?? true}
+                      onChange={(v) => updateAppDetailField("inheritedSslEnabled", v)}
+                      disabled={!inheritedPoliciesEditing}
+                    />
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, borderRadius: 6, border: "1px solid #e5e7eb", background: "#f9fafb", padding: "10px 12px" }}>
+                    <span style={{ fontSize: 14, color: "#4b5563" }}>Delete account on delete request</span>
+                    <ToggleSwitch
+                      checked={d.inheritedDeleteAcctOnDeleteRequest ?? false}
+                      onChange={(v) => updateAppDetailField("inheritedDeleteAcctOnDeleteRequest", v)}
+                      disabled={!inheritedPoliciesEditing}
+                    />
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, borderRadius: 6, border: "1px solid #e5e7eb", background: "#f9fafb", padding: "10px 12px" }}>
+                    <span style={{ fontSize: 14, color: "#4b5563" }}>Revoke membership</span>
+                    <ToggleSwitch
+                      checked={d.inheritedRevokeMembership ?? true}
+                      onChange={(v) => updateAppDetailField("inheritedRevokeMembership", v)}
+                      disabled={!inheritedPoliciesEditing}
+                    />
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, borderRadius: 6, border: "1px solid #e5e7eb", background: "#f9fafb", padding: "10px 12px", gridColumn: "1 / -1" }}>
+                    <span style={{ fontSize: 14, color: "#4b5563" }}>Primary Identity Attribute</span>
+                    <input
+                      type="text"
+                      value={d.inheritedPrimaryIdentityAttribute ?? "samaccountname"}
+                      onChange={(e) => updateAppDetailField("inheritedPrimaryIdentityAttribute", e.target.value)}
+                      disabled={!inheritedPoliciesEditing}
+                      style={{
+                        width: 192,
+                        textAlign: "right",
+                        fontSize: 14,
+                        fontWeight: 600,
+                        borderRadius: 6,
+                        padding: "4px 8px",
+                        color: "#111827",
+                        background: inheritedPoliciesEditing ? "#fff" : "transparent",
+                        border: inheritedPoliciesEditing ? "1px solid #d1d5db" : "1px solid transparent",
+                        cursor: inheritedPoliciesEditing ? "text" : "not-allowed",
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const { groupedFields, ungroupedFieldKeys } = partitionApplicationDetailsByIntegrationGroups(
     applicationDetails,
     integrationGroups
@@ -458,6 +747,9 @@ export default forwardRef<ApplicationEditTabHandle, ApplicationEditTabProps>(
       : null;
 
   const renderConfigurationPanel = () => {
+    if (appType === "Active Directory Domain") {
+      return renderActiveDirectoryDomainConfig();
+    }
     if (!hasGroupedConfig) {
       return renderSection("Application Details", applicationDetails, {
         sectionKind: "Application Details",

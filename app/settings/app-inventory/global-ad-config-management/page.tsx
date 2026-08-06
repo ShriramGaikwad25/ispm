@@ -24,9 +24,9 @@ const OVERVIEW_HTML = `
 </div>
 
 <div class="grid-4">
-  <div class="card metric"><div class="label">Registered Domains</div><div class="value">2</div></div>
+  <div class="card metric"><div class="label">Registered Domains</div><div class="value">3</div></div>
   <div class="card metric"><div class="label">Active Connectors</div><div class="value">2</div></div>
-  <div class="card metric"><div class="label">Pending Setup</div><div class="value">1</div><div class="meta"><span class="dot" style="background:#b7791f"></span>Invitation accepted</div></div>
+  <div class="card metric"><div class="label">Pending Setup</div><div class="value">1</div><div class="meta"><span class="dot" style="background:#b7791f"></span>Invitation sent</div></div>
   <div class="card metric"><div class="label">Attention Required</div><div class="value">0</div><div class="meta"><span class="dot" style="background:#c33c54"></span>No errors or upgrades pending</div></div>
 </div>
 

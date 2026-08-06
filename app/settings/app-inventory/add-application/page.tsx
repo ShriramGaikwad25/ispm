@@ -30,6 +30,7 @@ import {
   User,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
+import ToggleSwitch from "@/components/ToggleSwitch";
 import {
   getAllSupportedApplicationTypesViaProxy,
   executeQuery,
@@ -363,6 +364,8 @@ export default function AddApplicationPage() {
   const [as400WriteOperationsExpanded, setAs400WriteOperationsExpanded] = useState(false);
   /** Active Directory Domain: Directory & Vault Settings card expand/collapse. */
   const [adDomainVaultSettingsExpanded, setAdDomainVaultSettingsExpanded] = useState(false);
+  /** Active Directory Domain: Inherited Global Policies — locked until Edit is clicked. */
+  const [inheritedPoliciesEditing, setInheritedPoliciesEditing] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [attributeMappingPage, setAttributeMappingPage] = useState(1);
@@ -788,26 +791,6 @@ export default function AddApplicationPage() {
     getFlatfileAppMetadataUsers()
       .then((data) => setFlatfileMetadataUsers(data))
       .catch(() => setFlatfileMetadataUsers(null));
-  }, [currentStep, formData.step1.type]);
-
-  // Active Directory Domain: seed sensible LDAP defaults the first time its settings are shown.
-  useEffect(() => {
-    if (currentStep !== 3 || formData.step1.type !== "Active Directory Domain") return;
-    setFormData((prev) => {
-      if (prev.step3.userSearchBase !== undefined) return prev;
-      return {
-        ...prev,
-        step3: {
-          ...prev.step3,
-          userSearchBase: "dc=keyforge-ca",
-          groupSearchBase: "dc=local",
-          deletedOu: "cn=users,dc=keyforge-ca,dc=local",
-          contactOu: "cn=users,dc=keyforge-ca,dc=local",
-          deleteAcctOnTermination: "N",
-          revokeMembershipOnTermination: "Y",
-        },
-      };
-    });
   }, [currentStep, formData.step1.type]);
 
   const handleInputChange = (step: keyof FormData, field: string, value: any) => {
@@ -5350,6 +5333,82 @@ export default function AddApplicationPage() {
                     <div className="flex-1 relative">
                       <input
                         type="text"
+                        value={formData.step3.primaryDomainController ?? ""}
+                        onChange={(e) => handleInputChange("step3", "primaryDomainController", e.target.value)}
+                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                        placeholder=" "
+                      />
+                      <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                        formData.step3.primaryDomainController
+                          ? 'top-0.5 text-xs text-blue-600'
+                          : 'top-3.5 text-sm text-gray-500'
+                      }`}>
+                        Domain Controller *
+                      </label>
+                    </div>
+                    <div className="flex-1 relative">
+                      <select
+                        value={formData.step3.portSsl ?? ""}
+                        onChange={(e) => handleInputChange("step3", "portSsl", e.target.value)}
+                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline appearance-none bg-white"
+                      >
+                        <option value=""></option>
+                        <option value="389 - LDAP">389 - LDAP</option>
+                        <option value="636 - LDAPS">636 - LDAPS</option>
+                      </select>
+                      <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                        formData.step3.portSsl
+                          ? 'top-0.5 text-xs text-blue-600'
+                          : 'top-3.5 text-sm text-gray-500'
+                      }`}>
+                        Port / SSL
+                      </label>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" aria-hidden />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 relative">
+                      <select
+                        value={formData.step3.vault ?? ""}
+                        onChange={(e) => handleInputChange("step3", "vault", e.target.value)}
+                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline appearance-none bg-white"
+                      >
+                        <option value=""></option>
+                        <option value="DPW-Dubai-CyberArk">DPW-Dubai-CyberArk</option>
+                        <option value="US-AD-OCI-Vault">US-AD-OCI-Vault</option>
+                        <option value="NA-Shared-CyberArk">NA-Shared-CyberArk</option>
+                        <option value="UK-HashiCorp-Vault">UK-HashiCorp-Vault</option>
+                      </select>
+                      <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                        formData.step3.vault
+                          ? 'top-0.5 text-xs text-blue-600'
+                          : 'top-3.5 text-sm text-gray-500'
+                      }`}>
+                        Vault *
+                      </label>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" aria-hidden />
+                    </div>
+                    <div className="flex-1 relative">
+                      <input
+                        type="text"
+                        value={formData.step3.secretPath ?? ""}
+                        onChange={(e) => handleInputChange("step3", "secretPath", e.target.value)}
+                        className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
+                        placeholder=" "
+                      />
+                      <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${
+                        formData.step3.secretPath
+                          ? 'top-0.5 text-xs text-blue-600'
+                          : 'top-3.5 text-sm text-gray-500'
+                      }`}>
+                        Secret Path *
+                      </label>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 relative">
+                      <input
+                        type="text"
                         value={formData.step3.userSearchBase ?? ""}
                         onChange={(e) => handleInputChange("step3", "userSearchBase", e.target.value)}
                         className="w-full px-4 pt-5 pb-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 no-underline"
@@ -5415,34 +5474,6 @@ export default function AddApplicationPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <label className="flex-1 flex items-center gap-2 py-3.5 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
-                        checked={(formData.step3.deleteAcctOnTermination ?? "N") === "Y"}
-                        onChange={(e) =>
-                          handleInputChange("step3", "deleteAcctOnTermination", e.target.checked ? "Y" : "N")
-                        }
-                      />
-                      <span className="text-sm text-gray-700">
-                        Delete Acct on Termination
-                      </span>
-                    </label>
-                    <label className="flex-1 flex items-center gap-2 py-3.5 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
-                        checked={(formData.step3.revokeMembershipOnTermination ?? "Y") === "Y"}
-                        onChange={(e) =>
-                          handleInputChange("step3", "revokeMembershipOnTermination", e.target.checked ? "Y" : "N")
-                        }
-                      />
-                      <span className="text-sm text-gray-700">
-                        Revoke Membership on Termination
-                      </span>
-                    </label>
-                  </div>
-                  <div className="flex items-center gap-3">
                     <div className="flex-1 relative">
                       <input
                         type="text"
@@ -5474,6 +5505,102 @@ export default function AddApplicationPage() {
                       }`}>
                         Vault Path
                       </label>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 mt-2 border-t border-gray-100">
+                    <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-sm font-semibold text-gray-900">Inherited Global Policies</h4>
+                        {[
+                          { label: "Email uniqueness", border: "border-blue-300", text: "text-blue-600", bg: "bg-blue-50" },
+                          { label: "SAMaccount", border: "border-purple-300", text: "text-purple-600", bg: "bg-purple-50" },
+                          { label: "UPN", border: "border-emerald-300", text: "text-emerald-600", bg: "bg-emerald-50" },
+                        ].map(({ label, border, text, bg }) => (
+                          <span
+                            key={label}
+                            title="Inherited from global validations — cannot be edited here"
+                            className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold border cursor-not-allowed ${border} ${text} ${bg}`}
+                          >
+                            {label}
+                          </span>
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setInheritedPoliciesEditing((v) => !v)}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                          inheritedPoliciesEditing
+                            ? "bg-blue-600 text-white hover:bg-blue-700"
+                            : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
+                        }`}
+                      >
+                        {inheritedPoliciesEditing ? (
+                          <>
+                            <Check className="w-3.5 h-3.5" aria-hidden />
+                            Save
+                          </>
+                        ) : (
+                          <>
+                            <Edit className="w-3.5 h-3.5" aria-hidden />
+                            Edit
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="flex items-center justify-between gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2.5">
+                        <span className="text-sm text-gray-600">Port</span>
+                        <input
+                          type="text"
+                          value={formData.step3.inheritedPort ?? "636"}
+                          onChange={(e) => handleInputChange("step3", "inheritedPort", e.target.value)}
+                          disabled={!inheritedPoliciesEditing}
+                          className={`w-20 text-right text-sm font-semibold rounded-md px-2 py-1 focus:outline-none ${
+                            inheritedPoliciesEditing
+                              ? "text-gray-900 bg-white border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              : "text-gray-900 bg-transparent border border-transparent cursor-not-allowed"
+                          }`}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2.5">
+                        <span className="text-sm text-gray-600">SSL enabled</span>
+                        <ToggleSwitch
+                          checked={formData.step3.inheritedSslEnabled ?? true}
+                          onChange={(v) => handleInputChange("step3", "inheritedSslEnabled", v)}
+                          disabled={!inheritedPoliciesEditing}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2.5">
+                        <span className="text-sm text-gray-600">Delete account on delete request</span>
+                        <ToggleSwitch
+                          checked={formData.step3.inheritedDeleteAcctOnDeleteRequest ?? false}
+                          onChange={(v) => handleInputChange("step3", "inheritedDeleteAcctOnDeleteRequest", v)}
+                          disabled={!inheritedPoliciesEditing}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2.5">
+                        <span className="text-sm text-gray-600">Revoke membership</span>
+                        <ToggleSwitch
+                          checked={formData.step3.inheritedRevokeMembership ?? true}
+                          onChange={(v) => handleInputChange("step3", "inheritedRevokeMembership", v)}
+                          disabled={!inheritedPoliciesEditing}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2.5 col-span-2">
+                        <span className="text-sm text-gray-600">Primary Identity Attribute</span>
+                        <input
+                          type="text"
+                          value={formData.step3.inheritedPrimaryIdentityAttribute ?? "samaccountname"}
+                          onChange={(e) => handleInputChange("step3", "inheritedPrimaryIdentityAttribute", e.target.value)}
+                          disabled={!inheritedPoliciesEditing}
+                          className={`w-48 text-right text-sm font-semibold rounded-md px-2 py-1 focus:outline-none ${
+                            inheritedPoliciesEditing
+                              ? "text-gray-900 bg-white border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              : "text-gray-900 bg-transparent border border-transparent cursor-not-allowed"
+                          }`}
+                        />
+                      </div>
                     </div>
                   </div>
                   </div>

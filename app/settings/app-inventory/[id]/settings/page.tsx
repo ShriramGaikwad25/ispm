@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Loader2, Pencil, Network, Sliders, Edit } from "lucide-react";
+import { ArrowLeft, Loader2, Pencil, FolderTree, Network, Sliders, Edit, Copy } from "lucide-react";
 import { getApplicationDetails } from "@/lib/api";
 import HorizontalTabs from "@/components/HorizontalTabs";
 import ApplicationEditTab, {
@@ -10,20 +10,25 @@ import ApplicationEditTab, {
 } from "../components/ApplicationEditTab";
 import SchemaMappingTab from "../components/SchemaMappingTab";
 import AdvanceSettingTab from "../components/AdvanceSettingTab";
+import OuAssignmentTab from "../components/OuAssignmentTab";
+import CloneConnectorModal from "../components/CloneConnectorModal";
 
 const TAB_EDIT = "configuration";
+const TAB_OU = "ou-assignment";
 const TAB_SCHEMA = "schema";
 const TAB_ADVANCED = "advanced";
 
-const TAB_IDS = [TAB_EDIT, TAB_SCHEMA, TAB_ADVANCED] as const;
+function buildTabIds(isAdDomain: boolean): string[] {
+  return isAdDomain ? [TAB_EDIT, TAB_OU, TAB_SCHEMA, TAB_ADVANCED] : [TAB_EDIT, TAB_SCHEMA, TAB_ADVANCED];
+}
 
-function tabIdToIndex(tab: string): number {
-  const i = TAB_IDS.indexOf(tab as typeof TAB_IDS[number]);
+function tabIdToIndex(tab: string, tabIds: string[]): number {
+  const i = tabIds.indexOf(tab);
   return i >= 0 ? i : 0;
 }
 
-function indexToTabId(index: number): string {
-  return TAB_IDS[Math.max(0, Math.min(index, TAB_IDS.length - 1))];
+function indexToTabId(index: number, tabIds: string[]): string {
+  return tabIds[Math.max(0, Math.min(index, tabIds.length - 1))];
 }
 
 export default function AppInventorySettingsPage() {
@@ -31,16 +36,25 @@ export default function AppInventorySettingsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const applicationId = (params?.id as string) ?? "";
+  const [isAdDomain, setIsAdDomain] = useState(false);
+  const tabIds = useMemo(() => buildTabIds(isAdDomain), [isAdDomain]);
   const tabFromUrl = searchParams.get("tab") ?? TAB_EDIT;
-  const [activeTabIndex, setActiveTabIndex] = useState(() => tabIdToIndex(tabFromUrl));
+  const [activeTabIndex, setActiveTabIndex] = useState(() => tabIdToIndex(tabFromUrl, buildTabIds(false)));
   const [appName, setAppName] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [isConfigEditing, setIsConfigEditing] = useState(false);
+  const [cloneModalOpen, setCloneModalOpen] = useState(false);
+  const [pageToast, setPageToast] = useState<string | null>(null);
   const configTabRef = useRef<ApplicationEditTabHandle>(null);
 
+  const showPageToast = (message: string) => {
+    setPageToast(message);
+    window.setTimeout(() => setPageToast(null), 3000);
+  };
+
   useEffect(() => {
-    setActiveTabIndex(tabIdToIndex(tabFromUrl));
-  }, [tabFromUrl]);
+    setActiveTabIndex(tabIdToIndex(tabFromUrl, tabIds));
+  }, [tabFromUrl, tabIds]);
 
   useEffect(() => {
     if (activeTabIndex !== 0) setIsConfigEditing(false);
@@ -61,6 +75,10 @@ export default function AppInventorySettingsPage() {
         setAppName(
           app?.ApplicationName ?? app?.applicationName ?? app?.name ?? "Application Settings"
         );
+        const category = String(
+          app?.category ?? app?.Category ?? app?.applicationType ?? app?.ApplicationType ?? ""
+        ).trim();
+        setIsAdDomain(category === "Active Directory Domain");
       })
       .catch(() => setAppName("Application Settings"))
       .finally(() => setIsLoading(false));
@@ -72,7 +90,7 @@ export default function AppInventorySettingsPage() {
 
   const handleTabChange = (index: number) => {
     setActiveTabIndex(index);
-    const tab = indexToTabId(index);
+    const tab = indexToTabId(index, tabIds);
     router.replace(`/settings/app-inventory/${applicationId}/settings?tab=${tab}`, { scroll: false });
   };
 
@@ -87,6 +105,7 @@ export default function AppInventorySettingsPage() {
         hideToolbar
       />
     );
+    const OuTab = () => <OuAssignmentTab appName={appName} onCancel={handleBack} />;
     const SchemaTab = () => (
       <SchemaMappingTab applicationId={applicationId} onCancel={handleBack} />
     );
@@ -99,10 +118,11 @@ export default function AppInventorySettingsPage() {
     );
     return [
       { label: "Configuration ", component: EditTab, icon: Pencil },
+      ...(isAdDomain ? [{ label: "OU Assignment", component: OuTab, icon: FolderTree }] : []),
       { label: "Schema Mapping", component: SchemaTab, icon: Network },
       { label: "Advance Setting", component: AdvanceTab, icon: Sliders },
     ];
-  }, [applicationId, isConfigEditing]);
+  }, [applicationId, isConfigEditing, isAdDomain, appName]);
 
   if (isLoading) {
     return (
@@ -181,14 +201,42 @@ export default function AppInventorySettingsPage() {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col min-h-0 w-full min-w-0 py-3">
+      <div className="flex-1 flex flex-col min-h-0 w-full min-w-0 py-3 overflow-y-auto">
         <HorizontalTabs
           tabs={tabsData}
           defaultIndex={0}
           activeIndex={activeTabIndex}
           onChange={handleTabChange}
+          headerActions={
+            isAdDomain ? (
+              <button
+                type="button"
+                onClick={() => setCloneModalOpen(true)}
+                className="flex items-center gap-2 rounded-lg px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors text-sm font-medium"
+              >
+                <Copy className="w-4 h-4" aria-hidden />
+                Clone Connector
+              </button>
+            ) : undefined
+          }
         />
       </div>
+
+      <CloneConnectorModal
+        open={cloneModalOpen}
+        sourceConnectorName={appName}
+        onClose={() => setCloneModalOpen(false)}
+        onCreated={(name) => {
+          setCloneModalOpen(false);
+          showPageToast(`Draft connector ${name} created`);
+        }}
+      />
+
+      {pageToast && (
+        <div className="fixed bottom-6 right-6 z-[110] rounded-lg bg-gray-900 text-white text-sm px-4 py-3 shadow-xl">
+          {pageToast}
+        </div>
+      )}
     </div>
   );
 }
