@@ -26,9 +26,45 @@ type ValidationRow = {
 };
 
 const SEED_VALIDATIONS: ValidationRow[] = [
-  { id: "email-uniqueness", name: "Email Uniqueness", cel: "", create: true, update: true },
-  { id: "upn", name: "UPN", cel: "", create: true, update: true },
-  { id: "samaccountname", name: "SAMAccount Name", cel: "", create: true, update: true },
+  {
+    id: "email-uniqueness",
+    name: "Email Uniqueness",
+    cel:
+      '!emailExists(givenName + "." + familyName + "@" + emailDomain, all(applicationType))\n' +
+      '  ? givenName + "." + familyName + "@" + emailDomain\n' +
+      "  :\n" +
+      "      .filter(i, i <= givenName.size())\n" +
+      '      .map(i, givenName + "." + givenName.substring(0, i) + "." + familyName + "@" + emailDomain)\n' +
+      "      .filter(email, !emailExists(email, all(applicationType)))",
+    create: true,
+    update: true,
+  },
+  {
+    id: "upn",
+    name: "UPN",
+    cel:
+      '!accountExists(givenName + "." + familyName + "@" + ADDomain, all(applicationType))\n' +
+      '  ? givenName + "." + familyName + "@" + ADDomain\n' +
+      "  :\n" +
+      "      .filter(i, i <= givenName.size())\n" +
+      '      .map(i, givenName + "." + givenName.substring(0, i) + "." + familyName + "@" + ADDomain)\n' +
+      "      .filter(upn, !accountExists(upn, all(applicationType)))",
+    create: true,
+    update: true,
+  },
+  {
+    id: "samaccountname",
+    name: "SAMAccount Name",
+    cel:
+      '!accountExists(givenName + "." + familyName, all(applicationType))\n' +
+      '  ? givenName + "." + familyName\n' +
+      "  :\n" +
+      "      .filter(i, i <= givenName.size())\n" +
+      '      .map(i, givenName + "." + givenName.substring(0, i) + "." + familyName)\n' +
+      "      .filter(acc, !accountExists(acc, all(applicationType)))",
+    create: true,
+    update: true,
+  },
 ];
 
 let validationIdCounter = 0;
@@ -52,7 +88,7 @@ export default function ValidationsPanel() {
   const [variableFilter, setVariableFilter] = useState("");
   const [celDragOver, setCelDragOver] = useState(false);
 
-  const activeCelInputRef = useRef<HTMLInputElement | null>(null);
+  const activeCelInputRef = useRef<HTMLTextAreaElement | null>(null);
   const activeCelCursorRef = useRef(0);
 
   useEffect(() => {
@@ -123,7 +159,7 @@ export default function ValidationsPanel() {
   }, []);
 
   const handleCelDrop = useCallback(
-    (e: DragEvent<HTMLInputElement>) => {
+    (e: DragEvent<HTMLTextAreaElement>) => {
       e.preventDefault();
       setCelDragOver(false);
       const insert = e.dataTransfer.getData("text/plain").trim();
@@ -164,8 +200,8 @@ export default function ValidationsPanel() {
       {
         field: "name",
         headerName: "Validation Name",
-        flex: 1.2,
-        minWidth: 180,
+        flex: 0.4,
+        minWidth: 140,
         wrapText: true,
         autoHeight: true,
         cellRenderer: (p: ICellRendererParams<ValidationRow>) => {
@@ -187,8 +223,8 @@ export default function ValidationsPanel() {
       },
       {
         headerName: "CEL Expression",
-        flex: 1.6,
-        minWidth: 220,
+        flex: 10,
+        minWidth: 420,
         wrapText: true,
         autoHeight: true,
         cellRenderer: (p: ICellRendererParams<ValidationRow>) => {
@@ -196,17 +232,29 @@ export default function ValidationsPanel() {
           if (!row) return null;
           if (row.id !== editingId) {
             return row.cel ? (
-              <div className="py-1.5 font-mono text-[11px] text-gray-700 break-all">{row.cel}</div>
+              <div
+                className="py-1.5 font-mono text-gray-700"
+                style={{
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                  overflowWrap: "anywhere",
+                  fontSize: 11,
+                  lineHeight: "1.5",
+                }}
+              >
+                {row.cel}
+              </div>
             ) : (
               <div className="py-1.5 text-sm text-gray-400">No expression set</div>
             );
           }
           return (
-            <input
+            <textarea
               ref={(el) => {
                 activeCelInputRef.current = el;
               }}
               value={row.cel}
+              rows={Math.min(10, Math.max(3, row.cel.split("\n").length))}
               onChange={(e) => {
                 activeCelCursorRef.current = e.target.selectionStart ?? e.target.value.length;
                 updateValidation(row.id, "cel", e.target.value);
@@ -231,7 +279,7 @@ export default function ValidationsPanel() {
               }}
               onDrop={handleCelDrop}
               placeholder="Enter CEL expression, or drag a variable from the sidebar"
-              className="w-full rounded-md border px-2 py-1.5 font-mono text-[11px] focus:outline-none"
+              className="w-full rounded-md border px-2 py-1.5 font-mono text-[11px] leading-relaxed resize-y focus:outline-none"
               style={
                 celDragOver
                   ? { borderColor: "var(--accent)", boxShadow: "0 0 0 2px var(--accent-soft)" }
@@ -243,8 +291,8 @@ export default function ValidationsPanel() {
       },
       {
         headerName: "Scope",
-        width: 180,
-        minWidth: 160,
+        width: 140,
+        minWidth: 130,
         wrapText: true,
         autoHeight: true,
         cellRenderer: (p: ICellRendererParams<ValidationRow>) => {
