@@ -8,12 +8,9 @@ var domains = [
 ];
 
 var vaults = [
-  {name:'US-AD-OCI-Vault', provider:'OCI Vault', domains:'us.corp.local', owner:'Michael Chen', path:'secret/ad/us-prod', status:'Validated', validated:'Today, 1:22 PM'},
-  {name:'NA-Shared-CyberArk', provider:'CyberArk', domains:'ca.corp.local', owner:'Sophie Martin', path:'safe/na/ad-ca', status:'Validated', validated:'Today, 12:51 PM'},
-  {name:'UK-HashiCorp-Vault', provider:'HashiCorp Vault', domains:'uk.corp.local', owner:'Oliver Grant', path:'kv/ad/uk/service', status:'Validated', validated:'Today, 12:44 PM'},
-  {name:'DE-AD-OCI-Vault', provider:'OCI Vault', domains:'de.corp.local', owner:'Lena Fischer', path:'secret/ad/de-prod', status:'Validation Failed', validated:'Today, 11:58 AM'},
-  {name:'IN-AD-CyberArk', provider:'CyberArk', domains:'in.corp.local', owner:'Arjun Mehta', path:'safe/apac/ad-in', status:'Validated', validated:'Today, 1:06 PM'}
+  {name:'US-AD-OCI-Vault', provider:'OCI Vault', domains:'us.corp.local', owner:'Michael Chen', path:'secret/ad/us-prod', status:'Validated', validated:'Today, 1:22 PM'}
 ];
+
 
 function badge(value){
   const v = String(value).toLowerCase();
@@ -33,10 +30,6 @@ function renderVaults(){
   document.getElementById('vaultRows').innerHTML=vaults.map(v=>`<tr><td><strong>${v.name}</strong></td><td>${v.provider}</td><td>${v.domains}</td><td>${v.owner}</td><td>${v.path}</td><td>${badge(v.status)}</td><td>${v.validated}</td><td><button class="btn small" onclick="event.stopPropagation();toast('Vault validation started for ${v.name}')">Validate</button></td></tr>`).join('');
 }
 
-function renderOperations(){
-  document.getElementById('operationsRows').innerHTML=domains.map((d,i)=>`<tr onclick="openDomainDrawer(${i})"><td><strong>${d.domain}</strong></td><td>${badge(d.health)}</td><td>${d.heartbeat}</td><td>${d.lastRecon}</td><td>${d.lastProv}</td><td>${d.errors}</td><td>${d.version}</td><td>${d.latest}</td><td>${d.version===d.latest?badge('Current'):d.version==='—'?badge('Pending Setup'):badge('Upgrade Available')}</td></tr>`).join('');
-}
-
 function openDomainDrawer(i){
   const d=domains[i];
   document.getElementById('drawerTitle').textContent=d.domain;
@@ -52,17 +45,6 @@ function openDomainDrawer(i){
   document.getElementById('drawerBackdrop').classList.add('open');
 }
 function closeDrawer(){ document.getElementById('drawer').classList.remove('open'); document.getElementById('drawerBackdrop').classList.remove('open'); }
-
-function testNaming(){
-  const first=document.getElementById('testFirst').value.trim().toLowerCase().replace(/[^a-z]/g,'')||'alex';
-  const last=document.getElementById('testLast').value.trim().toLowerCase().replace(/[^a-z]/g,'')||'morgan';
-  const collision=document.getElementById('testCollision').value==='yes';
-  const suffix=collision?'2':'';
-  const email=`${first}.${last}${suffix}@company.com`;
-  const upn=`${first}.${last}${suffix}@corp.company`;
-  const sam=`${first[0]}${last}${suffix}`.slice(0,20);
-  document.getElementById('namingResult').innerHTML=`<strong>Email:</strong> ${email}<br><strong>UPN:</strong> ${upn}<br><strong>SAM Account Name:</strong> ${sam}<br><strong>Collision handling:</strong> ${collision?'Conflict detected and fallback sequence applied':'No conflict detected'}<br><strong>Uniqueness scope:</strong> All registered AD domains`;
-}
 
 function openModal(id){
   document.getElementById(id).classList.add('open');
@@ -109,6 +91,17 @@ function sendBulkInvites(){
     : `<strong>No file uploaded.</strong><br>Choose a filled invitation file before sending.`;
 }
 
+function toggleGlobalSettingsEdit(){
+  const card = document.getElementById('globalSettingsCard');
+  const btn = document.getElementById('globalSettingsEditBtn');
+  const editing = !card.classList.contains('editing');
+  card.classList.toggle('editing', editing);
+  card.querySelectorAll('input').forEach(el => { el.disabled = !editing; });
+  btn.textContent = editing ? 'Save' : 'Edit';
+  btn.classList.toggle('primary', editing);
+  if(!editing) toast('Global settings saved');
+}
+
 function toast(message){
   const el=document.getElementById('toast'); el.textContent=message; el.classList.add('show'); clearTimeout(window.toastTimer); window.toastTimer=setTimeout(()=>el.classList.remove('show'),2400);
 }
@@ -123,5 +116,5 @@ document.querySelectorAll('.gadcm .nav-item').forEach(n=>n.addEventListener('cli
 document.querySelectorAll('.gadcm [data-nav]').forEach(n=>n.addEventListener('click',()=>activateView(n.dataset.nav)));
 document.querySelectorAll('.gadcm .modal-backdrop').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')}));
 
-function renderAll(){ renderOverview(); renderVaults(); renderOperations(); }
+function renderAll(){ renderOverview(); renderVaults(); }
 renderAll();

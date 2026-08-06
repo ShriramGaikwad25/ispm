@@ -559,6 +559,7 @@ export default function AddApplicationPage() {
       ...prev,
       step1: { ...prev.step1, type: appTypeFromUrl },
     }));
+    setCurrentStep(2);
   }, [isCompleteIntegration, appTypeFromUrl]);
 
   // Fetch and map application data from getallapp (getInProgressApplications) when in complete-integration mode

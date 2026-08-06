@@ -1,126 +1,80 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
+import ValidationsPanel from "./ValidationsPanel";
 
-const BODY_HTML = `
+const TABBAR_HTML = `
 <div class="tabbar">
   <button type="button" class="nav-item active" data-view="overview"><span class="nav-icon icon-overview">◫</span>Overview</button>
-  <button type="button" class="nav-item" data-view="naming"><span class="nav-icon icon-naming">Aa</span>Naming &amp; Uniqueness</button>
+  <button type="button" class="nav-item" data-view="naming"><span class="nav-icon icon-naming">Aa</span>Validations</button>
   <button type="button" class="nav-item" data-view="vaults"><span class="nav-icon icon-vaults">▣</span>Vault Management</button>
-  <button type="button" class="nav-item" data-view="operations"><span class="nav-icon icon-operations">⚙</span>Operations &amp; Upgrades</button>
+</div>
+`;
+
+const OVERVIEW_HTML = `
+<div class="page-header">
+  <div>
+    <h2>Global AD Configuration</h2>
+    <p>Manage enterprise-wide AD domain onboarding, routing, naming and vault references from one centralized control plane.</p>
+  </div>
+  <div class="actions">
+    <button class="btn" onclick="openModal('bulkInviteModal')">Send Bulk Invites</button>
+    <button class="btn primary" onclick="openModal('addDomainModal')">Add AD Domain</button>
+  </div>
 </div>
 
-<section class="content">
-  <div class="view active" id="overview">
-    <div class="page-header">
-      <div>
-        <h2>Global AD Configuration</h2>
-        <p>Manage enterprise-wide AD domain onboarding, routing, naming, vault references, connector health, and upgrade coordination from one centralized control plane.</p>
-      </div>
-      <div class="actions">
-        <button class="btn" onclick="openModal('bulkInviteModal')">Send Bulk Invites</button>
-        <button class="btn primary" onclick="openModal('addDomainModal')">Add AD Domain</button>
-      </div>
-    </div>
+<div class="grid-4">
+  <div class="card metric"><div class="label">Registered Domains</div><div class="value">2</div></div>
+  <div class="card metric"><div class="label">Active Connectors</div><div class="value">2</div></div>
+  <div class="card metric"><div class="label">Pending Setup</div><div class="value">1</div><div class="meta"><span class="dot" style="background:#b7791f"></span>Invitation accepted</div></div>
+  <div class="card metric"><div class="label">Attention Required</div><div class="value">0</div><div class="meta"><span class="dot" style="background:#c33c54"></span>No errors or upgrades pending</div></div>
+</div>
 
-    <div class="grid-4">
-      <div class="card metric"><div class="label">Registered Domains</div><div class="value">2</div></div>
-      <div class="card metric"><div class="label">Active Connectors</div><div class="value">2</div></div>
-      <div class="card metric"><div class="label">Pending Setup</div><div class="value">1</div><div class="meta"><span class="dot" style="background:#b7791f"></span>Invitation accepted</div></div>
-      <div class="card metric"><div class="label">Attention Required</div><div class="value">0</div><div class="meta"><span class="dot" style="background:#c33c54"></span>No errors or upgrades pending</div></div>
-    </div>
-
-    <div class="section card section-card">
-      <div class="section-title">
-        <div><h3>AD Domain Estate</h3><p>Operational view across registered domain connectors</p></div>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Connector Name</th><th>Domain</th><th>Admin</th><th>Region</th><th>Status</th><th>Vault</th><th>Version</th></tr></thead>
-          <tbody id="overviewDomainRows"></tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="section grid-2">
-      <div class="card policy-card">
-        <div class="policy-head"><h4>Global Naming</h4><span class="status success">Enforced</span></div>
-        <div class="policy-list">
-          <div class="policy-row"><span>Email uniqueness</span><strong>All domains</strong></div>
-          <div class="policy-row"><span>UPN uniqueness</span><strong>All domains</strong></div>
-          <div class="policy-row"><span>SAM uniqueness</span><strong>All domains</strong></div>
-        </div>
-      </div>
-      <div class="card policy-card">
-        <div class="policy-head"><h4>Vault Coverage</h4><span class="status warning">5 of 6 valid</span></div>
-        <div class="policy-list">
-          <div class="policy-row"><span>Registered vaults</span><strong>5</strong></div>
-          <div class="policy-row"><span>Shared vaults</span><strong>1</strong></div>
-          <div class="policy-row"><span>Validation issues</span><strong>1</strong></div>
-        </div>
-      </div>
-    </div>
+<div class="section card section-card">
+  <div class="section-title">
+    <div><h3>AD Domain Estate</h3><p>Operational view across registered domain connectors</p></div>
   </div>
-
-  <div class="view" id="naming">
-    <div class="page-header">
-      <div><h2>Naming &amp; Uniqueness</h2><p>Maintain mandatory enterprise naming policies for Email, UPN, and SAM Account Name. All identifiers are checked across all registered AD domains.</p></div>
-      <div class="actions"><button class="btn" onclick="toast('Policy history opened')">View History</button><button class="btn primary" onclick="toast('Naming policies saved')">Save Policies</button></div>
-    </div>
-    <div class="grid-3">
-      <div class="card policy-card"><div class="policy-head"><h4>Email Address</h4><span class="status success">Mandatory</span></div><div class="policy-list"><div class="policy-row"><span>Pattern</span><strong>first.last@company.com</strong></div><div class="policy-row"><span>Collision sequence</span><strong>first.last2, first.last3</strong></div><div class="policy-row"><span>Uniqueness scope</span><strong>All AD domains</strong></div><div class="policy-row"><span>Reservation window</span><strong>30 minutes</strong></div></div></div>
-      <div class="card policy-card"><div class="policy-head"><h4>UPN</h4><span class="status success">Mandatory</span></div><div class="policy-list"><div class="policy-row"><span>Pattern</span><strong>first.last@corp.company</strong></div><div class="policy-row"><span>Collision sequence</span><strong>Numeric suffix</strong></div><div class="policy-row"><span>Uniqueness scope</span><strong>All AD domains</strong></div><div class="policy-row"><span>Normalization</span><strong>Lowercase, ASCII</strong></div></div></div>
-      <div class="card policy-card"><div class="policy-head"><h4>SAM Account Name</h4><span class="status success">Mandatory</span></div><div class="policy-list"><div class="policy-row"><span>Pattern</span><strong>first initial + surname</strong></div><div class="policy-row"><span>Maximum length</span><strong>20 characters</strong></div><div class="policy-row"><span>Uniqueness scope</span><strong>All AD domains</strong></div><div class="policy-row"><span>Reserved names</span><strong>Policy list enforced</strong></div></div></div>
-    </div>
-    <div class="section grid-2">
-      <div class="card section-card">
-        <div class="section-title"><div><h3>Test Naming Policy</h3><p>Preview generated identifiers and collision handling</p></div></div>
-        <div class="form-grid"><div class="field"><label>First name</label><input id="testFirst" value="Alex"></div><div class="field"><label>Last name</label><input id="testLast" value="Morgan"></div><div class="field"><label>Country</label><select id="testCountry"><option>United States</option><option>Canada</option><option>United Kingdom</option><option>Germany</option><option>India</option><option>Brazil</option></select></div><div class="field"><label>Simulate collision</label><select id="testCollision"><option value="yes">Yes</option><option value="no">No</option></select></div></div>
-        <div style="margin-top:12px"><button class="btn primary" onclick="testNaming()">Generate Preview</button></div>
-        <div id="namingResult" class="test-result">Enter sample identity data to preview generated values.</div>
-      </div>
-      <div class="card section-card">
-        <div class="section-title"><div><h3>Global Uniqueness Service</h3><p>Centralized index used by all domain connectors</p></div></div>
-        <div class="policy-list"><div class="policy-row"><span>Indexed accounts</span><strong>186,420</strong></div><div class="policy-row"><span>Participating domains</span><strong>6 of 6</strong></div><div class="policy-row"><span>Active reservations</span><strong>14</strong></div><div class="policy-row"><span>Last index refresh</span><strong>4 minutes ago</strong></div><div class="policy-row"><span>Average lookup time</span><strong>118 ms</strong></div></div>
-      </div>
-    </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Connector Name</th><th>Domain</th><th>Admin</th><th>Region</th><th>Status</th><th>Vault</th><th>Version</th></tr></thead>
+      <tbody id="overviewDomainRows"></tbody>
+    </table>
   </div>
+</div>
 
-  <div class="view" id="vaults">
-    <div class="page-header">
-      <div><h2>Vault Management</h2><p>Allow delegated domain administrators to register one vault per domain while providing centralized visibility and validation status to the IAM team.</p></div>
-      <div class="actions"><button class="btn" onclick="toast('Vault report exported')">Export</button><button class="btn primary" onclick="openModal('addVaultModal')">Register Vault</button></div>
-    </div>
-    <div class="grid-4">
-      <div class="card metric"><div class="label">Registered Vaults</div><div class="value">5</div><div class="meta">One shared across two domains</div></div>
-      <div class="card metric"><div class="label">Validated</div><div class="value">4</div><div class="meta">Runtime credential access confirmed</div></div>
-      <div class="card metric"><div class="label">Validation Failed</div><div class="value">1</div><div class="meta">Germany domain</div></div>
-      <div class="card metric"><div class="label">Unregistered</div><div class="value">1</div><div class="meta">Brazil setup in progress</div></div>
-    </div>
-    <div class="section card section-card">
-      <div class="section-title"><div><h3>Vault Registry</h3><p>Secret values are never stored or displayed in KeyForge</p></div></div>
-      <div class="table-wrap"><table><thead><tr><th>Vault Name</th><th>Provider</th><th>Domains</th><th>Owner</th><th>Secret Reference</th><th>Status</th><th>Last Validated</th><th>Actions</th></tr></thead><tbody id="vaultRows"></tbody></table></div>
-    </div>
+<div class="section card section-card" id="globalSettingsCard">
+  <div class="section-title">
+    <div><h3>Global Settings</h3><p>Local admins have the ability to override these settings</p></div>
+    <button type="button" class="btn" id="globalSettingsEditBtn" onclick="toggleGlobalSettingsEdit()">Edit</button>
   </div>
-
-  <div class="view" id="operations">
-    <div class="page-header">
-      <div><h2>Operations &amp; Upgrades</h2><p>Monitor connector heartbeat, reconciliation, provisioning activity, operational errors, and domain-admin initiated upgrades.</p></div>
-      <div class="actions"><button class="btn" onclick="toast('Upgrade notifications sent')">Send Upgrade Notifications</button><button class="btn primary" onclick="toast('Global health check started')">Run Health Check</button></div>
-    </div>
-    <div class="grid-4">
-      <div class="card metric"><div class="label">Healthy</div><div class="value">4</div><div class="meta">Heartbeat and jobs current</div></div>
-      <div class="card metric"><div class="label">Warnings</div><div class="value">1</div><div class="meta">Upgrade available</div></div>
-      <div class="card metric"><div class="label">Critical</div><div class="value">1</div><div class="meta">Vault validation failure</div></div>
-      <div class="card metric"><div class="label">Pending Operations</div><div class="value">9</div><div class="meta">Across all domain connectors</div></div>
-    </div>
-    <div class="section card section-card">
-      <div class="section-title"><div><h3>Connector Operations</h3><p>Operational status across registered domain connectors</p></div></div>
-      <div class="table-wrap"><table><thead><tr><th>Domain</th><th>Health</th><th>Heartbeat</th><th>Last Reconciliation</th><th>Last Provisioning</th><th>Pending Errors</th><th>Installed</th><th>Latest</th><th>Upgrade</th></tr></thead><tbody id="operationsRows"></tbody></table></div>
-    </div>
+  <div class="settings-grid">
+    <div class="setting-item"><span class="setting-label">Port</span><input type="text" class="setting-input" value="636" disabled></div>
+    <div class="setting-item"><span class="setting-label">SSL enabled</span><label class="toggle-switch"><input type="checkbox" checked disabled onchange="toast('SSL enabled: '+(this.checked?'Yes':'No'))"><span class="toggle-slider"></span></label></div>
+    <div class="setting-item"><span class="setting-label">Delete account on delete request</span><label class="toggle-switch"><input type="checkbox" disabled onchange="toast('Delete account on delete request: '+(this.checked?'Yes':'No'))"><span class="toggle-slider"></span></label></div>
+    <div class="setting-item"><span class="setting-label">Revoke membership</span><label class="toggle-switch"><input type="checkbox" checked disabled onchange="toast('Revoke membership: '+(this.checked?'Yes':'No'))"><span class="toggle-slider"></span></label></div>
+    <div class="setting-item"><span class="setting-label">Primary Identity Attribute</span><input type="text" class="setting-input" value="samaccountname" disabled></div>
   </div>
-</section>
+</div>
+`;
 
+const VAULTS_HTML = `
+<div class="page-header">
+  <div><h2>Vault Management</h2><p>Allow delegated domain administrators to register one vault per domain while providing centralized visibility and validation status to the IAM team.</p></div>
+  <div class="actions"><button class="btn" onclick="toast('Vault report exported')">Export</button><button class="btn primary" onclick="openModal('addVaultModal')">Register Vault</button></div>
+</div>
+<div class="grid-4">
+  <div class="card metric"><div class="label">Registered Vaults</div><div class="value">1</div><div class="meta">US domain</div></div>
+  <div class="card metric"><div class="label">Validated</div><div class="value">1</div><div class="meta">Runtime credential access confirmed</div></div>
+  <div class="card metric"><div class="label">Validation Failed</div><div class="value">0</div><div class="meta">No validation issues</div></div>
+  <div class="card metric"><div class="label">Unregistered</div><div class="value">0</div><div class="meta">All domains covered</div></div>
+</div>
+<div class="section card section-card">
+  <div class="section-title"><div><h3>Vault Registry</h3><p>Secret values are never stored or displayed in KeyForge</p></div></div>
+  <div class="table-wrap"><table><thead><tr><th>Vault Name</th><th>Provider</th><th>Domains</th><th>Owner</th><th>Secret Reference</th><th>Status</th><th>Last Validated</th><th>Actions</th></tr></thead><tbody id="vaultRows"></tbody></table></div>
+</div>
+`;
+
+const TAIL_HTML = `
 <div class="drawer-backdrop" id="drawerBackdrop" onclick="closeDrawer()"></div>
 <aside class="drawer" id="drawer">
   <div class="drawer-head"><div><h3 id="drawerTitle">Domain Details</h3><p id="drawerSubtitle">Connector summary and operations</p></div><button class="close" onclick="closeDrawer()">✕</button></div>
@@ -157,7 +111,7 @@ const BODY_HTML = `
 `;
 
 export default function GlobalAdConfigManagementPage() {
-  const bodyRef = useRef<HTMLDivElement>(null);
+  const tailRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const link = document.createElement("link");
@@ -166,7 +120,7 @@ export default function GlobalAdConfigManagementPage() {
     document.head.appendChild(link);
 
     const script = document.createElement("script");
-    script.src = "/global-ad-config-management/app.js";
+    script.src = `/global-ad-config-management/app.js?v=${Date.now()}`;
     document.body.appendChild(script);
 
     return () => {
@@ -177,7 +131,15 @@ export default function GlobalAdConfigManagementPage() {
 
   return (
     <div className="flex flex-col w-full gadcm">
-      <div ref={bodyRef} dangerouslySetInnerHTML={{ __html: BODY_HTML }} />
+      <div dangerouslySetInnerHTML={{ __html: TABBAR_HTML }} />
+      <section className="content">
+        <div className="view active" id="overview" dangerouslySetInnerHTML={{ __html: OVERVIEW_HTML }} />
+        <div className="view" id="naming">
+          <ValidationsPanel />
+        </div>
+        <div className="view" id="vaults" dangerouslySetInnerHTML={{ __html: VAULTS_HTML }} />
+      </section>
+      <div ref={tailRef} dangerouslySetInnerHTML={{ __html: TAIL_HTML }} />
     </div>
   );
 }

@@ -72,7 +72,6 @@
 .gadcm .nav-icon.icon-overview { color: #5b6cf9; }
 .gadcm .nav-icon.icon-naming { color: #b7791f; }
 .gadcm .nav-icon.icon-vaults { color: #16885a; }
-.gadcm .nav-icon.icon-operations { color: #c33c54; }
 
 .gadcm .content { padding: 20px 28px 32px; }
 .gadcm .view { display: none; }
@@ -205,7 +204,7 @@
 .gadcm .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
 .gadcm .form-grid .field.full-width { grid-column: 1 / -1; }
 .gadcm .field label { display: block; font-size: 11px; font-weight: 700; margin-bottom: 6px; color: #465063; }
-.gadcm .field input, .gadcm .field select {
+.gadcm .field input, .gadcm .field select, .gadcm .field textarea {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 9px;
@@ -214,7 +213,6 @@
   color: var(--text);
   font-size: 12px;
 }
-
 .gadcm .policy-card { padding: 18px; }
 .gadcm .policy-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 14px; }
 .gadcm .policy-head h4 { margin: 0; font-size: 14px; }
@@ -225,6 +223,62 @@
 .gadcm .policy-row strong { text-align: right; }
 
 .gadcm .rule-table tr.unmatched { background: #fffaf0; }
+
+.gadcm .settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+.gadcm .setting-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-2);
+  font-size: 12px;
+}
+.gadcm .setting-item .setting-label { color: var(--muted); font-weight: 650; }
+.gadcm .setting-item .setting-value { font-weight: 700; }
+.gadcm .setting-item .setting-input {
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 7px;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  text-align: right;
+  width: 130px;
+  max-width: 55%;
+}
+.gadcm .setting-item .setting-input:disabled { cursor: not-allowed; opacity: 1; }
+.gadcm .setting-item .setting-input:not(:disabled) { border-color: var(--line); background: #fff; text-align: left; }
+.gadcm .setting-item .setting-input:not(:disabled):focus { outline: none; border-color: var(--accent); }
+
+.gadcm .toggle-switch { position: relative; display: inline-block; width: 38px; height: 21px; flex-shrink: 0; }
+.gadcm .toggle-switch input { opacity: 0; width: 0; height: 0; }
+.gadcm .toggle-slider {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  background: #d7dbe3;
+  border-radius: 999px;
+  transition: .2s ease;
+}
+.gadcm .toggle-slider::before {
+  position: absolute;
+  content: "";
+  left: 3px;
+  top: 3px;
+  width: 15px;
+  height: 15px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(16,24,40,.3);
+  transition: .2s ease;
+}
+.gadcm .toggle-switch input:checked + .toggle-slider { background: var(--accent); }
+.gadcm .toggle-switch input:checked + .toggle-slider::before { transform: translateX(17px); }
+.gadcm .toggle-switch input:disabled + .toggle-slider { cursor: not-allowed; opacity: .55; }
 
 .gadcm .drawer-backdrop {
   position: fixed;
@@ -255,6 +309,16 @@
 .gadcm .drawer-head p { margin: 0; color: var(--muted); font-size: 11px; }
 .gadcm .close { border: 0; background: #f1f3f6; width: 30px; height: 30px; border-radius: 8px; cursor: pointer; }
 .gadcm .drawer-body { padding: 20px; }
+.gadcm .drawer-foot {
+  padding: 14px 20px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  position: sticky;
+  bottom: 0;
+  background: #fff;
+}
 .gadcm .detail-block { border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 13px; }
 .gadcm .detail-block h4 { margin: 0 0 12px; font-size: 13px; }
 .gadcm .detail-row { display: flex; justify-content: space-between; gap: 15px; padding: 7px 0; font-size: 12px; }
@@ -333,7 +397,7 @@
 }
 
 @media (max-width: 780px) {
-  .gadcm .grid-4, .gadcm .grid-3, .gadcm .grid-2, .gadcm .form-grid { grid-template-columns: 1fr; }
+  .gadcm .grid-4, .gadcm .grid-3, .gadcm .grid-2, .gadcm .form-grid, .gadcm .settings-grid { grid-template-columns: 1fr; }
   .gadcm .page-header { flex-direction: column; }
   .gadcm .content { padding: 16px; }
   .gadcm .toolbar { flex-direction: column; align-items: stretch; }
