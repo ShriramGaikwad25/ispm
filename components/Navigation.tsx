@@ -75,28 +75,6 @@ export function Navigation() {
     routeMatchesExact(subItem.href);
 
   useEffect(() => {
-    const nhiItem = navigation.find((i) => i.name === "Legacy NHI");
-    if (
-      nhiItem?.subItems?.length &&
-      (routeMatches(nhiItem.href) ||
-        nhiItem.subItems.some((s) => routeMatches(s.href)))
-    ) {
-      setExpandedItems(new Set(["Legacy NHI"]));
-    }
-  }, [pathname]);
-
-  useEffect(() => {
-    const nhi2Item = navigation.find((i) => i.name === "Non Human Identity");
-    if (
-      nhi2Item?.subItems?.length &&
-      (routeMatches(nhi2Item.href) ||
-        nhi2Item.subItems.some((s) => routeMatches(s.href)))
-    ) {
-      setExpandedItems(new Set(["Non Human Identity"]));
-    }
-  }, [pathname]);
-
-  useEffect(() => {
     const raItem = navigation.find((i) => i.name === "Risk Analysis");
     if (
       raItem?.subItems?.length &&
