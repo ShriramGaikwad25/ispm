@@ -117,6 +117,90 @@ const FALLBACK_WORKFLOWS: WorkflowDefinition[] = [
   },
 ];
 
+const APPROVAL_POLICY_TENANT_ID = "a0000000-0000-0000-0000-000000000001";
+
+const PRIORITY_TO_NUMBER: Record<Priority, number> = {
+  Low: 10,
+  Medium: 20,
+  High: 30,
+  Critical: 40,
+};
+
+/** Nearest Priority enum value for a stored priority number (for round-tripping into the edit form). */
+function numberToPriority(value: number): Priority {
+  let closest: Priority = "Medium";
+  let closestDistance = Infinity;
+  for (const [priority, num] of Object.entries(PRIORITY_TO_NUMBER) as [Priority, number][]) {
+    const distance = Math.abs(num - value);
+    if (distance < closestDistance) {
+      closestDistance = distance;
+      closest = priority;
+    }
+  }
+  return closest;
+}
+
+const OPERAND_TO_SELECTOR_OP: Record<Operand, string> = {
+  equals: "eq",
+  not_equals: "neq",
+  contains: "contains",
+  not_contains: "not_contains",
+  starts_with: "starts_with",
+  ends_with: "ends_with",
+  in: "in",
+  not_in: "not_in",
+};
+
+/** Turns a policy name into a stable UPPER_SNAKE code for kf_wf_p_upsert_approval_policy. */
+function slugifyApprovalPolicyCode(name: string, version: number): string {
+  const base = name
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return `${base || "APPROVAL_POLICY"}_V${version}`;
+}
+
+/**
+ * Builds the selectorJson.match block from the Step 2 ExpressionBuilder conditions.
+ * The builder only carries one logical operator between rows, so a single OR anywhere
+ * in the list switches the whole group to "any"; otherwise every condition must match ("all").
+ */
+function buildApprovalPolicySelectorJson(
+  conditions: any[],
+  subject: ConditionSubject
+): { match: { any?: unknown[]; all?: unknown[] } } | null {
+  if (!Array.isArray(conditions) || conditions.length === 0) return null;
+
+  const subjectToken = subject.replace(/\s+/g, "_").toLowerCase();
+  const clauses = conditions
+    .map((cond) => {
+      const attributeToken = cond?.attribute?.value
+        ? String(cond.attribute.value).replace(/\s+/g, "_").toLowerCase()
+        : null;
+      if (!attributeToken) return null;
+
+      const operator = (cond?.operator?.value as Operand) || "equals";
+      const op = OPERAND_TO_SELECTOR_OP[operator] || "eq";
+      const rawValue = typeof cond?.value === "string" ? cond.value : "";
+      const value =
+        op === "in" || op === "not_in"
+          ? rawValue.split(",").map((v: string) => v.trim()).filter(Boolean)
+          : rawValue;
+
+      return { path: `${subjectToken}.${attributeToken}`, op, value };
+    })
+    .filter((clause): clause is { path: string; op: string; value: unknown } => clause !== null);
+
+  if (!clauses.length) return null;
+
+  const hasOr = conditions.some(
+    (cond, index) => index > 0 && cond?.logicalOp === "OR"
+  );
+
+  return { match: hasOr ? { any: clauses } : { all: clauses } };
+}
+
 interface ApprovalPolicyFormData {
   step1: {
     name: string;
@@ -201,6 +285,10 @@ export default function ManageApprovalPoliciesPage() {
   const [workflowRows, setWorkflowRows] = useState<WorkflowDefinition[]>([]);
   const { isVisible: isSidebarVisible, sidebarWidthPx } = useLeftSidebar();
   const reviewEditRequested = searchParams.get("edit") === "1";
+  /** Code of the policy being edited, carried through from the list row so the upsert updates it instead of creating a duplicate. */
+  const [editingPolicyCode, setEditingPolicyCode] = useState<string | null>(null);
+  const [isSubmittingPolicy, setIsSubmittingPolicy] = useState(false);
+  const [submitPolicyError, setSubmitPolicyError] = useState<string | null>(null);
 
   const AgGridReact = useMemo(
     () => dynamic(() => import("ag-grid-react").then((mod) => mod.AgGridReact), { ssr: false }),
@@ -224,8 +312,11 @@ export default function ManageApprovalPoliciesPage() {
   const onEditPolicy = (row: any) => {
     setMode("create");
     setCurrentStep(1);
+    setSubmitPolicyError(null);
 
     const linkedWorkflowId = getWorkflowTemplateIdFromPolicyRow(row);
+    const rowCode = row?.code ?? row?.CODE ?? row?.id ?? null;
+    setEditingPolicyCode(rowCode ? String(rowCode) : null);
 
     setFormData({
       step1: {
@@ -234,7 +325,9 @@ export default function ManageApprovalPoliciesPage() {
         owner: row.owner || "",
         tags: "", // tags not available from view yet
         priority:
-          (row.priority as Priority) && ["Low", "Medium", "High", "Critical"].includes(String(row.priority))
+          typeof row.priority === "number"
+            ? numberToPriority(row.priority)
+            : (row.priority as Priority) && ["Low", "Medium", "High", "Critical"].includes(String(row.priority))
             ? (row.priority as Priority)
             : "Medium",
         status:
@@ -736,25 +829,44 @@ export default function ManageApprovalPoliciesPage() {
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (isSubmittingPolicy) return;
+
+    const version = 1;
+    const code = editingPolicyCode || slugifyApprovalPolicyCode(formData.step1.name, version);
+    const selectorJson = buildApprovalPolicySelectorJson(approvalConditions, conditionSubject);
+
     const payload = {
+      tenantId: APPROVAL_POLICY_TENANT_ID,
+      code,
       name: formData.step1.name,
       description: formData.step1.description,
-      owner: formData.step1.owner,
-      tags: formData.step1.tags
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean),
-      priority: formData.step1.priority,
-      status: formData.step1.status,
-      conditions: formData.step2.rules,
-      workflow: currentWorkflow,
+      groupingPolicyCode: null,
+      version,
+      priority: PRIORITY_TO_NUMBER[formData.step1.priority],
+      businessObjectType: "ACCESS_REQUEST",
+      selectorJson,
+      actor: "SYSTEM",
     };
 
-    // In a real implementation this would POST to an API.
-    // For now we log and show a confirmation.
-    console.log("Approval policy payload", payload);
-    alert("Approval policy saved successfully.");
+    setIsSubmittingPolicy(true);
+    setSubmitPolicyError(null);
+    try {
+      await executeQuery("CALL kf_wf_p_upsert_approval_policy(?::jsonb, NULL)", [payload]);
+      setEditingPolicyCode(null);
+      alert("Approval policy saved successfully.");
+      setMode("list");
+    } catch (error) {
+      console.error("Failed to save approval policy:", error);
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Something went wrong while saving the approval policy.";
+      setSubmitPolicyError(message);
+      alert(message);
+    } finally {
+      setIsSubmittingPolicy(false);
+    }
   };
 
   const renderConditionsPreview = () => {
@@ -1154,6 +1266,11 @@ export default function ManageApprovalPoliciesPage() {
 
       return (
         <div className="w-full py-3 px-6 space-y-6">
+          {submitPolicyError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-md px-3 py-2">
+              {submitPolicyError}
+            </div>
+          )}
           <div className="bg-white rounded-lg p-4 border border-gray-200">
             <h4 className="text-sm font-semibold text-gray-900 mb-3">Approval Policy</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
@@ -1407,7 +1524,28 @@ export default function ManageApprovalPoliciesPage() {
             </div>
             <button
               type="button"
-              onClick={() => setMode("create")}
+              onClick={() => {
+                setEditingPolicyCode(null);
+                setSubmitPolicyError(null);
+                setCurrentStep(1);
+                setFormData({
+                  step1: {
+                    name: "",
+                    description: "",
+                    owner: "",
+                    tags: "",
+                    priority: "Medium",
+                    status: "Staging",
+                  },
+                  step2: { rules: [] },
+                  step3: { selectedWorkflowId: null },
+                });
+                conditionSetValue("approvalConditions", [], {
+                  shouldDirty: false,
+                  shouldValidate: false,
+                });
+                setMode("create");
+              }}
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
             >
               Create Approval Policy
@@ -1469,10 +1607,11 @@ export default function ManageApprovalPoliciesPage() {
               <button
                 type="button"
                 onClick={handleSubmit}
-                className="inline-flex items-center gap-2 rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700"
+                disabled={isSubmittingPolicy}
+                className="inline-flex items-center gap-2 rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <Check className="h-4 w-4" />
-                Update Policy
+                {isSubmittingPolicy ? "Saving..." : "Update Policy"}
               </button>
             </div>
           </div>
@@ -1688,10 +1827,11 @@ export default function ManageApprovalPoliciesPage() {
               <button
                 type="button"
                 onClick={handleSubmit}
-                className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium"
+                disabled={isSubmittingPolicy}
+                className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <Check className="w-4 h-4 mr-2" />
-                {reviewEditRequested ? "Update Policy" : "Submit"}
+                {isSubmittingPolicy ? "Saving..." : reviewEditRequested ? "Update Policy" : "Submit"}
               </button>
             )}
           </div>
