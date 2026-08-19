@@ -1922,6 +1922,145 @@ function buildWorkflowJsonPreview(formData: any) {
   };
 }
 
+/** Tenant id expected by kf_wf_p_upsert_template_from_builder's jsonb payload (same demo tenant used by manage-approval-policies). */
+const WORKFLOW_TEMPLATE_TENANT_ID = "a0000000-0000-0000-0000-000000000001";
+
+function slugifyWorkflowTemplateCode(name: string, version: number): string {
+  const base = name
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return `${base || "WORKFLOW_TEMPLATE"}_WF_V${version}`;
+}
+
+/** Strips the builder's internal "stage-"/"step-" prefix to get a short, readable definitionJson id. */
+function slugToDefinitionId(rawId: string | undefined, fallback: string): string {
+  const source = rawId || fallback || "ITEM";
+  const cleaned = String(source)
+    .replace(/^stage-/i, "")
+    .replace(/^step-/i, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return cleaned || "ITEM";
+}
+
+function businessObjectTypeFromWorkflowType(workflowType: string): string {
+  const upper = workflowType.trim().toUpperCase().replace(/\s+/g, "_");
+  return upper || "ACCESS_REQUEST";
+}
+
+/**
+ * Default execution envelope per step type. The guided/advanced builder doesn't expose retry,
+ * assignment, or outcome-mode fields, so submission falls back to one sensible default per type
+ * (validation checks are advisory + retryable, approvals/fulfillment enforce and gate the flow).
+ */
+function defaultExecutionForStep(step: any, stepCode: string) {
+  const assignTarget =
+    stepCode
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "") || "step";
+
+  if (step.type === "APPROVAL") {
+    return {
+      retry: { maxAttempts: 3, delaySeconds: 300 },
+      assignments: [
+        { target: `context.approval.${assignTarget}`, expression: "result" },
+        { target: `vars.${assignTarget}Decision`, expression: "result.decision" },
+      ],
+      waitForCompletion: true,
+      businessOutcomeMode: "ENFORCING",
+      technicalErrorAction: "RETRY_THEN_FAIL",
+    };
+  }
+
+  if (step.type === "FULFILLMENT") {
+    return {
+      retry: { maxAttempts: 0, delaySeconds: 0 },
+      assignments: [{ target: "context.workflow.completion", expression: "result" }],
+      waitForCompletion: true,
+      businessOutcomeMode: "ENFORCING",
+      technicalErrorAction: "FAIL",
+    };
+  }
+
+  return {
+    retry: { maxAttempts: 3, delaySeconds: 300 },
+    assignments: [{ target: `context.validation.${assignTarget}`, expression: "result" }],
+    waitForCompletion: true,
+    businessOutcomeMode: "ADVISORY",
+    technicalErrorAction: "RETRY_THEN_FAIL",
+  };
+}
+
+/** Builds the definitionJson.stages payload kf_wf_p_upsert_template_from_builder expects from the builder's stage/step state. */
+function buildWorkflowTemplateDefinitionJson(formData: any) {
+  const stages = formData?.step2?.stages || [];
+
+  const definitionStages = stages.map((stage: any, stageIdx: number) => {
+    const steps = (stage.steps || []).map((step: any, stepIdx: number) => {
+      const code = String(step.code || `STEP_${stepIdx + 1}`).toUpperCase();
+      const config: any = {};
+
+      if (step.type === "APPROVAL") {
+        applyApprovalStepToWorkflowJson({ config }, step);
+      } else if (step.type === "FULFILLMENT") {
+        config.mode = "ASYNC";
+      } else if (step.type === "AI AGENT") {
+        config.aiEnabled = true;
+      } else if (step.type === "CUSTOM") {
+        config.description = step.description || "";
+      }
+
+      const conditionStr =
+        typeof step.condition === "string"
+          ? step.condition
+          : step.condition?.expression ?? step.condition?.expr ?? "true";
+
+      return {
+        id: slugToDefinitionId(step.id, code),
+        code,
+        config,
+        sequence: (stepIdx + 1) * 10,
+        condition: { onFalse: "SKIP", expression: conditionStr || "true" },
+        execution: defaultExecutionForStep(step, code),
+        stepTypeCode: code,
+      };
+    });
+
+    return {
+      id: slugToDefinitionId(stage.id, stage.name),
+      name: stage.name,
+      config: {},
+      sequence: (stageIdx + 1) * 10,
+      steps,
+    };
+  });
+
+  return { stages: definitionStages };
+}
+
+/** Builds the full kf_wf_p_upsert_template_from_builder payload from wizard state plus identity fields carried over from an edited record (or freshly generated for a new template). */
+function buildWorkflowTemplatePayload(
+  formData: any,
+  identity: { code: string; version: number; status: string; isDefault: boolean }
+) {
+  const s1 = formData?.step1 || {};
+  return {
+    tenantId: WORKFLOW_TEMPLATE_TENANT_ID,
+    name: s1.certificationTemplate || "",
+    code: identity.code,
+    description: s1.description || "",
+    version: identity.version,
+    businessObjectType: businessObjectTypeFromWorkflowType(s1.workflowType || "Access Request"),
+    status: identity.status,
+    isDefault: identity.isDefault,
+    definitionJson: buildWorkflowTemplateDefinitionJson(formData),
+  };
+}
+
 function ReviewSectionHeader({
   icon: Icon,
   title,
@@ -2223,6 +2362,10 @@ export default function WorkflowBuilderCreatePage() {
   );
   const [formData, setFormData] = useState(getInitialFormData);
   const { isVisible: isSidebarVisible, sidebarWidthPx } = useLeftSidebar();
+  // Raw record loaded from localStorage when editing, so Submit can carry over its
+  // code/version/status/isDefault instead of minting new ones on every save.
+  const [loadedTemplate, setLoadedTemplate] = useState<any>(null);
+  const [isSubmittingTemplate, setIsSubmittingTemplate] = useState(false);
 
   const steps = [
     { id: 1, title: "Basic Information" },
@@ -2351,6 +2494,7 @@ export default function WorkflowBuilderCreatePage() {
       } catch {
         /* ignore */
       }
+      setLoadedTemplate(null);
       const fresh = getInitialFormData();
       setFormData(fresh);
       reset({
@@ -2384,6 +2528,8 @@ export default function WorkflowBuilderCreatePage() {
       if (!raw) return;
       const data = JSON.parse(raw);
       if (String(data.id) !== String(editPolicyId)) return;
+
+      setLoadedTemplate(data);
 
       setValue("certificationTemplate", data.name ?? "", { shouldValidate: true });
       setValue("description", data.description ?? "", { shouldValidate: true });
@@ -2759,9 +2905,33 @@ export default function WorkflowBuilderCreatePage() {
     }
   };
 
-  const handleSubmit = () => {
-    console.log("Form submitted:", formData);
-    alert(editPolicyId ? "Workflow updated successfully!" : "Workflow created successfully!");
+  const handleSubmit = async () => {
+    if (isSubmittingTemplate) return;
+
+    const version = loadedTemplate?.version ? Number(loadedTemplate.version) : 1;
+    const code =
+      loadedTemplate?.code ||
+      slugifyWorkflowTemplateCode(formData.step1.certificationTemplate, version);
+    const status = loadedTemplate?.status ? String(loadedTemplate.status).trim() : "ACTIVE";
+    const isDefault = Boolean(loadedTemplate?.is_default ?? loadedTemplate?.isDefault ?? false);
+
+    const payload = buildWorkflowTemplatePayload(formData, { code, version, status, isDefault });
+
+    setIsSubmittingTemplate(true);
+    try {
+      await executeQuery("CALL kf_wf_p_upsert_template_from_builder(?::jsonb, NULL)", [payload]);
+      alert(editPolicyId ? "Workflow updated successfully!" : "Workflow created successfully!");
+      router.push("/settings/gateway/workflow-builder");
+    } catch (error) {
+      console.error("Failed to save workflow template:", error);
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Something went wrong while saving the workflow template.";
+      alert(message);
+    } finally {
+      setIsSubmittingTemplate(false);
+    }
   };
 
   if (isViewMode && isEditFromView) {
@@ -2795,10 +2965,11 @@ export default function WorkflowBuilderCreatePage() {
                   <button
                     type="button"
                     onClick={handleSubmit}
-                    className="inline-flex items-center gap-2 rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700"
+                    disabled={isSubmittingTemplate}
+                    className="inline-flex items-center gap-2 rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <Check className="h-4 w-4" />
-                    Update Policy
+                    {isSubmittingTemplate ? "Updating..." : "Update Policy"}
                   </button>
                 </div>
               </div>
@@ -2915,9 +3086,10 @@ export default function WorkflowBuilderCreatePage() {
           ) : (
             <button
               onClick={handleSubmit}
-              className="flex items-center rounded-md bg-[#1759e4] px-4 py-2 text-sm font-medium text-white hover:brightness-95"
+              disabled={isSubmittingTemplate}
+              className="flex items-center rounded-md bg-[#1759e4] px-4 py-2 text-sm font-medium text-white hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Submit
+              {isSubmittingTemplate ? "Submitting..." : "Submit"}
             </button>
           )}
         </div>
