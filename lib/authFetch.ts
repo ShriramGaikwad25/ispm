@@ -1,4 +1,5 @@
 import { COOKIE_NAMES, getCookie, refreshJWTToken, forceLogout } from "@/lib/auth";
+import { getActiveTenantId } from "@/lib/tenant";
 
 let fetchPatched = false;
 let originalFetch: typeof window.fetch | null = null;
@@ -9,6 +10,27 @@ const RETRY_HEADER = "X-Internal-Token-Retry";
 function isKeyforgeRequest(input: RequestInfo | URL): boolean {
   const url = typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url;
   return typeof url === "string" && url.includes("keyforge.ai");
+}
+
+/** Builds a Headers object from any RequestInit["headers"] shape. */
+function toHeaders(headers: HeadersInit | undefined): Headers {
+  if (headers instanceof Headers) return new Headers(headers);
+  if (Array.isArray(headers)) return new Headers(headers);
+  if (headers && typeof headers === "object") return new Headers(headers as Record<string, string>);
+  return new Headers();
+}
+
+/** Adds X-Tenant-Id (from the active tenant) to every Keyforge request that doesn't already set it. */
+function withTenantHeader(input: RequestInfo | URL, init: RequestInit | undefined): RequestInit | undefined {
+  if (!isKeyforgeRequest(input)) return init;
+  const tenantId = getActiveTenantId();
+  if (!tenantId) return init;
+
+  const headers = toHeaders(init?.headers);
+  if (!headers.has("X-Tenant-Id")) {
+    headers.set("X-Tenant-Id", tenantId);
+  }
+  return { ...init, headers };
 }
 
 function isTokenExpiredBody(data: unknown): boolean {
@@ -28,9 +50,14 @@ export function getOriginalFetch(): typeof window.fetch {
   if (typeof window === "undefined") {
     throw new Error("getOriginalFetch can only be called in browser environment");
   }
-  if (originalFetch) return originalFetch;
-  originalFetch = window.fetch.bind(window);
-  return originalFetch;
+  if (!originalFetch) {
+    originalFetch = window.fetch.bind(window);
+  }
+  const rawFetch = originalFetch;
+  // Still "original" w.r.t. the 401-retry/refresh logic below — but every caller of
+  // getOriginalFetch() deliberately bypasses that logic while still needing X-Tenant-Id.
+  return ((input: RequestInfo | URL, init?: RequestInit) =>
+    rawFetch(input, withTenantHeader(input, init))) as typeof window.fetch;
 }
 
 /**
@@ -57,20 +84,16 @@ export function ensureAuthFetchPatched(): void {
         return originalFetch!(input, init);
       }
 
-      let headers: Headers;
-      if (init?.headers instanceof Headers) {
-        headers = new Headers(init.headers);
-      } else if (Array.isArray(init?.headers)) {
-        headers = new Headers(init.headers);
-      } else if (init?.headers && typeof init?.headers === "object") {
-        headers = new Headers(init.headers as Record<string, string>);
-      } else {
-        headers = new Headers();
-      }
+      const headers = toHeaders(init?.headers);
       headers.delete(RETRY_HEADER);
 
       if (!headers.has("Authorization") && jwtToken) {
         headers.set("Authorization", `Bearer ${jwtToken}`);
+      }
+
+      if (isKeyforgeRequest(input) && !headers.has("X-Tenant-Id")) {
+        const tenantId = getActiveTenantId();
+        if (tenantId) headers.set("X-Tenant-Id", tenantId);
       }
 
       const nextInit: RequestInit = { ...init, headers };

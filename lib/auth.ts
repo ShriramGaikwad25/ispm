@@ -645,24 +645,29 @@ export async function establishAuthenticatedSession(options: {
     })
   );
 
-  if (userUniqueID) {
-    setCookie(COOKIE_NAMES.REVIEWER_ID, userUniqueID);
-  }
-  if (userAdminRoles) {
-    setCookie(COOKIE_NAMES.USER_ADMIN_ROLES, userAdminRoles);
-  }
-
   const existingJwt = getCookie(COOKIE_NAMES.JWT_TOKEN);
-  if (skipJwtGeneration && existingJwt) {
-    return;
+  let jwtToken = existingJwt;
+  if (!(skipJwtGeneration && existingJwt)) {
+    const jwtResponse = await generateJWTToken(accessToken);
+    jwtToken = extractJWTToken(jwtResponse);
+    if (!jwtToken) {
+      throw new Error('Failed to generate JWT token after login');
+    }
+    setCookie(COOKIE_NAMES.JWT_TOKEN, jwtToken);
   }
 
-  const jwtResponse = await generateJWTToken(accessToken);
-  const jwtToken = extractJWTToken(jwtResponse);
-  if (!jwtToken) {
-    throw new Error('Failed to generate JWT token after login');
+  // reviewerId and user role now live in the JWT claims; decode it as the source of
+  // truth, falling back to the login/OAuth response body for older backends.
+  const claims = jwtToken ? extractReviewerIdentityFromJwt(jwtToken) : {};
+  const resolvedReviewerId = claims.userUniqueID || userUniqueID;
+  const resolvedUserAdminRoles = claims.userAdminRoles || userAdminRoles;
+
+  if (resolvedReviewerId) {
+    setCookie(COOKIE_NAMES.REVIEWER_ID, resolvedReviewerId);
   }
-  setCookie(COOKIE_NAMES.JWT_TOKEN, jwtToken);
+  if (resolvedUserAdminRoles) {
+    setCookie(COOKIE_NAMES.USER_ADMIN_ROLES, resolvedUserAdminRoles);
+  }
 }
 
 /** After SSO redirect: tokens are already in cookies — restore state only, no token APIs. */
@@ -976,13 +981,52 @@ export async function requestJWTToken(accessToken: string): Promise<JWTTokenResp
 
 // Helper function to extract JWT token from response
 export function extractJWTToken(jwtResponse: JWTTokenResponse): string | null {
-  return jwtResponse.jwtToken 
-    || jwtResponse.token 
-    || jwtResponse.tokenResponse?.jwtToken 
+  return jwtResponse.jwtToken
+    || jwtResponse.token
+    || jwtResponse.tokenResponse?.jwtToken
     || jwtResponse.tokenResponse?.token
     || jwtResponse.data?.jwtToken
     || jwtResponse.data?.token
     || null;
+}
+
+interface JwtClaims {
+  userUniqueID?: string;
+  userAdminRoles?: string;
+  [key: string]: unknown;
+}
+
+/** Decode a JWT's payload (no signature verification — client-side display only). */
+export function decodeJwtPayload<T = JwtClaims>(token: string): T | null {
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return null;
+    let base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4 !== 0) base64 += '=';
+    if (typeof atob === 'undefined') return null;
+    const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+    const json = new TextDecoder('utf-8').decode(bytes);
+    return JSON.parse(json) as T;
+  } catch {
+    return null;
+  }
+}
+
+/** reviewerId (userUniqueID) and userAdminRoles now live in the JWT claims. */
+function extractReviewerIdentityFromJwt(jwtToken: string): {
+  userUniqueID?: string;
+  userAdminRoles?: string;
+} {
+  const claims = decodeJwtPayload<JwtClaims>(jwtToken);
+  if (!claims) return {};
+  const userUniqueID =
+    typeof claims.userUniqueID === 'string' ? claims.userUniqueID.trim() : '';
+  const userAdminRoles =
+    typeof claims.userAdminRoles === 'string' ? claims.userAdminRoles.trim() : '';
+  return {
+    userUniqueID: userUniqueID || undefined,
+    userAdminRoles: userAdminRoles || undefined,
+  };
 }
 
 // Generate JWT token using the new authservice API
@@ -1043,6 +1087,12 @@ export async function refreshJWTToken(): Promise<boolean> {
 
     // Save the new JWT token to cookie
     setCookie(COOKIE_NAMES.JWT_TOKEN, jwtToken);
+
+    // Keep reviewerId / userAdminRoles in sync with the refreshed token's claims.
+    const claims = extractReviewerIdentityFromJwt(jwtToken);
+    if (claims.userUniqueID) setCookie(COOKIE_NAMES.REVIEWER_ID, claims.userUniqueID);
+    if (claims.userAdminRoles) setCookie(COOKIE_NAMES.USER_ADMIN_ROLES, claims.userAdminRoles);
+
     console.log('JWT token refreshed successfully');
     return true;
   } catch (error) {
