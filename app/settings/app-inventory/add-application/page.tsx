@@ -999,61 +999,6 @@ export default function AddApplicationPage() {
       } finally {
         setSubmitRequestLoading(false);
       }
-    } else if (isCompleteIntegration && (currentStep === 3 || currentStep === 4)) {
-      setSubmitRequestError(null);
-      setSubmitRequestLoading(true);
-      try {
-        const ownerEmail = formData.step2.technicalOwnerEmail || formData.step2.businessOwnerEmail || "";
-        const step3 = formData.step3 || {};
-        // Build provisioningAttrMap from Schema Mapping step: { [target]: { variable: source } }
-        const provisioningAttrMap: Record<string, { variable: string }> = {};
-        attributeMappingData.forEach((mapping) => {
-          if (mapping.target?.trim()) {
-            provisioningAttrMap[mapping.target.trim()] = { variable: mapping.source?.trim() ?? "" };
-          }
-        });
-        const userSearchBaseVal = String(step3.userSearchBase ?? step3.user_searchBase ?? "").trim();
-        const groupSearchBaseVal = String(step3.groupSearchBase ?? step3.group_searchBase ?? "").trim();
-        const { userSearchBase: _u, groupSearchBase: _g, user_searchBase: _ub, group_searchBase: _gb, ...step3Rest } = step3 as Record<string, unknown>;
-        const connectionDetails: Record<string, unknown> = {
-          ...step3Rest,
-          hostname: step3.hostname ?? "",
-          port: step3.port ?? "",
-          username: step3.username ?? "",
-          password: step3.password ?? "",
-          user_searchBase: userSearchBaseVal,
-          group_searchBase: groupSearchBaseVal,
-        };
-        const savePayload = {
-          tenantId: "ACMECOM",
-          appid: appIdFromUrl || "",
-          serviceURL: "",
-          name: formData.step2.applicationName || "",
-          description: formData.step2.description || "",
-          category: formData.step1.type || "",
-          owner: { type: "User", value: ownerEmail },
-          status: "InProgress",
-          connectionDetails,
-          dicoveredOn: null,
-          integratedOn: null,
-          schemaMappingDetails: {
-            provisioningAttrMap,
-            reconcilliationAttrMap: {},
-          },
-          applicationConfigurationDetails: null,
-          iga: false,
-          lcm: false,
-          sso: false,
-          ...(appIdFromUrl && !Number.isNaN(Number(appIdFromUrl)) ? { key: Number(appIdFromUrl) } : {}),
-        };
-        await saveAppDetails(savePayload);
-        setCurrentStep(currentStep + 1);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Failed to save application details";
-        setSubmitRequestError(message);
-      } finally {
-        setSubmitRequestLoading(false);
-      }
     } else if (
       isAiAgentWizard &&
       !isCompleteIntegration &&
@@ -12280,69 +12225,8 @@ export default function AddApplicationPage() {
                   </div>
                 </div>
 
-                {/* Action Buttons - Save calls saveappdetails API */}
+                {/* Action Buttons — the mapping is saved on Submit (schemamapper mapfields), not here */}
                 <div className="flex space-x-3">
-                  <button
-                    type="button"
-                    className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                    disabled={submitRequestLoading}
-                    onClick={async () => {
-                      setSubmitRequestError(null);
-                      setSubmitRequestLoading(true);
-                      try {
-                        const ownerEmail = formData.step2.technicalOwnerEmail || formData.step2.businessOwnerEmail || "";
-                        const step3 = formData.step3 || {};
-                        const provisioningAttrMap: Record<string, { variable: string }> = {};
-                        attributeMappingData.forEach((mapping) => {
-                          if (mapping.target?.trim()) {
-                            provisioningAttrMap[mapping.target.trim()] = { variable: mapping.source?.trim() ?? "" };
-                          }
-                        });
-                        const userSearchBaseVal = String(step3.userSearchBase ?? step3.user_searchBase ?? "").trim();
-                        const groupSearchBaseVal = String(step3.groupSearchBase ?? step3.group_searchBase ?? "").trim();
-                        const { userSearchBase: _u2, groupSearchBase: _g2, user_searchBase: _ub2, group_searchBase: _gb2, ...step3Rest } = step3 as Record<string, unknown>;
-                        const connectionDetails: Record<string, unknown> = {
-                          ...step3Rest,
-                          hostname: step3.hostname ?? "",
-                          port: step3.port ?? "",
-                          username: step3.username ?? "",
-                          password: step3.password ?? "",
-                          user_searchBase: userSearchBaseVal,
-                          group_searchBase: groupSearchBaseVal,
-                        };
-                        const savePayload = {
-                          tenantId: "ACMECOM",
-                          appid: appIdFromUrl || "",
-                          serviceURL: "",
-                          name: formData.step2.applicationName || "",
-                          description: formData.step2.description || "",
-                          category: formData.step1.type || "",
-                          owner: { type: "User", value: ownerEmail },
-                          status: "InProgress",
-                          connectionDetails,
-                          dicoveredOn: null,
-                          integratedOn: null,
-                          schemaMappingDetails: {
-                            provisioningAttrMap,
-                            reconcilliationAttrMap: {},
-                          },
-                          applicationConfigurationDetails: null,
-                          iga: false,
-                          lcm: false,
-                          sso: false,
-                          ...(appIdFromUrl && !Number.isNaN(Number(appIdFromUrl)) ? { key: Number(appIdFromUrl) } : {}),
-                        };
-                        await saveAppDetails(savePayload);
-                      } catch (err) {
-                        const message = err instanceof Error ? err.message : "Failed to save application details";
-                        setSubmitRequestError(message);
-                      } finally {
-                        setSubmitRequestLoading(false);
-                      }
-                    }}
-                  >
-                    {submitRequestLoading ? "Saving…" : "Save"}
-                  </button>
                   <button
                     type="button"
                     className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50"
