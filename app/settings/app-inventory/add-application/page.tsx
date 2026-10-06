@@ -2466,6 +2466,11 @@ export default function AddApplicationPage() {
                         }}
                       >
                         {mapping.target}
+                        {mapping.keyfieldMapping && (
+                          <span className="ml-2 inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 whitespace-nowrap align-middle">
+                            <Key className="w-3 h-3" /> Keyfield
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-500">
                         {mapping.defaultValue || ""}
@@ -5580,7 +5585,9 @@ export default function AddApplicationPage() {
               if (!key) return null;
               const label = formatIntegrationFieldLabel(key);
               const value = (formData.step3 as any)[key] ?? "";
-              const isPasswordLike = /password|secret|token|passphrase/i.test(key);
+              // Token Endpoint / *Url / *Uri fields are URLs, not secrets — keep them visible.
+              const isPasswordLike =
+                /password|secret|token|passphrase/i.test(key) && !/(endpoint|url|uri)$/i.test(key.replace(/_/g, ""));
               return (
                 <div className="flex-1 relative min-w-0" key={key}>
                   <input
@@ -12168,6 +12175,11 @@ export default function AddApplicationPage() {
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-900 whitespace-pre-wrap break-words break-all align-top" style={{ position: "static", whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "anywhere" }}>
                             {mapping.target}
+                            {mapping.keyfieldMapping && (
+                              <span className="ml-2 inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 whitespace-nowrap align-middle">
+                                <Key className="w-3 h-3" /> Keyfield
+                              </span>
+                            )}
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-500">
                             {mapping.defaultValue || ""}
