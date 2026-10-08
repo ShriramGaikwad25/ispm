@@ -31,6 +31,12 @@ import {
   Wrench,
   Zap,
   Sparkles,
+  Bot,
+  Library,
+  ClipboardCheck,
+  SlidersHorizontal,
+  Bell,
+  Cpu,
 } from "lucide-react";
 import { riskAnalysisSubItems } from "@/lib/risk-analysis-routes";
 
@@ -126,6 +132,21 @@ export const navLinks: NavItem[] = [
       { name: "Tenant Posture", href: "/oci-policy-risk-management/tenant-posture", icon: Building2 },
       { name: "Guardrails", href: "/oci-policy-risk-management/guardrails", icon: ShieldCheck },
       { name: "Risk Remediation", href: "/oci-policy-risk-management/risk-remediation", icon: Wrench },
+    ],
+  },
+  {
+    name: "Assurance Events",
+    href: "/assurance-events",
+    icon: ShieldCheck,
+    subItems: [
+      { name: "Domain Agents", href: "/assurance-events/domain-agents", icon: Bot },
+      { name: "Control Library", href: "/assurance-events/control-library", icon: Library },
+      { name: "Review Forms", href: "/assurance-events/review-forms", icon: ClipboardCheck },
+      { name: "Studio Configuration", href: "/assurance-events/studio-configuration", icon: SlidersHorizontal },
+      { name: "Response Policies / Event Definitions", href: "/assurance-events/event-definitions", icon: FileText },
+      { name: "Notifications", href: "/assurance-events/notifications", icon: Bell },
+      { name: "SLA", href: "/assurance-events/sla", icon: Clock },
+      { name: "Executors", href: "/assurance-events/executors", icon: Cpu },
     ],
   },
   {

@@ -1,0 +1,1095 @@
+"use client";
+
+import { getBackendOrigin } from "@/lib/backendOrigin";
+import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { Mail, Info, FileCode2, FileText, Tag, Code, Check, Hash } from "lucide-react";
+import { resolveTenantIdForHeader, getJwtAuthHeaders } from "@/lib/auth";
+import { sanitizeHtml } from "@/lib/sanitize-html";
+
+interface EmailTemplateFormData {
+  templateCode: string;
+  templateName: string;
+  description: string;
+  subject: string;
+  body: string;
+  templateType: "HTML" | "PLAIN_TEXT";
+  active: boolean;
+  createdBy: string;
+  updatedBy: string;
+}
+
+interface AttributesResponse {
+  success: boolean;
+  message: string;
+  data: string[];
+  timestamp: string;
+}
+
+// Default email template body
+const DEFAULT_EMAIL_TEMPLATE_BODY = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Certification Review Assignment</title>
+<style>
+body {
+font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+line-height: 1.6;
+color: #333333;
+background-color: #f4f4f4;
+margin: 0;
+padding: 0;
+}
+.email-container {
+max-width: 650px;
+margin: 20px auto;
+background-color: #ffffff;
+border-radius: 8px;
+overflow: hidden;
+box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+.header {
+background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+color: #ffffff;
+padding: 30px;
+text-align: center;
+}
+.header h1 {
+margin: 0;
+font-size: 24px;
+font-weight: 600;
+}
+.content {
+padding: 30px;
+}
+.greeting {
+font-size: 16px;
+margin-bottom: 20px;
+}
+.intro {
+margin-bottom: 25px;
+color: #555555;
+}
+.details-section {
+background-color: #f8f9fa;
+border-left: 4px solid #667eea;
+padding: 20px;
+margin: 25px 0;
+border-radius: 4px;
+}
+.details-title {
+font-size: 18px;
+font-weight: 600;
+color: #333333;
+margin-bottom: 15px;
+display: flex;
+align-items: center;
+}
+.details-title::before {
+content: "";
+margin-right: 8px;
+}
+.separator {
+border-top: 2px solid #e0e0e0;
+margin: 15px 0;
+}
+.detail-row {
+display: flex;
+padding: 8px 0;
+border-bottom: 1px solid #e8e8e8;
+}
+.detail-row:last-child {
+border-bottom: none;
+}
+.detail-label {
+font-weight: 600;
+color: #555555;
+min-width: 180px;
+flex-shrink: 0;
+}
+.detail-value {
+color: #333333;
+word-break: break-word;
+}
+.action-button {
+display: inline-block;
+background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+color: #ffffff;
+text-decoration: none;
+padding: 14px 32px;
+border-radius: 5px;
+font-weight: 600;
+font-size: 16px;
+margin: 25px 0;
+text-align: center;
+box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+transition: transform 0.2s;
+}
+.action-button:hover {
+transform: translateY(-2px);
+box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15);
+}
+.important-notes {
+background-color: #fff3cd;
+border-left: 4px solid #ffc107;
+padding: 15px;
+margin: 25px 0;
+border-radius: 4px;
+}
+.important-notes-title {
+font-weight: 600;
+color: #856404;
+margin-bottom: 10px;
+display: flex;
+align-items: center;
+}
+.important-notes-title::before {
+content: "";
+margin-right: 8px;
+}
+.note-list {
+margin: 0;
+padding-left: 20px;
+color: #856404;
+}
+.note-list li {
+margin: 8px 0;
+}
+.support-info {
+background-color: #e7f3ff;
+border-left: 4px solid #2196F3;
+padding: 15px;
+margin: 20px 0;
+border-radius: 4px;
+color: #0c5460;
+}
+.footer {
+background-color: #f8f9fa;
+padding: 25px;
+text-align: center;
+border-top: 1px solid #e0e0e0;
+}
+.signature {
+margin: 20px 0;
+color: #555555;
+}
+.disclaimer {
+font-size: 12px;
+color: #888888;
+margin-top: 20px;
+font-style: italic;
+}
+.organization-name {
+font-weight: 600;
+color: #667eea;
+}
+@media only screen and (max-width: 600px) {
+.email-container {
+margin: 10px;
+}
+.content {
+padding: 20px;
+}
+.detail-row {
+flex-direction: column;
+}
+.detail-label {
+margin-bottom: 5px;
+}
+.action-button {
+display: block;
+width: 100%;
+}
+}
+</style>
+</head>
+<body>
+<div class="email-container">
+<!-- Header -->
+<div class="header">
+<h1>Certification Review Assignment</h1>
+</div>
+
+<!-- Content -->
+<div class="content">
+<!-- Greeting -->
+<div class="greeting">
+Dear <strong>\${USER_NAME}</strong>,
+</div>
+
+<!-- Introduction -->
+<div class="intro">
+You have been assigned as a reviewer for a new certification instance.
+Please review the details below and complete the certification within the specified timeline.
+</div>
+
+<!-- Certification Details -->
+<div class="details-section">
+<div class="details-title">Certification Details</div>
+<div class="separator"></div>
+
+<div class="detail-row">
+<div class="detail-label">Your ID</div>
+<div class="detail-value"><strong>\${REVIEWER_ID}</strong></div>
+</div>
+
+<div class="detail-row">
+<div class="detail-label">Certification Name</div>
+<div class="detail-value"><strong>\${CERTIFICATION_NAME}</strong></div>
+</div>
+
+<div class="detail-row">
+<div class="detail-label">Certification ID</div>
+<div class="detail-value">\${CERTIFICATION_ID}</div>
+</div>
+
+<div class="detail-row">
+<div class="detail-label">Campaign Name</div>
+<div class="detail-value">\${CERTIFICATION_NAME}</div>
+</div>
+
+<div class="detail-row">
+<div class="detail-label">Start Date</div>
+<div class="detail-value">\${CERT_START_AT}</div>
+</div>
+
+<div class="detail-row">
+<div class="detail-label">Expiry Date</div>
+<div class="detail-value"><strong style="color: #d32f2f;">\${CERT_DUE_AT}</strong></div>
+</div>
+
+<div class="detail-row">
+<div class="detail-label">Assigned On</div>
+<div class="detail-value">\${CERT_ASSIGNED_AT}</div>
+</div>
+</div>
+
+<!-- Action Button -->
+<div style="text-align: center;">
+<a href="\${PLATFORMURL}" class="action-button">
+Access Certification Platform
+</a>
+</div>
+
+<!-- Important Notes -->
+<div class="important-notes">
+<div class="important-notes-title">Important Notes</div>
+<ul class="note-list">
+<li>Please ensure all assigned items are reviewed before the expiry date.</li>
+<li>Any items not reviewed before expiry may be automatically actioned as per policy.</li>
+<li>Your actions will be recorded for audit and compliance purposes.</li>
+</ul>
+</div>
+
+<!-- Support Information -->
+<div class="support-info">
+<strong>Need Help?</strong><br>
+If you have any questions or face access issues, please contact the Identity Governance support team.
+</div>
+
+<!-- Signature -->
+<div class="signature">
+Thank you for your cooperation.<br><br>
+<strong>Regards,</strong><br>
+Identity Governance Team<br>
+<span class="organization-name">\${ORGANIZATIONNAME}</span>
+</div>
+</div>
+
+<!-- Footer -->
+<div class="footer">
+<div class="disclaimer">
+This is a system-generated email. Please do not reply to this message.
+</div>
+</div>
+</div>
+</body>
+</html>`;
+
+export default function NewEmailTemplatePage() {
+  const router = useRouter();
+  const editorRef = useRef<HTMLDivElement>(null);
+  const htmlSourceRef = useRef<HTMLTextAreaElement>(null);
+  const [focusedFields, setFocusedFields] = useState<Record<string, boolean>>({});
+  const [isHtmlView, setIsHtmlView] = useState(true);
+  const [attributes, setAttributes] = useState<string[]>([]);
+  const [attributesLoading, setAttributesLoading] = useState(true);
+  const [attributesError, setAttributesError] = useState<string | null>(null);
+  const [cursorPosition, setCursorPosition] = useState<{ start: number; end: number } | null>(null);
+  const [focusedFieldName, setFocusedFieldName] = useState<string | null>(null);
+  const subjectRef = useRef<HTMLInputElement>(null);
+  const [formData, setFormData] = useState<EmailTemplateFormData>({
+    templateCode: "",
+    templateName: "",
+    description: "",
+    subject: "",
+    body: DEFAULT_EMAIL_TEMPLATE_BODY,
+    templateType: "HTML",
+    active: true,
+    createdBy: "",
+    updatedBy: "",
+  });
+
+  const handleFieldChange = (field: keyof EmailTemplateFormData, value: string | boolean) => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const handleFieldFocus = (field: string) => {
+    setFocusedFields((prev) => ({ ...prev, [field]: true }));
+    setFocusedFieldName(field);
+  };
+
+  const handleFieldBlur = (field: string) => {
+    setFocusedFields((prev) => ({ ...prev, [field]: false }));
+    // Don't clear focusedFieldName immediately, keep it for attribute insertion
+  };
+
+  const handleSave = async () => {
+    try {
+      // Validate required fields
+      if (!formData.templateCode || !formData.templateName || !formData.subject || !formData.body) {
+        alert("Please fill in all required fields (Template Code, Template Name, Subject, Body)");
+        return;
+      }
+
+      // Prepare payload based on template type
+      const payload = {
+        templateCode: formData.templateCode,
+        templateName: formData.templateName,
+        description: formData.description || "",
+        subject: formData.subject,
+        body: formData.body,
+        templateType: formData.templateType,
+        active: formData.active,
+        createdBy: formData.createdBy || "system",
+        updatedBy: formData.updatedBy || "system",
+      };
+
+      // Call API to create template
+      const response = await fetch(
+        `${getBackendOrigin()}/kfmailserver/templates/api/v1/${resolveTenantIdForHeader()}/create`,
+        {
+          method: "POST",
+          headers: getJwtAuthHeaders({
+            "Content-Type": "application/json",
+          }),
+          body: JSON.stringify(payload),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(errorData.message || "Failed to create template");
+      }
+
+      // Navigate back to templates list
+      router.push("/assurance-events/notifications");
+    } catch (error) {
+      console.error("Error saving template:", error);
+      alert(`Failed to save template: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  };
+
+  const handleCancel = () => {
+    router.push("/assurance-events/notifications");
+  };
+
+  // Fetch attributes on mount
+  useEffect(() => {
+    const fetchAttributes = async () => {
+      try {
+        setAttributesLoading(true);
+        setAttributesError(null);
+        
+        const response = await fetch(
+          `${getBackendOrigin()}/kfmailserver/templates/api/v1/${resolveTenantIdForHeader()}/getallattributes`,
+          { headers: getJwtAuthHeaders() }
+        );
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch attributes: ${response.statusText}`);
+        }
+
+        const result: AttributesResponse = await response.json();
+
+        if (result.success && result.data) {
+          setAttributes(result.data);
+        } else {
+          throw new Error(result.message || "Failed to load attributes");
+        }
+      } catch (err) {
+        console.error("Error fetching attributes:", err);
+        setAttributesError(err instanceof Error ? err.message : "Failed to load attributes");
+      } finally {
+        setAttributesLoading(false);
+      }
+    };
+
+    fetchAttributes();
+  }, []);
+
+  // Initialize editor content on mount with default template based on type
+  useEffect(() => {
+    if (formData.templateType === "HTML") {
+      // Set default HTML in both editor and source view
+      if (editorRef.current) {
+        editorRef.current.innerHTML = DEFAULT_EMAIL_TEMPLATE_BODY;
+      }
+      if (htmlSourceRef.current) {
+        htmlSourceRef.current.value = DEFAULT_EMAIL_TEMPLATE_BODY;
+      }
+      if (!formData.body || formData.body === "") {
+        handleFieldChange("body", DEFAULT_EMAIL_TEMPLATE_BODY);
+      }
+    } else {
+      // Set default plain text template
+      const defaultPlainText = `Dear \${userName},\n\nYou have requested to reset your password.\n\nPlease use this link: \${resetLink}\n\nThis link expires in \${expiryHours} hours.\n\nBest regards,\n\${organizationName} Team`;
+      if (!formData.body || formData.body === "" || formData.body === DEFAULT_EMAIL_TEMPLATE_BODY) {
+        handleFieldChange("body", defaultPlainText);
+      }
+    }
+  }, [formData.templateType]);
+
+  // Rich text editor toolbar actions
+  const executeCommand = (command: string, value?: string) => {
+    document.execCommand(command, false, value);
+    if (editorRef.current) {
+      handleFieldChange("body", editorRef.current.innerHTML);
+    }
+  };
+
+  // Toggle between HTML source view and visual editor
+  const toggleHtmlView = () => {
+    if (isHtmlView) {
+      // Switching from HTML view to visual editor
+      if (htmlSourceRef.current && editorRef.current) {
+        const htmlContent = htmlSourceRef.current.value;
+        editorRef.current.innerHTML = sanitizeHtml(htmlContent);
+        handleFieldChange("body", htmlContent);
+      }
+    } else {
+      // Switching from visual editor to HTML view
+      if (editorRef.current && htmlSourceRef.current) {
+        htmlSourceRef.current.value = formData.body;
+      }
+    }
+    setIsHtmlView(!isHtmlView);
+  };
+
+  // Handle HTML source changes
+  const handleHtmlSourceChange = (value: string) => {
+    handleFieldChange("body", value);
+  };
+
+  // Insert attribute into currently focused field at cursor position
+  const insertAttribute = (attribute: string) => {
+    const attributeText = "${" + attribute + "}";
+    
+    // Check if subject field is focused
+    if (focusedFieldName === "subject" && subjectRef.current) {
+      const input = subjectRef.current;
+      const start = cursorPosition?.start ?? input.selectionStart ?? input.value.length;
+      const end = cursorPosition?.end ?? input.selectionEnd ?? input.value.length;
+      const text = formData.subject;
+      const newText = text.substring(0, start) + attributeText + text.substring(end);
+      
+      handleFieldChange("subject", newText);
+      
+      setTimeout(() => {
+        input.focus();
+        const newPosition = start + attributeText.length;
+        input.setSelectionRange(newPosition, newPosition);
+        setCursorPosition({
+          start: newPosition,
+          end: newPosition
+        });
+      }, 10);
+      return;
+    }
+    
+    // Otherwise, insert into body field
+    if (formData.templateType === "HTML") {
+      if (isHtmlView && htmlSourceRef.current) {
+        const textarea = htmlSourceRef.current;
+        // Store current scroll position
+        const scrollTop = textarea.scrollTop;
+        // Use stored cursor position if available, otherwise use current selection
+        const start = cursorPosition?.start ?? textarea.selectionStart ?? textarea.value.length;
+        const end = cursorPosition?.end ?? textarea.selectionEnd ?? textarea.value.length;
+        const text = formData.body; // Use formData.body to ensure we have the latest value
+        const newText = text.substring(0, start) + attributeText + text.substring(end);
+        
+        // Update the form data
+        handleFieldChange("body", newText);
+        
+        // Set cursor position after inserted text and restore scroll position
+        // Use requestAnimationFrame to ensure DOM has updated
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            if (htmlSourceRef.current) {
+              const textarea = htmlSourceRef.current;
+              textarea.focus();
+              const newPosition = start + attributeText.length;
+              textarea.setSelectionRange(newPosition, newPosition);
+              // Restore scroll position
+              textarea.scrollTop = scrollTop;
+              // Update cursor position state
+              setCursorPosition({
+                start: newPosition,
+                end: newPosition
+              });
+            }
+          }, 0);
+        });
+      } else if (editorRef.current) {
+        // For visual editor, insert as text
+        editorRef.current.focus();
+        document.execCommand("insertText", false, attributeText);
+        handleFieldChange("body", editorRef.current.innerHTML);
+      }
+    } else {
+      // For plain text, find the textarea and insert
+      const textareas = document.querySelectorAll('textarea');
+      const plainTextTextarea = Array.from(textareas).find(
+        (ta) => ta.value === formData.body || ta.placeholder.includes('plain text')
+      ) as HTMLTextAreaElement;
+      
+      if (plainTextTextarea) {
+        // Store current scroll position
+        const scrollTop = plainTextTextarea.scrollTop;
+        // Use stored cursor position if available, otherwise use current selection
+        const start = cursorPosition?.start ?? plainTextTextarea.selectionStart ?? plainTextTextarea.value.length;
+        const end = cursorPosition?.end ?? plainTextTextarea.selectionEnd ?? plainTextTextarea.value.length;
+        const text = formData.body; // Use formData.body to ensure we have the latest value
+        const newText = text.substring(0, start) + attributeText + text.substring(end);
+        
+        handleFieldChange("body", newText);
+        
+        // Use requestAnimationFrame to ensure DOM has updated
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            const textareas = document.querySelectorAll('textarea');
+            const updatedTextarea = Array.from(textareas).find(
+              (ta) => ta.value === newText || ta.placeholder?.includes('plain text')
+            ) as HTMLTextAreaElement;
+            
+            if (updatedTextarea) {
+              updatedTextarea.focus();
+              const newPosition = start + attributeText.length;
+              updatedTextarea.setSelectionRange(newPosition, newPosition);
+              // Restore scroll position
+              updatedTextarea.scrollTop = scrollTop;
+              // Update cursor position state
+              setCursorPosition({
+                start: newPosition,
+                end: newPosition
+              });
+            }
+          }, 0);
+        });
+      } else {
+        // Fallback: append to end
+        handleFieldChange("body", formData.body + attributeText);
+      }
+    }
+  };
+
+  return (
+    <div className="h-full bg-gray-50 p-6" style={{ overflow: 'visible', paddingRight: '360px' }}>
+      <div className="flex gap-6 items-start" style={{ position: 'relative' }}>
+        {/* Main Section */}
+        <div className="flex-1 space-y-4">
+            {/* Header */}
+            <div className="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="flex items-center justify-center w-9 h-9 rounded-lg bg-blue-100 text-blue-700">
+                  <Mail className="w-5 h-5" />
+                </span>
+                <div>
+                  <h1 className="text-lg font-semibold text-gray-900">New Email Template</h1>
+                  <p className="text-xs text-gray-500">Create a reusable email template for notifications</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleCancel}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors text-sm font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm font-medium"
+                >
+                  <Check className="w-4 h-4" />
+                  Save Template
+                </button>
+              </div>
+            </div>
+
+            {/* Basic Information Section */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 border-l-4 border-l-blue-400 p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="flex items-center justify-center w-7 h-7 rounded-md bg-blue-100 text-blue-700">
+                  <Info className="w-4 h-4" />
+                </span>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900">Basic Information</h3>
+                  <p className="text-xs text-gray-500">Provide the essential details for your email template</p>
+                </div>
+              </div>
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Template Code */}
+                  <div className="relative">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Template Code <span className="text-red-500">*</span>
+                      <span className="text-xs text-gray-500 font-normal ml-1">(must be unique)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.templateCode}
+                      onChange={(e) => {
+                        const transformedValue = e.target.value.toUpperCase().replace(/\s+/g, '_');
+                        handleFieldChange("templateCode", transformedValue);
+                      }}
+                      onFocus={() => handleFieldFocus("templateCode")}
+                      onBlur={() => handleFieldBlur("templateCode")}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white transition-all"
+                      placeholder="e.g., CERT_REVIEW_ASSIGNMENT"
+                    />
+                  </div>
+
+                  {/* Template Name */}
+                  <div className="relative">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Template Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.templateName}
+                      onChange={(e) => handleFieldChange("templateName", e.target.value)}
+                      onFocus={() => handleFieldFocus("templateName")}
+                      onBlur={() => handleFieldBlur("templateName")}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white transition-all"
+                      placeholder="e.g., Certification Review Assignment Email"
+                    />
+                  </div>
+                </div>
+
+                {/* Description - Full Width */}
+                <div className="relative">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Description <span className="text-xs text-gray-500 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.description}
+                    onChange={(e) => handleFieldChange("description", e.target.value)}
+                    onFocus={() => handleFieldFocus("description")}
+                    onBlur={() => handleFieldBlur("description")}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white transition-all"
+                    placeholder="Brief description of what this template is used for"
+                  />
+                </div>
+
+                {/* Template Type and Active Status Row */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Template Type */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Template Type <span className="text-red-500">*</span>
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {(
+                        [
+                          { value: "HTML" as const, label: "HTML", icon: FileCode2 },
+                          { value: "PLAIN_TEXT" as const, label: "Plain Text", icon: FileText },
+                        ]
+                      ).map(({ value, label, icon: Icon }) => {
+                        const isSelected = formData.templateType === value;
+                        return (
+                          <div
+                            key={value}
+                            onClick={() => handleFieldChange("templateType", value)}
+                            className={`relative flex items-center gap-2 px-3.5 py-2.5 border rounded-lg cursor-pointer transition-all duration-200 hover:shadow-md ${
+                              isSelected
+                                ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500/30"
+                                : "border-gray-200 bg-white hover:border-gray-300"
+                            }`}
+                          >
+                            <Icon className={`w-4 h-4 shrink-0 ${isSelected ? "text-blue-600" : "text-gray-400"}`} />
+                            <span className={`text-sm font-medium ${isSelected ? "text-blue-700" : "text-gray-900"}`}>
+                              {label}
+                            </span>
+                            {isSelected && (
+                              <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center shrink-0">
+                                <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Active Status */}
+                  <div className="flex flex-col">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Status
+                    </label>
+                    <div className="flex items-center h-10">
+                      <button
+                        type="button"
+                        onClick={() => handleFieldChange("active", !formData.active)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${
+                          formData.active ? 'bg-emerald-500' : 'bg-gray-300'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
+                            formData.active ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                      <span
+                        className={`ml-3 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
+                          formData.active ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-700'
+                        }`}
+                      >
+                        {formData.active ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Email Content Section */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 border-l-4 border-l-indigo-400 p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="flex items-center justify-center w-7 h-7 rounded-md bg-indigo-100 text-indigo-700">
+                  <Mail className="w-4 h-4" />
+                </span>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900">Email Content</h3>
+                  <p className="text-xs text-gray-500">Define the subject and body of your email template</p>
+                </div>
+              </div>
+              <div className="space-y-6">
+                {/* Subject */}
+                <div className="relative">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Subject <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    ref={subjectRef}
+                    type="text"
+                    value={formData.subject}
+                    onChange={(e) => {
+                      handleFieldChange("subject", e.target.value);
+                      // Track cursor position on change
+                      const target = e.target as HTMLInputElement;
+                      setCursorPosition({
+                        start: target.selectionStart ?? 0,
+                        end: target.selectionEnd ?? 0
+                      });
+                    }}
+                    onFocus={() => handleFieldFocus("subject")}
+                    onBlur={(e) => {
+                      handleFieldBlur("subject");
+                      // Store cursor position when losing focus
+                      const target = e.target as HTMLInputElement;
+                      setCursorPosition({
+                        start: target.selectionStart ?? 0,
+                        end: target.selectionEnd ?? 0
+                      });
+                    }}
+                    onSelect={(e) => {
+                      // Store cursor position on selection change
+                      const target = e.target as HTMLInputElement;
+                      setCursorPosition({
+                        start: target.selectionStart ?? 0,
+                        end: target.selectionEnd ?? 0
+                      });
+                    }}
+                    onClick={(e) => {
+                      // Store cursor position on click
+                      const target = e.target as HTMLInputElement;
+                      setCursorPosition({
+                        start: target.selectionStart ?? 0,
+                        end: target.selectionEnd ?? 0
+                      });
+                    }}
+                    onKeyUp={(e) => {
+                      // Store cursor position on key press
+                      const target = e.target as HTMLInputElement;
+                      setCursorPosition({
+                        start: target.selectionStart ?? 0,
+                        end: target.selectionEnd ?? 0
+                      });
+                    }}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white transition-all"
+                    placeholder="e.g., Certification Review Assignment - ${CERTIFICATION_NAME}!"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Metadata Section */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 border-l-4 border-l-purple-400 p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="flex items-center justify-center w-7 h-7 rounded-md bg-purple-100 text-purple-700">
+                  <Tag className="w-4 h-4" />
+                </span>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900">Metadata</h3>
+                  <p className="text-xs text-gray-500">Optional tracking information</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Created By */}
+                  <div className="relative">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Created By <span className="text-xs text-gray-500 font-normal">(optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.createdBy}
+                      onChange={(e) => handleFieldChange("createdBy", e.target.value)}
+                      onFocus={() => handleFieldFocus("createdBy")}
+                      onBlur={() => handleFieldBlur("createdBy")}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white transition-all"
+                      placeholder="e.g., admin"
+                    />
+                  </div>
+
+                  {/* Updated By */}
+                  <div className="relative">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Updated By <span className="text-xs text-gray-500 font-normal">(optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.updatedBy}
+                      onChange={(e) => handleFieldChange("updatedBy", e.target.value)}
+                      onFocus={() => handleFieldFocus("updatedBy")}
+                      onBlur={() => handleFieldBlur("updatedBy")}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white transition-all"
+                      placeholder="e.g., admin"
+                    />
+                  </div>
+                </div>
+            </div>
+
+            {/* Body Editor */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 border-l-4 border-l-amber-400 p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="flex items-center justify-center w-7 h-7 rounded-md bg-amber-100 text-amber-700">
+                  <Code className="w-4 h-4" />
+                </span>
+                <h3 className="text-sm font-semibold text-gray-900">
+                  Body <span className="text-red-500">*</span>
+                </h3>
+              </div>
+                <div>
+                  {formData.templateType === "HTML" ? (
+                    <div className="border border-gray-300 rounded-lg overflow-hidden shadow-sm">
+                      {/* Toolbar - Only show for HTML */}
+                      <div className="bg-gray-50 border-b border-gray-300 px-4 py-2 flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={toggleHtmlView}
+                          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                            isHtmlView 
+                              ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                              : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
+                          }`}
+                          title="Toggle HTML Source"
+                        >
+                          {isHtmlView ? 'HTML Source' : 'Visual Editor'}
+                        </button>
+                        <div className="flex-1" />
+                        <span className="text-xs text-gray-500">
+                          {isHtmlView ? 'Edit HTML code directly' : 'Visual editing mode'}
+                        </span>
+                      </div>
+
+                      {/* HTML Editor Content Area */}
+                      {isHtmlView ? (
+                        <textarea
+                          ref={htmlSourceRef}
+                          value={formData.body}
+                          onChange={(e) => {
+                            handleHtmlSourceChange(e.target.value);
+                            // Track cursor position on change
+                            const target = e.target as HTMLTextAreaElement;
+                            setCursorPosition({
+                              start: target.selectionStart,
+                              end: target.selectionEnd
+                            });
+                          }}
+                          onFocus={() => handleFieldFocus("body")}
+                          onBlur={(e) => {
+                            handleFieldBlur("body");
+                            // Store cursor position when losing focus
+                            const target = e.target as HTMLTextAreaElement;
+                            setCursorPosition({
+                              start: target.selectionStart,
+                              end: target.selectionEnd
+                            });
+                          }}
+                          onSelect={(e) => {
+                            // Store cursor position on selection change
+                            const target = e.target as HTMLTextAreaElement;
+                            setCursorPosition({
+                              start: target.selectionStart,
+                              end: target.selectionEnd
+                            });
+                          }}
+                          onClick={(e) => {
+                            // Store cursor position on click
+                            const target = e.target as HTMLTextAreaElement;
+                            setCursorPosition({
+                              start: target.selectionStart,
+                              end: target.selectionEnd
+                            });
+                          }}
+                          onKeyUp={(e) => {
+                            // Store cursor position on key press
+                            const target = e.target as HTMLTextAreaElement;
+                            setCursorPosition({
+                              start: target.selectionStart,
+                              end: target.selectionEnd
+                            });
+                          }}
+                          className="w-full min-h-[500px] p-4 border-0 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono bg-gray-50 text-gray-900 resize-none"
+                          style={{ 
+                            fontFamily: 'monospace',
+                            whiteSpace: 'pre',
+                            overflowWrap: 'normal',
+                            overflowX: 'auto'
+                          }}
+                          spellCheck={false}
+                        />
+                      ) : (
+                        <div
+                          ref={editorRef}
+                          contentEditable
+                          onInput={(e) => {
+                            const target = e.currentTarget;
+                            handleFieldChange("body", target.innerHTML);
+                          }}
+                          onFocus={() => handleFieldFocus("body")}
+                          onBlur={() => handleFieldBlur("body")}
+                          className="min-h-[500px] p-4 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+                          style={{ whiteSpace: "pre-wrap" }}
+                          suppressContentEditableWarning={true}
+                        />
+                      )}
+                    </div>
+                  ) : (
+                    <textarea
+                      value={formData.body}
+                      onChange={(e) => {
+                        handleFieldChange("body", e.target.value);
+                        // Track cursor position on change
+                        const target = e.target as HTMLTextAreaElement;
+                        setCursorPosition({
+                          start: target.selectionStart,
+                          end: target.selectionEnd
+                        });
+                      }}
+                      onFocus={() => handleFieldFocus("body")}
+                      onBlur={(e) => {
+                        handleFieldBlur("body");
+                        // Store cursor position when losing focus
+                        const target = e.target as HTMLTextAreaElement;
+                        setCursorPosition({
+                          start: target.selectionStart,
+                          end: target.selectionEnd
+                        });
+                      }}
+                      onSelect={(e) => {
+                        // Store cursor position on selection change
+                        const target = e.target as HTMLTextAreaElement;
+                        setCursorPosition({
+                          start: target.selectionStart,
+                          end: target.selectionEnd
+                        });
+                      }}
+                      onClick={(e) => {
+                        // Store cursor position on click
+                        const target = e.target as HTMLTextAreaElement;
+                        setCursorPosition({
+                          start: target.selectionStart,
+                          end: target.selectionEnd
+                        });
+                      }}
+                      onKeyUp={(e) => {
+                        // Store cursor position on key press
+                        const target = e.target as HTMLTextAreaElement;
+                        setCursorPosition({
+                          start: target.selectionStart,
+                          end: target.selectionEnd
+                        });
+                      }}
+                      className="w-full min-h-[500px] p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-mono bg-white resize-none shadow-sm transition-all"
+                      style={{ 
+                        fontFamily: 'monospace',
+                        whiteSpace: 'pre-wrap'
+                      }}
+                      placeholder="Enter plain text email body. You can use ${parameters} like ${userName}, ${resetLink}, etc."
+                    />
+                  )}
+                </div>
+              </div>
+        </div>
+
+        {/* Right Section - Parameters List */}
+        <div className="w-80 flex-shrink-0 bg-white rounded-lg shadow-sm border border-gray-200 border-l-4 border-l-teal-400 overflow-hidden flex flex-col" style={{ position: 'fixed', top: '84px', right: '24px', maxHeight: 'calc(100vh - 108px)', zIndex: 1000, width: '320px' }}>
+            <div className="px-5 py-3 border-b border-gray-100 flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="flex items-center justify-center w-7 h-7 rounded-md bg-teal-100 text-teal-700">
+                  <Hash className="w-3.5 h-3.5" />
+                </span>
+                <h3 className="text-sm font-semibold text-gray-900">Available Attributes</h3>
+              </div>
+            </div>
+
+            <div className="p-4 overflow-y-auto flex-1" style={{ minHeight: 0 }}>
+              {attributesLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-teal-600"></div>
+                  <span className="ml-2 text-sm text-gray-600">Loading attributes...</span>
+                </div>
+              ) : attributesError ? (
+                <div className="text-sm text-red-600 py-4 bg-red-50 p-3 rounded-md">{attributesError}</div>
+              ) : attributes.length === 0 ? (
+                <div className="text-sm text-gray-500 py-4">No attributes available</div>
+              ) : (
+                <div className="space-y-1.5">
+                  {attributes.map((attribute, index) => (
+                    <button
+                      key={index}
+                      type="button"
+                      onClick={() => insertAttribute(attribute)}
+                      className="w-full text-left px-3 py-2 text-xs font-mono bg-gray-50 hover:bg-teal-50 hover:border-teal-200 border border-gray-200 rounded-md transition-colors group"
+                      title={`Click to insert ${attribute}`}
+                    >
+                      <span className="text-gray-700 group-hover:text-teal-700">{attribute}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+  );
+}

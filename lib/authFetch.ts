@@ -1,5 +1,6 @@
 import { COOKIE_NAMES, getCookie, refreshJWTToken, forceLogout } from "@/lib/auth";
 import { getActiveTenantId } from "@/lib/tenant";
+import { isAssuranceApiUrl } from "@/lib/assurance-api";
 
 let fetchPatched = false;
 let originalFetch: typeof window.fetch | null = null;
@@ -7,9 +8,31 @@ let originalFetch: typeof window.fetch | null = null;
 /** True when the current request is our own retry after token refresh (avoids infinite loop) */
 const RETRY_HEADER = "X-Internal-Token-Retry";
 
+function requestUrl(input: RequestInfo | URL): string {
+  return typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url;
+}
+
 function isKeyforgeRequest(input: RequestInfo | URL): boolean {
-  const url = typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url;
+  const url = requestUrl(input);
   return typeof url === "string" && url.includes("keyforge.ai");
+}
+
+/** Continuous Assurance service calls (Assurance Events pages) — kept separate, never touched here. */
+function isAssuranceRequest(input: RequestInfo | URL): boolean {
+  const url = requestUrl(input);
+  return typeof url === "string" && isAssuranceApiUrl(url);
+}
+
+/** Same-origin calls to our Next.js API routes, which proxy to Keyforge server-side. */
+function isOwnApiRequest(input: RequestInfo | URL): boolean {
+  const url = requestUrl(input);
+  if (typeof url !== "string" || isAssuranceApiUrl(url)) return false;
+  if (url.startsWith("/api/")) return true;
+  return typeof window !== "undefined" && url.startsWith(`${window.location.origin}/api/`);
+}
+
+function needsTenantHeader(input: RequestInfo | URL): boolean {
+  return isKeyforgeRequest(input) || isOwnApiRequest(input);
 }
 
 /** Builds a Headers object from any RequestInit["headers"] shape. */
@@ -20,9 +43,9 @@ function toHeaders(headers: HeadersInit | undefined): Headers {
   return new Headers();
 }
 
-/** Adds X-Tenant-Id (from the active tenant) to every Keyforge request that doesn't already set it. */
+/** Adds X-Tenant-Id (from the active tenant) to every Keyforge / own-API request that doesn't already set it. */
 function withTenantHeader(input: RequestInfo | URL, init: RequestInit | undefined): RequestInit | undefined {
-  if (!isKeyforgeRequest(input)) return init;
+  if (!needsTenantHeader(input)) return init;
   const tenantId = getActiveTenantId();
   if (!tenantId) return init;
 
@@ -77,11 +100,15 @@ export function ensureAuthFetchPatched(): void {
     const isRetry = (init?.headers instanceof Headers && (init.headers as Headers).get(RETRY_HEADER) === "1") ||
       (typeof init?.headers === "object" && !Array.isArray(init?.headers) && (init.headers as Record<string, string>)[RETRY_HEADER] === "1");
 
+    if (isAssuranceRequest(input)) {
+      return originalFetch!(input, init);
+    }
+
     try {
       const jwtToken = getCookie(COOKIE_NAMES.JWT_TOKEN);
 
       if (!jwtToken && !isRetry) {
-        return originalFetch!(input, init);
+        return originalFetch!(input, withTenantHeader(input, init));
       }
 
       const headers = toHeaders(init?.headers);
@@ -91,7 +118,7 @@ export function ensureAuthFetchPatched(): void {
         headers.set("Authorization", `Bearer ${jwtToken}`);
       }
 
-      if (isKeyforgeRequest(input) && !headers.has("X-Tenant-Id")) {
+      if (needsTenantHeader(input) && !headers.has("X-Tenant-Id")) {
         const tenantId = getActiveTenantId();
         if (tenantId) headers.set("X-Tenant-Id", tenantId);
       }

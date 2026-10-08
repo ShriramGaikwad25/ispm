@@ -18,6 +18,7 @@ const RESERVED_FIRST_SEGMENTS = new Set(
     'access-review',
     'applications',
     'app-owner',
+    'assurance-events',
     'campaigns',
     'catalog',
     'entitlement-owner',

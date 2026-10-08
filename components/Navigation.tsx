@@ -133,6 +133,15 @@ export function Navigation() {
     if (pathname === '/settings/gateway/email-templates') {
       return { href: '/settings/gateway', label: 'Back to Generic' };
     }
+    // Assurance Events - Notifications (same pages as Email Templates)
+    const assuranceNotificationEditMatch = pathname.match(/^\/assurance-events\/notifications\/edit\/([^/]+)$/);
+    if (assuranceNotificationEditMatch) {
+      return { href: `/assurance-events/notifications/${assuranceNotificationEditMatch[1]}`, label: 'Back to Notification' };
+    }
+    if (pathname === '/assurance-events/notifications/new' ||
+        (/^\/assurance-events\/notifications\/[^/]+$/.test(pathname) && !pathname.includes('/edit/'))) {
+      return { href: '/assurance-events/notifications', label: 'Back to Notifications' };
+    }
     // Gateway - Workflow Builder create/edit
     if (pathname === '/settings/gateway/workflow-builder/new') {
       return { href: '/settings/gateway/workflow-builder', label: 'Back to Workflow Builder' };
