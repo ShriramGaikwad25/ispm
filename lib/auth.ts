@@ -1421,3 +1421,18 @@ export function getReviewerId(): string | null {
 export function getUserAdminRoles(): string | null {
   return getCookie(COOKIE_NAMES.USER_ADMIN_ROLES);
 }
+
+/** Resolves the current tenant id (path segment / session -> stored user). Use this instead of hardcoding a tenant literal. */
+export function resolveTenantIdForHeader(): string {
+  return getActiveTenantId()?.trim() || getCurrentUser()?.tenantId?.trim() || '';
+}
+
+/** Auth + tenant headers for call sites that use raw fetch() instead of apiRequestWithAuth (e.g. non-JSON responses). */
+export function getJwtAuthHeaders(extra?: Record<string, string>): Record<string, string> {
+  const jwtToken = getCookie(COOKIE_NAMES.JWT_TOKEN);
+  return {
+    ...(jwtToken ? { Authorization: `Bearer ${jwtToken}` } : {}),
+    'X-Tenant-Id': resolveTenantIdForHeader(),
+    ...extra,
+  };
+}
