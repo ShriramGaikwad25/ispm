@@ -1,78 +1,94 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, Circle, Plug, X } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertTriangle, CheckCircle2, Circle, Layers, X } from "lucide-react";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
-import { Catalog } from "@/lib/assurance-catalog-api";
-import type { Detector } from "@/lib/assurance-catalog-api";
+import { useCcConnection } from "@/hooks/useCcConnection";
+import { Controls, ControlsApiError, type Control, type ControlQuery } from "@/lib/controls-api";
 import {
-  BTN_LINK, CARD, CARD_HEADER, CARD_SUBTITLE, CARD_TITLE, PAGE, PAGE_INNER, PILL, PageHeader, PageSpinner,
-  Spinner, StatCard, TBODY, TD, TH, THEAD_ROW, TR_CLICKABLE, cx,
+  BTN_LINK, BTN_PRIMARY, BTN_SECONDARY, CARD, CARD_HEADER, CARD_SUBTITLE, CARD_TITLE, INPUT, LABEL, PAGE, PAGE_INNER,
+  PILL, PageHeader, PageSpinner, Spinner, StatCard, TBODY, TD, TH, THEAD_ROW, TR_CLICKABLE, cx,
 } from "@/components/assurance-events/ui";
+import { BannerBar, SeverityBadge, StateBadge, type Banner } from "@/components/assurance-events/definition-editor/fields";
 
 // =====================================================================
-// Control Library (detector catalog) — everything KeyForge could detect.
+// Control Library — the control catalog, on the same live APIs as the
+// Continuous Compliance Console's Controls page (graph.keyforge.ai/console
+// #/controls, see lib/controls-api.ts):
+//   GET  /compliance/detection-families
+//   GET  /compliance/control-categories
+//   GET  /compliance/controls?family=&category=&state=&q=
+//   POST /compliance/controls/{code}/clone
 //
-// This is the library, deliberately separate from the controls a tenant
-// runs. A detector here is a design: a condition in prose, with no fact
-// resolver behind it. Loading these into the control catalog would
-// create a hundred controls that can never produce a verdict, and
-// coverage — the number the whole framework exists to protect — would
-// stop meaning anything.
-//
-// So the page answers planning questions instead: what is possible, what
-// is built, and what is missing before the rest becomes possible.
+// A control is a named, categorised condition (CEL) on one object kind,
+// evaluated by its detection family. System controls are read-only —
+// clone one to change it.
 // Laid out like ISPM's gateway pages (Agent Task Library): stat cards,
-// filter bar, tables, detail in the right sidebar.
+// family tiles, filter bar, tables, detail in the right sidebar.
 // =====================================================================
 
-const ROLLOUTS = ["", "Start", "Expand", "Validate later"];
+const KEY = ["continuouscompliance", "controls"] as const;
+const STATES = ["DRAFT", "ACTIVE", "DEPRECATED"];
 
 const FILTER_INPUT =
   "rounded-md border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
 
-function rolloutPillClass(phase?: string) {
-  if (phase === "Start") return "bg-green-100 text-green-700";
-  if (phase === "Expand") return "bg-amber-100 text-amber-700";
-  return "bg-gray-100 text-gray-600";
+function errorText(e: unknown): string {
+  if (e instanceof ControlsApiError && e.status === 401) {
+    return `${e.message} The Continuous Compliance service did not accept the signed-in session's token.`;
+  }
+  return (e as Error)?.message ?? String(e);
 }
 
 export default function ControlLibraryPage() {
   const { openSidebar } = useRightSidebar();
   const [family, setFamily] = useState("");
-  const [rollout, setRollout] = useState("");
-  const [implemented, setImplemented] = useState<"" | "yes" | "no">("");
+  const [category, setCategory] = useState("");
+  const [state, setState] = useState("");
   const [search, setSearch] = useState("");
+  const [banner, setBanner] = useState<Banner>(null);
 
-  const summaryQ = useQuery({ queryKey: ["catalog", "summary"], queryFn: () => Catalog.summary() });
-  const familiesQ = useQuery({ queryKey: ["catalog", "families"], queryFn: () => Catalog.signalFamilies() });
-  const detectorsQ = useQuery({
-    queryKey: ["catalog", "detectors", family, rollout, implemented, search],
-    queryFn: () => Catalog.detectors({
-      family: family || undefined,
-      rollout: rollout || undefined,
-      implemented: implemented === "" ? undefined : implemented === "yes",
-      search: search || undefined,
-    }),
-  });
+  const query: ControlQuery = { family: family || undefined, category: category || undefined, state: state || undefined, q: search || undefined };
+  // Connection check first, as the Continuous Compliance Console does on load.
+  const connection = useCcConnection();
+  const familiesQ = useQuery({ queryKey: [...KEY, "families"], queryFn: Controls.families });
+  const categoriesQ = useQuery({ queryKey: [...KEY, "categories"], queryFn: Controls.categories });
+  const controlsQ = useQuery({ queryKey: [...KEY, "list", query], queryFn: () => Controls.list(query) });
+  // Unfiltered list for the summary cards and the family tiles.
+  const allQ = useQuery({ queryKey: [...KEY, "list", {}], queryFn: () => Controls.list({}) });
 
-  const s = summaryQ.data;
-  const families = Array.isArray(familiesQ.data) ? familiesQ.data : [];
-  const detectors = Array.isArray(detectorsQ.data) ? detectorsQ.data : [];
-  const error = summaryQ.error ?? familiesQ.error ?? detectorsQ.error;
+  const families = familiesQ.data?.families ?? [];
+  const categories = useMemo(() => categoriesQ.data ?? [], [categoriesQ.data]);
+  const controls = useMemo(() => (Array.isArray(controlsQ.data) ? controlsQ.data : []), [controlsQ.data]);
+  const all = useMemo(() => (Array.isArray(allQ.data) ? allQ.data : []), [allQ.data]);
+  const error = connection.error ?? controlsQ.error ?? categoriesQ.error ?? familiesQ.error;
+
+  const categoryName = (code: string) => categories.find((c) => c.code === code)?.displayName ?? code;
+
+  const s = useMemo(() => ({
+    controls: all.length,
+    active: all.filter((c) => c.state === "ACTIVE").length,
+    families: families.length,
+    categories: categories.length,
+    tenant: all.filter((c) => !c.system).length,
+  }), [all, families, categories]);
 
   const grouped = useMemo(() => {
-    const m = new Map<string, Detector[]>();
-    for (const d of detectors) {
-      if (!m.has(d.signal_family)) m.set(d.signal_family, []);
-      m.get(d.signal_family)!.push(d);
+    const m = new Map<string, Control[]>();
+    for (const c of controls) {
+      if (!m.has(c.familyCode)) m.set(c.familyCode, []);
+      m.get(c.familyCode)!.push(c);
     }
     return [...m.entries()];
-  }, [detectors]);
+  }, [controls]);
 
-  const openDetector = (d: Detector) =>
-    openSidebar(<DetectorDetail id={d.detector_id} />, { title: d.name, widthPx: 560 });
+  const openControl = (c: Control) =>
+    openSidebar(
+      <ControlDetail control={c} categoryName={categoryName(c.categoryCode)} onCloned={(code) =>
+        setBanner({ tone: "ok", text: `Cloned as ${code} (DRAFT).` })} />,
+      { title: c.name, widthPx: 560 },
+    );
 
   return (
     <div className={PAGE}>
@@ -81,26 +97,28 @@ export default function ControlLibraryPage() {
           title="Control Library"
           subtitle={
             <>
-              Every use case KeyForge can govern, across {s?.families ?? 18} signal families. These are designs, not
-              running controls — a detector becomes a control once an agent can resolve the facts it needs.
+              Every control KeyForge can evaluate, across {s.families || "its"} detection families. A control is a named,
+              categorised condition on one object kind; system controls are read-only — clone one to change it.
             </>
           }
         />
 
+        {banner && <div className="mb-4"><BannerBar banner={banner} onClose={() => setBanner(null)} /></div>}
+
         {error && (
           <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 flex items-start gap-1.5">
             <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-            {(error as Error).message}
+            {errorText(error)}
           </div>
         )}
 
-        {s && (
+        {allQ.data && (
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-            <StatCard label="Detectors" value={s.detectors} hint="In the library" />
-            <StatCard label="Implemented" value={s.implemented} hint="Running as event definitions" />
-            <StatCard label="Signal families" value={s.families} hint="Groups of related detectors" />
-            <StatCard label="Domain agents" value={s.agents} hint="Agents that own detectors" />
-            <StatCard label="Phase 1 (Start)" value={s.phase_start} hint="First rollout wave" />
+            <StatCard label="Controls" value={s.controls} hint="In the library" />
+            <StatCard label="Active" value={s.active} hint="Evaluated when linked to a definition" />
+            <StatCard label="Detection families" value={s.families} hint="How controls are evaluated" />
+            <StatCard label="Categories" value={s.categories} hint="Groups of related controls" />
+            <StatCard label="Tenant controls" value={s.tenant} hint="Cloned or created by you" />
           </div>
         )}
 
@@ -108,9 +126,9 @@ export default function ControlLibraryPage() {
         <div className={cx(CARD, "mb-6")}>
           <div className={CARD_HEADER}>
             <div>
-              <div className={CARD_TITLE}>Signal Families</div>
+              <div className={CARD_TITLE}>Detection Families</div>
               <div className={CARD_SUBTITLE}>
-                A family becomes reachable when a connector feeding it is configured. Click to filter.
+                How a control is evaluated (APPROVAL_DQ = the catalog scan, PUSH = verified on ingest). Click to filter.
               </div>
             </div>
             {family && (
@@ -123,7 +141,10 @@ export default function ControlLibraryPage() {
             {familiesQ.isLoading && <Spinner />}
             {families.map((f) => {
               const active = family === f.code;
-              const reachable = f.configured_sources > 0;
+              const inFamily = all.filter((c) => c.familyCode === f.code);
+              const activeCount = inFamily.filter((c) => c.state === "ACTIVE").length;
+              const categoryCount = new Set(inFamily.map((c) => c.categoryCode)).size;
+              const label = typeof f.displayName === "string" && f.displayName ? f.displayName : f.code;
               return (
                 <button
                   key={f.code}
@@ -134,21 +155,21 @@ export default function ControlLibraryPage() {
                   )}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-semibold text-gray-900 truncate">{f.name}</span>
-                    <span className="text-xs text-gray-500 shrink-0">{f.detector_count}</span>
+                    <span className="text-sm font-semibold text-gray-900 truncate">{label}</span>
+                    <span className="text-xs text-gray-500 shrink-0">{inFamily.length}</span>
                   </div>
                   <div className="flex items-center gap-3 mt-1.5 text-xs">
-                    {f.implemented_count > 0 ? (
+                    {activeCount > 0 ? (
                       <span className="text-green-700 inline-flex items-center gap-1">
-                        <CheckCircle2 size={12} /> {f.implemented_count} built
+                        <CheckCircle2 size={12} /> {activeCount} active
                       </span>
                     ) : (
                       <span className="text-gray-400 inline-flex items-center gap-1">
-                        <Circle size={12} /> none built
+                        <Circle size={12} /> none active
                       </span>
                     )}
-                    <span className={cx("inline-flex items-center gap-1", reachable ? "text-blue-700" : "text-amber-700")}>
-                      <Plug size={12} /> {reachable ? `${f.configured_sources} live source` : "no live source"}
+                    <span className={cx("inline-flex items-center gap-1", categoryCount ? "text-blue-700" : "text-amber-700")}>
+                      <Layers size={12} /> {categoryCount ? `${categoryCount} categor${categoryCount === 1 ? "y" : "ies"}` : "no controls"}
                     </span>
                   </div>
                 </button>
@@ -162,70 +183,64 @@ export default function ControlLibraryPage() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search detectors by name, condition, or source..."
-            aria-label="Search detectors"
+            placeholder="Search controls by code, name, or description..."
+            aria-label="Search controls"
             className="flex-1 min-w-[260px] rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
           <div className="flex flex-wrap items-center gap-2">
-            <select className={FILTER_INPUT} value={rollout} onChange={(e) => setRollout(e.target.value)} aria-label="Rollout phase">
-              {ROLLOUTS.map((r) => <option key={r} value={r}>{r === "" ? "All phases" : r}</option>)}
+            <select className={FILTER_INPUT} value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Category">
+              <option value="">All categories</option>
+              {categories.map((c) => <option key={c.code} value={c.code}>{c.displayName}</option>)}
             </select>
-            <select className={FILTER_INPUT} value={implemented} aria-label="Implementation"
-                    onChange={(e) => setImplemented(e.target.value as "" | "yes" | "no")}>
-              <option value="">Built and not built</option>
-              <option value="yes">Implemented only</option>
-              <option value="no">Not yet implemented</option>
+            <select className={FILTER_INPUT} value={state} onChange={(e) => setState(e.target.value)} aria-label="State">
+              <option value="">All states</option>
+              {STATES.map((st) => <option key={st} value={st}>{st.charAt(0) + st.slice(1).toLowerCase()}</option>)}
             </select>
-            <span className="text-sm text-gray-500 whitespace-nowrap">{detectors.length} shown</span>
+            <span className="text-sm text-gray-500 whitespace-nowrap">{controls.length} shown</span>
           </div>
         </div>
 
-        {detectorsQ.isLoading ? (
+        {controlsQ.isLoading ? (
           <PageSpinner />
         ) : (
           <div className="space-y-6">
-            {grouped.map(([famName, items]) => (
-              <div key={famName} className={cx(CARD, "overflow-hidden")}>
+            {grouped.map(([famCode, items]) => (
+              <div key={famCode} className={cx(CARD, "overflow-hidden")}>
                 <div className={CARD_HEADER}>
-                  <div className={CARD_TITLE}>{famName}</div>
-                  <span className="text-xs text-gray-500">{items.length} detectors</span>
+                  <div className={CARD_TITLE}>{famCode}</div>
+                  <span className="text-xs text-gray-500">{items.length} controls</span>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[900px]">
                     <thead>
                       <tr className={THEAD_ROW}>
-                        <th className={TH}>Detector</th>
-                        <th className={TH}>Domain Agent</th>
-                        <th className={TH}>Default Response</th>
-                        <th className={TH}>Phase</th>
-                        <th className={TH}>Status</th>
+                        <th className={TH}>Control</th>
+                        <th className={TH}>Category</th>
+                        <th className={TH}>Object</th>
+                        <th className={TH}>Severity Hint</th>
+                        <th className={TH}>State</th>
                       </tr>
                     </thead>
                     <tbody className={TBODY}>
-                      {items.map((d) => (
-                        <tr key={d.detector_id} className={TR_CLICKABLE} onClick={() => openDetector(d)}>
+                      {items.map((c) => (
+                        <tr key={c.controlId ?? `${c.code}-${c.version}`} className={TR_CLICKABLE} onClick={() => openControl(c)}>
                           <td className={cx(TD, "max-w-[460px]")}>
-                            <div className="text-sm font-semibold text-gray-900">{d.name}</div>
-                            <div className="text-xs text-gray-500 mt-0.5">{d.detector_id}</div>
-                            {d.finding_condition && (
-                              <div className="text-xs text-gray-500 mt-0.5 line-clamp-2">{d.finding_condition}</div>
+                            <div className="text-sm font-semibold text-gray-900">{c.name}</div>
+                            <div className="text-xs text-gray-500 mt-0.5">{c.code} · v{c.version}</div>
+                            {c.condition?.expression && (
+                              <div className="text-xs text-gray-500 mt-0.5 line-clamp-2 font-mono">{c.condition.expression}</div>
                             )}
                           </td>
-                          <td className={TD}>{d.agent_name ?? d.agent_code}</td>
-                          <td className={TD}>{d.default_response ?? "—"}</td>
+                          <td className={TD}>{categoryName(c.categoryCode)}</td>
+                          <td className={TD}>{c.objectKind ?? "—"}</td>
                           <td className={cx(TD, "whitespace-nowrap")}>
-                            {d.rollout_phase
-                              ? <span className={cx(PILL, rolloutPillClass(d.rollout_phase))}>{d.rollout_phase}</span>
-                              : "—"}
+                            {c.severityHint ? <SeverityBadge value={c.severityHint} /> : "—"}
                           </td>
                           <td className={cx(TD, "whitespace-nowrap")}>
-                            {d.is_implemented ? (
-                              <span className={cx(PILL, "bg-green-100 text-green-700")} title={d.implemented_event_code ?? undefined}>
-                                Implemented
-                              </span>
-                            ) : (
-                              <span className={cx(PILL, "bg-gray-100 text-gray-600")}>Design</span>
-                            )}
+                            <span className="inline-flex gap-1">
+                              <StateBadge value={c.state} />
+                              {!c.system && <span className={cx(PILL, "bg-blue-100 text-blue-700")}>Tenant</span>}
+                            </span>
                           </td>
                         </tr>
                       ))}
@@ -234,9 +249,9 @@ export default function ControlLibraryPage() {
                 </div>
               </div>
             ))}
-            {grouped.length === 0 && !detectorsQ.error && (
+            {grouped.length === 0 && !controlsQ.error && (
               <div className={cx(CARD, "px-4 py-8 text-center text-sm text-gray-500")}>
-                No detectors match the current filters.
+                No controls match the current filters.
               </div>
             )}
           </div>
@@ -246,68 +261,116 @@ export default function ControlLibraryPage() {
   );
 }
 
-/** Detector detail, shown in the right sidebar like an Agent Task Library task. */
-function DetectorDetail({ id }: { id: string }) {
-  const q = useQuery({ queryKey: ["catalog", "detector", id], queryFn: () => Catalog.detector(id) });
-  const d = q.data;
+/** Control detail, shown in the right sidebar like an Agent Task Library task. */
+function ControlDetail({ control: c, categoryName, onCloned }: {
+  control: Control; categoryName: string; onCloned: (code: string) => void;
+}) {
+  const qc = useQueryClient();
+  const { closeSidebar } = useRightSidebar();
+  const [cloning, setCloning] = useState(false);
+  const [code, setCode] = useState(c.system ? `MY_${c.code}` : `${c.code}_COPY`);
+  const [name, setName] = useState(`${c.name} (copy)`);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
-  if (q.isLoading) return <div className="flex items-center gap-2 text-sm text-gray-500"><Spinner /> Loading…</div>;
-  if (q.error) return <div className="text-sm text-red-700">{(q.error as Error).message}</div>;
-  if (!d) return null;
+  const clone = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const created = await Controls.clone(c.code, { code: code.trim(), name: name.trim() });
+      await qc.invalidateQueries({ queryKey: KEY });
+      closeSidebar();
+      onCloned(created?.code ?? code);
+    } catch (e) {
+      setErr(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div>
-      {d.finding_condition && <p className="text-sm text-gray-500 mb-4 leading-relaxed">{d.finding_condition}</p>}
+      {c.description && <p className="text-sm text-gray-500 mb-4 leading-relaxed">{c.description}</p>}
 
       <div className="grid grid-cols-2 gap-3 mb-6">
-        <DetailCard label="Detector ID" value={d.detector_id} />
-        <DetailCard label="Signal Family" value={d.signal_family} />
-        <DetailCard label="Domain Agent" value={d.agent_name ?? d.agent_code} />
-        <DetailCard label="Rollout Phase" value={d.rollout_phase ?? "—"} />
+        <DetailCard label="Control Code" value={c.code} />
+        <DetailCard label="Detection Family" value={c.familyCode} />
+        <DetailCard label="Category" value={categoryName} />
+        <DetailCard label="Object" value={c.objectKind ?? "—"} />
       </div>
 
       <div className="mb-6">
         <h3 className="text-sm font-semibold text-gray-900 mb-2">Status</h3>
-        {d.is_implemented ? (
-          <span className={cx(PILL, "bg-green-100 text-green-700")}>Implemented as {d.implemented_event_code}</span>
-        ) : (
-          <span className={cx(PILL, "bg-gray-100 text-gray-600")}>Not yet built</span>
-        )}
+        <span className="inline-flex gap-2 items-center">
+          <StateBadge value={c.state} />
+          <span className={cx(PILL, c.system ? "bg-gray-100 text-gray-600" : "bg-blue-100 text-blue-700")}>
+            {c.system ? "System (read-only)" : "Tenant"}
+          </span>
+          <span className="text-sm text-gray-500">v{c.version}</span>
+        </span>
       </div>
 
-      <DetailText label="Required Evidence" value={d.evidence_inputs} />
-      <DetailText label="Likely Source" value={d.likely_source} />
-      <DetailText label="Default Response" value={d.default_response} />
-      <DetailText label="Accountable Owner" value={d.accountable_owner} />
-      <DetailText label="Action Policy" value={d.action_policy} />
-      <DetailText label="Closure Evidence" value={d.closure_evidence} />
+      <div className="mb-6">
+        <h3 className="text-sm font-semibold text-gray-900 mb-1">Condition{c.condition?.language ? ` (${c.condition.language})` : ""}</h3>
+        <pre className="text-xs font-mono bg-gray-50 border border-gray-200 rounded-md p-3 whitespace-pre-wrap break-words text-gray-800">
+          {c.condition?.expression ?? "—"}
+        </pre>
+      </div>
 
-      {d.sources && d.sources.length > 0 && (
+      {c.severityHint && (
         <div className="mb-6">
-          <h3 className="text-sm font-semibold text-gray-900 mb-2">Sources That Feed This Detector</h3>
+          <h3 className="text-sm font-semibold text-gray-900 mb-1">Severity Hint</h3>
+          <SeverityBadge value={c.severityHint} />
+        </div>
+      )}
+
+      <div className="mb-6">
+        <h3 className="text-sm font-semibold text-gray-900 mb-2">Parameters (Defaults)</h3>
+        {(c.parameters ?? []).length === 0 ? (
+          <p className="text-sm text-gray-700">No parameters.</p>
+        ) : (
           <div className="rounded-lg border border-gray-200 bg-white overflow-hidden divide-y divide-gray-100">
-            {d.sources.map((src) => (
-              <div key={src.code} className="flex items-center gap-2 px-3 py-2.5 text-sm">
-                <Plug size={14} className={src.status === "CONFIGURED" ? "text-green-600" : "text-gray-300"} />
-                <span className="font-medium text-gray-900">{src.name}</span>
-                <span className="text-xs text-gray-500">{src.contribution.toLowerCase()}</span>
-                <span className={cx(PILL, "ml-auto",
-                  src.status === "CONFIGURED" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600")}>
-                  {src.status.toLowerCase()}
+            {c.parameters!.map((p) => (
+              <div key={p.name} className="flex items-center gap-2 px-3 py-2.5 text-sm">
+                <span className="font-medium text-gray-900 font-mono">{p.name}</span>
+                {p.description && <span className="text-xs text-gray-500">{p.description}</span>}
+                <span className={cx(PILL, "ml-auto bg-gray-100 text-gray-600 font-mono")}>
+                  {p.default !== undefined ? JSON.stringify(p.default) : "—"}
                 </span>
               </div>
             ))}
           </div>
-          {d.configured_sources === 0 && (
-            <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 flex items-start gap-1.5">
-              <AlertTriangle size={12} className="mt-0.5 shrink-0" />
-              None of these sources is connected, so this detector cannot run here yet.
-            </div>
-          )}
-        </div>
-      )}
+        )}
+      </div>
 
-      {d.reporter_mapping && <DetailText label="Reporter It Would Feed" value={d.reporter_mapping} />}
+      <div className="border-t border-gray-200 pt-4">
+        {!cloning ? (
+          <button type="button" className={BTN_PRIMARY} onClick={() => setCloning(true)}>Clone</button>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-500">
+              A tenant DRAFT copy under a new code: condition, parameters and evidence fields are copied; edit, test,
+              then activate.
+            </p>
+            <div>
+              <label className={LABEL}>New Code (UPPER_SNAKE_CASE)</label>
+              <input className={cx(INPUT, "font-mono")} value={code}
+                     onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ""))} />
+            </div>
+            <div>
+              <label className={LABEL}>Name</label>
+              <input className={INPUT} value={name} onChange={(e) => setName(e.target.value)} />
+            </div>
+            {err && <div className="text-sm text-red-600">{err}</div>}
+            <div className="flex justify-end gap-2">
+              <button type="button" className={BTN_SECONDARY} onClick={() => setCloning(false)}>Cancel</button>
+              <button type="button" className={BTN_PRIMARY} onClick={clone} disabled={busy || !code.trim() || !name.trim()}>
+                {busy && <Spinner size={14} className="text-white" />} Clone
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -317,16 +380,6 @@ function DetailCard({ label, value }: { label: string; value: ReactNode }) {
     <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
       <div className="text-xs uppercase tracking-wide text-gray-500 mb-1">{label}</div>
       <div className="text-sm font-semibold text-gray-900">{value}</div>
-    </div>
-  );
-}
-
-function DetailText({ label, value }: { label: string; value?: string | null }) {
-  if (!value) return null;
-  return (
-    <div className="mb-6">
-      <h3 className="text-sm font-semibold text-gray-900 mb-1">{label}</h3>
-      <p className="text-sm text-gray-700">{value}</p>
     </div>
   );
 }

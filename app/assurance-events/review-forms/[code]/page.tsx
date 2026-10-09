@@ -5,44 +5,66 @@
 // in ISPM's design: purpose, summary template, facts shown, fields,
 // outcomes and the recommendation rules.
 
+import { Suspense } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { DECISION_LABEL, REVIEW_FORMS_BASE, ReviewForms, type ReviewForm } from "@/lib/assurance-review-forms";
+import { useCcConnection } from "@/hooks/useCcConnection";
+import {
+  DECISION_LABEL, REVIEW_FORMS_BASE, REVIEW_FORMS_KEY, ReviewForms, type ReviewForm,
+} from "@/lib/assurance-review-forms";
 import {
   BTN_LINK, CARD, CARD_HEADER, CARD_SUBTITLE, CARD_TITLE, PAGE, PAGE_INNER, PILL, PageHeader, PageSpinner, TBODY, TD,
   TH, THEAD_ROW, cx,
 } from "@/components/assurance-events/ui";
 
-export default function ReviewFormPage() {
+export default function Page() {
+  return (
+    <Suspense fallback={<PageSpinner />}>
+      <ReviewFormPage />
+    </Suspense>
+  );
+}
+
+function ReviewFormPage() {
   const { code = "" } = useParams<{ code: string }>();
-  const q = useQuery({ queryKey: ["assurance", "gov", "review-form-def", code], queryFn: () => ReviewForms.get(code) });
+  const version = Number(useSearchParams().get("version")) || undefined;
+  // Same query as the list page: the form comes from GET /compliance/review-forms.
+  const connection = useCcConnection();
+  const q = useQuery({ queryKey: REVIEW_FORMS_KEY, queryFn: ReviewForms.fetchAll });
+  const error = connection.error ?? q.error;
+  const form = q.data ? ReviewForms.pick(q.data, decodeURIComponent(code), version) : undefined;
 
   return (
     <div className={PAGE}>
       <div className={PAGE_INNER}>
         <Link href={REVIEW_FORMS_BASE} className={cx(BTN_LINK, "inline-block mb-3")}>← Review forms</Link>
         {q.isLoading && <PageSpinner />}
-        {q.error && (
-          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{(q.error as Error).message}</div>
+        {error && (
+          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{(error as Error).message}</div>
         )}
-        {q.data && (
+        {q.data && !form && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            Review form {decodeURIComponent(code)} was not found in the review form library.
+          </div>
+        )}
+        {form && (
           <>
             <PageHeader
               title={
                 <>
-                  {q.data.name}
-                  {q.data.isActive === false && <span className={cx(PILL, "bg-gray-100 text-gray-600")}>Inactive</span>}
+                  {form.name}
+                  {form.isActive === false && <span className={cx(PILL, "bg-gray-100 text-gray-600")}>Inactive</span>}
                 </>
               }
               subtitle={
                 <>
-                  <span className="font-mono">{q.data.code}</span> ·{" "}
-                  {q.data.source === "tenant" ? `your version ${q.data.version}` : `shipped version ${q.data.version}`}
+                  <span className="font-mono">{form.code}</span> ·{" "}
+                  {form.source === "tenant" ? `your version ${form.version}` : `shipped version ${form.version}`}
                 </>
               }
             />
-            <HowItReads form={q.data} />
+            <HowItReads form={form} />
           </>
         )}
       </div>
@@ -165,6 +187,7 @@ function HowItReads({ form }: { form: ReviewForm }) {
                   <div>
                     Justification {o.justification ?? "optional"}
                     {o.expiry && o.expiry !== "none" ? ` · end date ${o.expiry}` : ""}
+                    {o.then ? ` · then ${o.then}` : ""}
                   </div>
                 </div>
               </div>

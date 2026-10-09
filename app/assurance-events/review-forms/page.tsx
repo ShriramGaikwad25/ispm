@@ -8,7 +8,8 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { REVIEW_FORMS_BASE, ReviewForms } from "@/lib/assurance-review-forms";
+import { useCcConnection } from "@/hooks/useCcConnection";
+import { REVIEW_FORMS_BASE, REVIEW_FORMS_KEY, ReviewForms } from "@/lib/assurance-review-forms";
 import {
   BTN_LINK, CARD, CARD_SUBTITLE, CARD_TITLE, PAGE, PAGE_INNER, PILL, PageHeader, Spinner, StatCard, TBODY, TD, TH,
   THEAD_ROW, TR_CLICKABLE, cx,
@@ -19,8 +20,11 @@ const FILTER_INPUT =
 
 export default function ReviewFormsPage() {
   const router = useRouter();
-  const q = useQuery({ queryKey: ["assurance", "gov", "review-forms"], queryFn: ReviewForms.list });
-  const forms = useMemo(() => q.data?.items ?? [], [q.data]);
+  // Connection check first, as the Continuous Compliance Console does on load.
+  const connection = useCcConnection();
+  const q = useQuery({ queryKey: REVIEW_FORMS_KEY, queryFn: ReviewForms.fetchAll });
+  const error = connection.error ?? q.error;
+  const forms = useMemo(() => ReviewForms.toListItems(q.data ?? []), [q.data]);
   const [search, setSearch] = useState("");
 
   const stats = useMemo(() => ({
@@ -37,7 +41,8 @@ export default function ReviewFormsPage() {
       [f.code, f.name, f.purpose ?? "", ...f.eventTypes, ...f.outcomes].join(" ").toLowerCase().includes(needle));
   }, [forms, search]);
 
-  const open = (code: string) => router.push(`${REVIEW_FORMS_BASE}/${code}`);
+  const href = (code: string, version: number) => `${REVIEW_FORMS_BASE}/${encodeURIComponent(code)}?version=${version}`;
+  const open = (code: string, version: number) => router.push(href(code, version));
 
   return (
     <div className={PAGE}>
@@ -64,8 +69,8 @@ export default function ReviewFormsPage() {
                    aria-label="Search review forms" className={cx(FILTER_INPUT, "w-64")} />
           </div>
 
-          {q.error && (
-            <div className="px-5 py-4 text-sm text-red-600">{(q.error as Error).message}</div>
+          {error && (
+            <div className="px-5 py-4 text-sm text-red-600">{(error as Error).message}</div>
           )}
 
           <div className="overflow-x-auto">
@@ -87,9 +92,9 @@ export default function ReviewFormsPage() {
                   </td></tr>
                 )}
                 {rows.map((f) => (
-                  <tr key={f.code} className={TR_CLICKABLE} onClick={() => open(f.code)}>
+                  <tr key={`${f.code}-${f.version}-${f.source}`} className={TR_CLICKABLE} onClick={() => open(f.code, f.version)}>
                     <td className={cx(TD, "max-w-sm")}>
-                      <Link href={`${REVIEW_FORMS_BASE}/${f.code}`} onClick={(e) => e.stopPropagation()}
+                      <Link href={href(f.code, f.version)} onClick={(e) => e.stopPropagation()}
                             className="text-sm font-semibold text-blue-600 hover:text-blue-700">
                         {f.name}
                       </Link>
@@ -115,13 +120,13 @@ export default function ReviewFormsPage() {
                       {!f.isActive && <span className={cx(PILL, "bg-gray-100 text-gray-600 mt-1")}>Inactive</span>}
                     </td>
                     <td className={TD}>
-                      <button type="button" className={BTN_LINK} onClick={(e) => { e.stopPropagation(); open(f.code); }}>
+                      <button type="button" className={BTN_LINK} onClick={(e) => { e.stopPropagation(); open(f.code, f.version); }}>
                         Open
                       </button>
                     </td>
                   </tr>
                 ))}
-                {!q.isLoading && !q.error && rows.length === 0 && (
+                {!q.isLoading && !error && rows.length === 0 && (
                   <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-500">No review forms match the current search.</td></tr>
                 )}
               </tbody>

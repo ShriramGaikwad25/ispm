@@ -3,7 +3,10 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
-import { useCreateDefinition, useDefinitionList, useNewDefinitionVersion } from "@/hooks/useAssuranceEvents";
+import { useQuery } from "@tanstack/react-query";
+import { useCreateDefinition, useNewDefinitionVersion } from "@/hooks/useAssuranceEvents";
+import { useCcConnection } from "@/hooks/useCcConnection";
+import { CC_DEFINITIONS_KEY, CcDefinitions } from "@/lib/cc-definitions-api";
 import { formatAbsolute, formatRelative } from "@/lib/assurance-format";
 import {
   BTN_LINK, BTN_PRIMARY, BTN_SECONDARY, CARD, CARD_SUBTITLE, CARD_TITLE, INPUT, LABEL, LookupSelect, PAGE,
@@ -34,12 +37,15 @@ const s = (n: number) => (n === 1 ? "" : "s");
 export default function EventDefinitionsPage() {
   const router = useRouter();
   const { openSidebar, closeSidebar } = useRightSidebar();
-  const list = useDefinitionList();
+  // Live list: GET /compliance/definitions?state=… (the State filter is sent to the API).
+  const connection = useCcConnection();
   const create = useCreateDefinition();
   const newVersion = useNewDefinitionVersion();
   const [banner, setBanner] = useState<Banner>(null);
   const [state, setState] = useState("");
   const [search, setSearch] = useState("");
+  const list = useQuery({ queryKey: [...CC_DEFINITIONS_KEY, state], queryFn: () => CcDefinitions.list(state) });
+  const listError = connection.error ?? list.error;
 
   const open = (id: string) => router.push(`${DEFINITIONS_BASE}/${id}`);
   const all = useMemo(() => list.data ?? [], [list.data]);
@@ -220,9 +226,9 @@ export default function EventDefinitionsPage() {
                     <span className="inline-flex items-center gap-2"><Spinner /> Loading…</span>
                   </td></tr>
                 )}
-                {list.error && (
+                {listError && (
                   <tr><td colSpan={11} className="px-4 py-8 text-center text-sm text-red-600">
-                    Failed to load definitions. {(list.error as Error).message}
+                    Failed to load definitions. {(listError as Error).message}
                   </td></tr>
                 )}
                 {rows.map((d) => (
@@ -264,7 +270,7 @@ export default function EventDefinitionsPage() {
                     </td>
                   </tr>
                 ))}
-                {!list.isLoading && !list.error && rows.length === 0 && (
+                {!list.isLoading && !listError && rows.length === 0 && (
                   <tr><td colSpan={11} className="px-4 py-8 text-center text-sm text-gray-500">
                     No definitions match the current filters.
                   </td></tr>

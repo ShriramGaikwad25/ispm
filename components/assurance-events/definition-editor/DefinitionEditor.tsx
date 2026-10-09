@@ -13,7 +13,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Ban, CodeXml, GitBranchPlus, Save, ShieldCheck } from "lucide-react";
-import { useDefinition, useInvalidateGovernance } from "@/hooks/useAssuranceEvents";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInvalidateGovernance } from "@/hooks/useAssuranceEvents";
+import { CC_DEFINITIONS_KEY, CcDefinitions } from "@/lib/cc-definitions-api";
 import { Definitions } from "@/lib/assurance-events-api";
 import type { EventDefinition, UUID } from "@/lib/assurance-events-api";
 import {
@@ -42,8 +44,14 @@ const TABS: Array<[string, string]> = [
 export function DefinitionEditor({ id }: { id: UUID }) {
   const router = useRouter();
   const params = useSearchParams();
-  const invalidate = useInvalidateGovernance();
-  const query = useDefinition(id);
+  const invalidateGovernance = useInvalidateGovernance();
+  const qc = useQueryClient();
+  const invalidate = () => {
+    invalidateGovernance();
+    qc.invalidateQueries({ queryKey: CC_DEFINITIONS_KEY });
+  };
+  // GET {baseUrl}/{tenant}/compliance/definitions/{id}
+  const query = useQuery({ queryKey: [...CC_DEFINITIONS_KEY, "detail", id], queryFn: () => CcDefinitions.get(id) });
   const [dto, setDto] = useState<EventDefinition | null>(null);
   const [tab, setTab] = useState(() => TABS.find(([key]) => key === params.get("tab"))?.[0] ?? "general");
   const [banner, setBanner] = useState<Banner>(() =>
