@@ -9,12 +9,12 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { RefreshCw } from "lucide-react";
+import { Copy, RefreshCw } from "lucide-react";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import { useCcConnection } from "@/hooks/useCcConnection";
 import { REVIEW_FORMS_BASE, REVIEW_FORMS_KEY, ReviewForms, type ApiReviewForm } from "@/lib/assurance-review-forms";
 import {
-  BTN_LINK, BTN_PRIMARY, BTN_SECONDARY, CARD, CARD_SUBTITLE, CARD_TITLE, INPUT, LABEL, PAGE, PAGE_INNER_FLUSH, PILL, PageHeader,
+  BTN_PRIMARY, BTN_SECONDARY, CARD, CARD_SUBTITLE, CARD_TITLE, INPUT, LABEL, PAGE, PAGE_INNER_FLUSH, PILL, PageHeader,
   Spinner, StatCard, TBODY, TD, TH, THEAD_ROW, TR_CLICKABLE, cx,
 } from "@/components/assurance-events/ui";
 import { StateBadge } from "@/components/assurance-events/definition-editor/fields";
@@ -140,8 +140,10 @@ export default function ReviewFormsPage() {
                   </td>
                   <td className={cx(TD, "text-xs")}>{f.submitAuthority ?? "—"}</td>
                   <td className={TD}>
-                    <button type="button" className={BTN_LINK} onClick={(e) => { e.stopPropagation(); openClone(f); }}>
-                      Clone
+                    <button type="button" title="Clone" aria-label={`Clone ${f.code}`}
+                            className="p-1.5 rounded-md text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                            onClick={(e) => { e.stopPropagation(); openClone(f); }}>
+                      <Copy size={16} />
                     </button>
                   </td>
                 </tr>
