@@ -264,6 +264,44 @@ export default function ControlLibraryPage() {
 }
 
 /** Control detail, shown in the right sidebar like an Agent Task Library task. */
+/** The family's context — the variables a condition can read (GET /compliance/detection-families). */
+function FamilyContext({ code }: { code: string }) {
+  const familiesQ = useQuery({ queryKey: [...KEY, "families"], queryFn: Controls.families });
+  const f = familiesQ.data?.families?.find((x) => x.code === code);
+  return (
+    <div className="mb-6">
+      <h3 className="text-sm font-semibold text-gray-900 mb-1">Context of family {code}</h3>
+      {familiesQ.isLoading ? (
+        <Spinner />
+      ) : !f ? (
+        <div className="text-sm text-gray-500">Unknown family.</div>
+      ) : (
+        <>
+          <p className="text-xs text-gray-500 mb-3">
+            {[f.displayName, f.evaluator && `Evaluator: ${f.evaluator}`,
+              f.objectKinds?.length && `Object kinds: ${f.objectKinds.join(", ")}`].filter(Boolean).join(". ")}.
+          </p>
+          {Object.entries(f.contextSchema ?? {}).map(([name, v]) => (
+            <div key={name} className="mb-3">
+              <div className="text-xs mb-1">
+                <span className="font-mono font-semibold text-gray-900">{name}</span>
+                {v.object && <span className="text-gray-500"> ({v.object})</span>}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {Object.entries(v.fields ?? {}).map(([field, type]) => (
+                  <span key={field} className={cx(PILL, "font-mono font-normal bg-gray-100 text-gray-700")}>
+                    {name}.{field}<span className="text-gray-400">{String(type)}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
+
 function ControlDetail({ control: c, categoryName, onCloned }: {
   control: Control; categoryName: string; onCloned: (code: string) => void;
 }) {
@@ -318,6 +356,8 @@ function ControlDetail({ control: c, categoryName, onCloned }: {
           {c.condition?.expression ?? "—"}
         </pre>
       </div>
+
+      <FamilyContext code={c.familyCode} />
 
       {c.severityHint && (
         <div className="mb-6">

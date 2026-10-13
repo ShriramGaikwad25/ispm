@@ -48,7 +48,15 @@ export interface Control {
   [key: string]: unknown;
 }
 
-export interface DetectionFamily { code: string; [key: string]: unknown }
+export interface DetectionFamily {
+  code: string;
+  displayName?: string;
+  evaluator?: string;
+  objectKinds?: string[];
+  /** Variables a control's condition can read: name → { object, fields: { field → type } }. */
+  contextSchema?: Record<string, { object?: string; fields?: Record<string, unknown> }>;
+  [key: string]: unknown;
+}
 export interface ControlCategory { code: string; displayName: string; [key: string]: unknown }
 
 export interface ControlQuery {
