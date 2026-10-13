@@ -922,8 +922,18 @@ function LedgerRows({ t }: { t: CcTimeline }) {
 
 const RELATED_ORDER = ["decisions", "remediations", "mitigations", "notifications", "comments", "aiInsights", "evidencePacks", "admin", "domainEvents"];
 
+/** Fields not shown in Related records. */
+const RELATED_HIDDEN = ["resultPayload"];
+const withoutHidden = (v: unknown): unknown => {
+  if (Array.isArray(v)) return v.map(withoutHidden);
+  if (v && typeof v === "object") {
+    return Object.fromEntries(Object.entries(v as Record<string, unknown>).filter(([k]) => !RELATED_HIDDEN.includes(k)));
+  }
+  return v;
+};
+
 function RelatedRecords({ t }: { t: CcTimeline }) {
-  const related = t.related ?? {};
+  const related = Object.fromEntries(Object.entries(t.related ?? {}).map(([k, v]) => [k, withoutHidden(v)]));
   const keys = [...RELATED_ORDER.filter((k) => k in related), ...Object.keys(related).filter((k) => !RELATED_ORDER.includes(k))];
   const empty = keys.filter((k) => (Array.isArray(related[k]) ? !(related[k] as unknown[]).length : related[k] == null));
   const filled = keys.filter((k) => !empty.includes(k));
