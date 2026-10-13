@@ -58,14 +58,18 @@ export function ExecutorsTab() {
         </div>
 
         <div className={cx(CARD, "overflow-hidden")}>
-          <div className="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className={CARD_TITLE}>Executor Registry</div>
-              <div className={CARD_SUBTITLE}>DRAFT → ACTIVE → DEPRECATED. An ACTIVE row overrides a built-in connector of the same code; re-registering a code cuts version N+1.</div>
+          {/* Row 1: title + Register; row 2: search, filters, Refresh. */}
+          <div className="border-b border-gray-200 px-5 py-4 space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <div className={CARD_TITLE}>Executor Registry</div>
+                <div className={CARD_SUBTITLE}>DRAFT → ACTIVE → DEPRECATED. An ACTIVE row overrides a built-in connector of the same code; re-registering a code cuts version N+1.</div>
+              </div>
+              <button type="button" className={cx(BTN_PRIMARY, "shrink-0 whitespace-nowrap")} onClick={register}>+ Register Executor</button>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search code, action, endpoint..."
-                     aria-label="Search executors" className={cx(FILTER_INPUT, "w-56")} />
+                     aria-label="Search executors" className={cx(FILTER_INPUT, "flex-1 min-w-0")} />
               <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value)} aria-label="Kind" className={FILTER_INPUT}>
                 <option value="">All Kinds</option>
                 <option value="INPROCESS">Built-in</option>
@@ -81,7 +85,6 @@ export function ExecutorsTab() {
               <button type="button" className={BTN_SECONDARY} onClick={() => executors.refetch()} disabled={executors.isFetching}>
                 <RefreshCw size={14} className={executors.isFetching ? "animate-spin" : ""} /> Refresh
               </button>
-              <button type="button" className={BTN_PRIMARY} onClick={register}>+ Register Executor</button>
             </div>
           </div>
 
