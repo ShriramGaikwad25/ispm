@@ -269,8 +269,8 @@ function FamilyContext({ code }: { code: string }) {
   const familiesQ = useQuery({ queryKey: [...KEY, "families"], queryFn: Controls.families });
   const f = familiesQ.data?.families?.find((x) => x.code === code);
   return (
-    <div className="mb-6">
-      <h3 className="text-sm font-semibold text-gray-900 mb-1">Context of family {code}</h3>
+    <div>
+      <h4 className="text-xs font-semibold text-gray-700 mb-1">Context of family {code}</h4>
       {familiesQ.isLoading ? (
         <Spinner />
       ) : !f ? (
@@ -357,8 +357,6 @@ function ControlDetail({ control: c, categoryName, onCloned }: {
         </pre>
       </div>
 
-      <FamilyContext code={c.familyCode} />
-
       {c.severityHint && (
         <div className="mb-6">
           <h3 className="text-sm font-semibold text-gray-900 mb-1">Severity Hint</h3>
@@ -368,9 +366,7 @@ function ControlDetail({ control: c, categoryName, onCloned }: {
 
       <div className="mb-6">
         <h3 className="text-sm font-semibold text-gray-900 mb-2">Parameters (Defaults)</h3>
-        {(c.parameters ?? []).length === 0 ? (
-          <p className="text-sm text-gray-700">No parameters.</p>
-        ) : (
+        {(c.parameters ?? []).length === 0 ? null : (
           <div className="rounded-lg border border-gray-200 bg-white overflow-hidden divide-y divide-gray-100">
             {c.parameters!.map((p) => (
               <div key={p.name} className="flex items-center gap-2 px-3 py-2.5 text-sm">
@@ -383,6 +379,9 @@ function ControlDetail({ control: c, categoryName, onCloned }: {
             ))}
           </div>
         )}
+        <div className={(c.parameters ?? []).length ? "mt-4" : ""}>
+          <FamilyContext code={c.familyCode} />
+        </div>
       </div>
 
       <div className="border-t border-gray-200 pt-4">
