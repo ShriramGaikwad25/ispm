@@ -34,7 +34,6 @@ export type TabProps = {
   id: UUID;
 };
 
-const GOVERNANCE_POINTS = ["SEVERITY", "AUTO_REMEDIATION_GATE", "AUTO_DECISION", "REVIEWER"];
 const SLA_PAGE = "/assurance-events/sla";
 const TIMEOUT_ACTIONS = ["ESCALATE", "AUTO_REVOKE", "AUTO_ACCEPT", "QUARANTINE", "NO_OP"];
 
@@ -342,93 +341,11 @@ export function DetectionTab({ dto, patch, ro }: TabProps) {
 // Governance policy
 // ---------------------------------------------------------------------
 
-export function GovernanceTab({ dto, patch, ro }: TabProps) {
-  const rules = dto.governancePolicy?.rules ?? [];
-  const setRules = (r: GovernanceRule[]) => patch({ governancePolicy: { ...dto.governancePolicy, rules: r } });
-  const update = (i: number, p: Partial<GovernanceRule>) => setRules(rules.map((r, j) => (j === i ? { ...r, ...p } : r)));
-  const move = (i: number, by: number) => {
-    const next = [...rules];
-    const [r] = next.splice(i, 1);
-    next.splice(i + by, 0, r);
-    setRules(next);
-  };
-  const executorFor = (action?: string) =>
-    action
-      ? dto.actionBindings?.[action] || dto.actionBindings?.["*"] ||
-        (action.startsWith("IGA_") ? "iga (default)" : "action-type default")
-      : null;
-
-  return (
-    <>
-    <Section
-      title="Governance policy — rules evaluated in order"
-      hint="SEVERITY rules run first and may change the severity. Then the first true rule decides the branch: run an action, record an automatic decision, or route to a reviewer with a form. No rules (or none true) routes to the definition's reviewer."
-      actions={!ro && (
-        <button className={cx(BTN_SECONDARY, "text-xs")}
-                onClick={() => setRules([...rules, {
-                  id: `rule-${rules.length + 1}`, point: "REVIEWER", when: "true", then: { reviewForm: "ASSIGN_APPROVAL_GROUP" },
-                }])}>
-          <Plus size={12} /> Add rule
-        </button>
-      )}
-    >
-      {rules.length === 0 && (
-        <div className="text-sm text-gray-500 border border-dashed rounded p-3">
-          No rules: findings go to the reviewer named on the General tab.
-        </div>
-      )}
-      {rules.map((rule, i) => (
-        <div key={i} className="rounded-md border border-gray-200 p-3 space-y-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            <input className={cx(INPUT_BASE, "w-48 font-mono text-xs")} value={rule.id} disabled={ro}
-                   onChange={(e) => update(i, { id: e.target.value })} />
-            <select className={cx(INPUT_BASE, "w-56")} value={rule.point} disabled={ro}
-                    onChange={(e) => update(i, { point: e.target.value })}>
-              {GOVERNANCE_POINTS.map((p) => <option key={p}>{p}</option>)}
-            </select>
-            <div className="flex-1" />
-            {!ro && (
-              <>
-                <button className={cx(BTN_GHOST, "px-2")} disabled={i === 0} onClick={() => move(i, -1)} aria-label="Move up">
-                  <ArrowUp size={13} />
-                </button>
-                <button className={cx(BTN_GHOST, "px-2")} disabled={i === rules.length - 1} onClick={() => move(i, 1)}
-                        aria-label="Move down">
-                  <ArrowDown size={13} />
-                </button>
-                <button className={cx(BTN_GHOST, "px-2 text-red-600")} onClick={() => setRules(rules.filter((_, j) => j !== i))}
-                        aria-label="Remove rule">
-                  <Trash2 size={13} />
-                </button>
-              </>
-            )}
-          </div>
-          <div>
-            <label className={LABEL}>When (CEL)</label>
-            <input className={cx(INPUT, "font-mono text-xs")} value={rule.when} disabled={ro}
-                   onChange={(e) => update(i, { when: e.target.value })} />
-          </div>
-          <JsonField
-            key={`${i}-${rule.id}`}
-            label="Then — action, params (with ${…}), executor, decisionType, mitigations, reviewerStrategy, reviewForm, severity, justification"
-            value={rule.then}
-            readOnly={ro}
-            rows={4}
-            onChange={(v) => update(i, { then: v })}
-          />
-          {rule.then?.action && (
-            <div className="text-xs text-gray-500">
-              Runs <code>{rule.then.action}</code> on <b>{rule.then.executor ?? executorFor(rule.then.action)}</b>
-            </div>
-          )}
-        </div>
-      ))}
-    </Section>
-    <ActionsUsed dto={dto} />
-    </>
-  );
+// The console's "Actions used" table (with the When / Then of the rules that
+// run each action); the rules themselves are not listed.
+export function GovernanceTab({ dto }: TabProps) {
+  return <ActionsUsed dto={dto} />;
 }
-
 
 /** GET /compliance/definitions/{id} → actions: the actions the definition names (derived on save, pinned on activation). */
 interface ActionsUsedView {
@@ -444,7 +361,13 @@ interface ActionsUsedView {
 /** The console's "Actions used" table, plus the When / Then of the governance rule(s) that run each action. */
 function ActionsUsed({ dto }: { dto: EventDefinition }) {
   const view = (dto as unknown as { actions?: ActionsUsedView }).actions;
-  if (!view) return null;
+  if (!view) {
+    return (
+      <Section title="Actions used" hint="Derived on save, pinned on activation.">
+        <div className="text-sm text-gray-500">Save the definition to see the actions it uses.</div>
+      </Section>
+    );
+  }
   const rules = dto.governancePolicy?.rules ?? [];
   const items = view.items ?? [];
   const thenText = (then: GovernanceRule["then"]) =>
