@@ -40,11 +40,14 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
       body: hasBody ? await request.text() : undefined,
       cache: "no-store",
     });
-    const body = await upstream.text();
-    return new NextResponse(body || null, {
-      status: upstream.status,
-      headers: { "Content-Type": upstream.headers.get("content-type") ?? "application/json" },
-    });
+    // Pass the body through as bytes (JSON, or a ZIP evidence pack) with the headers the console reads.
+    const body = await upstream.arrayBuffer();
+    const responseHeaders = new Headers({ "Content-Type": upstream.headers.get("content-type") ?? "application/json" });
+    for (const name of ["content-disposition", "x-pack-id", "x-pack-hash"]) {
+      const value = upstream.headers.get(name);
+      if (value) responseHeaders.set(name, value);
+    }
+    return new NextResponse(body.byteLength ? body : null, { status: upstream.status, headers: responseHeaders });
   } catch (error) {
     return NextResponse.json(
       { error: "upstream_unreachable", message: error instanceof Error ? error.message : String(error) },

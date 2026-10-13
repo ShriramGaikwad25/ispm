@@ -108,6 +108,21 @@ export async function ccRequest<T>(method: string, path: string, opts: { query?:
   return data as T;
 }
 
+/** Like ccRequest, but returns the raw Response (binary downloads, e.g. the evidence-pack ZIP). */
+export async function ccFetchRaw(method: string, path: string, opts: { query?: CcQuery; accept?: string } = {}): Promise<Response> {
+  const res = await fetch(buildUrl(path, opts.query), {
+    method,
+    headers: { Accept: opts.accept ?? "application/octet-stream" },
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    let message = text || res.statusText || `HTTP ${res.status}`;
+    try { message = String((JSON.parse(text) as { message?: string }).message ?? message); } catch { /* not JSON */ }
+    throw new ControlsApiError(res.status, String(res.status), message);
+  }
+  return res;
+}
+
 const controlPath = (code: string) => `/compliance/controls/${encodeURIComponent(code)}`;
 
 export const Controls = {

@@ -11,7 +11,7 @@
 // (EventListItem), so the page layout does not change.
 // =====================================================================
 
-import { ccRequest } from "@/lib/controls-api";
+import { ccFetchRaw, ccRequest } from "@/lib/controls-api";
 import type { EventListItem, EventQuery } from "@/lib/assurance-events-api";
 
 /** An event as GET /compliance/events returns it (fields the list reads). */
@@ -48,6 +48,8 @@ export interface CcEventSearch {
   closedBefore?: string;
   slaMet?: boolean;
   reviewerPrincipalId?: string;
+  /** Due on or before (ISO). */
+  dueBefore?: string;
   page: number;
   pageSize: number;
 }
@@ -155,6 +157,8 @@ export interface CcEventDetail {
     failureReason?: string; parameters?: unknown;
   }>;
   comments: Array<{ commentId: string; createdAt: string; visibility: string; authorPrincipalId?: string; body: string }>;
+  /** Latest AI insight (recommendation, risk, …), if one was produced. */
+  latestInsight?: Record<string, unknown> | null;
   [key: string]: unknown;
 }
 
@@ -169,16 +173,81 @@ export interface CcDecisionOptions {
 }
 
 /** GET /compliance/events/{id}/timeline — the event's audit ledger. */
-export interface CcTimeline {
-  items: Array<{
-    auditId: string; at: string; stage: string; action: string; source?: string;
-    actor: { kind: string; id?: string; principalId?: string; [k: string]: unknown };
-    causationId?: string; payload?: unknown; [k: string]: unknown;
-  }>;
-  summary?: { integrity?: { status?: string } };
+export interface CcLedgerRow {
+  auditId: string; at: string; stage: string; action: string; source?: string;
+  actor: { kind: string; ref?: string; principalId?: string; [k: string]: unknown };
+  entity?: { kind?: string; id?: string; [k: string]: unknown };
+  from?: string | null; to?: string | null;
+  causationId?: string | null; correlationId?: string | null; requestId?: string | null;
+  refs?: Record<string, unknown>; integrity?: { sealed?: boolean; [k: string]: unknown };
+  detail?: unknown;
+  [k: string]: unknown;
 }
 
+export interface CcTimeline {
+  items: CcLedgerRow[];
+  /** Lifecycle summary: automationPath, closeCause, slaMet, timeToClose/openFor, *At milestones, integrity, … */
+  summary?: Record<string, unknown> & { integrity?: { status?: string; rows?: number; [k: string]: unknown } };
+  /** Related records: decisions, remediations, mitigations, notifications, comments, aiInsights, evidencePacks, … */
+  related?: Record<string, unknown>;
+  event?: CcEventDetail["event"];
+}
+
+/** GET /compliance/events/{id}/review-form — the form pinned when the event was routed. */
+export interface CcReviewFormView {
+  formCode: string;
+  formVersion: number;
+  title: string;
+  intent?: string;
+  eventStatus: string;
+  submittable: boolean;
+  canSubmit: boolean;
+  submitAuthority?: string;
+  fields: Array<{
+    name: string; label?: string; type: string; required?: boolean; help?: string; sensitive?: boolean;
+    visible: boolean; value?: unknown; conditional?: boolean;
+    options?: Array<{ value: unknown; label: string; meta?: { activeMembers?: number; [k: string]: unknown } }>;
+    validate?: { minLength?: number; min?: number; max?: number; [k: string]: unknown };
+  }>;
+  outcomes: Array<{ id: string; when?: string; actions: string[]; decision?: string; then?: string }>;
+  submission?: unknown;
+  proposal?: Record<string, unknown> | null;
+}
+
+export interface CcReviewFormTest { valid: boolean; outcome?: string; diagnostics: string[]; plan?: unknown }
+export interface CcReviewFormSubmission {
+  result: string; outcome?: string; status?: string; decisionId?: string | null;
+  remediationIds: string[]; submissionId?: string; failureReason?: string | null;
+}
+
+const eventPath = (id: string) => `/compliance/events/${encodeURIComponent(id)}`;
+
 export const CcEvents = {
+  /** GET /compliance/events/{id}/review-form */
+  reviewForm: (id: string) => ccRequest<CcReviewFormView>("GET", `${eventPath(id)}/review-form`),
+  /** POST /compliance/review-forms/{code}/render — re-evaluates visibility after a conditional field changes. */
+  renderReviewForm: (code: string, eventId: string, version: number | undefined, values: Record<string, unknown>) =>
+    ccRequest<CcReviewFormView>("POST", `/compliance/review-forms/${encodeURIComponent(code)}/render`, {
+      body: { eventId, version: version || undefined, values },
+    }),
+  /** POST /compliance/review-forms/{code}/test — dry run: validates and plans, persists nothing. */
+  testReviewForm: (code: string, eventId: string, values: Record<string, unknown>, version?: number) =>
+    ccRequest<CcReviewFormTest>("POST", `/compliance/review-forms/${encodeURIComponent(code)}/test`, {
+      body: { eventId, values, version: version || undefined },
+    }),
+  /** POST /compliance/events/{id}/review-form/submit */
+  submitReviewForm: (id: string, values: Record<string, unknown>) =>
+    ccRequest<CcReviewFormSubmission>("POST", `${eventPath(id)}/review-form/submit`, { body: { values } }),
+  /** POST /compliance/events/{id}/insight/refresh */
+  refreshInsight: (id: string) => ccRequest<unknown>("POST", `${eventPath(id)}/insight/refresh`),
+  /** POST /compliance/events/{id}/evidence-pack?redaction= — JSON pack (writes an AUDIT_EXPORTED row). */
+  evidencePack: (id: string, redaction: string) =>
+    ccRequest<Record<string, unknown> & { manifest?: Record<string, unknown> & { packId?: string; contentHashes?: Record<string, string> } }>(
+      "POST", `${eventPath(id)}/evidence-pack`, { query: { redaction } }),
+  /** Same, as a ZIP download. */
+  evidencePackZip: (id: string, redaction: string) =>
+    ccFetchRaw("POST", `${eventPath(id)}/evidence-pack`, { query: { redaction }, accept: "application/zip" }),
+
   /** GET /compliance/events/{id} */
   get: (id: string) => ccRequest<CcEventDetail>("GET", `/compliance/events/${encodeURIComponent(id)}`),
   /** GET /compliance/events/{id}/decisions */
@@ -200,6 +269,7 @@ export const CcEvents = {
         closedBefore: q.closedBefore,
         slaMet: q.slaMet === undefined ? undefined : String(q.slaMet),
         reviewerPrincipalId: q.reviewerPrincipalId,
+        dueBefore: q.dueBefore,
         page: String(q.page),
         pageSize: String(q.pageSize),
       },
