@@ -18,6 +18,8 @@ export const cx = (...c: Array<string | false | null | undefined>) => c.filter(B
 /** Page shell: `<div className={PAGE}><div className={PAGE_INNER}>…` like the gateway pages. */
 export const PAGE = "h-full";
 export const PAGE_INNER = "w-full px-6 pb-6";
+/** Same, without the side padding (All Events list and event detail). */
+export const PAGE_INNER_FLUSH = "w-full pb-6";
 
 export const CARD = "bg-white border border-gray-200 rounded-lg shadow-sm";
 export const CARD_HEADER = "px-5 py-4 border-b border-gray-200 flex items-center justify-between gap-3";

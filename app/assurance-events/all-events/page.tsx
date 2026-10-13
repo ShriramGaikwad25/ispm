@@ -22,7 +22,7 @@ import {
   CcEvents, eventSearchQueryString, slaPercent, subjectLabel, type CcDefinitionRef, type CcEvent, type CcEventSearch,
 } from "@/lib/cc-events-api";
 import {
-  BTN_SECONDARY, CARD, CARD_SUBTITLE, CARD_TITLE, PAGE, PAGE_INNER, PILL, PageHeader, PageSpinner, Spinner, TBODY, TD, TH,
+  BTN_SECONDARY, CARD, CARD_SUBTITLE, CARD_TITLE, PAGE, PAGE_INNER_FLUSH, PILL, PageHeader, PageSpinner, Spinner, TBODY, TD, TH,
   THEAD_ROW, TR_CLICKABLE, TabBar, cx,
 } from "@/components/assurance-events/ui";
 import { SeverityBadge, StateBadge } from "@/components/assurance-events/definition-editor/fields";
@@ -101,7 +101,7 @@ function AllEventsPage() {
 
   return (
     <div className={PAGE}>
-      <div className={PAGE_INNER}>
+      <div className={PAGE_INNER_FLUSH}>
         <PageHeader
           title="All Events"
           subtitle="Every event raised for this tenant, and the queue of events waiting for a reviewer."

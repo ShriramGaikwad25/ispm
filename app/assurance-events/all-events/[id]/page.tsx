@@ -26,7 +26,7 @@ import {
   type CcReviewFormView, type CcTimeline,
 } from "@/lib/cc-events-api";
 import {
-  BTN_LINK, BTN_PRIMARY, BTN_SECONDARY, CARD, CARD_HEADER, CARD_SUBTITLE, CARD_TITLE, INPUT, PAGE, PAGE_INNER, PILL,
+  BTN_LINK, BTN_PRIMARY, BTN_SECONDARY, CARD, CARD_HEADER, CARD_SUBTITLE, CARD_TITLE, INPUT, PAGE, PAGE_INNER_FLUSH, PILL,
   PageHeader, PageSpinner, Spinner, TBODY, TD, TH, THEAD_ROW, TabBar, cx,
 } from "@/components/assurance-events/ui";
 import { KeyValueList, SeverityBadge, StateBadge } from "@/components/assurance-events/definition-editor/fields";
@@ -189,7 +189,7 @@ function EventDetailPage() {
 
   return (
     <div className={PAGE}>
-      <div className={PAGE_INNER}>
+      <div className={PAGE_INNER_FLUSH}>
         <Link href={LIST_HREF} className={cx(BTN_LINK, "inline-block mb-3")}>← All events</Link>
 
         {detailQ.isLoading && <PageSpinner />}
