@@ -15,6 +15,7 @@ import {
 } from "@/hooks/useAssuranceEvents";
 import { Definitions } from "@/lib/assurance-events-api";
 import { Controls, type Control } from "@/lib/controls-api";
+import { ACTIONS_BASE, actionHref } from "@/lib/cc-actions-api";
 import { SLA_POLICIES_KEY, Slas, applySlaPolicy, matchSlaPolicy } from "@/lib/assurance-sla";
 import { NotificationBindings, listEmailTemplates } from "@/lib/assurance-notification-bindings";
 import type {
@@ -33,6 +34,7 @@ export type TabProps = {
   id: UUID;
 };
 
+const GOVERNANCE_POINTS = ["SEVERITY", "AUTO_REMEDIATION_GATE", "AUTO_DECISION", "REVIEWER"];
 const SLA_PAGE = "/assurance-events/sla";
 const TIMEOUT_ACTIONS = ["ESCALATE", "AUTO_REVOKE", "AUTO_ACCEPT", "QUARANTINE", "NO_OP"];
 
@@ -342,7 +344,6 @@ export function DetectionTab({ dto, patch, ro }: TabProps) {
 
 export function GovernanceTab({ dto, patch, ro }: TabProps) {
   const rules = dto.governancePolicy?.rules ?? [];
-  const [editing, setEditing] = useState<number | null>(null);
   const setRules = (r: GovernanceRule[]) => patch({ governancePolicy: { ...dto.governancePolicy, rules: r } });
   const update = (i: number, p: Partial<GovernanceRule>) => setRules(rules.map((r, j) => (j === i ? { ...r, ...p } : r)));
   const move = (i: number, by: number) => {
@@ -351,87 +352,186 @@ export function GovernanceTab({ dto, patch, ro }: TabProps) {
     next.splice(i + by, 0, r);
     setRules(next);
   };
-  const value = (v: unknown) => (typeof v === "string" ? v : JSON.stringify(v));
+  const executorFor = (action?: string) =>
+    action
+      ? dto.actionBindings?.[action] || dto.actionBindings?.["*"] ||
+        (action.startsWith("IGA_") ? "iga (default)" : "action-type default")
+      : null;
 
   return (
+    <>
     <Section
       title="Governance policy — rules evaluated in order"
-      hint="The first rule whose When holds decides what happens: run an action, record an automatic decision, or route to a reviewer with a form. No rules (or none true) routes to the definition's reviewer."
+      hint="SEVERITY rules run first and may change the severity. Then the first true rule decides the branch: run an action, record an automatic decision, or route to a reviewer with a form. No rules (or none true) routes to the definition's reviewer."
       actions={!ro && (
         <button className={cx(BTN_SECONDARY, "text-xs")}
-                onClick={() => {
-                  setRules([...rules, {
-                    id: `rule-${rules.length + 1}`, point: "REVIEWER", when: "true", then: { reviewForm: "ASSIGN_APPROVAL_GROUP" },
-                  }]);
-                  setEditing(rules.length);
-                }}>
+                onClick={() => setRules([...rules, {
+                  id: `rule-${rules.length + 1}`, point: "REVIEWER", when: "true", then: { reviewForm: "ASSIGN_APPROVAL_GROUP" },
+                }])}>
           <Plus size={12} /> Add rule
         </button>
       )}
     >
-      <div className="border border-gray-200 rounded-lg overflow-hidden">
-        <table className="w-full">
-          <thead>
-            <tr className={THEAD_ROW}>
-              <th className={cx(TH, "w-10")}>#</th>
-              <th className={TH}>When</th>
-              <th className={TH}>Then</th>
-              {!ro && <th className={cx(TH, "w-40")}></th>}
-            </tr>
-          </thead>
-          <tbody className={TBODY}>
-            {rules.map((rule, i) => (
-              <tr key={i}>
-                <td className={TD}>{i + 1}</td>
-                <td className={cx(TD, "w-[40%]")}>
-                  {ro ? (
-                    <span className="font-mono text-xs [overflow-wrap:anywhere]">{rule.when}</span>
-                  ) : (
-                    <textarea className={cx(INPUT, "font-mono text-xs")} rows={2} value={rule.when}
-                              onChange={(e) => update(i, { when: e.target.value })} />
-                  )}
-                </td>
-                <td className={TD}>
-                  {editing === i && !ro ? (
-                    <JsonField key={`${i}-${rule.id}`} value={rule.then} rows={5} onChange={(v) => update(i, { then: v })} />
-                  ) : Object.keys(rule.then ?? {}).length ? (
-                    <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-0.5 text-xs">
-                      {Object.entries(rule.then).map(([k, v]) => (
-                        <div key={k} className="contents">
-                          <dt className="text-gray-500">{k}</dt>
-                          <dd className="font-mono text-gray-900 [overflow-wrap:anywhere]">{value(v)}</dd>
-                        </div>
-                      ))}
-                    </dl>
-                  ) : <span className="text-gray-400">—</span>}
-                </td>
-                {!ro && (
-                  <td className={cx(TD, "whitespace-nowrap")}>
-                    <button className={cx(BTN_GHOST, "px-2 text-xs")} onClick={() => setEditing(editing === i ? null : i)}>
-                      {editing === i ? "Done" : "Edit"}
-                    </button>
-                    <button className={cx(BTN_GHOST, "px-2")} disabled={i === 0} onClick={() => move(i, -1)} aria-label="Move up">
-                      <ArrowUp size={13} />
-                    </button>
-                    <button className={cx(BTN_GHOST, "px-2")} disabled={i === rules.length - 1} onClick={() => move(i, 1)} aria-label="Move down">
-                      <ArrowDown size={13} />
-                    </button>
-                    <button className={cx(BTN_GHOST, "px-2 text-red-600")} aria-label="Remove rule"
-                            onClick={() => { setRules(rules.filter((_, j) => j !== i)); setEditing(null); }}>
-                      <Trash2 size={13} />
-                    </button>
-                  </td>
-                )}
-              </tr>
-            ))}
-            {rules.length === 0 && (
-              <tr><td colSpan={4} className="px-4 py-6 text-center text-sm text-gray-500">
-                No rules: findings go to the reviewer named on the General tab.
-              </td></tr>
+      {rules.length === 0 && (
+        <div className="text-sm text-gray-500 border border-dashed rounded p-3">
+          No rules: findings go to the reviewer named on the General tab.
+        </div>
+      )}
+      {rules.map((rule, i) => (
+        <div key={i} className="rounded-md border border-gray-200 p-3 space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <input className={cx(INPUT_BASE, "w-48 font-mono text-xs")} value={rule.id} disabled={ro}
+                   onChange={(e) => update(i, { id: e.target.value })} />
+            <select className={cx(INPUT_BASE, "w-56")} value={rule.point} disabled={ro}
+                    onChange={(e) => update(i, { point: e.target.value })}>
+              {GOVERNANCE_POINTS.map((p) => <option key={p}>{p}</option>)}
+            </select>
+            <div className="flex-1" />
+            {!ro && (
+              <>
+                <button className={cx(BTN_GHOST, "px-2")} disabled={i === 0} onClick={() => move(i, -1)} aria-label="Move up">
+                  <ArrowUp size={13} />
+                </button>
+                <button className={cx(BTN_GHOST, "px-2")} disabled={i === rules.length - 1} onClick={() => move(i, 1)}
+                        aria-label="Move down">
+                  <ArrowDown size={13} />
+                </button>
+                <button className={cx(BTN_GHOST, "px-2 text-red-600")} onClick={() => setRules(rules.filter((_, j) => j !== i))}
+                        aria-label="Remove rule">
+                  <Trash2 size={13} />
+                </button>
+              </>
             )}
-          </tbody>
-        </table>
-      </div>
+          </div>
+          <div>
+            <label className={LABEL}>When (CEL)</label>
+            <input className={cx(INPUT, "font-mono text-xs")} value={rule.when} disabled={ro}
+                   onChange={(e) => update(i, { when: e.target.value })} />
+          </div>
+          <JsonField
+            key={`${i}-${rule.id}`}
+            label="Then — action, params (with ${…}), executor, decisionType, mitigations, reviewerStrategy, reviewForm, severity, justification"
+            value={rule.then}
+            readOnly={ro}
+            rows={4}
+            onChange={(v) => update(i, { then: v })}
+          />
+          {rule.then?.action && (
+            <div className="text-xs text-gray-500">
+              Runs <code>{rule.then.action}</code> on <b>{rule.then.executor ?? executorFor(rule.then.action)}</b>
+            </div>
+          )}
+        </div>
+      ))}
+    </Section>
+    <ActionsUsed dto={dto} />
+    </>
+  );
+}
+
+
+/** GET /compliance/definitions/{id} → actions: the actions the definition names (derived on save, pinned on activation). */
+interface ActionsUsedView {
+  text?: string;
+  error?: string;
+  warnings?: string[];
+  items?: Array<{
+    code: string; version?: number; name?: string; state?: string; pinned?: boolean; sources?: string[];
+    targetKind?: string; autoExecution?: string; executor?: string | null; latestActiveVersion?: number | null;
+  }>;
+}
+
+/** The console's "Actions used" table, plus the When / Then of the governance rule(s) that run each action. */
+function ActionsUsed({ dto }: { dto: EventDefinition }) {
+  const view = (dto as unknown as { actions?: ActionsUsedView }).actions;
+  if (!view) return null;
+  const rules = dto.governancePolicy?.rules ?? [];
+  const items = view.items ?? [];
+  const thenText = (then: GovernanceRule["then"]) =>
+    Object.entries(then ?? {}).filter(([k]) => k !== "action")
+      .map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`).join(" · ") || "—";
+
+  return (
+    <Section title={`Actions used${view.text ? ` · ${view.text}` : ""}`} hint="Derived on save, pinned on activation.">
+      {view.error ? <div className="text-sm text-red-600">{view.error}</div> : (
+        <>
+          <div className="border border-gray-200 rounded-lg overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className={THEAD_ROW}>
+                  <th className={TH}>Action</th>
+                  <th className={TH}>When</th>
+                  <th className={TH}>Then</th>
+                  <th className={TH}>Pinned</th>
+                  <th className={TH}>Named In</th>
+                  <th className={TH}>Target</th>
+                  <th className={TH}>Auto-Execution</th>
+                  <th className={TH}>Executor</th>
+                  <th className={TH}>Latest Active</th>
+                </tr>
+              </thead>
+              <tbody className={TBODY}>
+                {items.map((a) => {
+                  const named = rules.filter((r) => r.then?.action === a.code);
+                  return (
+                    <tr key={a.code}>
+                      <td className={TD}>
+                        <Link href={a.version ? actionHref(a.code, a.version) : `${ACTIONS_BASE}/${encodeURIComponent(a.code)}`}
+                              className="font-mono text-xs font-semibold text-blue-600 hover:text-blue-700">
+                          {a.code}{a.version ? ` v${a.version}` : ""}
+                        </Link>
+                        <div className="text-xs mt-0.5">
+                          {a.state === "MISSING"
+                            ? <span className="rounded-full bg-red-100 text-red-700 px-2 py-0.5 font-semibold">MISSING</span>
+                            : <span className="text-gray-500">{a.name}</span>}
+                        </div>
+                      </td>
+                      <td className={cx(TD, "text-xs font-mono [overflow-wrap:anywhere]")}>
+                        {named.length ? named.map((r, i) => <div key={i}>{r.when || "(always)"}</div>) : "—"}
+                      </td>
+                      <td className={cx(TD, "text-xs font-mono [overflow-wrap:anywhere]")}>
+                        {named.length ? named.map((r, i) => <div key={i}>{thenText(r.then)}</div>) : "—"}
+                      </td>
+                      <td className={TD}>
+                        <span className={cx("rounded-full px-2 py-0.5 text-xs font-semibold",
+                          a.pinned ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600")}>
+                          {a.pinned ? "Pinned" : "Latest"}
+                        </span>
+                      </td>
+                      <td className={TD}>
+                        <div className="flex flex-wrap gap-1">
+                          {(a.sources ?? []).map((s) => (
+                            <span key={s} className="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs font-mono text-gray-700">{s}</span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className={cx(TD, "text-xs")}>{a.targetKind || "—"}</td>
+                      <td className={TD}>
+                        {a.autoExecution ? (
+                          <span className={cx("rounded-full px-2 py-0.5 text-xs font-semibold",
+                            a.autoExecution === "REVIEW_ONLY" ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700")}>
+                            {a.autoExecution}
+                          </span>
+                        ) : "—"}
+                      </td>
+                      <td className={cx(TD, "text-xs font-mono")}>{a.executor || <span className="text-red-600">none</span>}</td>
+                      <td className={cx(TD, "text-xs")}>{a.latestActiveVersion != null ? `v${a.latestActiveVersion}` : "—"}</td>
+                    </tr>
+                  );
+                })}
+                {!items.length && (
+                  <tr><td colSpan={9} className="px-4 py-6 text-center text-sm text-gray-500">The definition names no action.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          {!!view.warnings?.length && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 space-y-1">
+              {view.warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
+            </div>
+          )}
+        </>
+      )}
     </Section>
   );
 }
