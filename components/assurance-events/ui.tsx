@@ -106,7 +106,9 @@ export function TabBar<K extends string>({ tabs, active, onChange }: {
   tabs: Array<[K, string]>; active: K; onChange: (k: K) => void;
 }) {
   return (
-    <div className="border-b border-gray-200 flex gap-6 overflow-x-auto mb-6" role="tablist">
+    // overflow-y-hidden: overflow-x-auto alone also makes the bar scroll vertically (the active
+    // tab's underline sits 1px below it), which showed a small scrollbar beside every tab bar.
+    <div className="border-b border-gray-200 flex gap-6 overflow-x-auto overflow-y-hidden mb-6" role="tablist">
       {tabs.map(([k, label]) => (
         <button key={k} role="tab" aria-selected={active === k} onClick={() => onChange(k)}
                 className={cx("py-3 text-sm whitespace-nowrap border-b-2 -mb-px font-medium",
