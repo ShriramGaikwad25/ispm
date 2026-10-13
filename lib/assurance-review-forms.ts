@@ -5,29 +5,23 @@
 // what each outcome does (actions through the executor path, the decision
 // recorded, the next lifecycle step).
 //
-// Live data from the same API as the Continuous Compliance Console's Review
-// forms page (graph.keyforge.ai/console#/forms), through ISPM's proxy
+// Same API as the Continuous Compliance Console's Review forms page
+// (graph.keyforge.ai/console#/forms), through ISPM's proxy
 // (lib/controls-api.ts → /api/continuouscompliance):
-//   GET /compliance/review-forms   → ApiReviewForm[] (full forms)
-// The form page reads its form from that same response; there is no
-// per-form call. The API's form is mapped onto the shapes the pages render.
+//   GET  /compliance/review-forms                     library (full forms)
+//   GET  /compliance/review-forms/{code}/versions     every version of a code
+//   GET  /compliance/review-forms/{code}/usage        definitions naming it
+//   GET  /compliance/review-forms/{code}/submissions
+//   GET  /compliance/review-forms/{code}/audit        FORM_* ledger rows
+//   POST /compliance/review-forms/{code}/render       preview for an event
+//   POST /compliance/review-forms/{code}/test         dry run
+//   POST /compliance/review-forms/{code}/clone | /versions | /activate | /deprecate
+// The form page reads the form itself from the library response.
 // =====================================================================
 
 import { ccRequest } from "@/lib/controls-api";
 
 export const REVIEW_FORMS_BASE = "/assurance-events/review-forms";
-
-/** Decision a form outcome records (labels as the consoles show them). */
-export const DECISION_LABEL: Record<string, string> = {
-  REMEDIATE: "Fix",
-  REVOKE: "Remove access",
-  APPROVE_WITH_MITIGATION: "Keep with control",
-  ACCEPT_RISK: "Accept risk",
-  FALSE_POSITIVE: "Not an issue",
-  DEFER: "Defer",
-};
-
-// ---------- API shapes (GET /compliance/review-forms) ----------
 
 export interface ApiFormField {
   name: string;
@@ -40,6 +34,7 @@ export interface ApiFormField {
   prefill?: string;
   visibleWhen?: string;
   validate?: { enum?: unknown[]; [rule: string]: unknown };
+  [key: string]: unknown;
 }
 
 export interface ApiFormOutcome {
@@ -47,9 +42,11 @@ export interface ApiFormOutcome {
   label?: string;
   when?: string;
   actions?: Array<{ action: string; mode?: string; executor?: string; params?: Record<string, unknown> }>;
-  decision?: { type?: string; justification?: string; [k: string]: unknown };
+  decision?: { type?: string; justification?: string; [k: string]: unknown } | null;
   then?: string;
+  thenArgs?: { until?: string; [k: string]: unknown };
   evidenceRefs?: string[];
+  [key: string]: unknown;
 }
 
 export interface ApiReviewForm {
@@ -65,144 +62,64 @@ export interface ApiReviewForm {
   version: number;
   state: string;
   system: boolean;
+  activatedAt?: string | null;
+  deprecatedAt?: string | null;
+  [key: string]: unknown;
 }
 
-// ---------- Shapes the pages render ----------
-
-export interface ReviewFormField {
-  key: string;
-  label: string;
-  type: string;
-  options?: { fact?: string; values?: string[] };
-  recommend?: { recommender: string };
-  default?: string | number | boolean;
-  showFor?: string[];
+export interface FormUsage {
+  latestActiveVersion?: number | null;
+  definitions?: Array<{ definitionId: string; code: string; version: number; state: string; asDefault?: boolean; rules?: string[] }>;
+  byVersion?: unknown;
 }
 
-export interface ReviewFormOutcome {
-  code: string;
-  label: string;
-  decision: string;
-  primary?: boolean;
-  fields?: string[];
-  action?: { type: string; when?: string };
-  change?: string;
-  workflow?: string;
-  justification?: string;
-  expiry?: string;
-  then?: string;
+export interface FormSubmission {
+  submissionId: string;
+  submittedAt: string;
+  eventId: string;
+  formVersion: number;
+  outcome?: string;
+  result: string;
+  submittedBy?: string;
+  values?: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
-export interface ReviewForm {
-  code: string;
-  name: string;
-  purpose?: string;
-  eventTypes: string[];
-  summary?: string;
-  facts?: Array<{ fact: string; label: string }>;
-  fields?: ReviewFormField[];
-  outcomes: ReviewFormOutcome[];
-  recommendation?: { rules: Array<{ when?: string; outcome: string; reason?: string }> };
-  bulk?: boolean;
-  isActive?: boolean;
-  source: "shipped" | "tenant";
-  version: number;
-  hasShipped?: boolean;
+export interface FormAuditRow {
+  at: string;
+  action: string;
+  actor: { kind: string; ref?: string; principalId?: string };
+  from?: string | null;
+  to?: string | null;
+  detail?: { version?: number; [k: string]: unknown };
+  [key: string]: unknown;
 }
-
-export interface ReviewFormListItem {
-  code: string;
-  name: string;
-  purpose?: string;
-  eventTypes: string[];
-  outcomes: string[];
-  bulk: boolean;
-  version: number;
-  source: "shipped" | "tenant";
-  isActive: boolean;
-}
-
-// ---------- Mapping ----------
-
-/** Event types the form applies to; falls back to its subject kinds ("*" = any). */
-const appliesTo = (f: ApiReviewForm): string[] => {
-  const types = f.appliesTo?.eventTypeCodes ?? [];
-  if (types.length) return types;
-  const kinds = f.appliesTo?.subjectKinds ?? [];
-  return kinds.length ? kinds : ["*"];
-};
-
-const outcomeLabel = (o: ApiFormOutcome) => o.label || o.id;
-
-function toListItem(f: ApiReviewForm): ReviewFormListItem {
-  return {
-    code: f.code,
-    name: f.title,
-    purpose: f.intent,
-    eventTypes: appliesTo(f),
-    outcomes: (f.outcomes ?? []).map(outcomeLabel),
-    bulk: (f.tags ?? []).some((t) => /bulk/i.test(t)),
-    version: f.version,
-    source: f.system ? "shipped" : "tenant",
-    isActive: f.state === "ACTIVE",
-  };
-}
-
-function toForm(f: ApiReviewForm): ReviewForm {
-  return {
-    code: f.code,
-    name: f.title,
-    purpose: f.intent,
-    eventTypes: appliesTo(f),
-    fields: (f.fields ?? []).map((fd) => ({
-      key: fd.name,
-      label: fd.label || fd.name,
-      type: fd.type,
-      options: fd.options?.source
-        ? { fact: fd.options.source }
-        : fd.validate?.enum ? { values: fd.validate.enum.map(String) } : undefined,
-      default: fd.prefill,
-      showFor: fd.visibleWhen ? [fd.visibleWhen] : undefined,
-    })),
-    outcomes: (f.outcomes ?? []).map((o) => {
-      const actions = o.actions ?? [];
-      return {
-        code: o.id,
-        label: outcomeLabel(o),
-        decision: o.decision?.type ?? "—",
-        action: actions.length ? { type: actions.map((a) => a.action).join(", "), when: o.when } : undefined,
-        justification: o.decision?.justification ? `from ${o.decision.justification}` : undefined,
-        then: o.then || "CLOSE",
-      };
-    }),
-    isActive: f.state === "ACTIVE",
-    source: f.system ? "shipped" : "tenant",
-    version: f.version,
-  };
-}
-
-// ---------- API ----------
 
 /** React Query key shared by the list and the form page, so opening a form reuses the list response. */
 export const REVIEW_FORMS_KEY = ["continuouscompliance", "review-forms"] as const;
 
+const formPath = (code: string) => `/compliance/review-forms/${encodeURIComponent(code)}`;
+const list = <T,>(v: T[] | unknown): T[] => (Array.isArray(v) ? v : []);
+
 export const ReviewForms = {
   /** GET /compliance/review-forms — every form in full (fields and outcomes included). */
-  fetchAll: async (): Promise<ApiReviewForm[]> => {
-    const forms = await ccRequest<ApiReviewForm[]>("GET", "/compliance/review-forms");
-    return Array.isArray(forms) ? forms : [];
-  },
-  /** List rows for the Review Forms table. */
-  toListItems: (forms: ApiReviewForm[]): ReviewFormListItem[] => forms.map(toListItem),
-  /**
-   * One form, taken from the list response (no GET /compliance/review-forms/{code}):
-   * the requested version, else the ACTIVE one, else the newest.
-   */
-  pick: (forms: ApiReviewForm[], code: string, version?: number): ReviewForm | undefined => {
+  fetchAll: async (): Promise<ApiReviewForm[]> => list(await ccRequest<ApiReviewForm[]>("GET", "/compliance/review-forms")),
+  /** One form from the library response: the requested version, else the ACTIVE one, else the newest. */
+  pick: (forms: ApiReviewForm[], code: string, version?: number): ApiReviewForm | undefined => {
     const same = forms.filter((f) => f.code === code);
-    const f = (version ? same.find((x) => x.version === version) : undefined)
+    return (version ? same.find((x) => x.version === version) : undefined)
       ?? same.find((x) => x.state === "ACTIVE")
       ?? [...same].sort((x, y) => y.version - x.version)[0];
-    return f ? toForm(f) : undefined;
   },
+  versions: async (code: string) => list<ApiReviewForm>(await ccRequest("GET", `${formPath(code)}/versions`)),
+  usage: (code: string) => ccRequest<FormUsage>("GET", `${formPath(code)}/usage`),
+  submissions: async (code: string) => list<FormSubmission>(await ccRequest("GET", `${formPath(code)}/submissions`)),
+  audit: async (code: string) => list<FormAuditRow>(await ccRequest("GET", `${formPath(code)}/audit`)),
+  clone: (code: string, body: { code: string; title?: string }) =>
+    ccRequest<ApiReviewForm>("POST", `${formPath(code)}/clone`, { body }),
+  newVersion: (code: string) => ccRequest<ApiReviewForm>("POST", `${formPath(code)}/versions`),
+  activate: (code: string, version?: number) =>
+    ccRequest<ApiReviewForm>("POST", `${formPath(code)}/activate`, { query: { version: version ? String(version) : undefined } }),
+  deprecate: (code: string, version?: number, force?: boolean) =>
+    ccRequest<ApiReviewForm>("POST", `${formPath(code)}/deprecate`, { query: { version: version ? String(version) : undefined, force: force ? "true" : undefined } }),
 };

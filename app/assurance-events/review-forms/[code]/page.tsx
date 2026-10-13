@@ -1,22 +1,43 @@
 "use client";
 
-// Review form — the "How it reads" section of the deployed Continuous
-// Assurance console's form page (graph.keyforge.ai/cc/studio/review-forms/:code),
-// in ISPM's design: purpose, summary template, facts shown, fields,
-// outcomes and the recommendation rules.
+// =====================================================================
+// Review form — the Continuous Compliance Console's form page
+// (graph.keyforge.ai/console#/forms/{code}?version=) on the same API, laid
+// out like ISPM's gateway pages. The form comes from the library response
+// (GET /compliance/review-forms). Tabs:
+//   Definition, Fields, Outcomes   (the form itself)
+//   Preview & Dry Run   POST /compliance/review-forms/{code}/render | /test
+//   Versions            GET  /compliance/review-forms/{code}/versions
+//   Where Used          GET  /compliance/review-forms/{code}/usage
+//   Submissions         GET  /compliance/review-forms/{code}/submissions
+//   Audit               GET  /compliance/review-forms/{code}/audit
+// Actions: Activate, New Version, Deprecate (tenant forms), Clone.
+// =====================================================================
 
-import { Suspense } from "react";
+import { Suspense, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import { useCcConnection } from "@/hooks/useCcConnection";
+import { ControlsApiError } from "@/lib/controls-api";
+import { CcEvents, type CcReviewFormTest, type CcReviewFormView } from "@/lib/cc-events-api";
 import {
-  DECISION_LABEL, REVIEW_FORMS_BASE, REVIEW_FORMS_KEY, ReviewForms, type ReviewForm,
+  REVIEW_FORMS_BASE, REVIEW_FORMS_KEY, ReviewForms, type ApiFormField, type ApiFormOutcome, type ApiReviewForm,
 } from "@/lib/assurance-review-forms";
 import {
-  BTN_LINK, CARD, CARD_HEADER, CARD_SUBTITLE, CARD_TITLE, PAGE, PAGE_INNER, PILL, PageHeader, PageSpinner, TBODY, TD,
-  TH, THEAD_ROW, cx,
+  BTN_DANGER, BTN_LINK, BTN_PRIMARY, BTN_SECONDARY, CARD, CARD_HEADER, CARD_SUBTITLE, CARD_TITLE, INPUT, LABEL, PAGE,
+  PAGE_INNER, PILL, PageHeader, PageSpinner, Spinner, TBODY, TD, TH, THEAD_ROW, TR_CLICKABLE, TabBar, cx,
 } from "@/components/assurance-events/ui";
+import { BannerBar, KeyValueList, StateBadge, type Banner } from "@/components/assurance-events/definition-editor/fields";
+import { ReviewFormFields, type FormValues } from "@/components/assurance-events/ReviewFormFields";
+
+type Tab = "definition" | "fields" | "outcomes" | "preview" | "versions" | "usage" | "submissions" | "audit";
+
+const formHref = (code: string, version: number) =>
+  `${REVIEW_FORMS_BASE}/${encodeURIComponent(code)}?version=${version}`;
+const fmt = (t?: string | null) =>
+  t ? new Date(t).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—";
 
 export default function Page() {
   return (
@@ -27,25 +48,71 @@ export default function Page() {
 }
 
 function ReviewFormPage() {
-  const { code = "" } = useParams<{ code: string }>();
+  const router = useRouter();
+  const qc = useQueryClient();
+  const { openSidebar } = useRightSidebar();
+  const { code: rawCode = "" } = useParams<{ code: string }>();
+  const code = decodeURIComponent(rawCode);
   const version = Number(useSearchParams().get("version")) || undefined;
-  // Same query as the list page: the form comes from GET /compliance/review-forms.
   const connection = useCcConnection();
   const q = useQuery({ queryKey: REVIEW_FORMS_KEY, queryFn: ReviewForms.fetchAll });
   const error = connection.error ?? q.error;
-  const form = q.data ? ReviewForms.pick(q.data, decodeURIComponent(code), version) : undefined;
+  const form = q.data ? ReviewForms.pick(q.data, code, version) : undefined;
+  const [tab, setTab] = useState<Tab>("definition");
+  const [banner, setBanner] = useState<Banner>(null);
+  const [busy, setBusy] = useState(false);
+
+  /** Runs a lifecycle action, then reloads the library and opens the resulting version. */
+  const act = async (label: string, action: () => Promise<ApiReviewForm>) => {
+    setBusy(true);
+    setBanner(null);
+    try {
+      const r = await action();
+      await qc.invalidateQueries({ queryKey: REVIEW_FORMS_KEY });
+      setBanner({ tone: "ok", text: label });
+      if (r?.code && r?.version) router.push(formHref(r.code, r.version));
+    } catch (e) {
+      setBanner({ tone: "err", text: (e as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Deprecate: a 409 means definitions still name the form — ask before forcing.
+  const deprecateWithForce = async (f: ApiReviewForm) => {
+    setBusy(true);
+    setBanner(null);
+    try {
+      await ReviewForms.deprecate(f.code, f.version, false);
+      await qc.invalidateQueries({ queryKey: REVIEW_FORMS_KEY });
+      setBanner({ tone: "ok", text: "Deprecated" });
+    } catch (e) {
+      if (e instanceof ControlsApiError && e.status === 409 &&
+          confirm(`${e.message}\n\nDeprecate anyway? Events already routed keep this version; definitions naming it fall back to the shipped form on the next routing.`)) {
+        await act("Deprecated (forced)", () => ReviewForms.deprecate(f.code, f.version, true));
+        return;
+      }
+      setBanner({ tone: "err", text: (e as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openClone = (f: ApiReviewForm) =>
+    openSidebar(
+      <CloneForm src={f} onDone={(c) => { setTab("definition"); router.push(formHref(c.code, c.version)); }} />,
+      { title: `Clone ${f.code} v${f.version}`, widthPx: 480 },
+    );
 
   return (
     <div className={PAGE}>
       <div className={PAGE_INNER}>
         <Link href={REVIEW_FORMS_BASE} className={cx(BTN_LINK, "inline-block mb-3")}>← Review forms</Link>
         {q.isLoading && <PageSpinner />}
-        {error && (
-          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{(error as Error).message}</div>
-        )}
+        {error && <ErrorLine error={error} />}
         {q.data && !form && (
           <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-            Review form {decodeURIComponent(code)} was not found in the review form library.
+            Review form {code} was not found in the review form library.
           </div>
         )}
         {form && (
@@ -53,18 +120,63 @@ function ReviewFormPage() {
             <PageHeader
               title={
                 <>
-                  {form.name}
-                  {form.isActive === false && <span className={cx(PILL, "bg-gray-100 text-gray-600")}>Inactive</span>}
+                  {form.title}
+                  <StateBadge value={form.state} />
+                  <span className={cx(PILL, form.system ? "bg-gray-100 text-gray-600" : "bg-blue-100 text-blue-700")}>
+                    {form.system ? "System" : "Tenant"}
+                  </span>
                 </>
               }
               subtitle={
                 <>
-                  <span className="font-mono">{form.code}</span> ·{" "}
-                  {form.source === "tenant" ? `your version ${form.version}` : `shipped version ${form.version}`}
+                  <span className="font-mono">{form.code}</span> · v{form.version} ·{" "}
+                  {(form.appliesTo?.subjectKinds?.length ? form.appliesTo.subjectKinds : ["*"]).join(", ")} · {form.submitAuthority ?? "—"}
+                </>
+              }
+              actions={
+                <>
+                  {!form.system && form.state === "DRAFT" && (
+                    <button className={BTN_PRIMARY} disabled={busy}
+                            onClick={() => act("Activated", () => ReviewForms.activate(form.code, form.version))}>Activate</button>
+                  )}
+                  {!form.system && form.state !== "DRAFT" && (
+                    <button className={BTN_SECONDARY} disabled={busy}
+                            onClick={() => act("New version cut (DRAFT)", () => ReviewForms.newVersion(form.code))}>New Version</button>
+                  )}
+                  {!form.system && form.state === "ACTIVE" && (
+                    <button className={BTN_DANGER} disabled={busy} onClick={() => deprecateWithForce(form)}>Deprecate</button>
+                  )}
+                  <button className={BTN_SECONDARY} disabled={busy} onClick={() => openClone(form)}>Clone</button>
                 </>
               }
             />
-            <HowItReads form={form} />
+
+            {banner && <div className="mb-4"><BannerBar banner={banner} onClose={() => setBanner(null)} /></div>}
+
+            {form.system ? (
+              <Note>System form (shipped with the product): read-only. <b>Clone</b> it to change fields or outcomes; a tenant form created under the same code overrides it for this tenant once ACTIVE.</Note>
+            ) : form.state !== "DRAFT" ? (
+              <Note>{form.state} forms are immutable. Cut a new version to change it; activating it deprecates this one. Events already routed keep the version they were given.</Note>
+            ) : null}
+
+            <TabBar<Tab>
+              active={tab}
+              onChange={setTab}
+              tabs={[
+                ["definition", "Definition"], ["fields", `Fields (${form.fields.length})`],
+                ["outcomes", `Outcomes (${form.outcomes.length})`], ["preview", "Preview & Dry Run"],
+                ["versions", "Versions"], ["usage", "Where Used"], ["submissions", "Submissions"], ["audit", "Audit"],
+              ]}
+            />
+
+            {tab === "definition" && <DefinitionTab f={form} />}
+            {tab === "fields" && <FieldsTab fields={form.fields} />}
+            {tab === "outcomes" && <OutcomesTab outcomes={form.outcomes} />}
+            {tab === "preview" && <PreviewTab key={`${form.code}@${form.version}`} f={form} />}
+            {tab === "versions" && <VersionsTab code={form.code} onOpen={(v) => router.push(formHref(v.code, v.version))} />}
+            {tab === "usage" && <UsageTab code={form.code} />}
+            {tab === "submissions" && <SubmissionsTab code={form.code} />}
+            {tab === "audit" && <AuditTab code={form.code} />}
           </>
         )}
       </div>
@@ -72,143 +184,523 @@ function ReviewFormPage() {
   );
 }
 
-const SectionLabel = ({ children }: { children: React.ReactNode }) => (
-  <h3 className="text-sm font-semibold text-gray-900 mb-2">{children}</h3>
-);
+/* ---------------------------------------------------------------- building blocks */
 
-function HowItReads({ form }: { form: ReviewForm }) {
-  const outcomes = form.outcomes ?? [];
-  const fields = form.fields ?? [];
-  const rules = form.recommendation?.rules ?? [];
-
+function Card({ title, subtitle, right, children, flush }: {
+  title: ReactNode; subtitle?: ReactNode; right?: ReactNode; children: ReactNode; flush?: boolean;
+}) {
   return (
-    <div className={CARD}>
+    <div className={cx(CARD, "overflow-hidden")}>
       <div className={CARD_HEADER}>
         <div>
-          <div className={CARD_TITLE}>How It Reads</div>
-          <div className={CARD_SUBTITLE}>What a reviewer sees and can decide for a finding of these event types.</div>
+          <div className={CARD_TITLE}>{title}</div>
+          {subtitle && <div className={CARD_SUBTITLE}>{subtitle}</div>}
         </div>
-        <div className="flex flex-wrap gap-1 justify-end">
-          {(form.eventTypes ?? []).length === 0 ? (
-            <span className="text-xs text-gray-500">no event types</span>
-          ) : form.eventTypes.map((t) => (
-            <span key={t} className="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs font-mono text-gray-700">
-              {t === "*" ? "any (default)" : t}
-            </span>
-          ))}
-        </div>
+        {right}
       </div>
+      <div className={flush ? "" : "p-5"}>{children}</div>
+    </div>
+  );
+}
 
-      <div className="p-5 space-y-6 text-sm">
-        {form.purpose && <p className="text-gray-700 leading-relaxed">{form.purpose}</p>}
+const Note = ({ children }: { children: ReactNode }) => (
+  <div className="mb-4 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">{children}</div>
+);
+const ErrorLine = ({ error }: { error: unknown }) => (
+  <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{(error as Error).message}</div>
+);
+const Empty = ({ children }: { children: ReactNode }) => (
+  <div className="px-4 py-8 text-center text-sm text-gray-500">{children}</div>
+);
+const Mono = ({ children }: { children: ReactNode }) => <span className="font-mono text-xs">{children}</span>;
+const Dash = () => <span className="text-gray-400">—</span>;
 
-        {form.summary && (
+/** A scalar or object as text (objects as compact JSON). */
+function show(v: unknown): ReactNode {
+  if (v === null || v === undefined || v === "") return <Dash />;
+  if (typeof v === "boolean") return v ? "Yes" : "No";
+  if (typeof v === "object") return <Mono>{JSON.stringify(v)}</Mono>;
+  return String(v);
+}
+
+/** Loading / error wrapper for a tab's query. */
+function Loaded<T>({ q, children }: { q: { isLoading: boolean; error: unknown; data?: T }; children: (d: T) => ReactNode }) {
+  if (q.isLoading) return <PageSpinner />;
+  if (q.error) return <ErrorLine error={q.error} />;
+  return q.data === undefined ? null : <>{children(q.data)}</>;
+}
+
+/* ---------------------------------------------------------------- Definition */
+
+function DefinitionTab({ f }: { f: ApiReviewForm }) {
+  return (
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <Card title="Identity">
+        <KeyValueList rows={[
+          ["Code", <Mono key="c">{f.code}</Mono>],
+          ["Title", f.title],
+          ["Intent", f.intent || <Dash key="i" />],
+          ["Submit authority", f.submitAuthority ?? <Dash key="s" />],
+          ["Tags", f.tags?.length ? f.tags.join(", ") : <Dash key="t" />],
+          ["Form ID", <Mono key="id">{f.formId}</Mono>],
+          ["Activated", fmt(f.activatedAt)],
+          ["Deprecated", fmt(f.deprecatedAt)],
+        ]} />
+      </Card>
+      <Card title="Applies To" subtitle="Which events may be routed to this form">
+        <div className="space-y-4 text-sm">
           <div>
-            <SectionLabel>Summary</SectionLabel>
-            <div className="font-mono text-xs bg-gray-50 border border-gray-200 rounded-md p-3 text-gray-800">{form.summary}</div>
-          </div>
-        )}
-
-        {(form.facts ?? []).length > 0 && (
-          <div>
-            <SectionLabel>Facts Shown</SectionLabel>
-            <div className="flex flex-wrap gap-2">
-              {form.facts!.map((f) => (
-                <span key={f.fact} title={f.fact}
-                      className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs text-gray-700">
-                  {f.label}
-                </span>
+            <div className={LABEL}>Subject kinds</div>
+            <div className="flex flex-wrap gap-1.5">
+              {(f.appliesTo?.subjectKinds?.length ? f.appliesTo.subjectKinds : ["*"]).map((k) => (
+                <span key={k} className={cx(PILL, "bg-gray-100 text-gray-700 font-mono")}>{k === "*" ? "any" : k}</span>
               ))}
             </div>
           </div>
-        )}
-
-        {fields.length > 0 && (
           <div>
-            <SectionLabel>Fields</SectionLabel>
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
-              <table className="w-full">
-                <thead>
-                  <tr className={THEAD_ROW}>
-                    <th className={TH}>Field</th>
-                    <th className={TH}>Choices</th>
-                    <th className={TH}>Pre-filled</th>
-                    <th className={TH}>Shown For</th>
-                  </tr>
-                </thead>
-                <tbody className={TBODY}>
-                  {fields.map((f) => (
-                    <tr key={f.key}>
-                      <td className={TD}>
-                        <div className="font-semibold text-gray-900">{f.label}</div>
-                        <div className="text-xs text-gray-500 mt-0.5 font-mono">{f.key} · {f.type}</div>
-                      </td>
-                      <td className={TD}>
-                        {f.options?.fact
-                          ? <>choices from <span className="font-mono">{f.options.fact}</span></>
-                          : f.options?.values ? `${f.options.values.length} choices` : "—"}
-                      </td>
-                      <td className={TD}>
-                        {f.recommend?.recommender
-                          ? <>recommended by <span className="font-mono">{f.recommend.recommender}</span></>
-                          : f.default !== undefined ? <>default <span className="font-mono">{String(f.default)}</span></> : "—"}
-                      </td>
-                      <td className={TD}>{(f.showFor ?? []).length ? f.showFor!.join(", ") : "All outcomes"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        <div>
-          <SectionLabel>Outcomes</SectionLabel>
-          <div className="space-y-3">
-            {outcomes.map((o) => (
-              <div key={o.code} className="rounded-lg border border-gray-200 bg-white p-4">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-semibold text-gray-900">{o.label}</span>
-                  <span className={cx(PILL, "bg-gray-100 text-gray-700")}>{DECISION_LABEL[o.decision] ?? o.decision}</span>
-                  {o.primary && <span className={cx(PILL, "bg-blue-100 text-blue-700")}>Primary</span>}
-                  <span className="font-mono text-xs text-gray-400">{o.code}</span>
-                </div>
-                <div className="text-xs text-gray-600 mt-2 space-y-1">
-                  {(o.fields ?? []).length > 0 && <div>Needs: {o.fields!.join(", ")}</div>}
-                  {o.action && (
-                    <div>
-                      Action: <span className="font-mono">{o.action.type}</span>
-                      {o.action.when && <> when <span className="font-mono">{o.action.when}</span></>}
-                      {" "}— applied by its executor, else a change request
-                    </div>
-                  )}
-                  {o.change && <div>Change request: <span className="font-mono">{o.change}</span></div>}
-                  {o.workflow && <div>Workflow: <span className="font-mono">{o.workflow}</span></div>}
-                  <div>
-                    Justification {o.justification ?? "optional"}
-                    {o.expiry && o.expiry !== "none" ? ` · end date ${o.expiry}` : ""}
-                    {o.then ? ` · then ${o.then}` : ""}
-                  </div>
-                </div>
+            <div className={LABEL}>Event type codes</div>
+            {f.appliesTo?.eventTypeCodes?.length ? (
+              <div className="flex flex-wrap gap-1.5">
+                {f.appliesTo.eventTypeCodes.map((k) => <span key={k} className={cx(PILL, "bg-gray-100 text-gray-700 font-mono")}>{k}</span>)}
               </div>
-            ))}
+            ) : <span className="text-gray-500">Any</span>}
           </div>
+          <p className="text-xs text-gray-500">
+            Routing skips a form that does not apply and falls back to the definition default, then to the shipped form.
+          </p>
         </div>
+      </Card>
+    </div>
+  );
+}
 
-        {rules.length > 0 && (
-          <div>
-            <SectionLabel>Recommendation (first rule that holds)</SectionLabel>
-            <ol className="list-decimal ml-5 space-y-2">
-              {rules.map((r, i) => (
-                <li key={i} className="text-gray-700">
-                  <span className="font-mono text-xs">{r.when ?? "otherwise"}</span> →{" "}
-                  <span className="font-semibold text-gray-900">{outcomes.find((o) => o.code === r.outcome)?.label ?? r.outcome}</span>
-                  {r.reason && <div className="text-xs text-gray-500 mt-0.5">{r.reason}</div>}
-                </li>
-              ))}
-            </ol>
+/* ---------------------------------------------------------------- Fields */
+
+function FieldsTab({ fields }: { fields: ApiFormField[] }) {
+  const [sel, setSel] = useState(0);
+  const f = fields[sel];
+  return (
+    <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-6">
+      <Card title="Fields" subtitle="What the reviewer is asked, in order. Outcomes read the values as form.<name>." flush>
+        <table className="w-full">
+          <thead>
+            <tr className={THEAD_ROW}>
+              <th className={TH}>#</th><th className={TH}>Name</th><th className={TH}>Type</th><th className={TH}>Required</th>
+              <th className={TH}>Options</th><th className={TH}>Visible When</th>
+            </tr>
+          </thead>
+          <tbody className={TBODY}>
+            {fields.map((x, i) => (
+              <tr key={i} className={cx(TR_CLICKABLE, i === sel && "bg-blue-50")} onClick={() => setSel(i)}>
+                <td className={TD}>{i + 1}</td>
+                <td className={TD}>
+                  <div className="font-mono text-xs font-semibold text-gray-900">{x.name}</div>
+                  <div className="text-xs text-gray-500">{x.label}</div>
+                </td>
+                <td className={cx(TD, "text-xs")}>{x.type}</td>
+                <td className={TD}>{x.required ? "✓" : ""}</td>
+                <td className={cx(TD, "text-xs font-mono")}>{x.options?.source || (x.validate?.enum ? "enum" : "—")}</td>
+                <td className={cx(TD, "text-xs font-mono [overflow-wrap:anywhere]")}>{x.visibleWhen || "—"}</td>
+              </tr>
+            ))}
+            {!fields.length && <tr><td colSpan={6}><Empty>No fields.</Empty></td></tr>}
+          </tbody>
+        </table>
+      </Card>
+      <Card title={f ? `Field '${f.name}'` : "Field"}>
+        {f ? (
+          <KeyValueList rows={[
+            ["Name", <Mono key="n">{f.name}</Mono>],
+            ["Label", show(f.label)],
+            ["Type", show(f.type)],
+            ["Required", f.required ? "Yes" : "No"],
+            ["Help", show(f.help)],
+            ["Sensitive", f.sensitive ? "Yes" : "No"],
+            ["Prefill", f.prefill ? <Mono key="p">{f.prefill}</Mono> : <Dash key="p" />],
+            ["Visible when", f.visibleWhen ? <Mono key="v">{f.visibleWhen}</Mono> : <Dash key="v" />],
+            ["Options", show(f.options)],
+            ["Validate", show(f.validate)],
+          ]} />
+        ) : <span className="text-sm text-gray-500">Select a field.</span>}
+      </Card>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- Outcomes */
+
+function OutcomesTab({ outcomes }: { outcomes: ApiFormOutcome[] }) {
+  const [sel, setSel] = useState(0);
+  const o = outcomes[sel];
+  return (
+    <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-6">
+      <Card title="Outcomes" subtitle="What a submission does: the first outcome whose 'when' holds." flush>
+        <table className="w-full">
+          <thead>
+            <tr className={THEAD_ROW}>
+              <th className={TH}>#</th><th className={TH}>ID</th><th className={TH}>When</th><th className={TH}>Actions</th>
+              <th className={TH}>Decision</th><th className={TH}>Then</th>
+            </tr>
+          </thead>
+          <tbody className={TBODY}>
+            {outcomes.map((x, i) => (
+              <tr key={i} className={cx(TR_CLICKABLE, i === sel && "bg-blue-50")} onClick={() => setSel(i)}>
+                <td className={TD}>{i + 1}</td>
+                <td className={cx(TD, "font-semibold text-gray-900")}>{x.id}</td>
+                <td className={cx(TD, "text-xs font-mono [overflow-wrap:anywhere]")}>{x.when || "(always)"}</td>
+                <td className={cx(TD, "text-xs font-mono")}>{(x.actions ?? []).map((a) => a.action).join(", ") || "—"}</td>
+                <td className={cx(TD, "text-xs")}>{x.decision?.type || "—"}</td>
+                <td className={cx(TD, "text-xs")}>{x.then || "CLOSE"}</td>
+              </tr>
+            ))}
+            {!outcomes.length && <tr><td colSpan={6}><Empty>No outcomes.</Empty></td></tr>}
+          </tbody>
+        </table>
+        <p className="px-5 py-3 text-xs text-gray-500 border-t border-gray-100">
+          Actions run in order through the executor path (MANUAL, the reviewer&apos;s principal); a REMEDIATE decision closes after
+          the actions. Then: CLOSE, STAY_IN_REVIEW, REOPEN_WITH_DUE or SUPPRESS_UNTIL (thenArgs.until).
+        </p>
+      </Card>
+      <Card title={o ? `Outcome '${o.id}'` : "Outcome"}>
+        {o ? (
+          <div className="space-y-5">
+            <KeyValueList rows={[
+              ["ID", o.id],
+              ["When", o.when ? <Mono key="w">{o.when}</Mono> : "(always)"],
+              ["Then", o.then || "CLOSE"],
+              ...(o.thenArgs?.until ? [["Until", <Mono key="u">{o.thenArgs.until}</Mono>] as [string, ReactNode]] : []),
+              ["Decision", o.decision?.type || <Dash key="d" />],
+              ["Justification", o.decision?.justification ? <Mono key="j">{o.decision.justification}</Mono> : <Dash key="j" />],
+              ["Evidence refs", o.evidenceRefs?.length ? o.evidenceRefs.join(", ") : <Dash key="e" />],
+            ]} />
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 mb-2">Actions</h3>
+              {(o.actions ?? []).length ? (
+                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <table className="w-full">
+                    <thead><tr className={THEAD_ROW}><th className={TH}>Action</th><th className={TH}>Mode</th><th className={TH}>Executor</th><th className={TH}>Params</th></tr></thead>
+                    <tbody className={TBODY}>
+                      {o.actions!.map((a, i) => (
+                        <tr key={i}>
+                          <td className={cx(TD, "text-xs font-mono")}>{a.action}</td>
+                          <td className={cx(TD, "text-xs")}>{a.mode ?? "—"}</td>
+                          <td className={cx(TD, "text-xs")}>{a.executor ?? "—"}</td>
+                          <td className={cx(TD, "text-xs [overflow-wrap:anywhere]")}>{show(a.params)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : <span className="text-sm text-gray-500">No actions.</span>}
+            </div>
           </div>
+        ) : <span className="text-sm text-gray-500">Select an outcome.</span>}
+      </Card>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- Preview & dry run */
+
+const initialValues = (v: CcReviewFormView): FormValues =>
+  Object.fromEntries(v.fields.filter((f) => f.value !== null && f.value !== undefined).map((f) => [f.name, f.value]));
+
+function PreviewTab({ f }: { f: ApiReviewForm }) {
+  const [eventId, setEventId] = useState("");
+  const [view, setView] = useState<CcReviewFormView | null>(null);
+  const [values, setValues] = useState<FormValues>({});
+  const [test, setTest] = useState<CcReviewFormTest | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const render = async () => {
+    setBusy(true); setError(null); setTest(null);
+    try {
+      const r = await CcEvents.renderReviewForm(f.code, eventId.trim(), f.version, {});
+      setView(r); setValues(initialValues(r));
+    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  };
+
+  // Conditional fields: re-render (visibility) shortly after a change, keeping the typed values.
+  const change = (next: FormValues) => {
+    setValues(next);
+    if (!view?.fields.some((x) => x.conditional)) return;
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      CcEvents.renderReviewForm(f.code, eventId.trim(), f.version, next)
+        .then((r) => setView({ ...r, fields: r.fields.map((x) => ({ ...x, value: next[x.name] ?? x.value })) }))
+        .catch(() => { /* keep the current view */ });
+    }, 400);
+  };
+
+  const dryRun = async () => {
+    setBusy(true); setError(null);
+    try { setTest(await CcEvents.testReviewForm(f.code, eventId.trim(), values, f.version)); }
+    catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  };
+
+  const plan = (test?.plan ?? {}) as { resultingStatus?: string; then?: string };
+
+  return (
+    <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-6">
+      <Card title="Preview" subtitle={`This version (v${f.version}) rendered for a real event. Nothing is changed.`}>
+        <div className="space-y-5">
+          <div>
+            <label className={LABEL}>Event ID (any event of a matching subject kind)</label>
+            <div className="flex gap-2">
+              <input className={cx(INPUT, "font-mono")} value={eventId} placeholder="Paste an event ID from All Events"
+                     onChange={(e) => setEventId(e.target.value)} />
+              <button className={BTN_PRIMARY} disabled={!eventId.trim() || busy} onClick={render}>
+                {busy && !view && <Spinner size={14} className="text-white" />} Render
+              </button>
+            </div>
+          </div>
+          {error && <ErrorLine error={new Error(error)} />}
+          {view && (
+            <>
+              <p className="text-sm text-gray-600">
+                <span className="font-semibold text-gray-900">{view.title}</span>
+                {view.intent ? ` — ${view.intent}` : ""} · event {view.eventStatus} · {view.submittable ? "submittable" : "read-only"}
+              </p>
+              <ReviewFormFields fields={view.fields} values={values} onChange={change} readOnly={false} />
+              <div className="flex flex-wrap items-center gap-2">
+                <button className={BTN_SECONDARY} disabled={busy} onClick={dryRun}>Dry Run</button>
+                <span className="text-xs text-gray-500">Validates the values, picks the outcome and shows the resolved plan; nothing executes.</span>
+              </div>
+            </>
+          )}
+        </div>
+      </Card>
+      <Card title="Resolved Plan">
+        {test ? (
+          <div className="space-y-4">
+            <KeyValueList rows={[
+              ["Valid", <span key="v" className={test.valid ? "text-green-700" : "text-red-600"}>{String(test.valid)}</span>],
+              ["Outcome", test.outcome || <Dash key="o" />],
+              ["Resulting status", plan.resultingStatus || <Dash key="r" />],
+              ["Then", plan.then || <Dash key="t" />],
+            ]} />
+            {test.diagnostics.length > 0 && (
+              <ul className="list-disc ml-5 text-sm text-red-600 space-y-1">
+                {test.diagnostics.map((x, i) => <li key={i}>{x}</li>)}
+              </ul>
+            )}
+            {test.plan != null && (
+              <pre className="text-xs font-mono bg-gray-50 border border-gray-200 rounded-md p-3 overflow-auto max-h-96 text-gray-800">
+                {JSON.stringify(test.plan, null, 2)}
+              </pre>
+            )}
+          </div>
+        ) : <span className="text-sm text-gray-500">Render the form for an event, fill it in, then run a dry run.</span>}
+      </Card>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- Versions / usage / submissions / audit */
+
+function VersionsTab({ code, onOpen }: { code: string; onOpen: (f: ApiReviewForm) => void }) {
+  const q = useQuery({ queryKey: [...REVIEW_FORMS_KEY, code, "versions"], queryFn: () => ReviewForms.versions(code) });
+  return (
+    <Card title="Versions" subtitle="Tenant rows first, then the system library. Click a version to open it." flush>
+      <Loaded q={q}>{(rows) => (
+        <table className="w-full">
+          <thead>
+            <tr className={THEAD_ROW}>
+              <th className={TH}>Version</th><th className={TH}>State</th><th className={TH}>Owner</th><th className={TH}>Title</th>
+              <th className={TH}>Fields</th><th className={TH}>Outcomes</th><th className={TH}>Activated</th><th className={TH}>Deprecated</th>
+            </tr>
+          </thead>
+          <tbody className={TBODY}>
+            {rows.map((v) => (
+              <tr key={v.formId} className={TR_CLICKABLE} onClick={() => onOpen(v)}>
+                <td className={cx(TD, "font-semibold text-gray-900")}>v{v.version}</td>
+                <td className={TD}><StateBadge value={v.state} /></td>
+                <td className={cx(TD, "text-xs")}>{v.system ? "System" : "Tenant"}</td>
+                <td className={TD}>{v.title}</td>
+                <td className={cx(TD, "text-xs font-mono [overflow-wrap:anywhere]")}>{v.fields.map((x) => x.name).join(", ")}</td>
+                <td className={cx(TD, "text-xs font-mono")}>{v.outcomes.map((x) => x.id).join(", ")}</td>
+                <td className={cx(TD, "text-xs")}>{fmt(v.activatedAt)}</td>
+                <td className={cx(TD, "text-xs")}>{fmt(v.deprecatedAt)}</td>
+              </tr>
+            ))}
+            {!rows.length && <tr><td colSpan={8}><Empty>No versions.</Empty></td></tr>}
+          </tbody>
+        </table>
+      )}</Loaded>
+    </Card>
+  );
+}
+
+function UsageTab({ code }: { code: string }) {
+  const q = useQuery({ queryKey: [...REVIEW_FORMS_KEY, code, "usage"], queryFn: () => ReviewForms.usage(code) });
+  return (
+    <Loaded q={q}>{(u) => (
+      <div className="space-y-6">
+        <Card
+          title="Definitions"
+          subtitle={<>Latest ACTIVE version: <b>{u.latestActiveVersion ?? "—"}</b>. Definitions name a form as their default or in a REVIEWER rule; events pin the version they were routed with.</>}
+          flush
+        >
+          <table className="w-full">
+            <thead>
+              <tr className={THEAD_ROW}>
+                <th className={TH}>Definition</th><th className={TH}>Version</th><th className={TH}>State</th>
+                <th className={TH}>As Default</th><th className={TH}>Rules</th>
+              </tr>
+            </thead>
+            <tbody className={TBODY}>
+              {(u.definitions ?? []).map((d) => (
+                <tr key={d.definitionId}>
+                  <td className={TD}>
+                    <Link href={`/assurance-events/event-definitions/${d.definitionId}`} className={BTN_LINK}>{d.code}</Link>
+                  </td>
+                  <td className={TD}>v{d.version}</td>
+                  <td className={TD}><StateBadge value={d.state} /></td>
+                  <td className={TD}>{d.asDefault ? "✓" : ""}</td>
+                  <td className={cx(TD, "text-xs font-mono")}>{(d.rules ?? []).join(", ") || "—"}</td>
+                </tr>
+              ))}
+              {!(u.definitions ?? []).length && <tr><td colSpan={5}><Empty>Not named by any definition.</Empty></td></tr>}
+            </tbody>
+          </table>
+        </Card>
+        {u.byVersion != null && (
+          <Card title="By Version">
+            {Array.isArray(u.byVersion) || typeof u.byVersion !== "object" ? show(u.byVersion) : (
+              <KeyValueList rows={Object.entries(u.byVersion as Record<string, unknown>).map(([k, v]) => [k, show(v)] as [string, ReactNode])} />
+            )}
+          </Card>
         )}
+      </div>
+    )}</Loaded>
+  );
+}
+
+const RESULT_STYLE: Record<string, string> = {
+  APPLIED: "bg-green-100 text-green-700",
+  FAILED: "bg-red-100 text-red-700",
+};
+
+function SubmissionsTab({ code }: { code: string }) {
+  const q = useQuery({ queryKey: [...REVIEW_FORMS_KEY, code, "submissions"], queryFn: () => ReviewForms.submissions(code) });
+  return (
+    <Card title={`Submissions (${q.data?.length ?? 0})`} flush>
+      <Loaded q={q}>{(rows) => (
+        <table className="w-full">
+          <thead>
+            <tr className={THEAD_ROW}>
+              <th className={TH}>When</th><th className={TH}>Event</th><th className={TH}>Version</th><th className={TH}>Outcome</th>
+              <th className={TH}>Result</th><th className={TH}>By</th><th className={TH}>Values</th>
+            </tr>
+          </thead>
+          <tbody className={TBODY}>
+            {rows.map((s) => (
+              <tr key={s.submissionId}>
+                <td className={cx(TD, "text-xs whitespace-nowrap")}>{fmt(s.submittedAt)}</td>
+                <td className={TD}>
+                  <Link href={`/assurance-events/all-events/${s.eventId}?tab=form`} className={cx(BTN_LINK, "font-mono text-xs")}>
+                    {String(s.eventId).slice(0, 8)}…
+                  </Link>
+                </td>
+                <td className={TD}>v{s.formVersion}</td>
+                <td className={cx(TD, "font-semibold text-gray-900")}>{s.outcome ?? "—"}</td>
+                <td className={TD}>
+                  <span className={cx(PILL, RESULT_STYLE[s.result] ?? "bg-amber-100 text-amber-700")}>{s.result}</span>
+                </td>
+                <td className={cx(TD, "text-xs font-mono [overflow-wrap:anywhere]")}>{s.submittedBy ?? "—"}</td>
+                <td className={cx(TD, "text-xs [overflow-wrap:anywhere]")}>
+                  {s.values ? Object.entries(s.values).map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : String(v)}`).join(" · ") : "—"}
+                </td>
+              </tr>
+            ))}
+            {!rows.length && <tr><td colSpan={7}><Empty>No submissions yet.</Empty></td></tr>}
+          </tbody>
+        </table>
+      )}</Loaded>
+    </Card>
+  );
+}
+
+function AuditTab({ code }: { code: string }) {
+  const q = useQuery({ queryKey: [...REVIEW_FORMS_KEY, code, "audit"], queryFn: () => ReviewForms.audit(code) });
+  return (
+    <Card title={`History (${q.data?.length ?? 0})`} subtitle="Ledger rows for every version of this form." flush>
+      <Loaded q={q}>{(rows) => (
+        <table className="w-full">
+          <thead>
+            <tr className={THEAD_ROW}>
+              <th className={TH}>When</th><th className={TH}>Action</th><th className={TH}>Actor</th><th className={TH}>Version</th>
+              <th className={TH}>From → To</th><th className={TH}>Detail</th>
+            </tr>
+          </thead>
+          <tbody className={TBODY}>
+            {rows.map((a, i) => (
+              <tr key={i}>
+                <td className={cx(TD, "text-xs whitespace-nowrap")}>{fmt(a.at)}</td>
+                <td className={cx(TD, "font-semibold text-gray-900 text-xs")}>{a.action}</td>
+                <td className={TD}>
+                  <span className={cx(PILL, "bg-gray-100 text-gray-700")}>{a.actor?.kind}</span>
+                  <div className="text-xs font-mono text-gray-500 mt-0.5 [overflow-wrap:anywhere]">{a.actor?.ref || a.actor?.principalId || ""}</div>
+                </td>
+                <td className={TD}>v{a.detail?.version ?? "—"}</td>
+                <td className={cx(TD, "text-xs")}>{a.from ?? "∅"} → {a.to ?? "∅"}</td>
+                <td className={cx(TD, "text-xs [overflow-wrap:anywhere]")}>{show(a.detail)}</td>
+              </tr>
+            ))}
+            {!rows.length && <tr><td colSpan={6}><Empty>No history.</Empty></td></tr>}
+          </tbody>
+        </table>
+      )}</Loaded>
+    </Card>
+  );
+}
+
+/* ---------------------------------------------------------------- Clone */
+
+function CloneForm({ src, onDone }: { src: ApiReviewForm; onDone: (created: ApiReviewForm) => void }) {
+  const qc = useQueryClient();
+  const { closeSidebar } = useRightSidebar();
+  const [code, setCode] = useState(src.system ? `MY_${src.code}` : `${src.code}_COPY`);
+  const [title, setTitle] = useState(`${src.title} (copy)`);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const submit = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const created = await ReviewForms.clone(src.code, { code: code.trim(), title: title.trim() });
+      await qc.invalidateQueries({ queryKey: REVIEW_FORMS_KEY });
+      closeSidebar();
+      onDone(created);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-gray-500">
+        A tenant DRAFT copy under a new code: fields and outcomes are copied; preview, dry-run, then activate.
+      </p>
+      <div>
+        <label className={LABEL}>New Code (UPPER_SNAKE_CASE)</label>
+        <input className={cx(INPUT, "font-mono")} value={code} onChange={(e) => setCode(e.target.value)} />
+      </div>
+      <div>
+        <label className={LABEL}>Title</label>
+        <input className={INPUT} value={title} onChange={(e) => setTitle(e.target.value)} />
+      </div>
+      {err && <ErrorLine error={new Error(err)} />}
+      <div className="flex justify-end gap-2">
+        <button type="button" className={BTN_SECONDARY} onClick={closeSidebar}>Cancel</button>
+        <button type="button" className={BTN_PRIMARY} disabled={busy || !code.trim()} onClick={submit}>
+          {busy && <Spinner size={14} className="text-white" />} Clone
+        </button>
       </div>
     </div>
   );

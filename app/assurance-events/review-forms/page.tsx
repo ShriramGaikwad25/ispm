@@ -1,138 +1,206 @@
 "use client";
 
-// Review forms — the Forms tab of the deployed Continuous Assurance console
-// (graph.keyforge.ai/cc/studio/review-forms), laid out like ISPM's gateway
-// registry pages. Opening a form shows how it reads to a reviewer.
+// Review forms — the Continuous Compliance Console's review form library
+// (graph.keyforge.ai/console#/forms) on the same API, laid out like ISPM's
+// gateway registry pages. GET /compliance/review-forms; Clone posts
+// /compliance/review-forms/{code}/clone. Opening a form shows its page.
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { RefreshCw } from "lucide-react";
+import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import { useCcConnection } from "@/hooks/useCcConnection";
-import { REVIEW_FORMS_BASE, REVIEW_FORMS_KEY, ReviewForms } from "@/lib/assurance-review-forms";
+import { REVIEW_FORMS_BASE, REVIEW_FORMS_KEY, ReviewForms, type ApiReviewForm } from "@/lib/assurance-review-forms";
 import {
-  BTN_LINK, CARD, CARD_SUBTITLE, CARD_TITLE, PAGE, PAGE_INNER, PILL, PageHeader, Spinner, StatCard, TBODY, TD, TH,
-  THEAD_ROW, TR_CLICKABLE, cx,
+  BTN_LINK, BTN_PRIMARY, BTN_SECONDARY, CARD, CARD_SUBTITLE, CARD_TITLE, INPUT, LABEL, PAGE, PAGE_INNER, PILL, PageHeader,
+  Spinner, StatCard, TBODY, TD, TH, THEAD_ROW, TR_CLICKABLE, cx,
 } from "@/components/assurance-events/ui";
+import { StateBadge } from "@/components/assurance-events/definition-editor/fields";
 
 const FILTER_INPUT =
   "rounded-md border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
 
+const formHref = (code: string, version: number) =>
+  `${REVIEW_FORMS_BASE}/${encodeURIComponent(code)}?version=${version}`;
+
 export default function ReviewFormsPage() {
   const router = useRouter();
+  const { openSidebar } = useRightSidebar();
   // Connection check first, as the Continuous Compliance Console does on load.
   const connection = useCcConnection();
   const q = useQuery({ queryKey: REVIEW_FORMS_KEY, queryFn: ReviewForms.fetchAll });
   const error = connection.error ?? q.error;
-  const forms = useMemo(() => ReviewForms.toListItems(q.data ?? []), [q.data]);
+  const forms = useMemo(() => q.data ?? [], [q.data]);
   const [search, setSearch] = useState("");
 
   const stats = useMemo(() => ({
     total: forms.length,
-    eventTypes: new Set(forms.flatMap((f) => f.eventTypes).filter((t) => t !== "*")).size,
-    edited: forms.filter((f) => f.source === "tenant").length,
-    bulk: forms.filter((f) => f.bulk).length,
+    active: forms.filter((f) => f.state === "ACTIVE").length,
+    tenant: forms.filter((f) => !f.system).length,
+    drafts: forms.filter((f) => f.state === "DRAFT").length,
   }), [forms]);
 
   const rows = useMemo(() => {
     const needle = search.trim().toLowerCase();
     if (!needle) return forms;
     return forms.filter((f) =>
-      [f.code, f.name, f.purpose ?? "", ...f.eventTypes, ...f.outcomes].join(" ").toLowerCase().includes(needle));
+      [f.code, f.title, f.intent ?? "", ...(f.appliesTo?.subjectKinds ?? []), ...f.fields.map((x) => x.name),
+        ...f.outcomes.map((o) => o.id)].join(" ").toLowerCase().includes(needle));
   }, [forms, search]);
 
-  const href = (code: string, version: number) => `${REVIEW_FORMS_BASE}/${encodeURIComponent(code)}?version=${version}`;
-  const open = (code: string, version: number) => router.push(href(code, version));
+  const openClone = (f: ApiReviewForm) =>
+    openSidebar(<CloneForm src={f} onDone={(c) => router.push(formHref(c.code, c.version))} />,
+      { title: `Clone ${f.code} v${f.version}`, widthPx: 480 });
 
   return (
     <div className={PAGE}>
       <div className={PAGE_INNER}>
         <PageHeader
           title="Review Forms"
-          subtitle="How each kind of finding is resolved: the plain-language summary and facts a reviewer sees, the fields they fill in, the recommendation, and what each outcome does — apply a change through an executor, record a change request, record a decision or start a workflow."
+          subtitle="What a reviewer is asked when an event is routed to them, and what each answer does. A governance rule's then.reviewForm or the definition's default names a form by code; the ACTIVE version is pinned on the event when it is routed. System forms are read-only: clone one to change it."
         />
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <StatCard label="Forms" value={stats.total} hint="Shipped and edited" />
-          <StatCard label="Event Types Covered" value={stats.eventTypes} hint="With a form of their own" />
-          <StatCard label="Edited by You" value={stats.edited} hint="Tenant versions of a form" />
-          <StatCard label="Bulk Review" value={stats.bulk} hint="Decided for many findings at once" />
+          <StatCard label="Forms" value={stats.total} hint="In the library" />
+          <StatCard label="Active" value={stats.active} hint="Routable to events" />
+          <StatCard label="Tenant Forms" value={stats.tenant} hint="Cloned or created by you" />
+          <StatCard label="Drafts" value={stats.drafts} hint="Not yet activated" />
         </div>
 
         <div className={cx(CARD, "overflow-hidden")}>
           <div className="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className={CARD_TITLE}>Forms ({forms.length})</div>
-              <div className={CARD_SUBTITLE}>Event types without a form of their own use the default form.</div>
+              <div className={CARD_TITLE}>Review Form Library ({forms.length})</div>
+              <div className={CARD_SUBTITLE}>Click a form to open it.</div>
             </div>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search form, event type, outcome..."
-                   aria-label="Search review forms" className={cx(FILTER_INPUT, "w-64")} />
+            <div className="flex items-center gap-2">
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search code, title, field, outcome..."
+                     aria-label="Search review forms" className={cx(FILTER_INPUT, "w-64")} />
+              <button type="button" className={BTN_SECONDARY} onClick={() => q.refetch()} disabled={q.isFetching}>
+                <RefreshCw size={14} className={q.isFetching ? "animate-spin" : ""} /> Refresh
+              </button>
+            </div>
           </div>
 
-          {error && (
-            <div className="px-5 py-4 text-sm text-red-600">{(error as Error).message}</div>
-          )}
+          {error && <div className="px-5 py-4 text-sm text-red-600">{(error as Error).message}</div>}
 
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1000px]">
-              <thead>
-                <tr className={THEAD_ROW}>
-                  <th className={TH}>Form</th>
-                  <th className={TH}>Event Types</th>
-                  <th className={TH}>Outcomes</th>
-                  <th className={TH}>Bulk</th>
-                  <th className={TH}>Version</th>
-                  <th className={TH}>Action</th>
+          <table className="w-full">
+            <thead>
+              <tr className={THEAD_ROW}>
+                <th className={TH}>Form</th>
+                <th className={TH}>Applies To</th>
+                <th className={TH}>Fields</th>
+                <th className={TH}>Outcomes</th>
+                <th className={TH}>Version</th>
+                <th className={TH}>State</th>
+                <th className={TH}>Owner</th>
+                <th className={TH}>Submit</th>
+                <th className={TH}>Action</th>
+              </tr>
+            </thead>
+            <tbody className={TBODY}>
+              {q.isLoading && (
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-500">
+                  <span className="inline-flex items-center gap-2"><Spinner /> Loading…</span>
+                </td></tr>
+              )}
+              {rows.map((f) => (
+                <tr key={f.formId} className={TR_CLICKABLE} onClick={() => router.push(formHref(f.code, f.version))}>
+                  <td className={cx(TD, "max-w-xs")}>
+                    <Link href={formHref(f.code, f.version)} onClick={(e) => e.stopPropagation()}
+                          className="text-sm font-semibold text-blue-600 hover:text-blue-700">
+                      {f.title}
+                    </Link>
+                    <div className="text-xs text-gray-500 mt-0.5 font-mono break-all">{f.code}</div>
+                  </td>
+                  <td className={TD}>
+                    <div className="flex flex-wrap gap-1">
+                      {(f.appliesTo?.subjectKinds?.length ? f.appliesTo.subjectKinds : ["*"]).map((k) => (
+                        <span key={k} className="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs font-mono text-gray-700">
+                          {k === "*" ? "any" : k}
+                        </span>
+                      ))}
+                    </div>
+                    {!!f.appliesTo?.eventTypeCodes?.length && (
+                      <div className="text-xs text-gray-500 mt-1 font-mono break-all">{f.appliesTo.eventTypeCodes.join(", ")}</div>
+                    )}
+                  </td>
+                  <td className={cx(TD, "text-xs font-mono [overflow-wrap:anywhere]")}>{f.fields.map((x) => x.name).join(", ") || "—"}</td>
+                  <td className={cx(TD, "text-xs [overflow-wrap:anywhere]")}>
+                    {f.outcomes.map((o) => `${o.id} → ${o.decision?.type || "—"} / ${o.then || "CLOSE"}`).join(" · ") || "—"}
+                  </td>
+                  <td className={cx(TD, "whitespace-nowrap font-semibold text-gray-900")}>v{f.version}</td>
+                  <td className={TD}><StateBadge value={f.state} /></td>
+                  <td className={TD}>
+                    <span className={cx(PILL, f.system ? "bg-gray-100 text-gray-600" : "bg-blue-100 text-blue-700")}>
+                      {f.system ? "System" : "Tenant"}
+                    </span>
+                  </td>
+                  <td className={cx(TD, "text-xs")}>{f.submitAuthority ?? "—"}</td>
+                  <td className={TD}>
+                    <button type="button" className={BTN_LINK} onClick={(e) => { e.stopPropagation(); openClone(f); }}>
+                      Clone
+                    </button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className={TBODY}>
-                {q.isLoading && (
-                  <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-500">
-                    <span className="inline-flex items-center gap-2"><Spinner /> Loading…</span>
-                  </td></tr>
-                )}
-                {rows.map((f) => (
-                  <tr key={`${f.code}-${f.version}-${f.source}`} className={TR_CLICKABLE} onClick={() => open(f.code, f.version)}>
-                    <td className={cx(TD, "max-w-sm")}>
-                      <Link href={href(f.code, f.version)} onClick={(e) => e.stopPropagation()}
-                            className="text-sm font-semibold text-blue-600 hover:text-blue-700">
-                        {f.name}
-                      </Link>
-                      <div className="text-xs text-gray-500 mt-0.5 font-mono">{f.code}</div>
-                      {f.purpose && <div className="text-xs text-gray-500 mt-0.5 line-clamp-2">{f.purpose}</div>}
-                    </td>
-                    <td className={TD}>
-                      <div className="flex flex-wrap gap-1 max-w-xs">
-                        {f.eventTypes.map((t) => (
-                          <span key={t} className="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs font-mono text-gray-700">
-                            {t === "*" ? "any (default)" : t}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td className={cx(TD, "max-w-xs")}>{f.outcomes.join(" · ")}</td>
-                    <td className={TD}>
-                      {f.bulk ? <span className={cx(PILL, "bg-blue-100 text-blue-700")}>Yes</span> : "—"}
-                    </td>
-                    <td className={cx(TD, "whitespace-nowrap")}>
-                      <div className="font-semibold text-gray-900">v{f.version}</div>
-                      <div className="text-xs text-gray-500 mt-0.5">{f.source === "tenant" ? "Edited" : "Shipped"}</div>
-                      {!f.isActive && <span className={cx(PILL, "bg-gray-100 text-gray-600 mt-1")}>Inactive</span>}
-                    </td>
-                    <td className={TD}>
-                      <button type="button" className={BTN_LINK} onClick={(e) => { e.stopPropagation(); open(f.code, f.version); }}>
-                        Open
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {!q.isLoading && !error && rows.length === 0 && (
-                  <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-500">No review forms match the current search.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+              ))}
+              {!q.isLoading && !error && rows.length === 0 && (
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-500">No forms match.</td></tr>
+              )}
+            </tbody>
+          </table>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** Clone form (right sidebar): POST /compliance/review-forms/{code}/clone. */
+function CloneForm({ src, onDone }: { src: ApiReviewForm; onDone: (created: ApiReviewForm) => void }) {
+  const qc = useQueryClient();
+  const { closeSidebar } = useRightSidebar();
+  const [code, setCode] = useState(src.system ? `MY_${src.code}` : `${src.code}_COPY`);
+  const [title, setTitle] = useState(`${src.title} (copy)`);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const submit = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const created = await ReviewForms.clone(src.code, { code: code.trim(), title: title.trim() });
+      await qc.invalidateQueries({ queryKey: REVIEW_FORMS_KEY });
+      closeSidebar();
+      onDone(created);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-gray-500">
+        A tenant DRAFT copy under a new code: fields and outcomes are copied; preview, dry-run, then activate. A tenant form
+        with the same code as a system one takes precedence once ACTIVE.
+      </p>
+      <div>
+        <label className={LABEL}>New Code (UPPER_SNAKE_CASE)</label>
+        <input className={cx(INPUT, "font-mono")} value={code} onChange={(e) => setCode(e.target.value)} />
+      </div>
+      <div>
+        <label className={LABEL}>Title</label>
+        <input className={INPUT} value={title} onChange={(e) => setTitle(e.target.value)} />
+      </div>
+      {err && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{err}</div>}
+      <div className="flex justify-end gap-2">
+        <button type="button" className={BTN_SECONDARY} onClick={closeSidebar}>Cancel</button>
+        <button type="button" className={BTN_PRIMARY} disabled={busy || !code.trim()} onClick={submit}>
+          {busy && <Spinner size={14} className="text-white" />} Clone
+        </button>
       </div>
     </div>
   );

@@ -30,6 +30,7 @@ import {
   PageHeader, PageSpinner, Spinner, TBODY, TD, TH, THEAD_ROW, TabBar, cx,
 } from "@/components/assurance-events/ui";
 import { KeyValueList, SeverityBadge, StateBadge } from "@/components/assurance-events/definition-editor/fields";
+import { ReviewFormFields as FormFields, type FormValues as Values } from "@/components/assurance-events/ReviewFormFields";
 
 const LIST_HREF = "/assurance-events/all-events";
 const DEFINITION_HREF = (id: string) => `/assurance-events/event-definitions/${id}`;
@@ -441,7 +442,6 @@ function DecisionsTab({ d }: { d: CcEventDetail }) {
 
 /* ---------------------------------------------------------------- Review form */
 
-type Values = Record<string, unknown>;
 const initialValues = (v: CcReviewFormView): Values =>
   Object.fromEntries(v.fields.filter((f) => f.value !== null && f.value !== undefined).map((f) => [f.name, f.value]));
 
@@ -556,130 +556,6 @@ function ReviewFormTab({ eventId, onSubmitted }: { eventId: string; onSubmitted:
           ? <ObjView v={view.proposal} />
           : <span className="text-sm text-gray-500">No proposal (no AGENT executor bound, or none produced).</span>}
       </Card>
-    </div>
-  );
-}
-
-/** The review form's fields (the console's field renderer, in ISPM inputs). */
-function FormFields({ fields, values, onChange, readOnly }: {
-  fields: CcReviewFormView["fields"]; values: Values; onChange: (v: Values) => void; readOnly: boolean;
-}) {
-  const set = (name: string, v: unknown) => onChange({ ...values, [name]: v });
-  return (
-    <div className="space-y-4">
-      {fields.filter((f) => f.visible).map((f) => {
-        const value = values[f.name] ?? "";
-        const label = (
-          <span className="block text-sm text-gray-700 mb-1">
-            <span className="font-medium text-gray-900">{f.label || f.name}</span>
-            {f.required && <span className="text-red-600"> *</span>}
-            <span className="text-xs text-gray-500"> {f.type}{f.sensitive ? " · sensitive" : ""}</span>
-            {f.help && <span className="block text-xs text-gray-500">{f.help}</span>}
-          </span>
-        );
-        const options = f.options ?? [];
-
-        if (f.type === "BOOLEAN") {
-          return (
-            <div key={f.name}>{label}
-              <label className="inline-flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={value === true} disabled={readOnly} onChange={(e) => set(f.name, e.target.checked)} /> Yes
-              </label>
-            </div>
-          );
-        }
-        if (f.type === "TEXTAREA") {
-          return (
-            <div key={f.name}>{label}
-              <textarea className={INPUT} rows={3} value={String(value)} readOnly={readOnly} onChange={(e) => set(f.name, e.target.value)} />
-              {f.validate?.minLength && <span className="text-xs text-gray-500">At least {f.validate.minLength} characters</span>}
-            </div>
-          );
-        }
-        if (f.type === "INTEGER") {
-          return (
-            <div key={f.name}>{label}
-              <input type="number" className={INPUT} value={value === "" ? "" : Number(value)} readOnly={readOnly}
-                     min={f.validate?.min} max={f.validate?.max}
-                     onChange={(e) => set(f.name, e.target.value === "" ? "" : +e.target.value)} />
-            </div>
-          );
-        }
-        if (f.type === "DATE") {
-          return (
-            <div key={f.name}>{label}
-              <input type="date" className={INPUT} value={String(value)} readOnly={readOnly} onChange={(e) => set(f.name, e.target.value)} />
-            </div>
-          );
-        }
-        if (f.type === "DATETIME") {
-          return (
-            <div key={f.name}>{label}
-              <input type="datetime-local" className={INPUT} value={typeof value === "string" ? value.slice(0, 16) : ""} readOnly={readOnly}
-                     onChange={(e) => set(f.name, e.target.value ? new Date(e.target.value).toISOString() : "")} />
-            </div>
-          );
-        }
-        if (f.type === "MULTI_CHOICE") {
-          const arr = Array.isArray(value) ? value : [];
-          return (
-            <div key={f.name}>{label}
-              <div className="flex flex-wrap gap-2">
-                {options.map((o) => {
-                  const on = arr.includes(o.value);
-                  return (
-                    <label key={String(o.value)}
-                           className={cx(PILL, "border cursor-pointer", on ? "bg-blue-100 text-blue-700 border-blue-200" : "bg-white text-gray-600 border-gray-200")}>
-                      <input type="checkbox" className="mr-1" checked={on} disabled={readOnly}
-                             onChange={(e) => set(f.name, e.target.checked ? [...arr, o.value] : arr.filter((x) => x !== o.value))} />
-                      {o.label}
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        }
-        if (f.type === "EVIDENCE_REF") {
-          const ref = (value && typeof value === "object" ? value : { kind: "TICKET", system: "", id: "", url: "" }) as Record<string, string>;
-          return (
-            <div key={f.name}>{label}
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
-                <select className={INPUT} value={ref.kind} disabled={readOnly} onChange={(e) => set(f.name, { ...ref, kind: e.target.value })}>
-                  {["TICKET", "DOC", "RUNBOOK", "AUDIT_LOG", "OTHER"].map((k) => <option key={k}>{k}</option>)}
-                </select>
-                <input className={INPUT} placeholder="System" value={ref.system ?? ""} readOnly={readOnly} onChange={(e) => set(f.name, { ...ref, system: e.target.value })} />
-                <input className={INPUT} placeholder="ID" value={ref.id ?? ""} readOnly={readOnly} onChange={(e) => set(f.name, { ...ref, id: e.target.value })} />
-                <input className={INPUT} placeholder="URL" value={ref.url ?? ""} readOnly={readOnly} onChange={(e) => set(f.name, { ...ref, url: e.target.value })} />
-              </div>
-            </div>
-          );
-        }
-        if (options.length) {
-          return (
-            <div key={f.name}>{label}
-              <div className="space-y-2">
-                {options.map((o) => (
-                  <label key={String(o.value)} className="block rounded-lg border border-gray-200 bg-white px-3 py-2 cursor-pointer hover:bg-gray-50">
-                    <span className="flex items-center gap-2">
-                      <input type="radio" name={f.name} checked={String(value) === String(o.value)} disabled={readOnly} onChange={() => set(f.name, o.value)} />
-                      <span className="text-sm font-semibold text-gray-900">{o.label}</span>
-                      {o.meta?.activeMembers !== undefined && <span className="text-xs text-gray-500">{o.meta.activeMembers} active members</span>}
-                    </span>
-                    <span className="block text-xs font-mono text-gray-500 ml-6">{String(o.value)}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          );
-        }
-        return (
-          <div key={f.name}>{label}
-            <input className={cx(INPUT, f.type.endsWith("_REF") && "font-mono")} value={String(value)} readOnly={readOnly}
-                   onChange={(e) => set(f.name, e.target.value)} />
-          </div>
-        );
-      })}
     </div>
   );
 }
