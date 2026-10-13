@@ -7,9 +7,10 @@ import {
   AlertOctagon, AppWindow, ChevronRight, ClipboardCheck, Clock, Database, Filter, Key, Layers,
   Server, User, Users, X,
 } from "lucide-react";
-import { useEventList } from "@/hooks/useAssuranceEvents";
+import { useQuery } from "@tanstack/react-query";
 import { formatAbsolute, formatRelative, msUntil } from "@/lib/assurance-format";
-import type { EventListItem, EventQuery } from "@/lib/assurance-events-api";
+import { Events, type EventListItem, type EventQuery } from "@/lib/assurance-events-api";
+import { CC_CONNECTION_KEY, Lookups } from "@/lib/controls-api";
 import {
   BADGE, BTN_GHOST, BTN_SECONDARY, CARD, CARD_HEADER, INPUT, LABEL, LookupBadge, LookupMultiSelect, PageSpinner, cx,
 } from "@/components/assurance-events/ui";
@@ -42,6 +43,11 @@ interface EventsListPageProps {
   title: string;
   subtitle: string;
   defaultStatuses?: string[];
+  /**
+   * Where the rows come from. All Events passes the live Continuous Compliance
+   * API (CcEvents.list); without it the Assurance Events API / sample data is used.
+   */
+  fetchEvents?: (q: EventQuery) => Promise<{ items: EventListItem[]; total: number }>;
 }
 
 export function EventsListPage(props: EventsListPageProps) {
@@ -52,7 +58,7 @@ export function EventsListPage(props: EventsListPageProps) {
   );
 }
 
-function EventsListPageInner({ title, subtitle, defaultStatuses }: EventsListPageProps) {
+function EventsListPageInner({ title, subtitle, defaultStatuses, fetchEvents }: EventsListPageProps) {
   const sp = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -69,7 +75,16 @@ function EventsListPageInner({ title, subtitle, defaultStatuses }: EventsListPag
     router.replace(`${pathname}?${next.toString()}`, { scroll: false });
   };
 
-  const { data, isLoading, error } = useEventList(query);
+  // Live pages run the console's connection check first (GET /compliance/lookups/domains).
+  const connection = useQuery({
+    queryKey: CC_CONNECTION_KEY, queryFn: Lookups.domains, enabled: !!fetchEvents, staleTime: 5 * 60_000, retry: false,
+  });
+  const list = useQuery({
+    queryKey: fetchEvents ? ["continuouscompliance", "events", query] : ["assurance", "events", "list", query],
+    queryFn: () => (fetchEvents ?? Events.list)(query),
+  });
+  const { data, isLoading } = list;
+  const error = (fetchEvents ? connection.error : null) ?? list.error;
 
   return (
     <div className="p-6 space-y-4">

@@ -37,6 +37,7 @@ import {
   SlidersHorizontal,
   Bell,
   Cpu,
+  List,
 } from "lucide-react";
 import { riskAnalysisSubItems } from "@/lib/risk-analysis-routes";
 
@@ -147,6 +148,7 @@ export const navLinks: NavItem[] = [
       { name: "Notifications", href: "/assurance-events/notifications", icon: Bell },
       { name: "SLA", href: "/assurance-events/sla", icon: Clock },
       { name: "Executors", href: "/assurance-events/executors", icon: Cpu },
+      { name: "All Events", href: "/assurance-events/all-events", icon: List },
     ],
   },
   {

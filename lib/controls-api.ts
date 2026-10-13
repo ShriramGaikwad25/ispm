@@ -69,17 +69,23 @@ function tenant(): string {
   return resolveTenantIdForHeader() || defaultTenantId?.trim() || "ACMECOM";
 }
 
-function buildUrl(path: string, query?: Record<string, string | undefined>): string {
+/** Query values: arrays are sent as repeated parameters (status=OPEN&status=IN_REVIEW), as the console does. */
+export type CcQuery = Record<string, string | string[] | undefined>;
+
+function buildUrl(path: string, query?: CcQuery): string {
   let url = `${PROXY_BASE}/${encodeURIComponent(tenant())}${path}`;
   const qs = new URLSearchParams();
-  Object.entries(query ?? {}).forEach(([k, v]) => { if (v !== undefined && v !== "") qs.append(k, v); });
+  Object.entries(query ?? {}).forEach(([k, v]) => {
+    if (Array.isArray(v)) v.forEach((x) => { if (x !== "") qs.append(k, x); });
+    else if (v !== undefined && v !== "") qs.append(k, v);
+  });
   const s = qs.toString();
   if (s) url += `?${s}`;
   return url;
 }
 
 /** Calls the Continuous Compliance service (through ISPM's proxy) for the signed-in tenant. */
-export async function ccRequest<T>(method: string, path: string, opts: { query?: Record<string, string | undefined>; body?: unknown } = {}): Promise<T> {
+export async function ccRequest<T>(method: string, path: string, opts: { query?: CcQuery; body?: unknown } = {}): Promise<T> {
   const headers: Record<string, string> = {
     Accept: "application/json",
     "X-Request-Id": `ispm-${Math.random().toString(16).slice(2, 10)}${Date.now().toString(16).slice(-4)}`,
