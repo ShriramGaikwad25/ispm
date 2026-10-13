@@ -5,12 +5,10 @@
 // (graph.keyforge.ai/console#/forms/{code}?version=) on the same API, laid
 // out like ISPM's gateway pages. The form comes from the library response
 // (GET /compliance/review-forms). Tabs:
-//   Definition, Fields, Outcomes   (the form itself)
+//   Definition, Fields  (the form itself)
+//   Where Used          GET  /compliance/review-forms/{code}/usage
 //   Preview & Dry Run   POST /compliance/review-forms/{code}/render | /test
 //   Versions            GET  /compliance/review-forms/{code}/versions
-//   Where Used          GET  /compliance/review-forms/{code}/usage
-//   Submissions         GET  /compliance/review-forms/{code}/submissions
-//   Audit               GET  /compliance/review-forms/{code}/audit
 // Actions: Activate, New Version, Deprecate (tenant forms), Clone.
 // =====================================================================
 
@@ -23,7 +21,7 @@ import { useCcConnection } from "@/hooks/useCcConnection";
 import { ControlsApiError } from "@/lib/controls-api";
 import { CcEvents, type CcReviewFormTest, type CcReviewFormView } from "@/lib/cc-events-api";
 import {
-  REVIEW_FORMS_BASE, REVIEW_FORMS_KEY, ReviewForms, type ApiFormField, type ApiFormOutcome, type ApiReviewForm,
+  REVIEW_FORMS_BASE, REVIEW_FORMS_KEY, ReviewForms, type ApiFormField, type ApiReviewForm,
 } from "@/lib/assurance-review-forms";
 import {
   BTN_DANGER, BTN_LINK, BTN_PRIMARY, BTN_SECONDARY, CARD, CARD_HEADER, CARD_SUBTITLE, CARD_TITLE, INPUT, LABEL, PAGE,
@@ -32,7 +30,7 @@ import {
 import { BannerBar, KeyValueList, StateBadge, type Banner } from "@/components/assurance-events/definition-editor/fields";
 import { ReviewFormFields, type FormValues } from "@/components/assurance-events/ReviewFormFields";
 
-type Tab = "definition" | "fields" | "outcomes" | "preview" | "versions" | "usage" | "submissions" | "audit";
+type Tab = "definition" | "fields" | "usage" | "preview" | "versions";
 
 const formHref = (code: string, version: number) =>
   `${REVIEW_FORMS_BASE}/${encodeURIComponent(code)}?version=${version}`;
@@ -163,20 +161,16 @@ function ReviewFormPage() {
               active={tab}
               onChange={setTab}
               tabs={[
-                ["definition", "Definition"], ["fields", `Fields (${form.fields.length})`],
-                ["outcomes", `Outcomes (${form.outcomes.length})`], ["preview", "Preview & Dry Run"],
-                ["versions", "Versions"], ["usage", "Where Used"], ["submissions", "Submissions"], ["audit", "Audit"],
+                ["definition", "Definition"], ["fields", `Fields (${form.fields.length})`], ["usage", "Where Used"],
+                ["preview", "Preview & Dry Run"], ["versions", "Versions"],
               ]}
             />
 
             {tab === "definition" && <DefinitionTab f={form} />}
             {tab === "fields" && <FieldsTab fields={form.fields} />}
-            {tab === "outcomes" && <OutcomesTab outcomes={form.outcomes} />}
             {tab === "preview" && <PreviewTab key={`${form.code}@${form.version}`} f={form} />}
             {tab === "versions" && <VersionsTab code={form.code} onOpen={(v) => router.push(formHref(v.code, v.version))} />}
             {tab === "usage" && <UsageTab code={form.code} />}
-            {tab === "submissions" && <SubmissionsTab code={form.code} />}
-            {tab === "audit" && <AuditTab code={form.code} />}
           </>
         )}
       </div>
@@ -327,79 +321,6 @@ function FieldsTab({ fields }: { fields: ApiFormField[] }) {
   );
 }
 
-/* ---------------------------------------------------------------- Outcomes */
-
-function OutcomesTab({ outcomes }: { outcomes: ApiFormOutcome[] }) {
-  const [sel, setSel] = useState(0);
-  const o = outcomes[sel];
-  return (
-    <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-6">
-      <Card title="Outcomes" subtitle="What a submission does: the first outcome whose 'when' holds." flush>
-        <table className="w-full">
-          <thead>
-            <tr className={THEAD_ROW}>
-              <th className={TH}>#</th><th className={TH}>ID</th><th className={TH}>When</th><th className={TH}>Actions</th>
-              <th className={TH}>Decision</th><th className={TH}>Then</th>
-            </tr>
-          </thead>
-          <tbody className={TBODY}>
-            {outcomes.map((x, i) => (
-              <tr key={i} className={cx(TR_CLICKABLE, i === sel && "bg-blue-50")} onClick={() => setSel(i)}>
-                <td className={TD}>{i + 1}</td>
-                <td className={cx(TD, "font-semibold text-gray-900")}>{x.id}</td>
-                <td className={cx(TD, "text-xs font-mono [overflow-wrap:anywhere]")}>{x.when || "(always)"}</td>
-                <td className={cx(TD, "text-xs font-mono")}>{(x.actions ?? []).map((a) => a.action).join(", ") || "—"}</td>
-                <td className={cx(TD, "text-xs")}>{x.decision?.type || "—"}</td>
-                <td className={cx(TD, "text-xs")}>{x.then || "CLOSE"}</td>
-              </tr>
-            ))}
-            {!outcomes.length && <tr><td colSpan={6}><Empty>No outcomes.</Empty></td></tr>}
-          </tbody>
-        </table>
-        <p className="px-5 py-3 text-xs text-gray-500 border-t border-gray-100">
-          Actions run in order through the executor path (MANUAL, the reviewer&apos;s principal); a REMEDIATE decision closes after
-          the actions. Then: CLOSE, STAY_IN_REVIEW, REOPEN_WITH_DUE or SUPPRESS_UNTIL (thenArgs.until).
-        </p>
-      </Card>
-      <Card title={o ? `Outcome '${o.id}'` : "Outcome"}>
-        {o ? (
-          <div className="space-y-5">
-            <KeyValueList rows={[
-              ["ID", o.id],
-              ["When", o.when ? <Mono key="w">{o.when}</Mono> : "(always)"],
-              ["Then", o.then || "CLOSE"],
-              ...(o.thenArgs?.until ? [["Until", <Mono key="u">{o.thenArgs.until}</Mono>] as [string, ReactNode]] : []),
-              ["Decision", o.decision?.type || <Dash key="d" />],
-              ["Justification", o.decision?.justification ? <Mono key="j">{o.decision.justification}</Mono> : <Dash key="j" />],
-              ["Evidence refs", o.evidenceRefs?.length ? o.evidenceRefs.join(", ") : <Dash key="e" />],
-            ]} />
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-2">Actions</h3>
-              {(o.actions ?? []).length ? (
-                <div className="border border-gray-200 rounded-lg overflow-hidden">
-                  <table className="w-full">
-                    <thead><tr className={THEAD_ROW}><th className={TH}>Action</th><th className={TH}>Mode</th><th className={TH}>Executor</th><th className={TH}>Params</th></tr></thead>
-                    <tbody className={TBODY}>
-                      {o.actions!.map((a, i) => (
-                        <tr key={i}>
-                          <td className={cx(TD, "text-xs font-mono")}>{a.action}</td>
-                          <td className={cx(TD, "text-xs")}>{a.mode ?? "—"}</td>
-                          <td className={cx(TD, "text-xs")}>{a.executor ?? "—"}</td>
-                          <td className={cx(TD, "text-xs [overflow-wrap:anywhere]")}>{show(a.params)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : <span className="text-sm text-gray-500">No actions.</span>}
-            </div>
-          </div>
-        ) : <span className="text-sm text-gray-500">Select an outcome.</span>}
-      </Card>
-    </div>
-  );
-}
-
 /* ---------------------------------------------------------------- Preview & dry run */
 
 const initialValues = (v: CcReviewFormView): FormValues =>
@@ -498,7 +419,7 @@ function PreviewTab({ f }: { f: ApiReviewForm }) {
   );
 }
 
-/* ---------------------------------------------------------------- Versions / usage / submissions / audit */
+/* ---------------------------------------------------------------- Versions / where used */
 
 function VersionsTab({ code, onOpen }: { code: string; onOpen: (f: ApiReviewForm) => void }) {
   const q = useQuery({ queryKey: [...REVIEW_FORMS_KEY, code, "versions"], queryFn: () => ReviewForms.versions(code) });
@@ -575,85 +496,6 @@ function UsageTab({ code }: { code: string }) {
         )}
       </div>
     )}</Loaded>
-  );
-}
-
-const RESULT_STYLE: Record<string, string> = {
-  APPLIED: "bg-green-100 text-green-700",
-  FAILED: "bg-red-100 text-red-700",
-};
-
-function SubmissionsTab({ code }: { code: string }) {
-  const q = useQuery({ queryKey: [...REVIEW_FORMS_KEY, code, "submissions"], queryFn: () => ReviewForms.submissions(code) });
-  return (
-    <Card title={`Submissions (${q.data?.length ?? 0})`} flush>
-      <Loaded q={q}>{(rows) => (
-        <table className="w-full">
-          <thead>
-            <tr className={THEAD_ROW}>
-              <th className={TH}>When</th><th className={TH}>Event</th><th className={TH}>Version</th><th className={TH}>Outcome</th>
-              <th className={TH}>Result</th><th className={TH}>By</th><th className={TH}>Values</th>
-            </tr>
-          </thead>
-          <tbody className={TBODY}>
-            {rows.map((s) => (
-              <tr key={s.submissionId}>
-                <td className={cx(TD, "text-xs whitespace-nowrap")}>{fmt(s.submittedAt)}</td>
-                <td className={TD}>
-                  <Link href={`/assurance-events/all-events/${s.eventId}?tab=form`} className={cx(BTN_LINK, "font-mono text-xs")}>
-                    {String(s.eventId).slice(0, 8)}…
-                  </Link>
-                </td>
-                <td className={TD}>v{s.formVersion}</td>
-                <td className={cx(TD, "font-semibold text-gray-900")}>{s.outcome ?? "—"}</td>
-                <td className={TD}>
-                  <span className={cx(PILL, RESULT_STYLE[s.result] ?? "bg-amber-100 text-amber-700")}>{s.result}</span>
-                </td>
-                <td className={cx(TD, "text-xs font-mono [overflow-wrap:anywhere]")}>{s.submittedBy ?? "—"}</td>
-                <td className={cx(TD, "text-xs [overflow-wrap:anywhere]")}>
-                  {s.values ? Object.entries(s.values).map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : String(v)}`).join(" · ") : "—"}
-                </td>
-              </tr>
-            ))}
-            {!rows.length && <tr><td colSpan={7}><Empty>No submissions yet.</Empty></td></tr>}
-          </tbody>
-        </table>
-      )}</Loaded>
-    </Card>
-  );
-}
-
-function AuditTab({ code }: { code: string }) {
-  const q = useQuery({ queryKey: [...REVIEW_FORMS_KEY, code, "audit"], queryFn: () => ReviewForms.audit(code) });
-  return (
-    <Card title={`History (${q.data?.length ?? 0})`} subtitle="Ledger rows for every version of this form." flush>
-      <Loaded q={q}>{(rows) => (
-        <table className="w-full">
-          <thead>
-            <tr className={THEAD_ROW}>
-              <th className={TH}>When</th><th className={TH}>Action</th><th className={TH}>Actor</th><th className={TH}>Version</th>
-              <th className={TH}>From → To</th><th className={TH}>Detail</th>
-            </tr>
-          </thead>
-          <tbody className={TBODY}>
-            {rows.map((a, i) => (
-              <tr key={i}>
-                <td className={cx(TD, "text-xs whitespace-nowrap")}>{fmt(a.at)}</td>
-                <td className={cx(TD, "font-semibold text-gray-900 text-xs")}>{a.action}</td>
-                <td className={TD}>
-                  <span className={cx(PILL, "bg-gray-100 text-gray-700")}>{a.actor?.kind}</span>
-                  <div className="text-xs font-mono text-gray-500 mt-0.5 [overflow-wrap:anywhere]">{a.actor?.ref || a.actor?.principalId || ""}</div>
-                </td>
-                <td className={TD}>v{a.detail?.version ?? "—"}</td>
-                <td className={cx(TD, "text-xs")}>{a.from ?? "∅"} → {a.to ?? "∅"}</td>
-                <td className={cx(TD, "text-xs [overflow-wrap:anywhere]")}>{show(a.detail)}</td>
-              </tr>
-            ))}
-            {!rows.length && <tr><td colSpan={6}><Empty>No history.</Empty></td></tr>}
-          </tbody>
-        </table>
-      )}</Loaded>
-    </Card>
   );
 }
 
