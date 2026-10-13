@@ -151,11 +151,9 @@ function ReviewFormPage() {
 
             {banner && <div className="mb-4"><BannerBar banner={banner} onClose={() => setBanner(null)} /></div>}
 
-            {form.system ? (
-              <Note>System form (shipped with the product): read-only. <b>Clone</b> it to change fields or outcomes; a tenant form created under the same code overrides it for this tenant once ACTIVE.</Note>
-            ) : form.state !== "DRAFT" ? (
+            {!form.system && form.state !== "DRAFT" && (
               <Note>{form.state} forms are immutable. Cut a new version to change it; activating it deprecates this one. Events already routed keep the version they were given.</Note>
-            ) : null}
+            )}
 
             <TabBar<Tab>
               active={tab}
