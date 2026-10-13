@@ -11,9 +11,10 @@ import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, Play, Plus, Trash2 } from "lucide-react";
 import {
-  useDefinitionUsage, useExecutors, useMitigationControls, useNotifications,
+  useExecutors, useMitigationControls, useNotifications,
 } from "@/hooks/useAssuranceEvents";
 import { Definitions } from "@/lib/assurance-events-api";
+import { Controls, type Control } from "@/lib/controls-api";
 import { SLA_POLICIES_KEY, Slas, applySlaPolicy, matchSlaPolicy } from "@/lib/assurance-sla";
 import { NotificationBindings, listEmailTemplates } from "@/lib/assurance-notification-bindings";
 import type {
@@ -153,29 +154,186 @@ function SlaSection({ dto, patch, ro }: Pick<TabProps, "dto" | "patch" | "ro">) 
 // Detection
 // ---------------------------------------------------------------------
 
-// Findings are raised by the domain agents' controls; the definition only
-// governs the response. (The catalog-scan "own rule" option is not offered.)
-export function DetectionTab({ dto, id }: TabProps) {
-  const usage = useDefinitionUsage(id);
+// The console's Detector tab (graph.keyforge.ai/console#/definitions/{id}):
+// the definition's detector — a family and the library controls linked to it
+// (every control must hold) — plus the effective condition the service
+// resolves on every read. Controls come from the Control Library
+// (GET /compliance/controls?state=ACTIVE, GET /compliance/detection-families).
+
+interface DetectorView {
+  family?: string;
+  controls?: Array<{
+    code: string; name?: string; version?: number; pinned?: boolean; latestActiveVersion?: number;
+    condition?: { expression?: string };
+  }>;
+  options?: Record<string, unknown>;
+  // Resolved by the service on read:
+  source?: string;
+  combinator?: string;
+  effectiveCondition?: string;
+  effectiveExpression?: string;
+  inlineExpression?: string;
+  warnings?: string[];
+}
+
+export function DetectionTab({ dto, patch, ro }: TabProps) {
+  const controlsQ = useQuery({ queryKey: ["continuouscompliance", "controls", "list", { state: "ACTIVE" }], queryFn: () => Controls.list({ state: "ACTIVE" }) });
+  const familiesQ = useQuery({ queryKey: ["continuouscompliance", "controls", "families"], queryFn: Controls.families });
+  const [pick, setPick] = useState("");
+
+  const detector = ((dto as unknown as { detector?: DetectorView }).detector ?? {}) as DetectorView;
+  const resolved = "effectiveCondition" in detector || "source" in detector ? detector : undefined;
+  const family = detector.family || (String(dto.eventTypeCode || "").startsWith("IGA_DQ") ? "APPROVAL_DQ" : "PUSH");
+  const codes = (detector.controls ?? []).map((c) => String(c.code));
+
+  // The library: a tenant control overrides a system control of the same code.
+  const library = new Map<string, Control>();
+  for (const c of (Array.isArray(controlsQ.data) ? controlsQ.data : [])) {
+    if (!library.has(c.code) || !c.system) library.set(c.code, c);
+  }
+  const available = [...library.values()].filter((c) => c.familyCode === family && !codes.includes(c.code));
+
+  const setControls = (next: string[], fam = family) =>
+    patch({
+      detector: {
+        family: fam,
+        controls: next.map((code) => ({ code })),
+        ...(fam === family && detector.options && Object.keys(detector.options).length ? { options: detector.options } : {}),
+      },
+    } as unknown as Partial<EventDefinition>);
+  const move = (i: number, by: number) => {
+    const next = [...codes];
+    const [c] = next.splice(i, 1);
+    next.splice(i + by, 0, c);
+    setControls(next);
+  };
 
   return (
-    <Section title="Agent controls that raise this definition"
-             hint="Domain agents raise this definition from their controls; the definition only governs the response.">
-      {usage.isLoading ? <Spinner /> : (usage.data?.controls ?? []).length === 0 ? (
-        <div className="text-sm text-gray-500">
-          No control raises {dto.code} yet. Pick it as the event type when authoring a control in Agent studio.
+    <>
+      {resolved?.source === "INLINE" && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <b>Legacy inline expression:</b> <code>{resolved.inlineExpression}</code> is still evaluated as-is, but a definition can no
+          longer be saved with an expression. Link the equivalent library controls below and save: the links replace it.
         </div>
-      ) : (
-        <ul className="text-sm divide-y divide-gray-100">
-          {usage.data!.controls!.map((c) => (
-            <li key={c.domain_code + c.code} className="py-1.5 flex items-center justify-between">
-              <span><span className="font-mono text-xs">{c.code}</span> — {c.name}</span>
-              <span className="text-xs text-gray-500">{c.domain_code} agent</span>
-            </li>
-          ))}
-        </ul>
       )}
-    </Section>
+
+      <Section
+        title="Linked Controls"
+        hint="Every linked control must hold (ALL). All controls must belong to the detection family."
+        actions={<Link href="/assurance-events/control-library" className={cx(BTN_SECONDARY, "text-xs")}>Open Control Library</Link>}
+      >
+        <div className="max-w-md">
+          <label className={LABEL}>Detection family</label>
+          <select className={INPUT} value={family} disabled={ro}
+                  onChange={(e) => (!codes.length || confirm("Changing the family clears the linked controls. Continue?")) && setControls([], e.target.value)}>
+            {(familiesQ.data?.families?.length ? familiesQ.data.families : [{ code: family }]).map((f) => (
+              <option key={f.code} value={f.code}>
+                {f.code}{typeof f.displayName === "string" && f.displayName ? ` — ${f.displayName}` : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="border border-gray-200 rounded-lg overflow-hidden">
+          <table className="w-full">
+            <thead>
+              <tr className={THEAD_ROW}>
+                <th className={TH}>#</th><th className={TH}>Control</th><th className={TH}>Name</th>
+                <th className={TH}>Version</th><th className={TH}>Condition</th>{!ro && <th className={TH}></th>}
+              </tr>
+            </thead>
+            <tbody className={TBODY}>
+              {codes.map((code, i) => {
+                const lib = library.get(code);
+                const linked = resolved?.controls?.find((c) => c.code === code);
+                return (
+                  <tr key={code}>
+                    <td className={TD}>{i + 1}</td>
+                    <td className={TD}>
+                      <span className="font-mono text-xs font-semibold text-gray-900">{code}</span>
+                      {lib && (
+                        <span className={cx("ml-2 rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                          lib.system ? "bg-gray-100 text-gray-600" : "bg-blue-100 text-blue-700")}>
+                          {lib.system ? "System" : "Tenant"}
+                        </span>
+                      )}
+                    </td>
+                    <td className={TD}>
+                      {lib?.name || linked?.name || <span className="text-red-600">Not in the library (ACTIVE)</span>}
+                    </td>
+                    <td className={cx(TD, "text-xs text-gray-500")}>
+                      {linked?.pinned ? (
+                        <>
+                          pinned v{linked.version}
+                          {linked.latestActiveVersion && linked.latestActiveVersion !== linked.version && (
+                            <span className="text-amber-700"> · v{linked.latestActiveVersion} available</span>
+                          )}
+                        </>
+                      ) : lib ? `latest ACTIVE v${lib.version} (pinned on activation)` : "—"}
+                    </td>
+                    <td className={cx(TD, "text-xs font-mono [overflow-wrap:anywhere]")}>
+                      {lib?.condition?.expression || linked?.condition?.expression || "—"}
+                      {!!lib?.parameters?.length && (
+                        <div className="text-gray-500 mt-1">
+                          params: {lib.parameters.map((p) => `${p.name}=${JSON.stringify(p.default)}`).join(", ")}
+                        </div>
+                      )}
+                    </td>
+                    {!ro && (
+                      <td className={cx(TD, "whitespace-nowrap")}>
+                        <button className={BTN_GHOST} disabled={i === 0} onClick={() => move(i, -1)} aria-label="Move up"><ArrowUp size={14} /></button>
+                        <button className={BTN_GHOST} disabled={i === codes.length - 1} onClick={() => move(i, 1)} aria-label="Move down"><ArrowDown size={14} /></button>
+                        <button className={cx(BTN_GHOST, "text-red-600")} onClick={() => setControls(codes.filter((c) => c !== code))} aria-label="Remove">
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+              {!codes.length && (
+                <tr><td colSpan={6} className="px-4 py-6 text-center text-sm text-gray-500">
+                  No controls linked — the scanner skips a definition without controls.
+                </td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {!ro && (
+          <div className="flex flex-wrap items-center gap-2">
+            <select className={cx(INPUT_BASE, "w-96 max-w-full")} value={pick} onChange={(e) => setPick(e.target.value)}>
+              <option value="">Add a {family} control…</option>
+              {available.map((c) => (
+                <option key={c.controlId} value={c.code}>{c.code} — {c.name}{c.system ? "" : " (tenant)"}</option>
+              ))}
+            </select>
+            <button className={cx(BTN_SECONDARY, "text-xs")} disabled={!pick} onClick={() => { setControls([...codes, pick]); setPick(""); }}>
+              <Plus size={12} /> Add
+            </button>
+            <span className="text-xs text-gray-500">
+              {controlsQ.isLoading ? "Loading controls…" : `${available.length} ACTIVE control(s) of family ${family} available`}
+            </span>
+          </div>
+        )}
+      </Section>
+
+      <Section title="Effective Condition" hint="Read-only; resolved by the service on every read.">
+        {resolved ? (
+          <KeyValueList rows={[
+            ["Source", <StateBadge key="s" value={resolved.source} />],
+            ["Family", `${resolved.family ?? family}${resolved.combinator ? ` · combinator ${resolved.combinator}` : ""}`],
+            ["Condition", <b key="c">{resolved.effectiveCondition || "—"}</b>],
+            ["Expression", <span key="e" className="font-mono text-xs [overflow-wrap:anywhere]">{resolved.effectiveExpression || "—"}</span>],
+            ["Warnings", resolved.warnings?.length
+              ? <span key="w" className="text-amber-700">{resolved.warnings.map((w) => `△ ${w}`).join(" · ")}</span>
+              : <span key="w" className="text-green-700">None</span>],
+          ]} />
+        ) : (
+          <div className="text-sm text-gray-500">Saved definitions show the resolved condition here.</div>
+        )}
+      </Section>
+    </>
   );
 }
 
