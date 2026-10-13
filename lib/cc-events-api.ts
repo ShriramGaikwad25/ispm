@@ -117,7 +117,75 @@ function toListItem(e: CcEvent, defs: Map<string, { code: string; name: string }
   };
 }
 
+/** GET /compliance/events/{id} — EventDetailDto (fields the detail page reads). */
+export interface CcEventDetail {
+  event: CcEvent & {
+    subject?: {
+      userId?: string; accountId?: string; applicationId?: string; entitlementId?: string; nhiId?: string;
+      humanReadable?: Record<string, unknown>;
+    };
+    detectionPayload?: { controls?: Array<{ code: string; version?: number; matched?: boolean; evidence?: Record<string, unknown> }>; combinator?: string; criteria?: string };
+    scopeSnapshot?: Record<string, unknown>;
+    slaSnapshot?: CcEvent["slaSnapshot"] & {
+      source?: string; priority?: number | null; resolution?: string; duration?: string;
+      actionOnTimeout?: string; escalationChain?: Array<{ atPercent: number; action: string }>;
+      firedSteps?: number[]; timeoutAppliedAt?: string | null; recomputedCount?: number;
+      matchedRules?: Array<{ ruleId: string }>; basis?: unknown;
+    };
+    nextSlaCheckAt?: string | null;
+    currentDecisionId?: string | null;
+  };
+  definitionSnapshot?: {
+    definitionId: string; code: string; version: number; state: string; name: string; severity?: string;
+    reviewerStrategy?: string; slaDuration?: string; defaultActionOnTimeout?: string;
+    allowedMitigationCodes?: string[]; actionBindings?: Record<string, string>; governancePolicy?: unknown;
+  } | null;
+  decisions: Array<{
+    decisionId: string; decisionType: string; decidedAt: string; decidedByPrincipalId?: string; decidedByRole?: string;
+    expiresAt?: string | null; justification?: string; evidenceRefs?: unknown;
+  }>;
+  remediations: Array<{
+    remediationId: string; actionTypeCode: string; mode?: string; executorCode?: string; executorVersion?: number;
+    targetConnector?: string; status: string; externalRef?: string; attempts?: number; blastRadiusEstimate?: number | null;
+    queuedAt?: string; completedAt?: string; deadlineAt?: string; failureReason?: string; resultPayload?: unknown;
+  }>;
+  mitigations: Array<{
+    mitigationId: string; controlCode: string; status: string; enactKind?: string; targetConnector?: string;
+    activatedAt?: string; expiresAt?: string; verifyDueAt?: string; verifiedAt?: string; lastVerifiedResult?: string;
+    failureReason?: string; parameters?: unknown;
+  }>;
+  comments: Array<{ commentId: string; createdAt: string; visibility: string; authorPrincipalId?: string; body: string }>;
+  [key: string]: unknown;
+}
+
+/** GET /compliance/events/{id}/decisions — the decisions currently allowed. */
+export interface CcDecisionOptions {
+  currentStatus: string;
+  decidable: boolean;
+  options: Array<{
+    decisionType: string; allowed: boolean; reason?: string; resultingStatus?: string;
+    requirements?: { justificationRequired?: boolean; minJustificationLength?: number; expiresAtRequired?: boolean; mitigationRequired?: boolean; allowedMitigationCodes?: string[] };
+  }>;
+}
+
+/** GET /compliance/events/{id}/timeline — the event's audit ledger. */
+export interface CcTimeline {
+  items: Array<{
+    auditId: string; at: string; stage: string; action: string; source?: string;
+    actor: { kind: string; id?: string; principalId?: string; [k: string]: unknown };
+    causationId?: string; payload?: unknown; [k: string]: unknown;
+  }>;
+  summary?: { integrity?: { status?: string } };
+}
+
 export const CcEvents = {
+  /** GET /compliance/events/{id} */
+  get: (id: string) => ccRequest<CcEventDetail>("GET", `/compliance/events/${encodeURIComponent(id)}`),
+  /** GET /compliance/events/{id}/decisions */
+  decisionOptions: (id: string) => ccRequest<CcDecisionOptions>("GET", `/compliance/events/${encodeURIComponent(id)}/decisions`),
+  /** GET /compliance/events/{id}/timeline */
+  timeline: (id: string) => ccRequest<CcTimeline>("GET", `/compliance/events/${encodeURIComponent(id)}/timeline`),
+
   /** GET /compliance/events — the console's Events page query (arrays become repeated params). */
   search: (q: CcEventSearch): Promise<CcEventPage> =>
     ccRequest<CcEventPage>("GET", "/compliance/events", {
