@@ -35,7 +35,7 @@ const TABS: Array<[string, string]> = [
   ["general", "General"],
   ["detection", "Detection"],
   ["governance", "Governance policy"],
-  ["scope", "Scope & closure"],
+  ["scope", "Scope"],
   ["bindings", "Action bindings"],
   ["notify", "Notifications"],
 ];

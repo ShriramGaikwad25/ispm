@@ -2,8 +2,8 @@
 
 // The definition editor's tabs, ported from the deployed Continuous
 // Assurance console (graph.keyforge.ai/cc/definitions/:id): General (with
-// the SLA chosen from a dropdown), Detection, Governance policy, Scope &
-// closure, Action bindings, Notifications. SlaTab is kept for the
+// the SLA chosen from a dropdown), Detection, Governance policy, Scope,
+// Action bindings, Notifications. SlaTab is kept for the
 // condition editor but is not shown in the editor's tab bar.
 
 import { useState } from "react";
@@ -529,7 +529,6 @@ export function ScopeTab({ dto, patch, ro }: TabProps) {
   const mitigations = useMitigationControls();
   const scope = (dto.scope ?? {}) as Record<string, string[]>;
   const allowed = new Set(dto.allowedMitigationCodes ?? []);
-  const risk = (dto.riskAcceptanceConfig ?? {}) as { allowed?: boolean; max_duration?: string };
 
   return (
     <>
@@ -565,27 +564,6 @@ export function ScopeTab({ dto, patch, ro }: TabProps) {
             </label>
           ))}
         </div>
-      </Section>
-
-      <Section title="Closure"
-               hint="What must be true before a finding can close: the evidence a reviewer supplies, and whether the risk may be accepted instead of fixed.">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <label className={LABEL}>Risk acceptance allowed</label>
-            <select className={INPUT} disabled={ro} value={String(risk.allowed ?? false)}
-                    onChange={(e) => patch({ riskAcceptanceConfig: { ...risk, allowed: e.target.value === "true" } })}>
-              <option value="true">yes</option>
-              <option value="false">no</option>
-            </select>
-          </div>
-          <div>
-            <label className={LABEL}>Maximum acceptance duration</label>
-            <input className={cx(INPUT, "font-mono")} disabled={ro} value={risk.max_duration ?? ""}
-                   onChange={(e) => patch({ riskAcceptanceConfig: { ...risk, max_duration: e.target.value } })} />
-          </div>
-        </div>
-        <JsonField label="Evidence requirements" value={dto.evidenceRequirements} readOnly={ro} rows={3}
-                   onChange={(v) => patch({ evidenceRequirements: v })} />
       </Section>
     </>
   );
