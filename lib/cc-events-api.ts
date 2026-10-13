@@ -31,8 +31,57 @@ export interface CcEvent {
   subjectDescriptor?: Record<string, unknown> & { name?: string; humanReadable?: { name?: string } };
   correlationKey?: string;
   slaSnapshot?: { anchorAt?: string; dueAt?: string; ruleId?: string | null };
-  evidence?: Record<string, unknown>;
+  evidence?: Record<string, unknown> & { reviewForm?: string; reviewFormVersion?: number };
+  closedAt?: string | null;
   [key: string]: unknown;
+}
+
+/** Filters of the console's Events page, as sent to GET /compliance/events. */
+export interface CcEventSearch {
+  status?: string[];
+  severity?: string[];
+  definitionId?: string;
+  eventTypeCodes?: string[];
+  discoveredAfter?: string;
+  discoveredBefore?: string;
+  closedAfter?: string;
+  closedBefore?: string;
+  slaMet?: boolean;
+  reviewerPrincipalId?: string;
+  page: number;
+  pageSize: number;
+}
+
+export interface CcEventPage { content: CcEvent[]; totalElements: number }
+
+/** A definition as the Events page's Definition filter lists it. */
+export interface CcDefinitionRef { definitionId: string; code: string; version: number; state: string; name: string }
+
+/** Query string the console shows under its filters ("GET /compliance/events?…"). */
+export function eventSearchQueryString(q: CcEventSearch): string {
+  return Object.entries(q)
+    .filter(([, v]) => v !== undefined && !(Array.isArray(v) && v.length === 0))
+    .map(([k, v]) => (Array.isArray(v) ? v.map((x) => `${k}=${x}`).join("&") : `${k}=${v}`))
+    .join("&");
+}
+
+/**
+ * SLA elapsed % of an event (the console's own calculation): from the SLA
+ * anchor (or discovery) to the due time, measured at close or now.
+ */
+export function slaPercent(e: CcEvent): number | null {
+  const anchor = e.slaSnapshot?.anchorAt ?? e.discoveredAt;
+  const due = e.slaSnapshot?.dueAt ?? e.dueAt;
+  if (!anchor || !due) return null;
+  const span = new Date(due).getTime() - new Date(anchor).getTime();
+  const end = e.closedAt ? new Date(e.closedAt).getTime() : Date.now();
+  return span > 0 ? Math.round(((end - new Date(anchor).getTime()) / span) * 100) : null;
+}
+
+/** Subject label (the console's own fallback chain). */
+export function subjectLabel(e: CcEvent): string {
+  const sd = e.subjectDescriptor ?? {};
+  return String(sd.name || sd.humanReadable?.name || (sd as { displayName?: string }).displayName || e.correlationKey || "—");
 }
 
 export const CC_EVENTS_KEY = ["continuouscompliance", "events"] as const;
@@ -69,6 +118,31 @@ function toListItem(e: CcEvent, defs: Map<string, { code: string; name: string }
 }
 
 export const CcEvents = {
+  /** GET /compliance/events — the console's Events page query (arrays become repeated params). */
+  search: (q: CcEventSearch): Promise<CcEventPage> =>
+    ccRequest<CcEventPage>("GET", "/compliance/events", {
+      query: {
+        status: q.status?.length ? q.status : undefined,
+        severity: q.severity?.length ? q.severity : undefined,
+        definitionId: q.definitionId,
+        eventTypeCodes: q.eventTypeCodes?.length ? q.eventTypeCodes : undefined,
+        discoveredAfter: q.discoveredAfter,
+        discoveredBefore: q.discoveredBefore,
+        closedAfter: q.closedAfter,
+        closedBefore: q.closedBefore,
+        slaMet: q.slaMet === undefined ? undefined : String(q.slaMet),
+        reviewerPrincipalId: q.reviewerPrincipalId,
+        page: String(q.page),
+        pageSize: String(q.pageSize),
+      },
+    }).then((p) => ({ content: p?.content ?? [], totalElements: p?.totalElements ?? 0 })),
+
+  /** GET /compliance/definitions — for the Definition filter and the Definition column. */
+  definitions: async (): Promise<CcDefinitionRef[]> => {
+    const rows = await ccRequest<CcDefinitionRef[]>("GET", "/compliance/definitions");
+    return Array.isArray(rows) ? rows : [];
+  },
+
   /** GET /compliance/events with the All Events filters. */
   list: async (q: EventQuery): Promise<{ items: EventListItem[]; total: number }> => {
     const [page, defs] = await Promise.all([
