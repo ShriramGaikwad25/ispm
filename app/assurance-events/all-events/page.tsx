@@ -295,11 +295,14 @@ function EventsTable({ rows, defs, loading, tab, empty }: {
     return d ? `${d.code} v${d.version}` : id ? `${id.slice(0, 8)}…` : "—";
   };
 
+  // Full width, no horizontal scroll: every cell wraps, long ids/keys break anywhere.
+  const C = cx(TD, "px-3 [overflow-wrap:anywhere]");
+
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[1300px]">
+    <div>
+      <table className="w-full">
         <thead>
-          <tr className={THEAD_ROW}>
+          <tr className={cx(THEAD_ROW, "[&>th]:px-3")}>
             <th className={TH}>Discovered</th>
             <th className={TH}>Definition</th>
             <th className={TH}>Subject</th>
@@ -324,18 +327,18 @@ function EventsTable({ rows, defs, loading, tab, empty }: {
             return (
               <tr key={e.eventId} className={TR_CLICKABLE}
                   onClick={() => router.push(`${DETAIL_BASE}/${e.eventId}${tab ? `?tab=${tab}` : ""}`)}>
-                <td className={cx(TD, "whitespace-nowrap text-xs")}>{fmt(e.discoveredAt)}</td>
-                <td className={TD}>
+                <td className={cx(C, "text-xs")}>{fmt(e.discoveredAt)}</td>
+                <td className={C}>
                   <div className="text-sm font-semibold text-gray-900">{defLabel(e.definitionId)}</div>
                   <div className="text-xs text-gray-500 mt-0.5">{e.eventTypeCode}</div>
                 </td>
-                <td className={cx(TD, "max-w-[260px]")}>
+                <td className={C}>
                   <div className="text-sm text-gray-900">{subjectLabel(e)}</div>
-                  {e.correlationKey && <div className="text-xs text-gray-500 mt-0.5 font-mono truncate" title={e.correlationKey}>{e.correlationKey}</div>}
+                  {e.correlationKey && <div className="text-xs text-gray-500 mt-0.5 font-mono">{e.correlationKey}</div>}
                 </td>
-                <td className={TD}><SeverityBadge value={e.severity} /></td>
-                <td className={TD}><StateBadge value={e.status} /></td>
-                <td className={cx(TD, "min-w-[120px]")}>
+                <td className={C}><SeverityBadge value={e.severity} /></td>
+                <td className={C}><StateBadge value={e.status} /></td>
+                <td className={cx(C, "min-w-[90px]")}>
                   {pct === null ? "—" : (
                     <>
                       <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
@@ -346,15 +349,13 @@ function EventsTable({ rows, defs, loading, tab, empty }: {
                     </>
                   )}
                 </td>
-                <td className={cx(TD, "whitespace-nowrap text-xs")}>{fmt(e.dueAt ?? e.slaSnapshot?.dueAt)}</td>
-                <td className={cx(TD, "text-xs font-mono")} title={e.reviewerPrincipalId ?? undefined}>
-                  {e.reviewerPrincipalId ? `${e.reviewerPrincipalId.slice(0, 13)}…` : "—"}
-                </td>
-                <td className={cx(TD, "text-xs font-mono whitespace-nowrap")}>
+                <td className={cx(C, "text-xs")}>{fmt(e.dueAt ?? e.slaSnapshot?.dueAt)}</td>
+                <td className={cx(C, "text-xs font-mono")}>{e.reviewerPrincipalId ?? "—"}</td>
+                <td className={cx(C, "text-xs font-mono")}>
                   {e.evidence?.reviewForm ? `${e.evidence.reviewForm}@v${e.evidence.reviewFormVersion ?? "?"}` : "—"}
                 </td>
-                <td className={cx(TD, "whitespace-nowrap")}>L{e.escalationLevel ?? 0}{e.reopenCount ? ` · ↺${e.reopenCount}` : ""}</td>
-                <td className={cx(TD, "text-xs font-mono")} title={e.eventId}>{e.eventId.slice(0, 8)}…</td>
+                <td className={C}>L{e.escalationLevel ?? 0}{e.reopenCount ? ` · ↺${e.reopenCount}` : ""}</td>
+                <td className={cx(C, "text-xs font-mono")} title={e.eventId}>{e.eventId.slice(0, 8)}…</td>
               </tr>
             );
           })}
