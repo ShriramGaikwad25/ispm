@@ -5,8 +5,6 @@
 // (graph.keyforge.ai/console#/actions/{code}?version=) on the same API,
 // laid out like ISPM's gateway pages. Tabs:
 //   Definition   GET  /compliance/action-types/{code}?version=
-//   Test         POST /compliance/action-types/{code}/test      (dry run, nothing executes)
-//   Contract     GET  /compliance/action-types/{code}/contract?version=
 //   Where Used   GET  /compliance/action-types/{code}/usage
 //   Versions     GET  /compliance/action-types/{code}/versions
 // Actions: Activate, New Version, Deprecate (tenant actions), Clone.
@@ -16,21 +14,20 @@ import { Suspense, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download } from "lucide-react";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import { useCcConnection } from "@/hooks/useCcConnection";
 import { ControlsApiError } from "@/lib/controls-api";
 import {
-  ACTIONS_KEY, Actions, actionHref, paramSummary, type ActionParameter, type ActionTestResult, type ActionType,
+  ACTIONS_KEY, Actions, actionHref, paramSummary, type ActionParameter, type ActionType,
 } from "@/lib/cc-actions-api";
 import { CloneAction } from "@/components/assurance-events/CloneAction";
 import {
-  BTN_DANGER, BTN_LINK, BTN_PRIMARY, BTN_SECONDARY, CARD, CARD_HEADER, CARD_SUBTITLE, CARD_TITLE, INPUT, LABEL, PAGE,
-  PAGE_INNER_FLUSH, PILL, PageHeader, PageSpinner, Spinner, TBODY, TD, TH, THEAD_ROW, TR_CLICKABLE, TabBar, cx,
+  BTN_DANGER, BTN_LINK, BTN_PRIMARY, BTN_SECONDARY, CARD, CARD_HEADER, CARD_SUBTITLE, CARD_TITLE, PAGE,
+  PAGE_INNER_FLUSH, PILL, PageHeader, PageSpinner, TBODY, TD, TH, THEAD_ROW, TR_CLICKABLE, TabBar, cx,
 } from "@/components/assurance-events/ui";
 import { BannerBar, KeyValueList, StateBadge, type Banner } from "@/components/assurance-events/definition-editor/fields";
 
-type Tab = "definition" | "test" | "contract" | "usage" | "versions";
+type Tab = "definition" | "usage" | "versions";
 const LIBRARY_HREF = "/assurance-events/studio-configuration?tab=actions";
 
 const fmt = (t?: string | null) =>
@@ -156,12 +153,10 @@ function ActionPage() {
             <TabBar<Tab>
               active={tab}
               onChange={setTab}
-              tabs={[["definition", "Definition"], ["test", "Test"], ["contract", "Contract"], ["usage", "Where Used"], ["versions", "Versions"]]}
+              tabs={[["definition", "Definition"], ["usage", "Where Used"], ["versions", "Versions"]]}
             />
 
             {tab === "definition" && <DefinitionTab a={a} />}
-            {tab === "test" && <TestTab key={`${a.code}@${a.version}`} a={a} />}
-            {tab === "contract" && <ContractTab a={a} />}
             {tab === "usage" && <UsageTab code={a.code} />}
             {tab === "versions" && <VersionsTab code={a.code} onOpen={(v) => router.push(actionHref(v.code, v.version))} />}
           </>
@@ -198,11 +193,6 @@ const Empty = ({ children }: { children: ReactNode }) => (
 );
 const Mono = ({ children }: { children: ReactNode }) => <span className="font-mono text-xs">{children}</span>;
 const Dash = () => <span className="text-gray-400">—</span>;
-const Json = ({ v, max = 360 }: { v: unknown; max?: number }) => (
-  <pre className="text-xs font-mono bg-gray-50 border border-gray-200 rounded-md p-3 overflow-auto text-gray-800" style={{ maxHeight: max }}>
-    {JSON.stringify(v ?? {}, null, 2)}
-  </pre>
-);
 
 function Loaded<T>({ q, children }: { q: { isLoading: boolean; error: unknown; data?: T }; children: (d: T) => ReactNode }) {
   if (q.isLoading) return <PageSpinner />;
@@ -292,164 +282,6 @@ function DefinitionTab({ a }: { a: ActionType }) {
         </table>
       </Card>
     </div>
-  );
-}
-
-/* ---------------------------------------------------------------- Test */
-
-const SAMPLE_CONTEXT = {
-  subject: { name: "SAP_FIN_ADMIN", entitlementId: "e0000000-0000-0000-0000-000000000002", riskTier: "HIGH" },
-  finding: { fallbackAvailable: false },
-  event: { severity: "HIGH" },
-};
-
-function TestTab({ a }: { a: ActionType }) {
-  const [executor, setExecutor] = useState(a.defaultExecutor ?? "");
-  const [params, setParams] = useState(() => JSON.stringify(Object.fromEntries((a.parameters ?? [])
-    .map((p) => [p.name, p.suggested ?? p.example ?? p.default]).filter(([, v]) => v != null)), null, 2));
-  const [mode, setMode] = useState<"context" | "event">("context");
-  const [eventId, setEventId] = useState("");
-  const [context, setContext] = useState(JSON.stringify(SAMPLE_CONTEXT, null, 2));
-  const [result, setResult] = useState<ActionTestResult | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const run = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const body = {
-        params: JSON.parse(params || "{}"), version: a.version, executor: executor.trim() || undefined,
-        ...(mode === "event" ? { eventId: eventId.trim() } : { context: JSON.parse(context || "{}") }),
-      };
-      setResult(await Actions.test(a.code, body));
-    } catch (e) {
-      setError(e instanceof SyntaxError ? `Invalid JSON: ${e.message}` : (e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-      <Card
-        title="Test"
-        subtitle={`Templates are resolved against the context and the result is validated against v${a.version}'s schema; an external executor receives a DRY_RUN. Nothing is executed.`}
-        right={
-          <button className={BTN_PRIMARY} disabled={busy || (mode === "event" && !eventId.trim())} onClick={run}>
-            {busy && <Spinner size={14} className="text-white" />} Test v{a.version}
-          </button>
-        }
-      >
-        <div className="space-y-4">
-          <div>
-            <label className={LABEL}>Executor (empty = the action&apos;s default)</label>
-            <input className={cx(INPUT, "font-mono")} value={executor} onChange={(e) => setExecutor(e.target.value)} />
-          </div>
-          <div>
-            <label className={LABEL}>Params (JSON)</label>
-            <textarea className={cx(INPUT, "font-mono text-xs")} rows={8} value={params} onChange={(e) => setParams(e.target.value)} />
-          </div>
-          <div className="flex flex-wrap gap-4 text-sm">
-            <label className="inline-flex items-center gap-2">
-              <input type="radio" checked={mode === "context"} onChange={() => setMode("context")} /> Hand-written context
-            </label>
-            <label className="inline-flex items-center gap-2">
-              <input type="radio" checked={mode === "event"} onChange={() => setMode("event")} /> A real event (its governance context)
-            </label>
-          </div>
-          {mode === "event" ? (
-            <div>
-              <label className={LABEL}>Event ID</label>
-              <input className={cx(INPUT, "font-mono")} value={eventId} placeholder="Paste an event ID from All Events"
-                     onChange={(e) => setEventId(e.target.value)} />
-            </div>
-          ) : (
-            <div>
-              <label className={LABEL}>Context (JSON)</label>
-              <textarea className={cx(INPUT, "font-mono text-xs")} rows={8} value={context} onChange={(e) => setContext(e.target.value)} />
-            </div>
-          )}
-          {error && <ErrorLine error={new Error(error)} />}
-        </div>
-      </Card>
-
-      <Card title="Result">
-        {result ? (
-          <div className="space-y-4">
-            <KeyValueList rows={[
-              ["Valid", <span key="v" className={result.violations?.length ? "text-red-600" : "text-green-700"}>
-                {result.violations?.length ? `${result.violations.length} violation(s)` : "Yes"}
-              </span>],
-              ["Executor", <span key="e" className="inline-flex items-center gap-2 flex-wrap">
-                <Mono>{result.executor?.code ?? "—"}</Mono>
-                {result.executor?.kind && <span className={cx(PILL, "bg-gray-100 text-gray-700")}>{result.executor.kind}</span>}
-                {result.executor?.supportsAction === false && <span className={cx(PILL, "bg-red-100 text-red-700")}>Does not support it</span>}
-              </span>],
-              ["Operation", result.operation ?? <Dash key="o" />],
-              ...(result.answer ? [["Adapter answer", <span key="a" className={cx(PILL, "bg-gray-100 text-gray-700")}>{String(result.answer.status)}</span>] as [string, ReactNode]] : []),
-            ]} />
-            {!!result.violations?.length && (
-              <ul className="list-disc ml-5 text-sm text-red-600 space-y-1">
-                {result.violations.map((v, i) => <li key={i}>{v}</li>)}
-              </ul>
-            )}
-            <Json v={result} max={420} />
-          </div>
-        ) : <span className="text-sm text-gray-500">Run a test to see the resolved parameters and any violations.</span>}
-      </Card>
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------------- Contract */
-
-function ContractTab({ a }: { a: ActionType }) {
-  const q = useQuery({ queryKey: [...ACTIONS_KEY, a.code, a.version, "contract"], queryFn: () => Actions.contract(a.code, a.version) });
-  const download = () => {
-    const blob = new Blob([JSON.stringify(q.data, null, 2)], { type: "application/json" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `${a.code}-v${a.version}-contract.json`;
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(link.href), 2000);
-  };
-  return (
-    <Loaded q={q}>{(c) => (
-      <div className="space-y-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-gray-500">
-            What an adapter team needs: the parameter table, sample EXECUTE{a.reversible ? " and ROLLBACK" : ""} envelopes, the
-            result shape and the documented result fields.
-          </p>
-          <button className={BTN_PRIMARY} onClick={download}><Download size={14} /> Download Contract</button>
-        </div>
-        <Card title={`Parameters of ${a.code} v${a.version}`} flush>
-          <ParametersTable params={a.parameters ?? []} />
-        </Card>
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          <Card title="EXECUTE Envelope" subtitle="Sample values"><Json v={c.envelopes?.EXECUTE} max={420} /></Card>
-          <Card title="Result the Executor Returns">
-            <div className="space-y-4">
-              <Json v={c.result} max={260} />
-              {c.envelopes?.ROLLBACK != null && (
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-2">ROLLBACK Envelope</h3>
-                  <Json v={c.envelopes.ROLLBACK} max={260} />
-                </div>
-              )}
-            </div>
-          </Card>
-        </div>
-        {!!c.notes?.length && (
-          <Card title="Notes">
-            <ul className="list-disc ml-5 text-sm text-gray-600 space-y-1">
-              {c.notes.map((n, i) => <li key={i}>{n}</li>)}
-            </ul>
-          </Card>
-        )}
-      </div>
-    )}</Loaded>
   );
 }
 
