@@ -23,18 +23,18 @@ import {
 import { BannerBar, StateBadge, WireView } from "./fields";
 import type { Banner } from "./fields";
 import {
-  DetectionTab, GeneralTab, GovernanceTab, NotificationsTab, ScopeTab,
+  DetectionTab, GeneralTab, GovernanceTab, NotificationsTab, ScopeTab, SlaProfilesTab,
 } from "./tabs";
 
 export const DEFINITIONS_BASE = "/assurance-events/event-definitions";
 
-// The SLA is chosen on General (from the named SLA policies), so there is no
-// separate SLA policy tab. SlaTab and SchedulerTab remain in the codebase but
-// are not part of the editor.
+// SLA: the console's SLA tab (linked SLA profiles, fallback, resolved SLA).
+// SlaTab and SchedulerTab remain in the codebase but are not part of the editor.
 const TABS: Array<[string, string]> = [
   ["general", "General"],
   ["detection", "Detection"],
   ["governance", "Governance policy"],
+  ["sla", "SLA"],
   ["scope", "Scope"],
   ["notify", "Notifications"],
 ];
@@ -184,6 +184,7 @@ export function DefinitionEditor({ id }: { id: UUID }) {
           {tab === "general" && <GeneralTab dto={dto} patch={patch} ro={false} id={id} />}
           {tab === "detection" && <DetectionTab dto={dto} patch={patch} ro={false} id={id} />}
           {tab === "governance" && <GovernanceTab dto={dto} patch={patch} ro={false} id={id} />}
+          {tab === "sla" && <SlaProfilesTab dto={dto} patch={patch} ro={false} id={id} />}
           {tab === "scope" && <ScopeTab dto={dto} patch={patch} ro={false} id={id} />}
           {tab === "notify" && <NotificationsTab dto={dto} patch={patch} ro={false} id={id} />}
         </div>

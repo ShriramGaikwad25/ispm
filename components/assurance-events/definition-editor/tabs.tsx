@@ -2,8 +2,8 @@
 
 // The definition editor's tabs, ported from the deployed Continuous
 // Assurance console (graph.keyforge.ai/cc/definitions/:id): General (with
-// the SLA chosen from a dropdown), Detection, Governance policy, Scope,
-// Notifications. SlaTab and ActionBindingsTab are kept in the codebase but
+// the SLA chosen from a dropdown), Detection, Governance policy, SLA,
+// Scope, Notifications. SlaTab and ActionBindingsTab are kept in the codebase but
 // are not shown in the editor's tab bar.
 
 import { useState } from "react";
@@ -14,7 +14,8 @@ import {
   useExecutors, useMitigationControls, useNotifications,
 } from "@/hooks/useAssuranceEvents";
 import { Definitions } from "@/lib/assurance-events-api";
-import { Controls, type Control } from "@/lib/controls-api";
+import { Controls, ccRequest, type Control } from "@/lib/controls-api";
+import { CC_DEFINITIONS_KEY, CcDefinitions } from "@/lib/cc-definitions-api";
 import { ACTIONS_BASE, actionHref } from "@/lib/cc-actions-api";
 import { SLA_POLICIES_KEY, Slas, applySlaPolicy, matchSlaPolicy } from "@/lib/assurance-sla";
 import { NotificationBindings, listEmailTemplates } from "@/lib/assurance-notification-bindings";
@@ -456,6 +457,245 @@ function ActionsUsed({ dto }: { dto: EventDefinition }) {
         </>
       )}
     </Section>
+  );
+}
+
+// ---------------------------------------------------------------------
+// SLA — the console's SLA tab (graph.keyforge.ai/console#/definitions/{id}):
+// SLA profiles linked from the SLA library (GET /compliance/sla-profiles),
+// the definition's own fallback SLA, and the SLA the service resolves.
+// ---------------------------------------------------------------------
+
+interface SlaProfile {
+  profileId: string; code: string; name: string; version: number; system: boolean;
+  duration?: string; dueAt?: string; appliesWhen?: string; actionOnTimeout?: string;
+  escalationChain?: Array<{ atPercent: number; action: string }>;
+}
+interface ResolvedSlaItem {
+  position: number; code: string; name?: string; version?: number; pinned?: boolean; latestActiveVersion?: number;
+  duration?: string; dueAt?: string; actionOnTimeout?: string; effectiveWhen?: string;
+  escalationChain?: Array<{ atPercent: number; action: string }>;
+}
+interface ResolvedSla {
+  source?: string; resolution?: string; text?: string; items?: ResolvedSlaItem[]; inlineRules?: number; warnings?: string[];
+  fallback?: { duration?: string; actionOnTimeout?: string; escalationChain?: Array<{ atPercent: number; action: string }> };
+}
+type SlaLink = { code: string; when?: string | null };
+
+const chainText = (c?: Array<{ atPercent: number; action: string }>) =>
+  c?.length ? c.map((s) => `${s.atPercent}% ${s.action}`).join(" → ") : "no escalation";
+
+export function SlaProfilesTab({ dto, patch, ro, id }: TabProps) {
+  const profilesQ = useQuery({
+    queryKey: ["continuouscompliance", "sla-profiles", { state: "ACTIVE" }],
+    queryFn: async () => {
+      const rows = await ccRequest<SlaProfile[]>("GET", "/compliance/sla-profiles", { query: { state: "ACTIVE" } });
+      return Array.isArray(rows) ? rows : [];
+    },
+  });
+  // The saved definition (same query as the editor) carries the resolved SLA view.
+  const savedQ = useQuery({ queryKey: [...CC_DEFINITIONS_KEY, "detail", id], queryFn: () => CcDefinitions.get(id) });
+  const savedSla = (savedQ.data as unknown as { sla?: ResolvedSla & { items?: Array<ResolvedSlaItem & { when?: string }> } } | undefined)?.sla;
+  const resolved = savedSla && "text" in savedSla ? savedSla : undefined;
+  const [pick, setPick] = useState("");
+
+  const sla = (dto as unknown as { sla?: { resolution?: string; items?: Array<{ code: string; when?: string | null }> } }).sla;
+  const resolution = sla?.resolution || resolved?.resolution || "FIRST_MATCH";
+  const links: SlaLink[] = (sla?.items ?? []).map((i) => ({ code: String(i.code), when: i.when || null }));
+  const setLinks = (next: SlaLink[], res = resolution) =>
+    patch({ sla: { resolution: res, items: next.map((l) => ({ code: l.code, ...(l.when ? { when: l.when } : {}) })) } } as unknown as Partial<EventDefinition>);
+  const move = (i: number, by: number) => {
+    const next = [...links];
+    const [l] = next.splice(i, 1);
+    next.splice(i + by, 0, l);
+    setLinks(next);
+  };
+
+  // The library: a tenant profile overrides a system profile of the same code.
+  const library = new Map<string, SlaProfile>();
+  for (const p of profilesQ.data ?? []) if (!library.has(p.code) || !p.system) library.set(p.code, p);
+  const available = [...library.values()].filter((p) => !links.some((l) => l.code === p.code));
+  const savedLinks = (resolved?.items ?? []).map((i) => i.code).join(",");
+  const unsaved = !!resolved && (links.map((l) => l.code).join(",") !== savedLinks || resolution !== resolved.resolution);
+
+  return (
+    <>
+      {resolved?.source === "INLINE" && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <b>Legacy inline SLA rules:</b> {resolved.inlineRules} rule(s) are still evaluated as-is, but a definition can no longer be
+          saved with inline rules. Link the equivalent SLA profiles below and save: the links replace the rules.
+        </div>
+      )}
+
+      <Section
+        title="Linked SLA Profiles"
+        hint="In priority order: the first applicable profile wins (or the earliest deadline under STRICTEST)."
+        actions={<Link href={SLA_PAGE} className={cx(BTN_SECONDARY, "text-xs")}>Open SLA library</Link>}
+      >
+        <div className="max-w-md">
+          <label className={LABEL}>Resolution</label>
+          <select className={INPUT} value={resolution} disabled={ro} onChange={(e) => setLinks(links, e.target.value)}>
+            <option value="FIRST_MATCH">FIRST_MATCH — the first applicable profile sets the SLA</option>
+            <option value="STRICTEST">STRICTEST — the earliest deadline of all applicable profiles wins</option>
+          </select>
+        </div>
+
+        <div className="border border-gray-200 rounded-lg overflow-hidden">
+          <table className="w-full">
+            <thead>
+              <tr className={THEAD_ROW}>
+                <th className={TH}>#</th>
+                <th className={TH}>Profile · Condition</th>
+                <th className={TH}>Deadline · Timeout · Escalation</th>
+                <th className={TH}>Version</th>
+                {!ro && <th className={TH}></th>}
+              </tr>
+            </thead>
+            <tbody className={TBODY}>
+              {links.map((l, i) => {
+                const lib = library.get(l.code);
+                const saved = resolved?.items?.find((x) => x.code === l.code);
+                return (
+                  <tr key={l.code}>
+                    <td className={TD}>{i + 1}</td>
+                    <td className={cx(TD, "min-w-[320px]")}>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-xs font-semibold text-gray-900">{l.code}</span>
+                        {lib && (
+                          <span className={cx("rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                            lib.system ? "bg-gray-100 text-gray-600" : "bg-blue-100 text-blue-700")}>
+                            {lib.system ? "System" : "Tenant"}
+                          </span>
+                        )}
+                        <span className="text-xs text-gray-500">
+                          {lib?.name || saved?.name || <span className="text-red-600">Not in the library (ACTIVE)</span>}
+                        </span>
+                      </div>
+                      <input className={cx(INPUT, "font-mono text-xs mt-2")} value={l.when ?? ""} readOnly={ro}
+                             placeholder={lib?.appliesWhen || (lib ? "true (unconditional)" : "")}
+                             title="Leave empty to use the profile's own condition"
+                             onChange={(e) => setLinks(links.map((x, j) => (j === i ? { ...x, when: e.target.value || null } : x)))} />
+                      {l.when && lib?.appliesWhen && (
+                        <div className="text-xs text-gray-500 mt-1">overrides: <span className="font-mono">{lib.appliesWhen}</span></div>
+                      )}
+                    </td>
+                    <td className={cx(TD, "text-xs text-gray-600")}>
+                      <span className="font-mono">{lib ? (lib.dueAt ? "dueAt expression" : lib.duration) : saved?.duration || "—"}</span>
+                      {" · "}{lib?.actionOnTimeout || saved?.actionOnTimeout || "definition default"}
+                      <div className="mt-0.5">{chainText(lib?.escalationChain ?? saved?.escalationChain)}</div>
+                    </td>
+                    <td className={cx(TD, "text-xs text-gray-500 whitespace-nowrap")}>
+                      {saved?.pinned ? (
+                        <>
+                          pinned v{saved.version}
+                          {saved.latestActiveVersion && saved.latestActiveVersion !== saved.version && (
+                            <div className="text-amber-700">v{saved.latestActiveVersion} available</div>
+                          )}
+                        </>
+                      ) : lib ? `latest v${lib.version}` : "—"}
+                    </td>
+                    {!ro && (
+                      <td className={cx(TD, "whitespace-nowrap")}>
+                        <button className={BTN_GHOST} disabled={i === 0} onClick={() => move(i, -1)} aria-label="Move up"><ArrowUp size={14} /></button>
+                        <button className={BTN_GHOST} disabled={i === links.length - 1} onClick={() => move(i, 1)} aria-label="Move down"><ArrowDown size={14} /></button>
+                        <button className={cx(BTN_GHOST, "text-red-600")} onClick={() => setLinks(links.filter((x) => x.code !== l.code))} aria-label="Remove">
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+              {!links.length && (
+                <tr><td colSpan={5} className="px-4 py-6 text-center text-sm text-gray-500">
+                  No profiles linked — every event gets the fallback SLA below.
+                </td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-xs text-gray-500">
+          DRAFT links follow the latest ACTIVE version of each code (the tenant&apos;s own before the system one); activation pins them.
+        </p>
+
+        {!ro && (
+          <div className="flex flex-wrap items-center gap-2">
+            <select className={cx(INPUT_BASE, "w-[28rem] max-w-full")} value={pick} onChange={(e) => setPick(e.target.value)}>
+              <option value="">Add an ACTIVE SLA profile…</option>
+              {available.map((p) => (
+                <option key={p.profileId} value={p.code}>
+                  {p.code} — {p.name} ({p.dueAt ? "dueAt" : p.duration}{p.appliesWhen ? "" : ", unconditional"}){p.system ? "" : " (tenant)"}
+                </option>
+              ))}
+            </select>
+            <button className={cx(BTN_SECONDARY, "text-xs")} disabled={!pick} onClick={() => { setLinks([...links, { code: pick }]); setPick(""); }}>
+              <Plus size={12} /> Add
+            </button>
+            <span className="text-xs text-gray-500">
+              {profilesQ.isLoading ? "Loading profiles…" : `${available.length} ACTIVE profile(s) available · link an unconditional profile last as the effective default`}
+            </span>
+          </div>
+        )}
+      </Section>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <Section title="Fallback SLA" hint="The definition's own SLA, used when no profile applies.">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className={LABEL}>Duration (ISO-8601)</label>
+              <input className={cx(INPUT, "font-mono")} value={dto.slaDuration ?? ""} readOnly={ro}
+                     onChange={(e) => patch({ slaDuration: e.target.value })} />
+            </div>
+            <div>
+              <label className={LABEL}>Action on timeout</label>
+              <select className={INPUT} value={dto.defaultActionOnTimeout ?? ""} disabled={ro}
+                      onChange={(e) => patch({ defaultActionOnTimeout: e.target.value })}>
+                {[...new Set([...TIMEOUT_ACTIONS, dto.defaultActionOnTimeout].filter(Boolean))].map((a) => <option key={a}>{a}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className={LABEL}>Escalation chain (also used by a profile that does not override the chain)</label>
+            <EscalationChainEditor chain={dto.escalationChain ?? []} readOnly={ro} onChange={(c) => patch({ escalationChain: c })} />
+          </div>
+        </Section>
+
+        <Section title="Resolved SLA" hint="Read-only; resolved by the service on every read.">
+          {resolved ? (
+            <KeyValueList rows={[
+              ["Source", <StateBadge key="s" value={resolved.source} />],
+              ["Resolution", resolved.resolution ?? "—"],
+              ["Order", <b key="o">{resolved.text || "—"}</b>],
+              ["Items", resolved.items?.length ? (
+                <div key="i" className="space-y-1">
+                  {resolved.items.map((it) => (
+                    <div key={it.position}>
+                      {it.position}. <b>{it.code}</b>{it.version ? ` v${it.version}` : ""}{" "}
+                      <span className="text-xs text-gray-500">
+                        ({it.pinned ? "pinned" : "latest"}) · {it.duration || it.dueAt} · {it.actionOnTimeout || "definition default"} · {chainText(it.escalationChain)}
+                      </span>
+                      <div className="font-mono text-xs text-gray-500">when {it.effectiveWhen}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : "None"],
+              ["Fallback", resolved.fallback
+                ? `${resolved.fallback.duration} · ${resolved.fallback.actionOnTimeout} · ${chainText(resolved.fallback.escalationChain)}` : "—"],
+              ["Warnings", resolved.warnings?.length
+                ? <span key="w" className="text-amber-700">{resolved.warnings.map((w) => `△ ${w}`).join(" · ")}</span>
+                : <span key="w" className="text-green-700">None</span>],
+            ]} />
+          ) : (
+            <div className="text-sm text-gray-500">Saved definitions show the resolved SLA here.</div>
+          )}
+          {unsaved && (
+            <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+              Unsaved links. After save: <b>{links.map((l) => l.code).join(" → ") || "—"} · {dto.slaDuration} fallback</b> ({resolution})
+            </div>
+          )}
+        </Section>
+      </div>
+    </>
   );
 }
 
