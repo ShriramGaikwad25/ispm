@@ -122,33 +122,31 @@ export default function ControlLibraryPage() {
           </div>
         )}
 
-        {/* Family readiness */}
+        {/* Categories */}
         <div className={cx(CARD, "mb-6")}>
           <div className={CARD_HEADER}>
             <div>
-              <div className={CARD_TITLE}>Detection Families</div>
-              <div className={CARD_SUBTITLE}>
-                How a control is evaluated (APPROVAL_DQ = the catalog scan, PUSH = verified on ingest). Click to filter.
-              </div>
+              <div className={CARD_TITLE}>Categories</div>
+              <div className={CARD_SUBTITLE}>Groups of related controls. Click to filter.</div>
             </div>
-            {family && (
-              <button className={cx(BTN_LINK, "inline-flex items-center gap-1")} onClick={() => setFamily("")}>
+            {category && (
+              <button className={cx(BTN_LINK, "inline-flex items-center gap-1")} onClick={() => setCategory("")}>
                 <X size={14} /> Clear
               </button>
             )}
           </div>
           <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {familiesQ.isLoading && <Spinner />}
-            {families.map((f) => {
-              const active = family === f.code;
-              const inFamily = all.filter((c) => c.familyCode === f.code);
-              const activeCount = inFamily.filter((c) => c.state === "ACTIVE").length;
-              const categoryCount = new Set(inFamily.map((c) => c.categoryCode)).size;
-              const label = typeof f.displayName === "string" && f.displayName ? f.displayName : f.code;
+            {categoriesQ.isLoading && <Spinner />}
+            {categories.map((cat) => {
+              const active = category === cat.code;
+              const inCategory = all.filter((c) => c.categoryCode === cat.code);
+              const activeCount = inCategory.filter((c) => c.state === "ACTIVE").length;
+              const familyCount = new Set(inCategory.map((c) => c.familyCode)).size;
+              const label = cat.displayName || cat.code;
               return (
                 <button
-                  key={f.code}
-                  onClick={() => setFamily(active ? "" : f.code)}
+                  key={cat.code}
+                  onClick={() => setCategory(active ? "" : cat.code)}
                   className={cx(
                     "text-left border rounded-lg p-3 transition-colors",
                     active ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-white hover:bg-gray-50",
@@ -156,7 +154,7 @@ export default function ControlLibraryPage() {
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm font-semibold text-gray-900 truncate">{label}</span>
-                    <span className="text-xs text-gray-500 shrink-0">{inFamily.length}</span>
+                    <span className="text-xs text-gray-500 shrink-0">{inCategory.length}</span>
                   </div>
                   <div className="flex items-center gap-3 mt-1.5 text-xs">
                     {activeCount > 0 ? (
@@ -168,8 +166,8 @@ export default function ControlLibraryPage() {
                         <Circle size={12} /> none active
                       </span>
                     )}
-                    <span className={cx("inline-flex items-center gap-1", categoryCount ? "text-blue-700" : "text-amber-700")}>
-                      <Layers size={12} /> {categoryCount ? `${categoryCount} categor${categoryCount === 1 ? "y" : "ies"}` : "no controls"}
+                    <span className={cx("inline-flex items-center gap-1", familyCount ? "text-blue-700" : "text-amber-700")}>
+                      <Layers size={12} /> {familyCount ? `${familyCount} famil${familyCount === 1 ? "y" : "ies"}` : "no controls"}
                     </span>
                   </div>
                 </button>
@@ -188,9 +186,13 @@ export default function ControlLibraryPage() {
             className="flex-1 min-w-[260px] rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
           <div className="flex flex-wrap items-center gap-2">
-            <select className={FILTER_INPUT} value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Category">
-              <option value="">All categories</option>
-              {categories.map((c) => <option key={c.code} value={c.code}>{c.displayName}</option>)}
+            <select className={FILTER_INPUT} value={family} onChange={(e) => setFamily(e.target.value)} aria-label="Family">
+              <option value="">All families</option>
+              {families.map((f) => (
+                <option key={f.code} value={f.code}>
+                  {typeof f.displayName === "string" && f.displayName ? f.displayName : f.code}
+                </option>
+              ))}
             </select>
             <select className={FILTER_INPUT} value={state} onChange={(e) => setState(e.target.value)} aria-label="State">
               <option value="">All states</option>
