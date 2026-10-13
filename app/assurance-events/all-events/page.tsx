@@ -19,7 +19,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCcConnection } from "@/hooks/useCcConnection";
 import {
-  CcEvents, eventSearchQueryString, slaPercent, subjectLabel, type CcDefinitionRef, type CcEvent, type CcEventSearch,
+  CcEvents, slaPercent, subjectLabel, type CcDefinitionRef, type CcEvent, type CcEventSearch,
 } from "@/lib/cc-events-api";
 import {
   BTN_SECONDARY, CARD, CARD_SUBTITLE, CARD_TITLE, PAGE, PAGE_INNER_FLUSH, PILL, PageSpinner, Spinner, TBODY, TD, TH,
@@ -214,8 +214,6 @@ function EventsTab({ defs }: { defs: CcDefinitionRef[] }) {
             <button type="button" className={BTN_SECONDARY} onClick={() => qc.invalidateQueries({ queryKey: EVENTS_KEY })}>Refresh</button>
           </div>
         </div>
-
-        <div className="text-xs font-mono text-gray-500 break-all">GET /compliance/events?{eventSearchQueryString(search)}</div>
       </div>
 
       {eventsQ.error && (
