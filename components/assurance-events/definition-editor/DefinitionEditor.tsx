@@ -23,7 +23,7 @@ import {
 import { BannerBar, StateBadge, WireView } from "./fields";
 import type { Banner } from "./fields";
 import {
-  ActionBindingsTab, DetectionTab, GeneralTab, GovernanceTab, NotificationsTab, ScopeTab,
+  DetectionTab, GeneralTab, GovernanceTab, NotificationsTab, ScopeTab,
 } from "./tabs";
 
 export const DEFINITIONS_BASE = "/assurance-events/event-definitions";
@@ -36,7 +36,6 @@ const TABS: Array<[string, string]> = [
   ["detection", "Detection"],
   ["governance", "Governance policy"],
   ["scope", "Scope"],
-  ["bindings", "Action bindings"],
   ["notify", "Notifications"],
 ];
 
@@ -186,7 +185,6 @@ export function DefinitionEditor({ id }: { id: UUID }) {
           {tab === "detection" && <DetectionTab dto={dto} patch={patch} ro={false} id={id} />}
           {tab === "governance" && <GovernanceTab dto={dto} patch={patch} ro={false} id={id} />}
           {tab === "scope" && <ScopeTab dto={dto} patch={patch} ro={false} id={id} />}
-          {tab === "bindings" && <ActionBindingsTab dto={dto} patch={patch} ro={false} id={id} />}
           {tab === "notify" && <NotificationsTab dto={dto} patch={patch} ro={false} id={id} />}
         </div>
         {showRequest && (

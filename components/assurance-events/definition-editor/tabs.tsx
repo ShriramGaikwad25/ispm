@@ -3,8 +3,8 @@
 // The definition editor's tabs, ported from the deployed Continuous
 // Assurance console (graph.keyforge.ai/cc/definitions/:id): General (with
 // the SLA chosen from a dropdown), Detection, Governance policy, Scope,
-// Action bindings, Notifications. SlaTab is kept for the
-// condition editor but is not shown in the editor's tab bar.
+// Notifications. SlaTab and ActionBindingsTab are kept in the codebase but
+// are not shown in the editor's tab bar.
 
 import { useState } from "react";
 import Link from "next/link";
