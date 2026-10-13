@@ -263,24 +263,18 @@ export default function ControlLibraryPage() {
   );
 }
 
-/** Control detail, shown in the right sidebar like an Agent Task Library task. */
 /** The family's context — the variables a condition can read (GET /compliance/detection-families). */
 function FamilyContext({ code }: { code: string }) {
   const familiesQ = useQuery({ queryKey: [...KEY, "families"], queryFn: Controls.families });
   const f = familiesQ.data?.families?.find((x) => x.code === code);
   return (
     <div>
-      <h4 className="text-xs font-semibold text-gray-700 mb-1">Context of family {code}</h4>
       {familiesQ.isLoading ? (
         <Spinner />
       ) : !f ? (
         <div className="text-sm text-gray-500">Unknown family.</div>
       ) : (
         <>
-          <p className="text-xs text-gray-500 mb-3">
-            {[f.displayName, f.evaluator && `Evaluator: ${f.evaluator}`,
-              f.objectKinds?.length && `Object kinds: ${f.objectKinds.join(", ")}`].filter(Boolean).join(". ")}.
-          </p>
           {Object.entries(f.contextSchema ?? {}).map(([name, v]) => (
             <div key={name} className="mb-3">
               <div className="text-xs mb-1">
@@ -302,6 +296,7 @@ function FamilyContext({ code }: { code: string }) {
   );
 }
 
+/** Control detail, shown in the right sidebar like an Agent Task Library task. */
 function ControlDetail({ control: c, categoryName, onCloned }: {
   control: Control; categoryName: string; onCloned: (code: string) => void;
 }) {
