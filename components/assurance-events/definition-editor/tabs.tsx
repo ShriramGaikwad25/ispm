@@ -33,7 +33,6 @@ export type TabProps = {
   id: UUID;
 };
 
-const GOVERNANCE_POINTS = ["SEVERITY", "AUTO_REMEDIATION_GATE", "AUTO_DECISION", "REVIEWER"];
 const SLA_PAGE = "/assurance-events/sla";
 const TIMEOUT_ACTIONS = ["ESCALATE", "AUTO_REVOKE", "AUTO_ACCEPT", "QUARANTINE", "NO_OP"];
 
@@ -343,6 +342,7 @@ export function DetectionTab({ dto, patch, ro }: TabProps) {
 
 export function GovernanceTab({ dto, patch, ro }: TabProps) {
   const rules = dto.governancePolicy?.rules ?? [];
+  const [editing, setEditing] = useState<number | null>(null);
   const setRules = (r: GovernanceRule[]) => patch({ governancePolicy: { ...dto.governancePolicy, rules: r } });
   const update = (i: number, p: Partial<GovernanceRule>) => setRules(rules.map((r, j) => (j === i ? { ...r, ...p } : r)));
   const move = (i: number, by: number) => {
@@ -351,76 +351,87 @@ export function GovernanceTab({ dto, patch, ro }: TabProps) {
     next.splice(i + by, 0, r);
     setRules(next);
   };
-  const executorFor = (action?: string) =>
-    action
-      ? dto.actionBindings?.[action] || dto.actionBindings?.["*"] ||
-        (action.startsWith("IGA_") ? "iga (default)" : "action-type default")
-      : null;
+  const value = (v: unknown) => (typeof v === "string" ? v : JSON.stringify(v));
 
   return (
     <Section
       title="Governance policy — rules evaluated in order"
-      hint="SEVERITY rules run first and may change the severity. Then the first true rule decides the branch: run an action, record an automatic decision, or route to a reviewer with a form. No rules (or none true) routes to the definition's reviewer."
+      hint="The first rule whose When holds decides what happens: run an action, record an automatic decision, or route to a reviewer with a form. No rules (or none true) routes to the definition's reviewer."
       actions={!ro && (
         <button className={cx(BTN_SECONDARY, "text-xs")}
-                onClick={() => setRules([...rules, {
-                  id: `rule-${rules.length + 1}`, point: "REVIEWER", when: "true", then: { reviewForm: "ASSIGN_APPROVAL_GROUP" },
-                }])}>
+                onClick={() => {
+                  setRules([...rules, {
+                    id: `rule-${rules.length + 1}`, point: "REVIEWER", when: "true", then: { reviewForm: "ASSIGN_APPROVAL_GROUP" },
+                  }]);
+                  setEditing(rules.length);
+                }}>
           <Plus size={12} /> Add rule
         </button>
       )}
     >
-      {rules.length === 0 && (
-        <div className="text-sm text-gray-500 border border-dashed rounded p-3">
-          No rules: findings go to the reviewer named on the General tab.
-        </div>
-      )}
-      {rules.map((rule, i) => (
-        <div key={i} className="rounded-md border border-gray-200 p-3 space-y-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            <input className={cx(INPUT_BASE, "w-48 font-mono text-xs")} value={rule.id} disabled={ro}
-                   onChange={(e) => update(i, { id: e.target.value })} />
-            <select className={cx(INPUT_BASE, "w-56")} value={rule.point} disabled={ro}
-                    onChange={(e) => update(i, { point: e.target.value })}>
-              {GOVERNANCE_POINTS.map((p) => <option key={p}>{p}</option>)}
-            </select>
-            <div className="flex-1" />
-            {!ro && (
-              <>
-                <button className={cx(BTN_GHOST, "px-2")} disabled={i === 0} onClick={() => move(i, -1)} aria-label="Move up">
-                  <ArrowUp size={13} />
-                </button>
-                <button className={cx(BTN_GHOST, "px-2")} disabled={i === rules.length - 1} onClick={() => move(i, 1)}
-                        aria-label="Move down">
-                  <ArrowDown size={13} />
-                </button>
-                <button className={cx(BTN_GHOST, "px-2 text-red-600")} onClick={() => setRules(rules.filter((_, j) => j !== i))}
-                        aria-label="Remove rule">
-                  <Trash2 size={13} />
-                </button>
-              </>
+      <div className="border border-gray-200 rounded-lg overflow-hidden">
+        <table className="w-full">
+          <thead>
+            <tr className={THEAD_ROW}>
+              <th className={cx(TH, "w-10")}>#</th>
+              <th className={TH}>When</th>
+              <th className={TH}>Then</th>
+              {!ro && <th className={cx(TH, "w-40")}></th>}
+            </tr>
+          </thead>
+          <tbody className={TBODY}>
+            {rules.map((rule, i) => (
+              <tr key={i}>
+                <td className={TD}>{i + 1}</td>
+                <td className={cx(TD, "w-[40%]")}>
+                  {ro ? (
+                    <span className="font-mono text-xs [overflow-wrap:anywhere]">{rule.when}</span>
+                  ) : (
+                    <textarea className={cx(INPUT, "font-mono text-xs")} rows={2} value={rule.when}
+                              onChange={(e) => update(i, { when: e.target.value })} />
+                  )}
+                </td>
+                <td className={TD}>
+                  {editing === i && !ro ? (
+                    <JsonField key={`${i}-${rule.id}`} value={rule.then} rows={5} onChange={(v) => update(i, { then: v })} />
+                  ) : Object.keys(rule.then ?? {}).length ? (
+                    <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-0.5 text-xs">
+                      {Object.entries(rule.then).map(([k, v]) => (
+                        <div key={k} className="contents">
+                          <dt className="text-gray-500">{k}</dt>
+                          <dd className="font-mono text-gray-900 [overflow-wrap:anywhere]">{value(v)}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : <span className="text-gray-400">—</span>}
+                </td>
+                {!ro && (
+                  <td className={cx(TD, "whitespace-nowrap")}>
+                    <button className={cx(BTN_GHOST, "px-2 text-xs")} onClick={() => setEditing(editing === i ? null : i)}>
+                      {editing === i ? "Done" : "Edit"}
+                    </button>
+                    <button className={cx(BTN_GHOST, "px-2")} disabled={i === 0} onClick={() => move(i, -1)} aria-label="Move up">
+                      <ArrowUp size={13} />
+                    </button>
+                    <button className={cx(BTN_GHOST, "px-2")} disabled={i === rules.length - 1} onClick={() => move(i, 1)} aria-label="Move down">
+                      <ArrowDown size={13} />
+                    </button>
+                    <button className={cx(BTN_GHOST, "px-2 text-red-600")} aria-label="Remove rule"
+                            onClick={() => { setRules(rules.filter((_, j) => j !== i)); setEditing(null); }}>
+                      <Trash2 size={13} />
+                    </button>
+                  </td>
+                )}
+              </tr>
+            ))}
+            {rules.length === 0 && (
+              <tr><td colSpan={4} className="px-4 py-6 text-center text-sm text-gray-500">
+                No rules: findings go to the reviewer named on the General tab.
+              </td></tr>
             )}
-          </div>
-          <div>
-            <label className={LABEL}>When (CEL)</label>
-            <input className={cx(INPUT, "font-mono text-xs")} value={rule.when} disabled={ro}
-                   onChange={(e) => update(i, { when: e.target.value })} />
-          </div>
-          <JsonField
-            key={`${i}-${rule.id}`}
-            label="Then — action, params (with ${…}), executor, decisionType, mitigations, reviewerStrategy, reviewForm, severity, justification"
-            value={rule.then}
-            readOnly={ro}
-            rows={4}
-            onChange={(v) => update(i, { then: v })}
-          />
-          {rule.then?.action && (
-            <div className="text-xs text-gray-500">
-              Runs <code>{rule.then.action}</code> on <b>{rule.then.executor ?? executorFor(rule.then.action)}</b>
-            </div>
-          )}
-        </div>
-      ))}
+          </tbody>
+        </table>
+      </div>
     </Section>
   );
 }
