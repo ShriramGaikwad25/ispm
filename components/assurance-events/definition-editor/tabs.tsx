@@ -17,7 +17,7 @@ import { Definitions } from "@/lib/assurance-events-api";
 import { SLA_POLICIES_KEY, Slas, applySlaPolicy, matchSlaPolicy } from "@/lib/assurance-sla";
 import { NotificationBindings, listEmailTemplates } from "@/lib/assurance-notification-bindings";
 import type {
-  DetectionTestResult, EventDefinition, GovernanceRule, SlaPreviewResult, SlaRule, UUID,
+  EventDefinition, GovernanceRule, SlaPreviewResult, SlaRule, UUID,
 } from "@/lib/assurance-events-api";
 import { formatAbsolute } from "@/lib/assurance-format";
 import {
@@ -153,109 +153,29 @@ function SlaSection({ dto, patch, ro }: Pick<TabProps, "dto" | "patch" | "ro">) 
 // Detection
 // ---------------------------------------------------------------------
 
-const DETECTION_MODES: Array<[string, string, string]> = [
-  ["ASSURANCE_CONTROL", "Agent controls", "Domain agents raise this definition from their controls; the definition only governs the response."],
-  ["CATALOG_SCAN", "Its own rule", "A CEL condition evaluated for every entitlement in the catalog, from both data feeds."],
-];
-
-export function DetectionTab({ dto, patch, ro, id }: TabProps) {
-  const [result, setResult] = useState<DetectionTestResult | null>(null);
-  const [testing, setTesting] = useState(false);
+// Findings are raised by the domain agents' controls; the definition only
+// governs the response. (The catalog-scan "own rule" option is not offered.)
+export function DetectionTab({ dto, id }: TabProps) {
   const usage = useDefinitionUsage(id);
-  const criteria = dto.criteriaDsl ?? { mode: "ASSURANCE_CONTROL" };
-  const mode = criteria.mode ?? "ASSURANCE_CONTROL";
-
-  const runTest = async () => {
-    setTesting(true);
-    try {
-      setResult(await Definitions.detectionTest(id, { definition: dto }));
-    } catch (e) {
-      setResult({ error: (e as Error).message });
-    } finally {
-      setTesting(false);
-    }
-  };
 
   return (
-    <>
-      <Section title="Who detects this finding">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          {DETECTION_MODES.map(([value, label, help]) => (
-            <label key={value}
-                   className={cx("rounded-md border p-3 cursor-pointer",
-                     mode === value ? "border-blue-500 bg-blue-50" : "border-gray-200")}>
-              <div className="flex items-center gap-2 text-sm font-medium text-gray-800">
-                <input type="radio" disabled={ro} checked={mode === value}
-                       onChange={() => patch({
-                         criteriaDsl: value === "CATALOG_SCAN"
-                           ? { mode: value, language: "CEL", expression: criteria.expression ?? "false" }
-                           : { mode: value },
-                       })} />
-                {" "}{label}
-              </div>
-              <div className="text-xs text-gray-500 mt-1">{help}</div>
-            </label>
-          ))}
+    <Section title="Agent controls that raise this definition"
+             hint="Domain agents raise this definition from their controls; the definition only governs the response.">
+      {usage.isLoading ? <Spinner /> : (usage.data?.controls ?? []).length === 0 ? (
+        <div className="text-sm text-gray-500">
+          No control raises {dto.code} yet. Pick it as the event type when authoring a control in Agent studio.
         </div>
-      </Section>
-
-      {mode === "CATALOG_SCAN" ? (
-        <Section
-          title="Detection rule"
-          hint="Compiled on save. A runtime error on one entitlement counts as “not matched”."
-          actions={(
-            <button className={cx(BTN_SECONDARY, "text-xs")} disabled={testing} onClick={runTest}>
-              {testing ? <Spinner size={12} /> : <Play size={12} />} Test against the catalog
-            </button>
-          )}
-        >
-          <textarea className={cx(INPUT, "font-mono text-xs")} rows={4} value={criteria.expression ?? ""} disabled={ro}
-                    onChange={(e) => patch({ criteriaDsl: { ...criteria, expression: e.target.value } })} />
-          <div className="text-xs text-gray-500">
-            Available: <code>subject</code> (entitlement: name, application, requestable, privileged, riskTier,
-            approvalGroup, fallbackGroup, approvalLevel), <code>approvalGroup</code> / <code>fallbackGroup</code>{" "}
-            (configured, exists, memberCount, activeCount, invalidCount), <code>chain</code> (declaredLevel, levels,
-            level2), <code>desc</code> (present, wordCount, equalsName, generic).
-          </div>
-          {result && (result.error || result.valid === false ? (
-            <div className="text-sm text-red-600">{result.error}</div>
-          ) : (
-            <div className="text-sm space-y-2">
-              <div>
-                <b>{result.matched}</b> of {result.evaluated} entitlements would raise a finding
-                {result.errors ? ` · ${result.errors} evaluation errors` : ""}.
-              </div>
-              {(result.samples ?? []).map((s) => (
-                <details key={s.entitlement} className="rounded border border-gray-200 px-2 py-1">
-                  <summary className="cursor-pointer text-xs">
-                    {s.name || s.entitlement}{" "}
-                    <span className="text-gray-400">({s.source === "CATALOG_FEED" ? "catalog feed" : "ingested"})</span>
-                  </summary>
-                  <pre className="text-[11px] overflow-auto max-h-60">{JSON.stringify(s.context, null, 2)}</pre>
-                </details>
-              ))}
-            </div>
-          ))}
-        </Section>
       ) : (
-        <Section title="Agent controls that raise this definition">
-          {usage.isLoading ? <Spinner /> : (usage.data?.controls ?? []).length === 0 ? (
-            <div className="text-sm text-gray-500">
-              No control raises {dto.code} yet. Pick it as the event type when authoring a control in Agent studio.
-            </div>
-          ) : (
-            <ul className="text-sm divide-y divide-gray-100">
-              {usage.data!.controls!.map((c) => (
-                <li key={c.domain_code + c.code} className="py-1.5 flex items-center justify-between">
-                  <span><span className="font-mono text-xs">{c.code}</span> — {c.name}</span>
-                  <span className="text-xs text-gray-500">{c.domain_code} agent</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Section>
+        <ul className="text-sm divide-y divide-gray-100">
+          {usage.data!.controls!.map((c) => (
+            <li key={c.domain_code + c.code} className="py-1.5 flex items-center justify-between">
+              <span><span className="font-mono text-xs">{c.code}</span> — {c.name}</span>
+              <span className="text-xs text-gray-500">{c.domain_code} agent</span>
+            </li>
+          ))}
+        </ul>
       )}
-    </>
+    </Section>
   );
 }
 
