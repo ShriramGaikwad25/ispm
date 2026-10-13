@@ -25,7 +25,7 @@ import {
 } from "@/lib/assurance-review-forms";
 import {
   BTN_DANGER, BTN_LINK, BTN_PRIMARY, BTN_SECONDARY, CARD, CARD_HEADER, CARD_SUBTITLE, CARD_TITLE, INPUT, LABEL, PAGE,
-  PAGE_INNER, PILL, PageHeader, PageSpinner, Spinner, TBODY, TD, TH, THEAD_ROW, TR_CLICKABLE, TabBar, cx,
+  PAGE_INNER_FLUSH, PILL, PageHeader, PageSpinner, Spinner, TBODY, TD, TH, THEAD_ROW, TR_CLICKABLE, TabBar, cx,
 } from "@/components/assurance-events/ui";
 import { BannerBar, KeyValueList, StateBadge, type Banner } from "@/components/assurance-events/definition-editor/fields";
 import { ReviewFormFields, type FormValues } from "@/components/assurance-events/ReviewFormFields";
@@ -104,7 +104,7 @@ function ReviewFormPage() {
 
   return (
     <div className={PAGE}>
-      <div className={PAGE_INNER}>
+      <div className={PAGE_INNER_FLUSH}>
         <Link href={REVIEW_FORMS_BASE} className={cx(BTN_LINK, "inline-block mb-3")}>← Review forms</Link>
         {q.isLoading && <PageSpinner />}
         {error && <ErrorLine error={error} />}

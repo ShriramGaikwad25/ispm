@@ -14,7 +14,7 @@ import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import { useCcConnection } from "@/hooks/useCcConnection";
 import { REVIEW_FORMS_BASE, REVIEW_FORMS_KEY, ReviewForms, type ApiReviewForm } from "@/lib/assurance-review-forms";
 import {
-  BTN_LINK, BTN_PRIMARY, BTN_SECONDARY, CARD, CARD_SUBTITLE, CARD_TITLE, INPUT, LABEL, PAGE, PAGE_INNER, PILL, PageHeader,
+  BTN_LINK, BTN_PRIMARY, BTN_SECONDARY, CARD, CARD_SUBTITLE, CARD_TITLE, INPUT, LABEL, PAGE, PAGE_INNER_FLUSH, PILL, PageHeader,
   Spinner, StatCard, TBODY, TD, TH, THEAD_ROW, TR_CLICKABLE, cx,
 } from "@/components/assurance-events/ui";
 import { StateBadge } from "@/components/assurance-events/definition-editor/fields";
@@ -56,7 +56,7 @@ export default function ReviewFormsPage() {
 
   return (
     <div className={PAGE}>
-      <div className={PAGE_INNER}>
+      <div className={PAGE_INNER_FLUSH}>
         <PageHeader
           title="Review Forms"
           subtitle="What a reviewer is asked when an event is routed to them, and what each answer does. A governance rule's then.reviewForm or the definition's default names a form by code; the ACTIVE version is pinned on the event when it is routed. System forms are read-only: clone one to change it."
