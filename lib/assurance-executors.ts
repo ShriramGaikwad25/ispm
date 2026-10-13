@@ -15,6 +15,8 @@ import { assuranceApi } from "@/lib/assurance-api";
 const USE_MOCK = true;
 
 export const EXECUTORS_BASE = "/assurance-events/executors";
+/** The executor list: Studio Configuration → Executors tab. */
+export const EXECUTORS_LIST_HREF = "/assurance-events/studio-configuration?tab=executors";
 /** Same key as useExecutors(), so the Action bindings tab refreshes with the Executors page. */
 export const EXECUTORS_KEY = ["assurance", "gov", "executors"] as const;
 

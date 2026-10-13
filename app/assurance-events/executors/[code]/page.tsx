@@ -12,7 +12,7 @@ import { useParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ban, CodeXml, Pause, Play, Save, ShieldCheck } from "lucide-react";
 import {
-  EXECUTORS_BASE, Executors, type ExecutorDetail, type ExecutorRequest,
+  EXECUTORS_LIST_HREF, Executors, type ExecutorDetail, type ExecutorRequest,
 } from "@/lib/assurance-executors";
 import { formatRelative } from "@/lib/assurance-format";
 import {
@@ -39,7 +39,7 @@ export default function ExecutorDetailPage() {
     return (
       <div className={PAGE}>
         <div className={cx(PAGE_INNER, "space-y-3")}>
-          <Link href={EXECUTORS_BASE} className={BTN_LINK}>← Executors</Link>
+          <Link href={EXECUTORS_LIST_HREF} className={BTN_LINK}>← Executors</Link>
           <BannerBar banner={{ tone: "err", text: (query.error as Error).message }} />
         </div>
       </div>
@@ -72,7 +72,7 @@ export default function ExecutorDetailPage() {
   return (
     <div className={PAGE}>
       <div className={PAGE_INNER}>
-      <Link href={EXECUTORS_BASE} className={cx(BTN_LINK, "inline-block mb-3")}>← Executors</Link>
+      <Link href={EXECUTORS_LIST_HREF} className={cx(BTN_LINK, "inline-block mb-3")}>← Executors</Link>
       <PageHeader
         title={
           <>

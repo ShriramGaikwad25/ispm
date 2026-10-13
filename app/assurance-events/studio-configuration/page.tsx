@@ -9,6 +9,7 @@ import { useCcConnection } from "@/hooks/useCcConnection";
 import { Studio } from "@/lib/assurance-studio-api";
 import { ACTIONS_KEY, ACTION_CATEGORIES, Actions, actionHref, paramSummary, type ActionType } from "@/lib/cc-actions-api";
 import { CloneAction } from "@/components/assurance-events/CloneAction";
+import { ExecutorsTab } from "@/components/assurance-events/ExecutorsTab";
 import { StateBadge } from "@/components/assurance-events/definition-editor/fields";
 import {
   CARD, CARD_BODY, CARD_HEADER, CARD_SUBTITLE, CARD_TITLE, PAGE, PAGE_INNER, PILL, PageHeader, PageSpinner,
@@ -21,10 +22,11 @@ import {
 // Action library is the Continuous Compliance Console's action library
 // (GET /compliance/action-types), laid out like the IGA UI's Agent Task Library.
 // CEL functions matches the deployed console's /studio/cel-functions tab.
+// Executors is the executor registry (components/assurance-events/ExecutorsTab).
 // =====================================================================
 
-type Tab = "actions" | "cel";
-const TABS: Array<[Tab, string]> = [["actions", "Action library"], ["cel", "CEL functions"]];
+type Tab = "actions" | "cel" | "executors";
+const TABS: Array<[Tab, string]> = [["actions", "Action library"], ["cel", "CEL functions"], ["executors", "Executors"]];
 
 export default function Page() {
   return (
@@ -38,17 +40,19 @@ function StudioConfigurationPage() {
   const sp = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const tab: Tab = sp.get("tab") === "cel" ? "cel" : "actions";
+  const tab: Tab = TABS.some(([k]) => k === sp.get("tab")) ? (sp.get("tab") as Tab) : "actions";
 
   return (
     <div className={PAGE}>
       <div className={PAGE_INNER}>
         <PageHeader
           title="Studio Configuration"
-          subtitle="The building blocks agents and response policies are written with: the actions a finding can be routed to, and the CEL functions their conditions can use."
+          subtitle="The building blocks agents and response policies are written with: the actions a finding can be routed to, the CEL functions their conditions can use, and the executors that carry the actions out."
         />
         <TabBar tabs={TABS} active={tab} onChange={(k) => router.replace(`${pathname}?tab=${k}`, { scroll: false })} />
-        {tab === "actions" ? <ActionLibraryTab /> : <CelFunctionsTab />}
+        {tab === "actions" && <ActionLibraryTab />}
+        {tab === "cel" && <CelFunctionsTab />}
+        {tab === "executors" && <ExecutorsTab />}
       </div>
     </div>
   );
