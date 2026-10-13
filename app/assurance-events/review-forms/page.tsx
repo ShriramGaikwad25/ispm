@@ -89,7 +89,7 @@ export default function ReviewFormsPage() {
           <table className="w-full">
             <thead>
               <tr className={THEAD_ROW}>
-                <th className={TH}>Form</th>
+                <th className={cx(TH, "w-[22%] min-w-[280px]")}>Form</th>
                 <th className={TH}>Applies To</th>
                 <th className={TH}>Fields</th>
                 <th className={TH}>Outcomes</th>
@@ -108,7 +108,7 @@ export default function ReviewFormsPage() {
               )}
               {rows.map((f) => (
                 <tr key={f.formId} className={TR_CLICKABLE} onClick={() => router.push(formHref(f.code, f.version))}>
-                  <td className={cx(TD, "max-w-xs")}>
+                  <td className={cx(TD, "min-w-[280px]")}>
                     <Link href={formHref(f.code, f.version)} onClick={(e) => e.stopPropagation()}
                           className="text-sm font-semibold text-blue-600 hover:text-blue-700">
                       {f.title}
