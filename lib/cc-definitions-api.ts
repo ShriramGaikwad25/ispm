@@ -3,6 +3,8 @@
 //
 //   GET {baseUrl}/{tenant}/compliance/definitions?state=DRAFT|ACTIVE|DEPRECATED
 //   GET {baseUrl}/{tenant}/compliance/definitions/{id}   (the definition editor)
+//   GET /compliance/definitions/summary, POST /compliance/definitions,
+//   PUT /compliance/definitions/{id}, POST …/{id}/versions | /activate | /deprecate
 //
 // through ISPM's proxy (lib/controls-api.ts → /api/continuouscompliance).
 // Each definition is mapped onto the row the Event Definitions table renders
@@ -66,4 +68,66 @@ export const CcDefinitions = {
   /** GET /compliance/definitions/{id} — one definition, as the editor edits it. */
   get: (id: string): Promise<EventDefinition> =>
     ccRequest<EventDefinition>("GET", `/compliance/definitions/${encodeURIComponent(id)}`),
+};
+
+// ---------- Console Definitions page (graph.keyforge.ai/console#/definitions) ----------
+
+/** A row of GET /compliance/definitions/summary — each policy part pre-rendered as text. */
+export interface CcDefinitionSummary {
+  definitionId: string;
+  code: string;
+  name: string;
+  eventTypeCode: string;
+  severity: string;
+  version: number;
+  state: string;
+  detector: { text: string; controls: Array<{ code: string; version?: number }> };
+  sla: { text: string; items?: Array<{ code: string; version?: number; when?: string }> };
+  reviewer: { text: string };
+  policy: { text: string };
+  updatedAt: string;
+  [key: string]: unknown;
+}
+
+const defPath = (id: string) => `/compliance/definitions/${encodeURIComponent(id)}`;
+
+/** Body for "New definition" (the console's starter definition). */
+export const NEW_DEFINITION = {
+  code: "NEW001",
+  eventTypeCode: "IGA_DQ_APPROVAL_CHAIN",
+  name: "New definition",
+  description: "",
+  severity: "MEDIUM",
+  ownerPrincipalId: "00000000-0000-0000-0000-100000000001",
+  ownerRole: "IAM_GOVERNANCE",
+  reviewerStrategy: "ENTITLEMENT_OWNER",
+  reviewerConfig: {},
+  slaDuration: "P5D",
+  escalationChain: [{ atPercent: 50, action: "NUDGE", params: {} }, { atPercent: 80, action: "NOTIFY_MANAGER", params: {} }],
+  defaultActionOnTimeout: "ESCALATE",
+  criteriaDsl: { mode: "CATALOG_SCAN" },
+  detector: { family: "APPROVAL_DQ", controls: [{ code: "APPROVAL_GROUP_MISSING" }] },
+  scope: { applications: [], accountTypes: [], entitlementTags: [], nhiCategories: [], environments: [], dataClassifications: [], regulatory: [] },
+  allowedMitigationCodes: ["PEER_REVIEW"],
+  autoRemediationConfig: { enabled: false, actions: [] },
+  aiInsightConfig: {},
+  riskAcceptanceConfig: { allowed: true },
+  evidenceRequirements: {},
+  governancePolicy: { rules: [] },
+  actionBindings: {},
+  sla: { resolution: "FIRST_MATCH", items: [{ code: "PRIVILEGED_1D" }, { code: "STANDARD_5D" }] },
+};
+
+export const CcDefinitionWrites = {
+  /** GET /compliance/definitions/summary?state=&eventTypeCode=&q= */
+  summary: async (q: { state?: string; eventTypeCode?: string; q?: string }): Promise<CcDefinitionSummary[]> => {
+    const rows = await ccRequest<CcDefinitionSummary[]>("GET", "/compliance/definitions/summary", { query: q });
+    return Array.isArray(rows) ? rows : [];
+  },
+  create: (body: unknown) => ccRequest<EventDefinition>("POST", "/compliance/definitions", { body }),
+  /** PUT a DRAFT (the server ignores tenantId / activatedAt / createdBy …). */
+  update: (id: string, body: unknown) => ccRequest<EventDefinition>("PUT", defPath(id), { body }),
+  newVersion: (id: string) => ccRequest<EventDefinition>("POST", `${defPath(id)}/versions`),
+  activate: (id: string) => ccRequest<EventDefinition>("POST", `${defPath(id)}/activate`),
+  deprecate: (id: string) => ccRequest<EventDefinition>("POST", `${defPath(id)}/deprecate`),
 };

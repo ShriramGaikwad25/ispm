@@ -15,8 +15,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Ban, CodeXml, GitBranchPlus, Save, ShieldCheck } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useInvalidateGovernance } from "@/hooks/useAssuranceEvents";
-import { CC_DEFINITIONS_KEY, CcDefinitions } from "@/lib/cc-definitions-api";
-import { Definitions } from "@/lib/assurance-events-api";
+import { CC_DEFINITIONS_KEY, CcDefinitionWrites, CcDefinitions } from "@/lib/cc-definitions-api";
 import type { EventDefinition, UUID } from "@/lib/assurance-events-api";
 import {
   BTN_LINK, BTN_PRIMARY, BTN_SECONDARY, PAGE, PAGE_INNER, PageHeader, Spinner, TabBar, cx,
@@ -102,8 +101,8 @@ export function DefinitionEditor({ id }: { id: UUID }) {
   /** ACTIVE / DEPRECATED: cut a DRAFT and write the edits into it. */
   const saveAsNewVersion = () =>
     run("Saved as a new DRAFT version.", async () => {
-      const draft = await Definitions.newVersion(id);
-      return Definitions.update(draft.definitionId, {
+      const draft = await CcDefinitionWrites.newVersion(id);
+      return CcDefinitionWrites.update(draft.definitionId, {
         ...dto,
         definitionId: draft.definitionId,
         version: draft.version,
@@ -133,15 +132,15 @@ export function DefinitionEditor({ id }: { id: UUID }) {
             {isDraft ? (
               <>
                 <button className={BTN_SECONDARY} disabled={busy || !dirty}
-                        onClick={() => run("Draft saved.", () => Definitions.update(id, dto), (d) => setDto(d))}>
+                        onClick={() => run("Draft saved.", () => CcDefinitionWrites.update(id, dto), (d) => setDto(d))}>
                   <Save size={14} /> Save Draft
                 </button>
                 <button className={BTN_PRIMARY} disabled={busy}
                         onClick={() => run(
                           `${dto.code} v${dto.version} is now ACTIVE; other versions were deprecated.`,
                           async () => {
-                            if (dirty) await Definitions.update(id, dto);
-                            return Definitions.activate(id);
+                            if (dirty) await CcDefinitionWrites.update(id, dto);
+                            return CcDefinitionWrites.activate(id);
                           },
                           (d) => setDto(d),
                         )}>
@@ -151,13 +150,13 @@ export function DefinitionEditor({ id }: { id: UUID }) {
             ) : (
               <>
                 <button className={BTN_SECONDARY} disabled={busy}
-                        onClick={() => run("New DRAFT version created.", () => Definitions.newVersion(id),
+                        onClick={() => run("New DRAFT version created.", () => CcDefinitionWrites.newVersion(id),
                           (d) => openDefinition(d.definitionId))}>
                   <GitBranchPlus size={14} /> New Version
                 </button>
                 {dto.state === "ACTIVE" && (
                   <button className={cx(BTN_SECONDARY, "text-red-700")} disabled={busy}
-                          onClick={() => run("Deprecated.", () => Definitions.deprecate(id), (d) => setDto(d))}>
+                          onClick={() => run("Deprecated.", () => CcDefinitionWrites.deprecate(id), (d) => setDto(d))}>
                     <Ban size={14} /> Deprecate
                   </button>
                 )}
@@ -193,7 +192,7 @@ export function DefinitionEditor({ id }: { id: UUID }) {
         {showRequest && (
           <WireView
             method={isDraft ? "PUT" : "POST + PUT"}
-            path={isDraft ? `/definitions/${id}` : `/definitions/${id}/versions → /definitions/{new id}`}
+            path={isDraft ? `/compliance/definitions/${id}` : `/compliance/definitions/${id}/versions → /compliance/definitions/{new id}`}
             body={dto}
           />
         )}
