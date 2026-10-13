@@ -982,7 +982,7 @@ function EvidencePack({ eventId }: { eventId: string }) {
   };
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <div className="space-y-6">
       <Card
         title="Evidence Pack"
         subtitle="Every export writes an AUDIT_EXPORTED row. STANDARD redaction drops rollback tokens and comment bodies (their hashes stay)."
