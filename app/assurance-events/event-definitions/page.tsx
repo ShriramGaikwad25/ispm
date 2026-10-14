@@ -30,6 +30,19 @@ import { DEFINITIONS_BASE } from "@/components/assurance-events/definition-edito
 
 const SEVERITIES = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
 
+/** The governance policy as a rule count (the summary's text stays available on hover). */
+function ruleCount(policy?: { text?: string; [k: string]: unknown }): string {
+  if (!policy) return "—";
+  const p = policy as Record<string, unknown>;
+  const n = typeof p.ruleCount === "number" ? p.ruleCount
+    : typeof p.count === "number" ? p.count
+      : Array.isArray(p.rules) ? p.rules.length
+        : typeof p.rules === "number" ? p.rules
+          : Number(/(d+)s*rule/i.exec(policy.text ?? "")?.[1] ?? NaN);
+  if (Number.isFinite(n)) return `${n} rule${n === 1 ? "" : "s"}`;
+  return /no rules|built-in|none/i.test(policy.text ?? "") ? "0 rules" : policy.text || "—";
+}
+
 const FILTER_INPUT =
   "rounded-md border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
 
@@ -231,7 +244,7 @@ export default function EventDefinitionsPage() {
                     {d.sla?.text || "—"}
                   </td>
                   <td className={cx(TD, "text-xs [overflow-wrap:anywhere]")}>{d.reviewer?.text || "—"}</td>
-                  <td className={cx(TD, "text-xs [overflow-wrap:anywhere]")}>{d.policy?.text || "—"}</td>
+                  <td className={cx(TD, "text-xs whitespace-nowrap")} title={d.policy?.text || undefined}>{ruleCount(d.policy)}</td>
                   <td className={cx(TD, "text-xs")} title={formatAbsolute(d.updatedAt)}>{formatRelative(d.updatedAt)}</td>
                   <td className={cx(TD, "whitespace-nowrap")} onClick={(e) => e.stopPropagation()}>
                     {d.state !== "DRAFT" ? (
