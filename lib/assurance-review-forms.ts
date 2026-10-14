@@ -67,6 +67,38 @@ export interface ApiReviewForm {
   [key: string]: unknown;
 }
 
+/** Body of PUT /compliance/review-forms/{code} (the console's editable part of a form). */
+export interface ReviewFormRequest {
+  code: string;
+  title: string;
+  intent?: string;
+  appliesTo?: { subjectKinds?: string[]; eventTypeCodes?: string[] };
+  fields: ApiFormField[];
+  outcomes: ApiFormOutcome[];
+  submitAuthority?: string;
+  tags?: string[];
+}
+
+export const toReviewFormRequest = (f: ApiReviewForm): ReviewFormRequest => ({
+  code: f.code,
+  title: f.title,
+  intent: f.intent ?? "",
+  appliesTo: f.appliesTo ?? { subjectKinds: ["*"] },
+  fields: f.fields ?? [],
+  outcomes: f.outcomes ?? [],
+  submitAuthority: f.submitAuthority,
+  tags: f.tags ?? [],
+});
+
+export interface FormFieldType { code: string; displayName?: string; needsOptions?: boolean; validate?: string[] }
+export interface FormOptionSource { code: string; description?: string; parameters?: string[] }
+
+/** Lookup SUBJECT_KIND (the console's list), "*" = any. */
+export const SUBJECT_KINDS = [
+  "*", "ENTITLEMENT", "ENTITLEMENT_ASSIGNMENT", "USER_ACCOUNT", "SERVICE_ACCOUNT", "NHI", "APPLICATION", "CREDENTIAL", "CLOUD_RESOURCE",
+];
+export const SUBMIT_AUTHORITIES = ["REVIEWER_OR_DECIDER", "REVIEWER", "DECIDER"];
+
 export interface FormUsage {
   latestActiveVersion?: number | null;
   definitions?: Array<{ definitionId: string; code: string; version: number; state: string; asDefault?: boolean; rules?: string[] }>;
@@ -117,6 +149,12 @@ export const ReviewForms = {
   audit: async (code: string) => list<FormAuditRow>(await ccRequest("GET", `${formPath(code)}/audit`)),
   clone: (code: string, body: { code: string; title?: string }) =>
     ccRequest<ApiReviewForm>("POST", `${formPath(code)}/clone`, { body }),
+  /** PUT /compliance/review-forms/{code} — saves the tenant DRAFT of the code. */
+  update: (code: string, body: ReviewFormRequest) => ccRequest<ApiReviewForm>("PUT", formPath(code), { body }),
+  /** GET /compliance/review-forms/field-types — what a field may be, and the validate rules each type takes. */
+  fieldTypes: async () => list<FormFieldType>(await ccRequest("GET", "/compliance/review-forms/field-types")),
+  /** GET /compliance/review-forms/option-sources — where a choice field's options come from. */
+  optionSources: async () => list<FormOptionSource>(await ccRequest("GET", "/compliance/review-forms/option-sources")),
   newVersion: (code: string) => ccRequest<ApiReviewForm>("POST", `${formPath(code)}/versions`),
   activate: (code: string, version?: number) =>
     ccRequest<ApiReviewForm>("POST", `${formPath(code)}/activate`, { query: { version: version ? String(version) : undefined } }),

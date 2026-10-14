@@ -5,29 +5,31 @@
 // (graph.keyforge.ai/console#/forms/{code}?version=) on the same API, laid
 // out like ISPM's gateway pages. The form comes from the library response
 // (GET /compliance/review-forms). Tabs:
-//   Definition, Fields  (the form itself)
+//   Definition, Fields  (the form itself; editable for a tenant DRAFT: PUT /compliance/review-forms/{code})
 //   Where Used          GET  /compliance/review-forms/{code}/usage
 //   Preview & Dry Run   POST /compliance/review-forms/{code}/render | /test
 //   Versions            GET  /compliance/review-forms/{code}/versions
-// Actions: Activate, New Version, Deprecate (tenant forms), Clone.
+// Actions: Save, Activate, New Version, Deprecate (tenant forms), Clone.
 // =====================================================================
 
-import { Suspense, useRef, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowDown, ArrowUp, Plus, Save, Trash2 } from "lucide-react";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import { useCcConnection } from "@/hooks/useCcConnection";
 import { ControlsApiError } from "@/lib/controls-api";
 import { CcEvents, type CcReviewFormTest, type CcReviewFormView } from "@/lib/cc-events-api";
 import {
-  REVIEW_FORMS_BASE, REVIEW_FORMS_KEY, ReviewForms, type ApiFormField, type ApiReviewForm,
+  REVIEW_FORMS_BASE, REVIEW_FORMS_KEY, ReviewForms, SUBJECT_KINDS, SUBMIT_AUTHORITIES, toReviewFormRequest,
+  type ApiFormField, type ApiReviewForm, type ReviewFormRequest,
 } from "@/lib/assurance-review-forms";
 import {
-  BTN_DANGER, BTN_LINK, BTN_PRIMARY, BTN_SECONDARY, CARD, CARD_HEADER, CARD_SUBTITLE, CARD_TITLE, INPUT, LABEL, PAGE,
+  BTN_DANGER, BTN_GHOST, BTN_LINK, BTN_PRIMARY, BTN_SECONDARY, CARD, CARD_HEADER, CARD_SUBTITLE, CARD_TITLE, INPUT, LABEL, PAGE,
   PAGE_INNER_FLUSH, PILL, PageHeader, PageSpinner, Spinner, TBODY, TD, TH, THEAD_ROW, TR_CLICKABLE, TabBar, cx,
 } from "@/components/assurance-events/ui";
-import { BannerBar, KeyValueList, StateBadge, type Banner } from "@/components/assurance-events/definition-editor/fields";
+import { BannerBar, JsonField, KeyValueList, StateBadge, type Banner } from "@/components/assurance-events/definition-editor/fields";
 import { ReviewFormFields, type FormValues } from "@/components/assurance-events/ReviewFormFields";
 
 type Tab = "definition" | "fields" | "usage" | "preview" | "versions";
@@ -59,6 +61,12 @@ function ReviewFormPage() {
   const [tab, setTab] = useState<Tab>("definition");
   const [banner, setBanner] = useState<Banner>(null);
   const [busy, setBusy] = useState(false);
+  // The editable copy (a tenant DRAFT is saved with PUT /compliance/review-forms/{code}).
+  const [draft, setDraft] = useState<ReviewFormRequest | null>(null);
+  useEffect(() => { setDraft(form ? toReviewFormRequest(form) : null); }, [form?.formId, form?.version, q.dataUpdatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
+  const editable = !!form && !form.system && form.state === "DRAFT";
+  const dirty = !!form && !!draft && JSON.stringify(draft) !== JSON.stringify(toReviewFormRequest(form));
+  const patch = (p: Partial<ReviewFormRequest>) => setDraft((d) => (d ? { ...d, ...p } : d));
 
   /** Runs a lifecycle action, then reloads the library and opens the resulting version. */
   const act = async (label: string, action: () => Promise<ApiReviewForm>) => {
@@ -133,11 +141,23 @@ function ReviewFormPage() {
               }
               actions={
                 <>
+                  {editable && draft && (
+                    <button className={BTN_PRIMARY} disabled={busy || !dirty}
+                            onClick={() => act("Saved", () => ReviewForms.update(form.code, draft))}>
+                      <Save size={14} /> Save
+                    </button>
+                  )}
                   {!form.system && form.state === "DRAFT" && (
                     <button className={BTN_PRIMARY} disabled={busy}
-                            onClick={() => act("Activated", () => ReviewForms.activate(form.code, form.version))}>Activate</button>
+                            onClick={() => act("Activated", async () => {
+                              if (dirty && draft) await ReviewForms.update(form.code, draft);
+                              return ReviewForms.activate(form.code, form.version);
+                            })}>Activate</button>
                   )}
-                  {!form.system && form.state !== "DRAFT" && (
+                  {editable && dirty && (
+              <Note>Unsaved changes. Save to keep them; Activate saves them first.</Note>
+            )}
+            {!form.system && form.state !== "DRAFT" && (
                     <button className={BTN_SECONDARY} disabled={busy}
                             onClick={() => act("New version cut (DRAFT)", () => ReviewForms.newVersion(form.code))}>New Version</button>
                   )}
@@ -159,13 +179,13 @@ function ReviewFormPage() {
               active={tab}
               onChange={setTab}
               tabs={[
-                ["definition", "Definition"], ["fields", `Fields (${form.fields.length})`], ["usage", "Where Used"],
+                ["definition", "Definition"], ["fields", `Fields (${(draft ?? form).fields.length})`], ["usage", "Where Used"],
                 ["preview", "Preview & Dry Run"], ["versions", "Versions"],
               ]}
             />
 
-            {tab === "definition" && <DefinitionTab f={form} />}
-            {tab === "fields" && <FieldsTab fields={form.fields} />}
+            {tab === "definition" && draft && <DefinitionTab f={form} draft={draft} editable={editable} patch={patch} />}
+            {tab === "fields" && draft && <FieldsTab f={form} draft={draft} editable={editable} patch={patch} />}
             {tab === "preview" && <PreviewTab key={`${form.code}@${form.version}`} f={form} />}
             {tab === "versions" && <VersionsTab code={form.code} onOpen={(v) => router.push(formHref(v.code, v.version))} />}
             {tab === "usage" && <UsageTab code={form.code} />}
@@ -224,38 +244,75 @@ function Loaded<T>({ q, children }: { q: { isLoading: boolean; error: unknown; d
 
 /* ---------------------------------------------------------------- Definition */
 
-function DefinitionTab({ f }: { f: ApiReviewForm }) {
+type EditProps = { f: ApiReviewForm; draft: ReviewFormRequest; editable: boolean; patch: (p: Partial<ReviewFormRequest>) => void };
+
+function DefinitionTab({ f, draft, editable, patch }: EditProps) {
+  const kinds = draft.appliesTo?.subjectKinds ?? [];
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
       <Card title="Identity">
-        <KeyValueList rows={[
-          ["Code", <Mono key="c">{f.code}</Mono>],
-          ["Title", f.title],
-          ["Intent", f.intent || <Dash key="i" />],
-          ["Submit authority", f.submitAuthority ?? <Dash key="s" />],
-          ["Tags", f.tags?.length ? f.tags.join(", ") : <Dash key="t" />],
-          ["Form ID", <Mono key="id">{f.formId}</Mono>],
-          ["Activated", fmt(f.activatedAt)],
-          ["Deprecated", fmt(f.deprecatedAt)],
-        ]} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className={LABEL}>Code</label>
+            <input className={cx(INPUT, "font-mono")} value={draft.code} readOnly />
+          </div>
+          <div>
+            <label className={LABEL}>Submit authority (who may submit)</label>
+            <select className={INPUT} value={draft.submitAuthority || "REVIEWER_OR_DECIDER"} disabled={!editable}
+                    onChange={(e) => patch({ submitAuthority: e.target.value })}>
+              {SUBMIT_AUTHORITIES.map((a) => <option key={a}>{a}</option>)}
+            </select>
+          </div>
+          <div className="md:col-span-2">
+            <label className={LABEL}>Title</label>
+            <input className={INPUT} value={draft.title} readOnly={!editable} onChange={(e) => patch({ title: e.target.value })} />
+          </div>
+          <div className="md:col-span-2">
+            <label className={LABEL}>Intent (the one-line instruction the reviewer sees)</label>
+            <textarea className={INPUT} rows={2} value={draft.intent ?? ""} readOnly={!editable}
+                      onChange={(e) => patch({ intent: e.target.value })} />
+          </div>
+          <div className="md:col-span-2">
+            <label className={LABEL}>Tags (comma separated)</label>
+            <input className={INPUT} value={(draft.tags ?? []).join(", ")} readOnly={!editable}
+                   onChange={(e) => patch({ tags: e.target.value.split(",").map((t) => t.trim()).filter(Boolean) })} />
+          </div>
+        </div>
+        <div className="mt-4">
+          <KeyValueList rows={[
+            ["Form ID", <Mono key="id">{f.formId}</Mono>],
+            ["Activated", fmt(f.activatedAt)],
+            ["Deprecated", fmt(f.deprecatedAt)],
+          ]} />
+        </div>
       </Card>
       <Card title="Applies To" subtitle="Which events may be routed to this form">
         <div className="space-y-4 text-sm">
           <div>
-            <div className={LABEL}>Subject kinds</div>
+            <div className={LABEL}>Subject kinds (* = any)</div>
             <div className="flex flex-wrap gap-1.5">
-              {(f.appliesTo?.subjectKinds?.length ? f.appliesTo.subjectKinds : ["*"]).map((k) => (
-                <span key={k} className={cx(PILL, "bg-gray-100 text-gray-700 font-mono")}>{k === "*" ? "any" : k}</span>
-              ))}
+              {SUBJECT_KINDS.map((k) => {
+                const on = kinds.includes(k);
+                return (
+                  <label key={k}
+                         className={cx(PILL, "border font-mono", editable && "cursor-pointer",
+                           on ? "bg-blue-100 text-blue-700 border-blue-200" : "bg-white text-gray-600 border-gray-200")}>
+                    <input type="checkbox" className="mr-1" checked={on} disabled={!editable}
+                           onChange={(e) => patch({
+                             appliesTo: { ...draft.appliesTo, subjectKinds: e.target.checked ? [...kinds, k] : kinds.filter((x) => x !== k) },
+                           })} />
+                    {k === "*" ? "any" : k}
+                  </label>
+                );
+              })}
             </div>
           </div>
           <div>
-            <div className={LABEL}>Event type codes</div>
-            {f.appliesTo?.eventTypeCodes?.length ? (
-              <div className="flex flex-wrap gap-1.5">
-                {f.appliesTo.eventTypeCodes.map((k) => <span key={k} className={cx(PILL, "bg-gray-100 text-gray-700 font-mono")}>{k}</span>)}
-              </div>
-            ) : <span className="text-gray-500">Any</span>}
+            <label className={LABEL}>Event type codes (comma separated, empty = any)</label>
+            <input className={cx(INPUT, "font-mono text-xs")} value={(draft.appliesTo?.eventTypeCodes ?? []).join(", ")} readOnly={!editable}
+                   onChange={(e) => patch({
+                     appliesTo: { ...draft.appliesTo, eventTypeCodes: e.target.value.split(",").map((t) => t.trim()).filter(Boolean) },
+                   })} />
           </div>
           <p className="text-xs text-gray-500">
             Routing skips a form that does not apply and falls back to the definition default, then to the shipped form.
@@ -268,17 +325,45 @@ function DefinitionTab({ f }: { f: ApiReviewForm }) {
 
 /* ---------------------------------------------------------------- Fields */
 
-function FieldsTab({ fields }: { fields: ApiFormField[] }) {
+function FieldsTab({ draft, editable, patch }: EditProps) {
+  const fields = draft.fields;
+  const typesQ = useQuery({ queryKey: [...REVIEW_FORMS_KEY, "field-types"], queryFn: ReviewForms.fieldTypes });
+  const sourcesQ = useQuery({ queryKey: [...REVIEW_FORMS_KEY, "option-sources"], queryFn: ReviewForms.optionSources });
   const [sel, setSel] = useState(0);
   const f = fields[sel];
+  const setFields = (next: ApiFormField[]) => patch({ fields: next });
+  const update = (i: number, p: Partial<ApiFormField>) => setFields(fields.map((x, j) => (j === i ? { ...x, ...p } : x)));
+  const move = (i: number, by: number) => {
+    const next = [...fields];
+    const [x] = next.splice(i, 1);
+    next.splice(i + by, 0, x);
+    setFields(next);
+    setSel(i + by);
+  };
+  const type = (code?: string) => (typesQ.data ?? []).find((t) => t.code === code);
+  const source = (code?: string) => (sourcesQ.data ?? []).find((s) => s.code === code);
+  const src = source(f?.options?.source);
+
   return (
     <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-6">
-      <Card title="Fields" subtitle="What the reviewer is asked, in order. Outcomes read the values as form.<name>." flush>
+      <Card
+        title="Fields"
+        subtitle="What the reviewer is asked, in order. Outcomes read the values as form.<name>."
+        right={editable && (
+          <button className={BTN_SECONDARY} onClick={() => {
+            setFields([...fields, { name: `field${fields.length + 1}`, label: "New field", type: "TEXT", required: false }]);
+            setSel(fields.length);
+          }}>
+            <Plus size={14} /> Add Field
+          </button>
+        )}
+        flush
+      >
         <table className="w-full">
           <thead>
             <tr className={THEAD_ROW}>
               <th className={TH}>#</th><th className={TH}>Name</th><th className={TH}>Type</th><th className={TH}>Required</th>
-              <th className={TH}>Options</th><th className={TH}>Visible When</th>
+              <th className={TH}>Options</th><th className={TH}>Visible When</th>{editable && <th className={TH}></th>}
             </tr>
           </thead>
           <tbody className={TBODY}>
@@ -293,26 +378,100 @@ function FieldsTab({ fields }: { fields: ApiFormField[] }) {
                 <td className={TD}>{x.required ? "✓" : ""}</td>
                 <td className={cx(TD, "text-xs font-mono")}>{x.options?.source || (x.validate?.enum ? "enum" : "—")}</td>
                 <td className={cx(TD, "text-xs font-mono [overflow-wrap:anywhere]")}>{x.visibleWhen || "—"}</td>
+                {editable && (
+                  <td className={cx(TD, "whitespace-nowrap")} onClick={(e) => e.stopPropagation()}>
+                    <button className={BTN_GHOST} disabled={i === 0} onClick={() => move(i, -1)} aria-label="Move up"><ArrowUp size={14} /></button>
+                    <button className={BTN_GHOST} disabled={i === fields.length - 1} onClick={() => move(i, 1)} aria-label="Move down"><ArrowDown size={14} /></button>
+                    <button className={cx(BTN_GHOST, "text-red-600")} aria-label="Remove field"
+                            onClick={() => { setFields(fields.filter((_, j) => j !== i)); setSel(0); }}>
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
-            {!fields.length && <tr><td colSpan={6}><Empty>No fields.</Empty></td></tr>}
+            {!fields.length && <tr><td colSpan={7}><Empty>No fields.</Empty></td></tr>}
           </tbody>
         </table>
+        <p className="px-5 py-3 text-xs text-gray-500 border-t border-gray-100">
+          Templates <code>{"${…}"}</code> and CEL see <code>event</code>, <code>subject</code>, <code>finding</code>, <code>definition</code>,{" "}
+          <code>proposal</code>, <code>form</code>, <code>tenant</code>, <code>now</code>.
+        </p>
       </Card>
+
       <Card title={f ? `Field '${f.name}'` : "Field"}>
         {f ? (
-          <KeyValueList rows={[
-            ["Name", <Mono key="n">{f.name}</Mono>],
-            ["Label", show(f.label)],
-            ["Type", show(f.type)],
-            ["Required", f.required ? "Yes" : "No"],
-            ["Help", show(f.help)],
-            ["Sensitive", f.sensitive ? "Yes" : "No"],
-            ["Prefill", f.prefill ? <Mono key="p">{f.prefill}</Mono> : <Dash key="p" />],
-            ["Visible when", f.visibleWhen ? <Mono key="v">{f.visibleWhen}</Mono> : <Dash key="v" />],
-            ["Options", show(f.options)],
-            ["Validate", show(f.validate)],
-          ]} />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className={LABEL}>Name (identifier)</label>
+              <input className={cx(INPUT, "font-mono")} value={f.name} readOnly={!editable} onChange={(e) => update(sel, { name: e.target.value })} />
+            </div>
+            <div>
+              <label className={LABEL}>Type</label>
+              <select className={INPUT} value={f.type} disabled={!editable} onChange={(e) => update(sel, { type: e.target.value })}>
+                {(typesQ.data?.length ? typesQ.data : [{ code: f.type, displayName: f.type }]).map((t) => (
+                  <option key={t.code} value={t.code}>{t.code}{t.displayName && t.displayName !== t.code ? ` — ${t.displayName}` : ""}</option>
+                ))}
+                {!!typesQ.data?.length && !type(f.type) && <option value={f.type}>{f.type}</option>}
+              </select>
+            </div>
+            <div className="md:col-span-2">
+              <label className={LABEL}>Label</label>
+              <input className={INPUT} value={f.label ?? ""} readOnly={!editable} onChange={(e) => update(sel, { label: e.target.value })} />
+            </div>
+            <div className="md:col-span-2">
+              <label className={LABEL}>Help</label>
+              <input className={INPUT} value={f.help ?? ""} readOnly={!editable} onChange={(e) => update(sel, { help: e.target.value || undefined })} />
+            </div>
+            <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+              <input type="checkbox" checked={!!f.required} disabled={!editable} onChange={(e) => update(sel, { required: e.target.checked })} />
+              Required (when visible)
+            </label>
+            <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+              <input type="checkbox" checked={!!f.sensitive} disabled={!editable} onChange={(e) => update(sel, { sensitive: e.target.checked })} />
+              Sensitive (hashed in the ledger, redacted in packs)
+            </label>
+            <div className="md:col-span-2">
+              <label className={LABEL}>Options source</label>
+              <select className={INPUT} value={f.options?.source ?? ""} disabled={!editable}
+                      onChange={(e) => update(sel, { options: e.target.value ? { ...(f.options ?? {}), source: e.target.value } : undefined })}>
+                <option value="">None{type(f.type)?.needsOptions ? " (free value)" : ""}</option>
+                {(sourcesQ.data ?? []).map((s) => <option key={s.code} value={s.code}>{s.code}</option>)}
+                {f.options?.source && !src && <option value={f.options.source}>{f.options.source}</option>}
+              </select>
+              {src?.description && <p className="text-xs text-gray-500 mt-1">{src.description}</p>}
+            </div>
+            {(src?.parameters ?? []).map((param) => (
+              <div key={param} className="md:col-span-2">
+                {param === "values" ? (
+                  <JsonField key={`${sel}-values`} label="Options values" value={(f.options?.values as unknown[]) ?? []} rows={4} readOnly={!editable}
+                             onChange={(v) => update(sel, { options: { ...(f.options ?? { source: "STATIC" }), values: v } })} />
+                ) : (
+                  <>
+                    <label className={LABEL}>Options {param}</label>
+                    <input className={cx(INPUT, "font-mono text-xs")} value={String(f.options?.[param] ?? "")} readOnly={!editable}
+                           placeholder={param === "workgroup" ? "${subject.approvalGroup}" : ""}
+                           onChange={(e) => update(sel, { options: { ...(f.options ?? { source: "" }), [param]: e.target.value } })} />
+                  </>
+                )}
+              </div>
+            ))}
+            <div className="md:col-span-2">
+              <label className={LABEL}>Prefill (template)</label>
+              <input className={cx(INPUT, "font-mono text-xs")} value={f.prefill ?? ""} readOnly={!editable} placeholder="${subject.fallbackGroup}"
+                     onChange={(e) => update(sel, { prefill: e.target.value || undefined })} />
+            </div>
+            <div className="md:col-span-2">
+              <label className={LABEL}>Visible when (CEL)</label>
+              <input className={cx(INPUT, "font-mono text-xs")} value={f.visibleWhen ?? ""} readOnly={!editable} placeholder="form.resolution == 'ASSIGN'"
+                     onChange={(e) => update(sel, { visibleWhen: e.target.value || undefined })} />
+            </div>
+            <div className="md:col-span-2">
+              <JsonField key={`${sel}-validate-${f.name}`}
+                         label={`Validate (JSON · ${(type(f.type)?.validate ?? []).join(", ") || "none for this type"})`}
+                         value={f.validate ?? {}} rows={3} readOnly={!editable} onChange={(v) => update(sel, { validate: v })} />
+            </div>
+          </div>
         ) : <span className="text-sm text-gray-500">Select a field.</span>}
       </Card>
     </div>
