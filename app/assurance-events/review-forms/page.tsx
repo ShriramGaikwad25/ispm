@@ -59,7 +59,7 @@ export default function ReviewFormsPage() {
       <div className={PAGE_INNER_FLUSH}>
         <PageHeader
           title="Review Forms"
-          subtitle="What a reviewer is asked when an event is routed to them, and what each answer does. A governance rule's then.reviewForm or the definition's default names a form by code; the ACTIVE version is pinned on the event when it is routed. System forms are read-only: clone one to change it."
+          subtitle="What a reviewer is asked when an event is routed to them, along with what details are provided to the reviewer. The review forms are part of the governance rules within an event definition. System defined forms are read only; you may clone the existing form to build a new one."
         />
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
