@@ -74,6 +74,15 @@ export default function ControlLibraryPage() {
     tenant: all.filter((c) => !c.system).length,
   }), [all, families, categories]);
 
+  // Controls grouped by category, in the order of the category list.
+  const grouped = useMemo(() => {
+    const m = new Map<string, Control[]>();
+    for (const c of controls) m.set(c.categoryCode, [...(m.get(c.categoryCode) ?? []), c]);
+    const order = categories.map((c) => c.code);
+    const rank = (code: string) => (order.includes(code) ? order.indexOf(code) : order.length);
+    return [...m.entries()].sort((x, y) => rank(x[0]) - rank(y[0]));
+  }, [controls, categories]);
+
   const openControl = (c: Control) =>
     openSidebar(
       <ControlDetail control={c} categoryName={categoryName(c.categoryCode)} onCloned={(code) =>
@@ -197,47 +206,53 @@ export default function ControlLibraryPage() {
         {controlsQ.isLoading ? (
           <PageSpinner />
         ) : (
-          <div className={cx(CARD, "overflow-hidden")}>
-            <table className="w-full">
-              <thead>
-                <tr className={THEAD_ROW}>
-                  <th className={TH}>Control</th>
-                  <th className={TH}>Category</th>
-                  <th className={TH}>Object</th>
-                  <th className={TH}>Severity Hint</th>
-                  <th className={TH}>State</th>
-                </tr>
-              </thead>
-              <tbody className={TBODY}>
-                {controls.map((c) => (
-                  <tr key={c.controlId ?? `${c.code}-${c.version}`} className={TR_CLICKABLE} onClick={() => openControl(c)}>
-                    <td className={cx(TD, "max-w-[460px]")}>
-                      <div className="text-sm font-semibold text-gray-900">{c.name}</div>
-                      <div className="text-xs text-gray-500 mt-0.5">{c.code} · v{c.version}</div>
-                      {c.condition?.expression && (
-                        <div className="text-xs text-gray-500 mt-0.5 line-clamp-2 font-mono">{c.condition.expression}</div>
-                      )}
-                    </td>
-                    <td className={TD}>{categoryName(c.categoryCode)}</td>
-                    <td className={TD}>{c.objectKind ?? "—"}</td>
-                    <td className={cx(TD, "whitespace-nowrap")}>
-                      {c.severityHint ? <SeverityBadge value={c.severityHint} /> : "—"}
-                    </td>
-                    <td className={cx(TD, "whitespace-nowrap")}>
-                      <span className="inline-flex gap-1">
-                        <StateBadge value={c.state} />
-                        {!c.system && <span className={cx(PILL, "bg-blue-100 text-blue-700")}>Tenant</span>}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-                {controls.length === 0 && !controlsQ.error && (
-                  <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-500">
-                    No controls match the current filters.
-                  </td></tr>
-                )}
-              </tbody>
-            </table>
+          <div className="space-y-6">
+            {grouped.map(([catCode, items]) => (
+              <div key={catCode} className={cx(CARD, "overflow-hidden")}>
+                <div className={CARD_HEADER}>
+                  <div className={CARD_TITLE}>{categoryName(catCode)}</div>
+                  <span className="text-xs text-gray-500">{items.length} control{items.length === 1 ? "" : "s"}</span>
+                </div>
+                <table className="w-full">
+                  <thead>
+                    <tr className={THEAD_ROW}>
+                      <th className={TH}>Control</th>
+                      <th className={TH}>Object</th>
+                      <th className={TH}>Severity Hint</th>
+                      <th className={TH}>State</th>
+                    </tr>
+                  </thead>
+                  <tbody className={TBODY}>
+                    {items.map((c) => (
+                      <tr key={c.controlId ?? `${c.code}-${c.version}`} className={TR_CLICKABLE} onClick={() => openControl(c)}>
+                        <td className={cx(TD, "w-1/2")}>
+                          <div className="text-sm font-semibold text-gray-900">{c.name}</div>
+                          <div className="text-xs text-gray-500 mt-0.5">{c.code} · v{c.version}</div>
+                          {c.condition?.expression && (
+                            <div className="text-xs text-gray-500 mt-0.5 line-clamp-2 font-mono">{c.condition.expression}</div>
+                          )}
+                        </td>
+                        <td className={TD}>{c.objectKind ?? "—"}</td>
+                        <td className={cx(TD, "whitespace-nowrap")}>
+                          {c.severityHint ? <SeverityBadge value={c.severityHint} /> : "—"}
+                        </td>
+                        <td className={cx(TD, "whitespace-nowrap")}>
+                          <span className="inline-flex gap-1">
+                            <StateBadge value={c.state} />
+                            {!c.system && <span className={cx(PILL, "bg-blue-100 text-blue-700")}>Tenant</span>}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+            {grouped.length === 0 && !controlsQ.error && (
+              <div className={cx(CARD, "px-4 py-8 text-center text-sm text-gray-500")}>
+                No controls match the current filters.
+              </div>
+            )}
           </div>
         )}
       </div>
