@@ -224,10 +224,7 @@ export default function ControlLibraryPage() {
                       <tr key={c.controlId ?? `${c.code}-${c.version}`} className={TR_CLICKABLE} onClick={() => openControl(c)}>
                         <td className={cx(TD, "w-1/2")}>
                           <div className="text-sm font-semibold text-gray-900">{c.name}</div>
-                          <div className="text-xs text-gray-500 mt-0.5">{c.code} · v{c.version}</div>
-                          {c.condition?.expression && (
-                            <div className="text-xs text-gray-500 mt-0.5 line-clamp-2 font-mono">{c.condition.expression}</div>
-                          )}
+                          {c.description && <div className="text-xs text-gray-500 mt-0.5">{c.description}</div>}
                         </td>
                         <td className={TD}>{c.objectKind ?? "—"}</td>
                         <td className={cx(TD, "whitespace-nowrap")}>
