@@ -261,7 +261,7 @@ function DefinitionTab({ a, draft, editable, patch }: {
 }) {
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div className="space-y-6">
         <Card title="Identity" subtitle={editable ? "Only the identity of a draft can be changed." : undefined}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
