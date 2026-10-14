@@ -647,24 +647,6 @@ function UsageTab({ code }: { code: string }) {
             </tbody>
           </table>
         </Card>
-        {u.byVersion != null && (
-          <Card title="By Version" subtitle="Each version of the form: its state, the open events still pinned to it, and the submissions made with it.">
-            {Array.isArray(u.byVersion) || typeof u.byVersion !== "object" ? show(u.byVersion) : (
-              <div className="space-y-5">
-                {Object.entries(u.byVersion as Record<string, unknown>).map(([k, v]) => (
-                  <div key={k}>
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-700 mb-2">{k}</h3>
-                    {v && typeof v === "object" && !Array.isArray(v) ? (
-                      <KeyValueList rows={Object.entries(v as Record<string, unknown>).map(([kk, vv]) =>
-                        [kk, typeof vv === "boolean" ? String(vv) : show(vv)] as [string, ReactNode])} />
-                    ) : show(v)}
-                  </div>
-                ))}
-                {!Object.keys(u.byVersion as object).length && <span className="text-sm text-gray-500">No versions.</span>}
-              </div>
-            )}
-          </Card>
-        )}
       </div>
     )}</Loaded>
   );
