@@ -4,6 +4,8 @@
 // renderer, in ISPM inputs). Used by the event's Review Form tab and the
 // Review Forms page's Preview & Dry Run tab.
 
+import { useState, type ReactNode } from "react";
+import { Search } from "lucide-react";
 import type { CcReviewFormView } from "@/lib/cc-events-api";
 import { INPUT, PILL, cx } from "@/components/assurance-events/ui";
 
@@ -74,8 +76,8 @@ export function ReviewFormFields({ fields, values, onChange, readOnly }: {
           const arr = Array.isArray(value) ? value : [];
           return (
             <div key={f.name}>{label}
-              <div className="flex flex-wrap gap-2">
-                {options.map((o) => {
+              <OptionList options={options} className="flex flex-wrap gap-2 p-2">
+                {(shown) => shown.map((o) => {
                   const on = arr.includes(o.value);
                   return (
                     <label key={String(o.value)}
@@ -86,7 +88,7 @@ export function ReviewFormFields({ fields, values, onChange, readOnly }: {
                     </label>
                   );
                 })}
-              </div>
+              </OptionList>
             </div>
           );
         }
@@ -108,8 +110,8 @@ export function ReviewFormFields({ fields, values, onChange, readOnly }: {
         if (options.length) {
           return (
             <div key={f.name}>{label}
-              <div className="space-y-2">
-                {options.map((o) => (
+              <OptionList options={options} className="space-y-2 p-2">
+                {(shown) => shown.map((o) => (
                   <label key={String(o.value)} className="block rounded-lg border border-gray-200 bg-white px-3 py-2 cursor-pointer hover:bg-gray-50">
                     <span className="flex items-center gap-2">
                       <input type="radio" name={f.name} checked={String(value) === String(o.value)} disabled={readOnly} onChange={() => set(f.name, o.value)} />
@@ -119,7 +121,7 @@ export function ReviewFormFields({ fields, values, onChange, readOnly }: {
                     <span className="block text-xs font-mono text-gray-500 ml-6">{String(o.value)}</span>
                   </label>
                 ))}
-              </div>
+              </OptionList>
             </div>
           );
         }
@@ -130,6 +132,34 @@ export function ReviewFormFields({ fields, values, onChange, readOnly }: {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+type FieldOption = NonNullable<CcReviewFormView["fields"][number]["options"]>[number];
+
+/** A choice field's options with a search box and a scrolling list (option lists can be long). */
+function OptionList({ options, className, children }: {
+  options: FieldOption[]; className?: string; children: (shown: FieldOption[]) => ReactNode;
+}) {
+  const [q, setQ] = useState("");
+  const needle = q.trim().toLowerCase();
+  const shown = needle
+    ? options.filter((o) => `${o.label} ${String(o.value)}`.toLowerCase().includes(needle))
+    : options;
+  return (
+    <div className="rounded-lg border border-gray-200 bg-gray-50">
+      <div className="p-2 border-b border-gray-200">
+        <div className="relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input className={cx(INPUT, "pl-8 py-1.5")} value={q} placeholder={`Search ${options.length} option${options.length === 1 ? "" : "s"}…`}
+                 onChange={(e) => setQ(e.target.value)} />
+        </div>
+      </div>
+      <div className={cx("max-h-72 overflow-y-auto", className)}>
+        {children(shown)}
+        {!shown.length && <div className="px-3 py-4 text-sm text-gray-500 text-center">No options match.</div>}
+      </div>
     </div>
   );
 }
