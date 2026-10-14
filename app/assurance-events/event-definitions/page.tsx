@@ -9,7 +9,7 @@ import { useCcConnection } from "@/hooks/useCcConnection";
 import { CC_DEFINITIONS_KEY, CcDefinitionWrites, NEW_DEFINITION } from "@/lib/cc-definitions-api";
 import { formatAbsolute, formatRelative } from "@/lib/assurance-format";
 import {
-  BTN_LINK, BTN_PRIMARY, BTN_SECONDARY, CARD, CARD_SUBTITLE, CARD_TITLE, INPUT, LABEL, PAGE,
+  BTN_PRIMARY, BTN_SECONDARY, CARD, CARD_SUBTITLE, CARD_TITLE, INPUT, LABEL, PAGE,
   PAGE_INNER, PageHeader, Spinner, StatCard, TBODY, TD, TH, THEAD_ROW, TR_CLICKABLE, cx,
 } from "@/components/assurance-events/ui";
 import { BannerBar, SeverityBadge, StateBadge } from "@/components/assurance-events/definition-editor/fields";
@@ -54,7 +54,6 @@ export default function EventDefinitionsPage() {
   const [banner, setBanner] = useState<Banner>(null);
   const [state, setState] = useState("");
   const [search, setSearch] = useState("");
-  const [busyId, setBusyId] = useState<string | null>(null);
   const query = { state: state || undefined, q: search.trim() || undefined };
   const list = useQuery({ queryKey: [...CC_DEFINITIONS_KEY, "summary", query], queryFn: () => CcDefinitionWrites.summary(query) });
   // Unfiltered, for the stat cards and the event type filter.
@@ -71,19 +70,6 @@ export default function EventDefinitionsPage() {
     drafts: all.filter((d) => d.state === "DRAFT").length,
     deprecated: all.filter((d) => d.state === "DEPRECATED").length,
   }), [all]);
-
-  const cutNewVersion = async (id: string) => {
-    setBusyId(id);
-    try {
-      const d = await CcDefinitionWrites.newVersion(id);
-      await qc.invalidateQueries({ queryKey: CC_DEFINITIONS_KEY });
-      open(d.definitionId);
-    } catch (e) {
-      setBanner({ tone: "err", text: (e as Error).message });
-    } finally {
-      setBusyId(null);
-    }
-  };
 
   const openCreateSidebar = () => {
     const CreateDefinitionForm = () => {
@@ -210,17 +196,16 @@ export default function EventDefinitionsPage() {
                 <th className={TH}>Reviewer</th>
                 <th className={TH}>Policy</th>
                 <th className={cx(TH, "w-24")}>Updated</th>
-                <th className={TH}>Action</th>
               </tr>
             </thead>
             <tbody className={TBODY}>
               {list.isLoading && (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
                   <span className="inline-flex items-center gap-2"><Spinner /> Loading…</span>
                 </td></tr>
               )}
               {listError && (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-red-600">
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-red-600">
                   Failed to load definitions. {(listError as Error).message}
                 </td></tr>
               )}
@@ -246,20 +231,10 @@ export default function EventDefinitionsPage() {
                   <td className={cx(TD, "text-xs [overflow-wrap:anywhere]")}>{d.reviewer?.text || "—"}</td>
                   <td className={cx(TD, "text-xs whitespace-nowrap")} title={d.policy?.text || undefined}>{ruleCount(d.policy)}</td>
                   <td className={cx(TD, "text-xs")} title={formatAbsolute(d.updatedAt)}>{formatRelative(d.updatedAt)}</td>
-                  <td className={cx(TD, "whitespace-nowrap")} onClick={(e) => e.stopPropagation()}>
-                    {d.state !== "DRAFT" ? (
-                      <button type="button" className={BTN_LINK} title="Cut a new DRAFT version"
-                              onClick={() => cutNewVersion(d.definitionId)} disabled={busyId === d.definitionId}>
-                        New version
-                      </button>
-                    ) : (
-                      <button type="button" className={BTN_LINK} onClick={() => open(d.definitionId)}>Edit</button>
-                    )}
-                  </td>
                 </tr>
               ))}
               {!list.isLoading && !listError && rows.length === 0 && (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
                   No definitions match the current filters.
                 </td></tr>
               )}
