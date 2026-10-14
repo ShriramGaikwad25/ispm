@@ -192,9 +192,9 @@ export default function EventDefinitionsPage() {
                 <th className={cx(TH, "min-w-[220px]")}>Definition</th>
                 <th className={TH}>State</th>
                 <th className={cx(TH, "min-w-[240px] w-[20%]")}>Detector</th>
-                <th className={cx(TH, "min-w-[220px] w-[18%]")}>SLA</th>
-                <th className={TH}>Reviewer</th>
-                <th className={TH}>Policy</th>
+                <th className={cx(TH, "min-w-[300px] w-[28%]")}>SLA</th>
+                <th className={cx(TH, "w-[14%]")}>Reviewer</th>
+                <th className={cx(TH, "w-24")}>Policy</th>
                 <th className={cx(TH, "w-24")}>Updated</th>
               </tr>
             </thead>
