@@ -183,11 +183,9 @@ function ControlPage() {
         />
 
         {banner && <div className="mb-4"><BannerBar banner={banner} onClose={() => setBanner(null)} /></div>}
-        {c.system ? (
-          <Note>System control: read-only. <b>Clone</b> it to change the condition or a parameter default; a tenant control created under the same code overrides it for this tenant once ACTIVE.</Note>
-        ) : c.state !== "DRAFT" ? (
+        {!c.system && c.state !== "DRAFT" && (
           <Note>{c.state} controls are immutable. Cut a new version to change it; activating the new version deprecates this one. Definitions keep the version they pinned until a new definition version is activated.</Note>
-        ) : null}
+        )}
 
         <TabBar<Tab>
           active={tab}
