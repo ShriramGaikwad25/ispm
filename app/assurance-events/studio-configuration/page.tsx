@@ -72,7 +72,7 @@ function ActionLibraryTab() {
   const router = useRouter();
   const { openSidebar } = useRightSidebar();
   const connection = useCcConnection();
-  const [state, setState] = useState("ACTIVE");
+  const [state, setState] = useState("");
   const [category, setCategory] = useState("");
   const [search, setSearch] = useState("");
   const query = { state: state || undefined, category: category || undefined, q: search.trim() || undefined };

@@ -16,6 +16,7 @@
 // =====================================================================
 
 import { ccRequest } from "@/lib/controls-api";
+import { resolveTenantIdForHeader } from "@/lib/auth";
 
 export const ACTIONS_BASE = "/assurance-events/studio-configuration/actions";
 export const actionHref = (code: string, version: number) =>
@@ -108,6 +109,8 @@ export const Actions = {
   test: (code: string, body: { params: Record<string, unknown>; version?: number; executor?: string; eventId?: string; context?: unknown }) =>
     ccRequest<ActionTestResult>("POST", `${path(code)}/test`, { body }),
   clone: (code: string, body: { code: string; name?: string }) => ccRequest<ActionType>("POST", `${path(code)}/clone`, { body }),
+  /** PUT /compliance/action-types/{code} — saves the tenant DRAFT of the code. */
+  update: (code: string, body: ActionRequest) => ccRequest<ActionType>("PUT", path(code), { body }),
   newVersion: (code: string) => ccRequest<ActionType>("POST", `${path(code)}/versions`),
   activate: (code: string, version?: number) =>
     ccRequest<ActionType>("POST", `${path(code)}/activate`, { query: { version: ver(version) } }),
@@ -118,6 +121,40 @@ export const Actions = {
 /** "a*, b, c*" — parameter names, * = required (the console's parameter summary). */
 export const paramSummary = (ps: ActionParameter[] = []) => ps.map((p) => p.name + (p.required ? "*" : "")).join(", ");
 
-/** Default code for a clone: system codes lose the reserved IGA_/AGENT_ prefix. */
-export const cloneCode = (a: ActionType, tenant = "ACME") =>
-  a.system ? `${tenant}_${a.code.replace(/^(IGA|AGENT)_/, "")}` : `${a.code}_COPY`;
+/** Body of PUT /compliance/action-types/{code} (the console's editable part of an action). */
+export interface ActionRequest {
+  code: string;
+  name: string;
+  description?: string;
+  category: string;
+  targetKind: string;
+  reversible: boolean;
+  parameters: ActionParameter[];
+  resultFields: Array<{ name: string; description?: string }>;
+  defaultExecutor: string | null;
+  autoExecution: string;
+  sortOrder?: number;
+  tags: string[];
+}
+
+export const toActionRequest = (a: ActionType): ActionRequest => ({
+  code: a.code,
+  name: a.name,
+  description: a.description ?? "",
+  category: a.category,
+  targetKind: a.targetKind,
+  reversible: a.reversible,
+  parameters: a.parameters ?? [],
+  resultFields: a.resultFields ?? [],
+  defaultExecutor: a.defaultExecutor ?? null,
+  autoExecution: a.autoExecution,
+  sortOrder: a.sortOrder as number | undefined,
+  tags: a.tags ?? [],
+});
+
+/** What an action changes (the console's target kinds). */
+export const TARGET_KINDS = ["ACCOUNT", "ENTITLEMENT", "NHI", "CREDENTIAL", "GROUP", "SESSION", "RESOURCE"];
+
+/** Default code for a clone: tenant prefix; system codes lose the reserved IGA_/AGENT_ prefix. */
+export const cloneCode = (a: ActionType, tenant = resolveTenantIdForHeader() || "ACME") =>
+  a.system ? `${tenant.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}_${a.code.replace(/^(IGA|AGENT)_/, "")}` : `${a.code}_COPY`;

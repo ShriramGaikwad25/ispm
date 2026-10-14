@@ -7,22 +7,24 @@
 //   Definition   GET  /compliance/action-types/{code}?version=
 //   Where Used   GET  /compliance/action-types/{code}/usage
 //   Versions     GET  /compliance/action-types/{code}/versions
-// Actions: Activate, New Version, Deprecate (tenant actions), Clone.
+// Actions: Save (a tenant DRAFT's identity), Activate, New Version, Deprecate (tenant actions), Clone.
 // =====================================================================
 
-import { Suspense, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Save } from "lucide-react";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import { useCcConnection } from "@/hooks/useCcConnection";
 import { ControlsApiError } from "@/lib/controls-api";
 import {
-  ACTIONS_KEY, Actions, actionHref, paramSummary, type ActionParameter, type ActionType,
+  ACTIONS_KEY, ACTION_CATEGORIES, Actions, TARGET_KINDS, actionHref, paramSummary, toActionRequest,
+  type ActionParameter, type ActionRequest, type ActionType,
 } from "@/lib/cc-actions-api";
 import { CloneAction } from "@/components/assurance-events/CloneAction";
 import {
-  BTN_DANGER, BTN_LINK, BTN_PRIMARY, BTN_SECONDARY, CARD, CARD_HEADER, CARD_SUBTITLE, CARD_TITLE, PAGE,
+  BTN_DANGER, BTN_LINK, BTN_PRIMARY, BTN_SECONDARY, CARD, CARD_HEADER, CARD_SUBTITLE, CARD_TITLE, INPUT, LABEL, PAGE,
   PAGE_INNER_FLUSH, PILL, PageHeader, PageSpinner, TBODY, TD, TH, THEAD_ROW, TR_CLICKABLE, TabBar, cx,
 } from "@/components/assurance-events/ui";
 import { BannerBar, KeyValueList, StateBadge, type Banner } from "@/components/assurance-events/definition-editor/fields";
@@ -55,6 +57,12 @@ function ActionPage() {
   const [tab, setTab] = useState<Tab>("definition");
   const [banner, setBanner] = useState<Banner>(null);
   const [busy, setBusy] = useState(false);
+  // The editable copy: a tenant DRAFT can change its Identity (PUT /compliance/action-types/{code}).
+  const [draft, setDraft] = useState<ActionRequest | null>(null);
+  useEffect(() => { setDraft(a ? toActionRequest(a) : null); }, [a]);
+  const editable = !!a && !a.system && a.state === "DRAFT";
+  const dirty = !!a && !!draft && JSON.stringify(draft) !== JSON.stringify(toActionRequest(a));
+  const patch = (p: Partial<ActionRequest>) => setDraft((d) => (d ? { ...d, ...p } : d));
 
   /** Runs a lifecycle action, then reloads and opens the resulting version. */
   const act = async (label: string, action: () => Promise<ActionType>) => {
@@ -127,9 +135,18 @@ function ActionPage() {
               }
               actions={
                 <>
+                  {editable && draft && (
+                    <button className={BTN_PRIMARY} disabled={busy || !dirty}
+                            onClick={() => act("Saved", () => Actions.update(a.code, draft))}>
+                      <Save size={14} /> Save
+                    </button>
+                  )}
                   {!a.system && a.state === "DRAFT" && (
                     <button className={BTN_PRIMARY} disabled={busy}
-                            onClick={() => act("Activated", () => Actions.activate(a.code, a.version))}>Activate</button>
+                            onClick={() => act("Activated", async () => {
+                              if (dirty && draft) await Actions.update(a.code, draft);
+                              return Actions.activate(a.code, a.version);
+                            })}>Activate</button>
                   )}
                   {!a.system && a.state !== "DRAFT" && (
                     <button className={BTN_SECONDARY} disabled={busy}
@@ -156,7 +173,12 @@ function ActionPage() {
               tabs={[["definition", "Definition"], ["usage", "Where Used"], ["versions", "Versions"]]}
             />
 
-            {tab === "definition" && <DefinitionTab a={a} />}
+            {editable && dirty && (
+              <div className="mb-4 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+                Unsaved changes. Save to keep them; Activate saves them first.
+              </div>
+            )}
+            {tab === "definition" && draft && <DefinitionTab a={a} draft={draft} editable={editable} patch={patch} />}
             {tab === "usage" && <UsageTab code={a.code} />}
             {tab === "versions" && <VersionsTab code={a.code} onOpen={(v) => router.push(actionHref(v.code, v.version))} />}
           </>
@@ -238,23 +260,63 @@ function ParametersTable({ params, withTemplates }: { params: ActionParameter[];
 
 /* ---------------------------------------------------------------- Definition */
 
-function DefinitionTab({ a }: { a: ActionType }) {
+function DefinitionTab({ a, draft, editable, patch }: {
+  a: ActionType; draft: ActionRequest; editable: boolean; patch: (p: Partial<ActionRequest>) => void;
+}) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <Card title="Identity">
-          <KeyValueList rows={[
-            ["Code", <Mono key="c">{a.code}</Mono>],
-            ["Name", a.name],
-            ["Description", a.description || <Dash key="d" />],
-            ["Category", a.category],
-            ["Target kind", a.targetKind],
-            ["Reversible", a.reversible ? "Yes (executor returns a rollback token)" : "No"],
-            ["Auto-execution", a.autoExecution],
-            ["Tags", a.tags?.length ? a.tags.join(", ") : <Dash key="t" />],
-            ["Activated", fmt(a.activatedAt)],
-            ["Deprecated", fmt(a.deprecatedAt)],
-          ]} />
+        <Card title="Identity" subtitle={editable ? "Only the identity of a draft can be changed." : undefined}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className={LABEL}>Code</label>
+              <input className={cx(INPUT, "font-mono")} value={draft.code} readOnly />
+            </div>
+            <div>
+              <label className={LABEL}>Category</label>
+              <select className={INPUT} value={draft.category} disabled={!editable} onChange={(e) => patch({ category: e.target.value })}>
+                {[...new Set([...ACTION_CATEGORIES, draft.category])].map((c) => <option key={c}>{c}</option>)}
+              </select>
+            </div>
+            <div className="md:col-span-2">
+              <label className={LABEL}>Name</label>
+              <input className={INPUT} value={draft.name} readOnly={!editable} onChange={(e) => patch({ name: e.target.value })} />
+            </div>
+            <div className="md:col-span-2">
+              <label className={LABEL}>Description</label>
+              <textarea className={INPUT} rows={2} value={draft.description ?? ""} readOnly={!editable}
+                        onChange={(e) => patch({ description: e.target.value })} />
+            </div>
+            <div>
+              <label className={LABEL}>Target kind (what it changes)</label>
+              <select className={INPUT} value={draft.targetKind} disabled={!editable} onChange={(e) => patch({ targetKind: e.target.value })}>
+                {[...new Set([...TARGET_KINDS, draft.targetKind])].map((k) => <option key={k}>{k}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={LABEL}>Reversible</label>
+              <select className={INPUT} value={String(draft.reversible)} disabled={!editable}
+                      onChange={(e) => patch({ reversible: e.target.value === "true" })}>
+                <option value="true">Yes (executor returns a rollback token)</option>
+                <option value="false">No</option>
+              </select>
+            </div>
+            <div>
+              <label className={LABEL}>Auto-execution</label>
+              <select className={INPUT} value={draft.autoExecution} disabled={!editable} onChange={(e) => patch({ autoExecution: e.target.value })}>
+                <option>ALLOWED</option>
+                <option>REVIEW_ONLY</option>
+              </select>
+            </div>
+            <div>
+              <label className={LABEL}>Tags (comma separated)</label>
+              <input className={INPUT} value={draft.tags.join(", ")} readOnly={!editable}
+                     onChange={(e) => patch({ tags: e.target.value.split(",").map((t) => t.trim()).filter(Boolean) })} />
+            </div>
+          </div>
+          <div className="mt-4">
+            <KeyValueList rows={[["Activated", fmt(a.activatedAt)], ["Deprecated", fmt(a.deprecatedAt)]]} />
+          </div>
         </Card>
         <Card title="Executor" subtitle="Who runs it: rule then.executor → action bindings → this default → iga for IGA_* actions">
           <KeyValueList rows={[
