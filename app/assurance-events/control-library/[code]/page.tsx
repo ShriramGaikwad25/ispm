@@ -5,11 +5,8 @@
 // (graph.keyforge.ai/console#/controls/{code}?version=) on the same API,
 // laid out like ISPM's gateway pages. Tabs:
 //   Definition   GET  /compliance/controls/{code}?version=   (editable for a tenant DRAFT: PUT)
-//   Test         POST /compliance/controls/{code}/test        (nothing is persisted)
 //   Versions     GET  /compliance/controls/{code}/versions
 //   Where Used   GET  /compliance/controls/{code}/usage
-//   Audit        GET  /compliance/controls/{code}/audit
-//   Raw JSON     the request body and the stored entity
 // Actions: Save, Activate, New Version, Deprecate (tenant controls), Clone.
 // System controls are read-only — clone one to change it.
 // =====================================================================
@@ -18,18 +15,18 @@ import { Suspense, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, Play, Save, ShieldCheck } from "lucide-react";
+import { Copy, Save, ShieldCheck } from "lucide-react";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import { useCcConnection } from "@/hooks/useCcConnection";
 import {
-  Controls, ControlsApiError, type Control, type ControlAuditRow, type ControlRequest, type ControlTestResult,
+  Controls, ControlsApiError, type Control, type ControlRequest,
 } from "@/lib/controls-api";
 import {
   BTN_DANGER, BTN_LINK, BTN_PRIMARY, BTN_SECONDARY, CARD, CARD_HEADER, CARD_SUBTITLE, CARD_TITLE, INPUT, LABEL, PAGE,
   PAGE_INNER_FLUSH, PILL, PageHeader, PageSpinner, Spinner, TBODY, TD, TH, THEAD_ROW, TR_CLICKABLE, TabBar, cx,
 } from "@/components/assurance-events/ui";
 import {
-  BannerBar, JsonField, KeyValueList, StateBadge, type Banner,
+  BannerBar, JsonField, StateBadge, type Banner,
 } from "@/components/assurance-events/definition-editor/fields";
 
 const KEY = ["continuouscompliance", "controls"] as const;
@@ -37,7 +34,7 @@ const LIBRARY_HREF = "/assurance-events/control-library";
 const controlHref = (code: string, version: number) => `${LIBRARY_HREF}/${encodeURIComponent(code)}?version=${version}`;
 const SEVERITIES = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
 
-type Tab = "definition" | "test" | "versions" | "usage" | "audit" | "raw";
+type Tab = "definition" | "versions" | "usage";
 
 const toRequest = (c: Control): ControlRequest => ({
   code: c.code,
@@ -190,7 +187,7 @@ function ControlPage() {
         <TabBar<Tab>
           active={tab}
           onChange={setTab}
-          tabs={[["definition", "Definition"], ["test", "Test"], ["versions", "Versions"], ["usage", "Where Used"], ["audit", "Audit"], ["raw", "Raw JSON"]]}
+          tabs={[["definition", "Definition"], ["versions", "Versions"], ["usage", "Where Used"]]}
         />
 
         {tab === "definition" && (
@@ -279,21 +276,8 @@ function ControlPage() {
             </div>
           </div>
         )}
-        {tab === "test" && <TestTab key={`${c.code}@${c.version}`} c={c} />}
         {tab === "versions" && <VersionsTab code={c.code} onOpen={(v) => router.push(controlHref(v.code, v.version))} />}
         {tab === "usage" && <UsageTab code={c.code} />}
-        {tab === "audit" && <AuditTab code={c.code} />}
-        {tab === "raw" && (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <Card title={editable ? "Request Body · PUT (the tenant DRAFT)" : "Request Body"}>
-              <JsonField key={`raw-${c.version}-${tab}`} value={form} rows={26} readOnly={!editable}
-                         onChange={(v) => setForm(v as ControlRequest)} />
-            </Card>
-            <Card title="Stored Entity">
-              <Json v={c} max={640} />
-            </Card>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -330,16 +314,6 @@ const ErrorLine = ({ error }: { error: unknown }) => (
 const Empty = ({ children }: { children: ReactNode }) => (
   <div className="px-4 py-8 text-center text-sm text-gray-500">{children}</div>
 );
-const Json = ({ v, max = 360 }: { v: unknown; max?: number }) => (
-  <pre className="text-xs font-mono bg-gray-50 border border-gray-200 rounded-md p-3 overflow-auto text-gray-800" style={{ maxHeight: max }}>
-    {JSON.stringify(v ?? {}, null, 2)}
-  </pre>
-);
-function show(v: unknown): ReactNode {
-  if (v === null || v === undefined || v === "") return <span className="text-gray-400">—</span>;
-  if (typeof v === "object") return <span className="font-mono text-xs break-all">{JSON.stringify(v)}</span>;
-  return String(v);
-}
 function Loaded<T>({ q, children }: { q: { isLoading: boolean; error: unknown; data?: T }; children: (d: T) => ReactNode }) {
   if (q.isLoading) return <PageSpinner />;
   if (q.error) return <ErrorLine error={q.error} />;
@@ -371,107 +345,7 @@ function FamilyContext({ family }: { family?: { contextSchema?: Record<string, {
   );
 }
 
-/* ---------------------------------------------------------------- Test */
-
-const APPROVAL_DQ_CONTEXT = {
-  subject: {
-    entitlementId: "…", application: "SAP-FIN", requestable: true, privileged: false, riskTier: "HIGH",
-    approvalGroup: "11111111-1111-1111-1111-111111111111", fallbackGroup: "", source: "IDC", bulkPii: false, approvalLevel: 1,
-  },
-  approvalGroup: { configured: true, exists: true, memberCount: 1, invalidCount: 0, validRemaining: 1, invalidPrincipalIds: [] },
-  fallbackGroup: { configured: false, exists: false, memberCount: 0, activeCount: 0, available: false },
-};
-const PUSH_CONTEXT = { finding: { privileged: true, mfaEnforced: false }, subject: { application: "VAULT" }, evidence: {} };
-
-function TestTab({ c }: { c: Control }) {
-  const catalog = c.familyCode === "APPROVAL_DQ";
-  const [mode, setMode] = useState<"sample" | "context">(catalog ? "sample" : "context");
-  const [entitlementId, setEntitlementId] = useState("");
-  const [context, setContext] = useState<unknown>(catalog ? APPROVAL_DQ_CONTEXT : PUSH_CONTEXT);
-  const [result, setResult] = useState<ControlTestResult | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const run = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      setResult(await Controls.test(c.code, mode === "sample"
-        ? { sample: { entitlementId: entitlementId.trim() }, version: c.version }
-        : { context, version: c.version }));
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-      <Card
-        title="Test"
-        subtitle={`Evaluates v${c.version} with params bound to the library defaults. Nothing is persisted except a CONTROL_TESTED ledger row.`}
-        right={
-          <button className={BTN_PRIMARY} disabled={busy || (mode === "sample" && !entitlementId.trim())} onClick={run}>
-            {busy ? <Spinner size={14} className="text-white" /> : <Play size={14} />} Evaluate v{c.version}
-          </button>
-        }
-      >
-        <div className="space-y-4">
-          <div className="flex flex-wrap gap-4 text-sm">
-            <label className={cx("inline-flex items-center gap-2", !catalog && "text-gray-400")}>
-              <input type="radio" checked={mode === "sample"} disabled={!catalog} onChange={() => setMode("sample")} />
-              Real catalog row (APPROVAL_DQ: the service builds the facts)
-            </label>
-            <label className="inline-flex items-center gap-2">
-              <input type="radio" checked={mode === "context"} onChange={() => setMode("context")} /> Hand-written context
-            </label>
-          </div>
-          {mode === "sample" ? (
-            <Field label="Entitlement ID (a row of the catalog mirror)">
-              <input className={cx(INPUT, "font-mono")} value={entitlementId} placeholder="e0000000-0000-0000-0000-000000000002"
-                     onChange={(e) => setEntitlementId(e.target.value)} />
-            </Field>
-          ) : (
-            <JsonField label="Context" value={context} rows={14} onChange={setContext} />
-          )}
-          {error && <ErrorLine error={new Error(error)} />}
-        </div>
-      </Card>
-
-      <Card title="Result">
-        {result ? (
-          <div className="space-y-4">
-            <KeyValueList rows={[
-              ["Compiled", <span key="c" className={result.compiled ? "text-green-700" : "text-red-600"}>{String(result.compiled)}</span>],
-              ["Matched", result.matched == null ? <span key="m" className="text-gray-400">Not evaluated</span>
-                : result.matched ? <b key="m" className="text-green-700">MATCH — the control holds</b> : <b key="m">No match</b>],
-              ["Params", <span key="p" className="font-mono text-xs">{JSON.stringify(result.params)}</span>],
-              ["Evaluated", fmt(result.evaluatedAt)],
-            ]} />
-            {!!result.diagnostics?.length && (
-              <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 space-y-1">
-                {result.diagnostics.map((d, i) => <div key={i}>{d}</div>)}
-              </div>
-            )}
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-2">Evidence (the evidence fields resolved on the context)</h3>
-              {Object.keys(result.evidence ?? {}).length
-                ? <KeyValueList rows={Object.entries(result.evidence ?? {}).map(([k, v]) => [k, show(v)] as [string, ReactNode])} />
-                : <span className="text-sm text-gray-400">—</span>}
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-2">Context as Evaluated</h3>
-              <Json v={result.context} max={320} />
-            </div>
-          </div>
-        ) : <span className="text-sm text-gray-500">Run a test.</span>}
-      </Card>
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------------- Versions / where used / audit */
+/* ---------------------------------------------------------------- Versions / where used */
 
 function VersionsTab({ code, onOpen }: { code: string; onOpen: (c: Control) => void }) {
   const q = useQuery({ queryKey: [...KEY, code, "versions"], queryFn: () => Controls.versions(code) });
@@ -550,56 +424,6 @@ function UsageTab({ code }: { code: string }) {
         </Card>
       );
     }}</Loaded>
-  );
-}
-
-function AuditTab({ code }: { code: string }) {
-  const { openSidebar } = useRightSidebar();
-  const q = useQuery({ queryKey: [...KEY, code, "audit"], queryFn: () => Controls.audit(code) });
-  const rows = Array.isArray(q.data) ? q.data : [];
-  const open = (a: ControlAuditRow) =>
-    openSidebar(
-      <div className="space-y-4">
-        <KeyValueList rows={(["at", "stage", "actor", "source", "requestId", "from", "to", "sealed", "chainSeq"] as const)
-          .map((k) => [k, k === "at" ? fmt(a.at) : show(a[k])] as [string, ReactNode])} />
-        <div>
-          <h3 className="text-sm font-semibold text-gray-900 mb-2">Detail</h3>
-          <Json v={a.detail} max={480} />
-        </div>
-      </div>,
-      { title: `${a.action} · ${a.auditId}`, widthPx: 560 },
-    );
-  return (
-    <Card title={`History (${rows.length})`} subtitle="Ledger rows for every version of this control. Click a row for its details." flush>
-      <Loaded q={q}>{() => (
-        <table className="w-full">
-          <thead>
-            <tr className={THEAD_ROW}>
-              <th className={TH}>When</th><th className={TH}>Action</th><th className={TH}>Actor</th><th className={TH}>Version</th>
-              <th className={TH}>From → To</th><th className={TH}>Detail</th>
-            </tr>
-          </thead>
-          <tbody className={TBODY}>
-            {rows.map((a) => (
-              <tr key={a.auditId} className={TR_CLICKABLE} onClick={() => open(a)}>
-                <td className={cx(TD, "text-xs whitespace-nowrap")}>{fmt(a.at)}</td>
-                <td className={cx(TD, "text-xs font-semibold text-gray-900")}>{a.action}</td>
-                <td className={TD}>
-                  <span className={cx(PILL, "bg-gray-100 text-gray-700")}>{a.actor?.kind}</span>
-                  <div className="text-xs font-mono text-gray-500 mt-0.5">{a.actor?.ref || a.actor?.principalId?.slice(0, 8) || ""}</div>
-                </td>
-                <td className={TD}>v{a.detail?.version ?? "—"}</td>
-                <td className={cx(TD, "text-xs")}>{a.from ?? "∅"} → {a.to ?? "∅"}</td>
-                <td className={cx(TD, "text-xs font-mono max-w-[420px] truncate")}>{JSON.stringify(a.detail)}</td>
-              </tr>
-            ))}
-            {!rows.length && (
-              <tr><td colSpan={6}><Empty>No ledger rows (system controls are seeded by the migration, not through the API).</Empty></td></tr>
-            )}
-          </tbody>
-        </table>
-      )}</Loaded>
-    </Card>
   );
 }
 
