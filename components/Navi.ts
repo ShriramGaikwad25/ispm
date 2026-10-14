@@ -31,7 +31,6 @@ import {
   Wrench,
   Zap,
   Sparkles,
-  Bot,
   Library,
   ClipboardCheck,
   SlidersHorizontal,
@@ -139,7 +138,6 @@ export const navLinks: NavItem[] = [
     href: "/assurance-events",
     icon: ShieldCheck,
     subItems: [
-      { name: "Domain Agents", href: "/assurance-events/domain-agents", icon: Bot },
       { name: "Control Library", href: "/assurance-events/control-library", icon: Library },
       { name: "Review Forms", href: "/assurance-events/review-forms", icon: ClipboardCheck },
       { name: "Studio Configuration", href: "/assurance-events/studio-configuration", icon: SlidersHorizontal },
