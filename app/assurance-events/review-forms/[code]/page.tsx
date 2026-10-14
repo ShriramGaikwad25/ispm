@@ -5,7 +5,7 @@
 // (graph.keyforge.ai/console#/forms/{code}?version=) on the same API, laid
 // out like ISPM's gateway pages. The form comes from the library response
 // (GET /compliance/review-forms). Tabs:
-//   Definition, Fields  (the form itself; editable for a tenant DRAFT: PUT /compliance/review-forms/{code})
+//   Definition          (the form and its fields; editable for a tenant DRAFT: PUT /compliance/review-forms/{code})
 //   Where Used          GET  /compliance/review-forms/{code}/usage
 //   Preview & Dry Run   POST /compliance/review-forms/{code}/render | /test
 //   Versions            GET  /compliance/review-forms/{code}/versions
@@ -32,7 +32,7 @@ import {
 import { BannerBar, JsonField, KeyValueList, StateBadge, type Banner } from "@/components/assurance-events/definition-editor/fields";
 import { ReviewFormFields, type FormValues } from "@/components/assurance-events/ReviewFormFields";
 
-type Tab = "definition" | "fields" | "usage" | "preview" | "versions";
+type Tab = "definition" | "usage" | "preview" | "versions";
 
 const formHref = (code: string, version: number) =>
   `${REVIEW_FORMS_BASE}/${encodeURIComponent(code)}?version=${version}`;
@@ -179,13 +179,17 @@ function ReviewFormPage() {
               active={tab}
               onChange={setTab}
               tabs={[
-                ["definition", "Definition"], ["fields", `Fields (${(draft ?? form).fields.length})`], ["usage", "Where Used"],
+                ["definition", "Definition"], ["usage", "Where Used"],
                 ["preview", "Preview & Dry Run"], ["versions", "Versions"],
               ]}
             />
 
-            {tab === "definition" && draft && <DefinitionTab f={form} draft={draft} editable={editable} patch={patch} />}
-            {tab === "fields" && draft && <FieldsTab f={form} draft={draft} editable={editable} patch={patch} />}
+            {tab === "definition" && draft && (
+              <div className="space-y-6">
+                <DefinitionTab f={form} draft={draft} editable={editable} patch={patch} />
+                <FieldsTab f={form} draft={draft} editable={editable} patch={patch} />
+              </div>
+            )}
             {tab === "preview" && <PreviewTab key={`${form.code}@${form.version}`} f={form} />}
             {tab === "versions" && <VersionsTab code={form.code} onOpen={(v) => router.push(formHref(v.code, v.version))} />}
             {tab === "usage" && <UsageTab code={form.code} />}
