@@ -8,16 +8,17 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Copy, RefreshCw } from "lucide-react";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import { useCcConnection } from "@/hooks/useCcConnection";
 import { REVIEW_FORMS_BASE, REVIEW_FORMS_KEY, ReviewForms, type ApiReviewForm } from "@/lib/assurance-review-forms";
 import {
-  BTN_PRIMARY, BTN_SECONDARY, CARD, CARD_SUBTITLE, CARD_TITLE, INPUT, LABEL, PAGE, PAGE_INNER_FLUSH, PILL, PageHeader,
+  BTN_SECONDARY, CARD, CARD_SUBTITLE, CARD_TITLE, PAGE, PAGE_INNER_FLUSH, PILL, PageHeader,
   Spinner, StatCard, TBODY, TD, TH, THEAD_ROW, TR_CLICKABLE, cx,
 } from "@/components/assurance-events/ui";
 import { StateBadge } from "@/components/assurance-events/definition-editor/fields";
+import { CloneReviewForm } from "@/components/assurance-events/CloneReviewForm";
 
 const FILTER_INPUT =
   "rounded-md border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
@@ -51,7 +52,7 @@ export default function ReviewFormsPage() {
   }, [forms, search]);
 
   const openClone = (f: ApiReviewForm) =>
-    openSidebar(<CloneForm src={f} onDone={(c) => router.push(formHref(c.code, c.version))} />,
+    openSidebar(<CloneReviewForm src={f} onDone={(c) => router.push(formHref(c.code, c.version))} />,
       { title: `Clone ${f.code} v${f.version}`, widthPx: 480 });
 
   return (
@@ -150,55 +151,6 @@ export default function ReviewFormsPage() {
             </tbody>
           </table>
         </div>
-      </div>
-    </div>
-  );
-}
-
-/** Clone form (right sidebar): POST /compliance/review-forms/{code}/clone. */
-function CloneForm({ src, onDone }: { src: ApiReviewForm; onDone: (created: ApiReviewForm) => void }) {
-  const qc = useQueryClient();
-  const { closeSidebar } = useRightSidebar();
-  const [code, setCode] = useState(src.system ? `MY_${src.code}` : `${src.code}_COPY`);
-  const [title, setTitle] = useState(`${src.title} (copy)`);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  const submit = async () => {
-    setBusy(true);
-    setErr(null);
-    try {
-      const created = await ReviewForms.clone(src.code, { code: code.trim(), title: title.trim() });
-      await qc.invalidateQueries({ queryKey: REVIEW_FORMS_KEY });
-      closeSidebar();
-      onDone(created);
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <p className="text-sm text-gray-500">
-        A tenant DRAFT copy under a new code: fields and outcomes are copied; preview, dry-run, then activate. A tenant form
-        with the same code as a system one takes precedence once ACTIVE.
-      </p>
-      <div>
-        <label className={LABEL}>New Code (UPPER_SNAKE_CASE)</label>
-        <input className={cx(INPUT, "font-mono")} value={code} onChange={(e) => setCode(e.target.value)} />
-      </div>
-      <div>
-        <label className={LABEL}>Title</label>
-        <input className={INPUT} value={title} onChange={(e) => setTitle(e.target.value)} />
-      </div>
-      {err && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{err}</div>}
-      <div className="flex justify-end gap-2">
-        <button type="button" className={BTN_SECONDARY} onClick={closeSidebar}>Cancel</button>
-        <button type="button" className={BTN_PRIMARY} disabled={busy || !code.trim()} onClick={submit}>
-          {busy && <Spinner size={14} className="text-white" />} Clone
-        </button>
       </div>
     </div>
   );

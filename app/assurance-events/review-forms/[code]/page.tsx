@@ -12,15 +12,15 @@
 // Actions: Save, Activate, New Version, Deprecate (tenant forms), Clone.
 // =====================================================================
 
-import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, Plus, Save, Search, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Plus, Save, Trash2 } from "lucide-react";
 import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import { useCcConnection } from "@/hooks/useCcConnection";
 import { ControlsApiError } from "@/lib/controls-api";
-import { CC_EVENTS_KEY, CcEvents, subjectLabel, type CcReviewFormTest, type CcReviewFormView } from "@/lib/cc-events-api";
+import { CcEvents, type CcReviewFormTest, type CcReviewFormView } from "@/lib/cc-events-api";
 import {
   REVIEW_FORMS_BASE, REVIEW_FORMS_KEY, ReviewForms, SUBJECT_KINDS, SUBMIT_AUTHORITIES, toReviewFormRequest,
   type ApiFormField, type ApiReviewForm, type ReviewFormRequest,
@@ -31,6 +31,7 @@ import {
 } from "@/components/assurance-events/ui";
 import { BannerBar, JsonField, KeyValueList, StateBadge, type Banner } from "@/components/assurance-events/definition-editor/fields";
 import { ReviewFormFields, type FormValues } from "@/components/assurance-events/ReviewFormFields";
+import { CloneReviewForm } from "@/components/assurance-events/CloneReviewForm";
 
 type Tab = "definition" | "usage" | "preview" | "versions";
 
@@ -106,7 +107,7 @@ function ReviewFormPage() {
 
   const openClone = (f: ApiReviewForm) =>
     openSidebar(
-      <CloneForm src={f} onDone={(c) => { setTab("definition"); router.push(formHref(c.code, c.version)); }} />,
+      <CloneReviewForm src={f} onDone={(c) => { setTab("definition"); router.push(formHref(c.code, c.version)); }} />,
       { title: `Clone ${f.code} v${f.version}`, widthPx: 480 },
     );
 
@@ -187,7 +188,8 @@ function ReviewFormPage() {
             {tab === "definition" && draft && (
               <div className="space-y-6">
                 <DefinitionTab f={form} draft={draft} editable={editable} patch={patch} />
-                <FieldsTab f={form} draft={draft} editable={editable} patch={patch} />
+                {/* Only the Identity section is editable: fields are kept as cloned. */}
+                <FieldsTab f={form} draft={draft} editable={false} patch={patch} />
               </div>
             )}
             {tab === "preview" && <PreviewTab key={`${form.code}@${form.version}`} f={form} />}
@@ -298,9 +300,9 @@ function DefinitionTab({ f, draft, editable, patch }: EditProps) {
                 const on = kinds.includes(k);
                 return (
                   <label key={k}
-                         className={cx(PILL, "border font-mono", editable && "cursor-pointer",
+                         className={cx(PILL, "border font-mono", 
                            on ? "bg-blue-100 text-blue-700 border-blue-200" : "bg-white text-gray-600 border-gray-200")}>
-                    <input type="checkbox" className="mr-1" checked={on} disabled={!editable}
+                    <input type="checkbox" className="mr-1" checked={on} disabled
                            onChange={(e) => patch({
                              appliesTo: { ...draft.appliesTo, subjectKinds: e.target.checked ? [...kinds, k] : kinds.filter((x) => x !== k) },
                            })} />
@@ -312,7 +314,7 @@ function DefinitionTab({ f, draft, editable, patch }: EditProps) {
           </div>
           <div>
             <label className={LABEL}>Event type codes (comma separated, empty = any)</label>
-            <input className={cx(INPUT, "font-mono text-xs")} value={(draft.appliesTo?.eventTypeCodes ?? []).join(", ")} readOnly={!editable}
+            <input className={cx(INPUT, "font-mono text-xs")} value={(draft.appliesTo?.eventTypeCodes ?? []).join(", ")} readOnly
                    onChange={(e) => patch({
                      appliesTo: { ...draft.appliesTo, eventTypeCodes: e.target.value.split(",").map((t) => t.trim()).filter(Boolean) },
                    })} />
@@ -483,83 +485,6 @@ function FieldsTab({ draft, editable, patch }: EditProps) {
 
 /* ---------------------------------------------------------------- Preview & dry run */
 
-/**
- * Event picker for the preview: a search box over recent events (GET /compliance/events)
- * with a scrollable result list. Only events whose subject kind the form applies to are
- * listed; a pasted event ID is used as-is.
- */
-function EventPicker({ f, value, onChange }: { f: ApiReviewForm; value: string; onChange: (id: string) => void }) {
-  const q = useQuery({
-    queryKey: [...CC_EVENTS_KEY, "picker"],
-    queryFn: () => CcEvents.search({ page: 0, pageSize: 500 }),
-  });
-  const [text, setText] = useState("");
-  const [open, setOpen] = useState(false);
-  const kinds = f.appliesTo?.subjectKinds ?? [];
-  const anyKind = !kinds.length || kinds.includes("*");
-  const events = useMemo(() => (q.data?.content ?? []).filter((e) => anyKind || kinds.includes(String(e.subjectKind ?? ""))),
-    [q.data, anyKind, kinds]);
-  const needle = text.trim().toLowerCase();
-  const matches = needle
-    ? events.filter((e) => [subjectLabel(e), e.eventTypeCode, e.eventId, e.status, e.severity, e.subjectKind ?? ""]
-      .join(" ").toLowerCase().includes(needle))
-    : events;
-  const selected = events.find((e) => e.eventId === value);
-
-  return (
-    <div className="relative flex-1 min-w-0">
-      <div className="relative">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input
-          className={cx(INPUT, "pl-8")}
-          value={open ? text : selected ? `${subjectLabel(selected)} · ${selected.eventTypeCode}` : value}
-          placeholder="Search events by subject, event type, status or ID — or paste an event ID"
-          onFocus={() => { setOpen(true); setText(""); }}
-          onBlur={() => setTimeout(() => setOpen(false), 150)}
-          onChange={(e) => {
-            setText(e.target.value);
-            // A pasted UUID is taken as the event ID directly.
-            if (/^[0-9a-f-]{36}$/i.test(e.target.value.trim())) onChange(e.target.value.trim());
-          }}
-        />
-      </div>
-      {value && !open && <div className="text-xs font-mono text-gray-500 mt-1 break-all">{value}</div>}
-      {open && (
-        <div className="absolute z-20 mt-1 w-full rounded-md border border-gray-200 bg-white shadow-lg">
-          <div className="px-3 py-2 text-xs text-gray-500 border-b border-gray-100">
-            {q.isLoading ? "Loading events…" : q.error ? (q.error as Error).message
-              : `${matches.length} of ${events.length} event(s)${anyKind ? "" : ` · subject kind ${kinds.join(", ")}`}`}
-          </div>
-          <ul className="max-h-72 overflow-y-auto divide-y divide-gray-100">
-            {matches.map((e) => (
-              <li key={e.eventId}>
-                <button type="button"
-                        className={cx("w-full text-left px-3 py-2 hover:bg-gray-50", e.eventId === value && "bg-blue-50")}
-                        onMouseDown={(ev) => ev.preventDefault()}
-                        onClick={() => { onChange(e.eventId); setOpen(false); }}>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-semibold text-gray-900">{subjectLabel(e)}</span>
-                    <StateBadge value={e.status} />
-                    <span className="text-xs text-gray-500">{e.severity}</span>
-                  </div>
-                  <div className="text-xs text-gray-500 mt-0.5">
-                    <span className="font-mono">{e.eventTypeCode}</span> · {e.subjectKind ?? "—"} · {fmt(e.discoveredAt)}
-                  </div>
-                  <div className="text-[11px] font-mono text-gray-400">{e.eventId}</div>
-                </button>
-              </li>
-            ))}
-            {!q.isLoading && !matches.length && (
-              <li className="px-3 py-4 text-sm text-gray-500 text-center">No events match.</li>
-            )}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
-}
-
-
 const initialValues = (v: CcReviewFormView): FormValues =>
   Object.fromEntries(v.fields.filter((f) => f.value !== null && f.value !== undefined).map((f) => [f.name, f.value]));
 
@@ -605,9 +530,10 @@ function PreviewTab({ f }: { f: ApiReviewForm }) {
       <Card title="Preview" subtitle={`This version (v${f.version}) rendered for a real event. Nothing is changed.`}>
         <div className="space-y-5">
           <div>
-            <label className={LABEL}>Event (any event of a matching subject kind)</label>
-            <div className="flex gap-2 items-start">
-              <EventPicker f={f} value={eventId} onChange={setEventId} />
+            <label className={LABEL}>Event ID (any event of a matching subject kind)</label>
+            <div className="flex gap-2">
+              <input className={cx(INPUT, "font-mono")} value={eventId} placeholder="Paste an event ID from All Events"
+                     onChange={(e) => setEventId(e.target.value)} />
               <button className={BTN_PRIMARY} disabled={!eventId.trim() || busy} onClick={render}>
                 {busy && !view && <Spinner size={14} className="text-white" />} Render
               </button>
@@ -725,54 +651,5 @@ function UsageTab({ code }: { code: string }) {
         </Card>
       </div>
     )}</Loaded>
-  );
-}
-
-/* ---------------------------------------------------------------- Clone */
-
-function CloneForm({ src, onDone }: { src: ApiReviewForm; onDone: (created: ApiReviewForm) => void }) {
-  const qc = useQueryClient();
-  const { closeSidebar } = useRightSidebar();
-  const [code, setCode] = useState(src.system ? `MY_${src.code}` : `${src.code}_COPY`);
-  const [title, setTitle] = useState(`${src.title} (copy)`);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  const submit = async () => {
-    setBusy(true);
-    setErr(null);
-    try {
-      const created = await ReviewForms.clone(src.code, { code: code.trim(), title: title.trim() });
-      await qc.invalidateQueries({ queryKey: REVIEW_FORMS_KEY });
-      closeSidebar();
-      onDone(created);
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <p className="text-sm text-gray-500">
-        A tenant DRAFT copy under a new code: fields and outcomes are copied; preview, dry-run, then activate.
-      </p>
-      <div>
-        <label className={LABEL}>New Code (UPPER_SNAKE_CASE)</label>
-        <input className={cx(INPUT, "font-mono")} value={code} onChange={(e) => setCode(e.target.value)} />
-      </div>
-      <div>
-        <label className={LABEL}>Title</label>
-        <input className={INPUT} value={title} onChange={(e) => setTitle(e.target.value)} />
-      </div>
-      {err && <ErrorLine error={new Error(err)} />}
-      <div className="flex justify-end gap-2">
-        <button type="button" className={BTN_SECONDARY} onClick={closeSidebar}>Cancel</button>
-        <button type="button" className={BTN_PRIMARY} disabled={busy || !code.trim()} onClick={submit}>
-          {busy && <Spinner size={14} className="text-white" />} Clone
-        </button>
-      </div>
-    </div>
   );
 }
