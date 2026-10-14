@@ -40,10 +40,9 @@ export default function EventDefinitionsPage() {
   const connection = useCcConnection();
   const [banner, setBanner] = useState<Banner>(null);
   const [state, setState] = useState("");
-  const [eventType, setEventType] = useState("");
   const [search, setSearch] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
-  const query = { state: state || undefined, eventTypeCode: eventType || undefined, q: search.trim() || undefined };
+  const query = { state: state || undefined, q: search.trim() || undefined };
   const list = useQuery({ queryKey: [...CC_DEFINITIONS_KEY, "summary", query], queryFn: () => CcDefinitionWrites.summary(query) });
   // Unfiltered, for the stat cards and the event type filter.
   const allQ = useQuery({ queryKey: [...CC_DEFINITIONS_KEY, "summary", {}], queryFn: () => CcDefinitionWrites.summary({}) });
@@ -58,8 +57,7 @@ export default function EventDefinitionsPage() {
     active: all.filter((d) => d.state === "ACTIVE").length,
     drafts: all.filter((d) => d.state === "DRAFT").length,
     deprecated: all.filter((d) => d.state === "DEPRECATED").length,
-    eventTypes: eventTypes.length,
-  }), [all, eventTypes]);
+  }), [all]);
 
   const cutNewVersion = async (id: string) => {
     setBusyId(id);
@@ -160,11 +158,10 @@ export default function EventDefinitionsPage() {
 
         <BannerBar banner={banner} onClose={() => setBanner(null)} />
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
           <StatCard label="Active Definitions" value={stats.active} hint="Raising events now" />
           <StatCard label="Drafts" value={stats.drafts} hint="Not yet activated" />
           <StatCard label="Deprecated" value={stats.deprecated} hint="Replaced by a newer version" />
-          <StatCard label="Event Types" value={stats.eventTypes} hint="Covered by a definition" />
         </div>
 
         <div className={cx(CARD, "overflow-hidden")}>
@@ -187,10 +184,6 @@ export default function EventDefinitionsPage() {
                 <option value="DRAFT">Draft</option>
                 <option value="DEPRECATED">Deprecated</option>
               </select>
-              <select value={eventType} onChange={(e) => setEventType(e.target.value)} aria-label="Event type" className={FILTER_INPUT}>
-                <option value="">All Event Types</option>
-                {eventTypes.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
             </div>
           </div>
 
@@ -198,7 +191,6 @@ export default function EventDefinitionsPage() {
             <thead>
               <tr className={THEAD_ROW}>
                 <th className={cx(TH, "min-w-[220px]")}>Definition</th>
-                <th className={TH}>Type</th>
                 <th className={TH}>Severity</th>
                 <th className={TH}>Version</th>
                 <th className={TH}>State</th>
@@ -212,12 +204,12 @@ export default function EventDefinitionsPage() {
             </thead>
             <tbody className={TBODY}>
               {list.isLoading && (
-                <tr><td colSpan={11} className="px-4 py-8 text-center text-sm text-gray-500">
+                <tr><td colSpan={10} className="px-4 py-8 text-center text-sm text-gray-500">
                   <span className="inline-flex items-center gap-2"><Spinner /> Loading…</span>
                 </td></tr>
               )}
               {listError && (
-                <tr><td colSpan={11} className="px-4 py-8 text-center text-sm text-red-600">
+                <tr><td colSpan={10} className="px-4 py-8 text-center text-sm text-red-600">
                   Failed to load definitions. {(listError as Error).message}
                 </td></tr>
               )}
@@ -227,7 +219,6 @@ export default function EventDefinitionsPage() {
                     <div className="text-sm font-semibold text-gray-900">{d.name}</div>
                     <div className="text-xs text-gray-500 mt-0.5 font-mono break-all">{d.code}</div>
                   </td>
-                  <td className={cx(TD, "text-xs font-mono [overflow-wrap:anywhere]")}>{d.eventTypeCode}</td>
                   <td className={TD}><SeverityBadge value={d.severity} /></td>
                   <td className={cx(TD, "whitespace-nowrap")}>v{d.version}</td>
                   <td className={TD}><StateBadge value={d.state} /></td>
@@ -255,7 +246,7 @@ export default function EventDefinitionsPage() {
                 </tr>
               ))}
               {!list.isLoading && !listError && rows.length === 0 && (
-                <tr><td colSpan={11} className="px-4 py-8 text-center text-sm text-gray-500">
+                <tr><td colSpan={10} className="px-4 py-8 text-center text-sm text-gray-500">
                   No definitions match the current filters.
                 </td></tr>
               )}
