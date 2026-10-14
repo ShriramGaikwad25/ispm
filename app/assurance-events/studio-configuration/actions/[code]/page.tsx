@@ -15,7 +15,6 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Save } from "lucide-react";
-import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import { useCcConnection } from "@/hooks/useCcConnection";
 import { ControlsApiError } from "@/lib/controls-api";
 import {
@@ -46,7 +45,6 @@ export default function Page() {
 function ActionPage() {
   const router = useRouter();
   const qc = useQueryClient();
-  const { openSidebar } = useRightSidebar();
   const { code: rawCode = "" } = useParams<{ code: string }>();
   const code = decodeURIComponent(rawCode);
   const version = Number(useSearchParams().get("version")) || undefined;
@@ -100,14 +98,12 @@ function ActionPage() {
     }
   };
 
-  const openClone = (x: ActionType) =>
-    openSidebar(
-      <CloneAction src={x} onDone={(c) => { setTab("definition"); router.push(actionHref(c.code, c.version)); }} />,
-      { title: `Clone ${x.code} v${x.version}`, widthPx: 480 },
-    );
+  const [cloning, setCloning] = useState<ActionType | null>(null);
+  const openClone = (x: ActionType) => setCloning(x);
 
   return (
     <div className={PAGE}>
+      {cloning && <CloneAction src={cloning} onClose={() => setCloning(null)} onDone={(c) => { setTab("definition"); router.push(actionHref(c.code, c.version)); }} />}
       <div className={PAGE_INNER_FLUSH}>
         <Link href={LIBRARY_HREF} className={cx(BTN_LINK, "inline-block mb-3")}>← Action library</Link>
         {q.isLoading && <PageSpinner />}

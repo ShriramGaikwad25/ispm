@@ -10,7 +10,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Copy, RefreshCw } from "lucide-react";
-import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import { useCcConnection } from "@/hooks/useCcConnection";
 import { REVIEW_FORMS_BASE, REVIEW_FORMS_KEY, ReviewForms, type ApiReviewForm } from "@/lib/assurance-review-forms";
 import {
@@ -28,7 +27,6 @@ const formHref = (code: string, version: number) =>
 
 export default function ReviewFormsPage() {
   const router = useRouter();
-  const { openSidebar } = useRightSidebar();
   // Connection check first, as the Continuous Compliance Console does on load.
   const connection = useCcConnection();
   const q = useQuery({ queryKey: REVIEW_FORMS_KEY, queryFn: ReviewForms.fetchAll });
@@ -51,12 +49,12 @@ export default function ReviewFormsPage() {
         ...f.outcomes.map((o) => o.id)].join(" ").toLowerCase().includes(needle));
   }, [forms, search]);
 
-  const openClone = (f: ApiReviewForm) =>
-    openSidebar(<CloneReviewForm src={f} onDone={(c) => router.push(formHref(c.code, c.version))} />,
-      { title: `Clone ${f.code} v${f.version}`, widthPx: 480 });
+  const [cloning, setCloning] = useState<ApiReviewForm | null>(null);
+  const openClone = (x: ApiReviewForm) => setCloning(x);
 
   return (
     <div className={PAGE}>
+      {cloning && <CloneReviewForm src={cloning} onClose={() => setCloning(null)} onDone={(c) => router.push(formHref(c.code, c.version))} />}
       <div className={PAGE_INNER_FLUSH}>
         <PageHeader
           title="Review Forms"

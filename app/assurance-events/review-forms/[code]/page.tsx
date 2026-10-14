@@ -17,7 +17,6 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, Plus, Save, Trash2 } from "lucide-react";
-import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import { useCcConnection } from "@/hooks/useCcConnection";
 import { ControlsApiError } from "@/lib/controls-api";
 import { CcEvents, type CcReviewFormTest, type CcReviewFormView } from "@/lib/cc-events-api";
@@ -51,7 +50,6 @@ export default function Page() {
 function ReviewFormPage() {
   const router = useRouter();
   const qc = useQueryClient();
-  const { openSidebar } = useRightSidebar();
   const { code: rawCode = "" } = useParams<{ code: string }>();
   const code = decodeURIComponent(rawCode);
   const version = Number(useSearchParams().get("version")) || undefined;
@@ -105,14 +103,12 @@ function ReviewFormPage() {
     }
   };
 
-  const openClone = (f: ApiReviewForm) =>
-    openSidebar(
-      <CloneReviewForm src={f} onDone={(c) => { setTab("definition"); router.push(formHref(c.code, c.version)); }} />,
-      { title: `Clone ${f.code} v${f.version}`, widthPx: 480 },
-    );
+  const [cloning, setCloning] = useState<ApiReviewForm | null>(null);
+  const openClone = (x: ApiReviewForm) => setCloning(x);
 
   return (
     <div className={PAGE}>
+      {cloning && <CloneReviewForm src={cloning} onClose={() => setCloning(null)} onDone={(c) => { setTab("definition"); router.push(formHref(c.code, c.version)); }} />}
       <div className={PAGE_INNER_FLUSH}>
         <Link href={REVIEW_FORMS_BASE} className={cx(BTN_LINK, "inline-block mb-3")}>← Review forms</Link>
         {q.isLoading && <PageSpinner />}

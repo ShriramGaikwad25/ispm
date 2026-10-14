@@ -1,6 +1,6 @@
 "use client";
 
-// Clone a review form (right sidebar). Only the Identity section can be set:
+// Clone a review form (dialog). Only the Identity section can be set:
 // code, title, intent, submit authority and tags. Applies To, fields and
 // outcomes are copied unchanged.
 //   POST /compliance/review-forms/{code}/clone   then, if intent / submit authority / tags
@@ -8,15 +8,13 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import {
   REVIEW_FORMS_KEY, ReviewForms, SUBMIT_AUTHORITIES, toReviewFormRequest, type ApiReviewForm,
 } from "@/lib/assurance-review-forms";
-import { BTN_PRIMARY, BTN_SECONDARY, INPUT, LABEL, Spinner, cx } from "@/components/assurance-events/ui";
+import { BTN_PRIMARY, BTN_SECONDARY, INPUT, LABEL, Modal, Spinner, cx } from "@/components/assurance-events/ui";
 
-export function CloneReviewForm({ src, onDone }: { src: ApiReviewForm; onDone: (created: ApiReviewForm) => void }) {
+export function CloneReviewForm({ src, onDone, onClose }: { src: ApiReviewForm; onDone: (created: ApiReviewForm) => void; onClose: () => void }) {
   const qc = useQueryClient();
-  const { closeSidebar } = useRightSidebar();
   const [code, setCode] = useState(src.system ? `MY_${src.code}` : `${src.code}_COPY`);
   const [title, setTitle] = useState(`${src.title} (copy)`);
   const [intent, setIntent] = useState(src.intent ?? "");
@@ -40,7 +38,7 @@ export function CloneReviewForm({ src, onDone }: { src: ApiReviewForm; onDone: (
         });
       }
       await qc.invalidateQueries({ queryKey: REVIEW_FORMS_KEY });
-      closeSidebar();
+      onClose();
       onDone(created);
     } catch (e) {
       setErr((e as Error).message);
@@ -50,6 +48,7 @@ export function CloneReviewForm({ src, onDone }: { src: ApiReviewForm; onDone: (
   };
 
   return (
+    <Modal title={`Clone ${src.code} v${src.version}`} onClose={onClose}>
     <div className="space-y-4">
       <p className="text-sm text-gray-500">
         A tenant DRAFT copy under a new code. Only its identity can be changed; who it applies to, its fields and its
@@ -79,11 +78,12 @@ export function CloneReviewForm({ src, onDone }: { src: ApiReviewForm; onDone: (
       </div>
       {err && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{err}</div>}
       <div className="flex justify-end gap-2">
-        <button type="button" className={BTN_SECONDARY} onClick={closeSidebar}>Cancel</button>
+        <button type="button" className={BTN_SECONDARY} onClick={onClose}>Cancel</button>
         <button type="button" className={BTN_PRIMARY} disabled={busy || !code.trim() || !title.trim()} onClick={submit}>
           {busy && <Spinner size={14} className="text-white" />} Clone
         </button>
       </div>
     </div>
+    </Modal>
   );
 }

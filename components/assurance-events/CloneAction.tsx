@@ -1,6 +1,6 @@
 "use client";
 
-// Clone an action (right sidebar). Only the Identity section can be set:
+// Clone an action (dialog). Only the Identity section can be set:
 // code, name, description, category, target kind, reversible, auto-execution
 // and tags. Parameters, result fields and the executor are copied unchanged.
 //   POST /compliance/action-types/{code}/clone   then, if anything besides code / name
@@ -9,15 +9,13 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import {
   ACTIONS_KEY, ACTION_CATEGORIES, Actions, TARGET_KINDS, cloneCode, toActionRequest, type ActionType,
 } from "@/lib/cc-actions-api";
-import { BTN_PRIMARY, BTN_SECONDARY, INPUT, LABEL, Spinner, cx } from "@/components/assurance-events/ui";
+import { BTN_PRIMARY, BTN_SECONDARY, INPUT, LABEL, Modal, Spinner, cx } from "@/components/assurance-events/ui";
 
-export function CloneAction({ src, onDone }: { src: ActionType; onDone: (created: ActionType) => void }) {
+export function CloneAction({ src, onDone, onClose }: { src: ActionType; onDone: (created: ActionType) => void; onClose: () => void }) {
   const qc = useQueryClient();
-  const { closeSidebar } = useRightSidebar();
   const [code, setCode] = useState(cloneCode(src));
   const [name, setName] = useState(`${src.name} (copy)`);
   const [description, setDescription] = useState(src.description ?? "");
@@ -43,7 +41,7 @@ export function CloneAction({ src, onDone }: { src: ActionType; onDone: (created
         .some((k) => JSON.stringify(identity[k]) !== JSON.stringify(base[k]));
       if (changed) created = await Actions.update(created.code, { ...base, ...identity });
       await qc.invalidateQueries({ queryKey: ACTIONS_KEY });
-      closeSidebar();
+      onClose();
       onDone(created);
     } catch (e) {
       setErr((e as Error).message);
@@ -53,6 +51,7 @@ export function CloneAction({ src, onDone }: { src: ActionType; onDone: (created
   };
 
   return (
+    <Modal title={`Clone ${src.code} v${src.version}`} onClose={onClose}>
     <div className="space-y-4">
       <p className="text-sm text-gray-500">
         A tenant DRAFT copy under a new code (tenant codes never reuse a system code; <span className="font-mono">IGA_</span> and{" "}
@@ -105,11 +104,12 @@ export function CloneAction({ src, onDone }: { src: ActionType; onDone: (created
       </div>
       {err && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{err}</div>}
       <div className="flex justify-end gap-2">
-        <button type="button" className={BTN_SECONDARY} onClick={closeSidebar}>Cancel</button>
+        <button type="button" className={BTN_SECONDARY} onClick={onClose}>Cancel</button>
         <button type="button" className={BTN_PRIMARY} disabled={busy || !code.trim() || !name.trim()} onClick={submit}>
           {busy && <Spinner size={14} className="text-white" />} Clone
         </button>
       </div>
     </div>
+    </Modal>
   );
 }

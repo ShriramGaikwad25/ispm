@@ -7,8 +7,8 @@
 // lookup-backed badge and selects (components/common/Lookup*.tsx in the
 // Continuous Assurance app).
 
-import type { ReactNode } from "react";
-import { Loader2 } from "lucide-react";
+import { useEffect, type ReactNode } from "react";
+import { Loader2, X } from "lucide-react";
 import { useLookup, useLookupMap } from "@/hooks/useAssuranceEvents";
 
 export const cx = (...c: Array<string | false | null | undefined>) => c.filter(Boolean).join(" ");
@@ -101,6 +101,32 @@ export function StatCard({ label, value, hint }: { label: ReactNode; value: Reac
       <div className="text-xs font-medium text-gray-500">{label}</div>
       <div className="mt-2 text-2xl font-bold text-gray-900">{value}</div>
       {hint && <div className="text-xs text-gray-500 mt-1">{hint}</div>}
+    </div>
+  );
+}
+
+/** Centered dialog (used for Clone). Closes on Escape or a click outside the panel. */
+export function Modal({ title, onClose, children, widthClass = "max-w-lg" }: {
+  title: ReactNode; onClose: () => void; children: ReactNode; widthClass?: string;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onMouseDown={onClose}>
+      <div role="dialog" aria-modal="true"
+           className={cx("w-full max-h-[90vh] overflow-y-auto rounded-lg bg-white shadow-xl", widthClass)}
+           onMouseDown={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-5 py-4">
+          <div className="text-base font-semibold text-gray-900">{title}</div>
+          <button type="button" aria-label="Close" className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600" onClick={onClose}>
+            <X size={18} />
+          </button>
+        </div>
+        <div className="p-5">{children}</div>
+      </div>
     </div>
   );
 }

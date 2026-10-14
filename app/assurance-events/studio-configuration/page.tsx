@@ -4,7 +4,6 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Ban, Copy, Lock } from "lucide-react";
-import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import { useCcConnection } from "@/hooks/useCcConnection";
 import { Studio } from "@/lib/assurance-studio-api";
 import { ACTIONS_KEY, ACTION_CATEGORIES, Actions, actionHref, paramSummary, type ActionType } from "@/lib/cc-actions-api";
@@ -70,7 +69,6 @@ const FILTER_INPUT =
 
 function ActionLibraryTab() {
   const router = useRouter();
-  const { openSidebar } = useRightSidebar();
   const connection = useCcConnection();
   const [state, setState] = useState("");
   const [category, setCategory] = useState("");
@@ -93,12 +91,12 @@ function ActionLibraryTab() {
     return [...m.entries()].sort((x, y) => ACTION_CATEGORIES.indexOf(x[0]) - ACTION_CATEGORIES.indexOf(y[0]));
   }, [actions]);
 
-  const openClone = (a: ActionType) =>
-    openSidebar(<CloneAction src={a} onDone={(c) => router.push(actionHref(c.code, c.version))} />,
-      { title: `Clone ${a.code} v${a.version}`, widthPx: 480 });
+  const [cloning, setCloning] = useState<ActionType | null>(null);
+  const openClone = (x: ActionType) => setCloning(x);
 
   return (
     <div>
+      {cloning && <CloneAction src={cloning} onClose={() => setCloning(null)} onDone={(c) => router.push(actionHref(c.code, c.version))} />}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard label="Actions" value={stats.total} hint="Matching the filters" />
         <StatCard label="Review Only" value={stats.reviewOnly} hint="Never run straight from an automatic rule" />

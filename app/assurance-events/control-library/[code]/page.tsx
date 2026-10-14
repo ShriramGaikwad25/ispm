@@ -16,14 +16,13 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Save, ShieldCheck } from "lucide-react";
-import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import { useCcConnection } from "@/hooks/useCcConnection";
 import {
   Controls, ControlsApiError, type Control, type ControlRequest,
 } from "@/lib/controls-api";
 import {
   BTN_DANGER, BTN_LINK, BTN_PRIMARY, BTN_SECONDARY, CARD, CARD_HEADER, CARD_SUBTITLE, CARD_TITLE, INPUT, LABEL, PAGE,
-  PAGE_INNER_FLUSH, PILL, PageHeader, PageSpinner, Spinner, TBODY, TD, TH, THEAD_ROW, TR_CLICKABLE, TabBar, cx,
+  Modal, PAGE_INNER_FLUSH, PILL, PageHeader, PageSpinner, Spinner, TBODY, TD, TH, THEAD_ROW, TR_CLICKABLE, TabBar, cx,
 } from "@/components/assurance-events/ui";
 import {
   BannerBar, JsonField, StateBadge, type Banner,
@@ -64,7 +63,6 @@ export default function Page() {
 function ControlPage() {
   const router = useRouter();
   const qc = useQueryClient();
-  const { openSidebar } = useRightSidebar();
   const { code: rawCode = "" } = useParams<{ code: string }>();
   const code = decodeURIComponent(rawCode);
   const version = Number(useSearchParams().get("version")) || undefined;
@@ -122,9 +120,8 @@ function ControlPage() {
     }
   };
 
-  const openClone = (x: Control) =>
-    openSidebar(<CloneControl src={x} onDone={(n) => router.push(controlHref(n.code, n.version))} />,
-      { title: `Clone ${x.code} v${x.version}`, widthPx: 480 });
+  const [cloning, setCloning] = useState<Control | null>(null);
+  const openClone = (x: Control) => setCloning(x);
 
   if (q.isLoading || !c || !form) {
     return (
@@ -141,6 +138,7 @@ function ControlPage() {
 
   return (
     <div className={PAGE}>
+      {cloning && <CloneControl src={cloning} onClose={() => setCloning(null)} onDone={(n) => router.push(controlHref(n.code, n.version))} />}
       <div className={PAGE_INNER_FLUSH}>
         <Link href={LIBRARY_HREF} className={cx(BTN_LINK, "inline-block mb-3")}>← Control Library</Link>
         <PageHeader
@@ -431,9 +429,8 @@ function UsageTab({ code }: { code: string }) {
 
 /* ---------------------------------------------------------------- Clone */
 
-function CloneControl({ src, onDone }: { src: Control; onDone: (created: Control) => void }) {
+function CloneControl({ src, onDone, onClose }: { src: Control; onDone: (created: Control) => void; onClose: () => void }) {
   const qc = useQueryClient();
-  const { closeSidebar } = useRightSidebar();
   const [code, setCode] = useState(src.system ? `MY_${src.code}` : `${src.code}_COPY`);
   const [name, setName] = useState(`${src.name} (copy)`);
   const [busy, setBusy] = useState(false);
@@ -445,7 +442,7 @@ function CloneControl({ src, onDone }: { src: Control; onDone: (created: Control
     try {
       const created = await Controls.clone(src.code, { code: code.trim(), name: name.trim() });
       await qc.invalidateQueries({ queryKey: KEY });
-      closeSidebar();
+      onClose();
       onDone(created);
     } catch (e) {
       setErr((e as Error).message);
@@ -455,6 +452,7 @@ function CloneControl({ src, onDone }: { src: Control; onDone: (created: Control
   };
 
   return (
+    <Modal title={`Clone ${src.code} v${src.version}`} onClose={onClose}>
     <div className="space-y-4">
       <p className="text-sm text-gray-500">
         A tenant DRAFT copy under a new code: the condition, parameters and evidence fields are copied; edit, test, then activate.
@@ -467,12 +465,13 @@ function CloneControl({ src, onDone }: { src: Control; onDone: (created: Control
       </Field>
       {err && <ErrorLine error={new Error(err)} />}
       <div className="flex justify-end gap-2">
-        <button type="button" className={BTN_SECONDARY} onClick={closeSidebar}>Cancel</button>
+        <button type="button" className={BTN_SECONDARY} onClick={onClose}>Cancel</button>
         <button type="button" className={BTN_PRIMARY} disabled={busy || !code.trim()} onClick={submit}>
           {busy && <Spinner size={14} className="text-white" />} Clone
         </button>
       </div>
     </div>
+    </Modal>
   );
 }
 
