@@ -141,7 +141,6 @@ export default function ControlLibraryPage() {
               const active = category === cat.code;
               const inCategory = all.filter((c) => c.categoryCode === cat.code);
               const activeCount = inCategory.filter((c) => c.state === "ACTIVE").length;
-              const familyCount = new Set(inCategory.map((c) => c.familyCode)).size;
               const label = cat.displayName || cat.code;
               return (
                 <button
@@ -166,9 +165,11 @@ export default function ControlLibraryPage() {
                         <Circle size={12} /> none active
                       </span>
                     )}
-                    <span className={cx("inline-flex items-center gap-1", familyCount ? "text-blue-700" : "text-amber-700")}>
-                      <Layers size={12} /> {familyCount ? `${familyCount} famil${familyCount === 1 ? "y" : "ies"}` : "no controls"}
-                    </span>
+                    {inCategory.length === 0 && (
+                      <span className="inline-flex items-center gap-1 text-amber-700">
+                        <Layers size={12} /> no controls
+                      </span>
+                    )}
                   </div>
                 </button>
               );
