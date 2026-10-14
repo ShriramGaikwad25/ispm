@@ -113,7 +113,7 @@ export default function ReviewFormsPage() {
                           className="text-sm font-semibold text-blue-600 hover:text-blue-700">
                       {f.title}
                     </Link>
-                    <div className="text-xs text-gray-500 mt-0.5 font-mono break-all">{f.code}</div>
+                    {f.intent && <div className="text-xs text-gray-500 mt-0.5">{f.intent}</div>}
                   </td>
                   <td className={TD}>
                     <div className="flex flex-wrap gap-1">
