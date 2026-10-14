@@ -6,7 +6,7 @@
 // laid out like ISPM's gateway pages. Tabs:
 //   Definition   GET  /compliance/controls/{code}?version=   (editable for a tenant DRAFT: PUT)
 //   Versions     GET  /compliance/controls/{code}/versions
-//   Where Used   GET  /compliance/controls/{code}/usage
+//   (Definition also shows Where Used: GET /compliance/controls/{code}/usage)
 // Actions: Save, Activate, New Version, Deprecate (tenant controls), Clone.
 // System controls are read-only — clone one to change it.
 // =====================================================================
@@ -34,7 +34,7 @@ const LIBRARY_HREF = "/assurance-events/control-library";
 const controlHref = (code: string, version: number) => `${LIBRARY_HREF}/${encodeURIComponent(code)}?version=${version}`;
 const SEVERITIES = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
 
-type Tab = "definition" | "versions" | "usage";
+type Tab = "definition" | "versions";
 
 const toRequest = (c: Control): ControlRequest => ({
   code: c.code,
@@ -187,10 +187,11 @@ function ControlPage() {
         <TabBar<Tab>
           active={tab}
           onChange={setTab}
-          tabs={[["definition", "Definition"], ["versions", "Versions"], ["usage", "Where Used"]]}
+          tabs={[["definition", "Definition"], ["versions", "Versions"]]}
         />
 
         {tab === "definition" && (
+          <div className="space-y-6">
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             <Card title="Identity">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -275,9 +276,10 @@ function ControlPage() {
               </Card>
             </div>
           </div>
+          <UsageTab code={c.code} />
+          </div>
         )}
         {tab === "versions" && <VersionsTab code={c.code} onOpen={(v) => router.push(controlHref(v.code, v.version))} />}
-        {tab === "usage" && <UsageTab code={c.code} />}
       </div>
     </div>
   );
