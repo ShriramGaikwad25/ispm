@@ -59,6 +59,7 @@ export default function ReviewFormsPage() {
       <div className={PAGE_INNER_FLUSH}>
         <PageHeader
           title="Review Forms"
+          wideSubtitle
           subtitle="What a reviewer is asked when an event is routed to them, along with what details are provided to the reviewer. The review forms are part of the governance rules within an event definition. System defined forms are read only; you may clone the existing form to build a new one."
         />
 

@@ -77,14 +77,16 @@ export function PageSpinner() {
 // ---------- Page building blocks ----------
 
 /** Title row of every page: title + description on the left, actions on the right. */
-export function PageHeader({ title, subtitle, actions, children }: {
+export function PageHeader({ title, subtitle, actions, children, wideSubtitle }: {
   title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; children?: ReactNode;
+  /** Let the description use the full width instead of max-w-3xl. */
+  wideSubtitle?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-6">
       <div className="min-w-0">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3 flex-wrap">{title}</h1>
-        {subtitle && <p className="text-sm text-gray-500 mt-1 max-w-3xl">{subtitle}</p>}
+        {subtitle && <p className={cx("text-sm text-gray-500 mt-1", !wideSubtitle && "max-w-3xl")}>{subtitle}</p>}
         {children}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2 shrink-0">{actions}</div>}
