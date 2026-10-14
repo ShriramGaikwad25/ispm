@@ -280,7 +280,6 @@ function DefinitionTab({ f, draft, editable, patch }: EditProps) {
         </div>
         <div className="mt-4">
           <KeyValueList rows={[
-            ["Form ID", <Mono key="id">{f.formId}</Mono>],
             ["Activated", fmt(f.activatedAt)],
             ["Deprecated", fmt(f.deprecatedAt)],
           ]} />
