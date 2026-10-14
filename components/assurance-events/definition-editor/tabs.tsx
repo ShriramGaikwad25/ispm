@@ -16,7 +16,7 @@ import {
 import { Definitions } from "@/lib/assurance-events-api";
 import { Controls, ccRequest, type Control } from "@/lib/controls-api";
 import { CC_DEFINITIONS_KEY, CcDefinitions } from "@/lib/cc-definitions-api";
-import { ACTIONS_BASE, actionHref } from "@/lib/cc-actions-api";
+import { ACTIONS_BASE } from "@/lib/cc-actions-api";
 import { SLA_POLICIES_KEY, Slas, applySlaPolicy, matchSlaPolicy } from "@/lib/assurance-sla";
 import { NotificationBindings, listEmailTemplates } from "@/lib/assurance-notification-bindings";
 import type {
@@ -342,120 +342,103 @@ export function DetectionTab({ dto, patch, ro }: TabProps) {
 // Governance policy
 // ---------------------------------------------------------------------
 
-// The console's "Actions used" table (with the When / Then of the rules that
-// run each action); the rules themselves are not listed.
-export function GovernanceTab({ dto }: TabProps) {
-  return <ActionsUsed dto={dto} />;
-}
+// Governance policy — one row per rule of governancePolicy.rules (read-only):
+// Rule Name (the rule's id), When (its CEL condition), Then (the action it runs
+// and its parameters, or what else the rule decides), and — from the action
+// library entry the definition names (GET /compliance/definitions/{id} →
+// actions) — the action's Target and Auto-Execution, plus the rule's
+// Justification.
 
 /** GET /compliance/definitions/{id} → actions: the actions the definition names (derived on save, pinned on activation). */
 interface ActionsUsedView {
-  text?: string;
-  error?: string;
-  warnings?: string[];
-  items?: Array<{
-    code: string; version?: number; name?: string; state?: string; pinned?: boolean; sources?: string[];
-    targetKind?: string; autoExecution?: string; executor?: string | null; latestActiveVersion?: number | null;
-  }>;
+  items?: Array<{ code: string; version?: number; name?: string; state?: string; targetKind?: string; autoExecution?: string }>;
 }
 
-/** The console's "Actions used" table, plus the When / Then of the governance rule(s) that run each action. */
-function ActionsUsed({ dto }: { dto: EventDefinition }) {
-  const view = (dto as unknown as { actions?: ActionsUsedView }).actions;
-  if (!view) {
-    return (
-      <Section title="Actions used" hint="Derived on save, pinned on activation.">
-        <div className="text-sm text-gray-500">Save the definition to see the actions it uses.</div>
-      </Section>
-    );
-  }
+const asText = (v: unknown) => (typeof v === "string" ? v : JSON.stringify(v));
+
+export function GovernanceTab({ dto }: TabProps) {
   const rules = dto.governancePolicy?.rules ?? [];
-  const items = view.items ?? [];
-  const thenText = (then: GovernanceRule["then"]) =>
-    Object.entries(then ?? {}).filter(([k]) => k !== "action")
-      .map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`).join(" · ") || "—";
+  const actions = (dto as unknown as { actions?: ActionsUsedView }).actions?.items ?? [];
+  const actionFor = (code?: string) => (code ? actions.find((a) => a.code === code) : undefined);
 
   return (
-    <Section title={`Actions used${view.text ? ` · ${view.text}` : ""}`} hint="Derived on save, pinned on activation.">
-      {view.error ? <div className="text-sm text-red-600">{view.error}</div> : (
-        <>
-          <div className="border border-gray-200 rounded-lg overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className={THEAD_ROW}>
-                  <th className={TH}>Action</th>
-                  <th className={TH}>When</th>
-                  <th className={TH}>Then</th>
-                  <th className={TH}>Pinned</th>
-                  <th className={TH}>Named In</th>
-                  <th className={TH}>Target</th>
-                  <th className={TH}>Auto-Execution</th>
-                  <th className={TH}>Executor</th>
-                  <th className={TH}>Latest Active</th>
-                </tr>
-              </thead>
-              <tbody className={TBODY}>
-                {items.map((a) => {
-                  const named = rules.filter((r) => r.then?.action === a.code);
-                  return (
-                    <tr key={a.code}>
-                      <td className={TD}>
-                        <Link href={a.version ? actionHref(a.code, a.version) : `${ACTIONS_BASE}/${encodeURIComponent(a.code)}`}
-                              className="font-mono text-xs font-semibold text-blue-600 hover:text-blue-700">
-                          {a.code}{a.version ? ` v${a.version}` : ""}
+    <Section title="Governance Policy" hint="Rules in order: the first rule whose When holds decides what happens to the finding.">
+      <div className="border border-gray-200 rounded-lg overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className={THEAD_ROW}>
+              <th className={TH}>Rule Name</th>
+              <th className={TH}>When</th>
+              <th className={TH}>Then (Action)</th>
+              <th className={TH}>Target</th>
+              <th className={TH}>Justification</th>
+              <th className={TH}>Auto-Execution</th>
+            </tr>
+          </thead>
+          <tbody className={TBODY}>
+            {rules.map((rule, i) => {
+              const then = (rule.then ?? {}) as Record<string, unknown> & { action?: string; params?: Record<string, unknown> };
+              const action = actionFor(then.action);
+              const params = Object.entries(then.params ?? {});
+              // What a rule without an action decides (decision type, review form, severity …).
+              const other = Object.entries(then).filter(([k]) => !["action", "params", "justification", "executor"].includes(k));
+              return (
+                <tr key={`${rule.id}-${i}`}>
+                  <td className={cx(TD, "font-mono text-xs font-semibold text-gray-900 [overflow-wrap:anywhere]")}>{rule.id || "—"}</td>
+                  <td className={cx(TD, "font-mono text-xs [overflow-wrap:anywhere]")}>{rule.when || "(always)"}</td>
+                  <td className={cx(TD, "text-xs")}>
+                    {then.action ? (
+                      <>
+                        <Link href={`${ACTIONS_BASE}/${encodeURIComponent(then.action)}${action?.version ? `?version=${action.version}` : ""}`}
+                              className="font-semibold text-blue-600 hover:text-blue-700">
+                          {action?.name || then.action}
                         </Link>
-                        <div className="text-xs mt-0.5">
-                          {a.state === "MISSING"
-                            ? <span className="rounded-full bg-red-100 text-red-700 px-2 py-0.5 font-semibold">MISSING</span>
-                            : <span className="text-gray-500">{a.name}</span>}
-                        </div>
-                      </td>
-                      <td className={cx(TD, "text-xs font-mono [overflow-wrap:anywhere]")}>
-                        {named.length ? named.map((r, i) => <div key={i}>{r.when || "(always)"}</div>) : "—"}
-                      </td>
-                      <td className={cx(TD, "text-xs font-mono [overflow-wrap:anywhere]")}>
-                        {named.length ? named.map((r, i) => <div key={i}>{thenText(r.then)}</div>) : "—"}
-                      </td>
-                      <td className={TD}>
-                        <span className={cx("rounded-full px-2 py-0.5 text-xs font-semibold",
-                          a.pinned ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600")}>
-                          {a.pinned ? "Pinned" : "Latest"}
-                        </span>
-                      </td>
-                      <td className={TD}>
-                        <div className="flex flex-wrap gap-1">
-                          {(a.sources ?? []).map((s) => (
-                            <span key={s} className="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs font-mono text-gray-700">{s}</span>
-                          ))}
-                        </div>
-                      </td>
-                      <td className={cx(TD, "text-xs")}>{a.targetKind || "—"}</td>
-                      <td className={TD}>
-                        {a.autoExecution ? (
-                          <span className={cx("rounded-full px-2 py-0.5 text-xs font-semibold",
-                            a.autoExecution === "REVIEW_ONLY" ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700")}>
-                            {a.autoExecution}
-                          </span>
-                        ) : "—"}
-                      </td>
-                      <td className={cx(TD, "text-xs font-mono")}>{a.executor || <span className="text-red-600">none</span>}</td>
-                      <td className={cx(TD, "text-xs")}>{a.latestActiveVersion != null ? `v${a.latestActiveVersion}` : "—"}</td>
-                    </tr>
-                  );
-                })}
-                {!items.length && (
-                  <tr><td colSpan={9} className="px-4 py-6 text-center text-sm text-gray-500">The definition names no action.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          {!!view.warnings?.length && (
-            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 space-y-1">
-              {view.warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
-            </div>
-          )}
-        </>
-      )}
+                        <div className="font-mono text-gray-500">{then.action}{action?.version ? ` v${action.version}` : ""}</div>
+                        {params.length > 0 && (
+                          <dl className="grid grid-cols-[max-content_1fr] gap-x-2 gap-y-0.5 mt-1.5">
+                            {params.map(([k, v]) => (
+                              <div key={k} className="contents">
+                                <dt className="text-gray-500">{k}</dt>
+                                <dd className="font-mono text-gray-900 [overflow-wrap:anywhere]">{asText(v)}</dd>
+                              </div>
+                            ))}
+                          </dl>
+                        )}
+                      </>
+                    ) : other.length ? (
+                      <dl className="grid grid-cols-[max-content_1fr] gap-x-2 gap-y-0.5">
+                        {other.map(([k, v]) => (
+                          <div key={k} className="contents">
+                            <dt className="text-gray-500">{k}</dt>
+                            <dd className="font-mono text-gray-900 [overflow-wrap:anywhere]">{asText(v)}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    ) : <span className="text-gray-400">—</span>}
+                  </td>
+                  <td className={cx(TD, "text-xs")}>{action?.targetKind || <span className="text-gray-400">—</span>}</td>
+                  <td className={cx(TD, "text-xs [overflow-wrap:anywhere]")}>
+                    {then.justification ? asText(then.justification) : <span className="text-gray-400">—</span>}
+                  </td>
+                  <td className={TD}>
+                    {action?.autoExecution ? (
+                      <span className={cx("rounded-full px-2 py-0.5 text-xs font-semibold",
+                        action.autoExecution === "REVIEW_ONLY" ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700")}>
+                        {action.autoExecution}
+                      </span>
+                    ) : <span className="text-gray-400">—</span>}
+                  </td>
+                </tr>
+              );
+            })}
+            {!rules.length && (
+              <tr><td colSpan={6} className="px-4 py-6 text-center text-sm text-gray-500">
+                No rules: findings go to the definition&apos;s reviewer.
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </Section>
   );
 }
