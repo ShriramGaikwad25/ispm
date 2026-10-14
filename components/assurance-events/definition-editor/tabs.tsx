@@ -98,7 +98,7 @@ function SlaSection({ dto, patch, ro }: Pick<TabProps, "dto" | "patch" | "ro">) 
   const chain = dto.escalationChain ?? [];
 
   return (
-    <Section title="SLA"
+    <Section title="Fallback SLA"
              hint="The SLA & escalation policy findings of this definition run under: response time, reminder, escalation and breach handling."
              actions={<Link href={SLA_PAGE} className="text-xs text-blue-700 hover:underline">Manage SLAs</Link>}>
       <div>
