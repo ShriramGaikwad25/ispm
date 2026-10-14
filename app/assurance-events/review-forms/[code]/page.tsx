@@ -645,38 +645,20 @@ function UsageTab({ code }: { code: string }) {
           </table>
         </Card>
         {u.byVersion != null && (
-          <Card title="By Version" subtitle="Open events still pinned to each version, and the submissions made with it." flush>
-            {Array.isArray(u.byVersion) || typeof u.byVersion !== "object" ? <div className="p-5">{show(u.byVersion)}</div> : (
-              <table className="w-full">
-                <thead>
-                  <tr className={THEAD_ROW}>
-                    <th className={TH}>Version</th><th className={TH}>Owner</th><th className={TH}>State</th>
-                    <th className={TH}>Open Events</th><th className={TH}>Submissions</th><th className={TH}>Form ID</th>
-                  </tr>
-                </thead>
-                <tbody className={TBODY}>
-                  {Object.entries(u.byVersion as Record<string, Record<string, unknown> | null>).map(([k, v]) => {
-                    // Keys look like "1 (system)" / "2 (tenant)".
-                    const ver = k.match(/^\d+/)?.[0] ?? k;
-                    const system = typeof v?.system === "boolean" ? v.system : /system/i.test(k);
-                    return (
-                      <tr key={k}>
-                        <td className={cx(TD, "font-semibold text-gray-900")}>v{ver}</td>
-                        <td className={TD}>
-                          <span className={cx(PILL, system ? "bg-gray-100 text-gray-600" : "bg-blue-100 text-blue-700")}>
-                            {system ? "System" : "Tenant"}
-                          </span>
-                        </td>
-                        <td className={TD}>{v?.state ? <StateBadge value={String(v.state)} /> : <Dash />}</td>
-                        <td className={TD}>{show(v?.openEvents ?? 0)}</td>
-                        <td className={TD}>{show(v?.submissions ?? 0)}</td>
-                        <td className={cx(TD, "text-xs font-mono text-gray-500 [overflow-wrap:anywhere]")}>{show(v?.formId)}</td>
-                      </tr>
-                    );
-                  })}
-                  {!Object.keys(u.byVersion as object).length && <tr><td colSpan={6}><Empty>No versions.</Empty></td></tr>}
-                </tbody>
-              </table>
+          <Card title="By Version" subtitle="Each version of the form: its state, the open events still pinned to it, and the submissions made with it.">
+            {Array.isArray(u.byVersion) || typeof u.byVersion !== "object" ? show(u.byVersion) : (
+              <div className="space-y-5">
+                {Object.entries(u.byVersion as Record<string, unknown>).map(([k, v]) => (
+                  <div key={k}>
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-700 mb-2">{k}</h3>
+                    {v && typeof v === "object" && !Array.isArray(v) ? (
+                      <KeyValueList rows={Object.entries(v as Record<string, unknown>).map(([kk, vv]) =>
+                        [kk, typeof vv === "boolean" ? String(vv) : show(vv)] as [string, ReactNode])} />
+                    ) : show(v)}
+                  </div>
+                ))}
+                {!Object.keys(u.byVersion as object).length && <span className="text-sm text-gray-500">No versions.</span>}
+              </div>
             )}
           </Card>
         )}
