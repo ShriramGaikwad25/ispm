@@ -192,11 +192,11 @@ export default function EventDefinitionsPage() {
               <tr className={THEAD_ROW}>
                 <th className={cx(TH, "min-w-[220px]")}>Definition</th>
                 <th className={TH}>State</th>
-                <th className={TH}>Detector</th>
-                <th className={TH}>SLA</th>
+                <th className={cx(TH, "min-w-[240px] w-[20%]")}>Detector</th>
+                <th className={cx(TH, "min-w-[220px] w-[18%]")}>SLA</th>
                 <th className={TH}>Reviewer</th>
                 <th className={TH}>Policy</th>
-                <th className={TH}>Updated</th>
+                <th className={cx(TH, "w-24")}>Updated</th>
                 <th className={TH}>Action</th>
               </tr>
             </thead>
@@ -232,7 +232,7 @@ export default function EventDefinitionsPage() {
                   </td>
                   <td className={cx(TD, "text-xs [overflow-wrap:anywhere]")}>{d.reviewer?.text || "—"}</td>
                   <td className={cx(TD, "text-xs [overflow-wrap:anywhere]")}>{d.policy?.text || "—"}</td>
-                  <td className={cx(TD, "whitespace-nowrap text-xs")} title={formatAbsolute(d.updatedAt)}>{formatRelative(d.updatedAt)}</td>
+                  <td className={cx(TD, "text-xs")} title={formatAbsolute(d.updatedAt)}>{formatRelative(d.updatedAt)}</td>
                   <td className={cx(TD, "whitespace-nowrap")} onClick={(e) => e.stopPropagation()}>
                     {d.state !== "DRAFT" ? (
                       <button type="button" className={BTN_LINK} title="Cut a new DRAFT version"
