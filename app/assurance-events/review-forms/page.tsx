@@ -123,9 +123,6 @@ export default function ReviewFormsPage() {
                         </span>
                       ))}
                     </div>
-                    {!!f.appliesTo?.eventTypeCodes?.length && (
-                      <div className="text-xs text-gray-500 mt-1 font-mono break-all">{f.appliesTo.eventTypeCodes.join(", ")}</div>
-                    )}
                   </td>
                   <td className={cx(TD, "text-xs font-mono [overflow-wrap:anywhere]")}>{f.fields.map((x) => x.name).join(", ") || "—"}</td>
                   <td className={cx(TD, "text-xs [overflow-wrap:anywhere]")}>
