@@ -97,13 +97,12 @@ export default function ReviewFormsPage() {
                 <th className={TH}>Version</th>
                 <th className={TH}>State</th>
                 <th className={TH}>Owner</th>
-                <th className={TH}>Submit</th>
                 <th className={TH}>Action</th>
               </tr>
             </thead>
             <tbody className={TBODY}>
               {q.isLoading && (
-                <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-500">
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
                   <span className="inline-flex items-center gap-2"><Spinner /> Loading…</span>
                 </td></tr>
               )}
@@ -139,7 +138,6 @@ export default function ReviewFormsPage() {
                       {f.system ? "System" : "Tenant"}
                     </span>
                   </td>
-                  <td className={cx(TD, "text-xs")}>{f.submitAuthority ?? "—"}</td>
                   <td className={TD}>
                     <button type="button" title="Clone" aria-label={`Clone ${f.code}`}
                             className="p-1.5 rounded-md text-blue-600 hover:bg-blue-50 hover:text-blue-700"
@@ -150,7 +148,7 @@ export default function ReviewFormsPage() {
                 </tr>
               ))}
               {!q.isLoading && !error && rows.length === 0 && (
-                <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-500">No forms match.</td></tr>
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">No forms match.</td></tr>
               )}
             </tbody>
           </table>
