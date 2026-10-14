@@ -191,8 +191,6 @@ export default function EventDefinitionsPage() {
             <thead>
               <tr className={THEAD_ROW}>
                 <th className={cx(TH, "min-w-[220px]")}>Definition</th>
-                <th className={TH}>Severity</th>
-                <th className={TH}>Version</th>
                 <th className={TH}>State</th>
                 <th className={TH}>Detector</th>
                 <th className={TH}>SLA</th>
@@ -204,12 +202,12 @@ export default function EventDefinitionsPage() {
             </thead>
             <tbody className={TBODY}>
               {list.isLoading && (
-                <tr><td colSpan={10} className="px-4 py-8 text-center text-sm text-gray-500">
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
                   <span className="inline-flex items-center gap-2"><Spinner /> Loading…</span>
                 </td></tr>
               )}
               {listError && (
-                <tr><td colSpan={10} className="px-4 py-8 text-center text-sm text-red-600">
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-red-600">
                   Failed to load definitions. {(listError as Error).message}
                 </td></tr>
               )}
@@ -218,9 +216,11 @@ export default function EventDefinitionsPage() {
                   <td className={TD}>
                     <div className="text-sm font-semibold text-gray-900">{d.name}</div>
                     <div className="text-xs text-gray-500 mt-0.5 font-mono break-all">{d.code}</div>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <SeverityBadge value={d.severity} />
+                      <span className="text-xs font-semibold text-gray-700">v{d.version}</span>
+                    </div>
                   </td>
-                  <td className={TD}><SeverityBadge value={d.severity} /></td>
-                  <td className={cx(TD, "whitespace-nowrap")}>v{d.version}</td>
                   <td className={TD}><StateBadge value={d.state} /></td>
                   <td className={cx(TD, "text-xs [overflow-wrap:anywhere]")}
                       title={(d.detector?.controls ?? []).map((c) => `${c.code}${c.version ? `@v${c.version}` : ""}`).join(" + ")}>
@@ -246,7 +246,7 @@ export default function EventDefinitionsPage() {
                 </tr>
               ))}
               {!list.isLoading && !listError && rows.length === 0 && (
-                <tr><td colSpan={10} className="px-4 py-8 text-center text-sm text-gray-500">
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
                   No definitions match the current filters.
                 </td></tr>
               )}
