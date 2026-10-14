@@ -214,11 +214,11 @@ export default function EventDefinitionsPage() {
               {rows.map((d) => (
                 <tr key={d.definitionId} className={TR_CLICKABLE} onClick={() => open(d.definitionId)}>
                   <td className={TD}>
-                    <div className="text-sm font-semibold text-gray-900">{d.name}</div>
+                    <div className="text-sm font-semibold text-gray-900" title={`Name: ${d.name}`}>{d.name}</div>
                     <div className="flex flex-wrap items-center gap-2 mt-0.5">
-                      <span className="text-xs text-gray-500 font-mono break-all">{d.code}</span>
-                      <span className="text-xs font-semibold text-gray-700">v{d.version}</span>
-                      <SeverityBadge value={d.severity} />
+                      <span className="text-xs text-gray-500 font-mono break-all cursor-help" title={`Code: ${d.code}`}>{d.code}</span>
+                      <span className="text-xs font-semibold text-gray-700 cursor-help" title={`Version: ${d.version}`}>v{d.version}</span>
+                      <span className="cursor-help" title={`Severity: ${d.severity}`}><SeverityBadge value={d.severity} /></span>
                     </div>
                   </td>
                   <td className={TD}><StateBadge value={d.state} /></td>
