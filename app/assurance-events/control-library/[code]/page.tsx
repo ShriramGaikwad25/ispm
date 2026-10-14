@@ -208,13 +208,6 @@ function ControlPage() {
                     {!(categoriesQ.data ?? []).some((x) => x.code === form.category) && <option value={form.category}>{form.category}</option>}
                   </select>
                 </Field>
-                <Field label="Family (who evaluates it)">
-                  <select className={INPUT} value={form.family} disabled={!editable} onChange={(e) => patch({ family: e.target.value })}>
-                    {(familiesQ.data?.families ?? [{ code: form.family }]).map((f) => (
-                      <option key={f.code} value={f.code}>{f.code}{typeof f.displayName === "string" && f.displayName ? ` — ${f.displayName}` : ""}</option>
-                    ))}
-                  </select>
-                </Field>
                 <Field label="Object kind (the event's subject kind)">
                   <select className={INPUT} value={form.objectKind} disabled={!editable} onChange={(e) => patch({ objectKind: e.target.value })}>
                     {[...new Set([...(family?.objectKinds ?? []), form.objectKind])].map((k) => <option key={k}>{k}</option>)}
