@@ -48,6 +48,48 @@ export interface Control {
   [key: string]: unknown;
 }
 
+/** Body of POST /compliance/controls and PUT /compliance/controls/{code}. */
+export interface ControlRequest {
+  code: string;
+  category: string;
+  family: string;
+  objectKind: string;
+  name: string;
+  description?: string;
+  condition: { language: string; expression: string };
+  parameters: ControlParameter[];
+  evidenceFields: string[];
+  severityHint?: string;
+  tags: string[];
+}
+
+export interface ControlUsage {
+  latestActiveVersion?: number | null;
+  definitions?: number;
+  byVersion?: Record<string, Array<{ definitionId: string; code: string; version: number; state: string; position: number; pinned: boolean }>>;
+}
+
+export interface ControlAuditRow {
+  auditId: string;
+  at: string;
+  action: string;
+  actor: { kind: string; ref?: string; principalId?: string };
+  from?: string | null;
+  to?: string | null;
+  detail?: Record<string, unknown> & { version?: number };
+  [key: string]: unknown;
+}
+
+export interface ControlTestResult {
+  compiled: boolean;
+  matched?: boolean | null;
+  params?: unknown;
+  evaluatedAt?: string;
+  diagnostics?: string[];
+  evidence?: Record<string, unknown>;
+  context?: unknown;
+}
+
 export interface DetectionFamily {
   code: string;
   displayName?: string;
@@ -140,8 +182,27 @@ export const Controls = {
     ccRequest<Control[]>("GET", "/compliance/controls", {
       query: { family: q.family, category: q.category, state: q.state, q: q.q },
     }),
-  clone: (code: string, body: { code: string; name: string }) =>
+  clone: (code: string, body: { code: string; name?: string }) =>
     ccRequest<Control>("POST", `${controlPath(code)}/clone`, { body }),
+  // The console's control page (graph.keyforge.ai/console#/controls/{code}):
+  get: (code: string, version?: number) =>
+    ccRequest<Control>("GET", controlPath(code), { query: { version: version ? String(version) : undefined } }),
+  versions: (code: string) => ccRequest<Control[]>("GET", `${controlPath(code)}/versions`),
+  usage: (code: string) => ccRequest<ControlUsage>("GET", `${controlPath(code)}/usage`),
+  audit: (code: string) => ccRequest<ControlAuditRow[]>("GET", `${controlPath(code)}/audit`),
+  create: (body: ControlRequest) => ccRequest<Control>("POST", "/compliance/controls", { body }),
+  /** PUT the tenant DRAFT of a code. */
+  update: (code: string, body: ControlRequest) => ccRequest<Control>("PUT", controlPath(code), { body }),
+  newVersion: (code: string) => ccRequest<Control>("POST", `${controlPath(code)}/versions`),
+  activate: (code: string, version?: number) =>
+    ccRequest<Control>("POST", `${controlPath(code)}/activate`, { query: { version: version ? String(version) : undefined } }),
+  deprecate: (code: string, version?: number, force?: boolean) =>
+    ccRequest<Control>("POST", `${controlPath(code)}/deprecate`, {
+      query: { version: version ? String(version) : undefined, force: force ? "true" : undefined },
+    }),
+  /** POST …/test — evaluates one version on a catalog row (sample) or a hand-written context; persists nothing. */
+  test: (code: string, body: { version?: number; sample?: { entitlementId: string }; context?: unknown }) =>
+    ccRequest<ControlTestResult>("POST", `${controlPath(code)}/test`, { body }),
 };
 
 /**
