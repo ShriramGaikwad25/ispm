@@ -1,533 +1,165 @@
 "use client";
 
+// =====================================================================
+// SLA — the Continuous Compliance Console's SLA profile library
+// (graph.keyforge.ai/console#/sla-profiles) on the same API
+// (GET /compliance/sla-profiles, lib/cc-sla-profiles-api.ts), laid out like
+// ISPM's gateway registry pages: stat cards, filters, table, clone dialog.
+// A row opens the profile page; "New SLA Profile" opens it as "new".
+// =====================================================================
+
 import { useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRightSidebar } from "@/contexts/RightSidebarContext";
-import ActionCompletedToast from "@/components/ActionCompletedToast";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { Copy, RefreshCw } from "lucide-react";
+import { useCcConnection } from "@/hooks/useCcConnection";
 import {
-  APPLIES_TO_OPTIONS,
-  CLOCK_TYPE_OPTIONS,
-  CLOCK_STARTS_OPTIONS,
-  REMINDER_WHEN_OPTIONS,
-  REMINDER_TARGET_OPTIONS,
-  ESCALATE_TO_OPTIONS,
-  BREACH_ACTION_OPTIONS,
-  DEFERRAL_OPTIONS,
-  MAX_DEFERRAL_OPTIONS,
-  type SlaPolicy,
-  type SlaDomain,
-  type SlaStatus,
-} from "@/components/continuous-compliance/slaEscalationPoliciesData";
-import { SLA_POLICIES_KEY, Slas } from "@/lib/assurance-sla";
+  SLA_BASE, SLA_PROFILES_KEY, SlaProfiles, chainText, humanDuration, slaHref, type SlaProfile,
+} from "@/lib/cc-sla-profiles-api";
+import {
+  BTN_PRIMARY, BTN_SECONDARY, CARD, CARD_SUBTITLE, CARD_TITLE, PAGE, PAGE_INNER_FLUSH, PILL, PageHeader, Spinner, StatCard,
+  TBODY, TD, TH, THEAD_ROW, TR_CLICKABLE, cx,
+} from "@/components/assurance-events/ui";
+import { SeverityBadge, StateBadge } from "@/components/assurance-events/definition-editor/fields";
+import { CloneSlaProfile } from "@/components/assurance-events/CloneSlaProfile";
 
-// Same page as Settings → Gateway → SLA & Escalation Policies. The only
-// difference: policies live in the shared SLA registry (lib/assurance-sla.ts),
-// so the SLA dropdown on an event definition's General tab can pick them.
+const FILTER_INPUT =
+  "rounded-md border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
 
-const EMPTY_DRAFT = {
-  name: "",
-  domain: "User" as SlaDomain,
-  status: "Draft" as SlaStatus,
-  appliesTo: APPLIES_TO_OPTIONS[0],
-  clockType: CLOCK_TYPE_OPTIONS[0],
-  duration: "5",
-  clockStarts: CLOCK_STARTS_OPTIONS[0],
-  reminderWhen: REMINDER_WHEN_OPTIONS[0],
-  reminderTarget: REMINDER_TARGET_OPTIONS[0],
-  escalateTo: ESCALATE_TO_OPTIONS[0],
-  breachAction: BREACH_ACTION_OPTIONS[0],
-  deferral: DEFERRAL_OPTIONS[0],
-  maxDeferral: MAX_DEFERRAL_OPTIONS[0],
-  closure: "Approved, remediated, rejected with reason, or exception accepted with evidence.",
-  owner: "",
-};
-
-function domainPillClass(domain: SlaDomain) {
-  if (domain === "User") return "bg-blue-100 text-blue-800";
-  if (domain === "Application") return "bg-purple-100 text-purple-700";
-  return "bg-green-100 text-green-700";
-}
-
-function statusPillClass(status: SlaStatus) {
-  return status === "Active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600";
-}
-
-function prefixForDomain(domain: SlaDomain) {
-  if (domain === "User") return "SLA-U";
-  if (domain === "Application") return "SLA-A";
-  return "SLA-AC";
-}
-
-export default function AssuranceSlaPoliciesPage() {
-  const { openSidebar, closeSidebar } = useRightSidebar();
-  const qc = useQueryClient();
-  const policiesQ = useQuery({ queryKey: SLA_POLICIES_KEY, queryFn: Slas.list });
-  const policies = useMemo<SlaPolicy[]>(() => policiesQ.data ?? [], [policiesQ.data]);
+export default function SlaProfilesPage() {
+  const router = useRouter();
+  const connection = useCcConnection();
+  const [state, setState] = useState("");
   const [search, setSearch] = useState("");
-  const [domainFilter, setDomainFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [toast, setToast] = useState(false);
+  const query = { state: state || undefined, q: search.trim() || undefined };
+  const q = useQuery({ queryKey: [...SLA_PROFILES_KEY, "list", query], queryFn: () => SlaProfiles.list(query) });
+  const allQ = useQuery({ queryKey: [...SLA_PROFILES_KEY, "list", {}], queryFn: () => SlaProfiles.list() });
+  const rows = useMemo(() => q.data ?? [], [q.data]);
+  const all = useMemo(() => allQ.data ?? [], [allQ.data]);
+  const error = connection.error ?? q.error;
+  const [cloning, setCloning] = useState<SlaProfile | null>(null);
 
-  const stats = useMemo(() => {
-    const active = policies.filter((p) => p.status === "Active").length;
-    return { active };
-  }, [policies]);
-
-  const filteredPolicies = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return policies.filter((p) => {
-      const haystack = [p.id, p.name, p.domain, p.appliesTo, p.owner, p.escalation].join(" ").toLowerCase();
-      const matchesSearch = !q || haystack.includes(q);
-      const matchesDomain = !domainFilter || p.domain === domainFilter;
-      const matchesStatus = !statusFilter || p.status === statusFilter;
-      return matchesSearch && matchesDomain && matchesStatus;
-    });
-  }, [policies, search, domainFilter, statusFilter]);
-
-  const openCreatePolicySidebar = () => {
-    const CreatePolicyForm = () => {
-      const [draft, setDraft] = useState(EMPTY_DRAFT);
-      const nextId = `${prefixForDomain(draft.domain)}-${String(
-        policies.filter((p) => p.id.startsWith(prefixForDomain(draft.domain))).length + 1
-      ).padStart(3, "0")}`;
-
-      const handleSave = async () => {
-        const policy: SlaPolicy = {
-          id: nextId,
-          name: draft.name.trim() || "New SLA Policy",
-          domain: draft.domain,
-          appliesTo: draft.appliesTo,
-          sla: `${draft.duration} ${draft.clockType.toLowerCase()}`,
-          reminder: `${draft.reminderWhen} → ${draft.reminderTarget}`,
-          escalation: draft.escalateTo,
-          breach: draft.breachAction,
-          owner: draft.owner.trim() || "IAM Governance",
-          status: draft.status,
-        };
-        await Slas.create(policy);
-        await qc.invalidateQueries({ queryKey: SLA_POLICIES_KEY });
-        closeSidebar();
-        setToast(true);
-      };
-
-      return (
-        <div>
-          <p className="text-sm text-gray-500 mb-4 leading-relaxed">
-            Define reusable timing, reminder, escalation, and breach-handling rules for Continuous Compliance
-            events.
-          </p>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm text-gray-700 mb-1">Policy Name</label>
-              <input
-                value={draft.name}
-                onChange={(e) => setDraft((prev) => ({ ...prev, name: e.target.value }))}
-                placeholder="e.g., Entitlement Metadata SLA"
-                className="border rounded px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm text-gray-700 mb-1">Domain</label>
-                <select
-                  value={draft.domain}
-                  onChange={(e) => setDraft((prev) => ({ ...prev, domain: e.target.value as SlaDomain }))}
-                  className="border rounded px-3 py-2 text-sm w-full bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option>User</option>
-                  <option>Application</option>
-                  <option>Account</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-700 mb-1">Status</label>
-                <select
-                  value={draft.status}
-                  onChange={(e) => setDraft((prev) => ({ ...prev, status: e.target.value as SlaStatus }))}
-                  className="border rounded px-3 py-2 text-sm w-full bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option>Draft</option>
-                  <option>Active</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm text-gray-700 mb-1">Applies To</label>
-              <select
-                value={draft.appliesTo}
-                onChange={(e) => setDraft((prev) => ({ ...prev, appliesTo: e.target.value }))}
-                className="border rounded px-3 py-2 text-sm w-full bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                {APPLIES_TO_OPTIONS.map((o) => (
-                  <option key={o}>{o}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="block text-sm text-gray-700 mb-1">Clock Type</label>
-                <select
-                  value={draft.clockType}
-                  onChange={(e) => setDraft((prev) => ({ ...prev, clockType: e.target.value }))}
-                  className="border rounded px-3 py-2 text-sm w-full bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  {CLOCK_TYPE_OPTIONS.map((o) => (
-                    <option key={o}>{o}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-700 mb-1">SLA Duration</label>
-                <input
-                  type="number"
-                  min={1}
-                  value={draft.duration}
-                  onChange={(e) => setDraft((prev) => ({ ...prev, duration: e.target.value }))}
-                  className="border rounded px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-700 mb-1">Clock Starts</label>
-                <select
-                  value={draft.clockStarts}
-                  onChange={(e) => setDraft((prev) => ({ ...prev, clockStarts: e.target.value }))}
-                  className="border rounded px-3 py-2 text-sm w-full bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  {CLOCK_STARTS_OPTIONS.map((o) => (
-                    <option key={o}>{o}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="pt-2 border-t border-gray-200">
-              <div className="text-sm font-semibold text-gray-800 mb-3">Reminder & Escalation</div>
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 mb-3">
-                <div className="text-xs font-semibold text-gray-700 mb-2">Reminder 1</div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm text-gray-700 mb-1">When</label>
-                    <select
-                      value={draft.reminderWhen}
-                      onChange={(e) => setDraft((prev) => ({ ...prev, reminderWhen: e.target.value }))}
-                      className="border rounded px-3 py-2 text-sm w-full bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      {REMINDER_WHEN_OPTIONS.map((o) => (
-                        <option key={o}>{o}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm text-gray-700 mb-1">Notify</label>
-                    <select
-                      value={draft.reminderTarget}
-                      onChange={(e) => setDraft((prev) => ({ ...prev, reminderTarget: e.target.value }))}
-                      className="border rounded px-3 py-2 text-sm w-full bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      {REMINDER_TARGET_OPTIONS.map((o) => (
-                        <option key={o}>{o}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                <div className="text-xs font-semibold text-gray-700 mb-2">Breach Escalation</div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm text-gray-700 mb-1">Escalate To</label>
-                    <select
-                      value={draft.escalateTo}
-                      onChange={(e) => setDraft((prev) => ({ ...prev, escalateTo: e.target.value }))}
-                      className="border rounded px-3 py-2 text-sm w-full bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      {ESCALATE_TO_OPTIONS.map((o) => (
-                        <option key={o}>{o}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm text-gray-700 mb-1">Breach Action</label>
-                    <select
-                      value={draft.breachAction}
-                      onChange={(e) => setDraft((prev) => ({ ...prev, breachAction: e.target.value }))}
-                      className="border rounded px-3 py-2 text-sm w-full bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      {BREACH_ACTION_OPTIONS.map((o) => (
-                        <option key={o}>{o}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-2 border-t border-gray-200">
-              <div className="text-sm font-semibold text-gray-800 mb-3">Deferral & Closure</div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm text-gray-700 mb-1">Allow Deferral</label>
-                  <select
-                    value={draft.deferral}
-                    onChange={(e) => setDraft((prev) => ({ ...prev, deferral: e.target.value }))}
-                    className="border rounded px-3 py-2 text-sm w-full bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    {DEFERRAL_OPTIONS.map((o) => (
-                      <option key={o}>{o}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-700 mb-1">Max Deferral</label>
-                  <select
-                    value={draft.maxDeferral}
-                    onChange={(e) => setDraft((prev) => ({ ...prev, maxDeferral: e.target.value }))}
-                    className="border rounded px-3 py-2 text-sm w-full bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    {MAX_DEFERRAL_OPTIONS.map((o) => (
-                      <option key={o}>{o}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="mt-3">
-                <label className="block text-sm text-gray-700 mb-1">Closure Condition</label>
-                <textarea
-                  value={draft.closure}
-                  onChange={(e) => setDraft((prev) => ({ ...prev, closure: e.target.value }))}
-                  className="border rounded px-3 py-2 text-sm w-full h-20 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div className="mt-3">
-                <label className="block text-sm text-gray-700 mb-1">Policy Owner</label>
-                <input
-                  value={draft.owner}
-                  onChange={(e) => setDraft((prev) => ({ ...prev, owner: e.target.value }))}
-                  placeholder="e.g., IAM Governance"
-                  className="border rounded px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-              <div className="text-sm font-semibold text-gray-800 mb-2">Policy Preview</div>
-              <div className="space-y-1 text-xs">
-                <div className="flex justify-between gap-3">
-                  <span className="text-gray-500">Generated ID</span>
-                  <span className="font-medium text-gray-800">{nextId}</span>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <span className="text-gray-500">SLA</span>
-                  <span className="font-medium text-gray-800">
-                    {draft.duration} {draft.clockType.toLowerCase()}
-                  </span>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <span className="text-gray-500">Reminder</span>
-                  <span className="font-medium text-gray-800 text-right">
-                    {draft.reminderWhen} → {draft.reminderTarget}
-                  </span>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <span className="text-gray-500">Escalate To</span>
-                  <span className="font-medium text-gray-800 text-right">{draft.escalateTo}</span>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <span className="text-gray-500">Breach Action</span>
-                  <span className="font-medium text-gray-800 text-right">{draft.breachAction}</span>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <span className="text-gray-500">Status</span>
-                  <span className="font-medium text-gray-800">{draft.status}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2 mt-8">
-            <button type="button" className="px-4 py-2 border rounded text-sm" onClick={closeSidebar}>
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="px-4 py-2 rounded text-sm text-white bg-blue-600 hover:bg-blue-700"
-              onClick={handleSave}
-            >
-              Save Policy
-            </button>
-          </div>
-        </div>
-      );
-    };
-
-    openSidebar(<CreatePolicyForm />, { title: "Create SLA Policy", widthPx: 560 });
-  };
+  const stats = useMemo(() => ({
+    total: all.length,
+    active: all.filter((p) => p.state === "ACTIVE").length,
+    tenant: all.filter((p) => !p.system).length,
+    unconditional: all.filter((p) => p.state === "ACTIVE" && !p.appliesWhen).length,
+  }), [all]);
 
   return (
-    <div className="h-full">
-      <div className="w-full px-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">SLA & Escalation Policies</h1>
-            <p className="text-sm text-gray-500 mt-1 max-w-3xl">
-              Create reusable policy objects that define response timelines, reminders, escalation targets, breach
-              handling, and closure rules for Continuous Compliance access reviews and assurance events.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={openCreatePolicySidebar}
-            className="shrink-0 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-          >
-            + Create SLA Policy
-          </button>
-        </div>
+    <div className={PAGE}>
+      {cloning && <CloneSlaProfile src={cloning} onClose={() => setCloning(null)} onDone={(c) => router.push(slaHref(c.code, c.version))} />}
+      <div className={PAGE_INNER_FLUSH}>
+        <PageHeader
+          title="SLA"
+          wideSubtitle
+          subtitle="An SLA profile is a reusable deadline rule: a duration (or absolute deadline), the action on timeout, the escalation chain and an optional applies-when condition. A definition links profiles on its SLA tab in priority order; the versions are pinned when the definition is activated. System profiles are read only; you may clone an existing profile to build a new one."
+          actions={<Link href={`${SLA_BASE}/new`} className={BTN_PRIMARY}>+ New SLA Profile</Link>}
+        />
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <div className="border border-gray-200 rounded-lg bg-white p-4 shadow-sm">
-            <div className="text-xs font-medium text-gray-500">Active Policies</div>
-            <div className="mt-2 text-2xl font-bold text-gray-900">{stats.active}</div>
-            <div className="text-xs text-gray-500 mt-1">Across all event families</div>
-          </div>
-          <div className="border border-gray-200 rounded-lg bg-white p-4 shadow-sm">
-            <div className="text-xs font-medium text-gray-500">Strictest SLA</div>
-            <div className="mt-2 text-2xl font-bold text-gray-900">1 day</div>
-            <div className="text-xs text-gray-500 mt-1">Terminated user access events</div>
-          </div>
-          <div className="border border-gray-200 rounded-lg bg-white p-4 shadow-sm">
-            <div className="text-xs font-medium text-gray-500">Escalation Personas</div>
-            <div className="mt-2 text-2xl font-bold text-gray-900">9</div>
-            <div className="text-xs text-gray-500 mt-1">Dynamic user types + teams</div>
-          </div>
-          <div className="border border-gray-200 rounded-lg bg-white p-4 shadow-sm">
-            <div className="text-xs font-medium text-gray-500">Breach Actions</div>
-            <div className="mt-2 text-2xl font-bold text-gray-900">4</div>
-            <div className="text-xs text-gray-500 mt-1">Escalate, ticket, freeze, exception</div>
-          </div>
+          <StatCard label="SLA Profiles" value={stats.total} hint="In the library" />
+          <StatCard label="Active" value={stats.active} hint="Linkable from a definition" />
+          <StatCard label="Tenant Profiles" value={stats.tenant} hint="Cloned or created by you" />
+          <StatCard label="Unconditional" value={stats.unconditional} hint="Active, applies to every event" />
         </div>
 
-        <div className="border border-gray-200 rounded-lg bg-white shadow-sm overflow-hidden">
-          <div className="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="text-sm font-semibold text-gray-900">Policy Registry</div>
-              <div className="text-xs text-gray-500 mt-0.5">
-                Reusable SLA policies applied to User, Application, and Account continuous compliance events.
+        <div className={cx(CARD, "overflow-hidden")}>
+          <div className="border-b border-gray-200 px-5 py-4 space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <div className={CARD_TITLE}>SLA Profile Library ({rows.length})</div>
+                <div className={CARD_SUBTITLE}>Click a profile to open it.</div>
               </div>
+              <button type="button" className={cx(BTN_SECONDARY, "shrink-0")} onClick={() => q.refetch()} disabled={q.isFetching}>
+                <RefreshCw size={14} className={q.isFetching ? "animate-spin" : ""} /> Refresh
+              </button>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search policy name, target, owner..."
-                className="w-56 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-              <select
-                value={domainFilter}
-                onChange={(e) => setDomainFilter(e.target.value)}
-                className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">All Domains</option>
-                <option value="User">User Events</option>
-                <option value="Application">Application Events</option>
-                <option value="Account">Account Events</option>
-              </select>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">All Statuses</option>
-                <option value="Active">Active</option>
-                <option value="Draft">Draft</option>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search code, name, description..."
+                     aria-label="Search SLA profiles" className={cx(FILTER_INPUT, "flex-1 min-w-0")} />
+              <select value={state} onChange={(e) => setState(e.target.value)} aria-label="State" className={FILTER_INPUT}>
+                <option value="">All States</option>
+                <option value="ACTIVE">Active</option>
+                <option value="DRAFT">Draft</option>
+                <option value="DEPRECATED">Deprecated</option>
               </select>
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1100px]">
-              <thead>
-                <tr className="bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-                  <th className="px-4 py-3">Policy</th>
-                  <th className="px-4 py-3">Domain</th>
-                  <th className="px-4 py-3">Applies To</th>
-                  <th className="px-4 py-3">SLA</th>
-                  <th className="px-4 py-3">Reminder / Escalation</th>
-                  <th className="px-4 py-3">Breach Action</th>
-                  <th className="px-4 py-3">Owner</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Action</th>
+          <table className="w-full">
+            <thead>
+              <tr className={THEAD_ROW}>
+                <th className={cx(TH, "min-w-[240px]")}>Profile</th>
+                <th className={TH}>Version</th>
+                <th className={TH}>State</th>
+                <th className={TH}>Owner</th>
+                <th className={TH}>Deadline</th>
+                <th className={TH}>On Timeout</th>
+                <th className={TH}>Escalation</th>
+                <th className={TH}>Applies When</th>
+                <th className={TH}>Severity Hint</th>
+                <th className={TH}></th>
+              </tr>
+            </thead>
+            <tbody className={TBODY}>
+              {q.isLoading && (
+                <tr><td colSpan={10} className="px-4 py-8 text-center text-sm text-gray-500">
+                  <span className="inline-flex items-center gap-2"><Spinner /> Loading…</span>
+                </td></tr>
+              )}
+              {error && (
+                <tr><td colSpan={10} className="px-4 py-8 text-center text-sm text-red-600">{(error as Error).message}</td></tr>
+              )}
+              {rows.map((p) => (
+                <tr key={p.profileId} className={TR_CLICKABLE} onClick={() => router.push(slaHref(p.code, p.version))}>
+                  <td className={TD}>
+                    <Link href={slaHref(p.code, p.version)} onClick={(e) => e.stopPropagation()}
+                          className="text-sm font-semibold text-blue-600 hover:text-blue-700">
+                      {p.name}
+                    </Link>
+                    {p.description && <div className="text-xs text-gray-500 mt-0.5">{p.description}</div>}
+                  </td>
+                  <td className={cx(TD, "font-semibold text-gray-900 whitespace-nowrap")}>v{p.version}</td>
+                  <td className={TD}><StateBadge value={p.state} /></td>
+                  <td className={TD}>
+                    <span className={cx(PILL, p.system ? "bg-gray-100 text-gray-600" : "bg-blue-100 text-blue-700")}>
+                      {p.system ? "System" : "Tenant"}
+                    </span>
+                  </td>
+                  <td className={cx(TD, "text-xs font-mono whitespace-nowrap")}>
+                    {p.dueAt ? <span title={p.dueAt}>dueAt expression</span> : (
+                      <>
+                        {p.duration || "—"}
+                        {p.duration && !p.duration.includes("${") && <span className="text-gray-500"> ({humanDuration(p.duration)})</span>}
+                      </>
+                    )}
+                  </td>
+                  <td className={cx(TD, "text-xs")}>
+                    {p.actionOnTimeout || <span className="text-gray-500" title="The definition's default action on timeout">definition default</span>}
+                  </td>
+                  <td className={cx(TD, "text-xs")}>{chainText(p.escalationChain)}</td>
+                  <td className={cx(TD, "text-xs font-mono max-w-[280px] truncate")} title={p.appliesWhen || ""}>
+                    {p.appliesWhen || <i className="text-gray-500 font-sans">unconditional</i>}
+                  </td>
+                  <td className={TD}>{p.severityHint ? <SeverityBadge value={p.severityHint} /> : <span className="text-gray-400">—</span>}</td>
+                  <td className={TD}>
+                    <button type="button" title="Clone" aria-label={`Clone ${p.code}`}
+                            className="p-1.5 rounded-md text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                            onClick={(e) => { e.stopPropagation(); setCloning(p); }}>
+                      <Copy size={16} />
+                    </button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filteredPolicies.map((p) => (
-                  <tr key={p.id}>
-                    <td className="px-4 py-3 align-top">
-                      <div className="text-sm font-semibold text-gray-900">{p.name}</div>
-                      <div className="text-xs text-gray-500 mt-0.5">{p.id}</div>
-                    </td>
-                    <td className="px-4 py-3 align-top">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${domainPillClass(
-                          p.domain
-                        )}`}
-                      >
-                        {p.domain}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 align-top text-sm text-gray-700">{p.appliesTo}</td>
-                    <td className="px-4 py-3 align-top text-sm font-semibold text-gray-900 whitespace-nowrap">
-                      {p.sla}
-                    </td>
-                    <td className="px-4 py-3 align-top text-sm text-gray-700">
-                      <div className="font-semibold text-gray-900">{p.reminder}</div>
-                      <div className="text-xs text-gray-500 mt-0.5">Escalate: {p.escalation}</div>
-                    </td>
-                    <td className="px-4 py-3 align-top text-sm text-gray-700">{p.breach}</td>
-                    <td className="px-4 py-3 align-top text-sm text-gray-700">{p.owner}</td>
-                    <td className="px-4 py-3 align-top">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusPillClass(
-                          p.status
-                        )}`}
-                      >
-                        {p.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 align-top whitespace-nowrap">
-                      <button
-                        type="button"
-                        onClick={openCreatePolicySidebar}
-                        className="text-sm font-semibold text-blue-600 hover:text-blue-700"
-                      >
-                        Edit
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {filteredPolicies.length === 0 && (
-                  <tr>
-                    <td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-500">
-                      No policies match the current filters.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+              ))}
+              {!q.isLoading && !error && rows.length === 0 && (
+                <tr><td colSpan={10} className="px-4 py-8 text-center text-sm text-gray-500">No SLA profiles match.</td></tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
-
-      <ActionCompletedToast
-        isVisible={toast}
-        message="Policy saved and added to registry."
-        onClose={() => setToast(false)}
-        duration={2400}
-      />
     </div>
   );
 }
