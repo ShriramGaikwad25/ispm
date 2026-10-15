@@ -4,7 +4,8 @@ import { getBackendOrigin } from "@/lib/backendOrigin";
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { ChevronDown, Bold, Italic, Underline, Strikethrough, List, ListOrdered, AlignLeft, AlignCenter, AlignRight, Link, Image, Table, Code, Quote, Minus, Maximize2, HelpCircle } from "lucide-react";
-import { resolveTenantIdForHeader, getJwtAuthHeaders } from "@/lib/auth";
+import { resolveTenantIdForHeader } from "@/lib/auth";
+import { assuranceAuthHeaders, assuranceFetch } from "@/lib/assurance-auth";
 import { sanitizeHtml } from "@/lib/sanitize-html";
 
 interface EmailTemplateFormData {
@@ -366,9 +367,9 @@ export default function EditEmailTemplatePage() {
         setLoading(true);
         setError(null);
 
-        const response = await fetch(
+        const response = await assuranceFetch(
           `${getBackendOrigin()}/kfmailserver/templates/api/v1/${resolveTenantIdForHeader()}/getall`,
-          { headers: getJwtAuthHeaders() }
+          { headers: assuranceAuthHeaders() }
         );
 
         if (!response.ok) {
@@ -466,11 +467,11 @@ export default function EditEmailTemplatePage() {
       };
 
       // Call API to update template
-      const response = await fetch(
+      const response = await assuranceFetch(
         `${getBackendOrigin()}/kfmailserver/templates/api/v1/${resolveTenantIdForHeader()}/update`,
         {
           method: "PUT",
-          headers: getJwtAuthHeaders({
+          headers: assuranceAuthHeaders({
             "Content-Type": "application/json",
           }),
           body: JSON.stringify(payload),
@@ -501,9 +502,9 @@ export default function EditEmailTemplatePage() {
         setAttributesLoading(true);
         setAttributesError(null);
         
-        const response = await fetch(
+        const response = await assuranceFetch(
           `${getBackendOrigin()}/kfmailserver/templates/api/v1/${resolveTenantIdForHeader()}/getallattributes`,
-          { headers: getJwtAuthHeaders() }
+          { headers: assuranceAuthHeaders() }
         );
 
         if (!response.ok) {

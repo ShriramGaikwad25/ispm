@@ -6,8 +6,9 @@
 //   https://graph.keyforge.ai/continuouscompliance/api/v1/{tenant}
 // through ISPM's own proxy (/api/continuouscompliance, see
 // app/api/continuouscompliance) because the service rejects cross-origin
-// browser calls. The signed-in user's JWT is sent as the bearer token
-// (authFetch adds it, the proxy falls back to the JWT cookie).
+// browser calls. The signed-in user's ACCESS token is sent as the bearer
+// token (lib/assurance-auth.ts; the proxy falls back to the access-token
+// cookie). A token-expired answer logs the user out.
 //
 //   GET  /compliance/lookups/domains          (connection check, as the console's shell)
 //   GET  /compliance/detection-families
@@ -17,6 +18,7 @@
 // =====================================================================
 
 import { resolveTenantIdForHeader } from "@/lib/auth";
+import { assuranceFetch } from "@/lib/assurance-auth";
 import { tenantId as defaultTenantId } from "@/lib/config";
 
 const PROXY_BASE = "/api/continuouscompliance";
@@ -145,7 +147,7 @@ export async function ccRequest<T>(method: string, path: string, opts: { query?:
     body = JSON.stringify(opts.body);
     headers["Content-Type"] = "application/json";
   }
-  const res = await fetch(buildUrl(path, opts.query), { method, headers, body });
+  const res = await assuranceFetch(buildUrl(path, opts.query), { method, headers, body });
   const text = await res.text();
   let data: unknown = null;
   try { data = text ? JSON.parse(text) : null; } catch { data = text; }
@@ -160,7 +162,7 @@ export async function ccRequest<T>(method: string, path: string, opts: { query?:
 
 /** Like ccRequest, but returns the raw Response (binary downloads, e.g. the evidence-pack ZIP). */
 export async function ccFetchRaw(method: string, path: string, opts: { query?: CcQuery; accept?: string } = {}): Promise<Response> {
-  const res = await fetch(buildUrl(path, opts.query), {
+  const res = await assuranceFetch(buildUrl(path, opts.query), {
     method,
     headers: { Accept: opts.accept ?? "application/octet-stream" },
   });

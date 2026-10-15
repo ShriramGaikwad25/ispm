@@ -4,7 +4,8 @@ import { getBackendOrigin } from "@/lib/backendOrigin";
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Mail, Calendar, User, FileText, Edit } from "lucide-react";
-import { resolveTenantIdForHeader, getJwtAuthHeaders } from "@/lib/auth";
+import { resolveTenantIdForHeader } from "@/lib/auth";
+import { assuranceAuthHeaders, assuranceFetch } from "@/lib/assurance-auth";
 import { sanitizeHtml } from "@/lib/sanitize-html";
 
 interface EmailTemplate {
@@ -66,9 +67,9 @@ export default function EmailTemplateDetailPage() {
         setLoading(true);
         setError(null);
 
-        const response = await fetch(
+        const response = await assuranceFetch(
           `${getBackendOrigin()}/kfmailserver/templates/api/v1/${resolveTenantIdForHeader()}/getall`,
-          { headers: getJwtAuthHeaders() }
+          { headers: assuranceAuthHeaders() }
         );
 
         if (!response.ok) {

@@ -4,7 +4,8 @@ import { getBackendOrigin } from "@/lib/backendOrigin";
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Mail, Info, FileCode2, FileText, Tag, Code, Check, Hash } from "lucide-react";
-import { resolveTenantIdForHeader, getJwtAuthHeaders } from "@/lib/auth";
+import { resolveTenantIdForHeader } from "@/lib/auth";
+import { assuranceAuthHeaders, assuranceFetch } from "@/lib/assurance-auth";
 import { sanitizeHtml } from "@/lib/sanitize-html";
 
 interface EmailTemplateFormData {
@@ -371,11 +372,11 @@ export default function NewEmailTemplatePage() {
       };
 
       // Call API to create template
-      const response = await fetch(
+      const response = await assuranceFetch(
         `${getBackendOrigin()}/kfmailserver/templates/api/v1/${resolveTenantIdForHeader()}/create`,
         {
           method: "POST",
-          headers: getJwtAuthHeaders({
+          headers: assuranceAuthHeaders({
             "Content-Type": "application/json",
           }),
           body: JSON.stringify(payload),
@@ -406,9 +407,9 @@ export default function NewEmailTemplatePage() {
         setAttributesLoading(true);
         setAttributesError(null);
         
-        const response = await fetch(
+        const response = await assuranceFetch(
           `${getBackendOrigin()}/kfmailserver/templates/api/v1/${resolveTenantIdForHeader()}/getallattributes`,
-          { headers: getJwtAuthHeaders() }
+          { headers: assuranceAuthHeaders() }
         );
 
         if (!response.ok) {

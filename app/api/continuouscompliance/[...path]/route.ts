@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getJwtTokenFromRequest } from "@/lib/serverAuth";
+import { getAccessTokenFromRequest } from "@/lib/serverAuth";
 
 // Server-side proxy to the Continuous Compliance service used by the
 // Continuous Compliance Console (graph.keyforge.ai/console). The browser
@@ -7,8 +7,8 @@ import { getJwtTokenFromRequest } from "@/lib/serverAuth";
 // and this handler forwards to the service, so its CORS policy (which
 // rejects other origins) never applies. See lib/controls-api.ts.
 //
-// The service expects a tenant JWT in Authorization; when the browser did not
-// send one, the signed-in user's JWT cookie is used.
+// Assurance Events send the user's ACCESS token in Authorization; when the
+// browser did not send one, the signed-in user's access-token cookie is used.
 
 const UPSTREAM_BASE =
   process.env.CONTINUOUS_COMPLIANCE_UPSTREAM_BASE_URL || "https://graph.keyforge.ai/continuouscompliance/api/v1";
@@ -27,8 +27,8 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
     if (value) headers.set(name, value);
   }
   if (!headers.has("authorization")) {
-    const jwt = getJwtTokenFromRequest(request);
-    if (jwt) headers.set("authorization", `Bearer ${jwt}`);
+    const accessToken = getAccessTokenFromRequest(request);
+    if (accessToken) headers.set("authorization", `Bearer ${accessToken}`);
   }
 
   const hasBody = request.method !== "GET" && request.method !== "HEAD";

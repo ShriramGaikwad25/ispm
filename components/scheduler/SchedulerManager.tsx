@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { config } from "../../lib/config";
 import { apiRequestWithAuth } from "@/lib/auth";
+import { assuranceRequest } from "@/lib/assurance-auth";
 import "./SchedulerManager.css";
 
 interface JobSchedule {
@@ -93,7 +94,13 @@ const DEFAULT_API_ORIGIN = "https://preview.keyforge.ai";
  * (preview.keyforge.ai) for Settings → Gateway → Scheduler, graph.keyforge.ai
  * for Assurance Events → Scheduler. Everything else is the same.
  */
-export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN }: { apiOrigin?: string } = {}) {
+export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN, useAccessToken = false }: {
+  apiOrigin?: string;
+  /** Assurance Events: send the access token instead of the JWT, and log out when it has expired. */
+  useAccessToken?: boolean;
+} = {}) {
+  const request = <T,>(url: string, options?: RequestInit): Promise<T> =>
+    useAccessToken ? assuranceRequest<T>(url, options) : apiRequestWithAuth<T>(url, options);
   // Jobs endpoint of the configured tenant, on this scheduler host.
   const jobsEndpoint = config.api.endpoints.jobs.replace(DEFAULT_API_ORIGIN, apiOrigin);
   const [popup, setPopup] = useState<{
@@ -174,7 +181,7 @@ export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN }: { a
       setError(null);
 
       // Call external scheduler API directly with auth
-      const data = await apiRequestWithAuth<string[]>(
+      const data = await request<string[]>(
         jobsEndpoint
       );
       console.log("Fetched jobs data:", data);
@@ -249,7 +256,7 @@ export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN }: { a
       setJobDetailsError(null);
 
       // Call external scheduler API directly with auth
-      const data = await apiRequestWithAuth<any>(
+      const data = await request<any>(
         `${apiOrigin}/kfscheduler/api/v1/ACMECOM/jobs/${encodeURIComponent(
           groupName
         )}/${encodeURIComponent(jobName)}`
@@ -368,7 +375,7 @@ export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN }: { a
       setJobHistoryError(null);
 
       // Call external scheduler history API directly with auth
-      const data = await apiRequestWithAuth<any[]>(
+      const data = await request<any[]>(
         `${apiOrigin}/kfscheduler/api/v1/ACMECOM/jobs/history/${encodeURIComponent(
           groupName
         )}/${encodeURIComponent(jobName)}`
@@ -415,7 +422,7 @@ export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN }: { a
     try {
       setIsUpdatingJson(true);
 
-      const resumeResult = await apiRequestWithAuth<any>(
+      const resumeResult = await request<any>(
         `${apiOrigin}/kfscheduler/api/v1/ACMECOM/jobs/${encodeURIComponent(
           groupName
         )}/${encodeURIComponent(jobName)}/resume`,
@@ -443,7 +450,7 @@ export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN }: { a
     try {
       setIsUpdatingJson(true);
 
-      const pauseResult = await apiRequestWithAuth<any>(
+      const pauseResult = await request<any>(
         `${apiOrigin}/kfscheduler/api/v1/ACMECOM/jobs/${encodeURIComponent(
           groupName
         )}/${encodeURIComponent(jobName)}/pause`,
@@ -471,7 +478,7 @@ export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN }: { a
     try {
       setIsUpdatingJson(true); // Reuse loading state for now
 
-      const triggerResult = await apiRequestWithAuth<any>(
+      const triggerResult = await request<any>(
         `${apiOrigin}/kfscheduler/api/v1/ACMECOM/jobs/${encodeURIComponent(
           groupName
         )}/${encodeURIComponent(jobName)}/trigger`,
@@ -514,7 +521,7 @@ export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN }: { a
       }
 
       // Make API call to update the job data directly on external scheduler
-      const updatedData = await apiRequestWithAuth<any>(
+      const updatedData = await request<any>(
         `${apiOrigin}/kfscheduler/api/v1/ACMECOM/jobs/${encodeURIComponent(
           selectedSchedule.groupName
         )}/${encodeURIComponent(selectedSchedule.name)}`,
@@ -579,7 +586,7 @@ export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN }: { a
           ? `${jobsEndpoint}/schedule/interval`
           : `${jobsEndpoint}/schedule/cron`;
 
-      const createResult = await apiRequestWithAuth<any>(createEndpoint, {
+      const createResult = await request<any>(createEndpoint, {
         method: "POST",
         body: JSON.stringify(payload),
       });

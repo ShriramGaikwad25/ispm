@@ -13,7 +13,8 @@
 
 import { Definitions, Governance, type UUID } from "@/lib/assurance-events-api";
 import { getBackendOrigin } from "@/lib/backendOrigin";
-import { getJwtAuthHeaders, resolveTenantIdForHeader } from "@/lib/auth";
+import { resolveTenantIdForHeader } from "@/lib/auth";
+import { assuranceAuthHeaders, assuranceFetch } from "@/lib/assurance-auth";
 
 const USE_MOCK = true;
 
@@ -31,9 +32,9 @@ export interface EmailTemplate {
 /** Every email template on the mail server (same source as the Notifications page). */
 export async function listEmailTemplates(): Promise<EmailTemplate[]> {
   // Same request as the Notifications page (copied from the First Solar Email Templates page).
-  const response = await fetch(
+  const response = await assuranceFetch(
     `${getBackendOrigin()}/kfmailserver/templates/api/v1/${resolveTenantIdForHeader()}/getall`,
-    { headers: getJwtAuthHeaders() },
+    { headers: assuranceAuthHeaders() },
   );
   if (!response.ok) throw new Error(`Failed to fetch templates: ${response.statusText}`);
   const result = (await response.json()) as { success: boolean; message?: string; data?: EmailTemplate[] };

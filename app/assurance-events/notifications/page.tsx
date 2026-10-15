@@ -9,7 +9,8 @@ import "@/lib/ag-grid-setup";
 import { ColDef, GridApi, GetRowIdParams, GridReadyEvent } from "ag-grid-enterprise";
 import { defaultColDef } from "@/components/dashboard/columnDefs";
 import { useLoading } from "@/contexts/LoadingContext";
-import { resolveTenantIdForHeader, getJwtAuthHeaders } from "@/lib/auth";
+import { resolveTenantIdForHeader } from "@/lib/auth";
+import { assuranceAuthHeaders, assuranceFetch } from "@/lib/assurance-auth";
 
 interface EmailTemplate {
   id: number;
@@ -52,9 +53,9 @@ export default function GatewayEmailTemplatesSettings() {
         setError(null);
         showApiLoader?.("Loading email templates...");
 
-        const response = await fetch(
+        const response = await assuranceFetch(
           `${getBackendOrigin()}/kfmailserver/templates/api/v1/${resolveTenantIdForHeader()}/getall`,
-          { headers: getJwtAuthHeaders() }
+          { headers: assuranceAuthHeaders() }
         );
 
         if (!response.ok) {

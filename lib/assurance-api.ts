@@ -18,6 +18,7 @@
 
 import { getActiveTenantId } from "@/lib/tenant";
 import { tenantId } from "@/lib/config";
+import { getAssuranceAccessToken, isTokenExpiredResponse, logoutOnTokenExpired } from "@/lib/assurance-auth";
 
 export const ASSURANCE_API_BASE_URL =
   process.env.NEXT_PUBLIC_ASSURANCE_API_BASE_URL || "/api/assurance";
@@ -40,7 +41,9 @@ async function request<T>(method: string, path: string, params?: QueryParams, bo
   const url = `${ASSURANCE_API_BASE_URL}${path}${qs.toString() ? `?${qs}` : ""}`;
 
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  const token = typeof window !== "undefined" ? window.localStorage.getItem(TOKEN_KEY) : null;
+  // The signed-in user's access token (as every Assurance Events call); a token pasted under
+  // kf.cc.token is still used when there is none.
+  const token = getAssuranceAccessToken() ?? (typeof window !== "undefined" ? window.localStorage.getItem(TOKEN_KEY) : null);
   if (token) headers.Authorization = `Bearer ${token}`;
   const tenant = getActiveTenantId() || tenantId;
   if (tenant) headers["X-Tenant-Id"] = tenant;
@@ -52,6 +55,13 @@ async function request<T>(method: string, path: string, params?: QueryParams, bo
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const text = await res.text();
+
+  let parsed: unknown = text;
+  try { parsed = text ? JSON.parse(text) : null; } catch { /* not JSON */ }
+  if (isTokenExpiredResponse(res.status, parsed)) {
+    logoutOnTokenExpired(`Token expired (${url})`);
+    throw new Error("Your session has expired. Please sign in again.");
+  }
 
   if (!res.ok) {
     let message = `Request failed (${res.status} ${res.statusText})`;
