@@ -276,7 +276,7 @@ function ReviewQueueTab({ defs }: { defs: CcDefinitionRef[] }) {
           </div>
           <button type="button" className={BTN_SECONDARY} onClick={() => q.refetch()}>Refresh</button>
         </div>
-        <EventsTable rows={rows} defs={defs} loading={q.isLoading} tab="form" empty={q.error ? null : "Nothing is waiting for a reviewer."} />
+        <EventsTable rows={rows} defs={defs} loading={q.isLoading} tab="form" from="review" empty={q.error ? null : "Nothing is waiting for a reviewer."} />
       </div>
     </>
   );
@@ -284,10 +284,16 @@ function ReviewQueueTab({ defs }: { defs: CcDefinitionRef[] }) {
 
 /* ================================================================ Shared table */
 
-function EventsTable({ rows, defs, loading, tab, empty }: {
+function EventsTable({ rows, defs, loading, tab, from, empty }: {
   rows: CcEvent[]; defs: CcDefinitionRef[]; loading: boolean; tab?: string; empty: string | null;
+  /** Which list opened the event ("review" = Review Queue), so its back link returns there. */
+  from?: "review";
 }) {
   const router = useRouter();
+  const detailHref = (id: string) => {
+    const qs = new URLSearchParams({ ...(tab ? { tab } : {}), ...(from ? { from } : {}) }).toString();
+    return `${DETAIL_BASE}/${id}${qs ? `?${qs}` : ""}`;
+  };
   const defById = useMemo(() => new Map(defs.map((d) => [d.definitionId, d])), [defs]);
   const defLabel = (id: string) => {
     const d = defById.get(id);
@@ -325,7 +331,7 @@ function EventsTable({ rows, defs, loading, tab, empty }: {
             const pct = slaPercent(e);
             return (
               <tr key={e.eventId} className={TR_CLICKABLE}
-                  onClick={() => router.push(`${DETAIL_BASE}/${e.eventId}${tab ? `?tab=${tab}` : ""}`)}>
+                  onClick={() => router.push(detailHref(e.eventId))}>
                 <td className={cx(C, "text-xs")}>{fmt(e.discoveredAt)}</td>
                 <td className={C}>
                   <div className="text-sm font-semibold text-gray-900">{defLabel(e.definitionId)}</div>

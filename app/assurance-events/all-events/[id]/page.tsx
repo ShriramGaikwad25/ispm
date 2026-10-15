@@ -186,12 +186,16 @@ function EventDetailPage() {
   const error = connection.error ?? detailQ.error;
   const reload = () => qc.invalidateQueries({ queryKey: ["continuouscompliance", "event", id] });
 
-  const setTab = (t: Tab) => router.replace(`${pathname}?tab=${t}`, { scroll: false });
+  // Opened from the Review Queue: the back link (and the tabs) keep that, so Back returns to the queue.
+  const fromReview = sp.get("from") === "review";
+  const setTab = (t: Tab) => router.replace(`${pathname}?tab=${t}${fromReview ? "&from=review" : ""}`, { scroll: false });
 
   return (
     <div className={PAGE}>
       <div className={PAGE_INNER_FLUSH}>
-        <Link href={LIST_HREF} className={cx(BTN_LINK, "inline-block mb-3")}>← All events</Link>
+        <Link href={fromReview ? `${LIST_HREF}?tab=review` : LIST_HREF} className={cx(BTN_LINK, "inline-block mb-3")}>
+          {fromReview ? "← Review queue" : "← All events"}
+        </Link>
 
         {detailQ.isLoading && <PageSpinner />}
         {error && <div className="mb-4"><ErrorLine error={new Error(`Failed to load the event. ${(error as Error).message}`)} /></div>}
