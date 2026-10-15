@@ -85,7 +85,17 @@ const EMPTY_NEW_JOB_DATA = {
   data: {},
 };
 
-export default function SchedulerManager() {
+/** Scheduler API host used when none is given (Settings → Gateway → Scheduler). */
+const DEFAULT_API_ORIGIN = "https://preview.keyforge.ai";
+
+/**
+ * The scheduler. `apiOrigin` is the host of the kfscheduler API: the default
+ * (preview.keyforge.ai) for Settings → Gateway → Scheduler, graph.keyforge.ai
+ * for Assurance Events → Scheduler. Everything else is the same.
+ */
+export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN }: { apiOrigin?: string } = {}) {
+  // Jobs endpoint of the configured tenant, on this scheduler host.
+  const jobsEndpoint = config.api.endpoints.jobs.replace(DEFAULT_API_ORIGIN, apiOrigin);
   const [popup, setPopup] = useState<{
     isOpen: boolean;
     message: string;
@@ -165,7 +175,7 @@ export default function SchedulerManager() {
 
       // Call external scheduler API directly with auth
       const data = await apiRequestWithAuth<string[]>(
-        config.api.endpoints.jobs
+        jobsEndpoint
       );
       console.log("Fetched jobs data:", data);
 
@@ -240,7 +250,7 @@ export default function SchedulerManager() {
 
       // Call external scheduler API directly with auth
       const data = await apiRequestWithAuth<any>(
-        `https://preview.keyforge.ai/kfscheduler/api/v1/ACMECOM/jobs/${encodeURIComponent(
+        `${apiOrigin}/kfscheduler/api/v1/ACMECOM/jobs/${encodeURIComponent(
           groupName
         )}/${encodeURIComponent(jobName)}`
       );
@@ -359,7 +369,7 @@ export default function SchedulerManager() {
 
       // Call external scheduler history API directly with auth
       const data = await apiRequestWithAuth<any[]>(
-        `https://preview.keyforge.ai/kfscheduler/api/v1/ACMECOM/jobs/history/${encodeURIComponent(
+        `${apiOrigin}/kfscheduler/api/v1/ACMECOM/jobs/history/${encodeURIComponent(
           groupName
         )}/${encodeURIComponent(jobName)}`
       );
@@ -406,7 +416,7 @@ export default function SchedulerManager() {
       setIsUpdatingJson(true);
 
       const resumeResult = await apiRequestWithAuth<any>(
-        `https://preview.keyforge.ai/kfscheduler/api/v1/ACMECOM/jobs/${encodeURIComponent(
+        `${apiOrigin}/kfscheduler/api/v1/ACMECOM/jobs/${encodeURIComponent(
           groupName
         )}/${encodeURIComponent(jobName)}/resume`,
         { method: "POST" }
@@ -434,7 +444,7 @@ export default function SchedulerManager() {
       setIsUpdatingJson(true);
 
       const pauseResult = await apiRequestWithAuth<any>(
-        `https://preview.keyforge.ai/kfscheduler/api/v1/ACMECOM/jobs/${encodeURIComponent(
+        `${apiOrigin}/kfscheduler/api/v1/ACMECOM/jobs/${encodeURIComponent(
           groupName
         )}/${encodeURIComponent(jobName)}/pause`,
         { method: "POST" }
@@ -462,7 +472,7 @@ export default function SchedulerManager() {
       setIsUpdatingJson(true); // Reuse loading state for now
 
       const triggerResult = await apiRequestWithAuth<any>(
-        `https://preview.keyforge.ai/kfscheduler/api/v1/ACMECOM/jobs/${encodeURIComponent(
+        `${apiOrigin}/kfscheduler/api/v1/ACMECOM/jobs/${encodeURIComponent(
           groupName
         )}/${encodeURIComponent(jobName)}/trigger`,
         { method: "POST" }
@@ -505,7 +515,7 @@ export default function SchedulerManager() {
 
       // Make API call to update the job data directly on external scheduler
       const updatedData = await apiRequestWithAuth<any>(
-        `https://preview.keyforge.ai/kfscheduler/api/v1/ACMECOM/jobs/${encodeURIComponent(
+        `${apiOrigin}/kfscheduler/api/v1/ACMECOM/jobs/${encodeURIComponent(
           selectedSchedule.groupName
         )}/${encodeURIComponent(selectedSchedule.name)}`,
         {
@@ -566,8 +576,8 @@ export default function SchedulerManager() {
 
       const createEndpoint =
         newJobType === "simple"
-          ? `${config.api.endpoints.jobs}/schedule/interval`
-          : `${config.api.endpoints.jobs}/schedule/cron`;
+          ? `${jobsEndpoint}/schedule/interval`
+          : `${jobsEndpoint}/schedule/cron`;
 
       const createResult = await apiRequestWithAuth<any>(createEndpoint, {
         method: "POST",
