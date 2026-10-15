@@ -17,6 +17,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Filter } from "lucide-react";
 import { useCcConnection } from "@/hooks/useCcConnection";
 import {
   CcEvents, slaPercent, subjectLabel, type CcDefinitionRef, type CcEvent, type CcEventSearch,
@@ -170,6 +171,10 @@ function EventsTab({ defs }: { defs: CcDefinitionRef[] }) {
   return (
     <>
       <div className="border border-gray-200 rounded-lg bg-white shadow-sm p-5 mb-6 space-y-4">
+        <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
+          <Filter size={16} className="text-gray-500" />
+          <h2 className="text-sm font-semibold text-gray-900">Filters</h2>
+        </div>
         <ChipRow label="Status" values={STATUSES} selected={filters.status} onToggle={(v) => toggle("status", v)} />
         <ChipRow label="Severity" values={SEVERITIES} selected={filters.severity} onToggle={(v) => toggle("severity", v)} />
 
