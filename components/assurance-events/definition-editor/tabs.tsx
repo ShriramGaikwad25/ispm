@@ -476,7 +476,7 @@ export function GovernanceTab({ dto, patch, ro }: TabProps) {
           existingIds={rules.map((r) => r.id)}
           library={library}
           onClose={() => setAdding(false)}
-          onAdd={(newRules) => { setRules([...rules, ...newRules]); setAdding(false); }}
+          onAdd={(rule) => { setRules([...rules, rule]); setAdding(false); }}
         />
       )}
     </Section>
@@ -495,57 +495,55 @@ function paramValue(type: string, raw: string): unknown {
 
 type ActionPick = { code: string; params: Record<string, string> };
 
+const GOVERNANCE_POINTS = ["SEVERITY", "AUTO_REMEDIATION_GATE", "AUTO_DECISION", "REVIEWER"];
+
 function RuleBuilder({ existingIds, library, onClose, onAdd }: {
   existingIds: string[];
   library: ReturnType<typeof useActiveActions>;
   onClose: () => void;
-  onAdd: (rules: GovernanceRule[]) => void;
+  onAdd: (rule: GovernanceRule) => void;
 }) {
   const [name, setName] = useState("");
+  const [point, setPoint] = useState("AUTO_REMEDIATION_GATE");
   const [when, setWhen] = useState("");
-  const [picks, setPicks] = useState<ActionPick[]>([{ code: "", params: {} }]);
+  const [pick, setPick] = useState<ActionPick>({ code: "", params: {} });
   const [justification, setJustification] = useState("");
 
-  const choose = (i: number, code: string) => {
+  const choose = (code: string) => {
     const a = library.byCode.get(code);
     // Pre-fill each parameter with its suggested template or default.
     const params = Object.fromEntries((a?.parameters ?? []).map((p) => [
       p.name, p.suggested ?? (p.default == null ? "" : typeof p.default === "string" ? p.default : JSON.stringify(p.default)),
     ]));
-    setPicks(picks.map((x, j) => (j === i ? { code, params } : x)));
+    setPick({ code, params });
   };
-  const setParam = (i: number, param: string, value: string) =>
-    setPicks(picks.map((x, j) => (j === i ? { ...x, params: { ...x.params, [param]: value } } : x)));
+  const setParam = (param: string, value: string) =>
+    setPick({ ...pick, params: { ...pick.params, [param]: value } });
 
   const ruleId = name.trim();
-  const chosen = picks.filter((p) => p.code);
-  const ids = chosen.map((_, i) => (i ? `${ruleId}-${i + 1}` : ruleId));
+  const a = library.byCode.get(pick.code);
   const problems: string[] = [];
   if (!ruleId) problems.push("Give the rule a name.");
-  if (ids.some((id) => existingIds.includes(id))) problems.push(`A rule named ${ruleId} already exists.`);
+  if (existingIds.includes(ruleId)) problems.push(`A rule named ${ruleId} already exists.`);
   if (!when.trim()) problems.push("Provide the When condition.");
-  if (!chosen.length) problems.push("Select at least one action.");
-  for (const p of chosen) {
-    const a = library.byCode.get(p.code);
-    const missing = (a?.parameters ?? []).filter((x) => x.required && x.default == null && !(p.params[x.name] ?? "").trim()).map((x) => x.name);
-    if (missing.length) problems.push(`${p.code} needs ${missing.join(", ")}.`);
-  }
+  if (!pick.code) problems.push("Select an action.");
+  const missing = (a?.parameters ?? []).filter((x) => x.required && x.default == null && !(pick.params[x.name] ?? "").trim()).map((x) => x.name);
+  if (missing.length) problems.push(`${pick.code} needs ${missing.join(", ")}.`);
   if (!justification.trim()) problems.push("Provide the justification.");
 
-  const build = (): GovernanceRule[] => chosen.map((p, i) => {
-    const a = library.byCode.get(p.code);
+  const build = (): GovernanceRule => {
     const params: Record<string, unknown> = {};
     for (const x of a?.parameters ?? []) {
-      const raw = p.params[x.name] ?? "";
+      const raw = pick.params[x.name] ?? "";
       if (raw.trim() !== "") params[x.name] = paramValue(x.type, raw);
     }
     return {
-      id: ids[i],
-      point: "AUTO_REMEDIATION_GATE",
+      id: ruleId,
+      point,
       when: when.trim(),
-      then: { action: p.code, params, justification: justification.trim() },
+      then: { action: pick.code, params, justification: justification.trim() },
     };
-  });
+  };
 
   return (
     <Modal title="Add Rule" onClose={onClose} widthClass="max-w-3xl">
@@ -555,72 +553,62 @@ function RuleBuilder({ existingIds, library, onClose, onAdd }: {
           <input className={cx(INPUT, "font-mono")} value={name} placeholder="e.g. assign-fallback" onChange={(e) => setName(e.target.value)} />
         </div>
         <div>
+          <label className={LABEL}>Point</label>
+          <select className={INPUT} value={point} onChange={(e) => setPoint(e.target.value)}>
+            {GOVERNANCE_POINTS.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+        </div>
+        <div>
           <label className={LABEL}>When (CEL condition)</label>
           <input className={cx(INPUT, "font-mono text-xs")} value={when} placeholder="!finding.fallbackAvailable && subject.riskTier == 'HIGH'"
                  onChange={(e) => setWhen(e.target.value)} />
         </div>
 
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold text-gray-900">Then — actions</span>
-            <button className={cx(BTN_SECONDARY, "text-xs")} onClick={() => setPicks([...picks, { code: "", params: {} }])}>
-              <Plus size={12} /> Add Action
-            </button>
-          </div>
-          {picks.map((p, i) => {
-            const a = library.byCode.get(p.code);
-            return (
-              <div key={i} className="rounded-lg border border-gray-200 p-3 space-y-3">
-                <div className="flex gap-2 items-start">
-                  <select className={INPUT} value={p.code} onChange={(e) => choose(i, e.target.value)}>
-                    <option value="">{library.isLoading ? "Loading actions…" : "— Select an action —"}</option>
-                    {library.actions.map((x) => (
-                      <option key={x.code} value={x.code} disabled={x.autoExecution === "REVIEW_ONLY"}>
-                        {x.name} ({x.code} v{x.version}){x.autoExecution === "REVIEW_ONLY" ? " — review only" : ""}
-                      </option>
-                    ))}
-                  </select>
-                  {picks.length > 1 && (
-                    <button className={cx(BTN_GHOST, "px-2 text-red-600")} aria-label="Remove action"
-                            onClick={() => setPicks(picks.filter((_, j) => j !== i))}>
-                      <Trash2 size={14} />
-                    </button>
-                  )}
-                </div>
-                {a?.description && <p className="text-xs text-gray-500">{a.description}</p>}
-                {a && (a.parameters ?? []).length > 0 && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {(a.parameters ?? []).map((x) => (
-                      <div key={x.name}>
-                        <label className={LABEL}>
-                          {x.label || x.name}{x.required && <span className="text-red-600"> *</span>}
-                          <span className="text-xs text-gray-400"> {x.type}</span>
-                        </label>
-                        {x.enum?.length ? (
-                          <select className={INPUT} value={p.params[x.name] ?? ""} onChange={(e) => setParam(i, x.name, e.target.value)}>
-                            <option value="">—</option>
-                            {x.enum.map((o) => <option key={o}>{o}</option>)}
-                          </select>
-                        ) : x.type === "boolean" ? (
-                          <select className={INPUT} value={p.params[x.name] ?? ""} onChange={(e) => setParam(i, x.name, e.target.value)}>
-                            <option value="">—</option>
-                            <option value="true">true</option>
-                            <option value="false">false</option>
-                          </select>
-                        ) : (
-                          <input className={cx(INPUT, "font-mono text-xs")} value={p.params[x.name] ?? ""}
-                                 placeholder={x.default != null ? `default ${JSON.stringify(x.default)}` : x.example != null ? String(x.example) : ""}
-                                 onChange={(e) => setParam(i, x.name, e.target.value)} />
-                        )}
-                        {x.help && <p className="text-[11px] text-gray-500 mt-0.5">{x.help}</p>}
-                      </div>
-                    ))}
+          <span className="block text-sm font-semibold text-gray-900">Then — action</span>
+          <div className="rounded-lg border border-gray-200 p-3 space-y-3">
+            <div className="flex gap-2 items-start">
+              <select className={INPUT} value={pick.code} onChange={(e) => choose(e.target.value)}>
+                <option value="">{library.isLoading ? "Loading actions…" : "— Select an action —"}</option>
+                {library.actions.map((x) => (
+                  <option key={x.code} value={x.code} disabled={x.autoExecution === "REVIEW_ONLY"}>
+                    {x.name} ({x.code} v{x.version}){x.autoExecution === "REVIEW_ONLY" ? " — review only" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {a?.description && <p className="text-xs text-gray-500">{a.description}</p>}
+            {a && (a.parameters ?? []).length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {(a.parameters ?? []).map((x) => (
+                  <div key={x.name}>
+                    <label className={LABEL}>
+                      {x.label || x.name}{x.required && <span className="text-red-600"> *</span>}
+                      <span className="text-xs text-gray-400"> {x.type}</span>
+                    </label>
+                    {x.enum?.length ? (
+                      <select className={INPUT} value={pick.params[x.name] ?? ""} onChange={(e) => setParam(x.name, e.target.value)}>
+                        <option value="">—</option>
+                        {x.enum.map((o) => <option key={o}>{o}</option>)}
+                      </select>
+                    ) : x.type === "boolean" ? (
+                      <select className={INPUT} value={pick.params[x.name] ?? ""} onChange={(e) => setParam(x.name, e.target.value)}>
+                        <option value="">—</option>
+                        <option value="true">true</option>
+                        <option value="false">false</option>
+                      </select>
+                    ) : (
+                      <input className={cx(INPUT, "font-mono text-xs")} value={pick.params[x.name] ?? ""}
+                             placeholder={x.default != null ? `default ${JSON.stringify(x.default)}` : x.example != null ? String(x.example) : ""}
+                             onChange={(e) => setParam(x.name, e.target.value)} />
+                    )}
+                    {x.help && <p className="text-[11px] text-gray-500 mt-0.5">{x.help}</p>}
                   </div>
-                )}
-                {a && !(a.parameters ?? []).length && <p className="text-xs text-gray-500">This action takes no parameters.</p>}
+                ))}
               </div>
-            );
-          })}
+            )}
+            {a && !(a.parameters ?? []).length && <p className="text-xs text-gray-500">This action takes no parameters.</p>}
+          </div>
           <p className="text-xs text-gray-500">
             Values may be literals or templates such as <code>{"${subject.entitlementId}"}</code>. Review-only actions cannot run from a rule.
           </p>
@@ -632,14 +620,14 @@ function RuleBuilder({ existingIds, library, onClose, onAdd }: {
                     onChange={(e) => setJustification(e.target.value)} />
         </div>
 
-        {problems.length > 0 && (name || when || chosen.length || justification) ? (
+        {problems.length > 0 && (name || when || pick.code || justification) ? (
           <ul className="text-xs text-red-600 list-disc ml-5 space-y-0.5">{problems.map((p) => <li key={p}>{p}</li>)}</ul>
         ) : null}
 
         <div className="flex justify-end gap-2">
           <button className={BTN_SECONDARY} onClick={onClose}>Cancel</button>
           <button className={BTN_PRIMARY} disabled={problems.length > 0} onClick={() => onAdd(build())}>
-            Add {chosen.length > 1 ? `${chosen.length} Rules` : "Rule"}
+            Add Rule
           </button>
         </div>
       </div>

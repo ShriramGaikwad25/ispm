@@ -150,7 +150,7 @@ export default function EventDefinitionsPage() {
     <div className={PAGE}>
       <div className={PAGE_INNER}>
         <PageHeader
-          title="Response Policies / Event Definitions"
+          title="Event Definitions"
           subtitle="One policy per kind of finding: how it is detected, who reviews it and by when, and what governance does with it."
           actions={<button type="button" className={BTN_PRIMARY} onClick={openCreateSidebar}>+ Create Definition</button>}
         />

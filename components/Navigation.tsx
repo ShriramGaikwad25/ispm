@@ -63,16 +63,42 @@ export function Navigation() {
   const routeMatchesExact = (href: string): boolean =>
     normalizePath(pathname) === hrefPathOnly(href);
 
+  /** Sub-items plus the links of nested groups (e.g. Assurance Events › Datalake › Entitlements). */
+  const flattenSubItems = (items?: NavItem[]): NavItem[] =>
+    (items ?? []).flatMap((s) => [s, ...flattenSubItems(s.subItems)]);
+
   const isItemActive = (item: NavItem): boolean => {
     if (routeMatches(item.href)) return true;
-    if (item.subItems) {
-      return item.subItems.some((subItem) => routeMatches(subItem.href));
-    }
-    return false;
+    return flattenSubItems(item.subItems).some((subItem) => routeMatches(subItem.href));
   };
 
   const isSubItemActive = (subItem: NavItem): boolean =>
     routeMatchesExact(subItem.href);
+
+  const matchesSearch = (subItem: NavItem, term: string): boolean =>
+    subItem.name.toLowerCase().includes(term) ||
+    flattenSubItems(subItem.subItems).some((s) => s.name.toLowerCase().includes(term));
+
+  // Nested groups inside a section (keyed "Section/Group"); open the one holding the current route.
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const toggleGroup = (key: string) =>
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  useEffect(() => {
+    navigation.forEach((item) =>
+      item.subItems?.forEach((subItem) => {
+        if (subItem.subItems?.some((s) => routeMatches(s.href))) {
+          const key = `${item.name}/${subItem.name}`;
+          setExpandedGroups((prev) => (prev.has(key) ? prev : new Set(prev).add(key)));
+          setExpandedItems((prev) => (prev.has(item.name) ? prev : new Set([item.name])));
+        }
+      })
+    );
+  }, [pathname]);
 
   useEffect(() => {
     const raItem = navigation.find((i) => i.name === "Risk Analysis");
@@ -90,7 +116,7 @@ export function Navigation() {
     ? navigation.filter((item) => {
         const matchesHeader = item.name.toLowerCase().includes(normalizedSearch);
         const matchesSubItem = item.subItems?.some((subItem) =>
-          subItem.name.toLowerCase().includes(normalizedSearch)
+          matchesSearch(subItem, normalizedSearch)
         );
         return matchesHeader || matchesSubItem;
       })
@@ -101,7 +127,7 @@ export function Navigation() {
     const set = new Set<string>();
     navigation.forEach((item) => {
       set.add(item.href);
-      item.subItems?.forEach((subItem) => set.add(subItem.href));
+      flattenSubItems(item.subItems).forEach((subItem) => set.add(subItem.href));
     });
     return set;
   })[0];
@@ -417,7 +443,7 @@ export function Navigation() {
           const visibleSubItems = hasSubItems
             ? (normalizedSearch
                 ? item.subItems!.filter((subItem) =>
-                    subItem.name.toLowerCase().includes(normalizedSearch)
+                    matchesSearch(subItem, normalizedSearch)
                   )
                 : item.subItems)
             : undefined;
@@ -520,7 +546,81 @@ export function Navigation() {
                   {visibleSubItems!.map((subItem) => {
                     const SubIcon = subItem.icon;
                     const isSubActive = isSubItemActive(subItem);
-                    
+
+                    if (subItem.subItems && subItem.subItems.length > 0) {
+                      const groupKey = `${item.name}/${subItem.name}`;
+                      const groupChildren = normalizedSearch && !subItem.name.toLowerCase().includes(normalizedSearch)
+                        ? subItem.subItems.filter((s) => s.name.toLowerCase().includes(normalizedSearch))
+                        : subItem.subItems;
+                      const isGroupExpanded = expandedGroups.has(groupKey) || !!normalizedSearch;
+                      const isGroupActive = subItem.subItems.some((s) => routeMatches(s.href));
+                      const groupColor = isGroupActive ? '#15803d' : '#475569';
+                      return (
+                        <li key={subItem.name} role="none">
+                          <button
+                            type="button"
+                            onClick={() => toggleGroup(groupKey)}
+                            role="menuitem"
+                            aria-expanded={isGroupExpanded}
+                            aria-controls={`submenu-${groupKey}`}
+                            className="flex w-full items-center gap-2 px-2 py-1.25 rounded-md transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                            style={{
+                              color: groupColor,
+                              fontFamily: 'Inter',
+                              fontSize: '12px',
+                              fontStyle: 'normal',
+                              fontWeight: '500',
+                              lineHeight: '16px'
+                            }}
+                          >
+                            <SubIcon className="h-3.5 w-3.5 flex-shrink-0" style={{ color: groupColor }} aria-hidden="true" />
+                            <span className="whitespace-normal">{subItem.name}</span>
+                            <span className="ml-auto" aria-hidden="true">
+                              {isGroupExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                            </span>
+                          </button>
+                          {isGroupExpanded && (
+                            <ul id={`submenu-${groupKey}`} className="ml-4 mt-0.5 space-y-0.5" role="menu">
+                              {groupChildren.map((child) => {
+                                const ChildIcon = child.icon;
+                                const isChildActive = isSubItemActive(child);
+                                return (
+                                  <li key={child.name} role="none">
+                                    <Link
+                                      href={child.href}
+                                      onClick={handleLinkClick}
+                                      role="menuitem"
+                                      aria-current={isChildActive ? 'page' : undefined}
+                                      className={`flex items-center gap-2 px-2 py-1.25 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                                        isChildActive
+                                          ? 'bg-green-50 text-green-700 border-l-2 border-green-600'
+                                          : 'hover:bg-slate-50 text-slate-600'
+                                      }`}
+                                      style={{
+                                        color: isChildActive ? '#15803d' : '#475569',
+                                        fontFamily: 'Inter',
+                                        fontSize: '12px',
+                                        fontStyle: 'normal',
+                                        fontWeight: '500',
+                                        lineHeight: '16px'
+                                      }}
+                                    >
+                                      <ChildIcon
+                                        className="h-3.5 w-3.5 flex-shrink-0"
+                                        style={{ color: isChildActive ? '#15803d' : '#475569' }}
+                                        aria-hidden="true"
+                                      />
+                                      <span className="whitespace-normal">{child.name}</span>
+                                    </Link>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
+                        </li>
+                      );
+                    }
+
                     return (
                       <li key={subItem.name} role="none">
                         <Link

@@ -37,6 +37,8 @@ import {
   Bell,
   List,
   CalendarClock,
+  Database,
+  KeyRound,
 } from "lucide-react";
 import { riskAnalysisSubItems } from "@/lib/risk-analysis-routes";
 
@@ -142,11 +144,19 @@ export const navLinks: NavItem[] = [
       { name: "Control Library", href: "/assurance-events/control-library", icon: Library },
       { name: "Review Forms", href: "/assurance-events/review-forms", icon: ClipboardCheck },
       { name: "Studio Configuration", href: "/assurance-events/studio-configuration", icon: SlidersHorizontal },
-      { name: "Response Policies / Event Definitions", href: "/assurance-events/event-definitions", icon: FileText },
+      { name: "Event Definitions", href: "/assurance-events/event-definitions", icon: FileText },
       { name: "Notifications", href: "/assurance-events/notifications", icon: Bell },
       { name: "SLA", href: "/assurance-events/sla", icon: Clock },
       { name: "All Events", href: "/assurance-events/all-events", icon: List },
       { name: "Scheduler", href: "/assurance-events/scheduler", icon: CalendarClock },
+      {
+        name: "Datalake",
+        href: "/assurance-events/datalake",
+        icon: Database,
+        subItems: [
+          { name: "Entitlements", href: "/assurance-events/datalake/entitlements", icon: KeyRound },
+        ],
+      },
     ],
   },
   {

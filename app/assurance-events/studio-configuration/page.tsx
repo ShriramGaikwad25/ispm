@@ -144,7 +144,6 @@ function ActionLibraryTab() {
                     <th className={TH}>Owner</th>
                     <th className={TH}>Target</th>
                     <th className={TH}>Reversible</th>
-                    <th className={TH}>Auto-Execution</th>
                     <th className={TH}>Parameters (* required)</th>
                     <th className={TH}>Default Executor</th>
                     <th className={TH}></th>
@@ -168,11 +167,6 @@ function ActionLibraryTab() {
                       <td className={TD}>
                         <span className={cx(PILL, a.reversible ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700")}>
                           {a.reversible ? "Yes" : "No"}
-                        </span>
-                      </td>
-                      <td className={TD}>
-                        <span className={cx(PILL, a.autoExecution === "REVIEW_ONLY" ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700")}>
-                          {a.autoExecution}
                         </span>
                       </td>
                       <td className={cx(TD, "text-xs font-mono [overflow-wrap:anywhere]")}>{paramSummary(a.parameters) || "—"}</td>
