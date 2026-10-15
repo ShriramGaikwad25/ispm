@@ -1,12 +1,12 @@
 "use client";
 
+import { getBackendOrigin } from "@/lib/backendOrigin";
 import { useState, useEffect, useRef } from "react";
 import {
   Play,
   Clock,
   CheckCircle,
   AlertCircle,
-  Pause,
   Square,
   RotateCcw,
   Calendar,
@@ -14,11 +14,21 @@ import {
   ChevronRight,
   ChevronDown,
   Edit,
+  Info,
+  List,
+  Zap,
+  History,
+  Search,
+  Plus,
+  X,
 } from "lucide-react";
-import { config } from "../../lib/config";
-import { apiRequestWithAuth } from "@/lib/auth";
+import { apiRequestWithAuth, resolveTenantIdForHeader } from "@/lib/auth";
 import { assuranceRequest } from "@/lib/assurance-auth";
+
 import "./SchedulerManager.css";
+
+// The scheduler API returns an array on success but may return an error object instead
+type SchedulerErrorFields = { error?: string; message?: string };
 
 interface JobSchedule {
   id: string;
@@ -86,23 +96,21 @@ const EMPTY_NEW_JOB_DATA = {
   data: {},
 };
 
-/** Scheduler API host used when none is given (Settings → Gateway → Scheduler). */
-const DEFAULT_API_ORIGIN = "https://preview.keyforge.ai";
-
 /**
- * The scheduler. `apiOrigin` is the host of the kfscheduler API: the default
- * (preview.keyforge.ai) for Settings → Gateway → Scheduler, graph.keyforge.ai
- * for Assurance Events → Scheduler. Everything else is the same.
+ * The scheduler. `apiOrigin` is the host of the kfscheduler API: the backend origin
+ * (preview.keyforge.ai) for Settings → Gateway → Scheduler, graph.keyforge.ai for
+ * Assurance Events → Scheduler, which also sends the access token instead of the JWT
+ * (`useAccessToken`) and logs out when it has expired. Everything else is the same.
  */
-export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN, useAccessToken = false }: {
+export default function SchedulerManager({ apiOrigin = getBackendOrigin(), useAccessToken = false }: {
   apiOrigin?: string;
-  /** Assurance Events: send the access token instead of the JWT, and log out when it has expired. */
   useAccessToken?: boolean;
 } = {}) {
   const request = <T,>(url: string, options?: RequestInit): Promise<T> =>
     useAccessToken ? assuranceRequest<T>(url, options) : apiRequestWithAuth<T>(url, options);
-  // Jobs endpoint of the configured tenant, on this scheduler host.
-  const jobsEndpoint = config.api.endpoints.jobs.replace(DEFAULT_API_ORIGIN, apiOrigin);
+  // Jobs endpoint of the signed-in tenant, on this scheduler host.
+  const jobsEndpoint = () =>
+    `${apiOrigin}/kfscheduler/api/v1/${encodeURIComponent(resolveTenantIdForHeader())}/jobs`;
   const [popup, setPopup] = useState<{
     isOpen: boolean;
     message: string;
@@ -128,6 +136,8 @@ export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN, useAc
   const [editableJsonData, setEditableJsonData] = useState<string>("");
   const [originalJsonData, setOriginalJsonData] = useState<string>("");
   const [isUpdatingJson, setIsUpdatingJson] = useState(false);
+  // Pending Active/Inactive change awaiting user confirmation.
+  const [statusConfirm, setStatusConfirm] = useState<"activate" | "deactivate" | null>(null);
   const [showNewJobForm, setShowNewJobForm] = useState(false);
   const [showMiddlePanel, setShowMiddlePanel] = useState(false);
   const [jobSearchTerm, setJobSearchTerm] = useState("");
@@ -181,8 +191,8 @@ export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN, useAc
       setError(null);
 
       // Call external scheduler API directly with auth
-      const data = await request<string[]>(
-        jobsEndpoint
+      const data = await request<string[] & SchedulerErrorFields>(
+        jobsEndpoint()
       );
       console.log("Fetched jobs data:", data);
 
@@ -257,7 +267,7 @@ export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN, useAc
 
       // Call external scheduler API directly with auth
       const data = await request<any>(
-        `${apiOrigin}/kfscheduler/api/v1/ACMECOM/jobs/${encodeURIComponent(
+        `${apiOrigin}/kfscheduler/api/v1/${encodeURIComponent(resolveTenantIdForHeader())}/jobs/${encodeURIComponent(
           groupName
         )}/${encodeURIComponent(jobName)}`
       );
@@ -375,8 +385,8 @@ export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN, useAc
       setJobHistoryError(null);
 
       // Call external scheduler history API directly with auth
-      const data = await request<any[]>(
-        `${apiOrigin}/kfscheduler/api/v1/ACMECOM/jobs/history/${encodeURIComponent(
+      const data = await request<any[] & SchedulerErrorFields>(
+        `${apiOrigin}/kfscheduler/api/v1/${encodeURIComponent(resolveTenantIdForHeader())}/jobs/history/${encodeURIComponent(
           groupName
         )}/${encodeURIComponent(jobName)}`
       );
@@ -423,7 +433,7 @@ export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN, useAc
       setIsUpdatingJson(true);
 
       const resumeResult = await request<any>(
-        `${apiOrigin}/kfscheduler/api/v1/ACMECOM/jobs/${encodeURIComponent(
+        `${apiOrigin}/kfscheduler/api/v1/${encodeURIComponent(resolveTenantIdForHeader())}/jobs/${encodeURIComponent(
           groupName
         )}/${encodeURIComponent(jobName)}/resume`,
         { method: "POST" }
@@ -451,7 +461,7 @@ export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN, useAc
       setIsUpdatingJson(true);
 
       const pauseResult = await request<any>(
-        `${apiOrigin}/kfscheduler/api/v1/ACMECOM/jobs/${encodeURIComponent(
+        `${apiOrigin}/kfscheduler/api/v1/${encodeURIComponent(resolveTenantIdForHeader())}/jobs/${encodeURIComponent(
           groupName
         )}/${encodeURIComponent(jobName)}/pause`,
         { method: "POST" }
@@ -479,7 +489,7 @@ export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN, useAc
       setIsUpdatingJson(true); // Reuse loading state for now
 
       const triggerResult = await request<any>(
-        `${apiOrigin}/kfscheduler/api/v1/ACMECOM/jobs/${encodeURIComponent(
+        `${apiOrigin}/kfscheduler/api/v1/${encodeURIComponent(resolveTenantIdForHeader())}/jobs/${encodeURIComponent(
           groupName
         )}/${encodeURIComponent(jobName)}/trigger`,
         { method: "POST" }
@@ -522,7 +532,7 @@ export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN, useAc
 
       // Make API call to update the job data directly on external scheduler
       const updatedData = await request<any>(
-        `${apiOrigin}/kfscheduler/api/v1/ACMECOM/jobs/${encodeURIComponent(
+        `${apiOrigin}/kfscheduler/api/v1/${encodeURIComponent(resolveTenantIdForHeader())}/jobs/${encodeURIComponent(
           selectedSchedule.groupName
         )}/${encodeURIComponent(selectedSchedule.name)}`,
         {
@@ -583,8 +593,8 @@ export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN, useAc
 
       const createEndpoint =
         newJobType === "simple"
-          ? `${jobsEndpoint}/schedule/interval`
-          : `${jobsEndpoint}/schedule/cron`;
+          ? `${jobsEndpoint()}/schedule/interval`
+          : `${jobsEndpoint()}/schedule/cron`;
 
       const createResult = await request<any>(createEndpoint, {
         method: "POST",
@@ -1132,9 +1142,43 @@ export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN, useAc
           <div className="job-header">
             <div className="job-title">
               <div className="job-title-row">
+                <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
+                  <Clock className="h-4 w-4" />
+                </span>
                 <h1>{selectedSchedule.name}</h1>
+                {(() => {
+                  // Active = trigger not paused; toggling pauses/resumes the job.
+                  const isActive =
+                    (selectedSchedule.triggerState || "").toUpperCase() !== "PAUSED";
+                  return (
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={isActive}
+                      disabled={isUpdatingJson}
+                      onClick={() => setStatusConfirm(isActive ? "deactivate" : "activate")}
+                      title={isActive ? "Click to make inactive" : "Click to make active"}
+                      className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white py-0.5 pl-1 pr-2.5 text-xs font-semibold transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <span
+                        className={`relative inline-flex h-4 w-7 flex-shrink-0 items-center rounded-full transition-colors ${
+                          isActive ? "bg-green-500" : "bg-gray-300"
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-3 w-3 rounded-full bg-white shadow transition-transform ${
+                            isActive ? "translate-x-3.5" : "translate-x-0.5"
+                          }`}
+                        />
+                      </span>
+                      <span className={isActive ? "text-green-700" : "text-gray-600"}>
+                        {isActive ? "Active" : "Inactive"}
+                      </span>
+                    </button>
+                  );
+                })()}
                 <button
-                  className="edit-job-btn"
+                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border border-gray-300 text-gray-600 transition-colors hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600"
                   onClick={() => {
                     setShowMiddlePanel(true);
                     setIsJsonDataExpanded(false);
@@ -1145,92 +1189,46 @@ export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN, useAc
                   }}
                   title="Edit Job"
                 >
-                  <Edit className="edit-icon" />
+                  <Edit className="h-4 w-4" />
                 </button>
               </div>
             </div>
             <div className="job-controls">
               <button
-                className={`control-btn start-btn ${
-                  selectedSchedule.isRunning ? "active" : ""
-                }`}
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
                 onClick={() =>
                   triggerJobManually(
                     selectedSchedule.groupName || "",
                     selectedSchedule.name
                   )
                 }
-                disabled={isUpdatingJson}
+                disabled={isUpdatingJson || selectedSchedule.isRunning}
+                title={selectedSchedule.isRunning ? "Job is currently running" : undefined}
               >
-                {isUpdatingJson ? (
+                {selectedSchedule.isRunning ? (
+                  <>
+                    <div className="loading-spinner-small"></div>
+                    Running
+                  </>
+                ) : isUpdatingJson ? (
                   <>
                     <div className="loading-spinner-small"></div>
                     Running...
                   </>
                 ) : (
                   <>
-                    <Play className="btn-icon" />
+                    <Play className="h-4 w-4" />
                     Run
                   </>
                 )}
               </button>
-              {(() => {
-                const state = (
-                  selectedSchedule.triggerState || ""
-                ).toUpperCase();
-                const isPaused = state === "PAUSED";
-                return isPaused;
-              })() ? (
-                <button
-                  className="control-btn resume-btn"
-                  onClick={() =>
-                    resumeJob(
-                      selectedSchedule.groupName || "",
-                      selectedSchedule.name
-                    )
-                  }
-                  disabled={isUpdatingJson}
-                >
-                  {isUpdatingJson ? (
-                    <>
-                      <div className="loading-spinner-small"></div>
-                      Resuming...
-                    </>
-                  ) : (
-                    <>
-                      <Play className="btn-icon" />
-                      Resume
-                    </>
-                  )}
-                </button>
-              ) : (
-                <button
-                  className="control-btn pause-btn"
-                  onClick={() =>
-                    pauseJob(
-                      selectedSchedule.groupName || "",
-                      selectedSchedule.name
-                    )
-                  }
-                  disabled={isUpdatingJson}
-                >
-                  {isUpdatingJson ? (
-                    <>
-                      <div className="loading-spinner-small"></div>
-                      Pausing...
-                    </>
-                  ) : (
-                    <>
-                      <Pause className="btn-icon" />
-                      Pause
-                    </>
-                  )}
-                </button>
-              )}
             </div>
           </div>
         ) : (
           <div className="no-job-selected-header">
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-400">
+              <Info className="h-5 w-5" />
+            </span>
             <h1>Select a Job</h1>
             <p>Choose a job from the left panel to view details and controls</p>
           </div>
@@ -1242,9 +1240,14 @@ export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN, useAc
         {/* Left Panel - Jobs List Only */}
         <div className="triggers-panel">
           <div className="triggers-header">
-            <h3>JOBS</h3>
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-100 text-blue-700">
+                <List className="h-4 w-4" />
+              </span>
+              <h3>JOBS</h3>
+            </div>
             <button
-              className="new-trigger-btn"
+              className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               onClick={() => {
                 if (!showNewJobForm) {
                   setNewJobData(EMPTY_NEW_JOB_DATA);
@@ -1257,17 +1260,30 @@ export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN, useAc
               }}
               disabled={loading}
             >
-              {showNewJobForm ? "Cancel" : "New"}
+              {showNewJobForm ? (
+                <>
+                  <X className="h-3.5 w-3.5" />
+                  Cancel
+                </>
+              ) : (
+                <>
+                  <Plus className="h-3.5 w-3.5" />
+                  New
+                </>
+              )}
             </button>
           </div>
           <div className="job-search-wrapper">
-            <input
-              type="text"
-              className="job-search-input"
-              placeholder="Search jobs..."
-              value={jobSearchTerm}
-              onChange={(e) => setJobSearchTerm(e.target.value)}
-            />
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                className="job-search-input"
+                placeholder="Search jobs..."
+                value={jobSearchTerm}
+                onChange={(e) => setJobSearchTerm(e.target.value)}
+              />
+            </div>
           </div>
 
           {loading ? (
@@ -1299,20 +1315,31 @@ export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN, useAc
                   <p>No jobs match your search</p>
                 </div>
               ) : (
-                filteredSchedules.map((schedule) => (
-                  <div
-                    key={schedule.id}
-                    className={`trigger-item ${
-                      selectedSchedule?.id === schedule.id ? "selected" : ""
-                    } ${schedule.status}`}
-                    onClick={() => {
-                      // Only set selection; data fetching is driven by effect below
-                      setSelectedSchedule(schedule);
-                    }}
-                  >
-                    <div className="trigger-name">{schedule.name}</div>
-                  </div>
-                ))
+                filteredSchedules.map((schedule) => {
+                  const isSelected = selectedSchedule?.id === schedule.id;
+                  // Block re-selection while the currently selected job's
+                  // details/history are still loading, to avoid overlapping
+                  // fetches and stale data flashes.
+                  const selectionBlocked =
+                    !isSelected && (jobDetailsLoading || jobHistoryLoading);
+                  return (
+                    <div
+                      key={schedule.id}
+                      className={`trigger-item ${isSelected ? "selected" : ""} ${
+                        schedule.status
+                      } ${selectionBlocked ? "disabled" : ""}`}
+                      aria-disabled={selectionBlocked}
+                      onClick={() => {
+                        if (selectionBlocked) return;
+                        // Only set selection; data fetching is driven by effect below
+                        setSelectedSchedule(schedule);
+                      }}
+                    >
+                      <span className={`status-indicator ${schedule.status}`} />
+                      <div className="trigger-name">{schedule.name}</div>
+                    </div>
+                  );
+                })
               )}
             </div>
           )}
@@ -1322,21 +1349,31 @@ export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN, useAc
         {showMiddlePanel && (
           <div className="details-panel">
             <div className="details-panel-header">
-              <h3>JOB DETAILS</h3>
+              <div className="flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-md bg-purple-100 text-purple-700">
+                  <Info className="h-4 w-4" />
+                </span>
+                <h3>JOB DETAILS</h3>
+              </div>
               <button
-                className="close-panel-btn"
+                className="flex h-7 w-7 items-center justify-center rounded-md border border-gray-300 text-gray-500 transition-colors hover:border-gray-400 hover:bg-gray-50"
                 onClick={() => {
                   setShowMiddlePanel(false);
                   setShowNewJobForm(false);
                 }}
                 title="Close Panel"
               >
-                ×
+                <X className="h-4 w-4" />
               </button>
             </div>
             {showNewJobForm ? (
             <div className="new-job-form">
-              <h3>CREATE NEW JOB</h3>
+              <h3 className="flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-md bg-green-100 text-green-700">
+                  <Plus className="h-3.5 w-3.5" />
+                </span>
+                CREATE NEW JOB
+              </h3>
 
               {/* Basic Job Info */}
               <div className="form-group">
@@ -1520,7 +1557,10 @@ export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN, useAc
                       Creating...
                     </>
                   ) : (
-                    "Create Job"
+                    <>
+                      <Plus className="h-3.5 w-3.5" />
+                      Create Job
+                    </>
                   )}
                 </button>
               </div>
@@ -1652,7 +1692,12 @@ export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN, useAc
         {!showNewJobForm && (
           <div className={`job-panel ${!showMiddlePanel ? 'job-panel-full' : ''}`}>
             <div className="jobs-section">
-              <h3>TRIGGERS</h3>
+              <h3 className="flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-md bg-indigo-100 text-indigo-700">
+                  <Zap className="h-4 w-4" />
+                </span>
+                TRIGGERS
+              </h3>
 
               {/* Single Trigger Card */}
               <div className="trigger-card-section">
@@ -1749,7 +1794,12 @@ export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN, useAc
 
             {/* Job History Section */}
             <div className="history-section">
-              <h3>JOB HISTORY</h3>
+              <h3 className="flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-md bg-slate-100 text-slate-700">
+                  <History className="h-4 w-4" />
+                </span>
+                JOB HISTORY
+              </h3>
 
               {jobHistoryLoading ? (
                 <div className="history-loading">
@@ -1833,6 +1883,63 @@ export default function SchedulerManager({ apiOrigin = DEFAULT_API_ORIGIN, useAc
           </div>
         )}
       </div>
+
+      {statusConfirm && selectedSchedule && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setStatusConfirm(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-gray-900">
+              {statusConfirm === "deactivate" ? "Make job inactive?" : "Make job active?"}
+            </h3>
+            <p className="mt-2 text-sm text-gray-600">
+              {statusConfirm === "deactivate" ? (
+                <>
+                  <span className="font-medium text-gray-800">{selectedSchedule.name}</span> will be
+                  paused and won&apos;t run on its schedule until it is made active again.
+                </>
+              ) : (
+                <>
+                  <span className="font-medium text-gray-800">{selectedSchedule.name}</span> will be
+                  resumed and run on its schedule.
+                </>
+              )}
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                onClick={() => setStatusConfirm(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={`rounded-md px-4 py-2 text-sm font-medium text-white ${
+                  statusConfirm === "deactivate"
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-green-600 hover:bg-green-700"
+                }`}
+                onClick={() => {
+                  const group = selectedSchedule.groupName || "";
+                  const action = statusConfirm;
+                  setStatusConfirm(null);
+                  if (action === "deactivate") pauseJob(group, selectedSchedule.name);
+                  else resumeJob(group, selectedSchedule.name);
+                }}
+              >
+                {statusConfirm === "deactivate" ? "Make Inactive" : "Make Active"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
