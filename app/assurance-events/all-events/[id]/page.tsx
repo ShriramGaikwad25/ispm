@@ -224,7 +224,7 @@ function EventDetailPage() {
             {tab === "summary" && <SummaryTab d={d} />}
             {tab === "sla" && <SlaTab d={d} />}
             {tab === "decisions" && <DecisionsTab d={d} />}
-            {tab === "form" && <ReviewFormTab eventId={ev.eventId} onSubmitted={reload} />}
+            {tab === "form" && <ReviewFormTab eventId={ev.eventId} onSubmitted={reload} hideProposal={fromReview} />}
             {tab === "insight" && <InsightTab d={d} onRefreshed={reload} />}
             {tab === "trail" && <TrailTab eventId={ev.eventId} />}
           </>
@@ -449,7 +449,11 @@ function DecisionsTab({ d }: { d: CcEventDetail }) {
 const initialValues = (v: CcReviewFormView): Values =>
   Object.fromEntries(v.fields.filter((f) => f.value !== null && f.value !== undefined).map((f) => [f.name, f.value]));
 
-function ReviewFormTab({ eventId, onSubmitted }: { eventId: string; onSubmitted: () => void }) {
+function ReviewFormTab({ eventId, onSubmitted, hideProposal }: {
+  eventId: string; onSubmitted: () => void;
+  /** Opened from the Review Queue: the reviewer sees the form only, without the agent proposal. */
+  hideProposal?: boolean;
+}) {
   const q = useQuery({ queryKey: ["continuouscompliance", "event", eventId, "review-form"], queryFn: () => CcEvents.reviewForm(eventId) });
   const [view, setView] = useState<CcReviewFormView | undefined>(undefined);
   const [values, setValues] = useState<Values>({});
@@ -488,7 +492,7 @@ function ReviewFormTab({ eventId, onSubmitted }: { eventId: string; onSubmitted:
   };
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-6">
+    <div className={cx("grid grid-cols-1 gap-6", !hideProposal && "xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]")}>
       <Card
         title={`${view.title}`}
         subtitle={<><span className="font-mono">{view.formCode}@v{view.formVersion}</span> · event {view.eventStatus} · {view.submittable ? (view.canSubmit ? "submittable" : `read-only (${view.submitAuthority} only)`) : "read-only"} · pinned when routed</>}
@@ -555,11 +559,13 @@ function ReviewFormTab({ eventId, onSubmitted }: { eventId: string; onSubmitted:
         </div>
       </Card>
 
-      <Card title="Agent Proposal">
-        {view.proposal && Object.keys(view.proposal).length
-          ? <ObjView v={view.proposal} />
-          : <span className="text-sm text-gray-500">No proposal (no AGENT executor bound, or none produced).</span>}
-      </Card>
+      {!hideProposal && (
+        <Card title="Agent Proposal">
+          {view.proposal && Object.keys(view.proposal).length
+            ? <ObjView v={view.proposal} />
+            : <span className="text-sm text-gray-500">No proposal (no AGENT executor bound, or none produced).</span>}
+        </Card>
+      )}
     </div>
   );
 }
