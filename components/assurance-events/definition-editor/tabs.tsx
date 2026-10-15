@@ -16,7 +16,7 @@ import {
 import { Definitions } from "@/lib/assurance-events-api";
 import { Controls, ccRequest, type Control } from "@/lib/controls-api";
 import { CC_DEFINITIONS_KEY, CcDefinitions } from "@/lib/cc-definitions-api";
-import { ACTIONS_BASE } from "@/lib/cc-actions-api";
+import { ACTIONS_BASE, ACTIONS_KEY, Actions, type ActionType } from "@/lib/cc-actions-api";
 import { SLA_POLICIES_KEY, Slas, applySlaPolicy, matchSlaPolicy } from "@/lib/assurance-sla";
 import { NotificationBindings, listEmailTemplates } from "@/lib/assurance-notification-bindings";
 import type {
@@ -24,7 +24,7 @@ import type {
 } from "@/lib/assurance-events-api";
 import { formatAbsolute } from "@/lib/assurance-format";
 import {
-  BTN_GHOST, BTN_SECONDARY, INPUT, INPUT_BASE, LABEL, LookupSelect, Spinner, TBODY, TD, TH, THEAD_ROW, cx,
+  BTN_GHOST, BTN_PRIMARY, BTN_SECONDARY, INPUT, INPUT_BASE, LABEL, LookupSelect, Modal, Spinner, TBODY, TD, TH, THEAD_ROW, cx,
 } from "../ui";
 import { EscalationChainEditor, JsonField, KeyValueList, Section, StateBadge } from "./fields";
 
@@ -342,12 +342,15 @@ export function DetectionTab({ dto, patch, ro }: TabProps) {
 // Governance policy
 // ---------------------------------------------------------------------
 
-// Governance policy — one row per rule of governancePolicy.rules (read-only):
-// Rule Name (the rule's id), When (its CEL condition), Then (the action it runs
-// and its parameters, or what else the rule decides), and — from the action
-// library entry the definition names (GET /compliance/definitions/{id} →
-// actions) — the action's Target and Auto-Execution, plus the rule's
-// Justification.
+// Governance policy — one row per rule of governancePolicy.rules: Rule Name
+// (the rule's id), When (its CEL condition), Then (the action it runs and its
+// parameters, or what else the rule decides), the action's Target and
+// Auto-Execution (from the action library), and the rule's Justification.
+// "Add Rule" builds rules: a name, a When condition, one or more actions from
+// the ACTIVE action library with their parameter values, and a justification.
+// A service rule runs one action, so a rule with several actions is saved as
+// one rule per action (name, name-2, …) sharing the When and Justification.
+// Changes are kept in the editor until the definition is saved.
 
 /** GET /compliance/definitions/{id} → actions: the actions the definition names (derived on save, pinned on activation). */
 interface ActionsUsedView {
@@ -356,13 +359,32 @@ interface ActionsUsedView {
 
 const asText = (v: unknown) => (typeof v === "string" ? v : JSON.stringify(v));
 
-export function GovernanceTab({ dto }: TabProps) {
+/** ACTIVE action library, a tenant action overriding a system action of the same code. */
+function useActiveActions() {
+  const q = useQuery({ queryKey: [...ACTIONS_KEY, "list", { state: "ACTIVE" }], queryFn: () => Actions.list({ state: "ACTIVE" }) });
+  const byCode = new Map<string, ActionType>();
+  for (const a of q.data ?? []) if (!byCode.has(a.code) || !a.system) byCode.set(a.code, a);
+  return { ...q, actions: [...byCode.values()].sort((x, y) => x.code.localeCompare(y.code)), byCode };
+}
+
+export function GovernanceTab({ dto, patch, ro }: TabProps) {
   const rules = dto.governancePolicy?.rules ?? [];
-  const actions = (dto as unknown as { actions?: ActionsUsedView }).actions?.items ?? [];
-  const actionFor = (code?: string) => (code ? actions.find((a) => a.code === code) : undefined);
+  const used = (dto as unknown as { actions?: ActionsUsedView }).actions?.items ?? [];
+  const library = useActiveActions();
+  const [adding, setAdding] = useState(false);
+  const actionFor = (code?: string) => (code ? used.find((a) => a.code === code) ?? library.byCode.get(code) : undefined);
+  const setRules = (next: GovernanceRule[]) => patch({ governancePolicy: { ...dto.governancePolicy, rules: next } });
 
   return (
-    <Section title="Governance Policy" hint="Rules in order: the first rule whose When holds decides what happens to the finding.">
+    <Section
+      title="Governance Policy"
+      hint="Rules in order: the first rule whose When holds decides what happens to the finding. New rules are kept until you save the definition."
+      actions={!ro && (
+        <button className={cx(BTN_SECONDARY, "text-xs")} onClick={() => setAdding(true)}>
+          <Plus size={12} /> Add Rule
+        </button>
+      )}
+    >
       <div className="border border-gray-200 rounded-lg overflow-x-auto">
         <table className="w-full">
           <thead>
@@ -373,6 +395,7 @@ export function GovernanceTab({ dto }: TabProps) {
               <th className={TH}>Target</th>
               <th className={TH}>Justification</th>
               <th className={TH}>Auto-Execution</th>
+              {!ro && <th className={TH}></th>}
             </tr>
           </thead>
           <tbody className={TBODY}>
@@ -428,18 +451,199 @@ export function GovernanceTab({ dto }: TabProps) {
                       </span>
                     ) : <span className="text-gray-400">—</span>}
                   </td>
+                  {!ro && (
+                    <td className={TD}>
+                      <button className={cx(BTN_GHOST, "px-2 text-red-600")} aria-label={`Remove rule ${rule.id}`}
+                              onClick={() => setRules(rules.filter((_, j) => j !== i))}>
+                        <Trash2 size={13} />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               );
             })}
             {!rules.length && (
-              <tr><td colSpan={6} className="px-4 py-6 text-center text-sm text-gray-500">
+              <tr><td colSpan={7} className="px-4 py-6 text-center text-sm text-gray-500">
                 No rules: findings go to the definition&apos;s reviewer.
               </td></tr>
             )}
           </tbody>
         </table>
       </div>
+
+      {adding && (
+        <RuleBuilder
+          existingIds={rules.map((r) => r.id)}
+          library={library}
+          onClose={() => setAdding(false)}
+          onAdd={(newRules) => { setRules([...rules, ...newRules]); setAdding(false); }}
+        />
+      )}
     </Section>
+  );
+}
+
+/** A parameter value as typed by the user → the value sent (templates such as ${subject.x} stay strings). */
+function paramValue(type: string, raw: string): unknown {
+  const v = raw.trim();
+  if (v.includes("${")) return v;
+  if (type === "integer" || type === "number") return Number.isNaN(Number(v)) ? v : Number(v);
+  if (type === "boolean") return v === "true";
+  if (type === "string[]" || type === "json") { try { return JSON.parse(v); } catch { return v; } }
+  return v;
+}
+
+type ActionPick = { code: string; params: Record<string, string> };
+
+function RuleBuilder({ existingIds, library, onClose, onAdd }: {
+  existingIds: string[];
+  library: ReturnType<typeof useActiveActions>;
+  onClose: () => void;
+  onAdd: (rules: GovernanceRule[]) => void;
+}) {
+  const [name, setName] = useState("");
+  const [when, setWhen] = useState("");
+  const [picks, setPicks] = useState<ActionPick[]>([{ code: "", params: {} }]);
+  const [justification, setJustification] = useState("");
+
+  const choose = (i: number, code: string) => {
+    const a = library.byCode.get(code);
+    // Pre-fill each parameter with its suggested template or default.
+    const params = Object.fromEntries((a?.parameters ?? []).map((p) => [
+      p.name, p.suggested ?? (p.default == null ? "" : typeof p.default === "string" ? p.default : JSON.stringify(p.default)),
+    ]));
+    setPicks(picks.map((x, j) => (j === i ? { code, params } : x)));
+  };
+  const setParam = (i: number, param: string, value: string) =>
+    setPicks(picks.map((x, j) => (j === i ? { ...x, params: { ...x.params, [param]: value } } : x)));
+
+  const ruleId = name.trim();
+  const chosen = picks.filter((p) => p.code);
+  const ids = chosen.map((_, i) => (i ? `${ruleId}-${i + 1}` : ruleId));
+  const problems: string[] = [];
+  if (!ruleId) problems.push("Give the rule a name.");
+  if (ids.some((id) => existingIds.includes(id))) problems.push(`A rule named ${ruleId} already exists.`);
+  if (!when.trim()) problems.push("Provide the When condition.");
+  if (!chosen.length) problems.push("Select at least one action.");
+  for (const p of chosen) {
+    const a = library.byCode.get(p.code);
+    const missing = (a?.parameters ?? []).filter((x) => x.required && x.default == null && !(p.params[x.name] ?? "").trim()).map((x) => x.name);
+    if (missing.length) problems.push(`${p.code} needs ${missing.join(", ")}.`);
+  }
+  if (!justification.trim()) problems.push("Provide the justification.");
+
+  const build = (): GovernanceRule[] => chosen.map((p, i) => {
+    const a = library.byCode.get(p.code);
+    const params: Record<string, unknown> = {};
+    for (const x of a?.parameters ?? []) {
+      const raw = p.params[x.name] ?? "";
+      if (raw.trim() !== "") params[x.name] = paramValue(x.type, raw);
+    }
+    return {
+      id: ids[i],
+      point: "AUTO_REMEDIATION_GATE",
+      when: when.trim(),
+      then: { action: p.code, params, justification: justification.trim() },
+    };
+  });
+
+  return (
+    <Modal title="Add Rule" onClose={onClose} widthClass="max-w-3xl">
+      <div className="space-y-5">
+        <div>
+          <label className={LABEL}>Rule name</label>
+          <input className={cx(INPUT, "font-mono")} value={name} placeholder="e.g. assign-fallback" onChange={(e) => setName(e.target.value)} />
+        </div>
+        <div>
+          <label className={LABEL}>When (CEL condition)</label>
+          <input className={cx(INPUT, "font-mono text-xs")} value={when} placeholder="!finding.fallbackAvailable && subject.riskTier == 'HIGH'"
+                 onChange={(e) => setWhen(e.target.value)} />
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-gray-900">Then — actions</span>
+            <button className={cx(BTN_SECONDARY, "text-xs")} onClick={() => setPicks([...picks, { code: "", params: {} }])}>
+              <Plus size={12} /> Add Action
+            </button>
+          </div>
+          {picks.map((p, i) => {
+            const a = library.byCode.get(p.code);
+            return (
+              <div key={i} className="rounded-lg border border-gray-200 p-3 space-y-3">
+                <div className="flex gap-2 items-start">
+                  <select className={INPUT} value={p.code} onChange={(e) => choose(i, e.target.value)}>
+                    <option value="">{library.isLoading ? "Loading actions…" : "— Select an action —"}</option>
+                    {library.actions.map((x) => (
+                      <option key={x.code} value={x.code} disabled={x.autoExecution === "REVIEW_ONLY"}>
+                        {x.name} ({x.code} v{x.version}){x.autoExecution === "REVIEW_ONLY" ? " — review only" : ""}
+                      </option>
+                    ))}
+                  </select>
+                  {picks.length > 1 && (
+                    <button className={cx(BTN_GHOST, "px-2 text-red-600")} aria-label="Remove action"
+                            onClick={() => setPicks(picks.filter((_, j) => j !== i))}>
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
+                {a?.description && <p className="text-xs text-gray-500">{a.description}</p>}
+                {a && (a.parameters ?? []).length > 0 && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {(a.parameters ?? []).map((x) => (
+                      <div key={x.name}>
+                        <label className={LABEL}>
+                          {x.label || x.name}{x.required && <span className="text-red-600"> *</span>}
+                          <span className="text-xs text-gray-400"> {x.type}</span>
+                        </label>
+                        {x.enum?.length ? (
+                          <select className={INPUT} value={p.params[x.name] ?? ""} onChange={(e) => setParam(i, x.name, e.target.value)}>
+                            <option value="">—</option>
+                            {x.enum.map((o) => <option key={o}>{o}</option>)}
+                          </select>
+                        ) : x.type === "boolean" ? (
+                          <select className={INPUT} value={p.params[x.name] ?? ""} onChange={(e) => setParam(i, x.name, e.target.value)}>
+                            <option value="">—</option>
+                            <option value="true">true</option>
+                            <option value="false">false</option>
+                          </select>
+                        ) : (
+                          <input className={cx(INPUT, "font-mono text-xs")} value={p.params[x.name] ?? ""}
+                                 placeholder={x.default != null ? `default ${JSON.stringify(x.default)}` : x.example != null ? String(x.example) : ""}
+                                 onChange={(e) => setParam(i, x.name, e.target.value)} />
+                        )}
+                        {x.help && <p className="text-[11px] text-gray-500 mt-0.5">{x.help}</p>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {a && !(a.parameters ?? []).length && <p className="text-xs text-gray-500">This action takes no parameters.</p>}
+              </div>
+            );
+          })}
+          <p className="text-xs text-gray-500">
+            Values may be literals or templates such as <code>{"${subject.entitlementId}"}</code>. Review-only actions cannot run from a rule.
+          </p>
+        </div>
+
+        <div>
+          <label className={LABEL}>Justification</label>
+          <textarea className={INPUT} rows={2} value={justification} placeholder="Why this rule acts — recorded with the decision"
+                    onChange={(e) => setJustification(e.target.value)} />
+        </div>
+
+        {problems.length > 0 && (name || when || chosen.length || justification) ? (
+          <ul className="text-xs text-red-600 list-disc ml-5 space-y-0.5">{problems.map((p) => <li key={p}>{p}</li>)}</ul>
+        ) : null}
+
+        <div className="flex justify-end gap-2">
+          <button className={BTN_SECONDARY} onClick={onClose}>Cancel</button>
+          <button className={BTN_PRIMARY} disabled={problems.length > 0} onClick={() => onAdd(build())}>
+            Add {chosen.length > 1 ? `${chosen.length} Rules` : "Rule"}
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
