@@ -249,18 +249,110 @@ function EventsTab({ defs }: { defs: CcDefinitionRef[] }) {
 
 /* ================================================================ Review queue */
 
+type QueueFilters = {
+  search: string;
+  status: string[];
+  severity: string[];
+  definitionId: string;
+  reviewForm: string;
+  dueOnOrBefore: string;
+  overdueOnly: boolean;
+};
+const DEFAULT_QUEUE_FILTERS: QueueFilters = {
+  search: "", status: [], severity: [], definitionId: "", reviewForm: "", dueOnOrBefore: "", overdueOnly: false,
+};
+const QUEUE_STATUSES = ["OPEN", "IN_REVIEW"];
+
 function ReviewQueueTab({ defs }: { defs: CcDefinitionRef[] }) {
   const q = useQuery({
     queryKey: ["continuouscompliance", "events", "review-queue"],
     queryFn: () => CcEvents.search({ status: ["IN_REVIEW", "OPEN"], page: 0, pageSize: 500 }),
   });
+  const [filters, setFilters] = useState<QueueFilters>(DEFAULT_QUEUE_FILTERS);
+  const set = <K extends keyof QueueFilters>(key: K, value: QueueFilters[K]) => setFilters((f) => ({ ...f, [key]: value }));
+  const toggle = (key: "status" | "severity", v: string) =>
+    setFilters((f) => ({ ...f, [key]: f[key].includes(v) ? f[key].filter((x) => x !== v) : [...f[key], v] }));
+  const defById = useMemo(() => new Map(defs.map((d) => [d.definitionId, d])), [defs]);
+
   // Routed to a reviewer: IN_REVIEW, or OPEN with a pinned review form — ordered by SLA pressure.
-  const rows = useMemo(() => (q.data?.content ?? [])
+  const queue = useMemo(() => (q.data?.content ?? [])
     .filter((e) => e.status === "IN_REVIEW" || !!e.evidence?.reviewForm)
     .sort((a, b) => new Date(a.dueAt ?? 0).getTime() - new Date(b.dueAt ?? 0).getTime()), [q.data]);
+  // Choices offered by the filters: what is actually in the queue.
+  const queueDefs = useMemo(() => [...new Set(queue.map((e) => e.definitionId))]
+    .map((id) => defById.get(id) ?? { definitionId: id, code: id.slice(0, 8), version: 0, state: "", name: "" })
+    .sort((a, b) => a.code.localeCompare(b.code)), [queue, defById]);
+  const forms = useMemo(() => [...new Set(queue.map((e) => e.evidence?.reviewForm).filter(Boolean) as string[])].sort(), [queue]);
+
+  const rows = useMemo(() => {
+    const needle = filters.search.trim().toLowerCase();
+    const dueLimit = filters.dueOnOrBefore ? new Date(`${filters.dueOnOrBefore}T23:59:59.999`).getTime() : null;
+    const now = Date.now();
+    return queue.filter((e) => {
+      if (filters.status.length && !filters.status.includes(e.status)) return false;
+      if (filters.severity.length && !filters.severity.includes(e.severity)) return false;
+      if (filters.definitionId && e.definitionId !== filters.definitionId) return false;
+      if (filters.reviewForm && e.evidence?.reviewForm !== filters.reviewForm) return false;
+      if (dueLimit != null && (!e.dueAt || new Date(e.dueAt).getTime() > dueLimit)) return false;
+      if (filters.overdueOnly && (!e.dueAt || new Date(e.dueAt).getTime() >= now)) return false;
+      if (needle) {
+        const def = defById.get(e.definitionId);
+        const hay = [subjectLabel(e), e.eventId, e.eventTypeCode, def?.code ?? "", def?.name ?? "", e.reviewerPrincipalId ?? "",
+          e.correlationKey ?? "", String(e.evidence?.reviewForm ?? "")].join(" ").toLowerCase();
+        if (!hay.includes(needle)) return false;
+      }
+      return true;
+    });
+  }, [queue, filters, defById]);
+  const filtered = JSON.stringify(filters) !== JSON.stringify(DEFAULT_QUEUE_FILTERS);
 
   return (
     <>
+      <div className="border border-gray-200 rounded-lg bg-white shadow-sm p-5 mb-6 space-y-4">
+        <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
+          <Filter size={16} className="text-gray-500" />
+          <h2 className="text-sm font-semibold text-gray-900">Filters</h2>
+        </div>
+        <ChipRow label="Status" values={QUEUE_STATUSES} selected={filters.status} onToggle={(v) => toggle("status", v)} />
+        <ChipRow label="Severity" values={SEVERITIES} selected={filters.severity} onToggle={(v) => toggle("severity", v)} />
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <label className="lg:col-span-2">
+            <span className={FIELD_LABEL}>Search</span>
+            <input className={FIELD} value={filters.search} placeholder="Subject, event ID, definition, reviewer…"
+                   onChange={(e) => set("search", e.target.value)} />
+          </label>
+          <label>
+            <span className={FIELD_LABEL}>Definition</span>
+            <select className={FIELD} value={filters.definitionId} onChange={(e) => set("definitionId", e.target.value)}>
+              <option value="">All</option>
+              {queueDefs.map((d) => (
+                <option key={d.definitionId} value={d.definitionId}>{d.code}{d.version ? ` v${d.version}` : ""}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span className={FIELD_LABEL}>Review Form</span>
+            <select className={FIELD} value={filters.reviewForm} onChange={(e) => set("reviewForm", e.target.value)}>
+              <option value="">All</option>
+              {forms.map((f) => <option key={f} value={f}>{f}</option>)}
+            </select>
+          </label>
+          <label>
+            <span className={FIELD_LABEL}>Due On or Before</span>
+            <input type="date" className={FIELD} value={filters.dueOnOrBefore} onChange={(e) => set("dueOnOrBefore", e.target.value)} />
+          </label>
+          <label className="flex items-end gap-2 pb-2 text-sm text-gray-700">
+            <input type="checkbox" checked={filters.overdueOnly} onChange={(e) => set("overdueOnly", e.target.checked)} />
+            Overdue only
+          </label>
+          <div className="flex items-end gap-2 lg:col-span-2">
+            <button type="button" className={BTN_SECONDARY} onClick={() => setFilters(DEFAULT_QUEUE_FILTERS)} disabled={!filtered}>Reset</button>
+            <button type="button" className={BTN_SECONDARY} onClick={() => q.refetch()}>Refresh</button>
+          </div>
+        </div>
+      </div>
+
       {q.error && (
         <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           Failed to load the review queue. {(q.error as Error).message}
@@ -269,14 +361,14 @@ function ReviewQueueTab({ defs }: { defs: CcDefinitionRef[] }) {
       <div className={cx(CARD, "overflow-hidden")}>
         <div className="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className={CARD_TITLE}>Review Queue ({rows.length})</div>
+            <div className={CARD_TITLE}>Review Queue ({filtered ? `${rows.length} of ${queue.length}` : rows.length})</div>
             <div className={CARD_SUBTITLE}>
               Events routed to a reviewer, ordered by SLA pressure. Opening one lands on the review form pinned when it was routed.
             </div>
           </div>
-          <button type="button" className={BTN_SECONDARY} onClick={() => q.refetch()}>Refresh</button>
         </div>
-        <EventsTable rows={rows} defs={defs} loading={q.isLoading} tab="form" from="review" empty={q.error ? null : "Nothing is waiting for a reviewer."} />
+        <EventsTable rows={rows} defs={defs} loading={q.isLoading} tab="form" from="review"
+                     empty={q.error ? null : filtered ? "No events match the filters." : "Nothing is waiting for a reviewer."} />
       </div>
     </>
   );
