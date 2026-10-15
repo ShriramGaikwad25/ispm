@@ -43,36 +43,32 @@ function errorText(e: unknown): string {
 
 export default function ControlLibraryPage() {
   const router = useRouter();
-  const [family, setFamily] = useState("");
   const [category, setCategory] = useState("");
   const [state, setState] = useState("");
   const [search, setSearch] = useState("");
   const [banner, setBanner] = useState<Banner>(null);
 
-  const query: ControlQuery = { family: family || undefined, category: category || undefined, state: state || undefined, q: search || undefined };
+  const query: ControlQuery = { category: category || undefined, state: state || undefined, q: search || undefined };
   // Connection check first, as the Continuous Compliance Console does on load.
   const connection = useCcConnection();
-  const familiesQ = useQuery({ queryKey: [...KEY, "families"], queryFn: Controls.families });
   const categoriesQ = useQuery({ queryKey: [...KEY, "categories"], queryFn: Controls.categories });
   const controlsQ = useQuery({ queryKey: [...KEY, "list", query], queryFn: () => Controls.list(query) });
   // Unfiltered list for the summary cards and the family tiles.
   const allQ = useQuery({ queryKey: [...KEY, "list", {}], queryFn: () => Controls.list({}) });
 
-  const families = familiesQ.data?.families ?? [];
   const categories = useMemo(() => categoriesQ.data ?? [], [categoriesQ.data]);
   const controls = useMemo(() => (Array.isArray(controlsQ.data) ? controlsQ.data : []), [controlsQ.data]);
   const all = useMemo(() => (Array.isArray(allQ.data) ? allQ.data : []), [allQ.data]);
-  const error = connection.error ?? controlsQ.error ?? categoriesQ.error ?? familiesQ.error;
+  const error = connection.error ?? controlsQ.error ?? categoriesQ.error;
 
   const categoryName = (code: string) => categories.find((c) => c.code === code)?.displayName ?? code;
 
   const s = useMemo(() => ({
     controls: all.length,
     active: all.filter((c) => c.state === "ACTIVE").length,
-    families: families.length,
     categories: categories.length,
     tenant: all.filter((c) => !c.system).length,
-  }), [all, families, categories]);
+  }), [all, categories]);
 
   // Controls grouped by category, in the order of the category list.
   const grouped = useMemo(() => {
@@ -94,8 +90,9 @@ export default function ControlLibraryPage() {
           title="Control Library"
           subtitle={
             <>
-              Every control KeyForge can evaluate, across {s.families || "its"} detection families. A control is a named,
-              categorised condition on one object kind; system controls are read-only — clone one to change it.
+              Every control KeyForge can evaluate is listed here across various categories. A control is a named,
+              categorised condition on one object kind; system controls are read only - you may clone the existing
+              control to build a new one.
             </>
           }
         />
@@ -110,10 +107,9 @@ export default function ControlLibraryPage() {
         )}
 
         {allQ.data && (
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <StatCard label="Controls" value={s.controls} hint="In the library" />
             <StatCard label="Active" value={s.active} hint="Evaluated when linked to a definition" />
-            <StatCard label="Detection families" value={s.families} hint="How controls are evaluated" />
             <StatCard label="Categories" value={s.categories} hint="Groups of related controls" />
             <StatCard label="Tenant controls" value={s.tenant} hint="Cloned or created by you" />
           </div>
@@ -184,14 +180,6 @@ export default function ControlLibraryPage() {
             className="flex-1 min-w-[260px] rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
           <div className="flex flex-wrap items-center gap-2">
-            <select className={FILTER_INPUT} value={family} onChange={(e) => setFamily(e.target.value)} aria-label="Family">
-              <option value="">All families</option>
-              {families.map((f) => (
-                <option key={f.code} value={f.code}>
-                  {typeof f.displayName === "string" && f.displayName ? f.displayName : f.code}
-                </option>
-              ))}
-            </select>
             <select className={FILTER_INPUT} value={state} onChange={(e) => setState(e.target.value)} aria-label="State">
               <option value="">All states</option>
               {STATES.map((st) => <option key={st} value={st}>{st.charAt(0) + st.slice(1).toLowerCase()}</option>)}
