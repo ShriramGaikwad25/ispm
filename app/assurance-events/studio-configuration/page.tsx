@@ -12,7 +12,7 @@ import { ExecutorsTab } from "@/components/assurance-events/ExecutorsTab";
 import { StateBadge } from "@/components/assurance-events/definition-editor/fields";
 import {
   CARD, CARD_BODY, CARD_HEADER, CARD_SUBTITLE, CARD_TITLE, PAGE, PAGE_INNER, PILL, PageHeader, PageSpinner,
-  TBODY, TD, TH, THEAD_ROW, TR_CLICKABLE, TabBar, cx,
+  StatCard, TBODY, TD, TH, THEAD_ROW, TR_CLICKABLE, TabBar, cx,
 } from "@/components/assurance-events/ui";
 
 // =====================================================================
@@ -195,15 +195,6 @@ function ActionLibraryTab() {
   );
 }
 
-function StatCard({ label, value, hint }: { label: string; value: number; hint: string }) {
-  return (
-    <div className="border border-gray-200 rounded-lg bg-white p-4 shadow-sm">
-      <div className="text-xs font-medium text-gray-500">{label}</div>
-      <div className="mt-2 text-2xl font-bold text-gray-900">{value}</div>
-      <div className="mt-1 text-xs text-gray-500">{hint}</div>
-    </div>
-  );
-}
 
 /* ================================================================ CEL functions */
 

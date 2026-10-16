@@ -63,7 +63,7 @@ export function Navigation() {
   const routeMatchesExact = (href: string): boolean =>
     normalizePath(pathname) === hrefPathOnly(href);
 
-  /** Sub-items plus the links of nested groups (e.g. Assurance Events › Datalake › Entitlements). */
+  /** Sub-items plus the links of nested groups (a sub-item with its own subItems). */
   const flattenSubItems = (items?: NavItem[]): NavItem[] =>
     (items ?? []).flatMap((s) => [s, ...flattenSubItems(s.subItems)]);
 

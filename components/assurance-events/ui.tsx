@@ -30,7 +30,7 @@ export const CARD_BODY = "p-5";
 // ---------- Tables ----------
 
 export const TABLE = "w-full";
-export const THEAD_ROW = "bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500";
+export const THEAD_ROW = "bg-blue-50 border-b border-blue-100 text-left text-xs font-semibold uppercase tracking-wide text-[#1759e4]";
 export const TH = "px-4 py-3";
 export const TBODY = "divide-y divide-gray-100";
 export const TD = "px-4 py-3 align-top text-sm text-gray-700";
@@ -95,9 +95,10 @@ export function PageHeader({ title, subtitle, actions, children, wideSubtitle }:
 }
 
 /** Summary tile, as in the gateway pages' stat rows. */
+/** Stat tile with a colored left accent; the color cycles by position in its row (see .stat-card in globals.css). */
 export function StatCard({ label, value, hint }: { label: ReactNode; value: ReactNode; hint?: ReactNode }) {
   return (
-    <div className="border border-gray-200 rounded-lg bg-white p-4 shadow-sm">
+    <div className="stat-card border border-gray-200 border-l-4 rounded-lg bg-white p-4 shadow-sm">
       <div className="text-xs font-medium text-gray-500">{label}</div>
       <div className="mt-2 text-2xl font-bold text-gray-900">{value}</div>
       {hint && <div className="text-xs text-gray-500 mt-1">{hint}</div>}
@@ -133,7 +134,7 @@ export function Modal({ title, onClose, children, widthClass = "max-w-lg" }: {
 
 /** Underlined tab bar used by the editors (Studio configuration, definitions). */
 export function TabBar<K extends string>({ tabs, active, onChange }: {
-  tabs: Array<[K, string]>; active: K; onChange: (k: K) => void;
+  tabs: Array<[K, ReactNode]>; active: K; onChange: (k: K) => void;
 }) {
   return (
     // overflow-y-hidden: overflow-x-auto alone also makes the bar scroll vertically (the active
@@ -141,7 +142,7 @@ export function TabBar<K extends string>({ tabs, active, onChange }: {
     <div className="border-b border-gray-200 flex gap-6 overflow-x-auto overflow-y-hidden mb-6" role="tablist">
       {tabs.map(([k, label]) => (
         <button key={k} role="tab" aria-selected={active === k} onClick={() => onChange(k)}
-                className={cx("py-3 text-sm whitespace-nowrap border-b-2 -mb-px font-medium",
+                className={cx("inline-flex items-center gap-2 py-3 text-sm whitespace-nowrap border-b-2 -mb-px font-medium",
                   active === k ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700")}>
           {label}
         </button>

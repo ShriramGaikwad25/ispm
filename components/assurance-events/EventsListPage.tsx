@@ -16,7 +16,7 @@ import {
 } from "@/components/assurance-events/ui";
 
 // =====================================================================
-// Event list page shared by All Events and Reviewer Inbox — the same
+// Event list page used by All Events — the same
 // split as the Continuous Assurance app, where /events and /inbox both
 // render InboxPage (EventFilters + EventList) with a different title and
 // default status filter. Filters are mirrored into the URL so links

@@ -289,6 +289,13 @@ div[role="row"]:not(.ag-header-row) {
   display: none; /* Chrome, Safari, Opera */
 }
 
+/* Stat tiles (StatCard): colored left accent, cycling through five colors by position in the row */
+.stat-card:nth-child(5n + 1) { border-left-color: #2563eb; } /* blue */
+.stat-card:nth-child(5n + 2) { border-left-color: #16a34a; } /* green */
+.stat-card:nth-child(5n + 3) { border-left-color: #d97706; } /* amber */
+.stat-card:nth-child(5n + 4) { border-left-color: #7c3aed; } /* violet */
+.stat-card:nth-child(5n + 5) { border-left-color: #e11d48; } /* rose */
+
 /* Accessibility: Focus Indicators */
 *:focus-visible {
   outline: 2px solid #2563eb;

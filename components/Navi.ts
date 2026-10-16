@@ -38,7 +38,10 @@ import {
   List,
   CalendarClock,
   Database,
-  KeyRound,
+  House,
+  Inbox,
+  Bot,
+  Plug,
 } from "lucide-react";
 import { riskAnalysisSubItems } from "@/lib/risk-analysis-routes";
 
@@ -141,20 +144,42 @@ export const navLinks: NavItem[] = [
     href: "/assurance-events",
     icon: ShieldCheck,
     subItems: [
-      { name: "Control Library", href: "/assurance-events/control-library", icon: Library },
-      { name: "Review Forms", href: "/assurance-events/review-forms", icon: ClipboardCheck },
-      { name: "Studio Configuration", href: "/assurance-events/studio-configuration", icon: SlidersHorizontal },
-      { name: "Event Definitions", href: "/assurance-events/event-definitions", icon: FileText },
-      { name: "Notifications", href: "/assurance-events/notifications", icon: Bell },
-      { name: "SLA", href: "/assurance-events/sla", icon: Clock },
-      { name: "All Events", href: "/assurance-events/all-events", icon: List },
-      { name: "Scheduler", href: "/assurance-events/scheduler", icon: CalendarClock },
+      { name: "Home", href: "/assurance-events", icon: House },
       {
-        name: "Datalake",
-        href: "/assurance-events/datalake",
-        icon: Database,
+        name: "Events",
+        href: "/assurance-events/all-events",
+        icon: Inbox,
         subItems: [
-          { name: "Entitlements", href: "/assurance-events/datalake/entitlements", icon: KeyRound },
+          { name: "All Events", href: "/assurance-events/all-events", icon: List },
+        ],
+      },
+      {
+        name: "Agent Studio",
+        href: "/assurance-events/event-definitions",
+        icon: Bot,
+        subItems: [
+          { name: "Event Definitions", href: "/assurance-events/event-definitions", icon: FileText },
+          { name: "Control Library", href: "/assurance-events/control-library", icon: Library },
+          { name: "Review Forms", href: "/assurance-events/review-forms", icon: ClipboardCheck },
+          { name: "Studio Configuration", href: "/assurance-events/studio-configuration", icon: SlidersHorizontal },
+        ],
+      },
+      {
+        name: "Integrations",
+        href: "/assurance-events/datalake/entitlements",
+        icon: Plug,
+        subItems: [
+          { name: "Data Explorer", href: "/assurance-events/datalake/entitlements", icon: Database },
+          { name: "Scheduler", href: "/assurance-events/scheduler", icon: CalendarClock },
+        ],
+      },
+      {
+        name: "Administration",
+        href: "/assurance-events/sla",
+        icon: ShieldCheck,
+        subItems: [
+          { name: "SLA", href: "/assurance-events/sla", icon: Clock },
+          { name: "Notifications", href: "/assurance-events/notifications", icon: Bell },
         ],
       },
     ],
