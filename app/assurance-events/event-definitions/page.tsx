@@ -2,14 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
-import { useRightSidebar } from "@/contexts/RightSidebarContext";
 import { useCcConnection } from "@/hooks/useCcConnection";
-import { CC_DEFINITIONS_KEY, CcDefinitionWrites, NEW_DEFINITION } from "@/lib/cc-definitions-api";
+import { CC_DEFINITIONS_KEY, CcDefinitionWrites } from "@/lib/cc-definitions-api";
 import { formatAbsolute, formatRelative } from "@/lib/assurance-format";
 import {
-  BTN_PRIMARY, BTN_SECONDARY, CARD, CARD_SUBTITLE, CARD_TITLE, INPUT, LABEL, PAGE,
+  BTN_PRIMARY, BTN_SECONDARY, CARD, CARD_SUBTITLE, CARD_TITLE, PAGE,
   PAGE_INNER, PageHeader, Spinner, StatCard, TBODY, TD, TH, THEAD_ROW, TR_CLICKABLE, cx,
 } from "@/components/assurance-events/ui";
 import { BannerBar, SeverityBadge, StateBadge } from "@/components/assurance-events/definition-editor/fields";
@@ -24,11 +23,9 @@ import { DEFINITIONS_BASE } from "@/components/assurance-events/definition-edito
 //   POST /compliance/definitions                 (create, DRAFT)
 //   POST /compliance/definitions/{id}/versions   (new version)
 // Laid out like ISPM's SLA & Escalation Policies page (stat cards, registry
-// card with filters, create form in the right sidebar). A row opens the
-// definition editor.
+// card with filters). "Create Definition" opens the editor's tabs on a new
+// definition (./new); a row opens the definition editor.
 // =====================================================================
-
-const SEVERITIES = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
 
 /** The governance policy as a rule count (the summary's text stays available on hover). */
 function ruleCount(policy?: { text?: string; [k: string]: unknown }): string {
@@ -48,8 +45,6 @@ const FILTER_INPUT =
 
 export default function EventDefinitionsPage() {
   const router = useRouter();
-  const qc = useQueryClient();
-  const { openSidebar, closeSidebar } = useRightSidebar();
   const connection = useCcConnection();
   const [banner, setBanner] = useState<Banner>(null);
   const [state, setState] = useState("");
@@ -63,7 +58,6 @@ export default function EventDefinitionsPage() {
   const open = (id: string) => router.push(`${DEFINITIONS_BASE}/${id}`);
   const rows = useMemo(() => list.data ?? [], [list.data]);
   const all = useMemo(() => allQ.data ?? [], [allQ.data]);
-  const eventTypes = useMemo(() => [...new Set(all.map((d) => d.eventTypeCode))].sort(), [all]);
 
   const stats = useMemo(() => ({
     active: all.filter((d) => d.state === "ACTIVE").length,
@@ -71,88 +65,13 @@ export default function EventDefinitionsPage() {
     deprecated: all.filter((d) => d.state === "DEPRECATED").length,
   }), [all]);
 
-  const openCreateSidebar = () => {
-    const CreateDefinitionForm = () => {
-      const [form, setForm] = useState({ code: "", name: "", eventTypeCode: "", severity: "MEDIUM" });
-      const [error, setError] = useState<string | null>(null);
-      // Own flag: this form renders in the sidebar, outside the page's re-renders.
-      const [saving, setSaving] = useState(false);
-
-      const createDraft = async () => {
-        setError(null);
-        setSaving(true);
-        try {
-          const d = await CcDefinitionWrites.create({
-            ...NEW_DEFINITION,
-            code: form.code.trim().toUpperCase(),
-            name: form.name.trim(),
-            eventTypeCode: form.eventTypeCode.trim().toUpperCase() || NEW_DEFINITION.eventTypeCode,
-            severity: form.severity,
-          });
-          await qc.invalidateQueries({ queryKey: CC_DEFINITIONS_KEY });
-          closeSidebar();
-          open(d.definitionId);
-        } catch (e) {
-          setError((e as Error).message);
-        } finally {
-          setSaving(false);
-        }
-      };
-
-      return (
-        <div>
-          <p className="text-sm text-gray-500 mb-4 leading-relaxed">
-            Creates a DRAFT definition. Set its detector, reviewer, SLA, governance and bindings in the editor, then activate it.
-          </p>
-          <div className="space-y-4">
-            <div>
-              <label className={LABEL}>Code</label>
-              <input className={cx(INPUT, "font-mono")} placeholder="e.g., NEW001" value={form.code}
-                     onChange={(e) => setForm({ ...form, code: e.target.value })} />
-            </div>
-            <div>
-              <label className={LABEL}>Name</label>
-              <input className={INPUT} placeholder="e.g., Privileged entitlement without owner" value={form.name}
-                     onChange={(e) => setForm({ ...form, name: e.target.value })} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={LABEL}>Severity</label>
-                <select className={INPUT} value={form.severity} onChange={(e) => setForm({ ...form, severity: e.target.value })}>
-                  {SEVERITIES.map((v) => <option key={v}>{v}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className={LABEL}>Event Type</label>
-                <input className={cx(INPUT, "font-mono")} list="cc-event-types" placeholder={NEW_DEFINITION.eventTypeCode}
-                       value={form.eventTypeCode} onChange={(e) => setForm({ ...form, eventTypeCode: e.target.value })} />
-                <datalist id="cc-event-types">{eventTypes.map((t) => <option key={t} value={t} />)}</datalist>
-              </div>
-            </div>
-            {error && <div className="text-sm text-red-600">{error}</div>}
-          </div>
-          <div className="flex justify-end gap-2 mt-8">
-            <button type="button" className={BTN_SECONDARY} onClick={closeSidebar}>Cancel</button>
-            <button type="button" className={BTN_PRIMARY} onClick={createDraft}
-                    disabled={!form.code.trim() || !form.name.trim() || saving}>
-              {saving && <Spinner size={14} className="text-white" />}
-              Create Draft
-            </button>
-          </div>
-        </div>
-      );
-    };
-
-    openSidebar(<CreateDefinitionForm />, { title: "Create Event Definition", widthPx: 560 });
-  };
-
   return (
     <div className={PAGE}>
       <div className={PAGE_INNER}>
         <PageHeader
           title="Event Definitions"
           subtitle="One policy per kind of finding: how it is detected, who reviews it and by when, and what governance does with it."
-          actions={<button type="button" className={BTN_PRIMARY} onClick={openCreateSidebar}>+ Create Definition</button>}
+          actions={<button type="button" className={BTN_PRIMARY} onClick={() => router.push(`${DEFINITIONS_BASE}/new`)}>+ Create Definition</button>}
         />
 
         <BannerBar banner={banner} onClose={() => setBanner(null)} />

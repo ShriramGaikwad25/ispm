@@ -30,7 +30,7 @@ export const DEFINITIONS_BASE = "/assurance-events/event-definitions";
 
 // SLA: the console's SLA tab (linked SLA profiles, fallback, resolved SLA).
 // SlaTab and SchedulerTab remain in the codebase but are not part of the editor.
-const TABS: Array<[string, string]> = [
+export const TABS: Array<[string, string]> = [
   ["general", "General"],
   ["detection", "Detection"],
   ["governance", "Governance policy"],

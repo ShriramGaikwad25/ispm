@@ -18,7 +18,7 @@ import { Controls, ccRequest, type Control } from "@/lib/controls-api";
 import { CC_DEFINITIONS_KEY, CcDefinitions } from "@/lib/cc-definitions-api";
 import { ACTIONS_BASE, ACTIONS_KEY, Actions, type ActionType } from "@/lib/cc-actions-api";
 import { SLA_POLICIES_KEY, Slas, applySlaPolicy, matchSlaPolicy } from "@/lib/assurance-sla";
-import { NotificationBindings, listEmailTemplates } from "@/lib/assurance-notification-bindings";
+import { NotificationBindings, listEmailTemplates, type PhaseBindings } from "@/lib/assurance-notification-bindings";
 import type {
   EventDefinition, GovernanceRule, SlaPreviewResult, SlaRule, UUID,
 } from "@/lib/assurance-events-api";
@@ -32,7 +32,10 @@ export type TabProps = {
   dto: EventDefinition;
   patch: (p: Partial<EventDefinition>) => void;
   ro: boolean;
+  /** Empty while creating a definition that has not been saved yet. */
   id: UUID;
+  /** Creating a definition: the code is editable. */
+  isNew?: boolean;
 };
 
 const SLA_PAGE = "/assurance-events/sla";
@@ -42,14 +45,15 @@ const TIMEOUT_ACTIONS = ["ESCALATE", "AUTO_REVOKE", "AUTO_ACCEPT", "QUARANTINE",
 // General
 // ---------------------------------------------------------------------
 
-export function GeneralTab({ dto, patch, ro }: TabProps) {
+export function GeneralTab({ dto, patch, ro, isNew }: TabProps) {
   return (
     <>
       <Section title="Identity, ownership and reviewer">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
             <label className={LABEL}>Code</label>
-            <input className={cx(INPUT, "font-mono")} value={dto.code} disabled />
+            <input className={cx(INPUT, "font-mono")} value={dto.code} disabled={!isNew} placeholder="e.g. NEW001"
+                   onChange={(e) => patch({ code: e.target.value.toUpperCase() })} />
           </div>
           <div>
             <label className={LABEL}>Event type</label>
@@ -669,7 +673,7 @@ export function SlaProfilesTab({ dto, patch, ro, id }: TabProps) {
     },
   });
   // The saved definition (same query as the editor) carries the resolved SLA view.
-  const savedQ = useQuery({ queryKey: [...CC_DEFINITIONS_KEY, "detail", id], queryFn: () => CcDefinitions.get(id) });
+  const savedQ = useQuery({ queryKey: [...CC_DEFINITIONS_KEY, "detail", id], queryFn: () => CcDefinitions.get(id), enabled: !!id });
   const savedSla = (savedQ.data as unknown as { sla?: ResolvedSla & { items?: Array<ResolvedSlaItem & { when?: string }> } } | undefined)?.sla;
   const resolved = savedSla && "text" in savedSla ? savedSla : undefined;
   const [pick, setPick] = useState("");
@@ -1192,20 +1196,24 @@ export function ActionBindingsTab({ dto, patch, ro }: TabProps) {
 
 const NOTIFICATIONS_PAGE = "/assurance-events/notifications";
 
-export function NotificationsTab({ ro, id }: TabProps) {
+/** While creating (no id yet) the bindings are kept in `pending` and saved once the draft exists. */
+export function NotificationsTab({ ro, id, pending, onPendingChange }: TabProps & {
+  pending?: PhaseBindings;
+  onPendingChange?: (next: PhaseBindings) => void;
+}) {
   const qc = useQueryClient();
   const phasesQ = useNotifications();
   const templatesQ = useQuery({ queryKey: ["assurance", "email-templates"], queryFn: listEmailTemplates });
   const bindingsKey = ["assurance", "notification-bindings", id];
-  const bindingsQ = useQuery({ queryKey: bindingsKey, queryFn: () => NotificationBindings.get(id) });
+  const bindingsQ = useQuery({ queryKey: bindingsKey, queryFn: () => NotificationBindings.get(id), enabled: !!id });
   const [error, setError] = useState<string | null>(null);
 
-  if (phasesQ.isLoading || templatesQ.isLoading || bindingsQ.isLoading) {
+  if (phasesQ.isLoading || templatesQ.isLoading || (!!id && bindingsQ.isLoading)) {
     return <div className="text-sm text-gray-500 flex items-center gap-2"><Spinner /> Loading notifications…</div>;
   }
   const phases = phasesQ.data?.phases ?? [];
   const templates = (templatesQ.data ?? []).filter((t) => t.active);
-  const bindings = bindingsQ.data ?? {};
+  const bindings = (id ? bindingsQ.data : pending) ?? {};
   const loadError = (phasesQ.error ?? templatesQ.error ?? bindingsQ.error) as Error | null;
 
   // Saved straight away (not with the definition), so bindings can change on
@@ -1213,6 +1221,13 @@ export function NotificationsTab({ ro, id }: TabProps) {
   // would reset unsaved edits on the other tabs.
   const bind = async (phase: string, templateCode: string) => {
     setError(null);
+    if (!id) {
+      const next = { ...pending };
+      if (templateCode) next[phase] = templateCode;
+      else delete next[phase];
+      onPendingChange?.(next);
+      return;
+    }
     try {
       await NotificationBindings.set(id, phase, templateCode || null);
       await qc.invalidateQueries({ queryKey: bindingsKey });
