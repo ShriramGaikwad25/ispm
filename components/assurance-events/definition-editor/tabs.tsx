@@ -6,10 +6,10 @@
 // Scope, Notifications. SlaTab and ActionBindingsTab are kept in the codebase but
 // are not shown in the editor's tab bar.
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, Play, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, CornerDownRight, Play, Plus, Trash2 } from "lucide-react";
 import {
   useExecutors, useMitigationControls, useNotifications,
 } from "@/hooks/useAssuranceEvents";
@@ -363,6 +363,36 @@ interface ActionsUsedView {
 
 const asText = (v: unknown) => (typeof v === "string" ? v : JSON.stringify(v));
 
+/** An AUTO_REMEDIATION_GATE rule with then.continue: true runs its action as a step; the rules after it decide. */
+const isContinue = (r: GovernanceRule) => r.then?.continue === true;
+
+/**
+ * The rules as a tree: every rule after a continue rule depends on it (it reads that step's
+ * response as finding.action.<CODE>.<field>), so it is shown as its child; a later continue
+ * rule nests one level deeper. `parent` is the nearest continue rule above, `ancestors` all of them.
+ */
+function ruleTree(rules: GovernanceRule[]) {
+  const steps: number[] = [];
+  return rules.map((r, i) => {
+    const node = { depth: steps.length, parent: steps.at(-1), ancestors: [...steps], children: isContinue(r) ? rules.length - i - 1 : 0 };
+    if (isContinue(r)) steps.push(i);
+    return node;
+  });
+}
+
+/** A When expression with its finding.action.<CODE>… references (a step's response) highlighted. */
+function WhenText({ when }: { when?: string }) {
+  if (!when) return <>(always)</>;
+  const parts = when.split(/(finding\.action\.[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*)/g);
+  return (
+    <>
+      {parts.map((p, i) => (p.startsWith("finding.action.")
+        ? <span key={i} className="rounded bg-blue-100 px-1 text-blue-800" title="Reads the response of an earlier continue step">{p}</span>
+        : <Fragment key={i}>{p}</Fragment>))}
+    </>
+  );
+}
+
 /** ACTIVE action library, a tenant action overriding a system action of the same code. */
 function useActiveActions() {
   const q = useQuery({ queryKey: [...ACTIONS_KEY, "list", { state: "ACTIVE" }], queryFn: () => Actions.list({ state: "ACTIVE" }) });
@@ -378,11 +408,19 @@ export function GovernanceTab({ dto, patch, ro }: TabProps) {
   const [adding, setAdding] = useState(false);
   const actionFor = (code?: string) => (code ? used.find((a) => a.code === code) ?? library.byCode.get(code) : undefined);
   const setRules = (next: GovernanceRule[]) => patch({ governancePolicy: { ...dto.governancePolicy, rules: next } });
+  const tree = ruleTree(rules);
+  // Collapsed continue rules, by rule id (index when a rule has no id).
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const keyOf = (i: number) => rules[i]?.id || `#${i}`;
+  const toggle = (i: number) => setCollapsed((s) => { const n = new Set(s); if (n.has(keyOf(i))) n.delete(keyOf(i)); else n.add(keyOf(i)); return n; });
+  const hasSteps = rules.some(isContinue);
 
   return (
     <Section
       title="Governance Policy"
-      hint="Rules in order: the first rule whose When holds decides what happens to the finding. New rules are kept until you save the definition."
+      hint={hasSteps
+        ? "Rules in order: the first rule whose When holds decides. A continue rule runs its action as a step; the rules indented under it decide, reading its response as finding.action.<CODE>.<field>."
+        : "Rules in order: the first rule whose When holds decides what happens to the finding. New rules are kept until you save the definition."}
       actions={!ro && (
         <button className={cx(BTN_SECONDARY, "text-xs")} onClick={() => setAdding(true)}>
           <Plus size={12} /> Add Rule
@@ -404,15 +442,50 @@ export function GovernanceTab({ dto, patch, ro }: TabProps) {
           </thead>
           <tbody className={TBODY}>
             {rules.map((rule, i) => {
+              const node = tree[i];
+              // Hidden while any continue rule above it is collapsed.
+              if (node.ancestors.some((a) => collapsed.has(keyOf(a)))) return null;
+              const step = isContinue(rule);
+              const open = !collapsed.has(keyOf(i));
               const then = (rule.then ?? {}) as Record<string, unknown> & { action?: string; params?: Record<string, unknown> };
               const action = actionFor(then.action);
               const params = Object.entries(then.params ?? {});
               // What a rule without an action decides (decision type, review form, severity …).
-              const other = Object.entries(then).filter(([k]) => !["action", "params", "justification", "executor"].includes(k));
+              const other = Object.entries(then).filter(([k]) => !["action", "params", "justification", "executor", "continue"].includes(k));
               return (
-                <tr key={`${rule.id}-${i}`}>
-                  <td className={cx(TD, "font-mono text-xs font-semibold text-gray-900 [overflow-wrap:anywhere]")}>{rule.id || "—"}</td>
-                  <td className={cx(TD, "font-mono text-xs [overflow-wrap:anywhere]")}>{rule.when || "(always)"}</td>
+                <tr key={`${rule.id}-${i}`} className={cx(node.depth > 0 && "bg-blue-50/40", step && "bg-blue-50")}>
+                  <td className={cx(TD, "min-w-[220px]")}>
+                    <div className="flex items-start gap-1.5" style={{ paddingLeft: node.depth * 22 }}>
+                      {step ? (
+                        <button type="button" className="mt-0.5 rounded p-0.5 text-blue-700 hover:bg-blue-100" onClick={() => toggle(i)}
+                                aria-expanded={open} aria-label={`${open ? "Collapse" : "Expand"} the rules after ${rule.id}`}>
+                          {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        </button>
+                      ) : node.depth > 0 ? (
+                        <CornerDownRight size={14} className="mt-0.5 shrink-0 text-blue-400" />
+                      ) : null}
+                      <div className="min-w-0">
+                        <div className="font-mono text-xs font-semibold text-gray-900 [overflow-wrap:anywhere]">{rule.id || "—"}</div>
+                        {step && (
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                            <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[11px] font-semibold text-white"
+                                  title="then.continue: true — the action runs as a step; the rules after this one decide">
+                              Step · continue
+                            </span>
+                            <span className="text-[11px] text-blue-700">
+                              {node.children} rule{node.children === 1 ? "" : "s"} below decide{node.children === 1 ? "s" : ""}
+                              {!open && node.children > 0 && " (hidden)"}
+                            </span>
+                          </div>
+                        )}
+                        {node.parent !== undefined && (
+                          <div className="mt-0.5 text-[11px] text-gray-500">after <span className="font-mono">{rules[node.parent].id || `rule ${node.parent + 1}`}</span></div>
+                        )}
+                        {rule.point && <div className="mt-0.5 text-[11px] text-gray-400">{rule.point}</div>}
+                      </div>
+                    </div>
+                  </td>
+                  <td className={cx(TD, "font-mono text-xs [overflow-wrap:anywhere]")}><WhenText when={rule.when} /></td>
                   <td className={cx(TD, "text-xs")}>
                     {then.action ? (
                       <>
