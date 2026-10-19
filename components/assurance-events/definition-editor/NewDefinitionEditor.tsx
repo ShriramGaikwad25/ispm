@@ -15,13 +15,15 @@ import { CC_DEFINITIONS_KEY, CcDefinitionWrites, NEW_DEFINITION } from "@/lib/cc
 import { NotificationBindings, type PhaseBindings } from "@/lib/assurance-notification-bindings";
 import type { EventDefinition } from "@/lib/assurance-events-api";
 import {
-  BTN_LINK, BTN_PRIMARY, BTN_SECONDARY, PAGE, PAGE_INNER, PageHeader, Spinner, TabBar, cx,
+  BTN_LINK, BTN_PRIMARY, BTN_SECONDARY, PAGE, PAGE_INNER_FLUSH, PageHeader, Spinner, TabBar, cx,
 } from "../ui";
 import { BannerBar, WireView } from "./fields";
 import type { Banner } from "./fields";
 import {
   DetectionTab, GeneralTab, GovernanceTab, NotificationsTab, ScopeTab, SlaProfilesTab,
 } from "./tabs";
+import { LookupsTab } from "./LookupsTab";
+import { EffectiveConfigTab } from "./EffectiveConfigTab";
 import { DEFINITIONS_BASE, TABS } from "./DefinitionEditor";
 
 export function NewDefinitionEditor() {
@@ -65,7 +67,7 @@ export function NewDefinitionEditor() {
 
   return (
     <div className={PAGE}>
-      <div className={PAGE_INNER}>
+      <div className={PAGE_INNER_FLUSH}>
       <Link href={DEFINITIONS_BASE} className={cx(BTN_LINK, "inline-block mb-3")}>← All definitions</Link>
       <PageHeader
         title="Create Event Definition"
@@ -98,9 +100,11 @@ export function NewDefinitionEditor() {
         <div className="space-y-6 min-w-0">
           {tab === "general" && <GeneralTab {...props} />}
           {tab === "detection" && <DetectionTab {...props} />}
+          {tab === "lookups" && <LookupsTab {...props} />}
           {tab === "governance" && <GovernanceTab {...props} />}
           {tab === "sla" && <SlaProfilesTab {...props} />}
           {tab === "scope" && <ScopeTab {...props} />}
+          {tab === "effective" && <EffectiveConfigTab {...props} />}
           {tab === "notify" && <NotificationsTab {...props} pending={bindings} onPendingChange={setBindings} />}
         </div>
         {showRequest && <WireView method="POST" path="/compliance/definitions" body={dto} />}

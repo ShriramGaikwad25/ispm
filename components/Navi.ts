@@ -42,6 +42,7 @@ import {
   Inbox,
   Bot,
   Plug,
+  TableProperties,
 } from "lucide-react";
 import { riskAnalysisSubItems } from "@/lib/risk-analysis-routes";
 
@@ -161,6 +162,7 @@ export const navLinks: NavItem[] = [
           { name: "Event Definitions", href: "/assurance-events/event-definitions", icon: FileText },
           { name: "Control Library", href: "/assurance-events/control-library", icon: Library },
           { name: "Review Forms", href: "/assurance-events/review-forms", icon: ClipboardCheck },
+          { name: "Lookup Library", href: "/assurance-events/lookup-library", icon: TableProperties },
           { name: "Studio Configuration", href: "/assurance-events/studio-configuration", icon: SlidersHorizontal },
         ],
       },

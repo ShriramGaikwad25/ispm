@@ -18,13 +18,15 @@ import { useInvalidateGovernance } from "@/hooks/useAssuranceEvents";
 import { CC_DEFINITIONS_KEY, CcDefinitionWrites, CcDefinitions } from "@/lib/cc-definitions-api";
 import type { EventDefinition, UUID } from "@/lib/assurance-events-api";
 import {
-  BTN_LINK, BTN_PRIMARY, BTN_SECONDARY, PAGE, PAGE_INNER, PageHeader, Spinner, TabBar, cx,
+  BTN_LINK, BTN_PRIMARY, BTN_SECONDARY, PAGE, PAGE_INNER_FLUSH, PageHeader, Spinner, TabBar, cx,
 } from "../ui";
 import { BannerBar, StateBadge, WireView } from "./fields";
 import type { Banner } from "./fields";
 import {
   DetectionTab, GeneralTab, GovernanceTab, NotificationsTab, ScopeTab, SlaProfilesTab,
 } from "./tabs";
+import { LookupsTab } from "./LookupsTab";
+import { EffectiveConfigTab } from "./EffectiveConfigTab";
 
 export const DEFINITIONS_BASE = "/assurance-events/event-definitions";
 
@@ -33,9 +35,11 @@ export const DEFINITIONS_BASE = "/assurance-events/event-definitions";
 export const TABS: Array<[string, string]> = [
   ["general", "General"],
   ["detection", "Detection"],
+  ["lookups", "Lookups"],
   ["governance", "Governance policy"],
   ["sla", "SLA"],
   ["scope", "Scope"],
+  ["effective", "Effective config"],
   ["notify", "Notifications"],
 ];
 
@@ -64,7 +68,7 @@ export function DefinitionEditor({ id }: { id: UUID }) {
   if (query.error) {
     return (
       <div className={PAGE}>
-        <div className={cx(PAGE_INNER, "space-y-3")}>
+        <div className={cx(PAGE_INNER_FLUSH, "space-y-3")}>
           <Link href={DEFINITIONS_BASE} className={BTN_LINK}>← All definitions</Link>
           <BannerBar banner={{ tone: "err", text: (query.error as Error).message }} />
         </div>
@@ -72,7 +76,7 @@ export function DefinitionEditor({ id }: { id: UUID }) {
     );
   }
   if (query.isLoading || !dto) {
-    return <div className="px-6 text-sm text-gray-500 flex items-center gap-2"><Spinner /> Loading definition…</div>;
+    return <div className="text-sm text-gray-500 flex items-center gap-2"><Spinner /> Loading definition…</div>;
   }
 
   const isDraft = dto.state === "DRAFT";
@@ -113,7 +117,7 @@ export function DefinitionEditor({ id }: { id: UUID }) {
 
   return (
     <div className={PAGE}>
-      <div className={PAGE_INNER}>
+      <div className={PAGE_INNER_FLUSH}>
       <Link href={DEFINITIONS_BASE} className={cx(BTN_LINK, "inline-block mb-3")}>← All definitions</Link>
       <PageHeader
         title={
@@ -183,9 +187,11 @@ export function DefinitionEditor({ id }: { id: UUID }) {
         <div className="space-y-6 min-w-0">
           {tab === "general" && <GeneralTab dto={dto} patch={patch} ro={false} id={id} />}
           {tab === "detection" && <DetectionTab dto={dto} patch={patch} ro={false} id={id} />}
+          {tab === "lookups" && <LookupsTab dto={dto} patch={patch} ro={false} id={id} />}
           {tab === "governance" && <GovernanceTab dto={dto} patch={patch} ro={false} id={id} />}
           {tab === "sla" && <SlaProfilesTab dto={dto} patch={patch} ro={false} id={id} />}
           {tab === "scope" && <ScopeTab dto={dto} patch={patch} ro={false} id={id} />}
+          {tab === "effective" && <EffectiveConfigTab dto={dto} patch={patch} ro={false} id={id} />}
           {tab === "notify" && <NotificationsTab dto={dto} patch={patch} ro={false} id={id} />}
         </div>
         {showRequest && (

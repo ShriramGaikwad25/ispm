@@ -130,4 +130,39 @@ export const CcDefinitionWrites = {
   newVersion: (id: string) => ccRequest<EventDefinition>("POST", `${defPath(id)}/versions`),
   activate: (id: string) => ccRequest<EventDefinition>("POST", `${defPath(id)}/activate`),
   deprecate: (id: string) => ccRequest<EventDefinition>("POST", `${defPath(id)}/deprecate`),
+  /** GET /compliance/definitions/{id}/effective-config — the configuration the service actually runs, every default and link resolved. */
+  effectiveConfig: (id: string) => ccRequest<Record<string, unknown>>("GET", `${defPath(id)}/effective-config`),
+  /** POST /compliance/definitions/{id}/lookups:preview — resolves the saved lookup bindings for one subject; persists nothing. */
+  lookupsPreview: (id: string, body: { eventId: string } | { entitlementId: string }) =>
+    ccRequest<LookupsPreview>("POST", `${defPath(id)}/lookups:preview`, { body }),
 };
+
+/** One resolved binding of a lookups preview. */
+export interface LookupsPreviewItem {
+  alias: string;
+  code: string;
+  version: number;
+  source?: string;
+  primary?: boolean;
+  matched?: boolean;
+  error?: string;
+  rowCount?: number;
+  truncated?: boolean;
+  cached?: boolean;
+  durationMs?: number;
+  keys?: Record<string, unknown>;
+  expression?: string;
+  pushedDown?: string[];
+  postFiltered?: string[];
+  sql?: string;
+  binds?: unknown;
+  row?: Record<string, unknown>;
+  rows?: Array<Record<string, unknown>>;
+  warnings?: string[];
+}
+
+export interface LookupsPreview {
+  items: LookupsPreviewItem[];
+  "finding.lookup"?: Record<string, unknown>;
+  subject?: Record<string, unknown>;
+}
