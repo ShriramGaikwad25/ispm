@@ -39,6 +39,9 @@ import {
   MoreVertical,
   X,
   ArrowLeft,
+  Briefcase,
+  Building2,
+  Search,
 } from "lucide-react";
 import { InsightsIcon } from "@/components/InsightsIcon";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -2195,9 +2198,16 @@ const TreeClient: React.FC<TreeClientProps> = ({
   const entRowsWithDesc = useMemo(() => {
     if (!filteredEntitlements || filteredEntitlements.length === 0) return [] as any[];
     const rows: any[] = [];
+    // Row ids must be unique: entitlements without their own lineItemId fall back to the shared
+    // accountLineItemId, and duplicate ids make AG Grid leave an empty slot in place of a row.
+    const seen = new Map<string, number>();
     for (const item of filteredEntitlements) {
-      rows.push(item);
-      rows.push({ ...item, __isDescRow: true });
+      const baseId = String(item.lineItemId || item.accountLineItemId || item.taskId || `${item.applicationName}-${item.entitlementName}`);
+      const count = seen.get(baseId) ?? 0;
+      seen.set(baseId, count + 1);
+      const __rowKey = count === 0 ? baseId : `${baseId}#${count}`;
+      rows.push({ ...item, __rowKey });
+      rows.push({ ...item, __rowKey, __isDescRow: true });
     }
     return rows;
   }, [filteredEntitlements]);
@@ -3042,73 +3052,71 @@ const TreeClient: React.FC<TreeClientProps> = ({
             <div className="flex flex-col lg:flex-row gap-4 mb-4 items-stretch">
               {/* User Information Card - 2/3 */}
               <div className="w-full lg:w-2/3 flex">
-            <div className="bg-white border border-gray-200 rounded-lg px-2 pb-2 pt-0 shadow-sm w-full flex-1">
-              {/* Upper section: Name, Status, Buttons */}
-              <div className="flex items-center justify-between gap-3 bg-gray-50 p-3 rounded-md">
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm w-full flex-1 flex flex-col">
+              {/* Upper section: identity, review progress, actions */}
+              <div className="flex items-center justify-between gap-4 px-4 py-3">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-14 h-14 rounded-full flex items-center justify-center text-white font-semibold text-lg flex-shrink-0">
-                    {renderUserAvatar(selectedUser, 48, "object-cover rounded-full w-12 h-12") || (
-                      <div className="w-12 h-12 rounded-full bg-blue-200 text-blue-600 flex items-center justify-center font-semibold text-sm">
+                  <div className="relative flex-shrink-0">
+                    {renderUserAvatar(selectedUser, 48, "object-cover rounded-full w-12 h-12 ring-2 ring-white shadow-sm") || (
+                      <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-semibold text-sm ring-2 ring-white shadow-sm">
                         {getUserInitials(selectedUser?.fullName || "")}
                       </div>
                     )}
+                    {(selectedUser.status || "ACTIVE").toLowerCase() === "active" && (
+                      <span
+                        className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-green-500 ring-2 ring-white"
+                        title="Active"
+                      />
+                    )}
                   </div>
-                    <div className="flex flex-col min-w-0">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <h4 className="text-lg font-bold text-gray-900 truncate">
-                        <span className="flex items-center gap-2">
-                          {(selectedUser.status || "ACTIVE").toLowerCase() === "active" && (
-                            <span className="w-2 h-2 rounded-full bg-green-500" />
-                          )}
-                          <UserDisplayName
-                            displayName={selectedUser.fullName || "Unknown User"}
-                            userType={selectedUser.userType}
-                            employeetype={selectedUser.employeetype}
-                            tags={selectedUser.tags}
-                          />
-                        </span>
-                      </h4>
-                      <div className="flex items-center space-x-2 ml-4">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                        <span className="text-xs font-medium text-gray-500">
-                          Job Title:
-                        </span>
-                        <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800">
-                          {selectedUser.jobtitle || "Unknown"}
-                        </span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                        <span className="text-xs font-medium text-gray-500">
-                          Department:
-                        </span>
-                        <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-purple-100 text-purple-800">
-                          {selectedUser.department || "Unknown"}
-                        </span>
-                      </div>
-                    </div>
-                    {/* User Progress Display */}
-                    <div className="flex items-center gap-2 mt-1">
-                      {(() => {
-                        const progress = getUserProgress(selectedUser);
-                        return (
-                          <>
-                            <div className="w-16 bg-gray-200 rounded-full h-1.5">
-                              <div 
-                                className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
-                                style={{ width: `${progress.percentage}%` }}
-                              ></div>
-                            </div>
-                            <span className="text-xs font-medium text-gray-600">
-                              {progress.percentage}%
-                            </span>
-                          </>
-                        );
-                      })()}
+                  <div className="flex flex-col min-w-0 gap-1">
+                    <h4 className="text-base font-semibold text-gray-900 truncate leading-tight">
+                      <UserDisplayName
+                        displayName={selectedUser.fullName || "Unknown User"}
+                        userType={selectedUser.userType}
+                        employeetype={selectedUser.employeetype}
+                        tags={selectedUser.tags}
+                      />
+                    </h4>
+                    <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-xs text-gray-600">
+                      <span className="inline-flex items-center gap-1.5 min-w-0" title="Job Title">
+                        <Briefcase size={13} className="text-blue-500 flex-shrink-0" />
+                        <span className="truncate">{selectedUser.jobtitle || "Unknown"}</span>
+                      </span>
+                      <span className="w-1 h-1 rounded-full bg-gray-300" aria-hidden />
+                      <span className="inline-flex items-center gap-1.5 min-w-0" title="Department">
+                        <Building2 size={13} className="text-purple-500 flex-shrink-0" />
+                        <span className="truncate">{selectedUser.department || "Unknown"}</span>
+                      </span>
+                      {selectedUser.manager && (
+                        <>
+                          <span className="w-1 h-1 rounded-full bg-gray-300" aria-hidden />
+                          <span className="inline-flex items-center gap-1.5 min-w-0" title="Manager">
+                            <User size={13} className="text-gray-400 flex-shrink-0" />
+                            <span className="truncate">{selectedUser.manager}</span>
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-4 flex-shrink-0">
+                  {/* Review progress */}
+                  {(() => {
+                    const progress = getUserProgress(selectedUser);
+                    return (
+                      <div className="hidden sm:flex flex-col items-end leading-tight">
+                        <span
+                          className={`text-2xl font-bold ${
+                            progress.percentage === 100 ? "text-green-600" : "text-gray-900"
+                          }`}
+                        >
+                          {progress.percentage}%
+                        </span>
+                        <span className="text-[11px] text-gray-500">reviewed</span>
+                      </div>
+                    );
+                  })()}
                         <button
                           ref={menuButtonRef}
                           onClick={toggleMenu}
@@ -3160,79 +3168,42 @@ const TreeClient: React.FC<TreeClientProps> = ({
                 </div>
               </div>
 
+              {/* Review breakdown: stacked progress bar */}
+              {(() => {
+                const progress: any = getUserProgress(selectedUser);
+                const total = progress.total || 0;
+                const revoked = (progress.rejected || 0) + (progress.revoked || 0);
+                const segments = [
+                  { label: "Approved", value: progress.approved || 0, bar: "bg-green-500" },
+                  { label: "Revoked", value: revoked, bar: "bg-red-500" },
+                  { label: "Delegated", value: progress.delegated || 0, bar: "bg-amber-400" },
+                  { label: "Pending", value: progress.pending || 0, bar: "bg-gray-300" },
+                ];
+                return (
+                  <div className="px-4 pb-3">
+                    <div className="flex w-full h-2 rounded-full overflow-hidden bg-gray-100">
+                      {total > 0 &&
+                        segments.map((s) =>
+                          s.value > 0 ? (
+                            <div
+                              key={s.label}
+                              className={`${s.bar} h-full transition-all duration-300`}
+                              style={{ width: `${(s.value / total) * 100}%` }}
+                              title={`${s.label}: ${s.value}`}
+                            />
+                          ) : null
+                        )}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Lower section: Filters and Controls */}
-              <div className="mt-3 pt-3 border-t border-gray-200">
-                <div className="flex flex-wrap gap-2 mb-3 w-full">
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
-                    <span className="text-xs font-bold text-gray-500">
-                      Filters:
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-2 flex-1">
-                    {filterOptions.map((filter) => {
-                      const isSelected = selectedFilters.includes(filter.name);
-                      // Get corresponding count from certAnalytics
-                      let count = 0;
-                      if (certAnalytics) {
-                        if (filter.name === "Dormant Accounts") {
-                          count = certAnalytics.dormant_count || 0;
-                        } else if (filter.name === "Violation") {
-                          count = certAnalytics.violations_count || 0;
-                        } else if (filter.name === "High Risk") {
-                          count = certAnalytics.highriskentitlement_count || 0;
-                        } else if (filter.name === "Delta Access") {
-                          count = certAnalytics.newaccess_count || 0;
-                        }
-                      }
-                      const isDisabled = count === 0;
-                      return (
-                        <div
-                          key={filter.name}
-                          className={`
-                            px-3 py-1 rounded-md border transition-all duration-200 text-xs flex items-center justify-between gap-1.5 min-w-[120px]
-                            ${
-                              isDisabled
-                                ? "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
-                                : isSelected
-                                ? `${filter.color} shadow-sm cursor-pointer`
-                                : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100 cursor-pointer"
-                            }
-                          `}
-                        >
-                          <span
-                            className="font-medium flex-1"
-                            onClick={() => {
-                              if (isDisabled) return;
-                              handleFilterToggle(filter.name);
-                            }}
-                          >
-                            {filter.name}
-                            {count > 0 && (
-                              <span className="ml-1 font-bold">({count})</span>
-                            )}
-                          </span>
-                          {isSelected && !isDisabled && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleFilterToggle(filter.name);
-                              }}
-                              className="ml-1 hover:bg-black/10 rounded-full p-0.5 transition-colors flex-shrink-0"
-                              title="Remove filter"
-                            >
-                              <X size={12} className="text-current" />
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
+              <div className="border-t border-gray-100 px-4 py-3 flex flex-col justify-end gap-3 flex-1">
                 {/* Entitlements Table Controls */}
-                <div className="flex items-center justify-between flex-wrap gap-3 w-full">
-                  <div className="flex items-center gap-4 flex-wrap w-full">
-                    {!isReadOnly && (
+                <div className="flex items-center gap-2 flex-wrap w-full">
+                  {!isReadOnly && (
+                    <div className="h-9 px-3 flex items-center rounded-md border border-gray-300 bg-white hover:bg-gray-50 transition-colors [&_.h-9]:h-[34px] [&_.pr-4]:pr-0">
                       <SelectAll
                         gridApi={entitlementsGridApiRef.current}
                         detailGridApis={new Map()}
@@ -3251,11 +3222,17 @@ const TreeClient: React.FC<TreeClientProps> = ({
                         }}
                         currentRowData={entPaginatedData}
                       />
-                    )}
+                    </div>
+                  )}
+                  <div className="relative flex-1 min-w-[200px]">
+                    <Search
+                      size={15}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                    />
                     <input
                       type="text"
                       placeholder="Search entitlements..."
-                      className="border rounded px-3 py-2 w-64"
+                      className="w-full h-9 pl-9 pr-3 text-sm border border-gray-300 rounded-md bg-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
                       value={entitlementSearch}
                       onChange={(e) => {
                         setEntitlementSearch(e.target.value);
@@ -3263,7 +3240,9 @@ const TreeClient: React.FC<TreeClientProps> = ({
                         setEntitlementsPageNumber(1);
                       }}
                     />
-                    <Filters 
+                  </div>
+                  <div className="flex-shrink-0 [&_.h-8]:h-9 [&_.bg-gray-100]:bg-white [&_.border-gray-200]:border-gray-300">
+                    <Filters
                       appliedFilter={handleAppliedFilter}
                       onFilterChange={handleAccountFilterChange}
                       context="status"
@@ -3273,6 +3252,71 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       statusCounts={statusCountsFromAccess}
                     />
                   </div>
+                </div>
+                {/* Quick filters */}
+                <div className="flex flex-col gap-1.5 w-full">
+                  <span className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">
+                    Quick filters
+                  </span>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {filterOptions.map((filter) => {
+                      const isSelected = selectedFilters.includes(filter.name);
+                      // Get corresponding count from certAnalytics
+                      let count = 0;
+                      if (certAnalytics) {
+                        if (filter.name === "Dormant Accounts") {
+                          count = certAnalytics.dormant_count || 0;
+                        } else if (filter.name === "Violation") {
+                          count = certAnalytics.violations_count || 0;
+                        } else if (filter.name === "High Risk") {
+                          count = certAnalytics.highriskentitlement_count || 0;
+                        } else if (filter.name === "Delta Access") {
+                          count = certAnalytics.newaccess_count || 0;
+                        }
+                      }
+                      const isDisabled = count === 0;
+                      return (
+                        <button
+                          type="button"
+                          key={filter.name}
+                          disabled={isDisabled}
+                          onClick={() => handleFilterToggle(filter.name)}
+                          title={isDisabled ? `No ${filter.name.toLowerCase()} items` : isSelected ? "Remove filter" : `Show ${filter.name.toLowerCase()} only`}
+                          className={`relative rounded-lg border px-3 py-2 text-left transition-all duration-150 ${
+                            isDisabled
+                              ? "bg-white border-dashed border-gray-200 text-gray-400 cursor-not-allowed"
+                              : isSelected
+                              ? `${filter.color} ring-1 ring-current shadow-sm`
+                              : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300 hover:shadow-sm"
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide pr-4 truncate">
+                            <span
+                              className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                                isDisabled
+                                  ? "bg-gray-300"
+                                  : filter.name === "Dormant Accounts"
+                                  ? "bg-yellow-400"
+                                  : filter.name === "Violation"
+                                  ? "bg-red-500"
+                                  : filter.name === "High Risk"
+                                  ? "bg-orange-500"
+                                  : "bg-blue-500"
+                              }`}
+                            />
+                            <span className="truncate">{filter.name}</span>
+                          </div>
+                          <div className={`text-xl font-bold leading-tight ${isDisabled ? "text-gray-300" : "text-gray-900"}`}>
+                            {count}
+                          </div>
+                          {isSelected && !isDisabled && (
+                            <X size={14} className="absolute top-2 right-2 text-current" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
                   {/* <div className="flex items-center gap-2">
                     <ColumnSettings
                       columnDefs={entitlementsColumnDefs}
@@ -3288,7 +3332,6 @@ const TreeClient: React.FC<TreeClientProps> = ({
                       }}
                     />
                   </div> */}
-                </div>
               </div>
             </div>
               </div>
@@ -3505,7 +3548,7 @@ const TreeClient: React.FC<TreeClientProps> = ({
                   }}
                   isRowSelectable={(node) => !node?.data?.__isDescRow}
                   getRowId={(params: GetRowIdParams) => {
-                    const baseId = params.data.lineItemId || params.data.accountLineItemId || params.data.taskId || `${params.data.applicationName}-${params.data.entitlementName}`;
+                    const baseId = params.data.__rowKey || params.data.lineItemId || params.data.accountLineItemId || params.data.taskId || `${params.data.applicationName}-${params.data.entitlementName}`;
                     return params.data.__isDescRow ? `${baseId}-desc` : baseId;
                   }}
                   getRowClass={(params) => params?.data?.__isDescRow ? "ag-row-custom ag-row-desc" : "ag-row-custom"}
