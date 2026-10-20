@@ -3,18 +3,16 @@
 // ---------------------------------------------------------------------
 // Lookups — the console's Lookups tab (graph.keyforge.ai/console#/definitions/{id}):
 // lookups bound from the Lookup Library (GET /compliance/lookup-tables) into
-// definition.lookups.items, what the rules see (the resolved bindings on the
-// saved definition), and a preview that resolves the saved bindings for one
-// subject (POST /compliance/definitions/{id}/lookups:preview).
+// definition.lookups.items.
 // ---------------------------------------------------------------------
 
-import { Fragment, useState, type ReactNode } from "react";
+import { Fragment, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
-import { CC_DEFINITIONS_KEY, CcDefinitionWrites, CcDefinitions, type LookupsPreview, type LookupsPreviewItem } from "@/lib/cc-definitions-api";
+import { CC_DEFINITIONS_KEY, CcDefinitions } from "@/lib/cc-definitions-api";
 import {
-  LOOKUPS_BASE, LOOKUPS_KEY, LookupTables, compileCondition, contextPaths, keyColumns, lookupHref, valueColumns,
+  LOOKUPS_BASE, LOOKUPS_KEY, LookupTables, compileCondition, contextPaths, keyColumns, lookupHref,
   type LookupMatch, type LookupTable,
 } from "@/lib/cc-lookup-tables-api";
 import type { EventDefinition } from "@/lib/assurance-events-api";
@@ -109,21 +107,10 @@ export function LookupsTab({ dto, patch, ro, id }: TabProps) {
   };
 
   const primaryIndex = bindings.findIndex((b) => b.primary);
-  const primaryLookup = library.get(bindings[primaryIndex >= 0 ? primaryIndex : 0]?.code ?? "");
-  const flatColumns = primaryLookup ? valueColumns(primaryLookup.columns) : [];
   const [adding, setAdding] = useState("");
 
   return (
     <>
-      <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-        Bound lookups are resolved <b>before the governance rules</b> and stored on the event: the <b>primary</b> binding&apos;s VALUE columns are
-        exposed flat as <code>finding.lookup.&lt;column&gt;</code>, every binding as <code>finding.lookup.&lt;alias&gt;.&lt;column&gt;</code>. Versions
-        are pinned when the definition is activated. <code>ON_DEMAND</code> bindings resolve only when a rule&apos;s <code>then.lookup</code> or a
-        lookup-typed action parameter asks. A binding resolves with the <b>lookup&apos;s condition</b> (its KEY mappings can be overridden column by
-        column) or with an <b>own condition</b> for this definition; the same lookup may be bound several times under different aliases, each with
-        its own condition.
-      </div>
-
       <Section
         title="Bound Lookups"
         hint="lookups.items — resolved in this order before the governance rules run."
@@ -286,178 +273,6 @@ export function LookupsTab({ dto, patch, ro, id }: TabProps) {
           </div>
         )}
       </Section>
-
-      <Section title="What the Rules See" hint="Resolved by the service on every read of the saved definition.">
-        {resolved ? (
-          <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">
-            <dt className="text-gray-500">Bindings</dt>
-            <dd className="font-semibold text-gray-900">{resolved.text}</dd>
-            <dt className="text-gray-500">Warnings</dt>
-            <dd>
-              {resolved.warnings?.length
-                ? resolved.warnings.map((w, i) => <div key={i} className="text-amber-700">△ {w}</div>)
-                : <span className="text-green-700">none</span>}
-            </dd>
-          </dl>
-        ) : (
-          <p className="text-sm text-gray-500">Saved definitions show the resolved bindings here.</p>
-        )}
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-gray-700 mb-2">finding.lookup.*</div>
-          <div className="flex flex-wrap gap-1.5">
-            {flatColumns.map((c) => <Chip key={c}>finding.lookup.{c}</Chip>)}
-            {bindings.map((b, i) => <Chip key={`${aliasOf(b)}#${i}`}>finding.lookup.{aliasOf(b)}.&lt;column&gt;</Chip>)}
-            {!bindings.length && <span className="text-sm text-gray-400">—</span>}
-          </div>
-          {resolved?.items.map((x) => x.expression && (
-            <div key={x.alias} className="text-xs text-gray-500 font-mono mt-2 [overflow-wrap:anywhere]">
-              {x.alias}{x.ownCondition ? " (own condition)" : ""}: {x.expression}
-            </div>
-          ))}
-        </div>
-      </Section>
-
-      <PreviewSection id={id} />
     </>
-  );
-}
-
-const Chip = ({ children }: { children: ReactNode }) => (
-  <span className="rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 font-mono text-xs text-gray-700">{children}</span>
-);
-
-/** Resolves the saved bindings for one event or catalog entitlement. */
-function PreviewSection({ id }: { id: string }) {
-  const [subject, setSubject] = useState("");
-  const [result, setResult] = useState<LookupsPreview | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const run = async () => {
-    const v = subject.trim();
-    setBusy(true);
-    setError(null);
-    try {
-      // A catalog entitlement id starts with "e"; anything else is an event id.
-      setResult(await CcDefinitionWrites.lookupsPreview(id, /^[0-9a-f-]{36}$/i.test(v) && v.startsWith("e") ? { entitlementId: v } : { eventId: v }));
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Section
-      title="Preview"
-      hint="Resolve the saved bindings for one subject; nothing is persisted."
-      actions={
-        <div className="flex items-center gap-2">
-          <input className={cx(INPUT_BASE, "font-mono text-xs w-80")} value={subject} placeholder="eventId, or an entitlementId (e…) of the catalog"
-                 onChange={(e) => setSubject(e.target.value)} onKeyDown={(e) => e.key === "Enter" && id && subject.trim() && run()} />
-          <button className={BTN_PRIMARY} disabled={!id || busy || !subject.trim()} onClick={run}>
-            {busy && <Spinner size={14} className="text-white" />} Preview
-          </button>
-        </div>
-      }
-    >
-      {!id && <p className="text-sm text-gray-500">Create the definition first.</p>}
-      {error && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
-      {result ? (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          <div className="space-y-4">
-            {result.items.map((x) => <PreviewItem key={x.alias} x={x} />)}
-            {!result.items.length && <p className="text-sm text-gray-500">The saved definition binds no lookup.</p>}
-          </div>
-          <div className="space-y-4">
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-gray-700 mb-2">finding.lookup (as the rules would see it)</div>
-              <pre className="text-xs font-mono bg-gray-50 border border-gray-200 rounded-md p-3 overflow-auto max-h-80">
-                {JSON.stringify(result["finding.lookup"] ?? {}, null, 2)}
-              </pre>
-            </div>
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-gray-700 mb-2">Subject</div>
-              <KeyValues o={result.subject ?? {}} />
-            </div>
-          </div>
-        </div>
-      ) : id && !error && <p className="text-sm text-gray-500">Enter an event or entitlement id and preview.</p>}
-    </Section>
-  );
-}
-
-function PreviewItem({ x }: { x: LookupsPreviewItem }) {
-  const rows: Array<[string, ReactNode]> = [
-    ["Lookup", (
-      <>
-        <b>{x.code}</b> v{x.version} <span className="font-mono text-xs text-gray-500">{x.source}</span>
-        {x.alias && x.alias !== x.code && <> as <b className="font-mono">{x.alias}</b></>}
-        {x.primary && <span className={cx(PILL, "ml-2 bg-blue-100 text-blue-700")}>primary</span>}
-      </>
-    )],
-    ["Matched", (
-      <>
-        {x.error ? <b className="text-red-600">failed: {x.error}</b> : x.matched ? <b className="text-green-700">yes</b> : <b>no row</b>}{" "}
-        <span className="text-xs text-gray-500">
-          · {x.rowCount ?? 0} row(s){x.truncated ? " (truncated)" : ""}{x.cached ? " · cached" : ""}{x.durationMs != null ? ` · ${x.durationMs} ms` : ""}
-        </span>
-      </>
-    )],
-    ["Keys", <span key="k" className="font-mono text-xs">{Object.entries(x.keys ?? {}).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(" · ") || "—"}</span>],
-  ];
-  if (x.expression) rows.push(["Condition", <span key="c" className="font-mono text-xs [overflow-wrap:anywhere]">{x.expression}</span>]);
-  if (x.pushedDown) rows.push(["Pushed down", <span key="p" className="font-mono text-xs text-gray-500 [overflow-wrap:anywhere]">{x.pushedDown.join(" && ") || "—"}</span>]);
-  if (x.postFiltered?.length) rows.push(["Post-filtered", <span key="f" className="font-mono text-xs text-gray-500">{x.postFiltered.join(" && ")}</span>]);
-  if (x.sql) rows.push(["SQL", <span key="s" className="font-mono text-xs text-gray-500 [overflow-wrap:anywhere]">{x.sql}<div>binds {JSON.stringify(x.binds)}</div></span>]);
-
-  return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden">
-      <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-200 text-sm font-semibold text-gray-900 font-mono">
-        {x.alias} ← {x.code} v{x.version}
-      </div>
-      <div className="p-4 space-y-3">
-        <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1.5 text-sm">
-          {rows.map(([k, v]) => <Fragment key={k}><dt className="text-gray-500">{k}</dt><dd className="text-gray-900 min-w-0">{v}</dd></Fragment>)}
-        </dl>
-        {x.matched && x.row && (
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-wide text-gray-700 mb-1">Selected row</div>
-            <KeyValues o={x.row} />
-          </div>
-        )}
-        {x.rows && x.rows.length > 1 && (
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-wide text-gray-700 mb-1">Rows (select ALL)</div>
-            <pre className="text-xs font-mono bg-gray-50 border border-gray-200 rounded-md p-2 overflow-auto max-h-60">{JSON.stringify(x.rows.slice(0, 20), null, 2)}</pre>
-          </div>
-        )}
-        {x.warnings?.length ? (
-          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-            {x.warnings.map((w, i) => <div key={i}>△ {w}</div>)}
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function KeyValues({ o }: { o: Record<string, unknown> }) {
-  const entries = Object.entries(o);
-  if (!entries.length) return <span className="text-sm text-gray-400">—</span>;
-  return (
-    <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm">
-      {entries.map(([k, v]) => (
-        <Fragment key={k}>
-          <dt className="text-gray-500 font-mono text-xs pt-0.5">{k}</dt>
-          <dd className="text-gray-900 min-w-0 [overflow-wrap:anywhere]">
-            {v == null || v === "" ? <span className="text-gray-400">—</span>
-              : typeof v === "boolean" ? <span className={v ? "text-green-700" : "text-red-600"}>{String(v)}</span>
-              : typeof v === "object" ? <code className="text-xs text-gray-500">{JSON.stringify(v)}</code>
-              : String(v)}
-          </dd>
-        </Fragment>
-      ))}
-    </dl>
   );
 }

@@ -30,7 +30,7 @@ import {
   PageHeader, PageSpinner, Spinner, TBODY, TD, TH, THEAD_ROW, TabBar, cx,
 } from "@/components/assurance-events/ui";
 import { KeyValueList, SeverityBadge, StateBadge } from "@/components/assurance-events/definition-editor/fields";
-import { ReviewFormFields as FormFields, type FormValues as Values } from "@/components/assurance-events/ReviewFormFields";
+import { ReviewFormDisplay, ReviewFormFields as FormFields, type FormValues as Values } from "@/components/assurance-events/ReviewFormFields";
 
 const LIST_HREF = "/assurance-events/all-events";
 const DEFINITION_HREF = (id: string) => `/assurance-events/event-definitions/${id}`;
@@ -59,15 +59,17 @@ function show(v: unknown): ReactNode {
   return String(v);
 }
 
-/** Key/value list of an object's fields (`order` first, minus `skip`; optionally only non-empty ones). */
-function Fields({ o, order = [], skip = [], valuesOnly }: {
-  o: Record<string, unknown>; order?: string[]; skip?: string[]; valuesOnly?: boolean;
+/** Key/value list of an object's fields (`order` first, minus `skip`; optionally only non-empty ones; `nowrap` values on one line). */
+function Fields({ o, order = [], skip = [], nowrap = [], valuesOnly }: {
+  o: Record<string, unknown>; order?: string[]; skip?: string[]; nowrap?: string[]; valuesOnly?: boolean;
 }) {
   const keys = [...order.filter((k) => k in o), ...Object.keys(o).filter((k) => !order.includes(k))]
     .filter((k) => !skip.includes(k))
     .filter((k) => !valuesOnly || !isEmpty(o[k]));
   if (!keys.length) return <span className="text-sm text-gray-400">—</span>;
-  return <KeyValueList rows={keys.map((k) => [k, show(o[k])] as [string, ReactNode])} />;
+  return <KeyValueList rows={keys.map((k) => [
+    k, nowrap.includes(k) ? <span className="whitespace-nowrap font-mono text-xs">{show(o[k])}</span> : show(o[k]),
+  ] as [string, ReactNode])} />;
 }
 
 /** An array of objects as a table (columns = union of keys). */
@@ -224,7 +226,7 @@ function EventDetailPage() {
             {tab === "summary" && <SummaryTab d={d} />}
             {tab === "sla" && <SlaTab d={d} />}
             {tab === "decisions" && <DecisionsTab d={d} />}
-            {tab === "form" && <ReviewFormTab eventId={ev.eventId} onSubmitted={reload} hideProposal={fromReview} />}
+            {tab === "form" && <ReviewFormTab eventId={ev.eventId} onSubmitted={reload} />}
             {tab === "insight" && <InsightTab d={d} onRefreshed={reload} />}
             {tab === "trail" && <TrailTab eventId={ev.eventId} />}
           </>
@@ -239,10 +241,11 @@ function EventDetailPage() {
 const EVENT_HIDDEN = [
   "subject", "scopeSnapshot", "evidence", "slaSnapshot", "detectionPayload", "subjectDescriptor",
   "eventTypeCode", "definitionId", "definitionVersion", "reviewerResolvedVia", "correlationKey", "riskScore", "currentDecisionId",
+  "reviewerPrincipalId",
 ];
 const EVENT_ORDER = [
   "eventId", "status", "severity", "discoveredAt", "dueAt", "slaRuleId", "slaElapsedPercent", "nextSlaCheckAt",
-  "escalationLevel", "reopenCount", "reviewerPrincipalId", "detectorSource", "subjectKind", "aiRecommendedDecision",
+  "escalationLevel", "reopenCount", "detectorSource", "subjectKind", "aiRecommendedDecision",
 ];
 
 function SummaryTab({ d }: { d: CcEventDetail }) {
@@ -252,7 +255,7 @@ function SummaryTab({ d }: { d: CcEventDetail }) {
   const subject = ev.subject
     ? {
         userId: ev.subject.userId, accountId: ev.subject.accountId, applicationId: ev.subject.applicationId,
-        entitlementId: ev.subject.entitlementId, nhiId: ev.subject.nhiId, ...(ev.subject.humanReadable ?? {}),
+        nhiId: ev.subject.nhiId, ...(ev.subject.humanReadable ?? {}),
       }
     : null;
 
@@ -260,7 +263,7 @@ function SummaryTab({ d }: { d: CcEventDetail }) {
     <div className="space-y-6">
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <Card title="Event">
-          <Fields o={ev as Record<string, unknown>} skip={EVENT_HIDDEN} order={EVENT_ORDER} />
+          <Fields o={ev as Record<string, unknown>} skip={EVENT_HIDDEN} order={EVENT_ORDER} nowrap={["eventId"]} />
         </Card>
 
         <div className="space-y-6">
@@ -279,7 +282,7 @@ function SummaryTab({ d }: { d: CcEventDetail }) {
             <div className="space-y-4">
               <Fields o={{
                 name: def.name, severity: def.severity, reviewerStrategy: def.reviewerStrategy, slaDuration: def.slaDuration,
-                defaultActionOnTimeout: def.defaultActionOnTimeout, allowedMitigationCodes: def.allowedMitigationCodes, actionBindings: def.actionBindings,
+                defaultActionOnTimeout: def.defaultActionOnTimeout, allowedMitigationCodes: def.allowedMitigationCodes,
               }} />
               <Link href={DEFINITION_HREF(def.definitionId)} className={BTN_LINK}>Open definition</Link>
             </div>
@@ -406,7 +409,6 @@ function SlaTab({ d }: { d: CcEventDetail }) {
         ["Next sweep check", ev.nextSlaCheckAt ? fmt(ev.nextSlaCheckAt) : "nothing left to do"],
         ["Recomputed", `${s.recomputedCount ?? 0}×`],
         ["Matched rules", (s.matchedRules ?? []).map((r) => r.ruleId).join(", ") || "—"],
-        ["Basis", show(s.basis)],
       ]} />
     </Card>
   );
@@ -449,11 +451,7 @@ function DecisionsTab({ d }: { d: CcEventDetail }) {
 const initialValues = (v: CcReviewFormView): Values =>
   Object.fromEntries(v.fields.filter((f) => f.value !== null && f.value !== undefined).map((f) => [f.name, f.value]));
 
-function ReviewFormTab({ eventId, onSubmitted, hideProposal }: {
-  eventId: string; onSubmitted: () => void;
-  /** Opened from the Review Queue: the reviewer sees the form only, without the agent proposal. */
-  hideProposal?: boolean;
-}) {
+function ReviewFormTab({ eventId, onSubmitted }: { eventId: string; onSubmitted: () => void }) {
   const q = useQuery({ queryKey: ["continuouscompliance", "event", eventId, "review-form"], queryFn: () => CcEvents.reviewForm(eventId) });
   const [view, setView] = useState<CcReviewFormView | undefined>(undefined);
   const [values, setValues] = useState<Values>({});
@@ -492,13 +490,15 @@ function ReviewFormTab({ eventId, onSubmitted, hideProposal }: {
   };
 
   return (
-    <div className={cx("grid grid-cols-1 gap-6", !hideProposal && "xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]")}>
+    <div className="grid grid-cols-1 gap-6">
       <Card
         title={`${view.title}`}
         subtitle={<><span className="font-mono">{view.formCode}@v{view.formVersion}</span> · event {view.eventStatus} · {view.submittable ? (view.canSubmit ? "submittable" : `read-only (${view.submitAuthority} only)`) : "read-only"} · pinned when routed</>}
       >
         <div className="space-y-6">
           {view.intent && <p className="text-sm text-gray-700">{view.intent}</p>}
+
+          {view.display && <ReviewFormDisplay d={view.display} />}
 
           <FormFields fields={view.fields} values={values} onChange={change} readOnly={readOnly} />
 
@@ -558,14 +558,6 @@ function ReviewFormTab({ eventId, onSubmitted, hideProposal }: {
           )}
         </div>
       </Card>
-
-      {!hideProposal && (
-        <Card title="Agent Proposal">
-          {view.proposal && Object.keys(view.proposal).length
-            ? <ObjView v={view.proposal} />
-            : <span className="text-sm text-gray-500">No proposal (no AGENT executor bound, or none produced).</span>}
-        </Card>
-      )}
     </div>
   );
 }

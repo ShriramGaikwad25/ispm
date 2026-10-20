@@ -53,11 +53,6 @@ export default function LookupLibraryPage() {
       <div className={PAGE_INNER_FLUSH}>
         <PageHeader
           title="Lookup Library"
-          wideSubtitle
-          subtitle={<>A lookup describes a decision table or view you maintain in the database (an allow-listed schema): the columns it exposes
-            (KEY columns match the event, VALUE columns are copied) and the match — which column equals which <code>subject.*</code> /{" "}
-            <code>finding.*</code> value, with an optional <code>*</code> wildcard row. A definition binds lookups on its Lookups tab; before
-            the governance rules run, the selected row lands on the event as <code>finding.lookup.&lt;column&gt;</code>.</>}
           actions={<Link href={`${LOOKUPS_BASE}/new`} className={BTN_PRIMARY}>+ New Lookup</Link>}
         />
 

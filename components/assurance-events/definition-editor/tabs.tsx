@@ -486,7 +486,7 @@ export function GovernanceTab({ dto, patch, ro }: TabProps) {
                     </div>
                   </td>
                   <td className={cx(TD, "font-mono text-xs [overflow-wrap:anywhere]")}><WhenText when={rule.when} /></td>
-                  <td className={cx(TD, "text-xs")}>
+                  <td className={cx(TD, "text-xs min-w-[360px]")}>
                     {then.action ? (
                       <>
                         <Link href={`${ACTIONS_BASE}/${encodeURIComponent(then.action)}${action?.version ? `?version=${action.version}` : ""}`}

@@ -4,10 +4,10 @@
 // renderer, in ISPM inputs). Used by the event's Review Form tab and the
 // Review Forms page's Preview & Dry Run tab.
 
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Search } from "lucide-react";
-import type { CcReviewFormView } from "@/lib/cc-events-api";
-import { INPUT, PILL, cx } from "@/components/assurance-events/ui";
+import type { CcReviewFormDisplay, CcReviewFormView } from "@/lib/cc-events-api";
+import { BTN_SECONDARY, INPUT, PILL, TBODY, TD, TH, THEAD_ROW, cx } from "@/components/assurance-events/ui";
 
 export type FormValues = Record<string, unknown>;
 type Values = FormValues;
@@ -107,6 +107,14 @@ export function ReviewFormFields({ fields, values, onChange, readOnly }: {
             </div>
           );
         }
+        if (f.type === "ITEM_LIST") {
+          return (
+            <div key={f.name}>{label}
+              <ItemListField field={f} rows={Array.isArray(value) ? (value as Row[]) : []} readOnly={readOnly}
+                             onChange={(rows) => set(f.name, rows)} />
+            </div>
+          );
+        }
         if (options.length) {
           return (
             <div key={f.name}>{label}
@@ -136,7 +144,152 @@ export function ReviewFormFields({ fields, values, onChange, readOnly }: {
   );
 }
 
-type FieldOption = NonNullable<CcReviewFormView["fields"][number]["options"]>[number];
+type Field = CcReviewFormView["fields"][number];
+type FieldOption = NonNullable<Field["options"]>[number];
+type Row = Record<string, unknown>;
+
+/** `item.<col> == '<v>'` / `!=` against a row; anything else (or nothing) holds. */
+function holds(cond: string | undefined, row: Row) {
+  const m = cond?.trim().match(/^item\.(\w+)\s*(==|!=)\s*'([^']*)'$/);
+  if (!m) return true;
+  const v = String(row[m[1]] ?? "");
+  return m[2] === "==" ? v === m[3] : v !== m[3];
+}
+
+/**
+ * An ITEM_LIST field: one row per item (e.g. each entitlement of a description
+ * review) with its editable columns. Rows the agent proposed a description for
+ * keep that proposal so the reviewer can see it after editing and take it back.
+ */
+function ItemListField({ field, rows, readOnly, onChange }: {
+  field: Field; rows: Row[]; readOnly: boolean; onChange: (rows: Row[]) => void;
+}) {
+  const columns = field.columns ?? [];
+  const keyCol = columns.find((c) => c.key)?.name || "entitlementId";
+  // The agent's text, captured the first time each row is seen (before the reviewer edits it).
+  const proposals = useRef<Record<string, string>>({});
+  for (const r of rows) {
+    const k = String(r[keyCol]);
+    if (r.hasProposal && proposals.current[k] === undefined) proposals.current[k] = String(r.description ?? "");
+  }
+  const proposalCount = Object.keys(proposals.current).length;
+  const editable = columns.filter((c) => !c.readOnly && !c.key);
+  const context = columns.filter((c) => (c.readOnly || c.key) && !["entitlementId", "currentDescription"].includes(c.name));
+  const setCell = (i: number, col: string, v: unknown) => onChange(rows.map((r, j) => (j === i ? { ...r, [col]: v } : r)));
+  const acceptAll = () => onChange(rows.map((r) => {
+    const p = proposals.current[String(r[keyCol])];
+    return p ? { ...r, decision: "REWRITE", description: p } : r;
+  }));
+
+  return (
+    <div className="space-y-2">
+      {!readOnly && proposalCount > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" className={BTN_SECONDARY} onClick={acceptAll}>Accept all agent proposals</button>
+          <span className="text-xs text-gray-500">
+            {proposalCount} of {rows.length} row(s) have a proposal; the server re-checks every text (no names, not similar to other descriptions).
+          </span>
+        </div>
+      )}
+      <div className="overflow-x-auto border border-gray-200 rounded-lg">
+        <table className="w-full">
+          <thead><tr className={THEAD_ROW}>
+            <th className={TH}>Entitlement</th>
+            <th className={TH}>Current Description</th>
+            {editable.map((c) => <th key={c.name} className={TH}>{c.label || c.name}{c.required && <span className="text-red-600"> *</span>}</th>)}
+          </tr></thead>
+          <tbody className={TBODY}>
+            {rows.map((r, i) => {
+              const proposal = proposals.current[String(r[keyCol])];
+              return (
+                <tr key={String(r[keyCol] ?? i)}>
+                  <td className={cx(TD, "min-w-[160px]")}>
+                    {context.map((c) => (
+                      <div key={c.name} className={c.name === "name" ? "font-semibold text-gray-900" : "text-xs text-gray-500"}>{String(r[c.name] ?? "")}</div>
+                    ))}
+                  </td>
+                  <td className={cx(TD, "max-w-[260px]")}>{String(r.currentDescription ?? "")}</td>
+                  {editable.map((c) => {
+                    if (!holds(c.visibleWhen, r)) return <td key={c.name} className={cx(TD, "text-gray-400")}>—</td>;
+                    if (c.options?.length) {
+                      return (
+                        <td key={c.name} className={TD}>
+                          <select className={cx(INPUT, "min-w-[130px]")} value={String(r[c.name] ?? "")} disabled={readOnly}
+                                  onChange={(e) => setCell(i, c.name, e.target.value)}>
+                            <option value="">Choose…</option>
+                            {c.options.map((o) => (
+                              <option key={String(o.value)} value={String(o.value)} disabled={!holds(c.valueWhen?.[String(o.value)], r)}>{o.label}</option>
+                            ))}
+                          </select>
+                        </td>
+                      );
+                    }
+                    const text = String(r[c.name] ?? "");
+                    return (
+                      <td key={c.name} className={cx(TD, "min-w-[280px]")}>
+                        <textarea className={INPUT} rows={3} value={text} readOnly={readOnly} onChange={(e) => setCell(i, c.name, e.target.value)} />
+                        {c.name === "description" && proposal !== undefined && (text === proposal ? (
+                          <div className="text-xs text-green-700 mt-1">Agent proposal (unchanged)</div>
+                        ) : (
+                          <div className="text-xs text-gray-500 mt-1">
+                            Edited · agent proposal: <i>{proposal}</i>{" "}
+                            {!readOnly && <button type="button" className="text-blue-600 hover:text-blue-700 font-semibold" onClick={() => setCell(i, c.name, proposal)}>Use proposal</button>}
+                          </div>
+                        ))}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+            {!rows.length && (
+              <tr><td colSpan={2 + editable.length} className={cx(TD, "text-center text-gray-500")}>No members.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      {field.validate && (
+        <div className="text-xs text-gray-500">
+          {Object.entries(field.validate).map(([k, v]) => `${k} ${JSON.stringify(v)}`).join(" · ")}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** What the reviewer is reviewing: the live description with detected names marked, or a cluster summary. */
+export function ReviewFormDisplay({ d }: { d: CcReviewFormDisplay }) {
+  const box = "rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-gray-800";
+  if (d.kind === "CLUSTER" && "representativeDescription" in d) {
+    return (
+      <div className={box}>
+        Representative description: <b>“{d.representativeDescription}”</b> · {d.count} entitlements · {(d.matchKinds ?? []).join(" + ")}
+      </div>
+    );
+  }
+  const text = ("currentDescription" in d && d.currentDescription) || "";
+  const highlights = "highlights" in d ? d.highlights ?? [] : [];
+  const parts: ReactNode[] = [];
+  let at = 0;
+  for (const h of [...highlights].sort((a, b) => a.start - b.start)) {
+    if (h.start < at) continue;
+    parts.push(text.slice(at, h.start));
+    parts.push(<mark key={h.start} title={`${h.ref} · ${h.kind} · ${h.confidence}`} className="bg-yellow-200 rounded px-0.5">{text.slice(h.start, h.end)}</mark>);
+    at = h.end;
+  }
+  parts.push(text.slice(at));
+  return (
+    <div className={box}>
+      <div className="text-xs text-gray-500 mb-1">Current description (live from the catalog; shown to the reviewer only, never stored with the event)</div>
+      <div className="text-[15px]">{parts}</div>
+      {highlights.length ? (
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {highlights.map((h) => <span key={h.start} className={cx(PILL, "border border-gray-200 bg-white text-gray-700")}>{h.ref}: {h.kind} {h.confidence}</span>)}
+        </div>
+      ) : <div className="text-xs text-green-700 mt-1">No name detected in the current text.</div>}
+    </div>
+  );
+}
 
 /** A choice field's options with a search box and a scrolling list (option lists can be long). */
 function OptionList({ options, className, children }: {

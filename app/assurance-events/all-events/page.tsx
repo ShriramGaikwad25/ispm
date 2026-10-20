@@ -143,7 +143,7 @@ function EventsTab({ defs }: { defs: CcDefinitionRef[] }) {
   }), [filters, page]);
 
   const eventsQ = useQuery({ queryKey: [...EVENTS_KEY, search], queryFn: () => CcEvents.search(search) });
-  const sortedDefs = useMemo(() => [...defs].sort((a, b) => a.code.localeCompare(b.code) || b.version - a.version), [defs]);
+  const sortedDefs = useMemo(() => defs.filter((d) => d.state === "ACTIVE").sort((a, b) => a.code.localeCompare(b.code) || b.version - a.version), [defs]);
 
   // Also applied to the loaded page, so the filter holds even if the service ignores dueBefore.
   const rows = useMemo(() => {
@@ -184,7 +184,7 @@ function EventsTab({ defs }: { defs: CcDefinitionRef[] }) {
             <select className={FIELD} value={filters.definitionId} onChange={(e) => set("definitionId", e.target.value)}>
               <option value="">All</option>
               {sortedDefs.map((d) => (
-                <option key={d.definitionId} value={d.definitionId}>{d.code} v{d.version} ({d.state})</option>
+                <option key={d.definitionId} value={d.definitionId}>{d.code} v{d.version}</option>
               ))}
             </select>
           </label>
@@ -429,10 +429,7 @@ function EventsTable({ rows, defs, loading, tab, from, empty }: {
                   <div className="text-sm font-semibold text-gray-900">{defLabel(e.definitionId)}</div>
                   <div className="text-xs text-gray-500 mt-0.5">{e.eventTypeCode}</div>
                 </td>
-                <td className={C}>
-                  <div className="text-sm text-gray-900">{subjectLabel(e)}</div>
-                  {e.correlationKey && <div className="text-xs text-gray-500 mt-0.5 font-mono">{e.correlationKey}</div>}
-                </td>
+                <td className={C}><div className="text-sm text-gray-900">{subjectLabel(e)}</div></td>
                 <td className={C}><SeverityBadge value={e.severity} /></td>
                 <td className={C}><StateBadge value={e.status} /></td>
                 <td className={cx(C, "min-w-[90px]")}>

@@ -208,11 +208,31 @@ export interface CcReviewFormView {
     visible: boolean; value?: unknown; conditional?: boolean;
     options?: Array<{ value: unknown; label: string; meta?: { activeMembers?: number; [k: string]: unknown } }>;
     validate?: { minLength?: number; min?: number; max?: number; [k: string]: unknown };
+    /** ITEM_LIST: one column per row property (`key` names the row id, `readOnly` ones are context). */
+    columns?: CcReviewFormColumn[];
   }>;
   outcomes: Array<{ id: string; when?: string; actions: string[]; decision?: string; then?: string }>;
   submission?: unknown;
   proposal?: Record<string, unknown> | null;
+  /** What the reviewer looks at: the live description with detected names, or a cluster summary. */
+  display?: CcReviewFormDisplay | null;
 }
+
+export interface CcReviewFormColumn {
+  name: string; label?: string; key?: boolean; readOnly?: boolean; required?: boolean;
+  options?: Array<{ value: unknown; label: string }>;
+  /** `item.<col> == '<v>'` / `!=`: the cell shows only when it holds. */
+  visibleWhen?: string;
+  /** Per option value, the same kind of condition: the option is enabled only when it holds. */
+  valueWhen?: Record<string, string>;
+}
+
+export type CcReviewFormDisplay =
+  | { kind: "CLUSTER"; representativeDescription?: string; count?: number; matchKinds?: string[] }
+  | {
+      kind?: string; currentDescription?: string;
+      highlights?: Array<{ start: number; end: number; ref: string; kind: string; confidence: string | number }>;
+    };
 
 export interface CcReviewFormTest { valid: boolean; outcome?: string; diagnostics: string[]; plan?: unknown }
 export interface CcReviewFormSubmission {

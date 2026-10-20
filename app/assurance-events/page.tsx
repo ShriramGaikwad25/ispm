@@ -30,7 +30,6 @@ import { listEmailTemplates } from '@/lib/assurance-notification-bindings';
 const PREVIEW_ROWS = 5;
 const OPEN_EVENT_STATUSES = ['OPEN', 'IN_REVIEW', 'REMEDIATING', 'MITIGATING'];
 const SCHEDULER_ORIGIN = 'https://graph.keyforge.ai';
-const ENTITLEMENTS_URL = 'https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeNamedQuery';
 
 /** One line in a widget: title, a muted detail line and a badge on the right. */
 interface PreviewRow { key: string; title: ReactNode; detail?: ReactNode; badge?: ReactNode }
@@ -52,31 +51,6 @@ async function fetchSchedulerJobs(): Promise<Array<{ id: string; name: string; g
     return { id: `${groupName}:${name}`, name, groupName };
   });
 }
-
-/** Same request as the Datalake › Entitlements page (GET_IIQ_ALL_ENTITLEMENTS, [pageSize, page]). */
-async function fetchEntitlements(pageSize: number, page: number): Promise<Record<string, unknown>[]> {
-  const res = await fetch(ENTITLEMENTS_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: 'GET_IIQ_ALL_ENTITLEMENTS', parameters: [pageSize, page] }),
-  });
-  const data = await res.json().catch(() => null);
-  if (!res.ok) {
-    const o = data && typeof data === 'object' ? (data as Record<string, unknown>) : null;
-    const msg = o?.error ?? o?.message;
-    throw new Error(msg ? String(msg) : `Request failed: ${res.status}`);
-  }
-  if (Array.isArray(data)) return data;
-  if (data && typeof data === 'object') {
-    for (const key of ['resultSet', 'rows', 'data', 'items', 'content']) {
-      const v = (data as Record<string, unknown>)[key];
-      if (Array.isArray(v)) return v as Record<string, unknown>[];
-    }
-  }
-  return [];
-}
-
-const cellText = (v: unknown) => (v === null || v === undefined || v === '' ? '—' : typeof v === 'object' ? JSON.stringify(v) : String(v));
 
 // ---------- Widget ----------
 
@@ -111,8 +85,8 @@ function Widget<T>({ title, subtitle, href, query, summarize }: {
           <p className="text-sm text-gray-500 py-4">Nothing to show.</p>
         ) : (
           <ul className="divide-y divide-gray-100">
-            {summary.rows.slice(0, PREVIEW_ROWS).map((r) => (
-              <li key={r.key} className="flex items-center justify-between gap-3 py-2">
+            {summary.rows.slice(0, PREVIEW_ROWS).map((r, i) => (
+              <li key={`${r.key}-${i}`} className="flex items-center justify-between gap-3 py-2">
                 <div className="min-w-0">
                   <div className="text-sm text-gray-900 truncate">{r.title}</div>
                   {r.detail && <div className="text-xs text-gray-500 truncate">{r.detail}</div>}
@@ -191,11 +165,6 @@ export default function Home() {
   const jobs = useQuery({
     queryKey: ['dashboard', 'scheduler-jobs'],
     queryFn: fetchSchedulerJobs,
-    enabled,
-  });
-  const entitlements = useQuery({
-    queryKey: ['datalake', 'iiq-entitlements', PREVIEW_ROWS, 1],
-    queryFn: () => fetchEntitlements(PREVIEW_ROWS, 1),
     enabled,
   });
 
@@ -324,24 +293,6 @@ export default function Home() {
                 detail: t.templateType,
                 badge: <StateBadge value={t.active ? 'ACTIVE' : 'INACTIVE'} />,
               })),
-            })}
-          />
-          <Widget
-            title="Scheduler" subtitle="Scheduled jobs" href="/assurance-events/scheduler" query={jobs}
-            summarize={(d) => ({
-              count: d.length,
-              rows: d.map((j) => ({ key: j.id, title: j.name, detail: j.groupName })),
-            })}
-          />
-          <Widget
-            title="Data Explorer" subtitle="IIQ entitlements (first rows)"
-            href="/assurance-events/datalake/entitlements" query={entitlements}
-            summarize={(d) => ({
-              count: null,
-              rows: d.map((r, i) => {
-                const values = Object.values(r);
-                return { key: String(i), title: cellText(values[0]), detail: values.slice(1, 3).map(cellText).join(' · ') };
-              }),
             })}
           />
         </Section>
