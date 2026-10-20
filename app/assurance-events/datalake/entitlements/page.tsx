@@ -38,7 +38,7 @@ interface Column {
  * `query` is the entities service named query (null until it is known).
  * `columns` maps the rows to a fixed column set; without it every field becomes a column.
  */
-const OBJECT_TYPES: { name: string; icon: LucideIcon; query: string | null; columns?: (rows: Row[]) => Column[] }[] = [
+const OBJECT_TYPES: { name: string; icon: LucideIcon; query: string | null; columns?: (rows: Row[], attrs: string[]) => Column[] }[] = [
   { name: "Identity", icon: UserRound, query: "GET_IIQ_ALL_IDENTITIES", columns: identityColumns },
   { name: "Entitlement", icon: KeyRound, query: "GET_IIQ_ALL_ENTITLEMENTS", columns: entitlementColumns },
   { name: "Application", icon: AppWindow, query: "GET_IIQ_ALL_APPLICATIONS", columns: applicationColumns },
@@ -133,10 +133,19 @@ function attributeText(value: unknown): string {
   return cellText(value);
 }
 
-/** attributes.* — one column per key found in any row (e.g. firstname, displayName, email). List values show as chips. */
-function attributeColumns(rows: Row[]): Column[] {
-  const keys: string[] = [];
+/** The attribute keys of the rows, in first-seen order, after the `known` ones. */
+function attributeKeys(rows: Row[], known: string[] = []): string[] {
+  const keys = [...known];
   rows.forEach((r) => Object.keys(attributesOf(r)).forEach((k) => { if (!keys.includes(k)) keys.push(k); }));
+  return keys;
+}
+
+/**
+ * attributes.* — one column per key (e.g. firstname, displayName, email). `keys` are the
+ * keys seen on every page visited so far, so a page whose rows lack one keeps its column.
+ * List values show as chips.
+ */
+function attributeColumns(keys: string[]): Column[] {
   return keys.map((k) => ({
     key: `attributes.${k}`,
     label: columnLabel(k),
@@ -211,7 +220,7 @@ function applicationColumns(): Column[] {
 }
 
 /** GET_IIQ_ALL_IDENTITIES: only these fields; attribute keys become their own columns. */
-function identityColumns(rows: Row[]): Column[] {
+function identityColumns(rows: Row[], attrs: string[]): Column[] {
   const columns: Column[] = [
     { key: "name", label: "Username", text: (r) => cellText(r.name) },
     statusColumn(),
@@ -231,7 +240,7 @@ function identityColumns(rows: Row[]): Column[] {
   }
 
   columns.push(
-    ...attributeColumns(rows),
+    ...attributeColumns(attrs),
     { key: "created_at", label: "Created At", text: (r) => dateText(r.created_at) },
     { key: "last_refresh", label: "Last Refresh", text: (r) => dateText(r.last_refresh) },
     { key: "last_login", label: "Last Login", text: (r) => dateText(r.last_login) },
@@ -240,7 +249,7 @@ function identityColumns(rows: Row[]): Column[] {
 }
 
 /** GET_IIQ_ALL_ENTITLEMENTS: only these fields; attribute keys become their own columns. */
-function entitlementColumns(rows: Row[]): Column[] {
+function entitlementColumns(_rows: Row[], attrs: string[]): Column[] {
   return [
     { key: "displayable_name", label: "Name", text: (r) => cellText(r.displayable_name) },
     { key: "attribute", label: "Attribute", text: (r) => cellText(r.attribute) },
@@ -249,7 +258,7 @@ function entitlementColumns(rows: Row[]): Column[] {
     { key: "aggregated", label: "Aggregated", text: (r) => yesNo(r.aggregated) },
     { key: "iiq_elevated_access", label: "Elevated Access", text: (r) => yesNo(r.iiq_elevated_access) },
     { key: "owner_name", label: "Owner", text: (r) => cellText(r.owner_name) },
-    ...attributeColumns(rows),
+    ...attributeColumns(attrs),
     statusColumn("is_inactive"),
     { key: "created_at", label: "Created At", text: (r) => dateText(r.created_at) },
     { key: "modified_at", label: "Modified At", text: (r) => dateText(r.modified_at) },
@@ -257,40 +266,40 @@ function entitlementColumns(rows: Row[]): Column[] {
 }
 
 /** GET_IIQ_ALL_ACCOUNTS: only these fields; attribute keys become their own columns. */
-function accountColumns(rows: Row[]): Column[] {
+function accountColumns(_rows: Row[], attrs: string[]): Column[] {
   return [
     { key: "application_name", label: "Application", text: (r) => cellText(r.application_name) },
     {
       key: "manually_correlated", label: "Source",
       text: (r) => (r.manually_correlated === true ? "Manual" : r.manually_correlated === false ? "Automatic" : "—"),
     },
-    ...attributeColumns(rows),
+    ...attributeColumns(attrs),
     { key: "created_at", label: "Created At", text: (r) => dateText(r.created_at) },
     { key: "modified_at", label: "Modified At", text: (r) => dateText(r.modified_at) },
   ];
 }
 
 /** GET_IIQ_ROLES: only these fields; attribute keys become their own columns. */
-function roleColumns(rows: Row[]): Column[] {
+function roleColumns(_rows: Row[], attrs: string[]): Column[] {
   return [
     { key: "name", label: "Name", text: (r) => cellText(r.name) },
     { key: "type", label: "Type", text: (r) => cellText(r.type) },
     { key: "iiq_elevated_access", label: "Elevated Access", text: (r) => yesNo(r.iiq_elevated_access) },
     { key: "owner_name", label: "Owner", text: (r) => cellText(r.owner_name) },
-    ...attributeColumns(rows),
+    ...attributeColumns(attrs),
     { key: "created_at", label: "Created At", text: (r) => dateText(r.created_at) },
     { key: "modified_at", label: "Modified At", text: (r) => dateText(r.modified_at) },
   ];
 }
 
 /** GET_IIQ_ALL_WORKGROUPS: only these fields; capabilities is multivalued, attribute keys become their own columns. */
-function workgroupColumns(rows: Row[]): Column[] {
+function workgroupColumns(_rows: Row[], attrs: string[]): Column[] {
   return [
     { key: "name", label: "Name", text: (r) => cellText(r.name) },
     statusColumn(),
     { key: "owner_name", label: "Owner", text: (r) => cellText(r.owner_name) },
     multiValueColumn("capabilities", "Capabilities"),
-    ...attributeColumns(rows),
+    ...attributeColumns(attrs),
     { key: "created_at", label: "Created At", text: (r) => dateText(r.created_at) },
     { key: "modified_at", label: "Modified At", text: (r) => dateText(r.modified_at) },
   ];
@@ -311,7 +320,13 @@ export default function DataExplorerPage() {
   });
   const rows = useMemo(() => q.data ?? [], [q.data]);
 
-  const columns = useMemo(() => (type.columns ?? autoColumns)(rows), [type, rows]);
+  // Attribute keys per tab, gathered over every page visited, so columns don't drop out on later pages.
+  const [knownAttrs, setKnownAttrs] = useState<Record<string, string[]>>({});
+  const known = knownAttrs[type.name];
+  const attrs = useMemo(() => attributeKeys(rows, known), [rows, known]);
+  if (attrs.length !== (known?.length ?? 0)) setKnownAttrs({ ...knownAttrs, [type.name]: attrs });
+
+  const columns = useMemo(() => (type.columns ? type.columns(rows, attrs) : autoColumns(rows)), [type, rows, attrs]);
 
   const term = search.trim().toLowerCase();
   const visible = useMemo(
