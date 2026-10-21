@@ -236,10 +236,10 @@ function EventDetailPage() {
 const EVENT_HIDDEN = [
   "subject", "scopeSnapshot", "evidence", "slaSnapshot", "detectionPayload", "subjectDescriptor",
   "eventTypeCode", "definitionId", "definitionVersion", "reviewerResolvedVia", "correlationKey", "riskScore", "currentDecisionId",
-  "reviewerPrincipalId",
+  "reviewerPrincipalId", "eventId",
 ];
 const EVENT_ORDER = [
-  "eventId", "status", "severity", "discoveredAt", "dueAt", "slaRuleId", "slaElapsedPercent", "nextSlaCheckAt",
+  "status", "severity", "discoveredAt", "dueAt", "slaRuleId", "slaElapsedPercent", "nextSlaCheckAt",
   "escalationLevel", "reopenCount", "detectorSource", "subjectKind", "aiRecommendedDecision",
 ];
 
@@ -258,7 +258,7 @@ function SummaryTab({ d }: { d: CcEventDetail }) {
     <div className="space-y-6">
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <Card title="Event">
-          <Fields o={ev as Record<string, unknown>} skip={EVENT_HIDDEN} order={EVENT_ORDER} nowrap={["eventId"]} />
+          <Fields o={ev as Record<string, unknown>} skip={EVENT_HIDDEN} order={EVENT_ORDER} />
         </Card>
 
         <div className="space-y-6">
