@@ -8,7 +8,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CodeXml, Save } from "lucide-react";
+import { Save } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useInvalidateGovernance } from "@/hooks/useAssuranceEvents";
 import { CC_DEFINITIONS_KEY, CcDefinitionWrites, NEW_DEFINITION } from "@/lib/cc-definitions-api";
@@ -17,7 +17,7 @@ import type { EventDefinition } from "@/lib/assurance-events-api";
 import {
   BTN_LINK, BTN_PRIMARY, BTN_SECONDARY, PAGE, PAGE_INNER_FLUSH, PageHeader, Spinner, TabBar, cx,
 } from "../ui";
-import { BannerBar, WireView } from "./fields";
+import { BannerBar } from "./fields";
 import type { Banner } from "./fields";
 import {
   DetectionTab, GeneralTab, GovernanceTab, NotificationsTab, ScopeTab, SlaProfilesTab,
@@ -35,7 +35,6 @@ export function NewDefinitionEditor() {
   const [bindings, setBindings] = useState<PhaseBindings>({});
   const [tab, setTab] = useState("general");
   const [banner, setBanner] = useState<Banner>(null);
-  const [showRequest, setShowRequest] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const patch = (p: Partial<EventDefinition>) => setDto({ ...dto, ...p });
@@ -74,9 +73,6 @@ export function NewDefinitionEditor() {
         subtitle="Fill in each tab, then create it as a DRAFT. Activate it from the editor to make it live."
         actions={
           <>
-            <button className={BTN_SECONDARY} onClick={() => setShowRequest((v) => !v)}>
-              <CodeXml size={14} /> {showRequest ? "Hide Request" : "Show Request"}
-            </button>
             <Link href={DEFINITIONS_BASE} className={BTN_SECONDARY}>Cancel</Link>
             <button className={BTN_PRIMARY} disabled={busy || missing.length > 0} onClick={createDraft}
                     title={missing.length ? `Required on the General tab: ${missing.join(", ")}` : undefined}>
@@ -96,7 +92,7 @@ export function NewDefinitionEditor() {
 
       <TabBar tabs={TABS} active={tab} onChange={setTab} />
 
-      <div className={cx("grid gap-6", showRequest ? "grid-cols-1 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]" : "grid-cols-1")}>
+      <div className="grid grid-cols-1 gap-6">
         <div className="space-y-6 min-w-0">
           {tab === "general" && <GeneralTab {...props} />}
           {tab === "detection" && <DetectionTab {...props} />}
@@ -106,9 +102,7 @@ export function NewDefinitionEditor() {
           {tab === "scope" && <ScopeTab {...props} />}
           {tab === "effective" && <EffectiveConfigTab {...props} />}
           {tab === "notify" && <NotificationsTab {...props} pending={bindings} onPendingChange={setBindings} />}
-        </div>
-        {showRequest && <WireView method="POST" path="/compliance/definitions" body={dto} />}
-      </div>
+        </div>      </div>
       </div>
     </div>
   );

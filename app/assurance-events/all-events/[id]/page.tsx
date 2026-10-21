@@ -22,7 +22,7 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCcConnection } from "@/hooks/useCcConnection";
 import {
-  CcEvents, subjectLabel, type CcEventDetail, type CcLedgerRow, type CcReviewFormSubmission, type CcReviewFormTest,
+  CcEvents, type CcEventDetail, type CcLedgerRow, type CcReviewFormSubmission, type CcReviewFormTest,
   type CcReviewFormView, type CcTimeline,
 } from "@/lib/cc-events-api";
 import {
@@ -212,16 +212,11 @@ function EventDetailPage() {
                   <StateBadge value={ev.status} />
                 </>
               }
-              subtitle={
-                <>
-                  {subjectLabel({ ...ev, subjectDescriptor: (ev.subject?.humanReadable as CcEventDetail["event"]["subjectDescriptor"]) ?? ev.subjectDescriptor })}
-                  {" · "}<span className="font-mono">{ev.eventId}</span>
-                </>
-              }
               actions={<button type="button" className={BTN_SECONDARY} onClick={reload}>Refresh</button>}
+              tight
             />
 
-            <TabBar tabs={TABS} active={tab} onChange={setTab} />
+            <TabBar tabs={TABS} active={tab} onChange={setTab} flushTop />
 
             {tab === "summary" && <SummaryTab d={d} />}
             {tab === "sla" && <SlaTab d={d} />}
@@ -423,19 +418,18 @@ function DecisionsTab({ d }: { d: CcEventDetail }) {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px]">
             <thead><tr className={THEAD_ROW}>
-              <th className={TH}>When</th><th className={TH}>Type</th><th className={TH}>By</th><th className={TH}>Role</th>
-              <th className={TH}>Expires</th><th className={TH}>Justification</th><th className={TH}>Evidence Refs</th>
+              <th className={TH}>When</th><th className={TH}>Type</th><th className={cx(TH, "min-w-[300px]")}>By</th><th className={TH}>Role</th>
+              <th className={TH}>Expires</th><th className={TH}>Justification</th>
             </tr></thead>
             <tbody className={TBODY}>
               {d.decisions.map((r) => (
                 <tr key={r.decisionId}>
                   <td className={cx(TD, "whitespace-nowrap text-xs")}>{fmt(r.decidedAt)}</td>
                   <td className={TD}><span className={cx(PILL, "bg-gray-100 text-gray-700")}>{r.decisionType}</span></td>
-                  <td className={cx(TD, "font-mono text-xs")}>{r.decidedByPrincipalId ? `${r.decidedByPrincipalId.slice(0, 13)}…` : "—"}</td>
+                  <td className={cx(TD, "font-mono text-xs [overflow-wrap:anywhere]")}>{r.decidedByPrincipalId ?? "—"}</td>
                   <td className={TD}>{r.decidedByRole ?? "—"}</td>
                   <td className={cx(TD, "whitespace-nowrap text-xs")}>{fmt(r.expiresAt)}</td>
                   <td className={TD}>{r.justification ?? "—"}</td>
-                  <td className={TD}>{show(r.evidenceRefs)}</td>
                 </tr>
               ))}
             </tbody>
@@ -451,8 +445,14 @@ function DecisionsTab({ d }: { d: CcEventDetail }) {
 const initialValues = (v: CcReviewFormView): Values =>
   Object.fromEntries(v.fields.filter((f) => f.value !== null && f.value !== undefined).map((f) => [f.name, f.value]));
 
+const isNoReviewForm = (e: Error & { status?: number }) => e.status === 404 || /^no review form/i.test(e.message);
+
 function ReviewFormTab({ eventId, onSubmitted }: { eventId: string; onSubmitted: () => void }) {
-  const q = useQuery({ queryKey: ["continuouscompliance", "event", eventId, "review-form"], queryFn: () => CcEvents.reviewForm(eventId) });
+  const q = useQuery({
+    queryKey: ["continuouscompliance", "event", eventId, "review-form"], queryFn: () => CcEvents.reviewForm(eventId),
+    // "No review form" is an answer, not a transient failure: don't retry it (the default backoff took ~7s).
+    retry: (n, e) => !isNoReviewForm(e) && n < 3,
+  });
   const [view, setView] = useState<CcReviewFormView | undefined>(undefined);
   const [values, setValues] = useState<Values>({});
   const [busy, setBusy] = useState(false);
@@ -466,7 +466,11 @@ function ReviewFormTab({ eventId, onSubmitted }: { eventId: string; onSubmitted:
   }, [q.data]);
 
   if (q.isLoading) return <PageSpinner />;
-  if (q.error) return <ErrorLine error={q.error} />;
+  if (q.error) {
+    // An event that was never routed to a reviewer has no form; that's not an error.
+    if (isNoReviewForm(q.error)) return <p className="text-sm text-gray-500">No review form for this event.</p>;
+    return <ErrorLine error={q.error} />;
+  }
   if (!view) return null;
 
   const readOnly = !view.submittable || !view.canSubmit;
@@ -493,7 +497,6 @@ function ReviewFormTab({ eventId, onSubmitted }: { eventId: string; onSubmitted:
     <div className="grid grid-cols-1 gap-6">
       <Card
         title={`${view.title}`}
-        subtitle={<><span className="font-mono">{view.formCode}@v{view.formVersion}</span> · event {view.eventStatus} · {view.submittable ? (view.canSubmit ? "submittable" : `read-only (${view.submitAuthority} only)`) : "read-only"} · pinned when routed</>}
       >
         <div className="space-y-6">
           {view.intent && <p className="text-sm text-gray-700">{view.intent}</p>}
@@ -514,6 +517,7 @@ function ReviewFormTab({ eventId, onSubmitted }: { eventId: string; onSubmitted:
               Dry Run
             </button>
             <span className="text-xs text-gray-500">
+              {readOnly && <>Read-only{view.submittable && view.submitAuthority ? ` (${view.submitAuthority} only)` : ""}. </>}
               Validates the values, picks the first outcome whose <span className="font-mono">when</span> holds, runs its actions and records its decision.
             </span>
           </div>

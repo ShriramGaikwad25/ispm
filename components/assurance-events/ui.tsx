@@ -77,13 +77,15 @@ export function PageSpinner() {
 // ---------- Page building blocks ----------
 
 /** Title row of every page: title + description on the left, actions on the right. */
-export function PageHeader({ title, subtitle, actions, children, wideSubtitle }: {
+export function PageHeader({ title, subtitle, actions, children, wideSubtitle, tight }: {
   title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; children?: ReactNode;
   /** Let the description use the full width instead of max-w-3xl. */
   wideSubtitle?: boolean;
+  /** Smaller bottom margin, for a header directly followed by a tab bar. */
+  tight?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-6">
+    <div className={cx("flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between", tight ? "mb-2" : "mb-6")}>
       <div className="min-w-0">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3 flex-wrap">{title}</h1>
         {subtitle && <p className={cx("text-sm text-gray-500 mt-1", !wideSubtitle && "max-w-3xl")}>{subtitle}</p>}
@@ -133,8 +135,10 @@ export function Modal({ title, onClose, children, widthClass = "max-w-lg" }: {
 }
 
 /** Underlined tab bar used by the editors (Studio configuration, definitions). */
-export function TabBar<K extends string>({ tabs, active, onChange }: {
+export function TabBar<K extends string>({ tabs, active, onChange, flushTop }: {
   tabs: Array<[K, ReactNode]>; active: K; onChange: (k: K) => void;
+  /** Drop the padding above the tab labels (for a bar sitting right under a header). */
+  flushTop?: boolean;
 }) {
   return (
     // overflow-y-hidden: overflow-x-auto alone also makes the bar scroll vertically (the active
@@ -142,7 +146,7 @@ export function TabBar<K extends string>({ tabs, active, onChange }: {
     <div className="border-b border-gray-200 flex gap-6 overflow-x-auto overflow-y-hidden mb-6" role="tablist">
       {tabs.map(([k, label]) => (
         <button key={k} role="tab" aria-selected={active === k} onClick={() => onChange(k)}
-                className={cx("inline-flex items-center gap-2 py-3 text-sm whitespace-nowrap border-b-2 -mb-px font-medium",
+                className={cx("inline-flex items-center gap-2 text-sm", flushTop ? "pb-3" : "py-3", "whitespace-nowrap border-b-2 -mb-px font-medium",
                   active === k ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700")}>
           {label}
         </button>

@@ -12,7 +12,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Ban, CodeXml, GitBranchPlus, Save, ShieldCheck } from "lucide-react";
+import { Ban, GitBranchPlus, Save, ShieldCheck } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useInvalidateGovernance } from "@/hooks/useAssuranceEvents";
 import { CC_DEFINITIONS_KEY, CcDefinitionWrites, CcDefinitions } from "@/lib/cc-definitions-api";
@@ -20,7 +20,7 @@ import type { EventDefinition, UUID } from "@/lib/assurance-events-api";
 import {
   BTN_LINK, BTN_PRIMARY, BTN_SECONDARY, PAGE, PAGE_INNER_FLUSH, PageHeader, Spinner, TabBar, cx,
 } from "../ui";
-import { BannerBar, StateBadge, WireView } from "./fields";
+import { BannerBar, StateBadge } from "./fields";
 import type { Banner } from "./fields";
 import {
   DetectionTab, GeneralTab, GovernanceTab, NotificationsTab, ScopeTab, SlaProfilesTab,
@@ -58,7 +58,6 @@ export function DefinitionEditor({ id }: { id: UUID }) {
   const [tab, setTab] = useState(() => TABS.find(([key]) => key === params.get("tab"))?.[0] ?? "general");
   const [banner, setBanner] = useState<Banner>(() =>
     params.get("saved") ? { tone: "ok", text: "Your changes were saved as this new DRAFT version. Activate it to make it live." } : null);
-  const [showRequest, setShowRequest] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -129,9 +128,6 @@ export function DefinitionEditor({ id }: { id: UUID }) {
         subtitle={<>{dto.name} · v{dto.version} · <span className="font-mono">{dto.eventTypeCode}</span></>}
         actions={
           <>
-            <button className={BTN_SECONDARY} onClick={() => setShowRequest((v) => !v)}>
-              <CodeXml size={14} /> {showRequest ? "Hide Request" : "Show Request"}
-            </button>
             {isDraft ? (
               <>
                 <button className={BTN_SECONDARY} disabled={busy || !dirty}
@@ -183,7 +179,7 @@ export function DefinitionEditor({ id }: { id: UUID }) {
 
       <TabBar tabs={TABS} active={tab} onChange={setTab} />
 
-      <div className={cx("grid gap-6", showRequest ? "grid-cols-1 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]" : "grid-cols-1")}>
+      <div className="grid grid-cols-1 gap-6">
         <div className="space-y-6 min-w-0">
           {tab === "general" && <GeneralTab dto={dto} patch={patch} ro={false} id={id} />}
           {tab === "detection" && <DetectionTab dto={dto} patch={patch} ro={false} id={id} />}
@@ -194,13 +190,6 @@ export function DefinitionEditor({ id }: { id: UUID }) {
           {tab === "effective" && <EffectiveConfigTab dto={dto} patch={patch} ro={false} id={id} />}
           {tab === "notify" && <NotificationsTab dto={dto} patch={patch} ro={false} id={id} />}
         </div>
-        {showRequest && (
-          <WireView
-            method={isDraft ? "PUT" : "POST + PUT"}
-            path={isDraft ? `/compliance/definitions/${id}` : `/compliance/definitions/${id}/versions → /compliance/definitions/{new id}`}
-            body={dto}
-          />
-        )}
       </div>
       </div>
     </div>

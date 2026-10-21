@@ -25,8 +25,7 @@ export function ReviewFormFields({ fields, values, onChange, readOnly }: {
           <span className="block text-sm text-gray-700 mb-1">
             <span className="font-medium text-gray-900">{f.label || f.name}</span>
             {f.required && <span className="text-red-600"> *</span>}
-            <span className="text-xs text-gray-500"> {f.type}{f.sensitive ? " · sensitive" : ""}</span>
-            {f.help && <span className="block text-xs text-gray-500">{f.help}</span>}
+            {f.sensitive && <span className="text-xs text-gray-500"> sensitive</span>}
           </span>
         );
         const options = f.options ?? [];
@@ -115,6 +114,45 @@ export function ReviewFormFields({ fields, values, onChange, readOnly }: {
             </div>
           );
         }
+        if (options.length && options.some((o) => o.meta?.activeMembers !== undefined)) {
+          // Approval groups: labels arrive as "ID — Name"; lay them out as ID | Name | Active members.
+          const cols = "grid grid-cols-[1.5rem_minmax(0,2fr)_minmax(0,3fr)_8rem] items-center gap-3 px-3";
+          return (
+            <div key={f.name}>{label}
+              <OptionList options={options}>
+                {(shown) => (
+                  <>
+                    <div className={cx(cols, "sticky top-0 z-10 py-2 bg-blue-50 border-b border-blue-100 text-xs font-semibold uppercase tracking-wide text-[#1759e4]")}>
+                      <span />
+                      <span>Group ID</span>
+                      <span>Name</span>
+                      <span className="text-right">Active members</span>
+                    </div>
+                    <div className="divide-y divide-gray-100 bg-white">
+                      {shown.map((o) => {
+                        const [id, ...rest] = o.label.split(" — ");
+                        const selected = String(value) === String(o.value);
+                        const n = o.meta?.activeMembers;
+                        return (
+                          <label key={String(o.value)}
+                                 className={cx(cols, "py-2.5 cursor-pointer", selected ? "bg-blue-50" : "hover:bg-gray-50")}>
+                            <input type="radio" name={f.name} checked={selected} disabled={readOnly} onChange={() => set(f.name, o.value)} />
+                            <span className="text-sm font-mono font-medium text-gray-900 [overflow-wrap:anywhere]">{id}</span>
+                            <span className="text-sm text-gray-700">{rest.join(" — ") || "—"}</span>
+                            <span className="text-right">
+                              <span className={cx("inline-block rounded-full px-2 py-0.5 text-xs font-medium",
+                                n ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500")}>{n ?? "—"}</span>
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </OptionList>
+            </div>
+          );
+        }
         if (options.length) {
           return (
             <div key={f.name}>{label}
@@ -123,10 +161,7 @@ export function ReviewFormFields({ fields, values, onChange, readOnly }: {
                   <label key={String(o.value)} className="block rounded-lg border border-gray-200 bg-white px-3 py-2 cursor-pointer hover:bg-gray-50">
                     <span className="flex items-center gap-2">
                       <input type="radio" name={f.name} checked={String(value) === String(o.value)} disabled={readOnly} onChange={() => set(f.name, o.value)} />
-                      <span className="text-sm font-semibold text-gray-900">{o.label}</span>
-                      {o.meta?.activeMembers !== undefined && <span className="text-xs text-gray-500">{o.meta.activeMembers} active members</span>}
-                    </span>
-                    <span className="block text-xs font-mono text-gray-500 ml-6">{String(o.value)}</span>
+                      <span className="text-sm font-semibold text-gray-900">{o.label}</span>                    </span>
                   </label>
                 ))}
               </OptionList>

@@ -2,7 +2,7 @@
 
 // Building blocks of the definition editor, ported from the deployed
 // Continuous Assurance console (graph.keyforge.ai/cc): section card, JSON
-// field, escalation chain editor, request ("wire") view, key/value list,
+// field, escalation chain editor, JSON viewer, key/value list,
 // state badge and banner.
 
 import { useState } from "react";
@@ -175,21 +175,28 @@ export function EscalationChainEditor({ chain, onChange, readOnly }: {
   );
 }
 
-/** The request the editor would send, shown beside the form. */
-export function WireView({ method, path, body }: { method: string; path: string; body: unknown }) {
-  return (
-    <div className={cx(CARD, "sticky top-4 overflow-hidden")}>
-      <div className={CARD_HEADER}>
-        <div>
-          <div className={CARD_TITLE}>Request</div>
-          <div className={cx(CARD_SUBTITLE, "font-mono")}>{method} {path}</div>
-        </div>
-      </div>
-      <pre className="text-xs leading-snug p-4 max-h-[70vh] overflow-auto bg-gray-50 text-gray-800">
-        {JSON.stringify(body, null, 2)}
-      </pre>
-    </div>
-  );
+// "key": | "string" | number | true/false/null, in JSON.stringify output.
+const JSON_TOKEN = /("(?:\\.|[^"\\])*")(\s*:)?|\b(true|false)\b|\b(null)\b|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g;
+
+/** Pretty-printed, syntax-colored JSON (read-only). */
+export function JsonView({ value, className }: { value: unknown; className?: string }) {
+  const text = JSON.stringify(value, null, 2) ?? "null";
+  const out: ReactNode[] = [];
+  let last = 0;
+  for (const m of text.matchAll(JSON_TOKEN)) {
+    const at = m.index ?? 0;
+    if (at > last) out.push(<span key={`p${at}`} className="text-gray-500">{text.slice(last, at)}</span>);
+    const [whole, str, colon, bool, nul, num] = m;
+    if (str !== undefined && colon !== undefined) {
+      out.push(<span key={at} className="text-[#0451a5]">{str}</span>, <span key={`c${at}`} className="text-gray-500">{colon}</span>);
+    } else {
+      const color = str !== undefined ? "text-[#a31515]" : bool !== undefined ? "text-[#0000ff]" : nul !== undefined ? "text-[#795e26]" : num !== undefined ? "text-[#098658]" : "";
+      out.push(<span key={at} className={color}>{whole}</span>);
+    }
+    last = at + whole.length;
+  }
+  if (last < text.length) out.push(<span key="end" className="text-gray-500">{text.slice(last)}</span>);
+  return <pre className={cx("text-xs leading-relaxed font-mono p-4 overflow-auto bg-white", className)}>{out}</pre>;
 }
 
 export function KeyValueList({ rows }: { rows: Array<[string, ReactNode]> }) {

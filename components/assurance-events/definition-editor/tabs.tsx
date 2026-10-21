@@ -26,7 +26,7 @@ import { formatAbsolute } from "@/lib/assurance-format";
 import {
   BTN_GHOST, BTN_PRIMARY, BTN_SECONDARY, INPUT, INPUT_BASE, LABEL, LookupSelect, Modal, Spinner, TBODY, TD, TH, THEAD_ROW, cx,
 } from "../ui";
-import { EscalationChainEditor, JsonField, KeyValueList, Section, StateBadge } from "./fields";
+import { EscalationChainEditor, JsonField, JsonView, KeyValueList, Section, StateBadge } from "./fields";
 
 export type TabProps = {
   dto: EventDefinition;
@@ -547,6 +547,14 @@ export function GovernanceTab({ dto, patch, ro }: TabProps) {
           </tbody>
         </table>
       </div>
+
+      <details className="group mt-6 border border-gray-200 rounded-lg overflow-hidden">
+        <summary className="flex items-center justify-between gap-1.5 px-4 py-2.5 cursor-pointer select-none bg-gray-50 text-sm font-semibold text-gray-900 hover:bg-gray-100 [&::-webkit-details-marker]:hidden list-none">
+          Raw JSON
+          <ChevronDown size={16} className="text-gray-500 transition-transform group-open:rotate-180" />
+        </summary>
+        <JsonView value={dto.governancePolicy ?? {}} className="max-h-96 border-t border-gray-200" />
+      </details>
 
       {adding && (
         <RuleBuilder

@@ -401,21 +401,19 @@ function EventsTable({ rows, defs, loading, tab, from, empty }: {
         <thead>
           <tr className={cx(THEAD_ROW, "[&>th]:px-3")}>
             <th className={TH}>Discovered</th>
-            <th className={TH}>Definition</th>
+            <th className={cx(TH, "w-[11%] min-w-[130px]")}>Definition</th>
             <th className={TH}>Subject</th>
             <th className={TH}>Severity</th>
             <th className={TH}>Status</th>
             <th className={TH}>SLA</th>
             <th className={TH}>Due</th>
             <th className={TH}>Reviewer</th>
-            <th className={TH}>Form</th>
-            <th className={TH}>Esc</th>
-            <th className={TH}>Event ID</th>
+            <th className={cx(TH, "w-[14%] min-w-[150px]")}>Form</th>
           </tr>
         </thead>
         <tbody className={TBODY}>
           {loading && (
-            <tr><td colSpan={11} className="px-4 py-8 text-center text-sm text-gray-500">
+            <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-500">
               <span className="inline-flex items-center gap-2"><Spinner /> Loading…</span>
             </td></tr>
           )}
@@ -448,13 +446,11 @@ function EventsTable({ rows, defs, loading, tab, from, empty }: {
                 <td className={cx(C, "text-xs font-mono")}>
                   {e.evidence?.reviewForm ? `${e.evidence.reviewForm}@v${e.evidence.reviewFormVersion ?? "?"}` : "—"}
                 </td>
-                <td className={C}>L{e.escalationLevel ?? 0}{e.reopenCount ? ` · ↺${e.reopenCount}` : ""}</td>
-                <td className={cx(C, "text-xs font-mono")} title={e.eventId}>{e.eventId.slice(0, 8)}…</td>
               </tr>
             );
           })}
           {!loading && empty && rows.length === 0 && (
-            <tr><td colSpan={11} className="px-4 py-8 text-center text-sm text-gray-500">{empty}</td></tr>
+            <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-500">{empty}</td></tr>
           )}
         </tbody>
       </table>
