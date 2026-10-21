@@ -20,7 +20,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Filter } from "lucide-react";
 import { useCcConnection } from "@/hooks/useCcConnection";
 import {
-  CcEvents, slaPercent, subjectLabel, type CcDefinitionRef, type CcEvent, type CcEventSearch,
+  CcCatalog, CcEvents, slaPercent, subjectLabel, type CcDefinitionRef, type CcEvent, type CcEventSearch,
 } from "@/lib/cc-events-api";
 import {
   BTN_SECONDARY, CARD, CARD_SUBTITLE, CARD_TITLE, PAGE, PAGE_INNER_FLUSH, PILL, PageSpinner, Spinner, TBODY, TD, TH,
@@ -376,6 +376,19 @@ function ReviewQueueTab({ defs }: { defs: CcDefinitionRef[] }) {
 
 /* ================================================================ Shared table */
 
+/** Reviewer's name from the principals catalog; one cached lookup per id, the id until it loads or if none is found. */
+function ReviewerName({ id }: { id?: string | null }) {
+  const q = useQuery({
+    queryKey: ["continuouscompliance", "catalog", "principal", id],
+    queryFn: () => CcCatalog.principalName(id!),
+    enabled: !!id, staleTime: 30 * 60_000, retry: false,
+  });
+  if (!id) return <>—</>;
+  return q.data
+    ? <span className="text-sm text-gray-900" title={id}>{q.data}</span>
+    : <span className="font-mono text-gray-500" title={id}>{id}</span>;
+}
+
 function EventsTable({ rows, defs, loading, tab, from, empty }: {
   rows: CcEvent[]; defs: CcDefinitionRef[]; loading: boolean; tab?: string; empty: string | null;
   /** Which list opened the event ("review" = Review Queue), so its back link returns there. */
@@ -442,7 +455,7 @@ function EventsTable({ rows, defs, loading, tab, from, empty }: {
                   )}
                 </td>
                 <td className={cx(C, "text-xs")}>{fmt(e.dueAt ?? e.slaSnapshot?.dueAt)}</td>
-                <td className={cx(C, "text-xs font-mono")}>{e.reviewerPrincipalId ?? "—"}</td>
+                <td className={cx(C, "text-xs")}><ReviewerName id={e.reviewerPrincipalId} /></td>
                 <td className={cx(C, "text-xs font-mono")}>
                   {e.evidence?.reviewForm ? `${e.evidence.reviewForm}@v${e.evidence.reviewFormVersion ?? "?"}` : "—"}
                 </td>

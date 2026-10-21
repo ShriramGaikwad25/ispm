@@ -242,6 +242,24 @@ export interface CcReviewFormSubmission {
 
 const eventPath = (id: string) => `/compliance/events/${encodeURIComponent(id)}`;
 
+/** First non-empty string among a principal record's usual name fields. */
+function principalName(p: Record<string, unknown>): string | null {
+  const s = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+  const full = [s(p.firstName), s(p.lastName)].filter(Boolean).join(" ");
+  return s(p.displayName) ?? s(p.name) ?? s(p.fullName) ?? (full || null) ?? s(p.userName) ?? s(p.username) ?? s(p.email);
+}
+
+export const CcCatalog = {
+  /** GET /catalog/principals?q={id}&limit=1 — the principal's display name, or null when none is found. */
+  principalName: async (id: string): Promise<string | null> => {
+    const r = await ccRequest<unknown>("GET", "/catalog/principals", { query: { q: id, limit: "1" } });
+    const o = r && typeof r === "object" ? (r as Record<string, unknown>) : {};
+    const list = Array.isArray(r) ? r : [o.items, o.content, o.data, o.principals, o.results].find(Array.isArray) ?? [];
+    const first = list[0];
+    return first && typeof first === "object" ? principalName(first as Record<string, unknown>) : null;
+  },
+};
+
 export const CcEvents = {
   /** GET /compliance/events/{id}/review-form */
   reviewForm: (id: string) => ccRequest<CcReviewFormView>("GET", `${eventPath(id)}/review-form`),
