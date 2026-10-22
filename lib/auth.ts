@@ -968,7 +968,7 @@ export async function fetchApplicationAuthType(
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(
-      `applicationType failed: ${response.status} ${response.statusText} - ${errorText}`
+      `applicationType failed for tenant "${appName}": ${response.status} ${response.statusText} - ${errorText}`
     );
   }
 

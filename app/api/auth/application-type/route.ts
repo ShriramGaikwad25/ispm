@@ -5,15 +5,17 @@ const AUTH_BASE_URL = 'https://preview.keyforge.ai/RequestJWTToken/TokenProvider
 
 /** Server proxy for applicationType (avoids browser CORS). */
 export async function POST(request: NextRequest) {
-  let registeredAppName = await getRegisteredAppFromCookies();
-
+  // The tenant the page asks for (from its URL) wins: the cookie can be a stale or HttpOnly
+  // value from an earlier sign-in that client JS cannot overwrite.
+  let registeredAppName: string | null = null;
+  try {
+    const body = (await request.json()) as { registeredAppName?: string };
+    registeredAppName = body?.registeredAppName?.trim() || null;
+  } catch {
+    /* empty or invalid body */
+  }
   if (!registeredAppName) {
-    try {
-      const body = (await request.json()) as { registeredAppName?: string };
-      registeredAppName = body?.registeredAppName?.trim() || null;
-    } catch {
-      /* empty or invalid body */
-    }
+    registeredAppName = await getRegisteredAppFromCookies();
   }
 
   if (!registeredAppName) {
