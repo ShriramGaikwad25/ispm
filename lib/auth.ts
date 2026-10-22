@@ -7,6 +7,7 @@ import {
   redirectToTenantLogin,
 } from '@/lib/tenant';
 import { clearJitAccessHistoryStore } from '@/lib/jitAccessHistoryStorage';
+import { usesHttpOnlySession } from '@/lib/kfProxy';
 
 /** Best-effort message from KeyForge / gateway / PG JSON error bodies. */
 function pickHttpErrorBodyMessage(errorJson: unknown, fallback: string): string {
@@ -142,7 +143,34 @@ export function getCookie(name: string): string | null {
       return decodeURIComponent(value);
     }
   }
-  return null;
+  return exposedTokens.get(name) ?? null;
+}
+
+/**
+ * Tokens from HttpOnly cookies (external SSO sign-in) that JS cannot read, handed over by
+ * /api/auth/tokens and kept in memory only. getCookie() falls back to them, so every caller
+ * attaches `Authorization: Bearer` exactly as after a password sign-in.
+ */
+const exposedTokens = new Map<string, string>();
+
+/** Loads the session's tokens from /api/auth/tokens into memory; true when both were returned. */
+export async function loadExposedTokens(): Promise<boolean> {
+  if (typeof window === 'undefined') return false;
+  try {
+    const res = await fetch('/api/auth/tokens', { credentials: 'include', cache: 'no-store' });
+    if (!res.ok) return false;
+    const data = (await res.json()) as { accessToken?: string | null; jwtToken?: string | null };
+    exposedTokens.clear();
+    if (data.accessToken) exposedTokens.set(COOKIE_NAMES.ACCESS_TOKEN, data.accessToken);
+    if (data.jwtToken) exposedTokens.set(COOKIE_NAMES.JWT_TOKEN, data.jwtToken);
+    return !!(data.accessToken && data.jwtToken);
+  } catch {
+    return false;
+  }
+}
+
+export function clearExposedTokens(): void {
+  exposedTokens.clear();
 }
 
 const ACCESS_TOKEN_COOKIE_ALIASES = [
@@ -162,7 +190,8 @@ const JWT_TOKEN_COOKIE_ALIASES = [
 function getCookieFromAliases(names: readonly string[]): string | null {
   for (const name of names) {
     const value = getCookie(name);
-    if (value) return value;
+    // Real cookies only: in-memory tokens (getCookie's fallback) must not be written back as cookies.
+    if (value && value !== exposedTokens.get(name)) return value;
   }
   return null;
 }
@@ -218,21 +247,40 @@ export async function fetchServerSession(): Promise<ServerSessionCheck> {
   }
 }
 
+/**
+ * Parent domain KeyForge's identity service sets its cookies on (e.g. `.keyforge.ai` for
+ * identity.keyforge.ai), or null on other hosts (localhost). A cookie is only removed by an
+ * expiry carrying the same domain, so logout must clear both host-only and domain cookies.
+ */
+export function sharedCookieDomain(host: string): string | null {
+  const h = host.split(':')[0].toLowerCase();
+  return h === 'keyforge.ai' || h.endsWith('.keyforge.ai') ? '.keyforge.ai' : null;
+}
+
 export function deleteCookie(name: string): void {
   if (typeof document === 'undefined') return;
   const expired = 'Thu, 01 Jan 1970 00:00:00 UTC';
-  document.cookie = `${name}=;expires=${expired};path=/;`;
-  document.cookie = `${name}=;expires=${expired};path=/;secure;`;
-  document.cookie = `${name}=;expires=${expired};path=/;samesite=strict;`;
-  document.cookie = `${name}=;expires=${expired};path=/;samesite=strict;secure;`;
+  const domain = sharedCookieDomain(window.location.hostname);
+  for (const d of domain ? ['', `domain=${domain};`] : ['']) {
+    document.cookie = `${name}=;expires=${expired};path=/;${d}`;
+    document.cookie = `${name}=;expires=${expired};path=/;${d}secure;`;
+    document.cookie = `${name}=;expires=${expired};path=/;${d}samesite=strict;`;
+    document.cookie = `${name}=;expires=${expired};path=/;${d}samesite=strict;secure;`;
+  }
 }
 
-/** All cookie names used by auth (for client + server logout). */
+/** All cookie names used by auth (for client + server logout), including those KeyForge sets after SSO. */
 export const AUTH_COOKIE_NAMES_TO_CLEAR = [
   ...Object.values(COOKIE_NAMES),
   ...ACCESS_TOKEN_COOKIE_ALIASES,
   ...JWT_TOKEN_COOKIE_ALIASES,
   REGISTERED_APP_COOKIE,
+  'JWT_ACCESSTOKEN',
+  'OAUTH_PROVIDER_ACCESSTOKEN',
+  'LOGGEDIN_USERID',
+  'REGISTERED_APPNAME',
+  'userid',
+  'tenantId',
 ] as const;
 
 function getBrowserCookieNames(): string[] {
@@ -312,6 +360,7 @@ export function clearAllAuthCookies(options?: { preserveLogoutRedirect?: boolean
     deleteCookie(name);
   }
 
+  clearExposedTokens();
   clearActiveTenantId();
   clearAuthSessionStorage(preserveLogoutRedirect);
   clearPersistedApplicationAuthType();
@@ -321,10 +370,12 @@ export function clearAllAuthCookies(options?: { preserveLogoutRedirect?: boolean
 export async function clearAuthCookiesOnServer(): Promise<void> {
   if (typeof window === 'undefined') return;
   try {
+    // keepalive: callers navigate away right after; without it the browser cancels this request.
     await fetch('/api/auth/logout', {
       method: 'POST',
       credentials: 'include',
       cache: 'no-store',
+      keepalive: true,
     });
   } catch {
     /* ignore */
@@ -334,6 +385,10 @@ export async function clearAuthCookiesOnServer(): Promise<void> {
 // Force logout when tokens fail - clears cookies and redirects to login
 export function forceLogout(reason?: string): void {
   console.error('🚨 FORCE LOGOUT TRIGGERED 🚨:', reason || 'Token verification/generation failed');
+
+  // Read before clearing: clearAllAuthCookies() drops the active tenant, and without it the
+  // redirect below would land on /logged-out instead of this tenant's sign-in page.
+  const tenant = getActiveTenantId() || getCurrentUser()?.tenantId?.trim() || null;
 
   void clearAuthCookiesOnServer();
   try {
@@ -348,8 +403,8 @@ export function forceLogout(reason?: string): void {
   } catch {
     /* ignore */
   }
-  
-  redirectToTenantLogin();
+
+  redirectToTenantLogin(tenant);
 }
 
 // Check if response contains token expired error and attempt refresh before logout
@@ -376,9 +431,7 @@ export async function checkTokenExpiredError(data: any): Promise<boolean> {
       } else {
         // Refresh failed - access token is also expired/invalid, logout
         console.error('🚨 TOKEN REFRESH FAILED - FORCING LOGOUT 🚨');
-        clearAllAuthCookies();
-        forceLogout('Token Expired - Refresh failed');
-        redirectToTenantLogin();
+        forceLogout('Token Expired - Refresh failed'); // clears cookies and redirects to the tenant's sign-in
         return true;
       }
     }
@@ -807,10 +860,11 @@ export function performUserLogout(
     /* ignore */
   }
 
+  // Start before navigating (keepalive lets it finish after the page unloads): clears HttpOnly cookies.
+  void clearAuthCookiesOnServer();
+
   // Navigate immediately so AuthWrapper cannot redirect to tenant login first.
   window.location.replace(target);
-
-  void clearAuthCookiesOnServer();
 }
 
 export function clearLogoutRedirectFlag(): void {
@@ -1113,8 +1167,10 @@ export async function apiRequestWithAuth<T>(
   internalRetry = false
 ): Promise<T> {
   const jwtToken = getCookie(COOKIE_NAMES.JWT_TOKEN);
-  
-  if (!jwtToken) {
+
+  // An HttpOnly session (external SSO) has a JWT JS cannot read: the patched fetch sends the call
+  // through the token proxy, which adds it from the cookie.
+  if (!jwtToken && !usesHttpOnlySession()) {
     forceLogout('No JWT token available');
     throw new Error('No JWT token available');
   }
@@ -1122,7 +1178,7 @@ export async function apiRequestWithAuth<T>(
   // For GET requests, don't include Content-Type header (some servers reject it)
   const isGetRequest = (options.method || 'GET').toUpperCase() === 'GET';
   const headers: Record<string, string> = {
-    'Authorization': `Bearer ${jwtToken}`,
+    ...(jwtToken ? { 'Authorization': `Bearer ${jwtToken}` } : {}),
     ...(options.headers as Record<string, string>),
   };
 
@@ -1290,8 +1346,6 @@ export async function apiRequestWithAuth<T>(
           
           if (statusStr === 'error' || statusStr === 'failed' || statusStr === 'unauthorized') {
             console.error('!!! JWT TOKEN STATUS IS ERROR - FORCING LOGOUT !!!');
-            // Clear cookies immediately
-            clearAllAuthCookies();
             // Force logout immediately - this will redirect
             forceLogout(`JWT token status is ${statusStr}`);
             // Don't continue - redirect should happen
@@ -1302,7 +1356,6 @@ export async function apiRequestWithAuth<T>(
         // Also check for error message or error field
         if (data.error || data.Error || data.message === 'error' || data.message === 'failed') {
           console.error('!!! JWT TOKEN RESPONSE CONTAINS ERROR - FORCING LOGOUT !!!');
-          clearAllAuthCookies();
           forceLogout('JWT token response contains error');
           throw new Error('JWT token response contains error');
         }
@@ -1313,7 +1366,6 @@ export async function apiRequestWithAuth<T>(
           const msgLower = message.toLowerCase();
           if (msgLower.includes('error') || msgLower.includes('failed') || msgLower.includes('invalid') || msgLower.includes('unauthorized')) {
             console.error('!!! JWT TOKEN MESSAGE INDICATES ERROR - FORCING LOGOUT !!!');
-            clearAllAuthCookies();
             forceLogout(`JWT token message indicates error: ${message}`);
             throw new Error(`JWT token message indicates error: ${message}`);
           }

@@ -1,6 +1,7 @@
 import { COOKIE_NAMES, getCookie, refreshJWTToken, forceLogout } from "@/lib/auth";
 import { getActiveTenantId } from "@/lib/tenant";
 import { isAssuranceApiUrl } from "@/lib/assurance-api";
+import { viaTokenProxy } from "@/lib/kfProxy";
 
 let fetchPatched = false;
 let originalFetch: typeof window.fetch | null = null;
@@ -108,6 +109,9 @@ export function ensureAuthFetchPatched(): void {
       const jwtToken = getCookie(COOKIE_NAMES.JWT_TOKEN);
 
       if (!jwtToken && !isRetry) {
+        // HttpOnly session (external SSO): the token proxy adds the JWT from the cookie.
+        const proxied = typeof input === "string" || input instanceof URL ? viaTokenProxy(requestUrl(input), init, "jwt") : null;
+        if (proxied) return originalFetch!(proxied.url, withTenantHeader(proxied.url, proxied.init));
         return originalFetch!(input, withTenantHeader(input, init));
       }
 

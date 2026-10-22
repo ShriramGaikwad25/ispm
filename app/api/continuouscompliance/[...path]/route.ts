@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAccessTokenFromRequest } from "@/lib/serverAuth";
+import { getProxyAccessToken } from "@/lib/serverAuth";
+import { proxyAuthDiagnostics } from "@/lib/kfProxy";
 
 // Server-side proxy to the Continuous Compliance service used by the
 // Continuous Compliance Console (graph.keyforge.ai/console). The browser
@@ -26,10 +27,12 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }
+  let authSource = headers.has("authorization") ? "browser" : "none";
   if (!headers.has("authorization")) {
-    const accessToken = getAccessTokenFromRequest(request);
-    if (accessToken) headers.set("authorization", `Bearer ${accessToken}`);
+    const found = getProxyAccessToken(request);
+    if (found) { headers.set("authorization", `Bearer ${found.token}`); authSource = `cookie:${found.cookie}`; }
   }
+  const diagnostics = proxyAuthDiagnostics(authSource, request.cookies.getAll().map((c) => c.name));
 
   const hasBody = request.method !== "GET" && request.method !== "HEAD";
 
@@ -42,7 +45,7 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
     });
     // Pass the body through as bytes (JSON, or a ZIP evidence pack) with the headers the console reads.
     const body = await upstream.arrayBuffer();
-    const responseHeaders = new Headers({ "Content-Type": upstream.headers.get("content-type") ?? "application/json" });
+    const responseHeaders = new Headers({ "Content-Type": upstream.headers.get("content-type") ?? "application/json", ...diagnostics });
     for (const name of ["content-disposition", "x-pack-id", "x-pack-hash"]) {
       const value = upstream.headers.get(name);
       if (value) responseHeaders.set(name, value);

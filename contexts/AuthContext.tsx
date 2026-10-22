@@ -26,6 +26,7 @@ import {
   clearLastAuthTypeOnLocalLogin,
   performUserLogout,
   syncAuthTypeToSession,
+  loadExposedTokens,
 } from '@/lib/auth';
 import {
   getActiveTenantId,
@@ -36,6 +37,7 @@ import {
   setActiveTenantId,
 } from '@/lib/tenant';
 import { ensureAuthFetchPatched } from '@/lib/authFetch';
+import { setHttpOnlySession } from '@/lib/kfProxy';
 import { clearJitAccessHistoryStore } from '@/lib/jitAccessHistoryStorage';
 
 interface AuthContextType {
@@ -76,6 +78,12 @@ function applySessionToState(
   });
   sessionStorage.removeItem(AUTH_SESSION_KEYS.OAUTH_CALLBACK_FAILED);
   sessionStorage.removeItem(AUTH_SESSION_KEYS.OAUTH_REDIRECT_AT);
+  // A previous SSO logout in this tab leaves this set; with a live session again it is stale,
+  // and AuthWrapper would keep sending every page to /logged-out.
+  sessionStorage.removeItem(AUTH_SESSION_KEYS.LOGOUT_REDIRECT);
+  // Valid session whose tokens are still unreadable (HttpOnly and /api/auth/tokens failed):
+  // fall back to routing calls via the token proxy.
+  setHttpOnlySession(!(getCookie(COOKIE_NAMES.ACCESS_TOKEN) && getCookie(COOKIE_NAMES.JWT_TOKEN)));
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -104,7 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (pathTenant) {
           setActiveTenantId(pathTenant);
         }
-        const tenant = getActiveTenantId();
+        let tenant = getActiveTenantId();
         setActiveTenantIdState(tenant);
 
         if (isLoggedOutPath(path)) {
@@ -112,6 +120,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setIsAuthenticated(false);
           setUser(null);
           return;
+        }
+
+        // After an external (e.g. Oracle) SSO sign-in the tenant is only in HttpOnly cookies
+        // (tenantId / REGISTERED_APPNAME) that JS cannot read: take it from the server session.
+        if (!tenant) {
+          const session = await fetchServerSession();
+          const fromCookies = session.authenticated ? session.user?.tenantId?.trim() : '';
+          if (fromCookies) {
+            setActiveTenantId(fromCookies);
+            tenant = fromCookies;
+            setActiveTenantIdState(tenant);
+          }
         }
 
         if (!tenant) {
@@ -124,6 +144,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         normalizeAuthCookiesFromBrowser();
         const oauthCallback = getOAuthCallbackParamsFromUrl();
         const serverSession = await fetchServerSession();
+        // Valid session but HttpOnly tokens (external SSO): fetch them so calls can send Bearer themselves.
+        if (serverSession.authenticated && !(getCookie(COOKIE_NAMES.ACCESS_TOKEN) && getCookie(COOKIE_NAMES.JWT_TOKEN))) {
+          await loadExposedTokens();
+        }
         const hasClientSession = !!(
           getCookie(COOKIE_NAMES.ACCESS_TOKEN) && getCookie(COOKIE_NAMES.JWT_TOKEN)
         );
@@ -223,6 +247,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         console.error('Auth initialization error:', error);
         const serverSession = await fetchServerSession();
+        if (serverSession.authenticated && !(getCookie(COOKIE_NAMES.ACCESS_TOKEN) && getCookie(COOKIE_NAMES.JWT_TOKEN))) {
+          await loadExposedTokens();
+        }
         if (hasActiveTenant() && (serverSession.authenticated || normalizeAuthCookiesFromBrowser())) {
           const fallbackAuth = getPersistedAuthType() ?? 'OAUTH';
           setAuthType(fallbackAuth);
