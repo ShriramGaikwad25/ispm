@@ -859,12 +859,19 @@ export function performUserLogout(
     .then((url) => finishUserLogout(true, '/logged-out', url));
 }
 
-/** Absolute http(s) URL only (a logoutURL from the server is never run as javascript: etc.). */
-function safeExternalUrl(url: string | null): string | null {
+/**
+ * The provider's logout URL (absolute http(s) only, so a server value is never run as javascript:
+ * etc.), with `post_logout_redirect_uri` set to `returnTo` unless it already names one — so the
+ * provider (Oracle IDCS / OIDC end-session) sends the user back to our page, not its own.
+ * The provider only honours a return URL registered for the app (Oracle: "Post Logout Redirect URL").
+ */
+function providerLogoutWithReturn(url: string | null, returnTo: string): string | null {
   if (!url) return null;
   try {
     const u = new URL(url, window.location.href);
-    return u.protocol === 'https:' || u.protocol === 'http:' ? u.href : null;
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
+    if (!u.searchParams.has('post_logout_redirect_uri')) u.searchParams.set('post_logout_redirect_uri', returnTo);
+    return u.href;
   } catch {
     return null;
   }
@@ -894,8 +901,10 @@ function finishUserLogout(external: boolean, target: string, providerLogoutUrl: 
   void clearAuthCookiesOnServer();
 
   // Navigate immediately so AuthWrapper cannot redirect to tenant login first. SSO goes through the
-  // provider's logout (which ends its session) when the tenant has one, else to /logged-out.
-  const providerLogout = external ? safeExternalUrl(providerLogoutUrl) : null;
+  // provider's logout (which ends its session and returns to our target page) when the tenant has
+  // one, else straight to the target.
+  const ourPage = new URL(target, window.location.origin).href;
+  const providerLogout = external ? providerLogoutWithReturn(providerLogoutUrl, ourPage) : null;
   window.location.replace(providerLogout ?? target);
 }
 
