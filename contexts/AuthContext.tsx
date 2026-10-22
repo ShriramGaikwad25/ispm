@@ -27,6 +27,7 @@ import {
   performUserLogout,
   syncAuthTypeToSession,
   loadExposedTokens,
+  clearLogoutRedirectFlag,
 } from '@/lib/auth';
 import {
   getActiveTenantId,
@@ -112,6 +113,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (pathTenant) {
           setActiveTenantId(pathTenant);
         }
+        // Opening the tenant sign-in URL is a new sign-in: drop the flag an earlier SSO logout left.
+        if (isTenantAuthPath(path)) clearLogoutRedirectFlag();
         let tenant = getActiveTenantId();
         setActiveTenantIdState(tenant);
 

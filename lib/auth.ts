@@ -835,12 +835,42 @@ export function performUserLogout(
   if (typeof window === 'undefined') return;
 
   const external = shouldLogoutToLoggedOutPage(reactAuthType);
-  const target = external
-    ? '/logged-out'
-    : tenantId?.trim()
-      ? `/${tenantId.trim()}`
-      : getTenantLoginPath();
+  if (!external) {
+    finishUserLogout(false, tenantId?.trim() ? `/${tenantId.trim()}` : getTenantLoginPath(), null);
+    return;
+  }
 
+  // SSO: clearing our cookies is not enough — the identity provider (e.g. Oracle) still has a
+  // session and would sign the user straight back in. End it via the tenant's logoutURL, read
+  // before clearAllAuthCookies() wipes it (or fetched again when this tab never stored it).
+  let providerLogoutUrl: string | null = null;
+  try {
+    providerLogoutUrl = sessionStorage.getItem(AUTH_SESSION_KEYS.LOGOUT_URL);
+  } catch {
+    /* ignore */
+  }
+  const tenant = tenantId?.trim() || getActiveTenantId();
+  if (providerLogoutUrl || !tenant) {
+    finishUserLogout(true, '/logged-out', providerLogoutUrl);
+    return;
+  }
+  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000));
+  void Promise.race([fetchApplicationAuthType(tenant).then((r) => r.logoutURL?.trim() || null).catch(() => null), timeout])
+    .then((url) => finishUserLogout(true, '/logged-out', url));
+}
+
+/** Absolute http(s) URL only (a logoutURL from the server is never run as javascript: etc.). */
+function safeExternalUrl(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url, window.location.href);
+    return u.protocol === 'https:' || u.protocol === 'http:' ? u.href : null;
+  } catch {
+    return null;
+  }
+}
+
+function finishUserLogout(external: boolean, target: string, providerLogoutUrl: string | null): void {
   try {
     if (external) {
       sessionStorage.setItem(AUTH_SESSION_KEYS.LOGOUT_REDIRECT, '/logged-out');
@@ -863,8 +893,10 @@ export function performUserLogout(
   // Start before navigating (keepalive lets it finish after the page unloads): clears HttpOnly cookies.
   void clearAuthCookiesOnServer();
 
-  // Navigate immediately so AuthWrapper cannot redirect to tenant login first.
-  window.location.replace(target);
+  // Navigate immediately so AuthWrapper cannot redirect to tenant login first. SSO goes through the
+  // provider's logout (which ends its session) when the tenant has one, else to /logged-out.
+  const providerLogout = external ? safeExternalUrl(providerLogoutUrl) : null;
+  window.location.replace(providerLogout ?? target);
 }
 
 export function clearLogoutRedirectFlag(): void {
