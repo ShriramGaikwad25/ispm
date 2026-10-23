@@ -18,8 +18,8 @@ import { SeverityBadge, StateBadge } from '@/components/assurance-events/definit
 import { formatRelative } from '@/lib/assurance-format';
 import { resolveTenantIdForHeader } from '@/lib/auth';
 import { assuranceRequest } from '@/lib/assurance-auth';
-import { CcEvents, subjectLabel } from '@/lib/cc-events-api';
-import { CcDefinitionWrites } from '@/lib/cc-definitions-api';
+import { CcEvents, subjectLabel, type CcEvent } from '@/lib/cc-events-api';
+import { CcDefinitionWrites, type CcDefinitionSummary } from '@/lib/cc-definitions-api';
 import { Controls } from '@/lib/controls-api';
 import { ReviewForms } from '@/lib/assurance-review-forms';
 import { SlaProfiles, humanDuration } from '@/lib/cc-sla-profiles-api';
@@ -115,6 +115,26 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
+// ---------- Event rows ----------
+
+// An event is titled by its definition's name; its correlation key (a long
+// generated ID) is never shown.
+function eventTitle(e: CcEvent, defs: CcDefinitionSummary[] | undefined): string {
+  return defs?.find((d) => d.definitionId === e.definitionId)?.name ?? humanCode(e.eventTypeCode);
+}
+
+// The subject's name, when the event has a real one (not just its correlation key).
+function eventSubject(e: CcEvent): string | null {
+  const label = subjectLabel(e);
+  return label === '—' || label === e.correlationKey ? null : label;
+}
+
+// IN_REVIEW → "In review"
+function humanCode(code: string): string {
+  const s = (code ?? '').replace(/_/g, ' ').toLowerCase();
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 // ---------- Page ----------
 
 export default function Home() {
@@ -196,8 +216,9 @@ export default function Home() {
               count: d.totalElements,
               rows: d.content.map((e) => ({
                 key: e.eventId,
-                title: subjectLabel(e),
-                detail: `${e.eventTypeCode} · ${e.status} · discovered ${formatRelative(e.discoveredAt)}`,
+                title: eventTitle(e, definitions.data),
+                detail: [eventSubject(e), humanCode(e.status), `discovered ${formatRelative(e.discoveredAt)}`]
+                  .filter(Boolean).join(' · '),
                 badge: <SeverityBadge value={e.severity} />,
               })),
             })}
@@ -226,7 +247,7 @@ export default function Home() {
                 rows: rows.map((c) => ({
                   key: c.controlId,
                   title: c.name,
-                  detail: `${c.code} · ${c.categoryCode} · ${c.objectKind}`,
+                  detail: `${humanCode(c.objectKind)} · v${c.version}`,
                   badge: <StateBadge value={c.state} />,
                 })),
               };
@@ -239,7 +260,7 @@ export default function Home() {
               rows: d.map((f) => ({
                 key: f.formId,
                 title: f.title,
-                detail: `${f.code} v${f.version}${f.system ? ' · system' : ''}`,
+                detail: `v${f.version}${f.system ? ' · Built-in' : ''}`,
                 badge: <StateBadge value={f.state} />,
               })),
             })}
@@ -251,7 +272,7 @@ export default function Home() {
               rows: d.map((p) => ({
                 key: p.profileId,
                 title: p.name,
-                detail: `${p.code} v${p.version} · ${humanDuration(p.duration)}`,
+                detail: `${humanDuration(p.duration)} · v${p.version}`,
                 badge: <StateBadge value={p.state} />,
               })),
             })}
@@ -266,7 +287,7 @@ export default function Home() {
               rows: d.map((a) => ({
                 key: a.actionId,
                 title: a.name,
-                detail: `${a.code} · ${a.category}`,
+                detail: humanCode(a.category),
                 badge: <StateBadge value={a.state} />,
               })),
             })}
@@ -278,7 +299,7 @@ export default function Home() {
               rows: d.map((x) => ({
                 key: x.executor_code,
                 title: x.display_name,
-                detail: `${x.executor_code} · ${x.kind}${x.paused ? ' · paused' : ''}`,
+                detail: `${humanCode(x.kind)}${x.paused ? ' · Paused' : ''}`,
                 badge: <StateBadge value={x.state} />,
               })),
             })}
@@ -290,7 +311,7 @@ export default function Home() {
               rows: d.map((t) => ({
                 key: String(t.id),
                 title: t.templateName,
-                detail: t.templateType,
+                detail: humanCode(t.templateType),
                 badge: <StateBadge value={t.active ? 'ACTIVE' : 'INACTIVE'} />,
               })),
             })}
