@@ -101,10 +101,20 @@ const EMPTY_NEW_JOB_DATA = {
  * (preview.keyforge.ai) for Settings → Gateway → Scheduler, graph.keyforge.ai for
  * Assurance Events → Scheduler, which also sends the access token instead of the JWT
  * (`useAccessToken`) and logs out when it has expired. Everything else is the same.
+ * `jobFilter` limits the job list to jobs whose name or group contains it (case-insensitive),
+ * and `embedded` sizes the scheduler to its container instead of the viewport; the event
+ * definition editor's Scheduler tab uses both to show only that definition's jobs.
  */
-export default function SchedulerManager({ apiOrigin = getBackendOrigin(), useAccessToken = false }: {
+export default function SchedulerManager({
+  apiOrigin = getBackendOrigin(),
+  useAccessToken = false,
+  jobFilter,
+  embedded = false,
+}: {
   apiOrigin?: string;
   useAccessToken?: boolean;
+  jobFilter?: string;
+  embedded?: boolean;
 } = {}) {
   const request = <T,>(url: string, options?: RequestInit): Promise<T> =>
     useAccessToken ? assuranceRequest<T>(url, options) : apiRequestWithAuth<T>(url, options);
@@ -203,6 +213,7 @@ export default function SchedulerManager({ apiOrigin = getBackendOrigin(), useAc
 
       // Map API response to our JobSchedule interface
       // Handle the format: ["groupname:jobname"]
+      const filterTerm = jobFilter?.trim().toLowerCase();
       const mappedJobs: JobSchedule[] = data.map((jobString: string) => {
         // Parse the "groupname:jobname" format
         const [groupName, jobName] = jobString.includes(":")
@@ -230,7 +241,11 @@ export default function SchedulerManager({ apiOrigin = getBackendOrigin(), useAc
           groupName: groupName,
           description: undefined, // Will be populated from job details API
         };
-      });
+      }).filter((job) =>
+        !filterTerm ||
+        job.name.toLowerCase().includes(filterTerm) ||
+        (job.groupName || "").toLowerCase().includes(filterTerm)
+      );
 
       setSchedules(mappedJobs);
 
@@ -1108,7 +1123,7 @@ export default function SchedulerManager({ apiOrigin = getBackendOrigin(), useAc
   });
 
   return (
-    <div className="scheduler-manager">
+    <div className={`scheduler-manager${embedded ? " scheduler-manager-embedded" : ""}`}>
       {popup.isOpen && (
         <div
           className="scheduler-modal-overlay"

@@ -27,6 +27,7 @@ import {
 } from "./tabs";
 import { LookupsTab } from "./LookupsTab";
 import { EffectiveConfigTab } from "./EffectiveConfigTab";
+import SchedulerManager from "@/components/scheduler/SchedulerManager";
 
 export const DEFINITIONS_BASE = "/assurance-events/event-definitions";
 
@@ -43,6 +44,14 @@ export const TABS: Array<[string, string]> = [
   ["notify", "Notifications"],
 ];
 
+// Definitions whose ACTIVE version gets a Scheduler tab after Notifications,
+// showing the Assurance Events scheduler limited to that definition's jobs.
+const SCHEDULED_CODES = ["REP010", "REP011"];
+const SCHEDULER_TAB: [string, string] = ["scheduler", "Scheduler"];
+
+const hasSchedulerTab = (dto: EventDefinition) =>
+  dto.state === "ACTIVE" && SCHEDULED_CODES.includes(dto.code.toUpperCase());
+
 export function DefinitionEditor({ id }: { id: UUID }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -55,7 +64,9 @@ export function DefinitionEditor({ id }: { id: UUID }) {
   // GET {baseUrl}/{tenant}/compliance/definitions/{id}
   const query = useQuery({ queryKey: [...CC_DEFINITIONS_KEY, "detail", id], queryFn: () => CcDefinitions.get(id) });
   const [dto, setDto] = useState<EventDefinition | null>(null);
-  const [tab, setTab] = useState(() => TABS.find(([key]) => key === params.get("tab"))?.[0] ?? "general");
+  // ?tab=scheduler is kept until the definition loads; it falls back to General if it has no Scheduler tab.
+  const [tab, setTab] = useState(() =>
+    [...TABS, SCHEDULER_TAB].find(([key]) => key === params.get("tab"))?.[0] ?? "general");
   const [banner, setBanner] = useState<Banner>(() =>
     params.get("saved") ? { tone: "ok", text: "Your changes were saved as this new DRAFT version. Activate it to make it live." } : null);
   const [busy, setBusy] = useState(false);
@@ -79,6 +90,8 @@ export function DefinitionEditor({ id }: { id: UUID }) {
   }
 
   const isDraft = dto.state === "DRAFT";
+  const tabs = hasSchedulerTab(dto) ? [...TABS, SCHEDULER_TAB] : TABS;
+  const activeTab = tabs.some(([key]) => key === tab) ? tab : "general";
   const dirty = JSON.stringify(dto) !== JSON.stringify(query.data);
   const patch = (p: Partial<EventDefinition>) => setDto({ ...dto, ...p });
   const openDefinition = (defId: string, saved = false) =>
@@ -177,18 +190,23 @@ export function DefinitionEditor({ id }: { id: UUID }) {
 
       {banner && <div className="mb-4"><BannerBar banner={banner} onClose={() => setBanner(null)} /></div>}
 
-      <TabBar tabs={TABS} active={tab} onChange={setTab} />
+      <TabBar tabs={tabs} active={activeTab} onChange={setTab} />
 
       <div className="grid grid-cols-1 gap-6">
         <div className="space-y-6 min-w-0">
-          {tab === "general" && <GeneralTab dto={dto} patch={patch} ro={false} id={id} />}
-          {tab === "detection" && <DetectionTab dto={dto} patch={patch} ro={false} id={id} />}
-          {tab === "lookups" && <LookupsTab dto={dto} patch={patch} ro={false} id={id} />}
-          {tab === "governance" && <GovernanceTab dto={dto} patch={patch} ro={false} id={id} />}
-          {tab === "sla" && <SlaProfilesTab dto={dto} patch={patch} ro={false} id={id} />}
-          {tab === "scope" && <ScopeTab dto={dto} patch={patch} ro={false} id={id} />}
-          {tab === "effective" && <EffectiveConfigTab dto={dto} patch={patch} ro={false} id={id} />}
-          {tab === "notify" && <NotificationsTab dto={dto} patch={patch} ro={false} id={id} />}
+          {activeTab === "general" && <GeneralTab dto={dto} patch={patch} ro={false} id={id} />}
+          {activeTab === "detection" && <DetectionTab dto={dto} patch={patch} ro={false} id={id} />}
+          {activeTab === "lookups" && <LookupsTab dto={dto} patch={patch} ro={false} id={id} />}
+          {activeTab === "governance" && <GovernanceTab dto={dto} patch={patch} ro={false} id={id} />}
+          {activeTab === "sla" && <SlaProfilesTab dto={dto} patch={patch} ro={false} id={id} />}
+          {activeTab === "scope" && <ScopeTab dto={dto} patch={patch} ro={false} id={id} />}
+          {activeTab === "effective" && <EffectiveConfigTab dto={dto} patch={patch} ro={false} id={id} />}
+          {activeTab === "notify" && <NotificationsTab dto={dto} patch={patch} ro={false} id={id} />}
+          {activeTab === "scheduler" && (
+            <div className="h-[calc(100vh-14rem)] min-h-[560px] overflow-hidden rounded-lg border border-gray-200">
+              <SchedulerManager apiOrigin="https://graph.keyforge.ai" useAccessToken jobFilter={dto.code} embedded />
+            </div>
+          )}
         </div>
       </div>
       </div>

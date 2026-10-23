@@ -7,6 +7,11 @@
   position: relative;
 }
 
+/* Inside another page (e.g. an event definition's Scheduler tab): fill the container. */
+.scheduler-manager.scheduler-manager-embedded {
+  height: 100%;
+}
+
 .scheduler-modal-overlay {
   position: fixed;
   inset: 0;
