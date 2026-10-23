@@ -30,15 +30,24 @@ export default function ProfilePage() {
       // ignore
     }
     const searchIdentifier = userIdFromCookie || currentUserId;
+    // Logged-in user's unique id (usr.userid)
+    const loggedInUserId = (reviewerId || userIdFromCookie || "").trim();
 
     const run = async () => {
       try {
         setIsLoading(true);
         setError(null);
+
+        if (!loggedInUserId) {
+          setError("User ID could not be resolved.");
+          return;
+        }
+
+        // Pull only the logged-in user's record
         const endpoint = "https://preview.keyforge.ai/entities/api/v1/ACMECOM/executeQuery";
         const responseData = await apiRequestWithAuth<any>(endpoint, {
           method: "POST",
-          body: JSON.stringify({ query: "SELECT * FROM usr", parameters: [] }),
+          body: JSON.stringify({ query: "SELECT * FROM usr WHERE userid = ?::uuid", parameters: [loggedInUserId] }),
         });
 
         const sourceArray: any[] =
@@ -48,42 +57,10 @@ export default function ProfilePage() {
               ? responseData
               : [];
 
-        if (sourceArray.length === 0) {
-          setError("No user data found.");
-          return;
-        }
-
-        const searchIdLower = (searchIdentifier || "").toLowerCase().trim();
-        let userData: any = sourceArray.find((u: any) => (u.username || "").toLowerCase().trim() === searchIdLower);
+        const userData: any = sourceArray[0];
         if (!userData) {
-          userData = sourceArray.find((u: any) => {
-            const e = u.email?.work || (typeof u.email === "string" ? u.email : "") || u.customattributes?.emails?.[0]?.value || "";
-            return e.toLowerCase().trim() === searchIdLower;
-          });
-        }
-        if (!userData && reviewerId) {
-          const rLower = reviewerId.toLowerCase().trim();
-          userData = sourceArray.find(
-            (u: any) => (u.userid || u.id || u.userUniqueID || "").toLowerCase().trim() === rLower
-          );
-        }
-        if (!userData) {
-          userData = sourceArray.find((u: any) => (u.displayname || u.displayName || "").toLowerCase().trim() === searchIdLower);
-        }
-        if (!userData) {
-          userData = sourceArray.find(
-            (u: any) => `${(u.firstname || "")} ${(u.lastname || "")}`.toLowerCase().trim() === searchIdLower
-          );
-        }
-        if (!userData) {
-          userData = sourceArray.find((u: any) => (u.firstname || "").toLowerCase().trim() === searchIdLower);
-        }
-        if (!userData && searchIdentifier) {
           setError("Your user record was not found.");
           return;
-        }
-        if (!userData) {
-          userData = sourceArray[0];
         }
 
         const displayName =

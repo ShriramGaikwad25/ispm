@@ -36,12 +36,13 @@ function UsersTab() {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const { isAuthenticated } = useAuth();
   
-  // Pagination state
-  const pageSizeSelector = [20, 50, 100];
-  const [pageSize, setPageSize] = useState(pageSizeSelector[0]);
+  // Pagination state: users are fetched from the server one page (100 rows) at a time
+  const pageSize = 100;
   const [pageNumber, setPageNumber] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
+  const totalPages = Math.ceil(totalItems / pageSize);
+  // Search term actually sent to the server (debounced from searchTerm)
+  const [appliedSearch, setAppliedSearch] = useState<string>("");
 
   // Default data for fallback
   const defaultRowData: UserData[] = [
@@ -65,9 +66,19 @@ function UsersTab() {
     },
   ];
 
-
-  // Fetch users data from API
+  // Debounce the search box and go back to the first page when it changes
   useEffect(() => {
+    const handle = setTimeout(() => {
+      setAppliedSearch(searchTerm.trim());
+      setPageNumber(1);
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [searchTerm]);
+
+  // Fetch one page of users from the API
+  useEffect(() => {
+    let cancelled = false;
+
     const fetchUsers = async () => {
       // Check if user is authenticated before making API call
       if (!isAuthenticated) {
@@ -75,23 +86,36 @@ function UsersTab() {
         setLoading(false);
         setRowData([]);
         setTotalItems(0);
-        setTotalPages(0);
         return;
       }
 
       try {
         setLoading(true);
         setError(null);
-        
-        // Execute query to get all users
-        const query = "SELECT * FROM usr";
-        const parameters: string[] = [];
-        
-        const response = await executeQuery(query, parameters);
-        
-        // Transform API response to match our UserData interface
-        if (response && typeof response === 'object' && 'resultSet' in response && Array.isArray((response as any).resultSet)) {
-          const sourceArray: any[] = (response as any).resultSet;
+
+        // Search matches any column of the user row
+        const whereClause = appliedSearch ? " WHERE usr::text ILIKE ?" : "";
+        const filterParams: any[] = appliedSearch ? [`%${appliedSearch}%`] : [];
+        const offset = (pageNumber - 1) * pageSize;
+
+        const [countResponse, response] = await Promise.all([
+          executeQuery<any>(`SELECT COUNT(*) AS count FROM usr${whereClause}`, filterParams),
+          executeQuery<any>(
+            `SELECT * FROM usr${whereClause} ORDER BY username ASC LIMIT ? OFFSET ?`,
+            [...filterParams, pageSize, offset]
+          ),
+        ]);
+        if (cancelled) return;
+
+        const sourceArray: any[] | null =
+          response && typeof response === 'object' && 'resultSet' in response && Array.isArray(response.resultSet)
+            ? response.resultSet
+            : Array.isArray(response)
+              ? response
+              : null;
+
+        if (sourceArray) {
+          // Transform API response to match our UserData interface
           const transformedData: UserData[] = sourceArray.map((user: any) => ({
             name:
               user.displayname ||
@@ -107,9 +131,10 @@ function UsersTab() {
             managerName: user.managername || user.customattributes?.enterpriseUser?.manager?.value || "",
             managerStatus: "Active" // Default status for manager
           }));
+          const countRow = Array.isArray(countResponse?.resultSet) ? countResponse.resultSet[0] : undefined;
+          const total = Number(countRow?.count);
           setRowData(transformedData);
-          setTotalItems(transformedData.length);
-          setTotalPages(Math.ceil(transformedData.length / pageSize));
+          setTotalItems(Number.isFinite(total) ? total : offset + transformedData.length);
           // Persist a lookup map of raw users by email/username for detail page consumption
           try {
             const rawByKey: Record<string, any> = {};
@@ -119,41 +144,13 @@ function UsersTab() {
             }
             localStorage.setItem("usersRawByKey", JSON.stringify(rawByKey));
           } catch {}
-        } else if (response && Array.isArray(response)) {
-          // Handle case where response is directly an array
-          const transformedData: UserData[] = response.map((user: any) => ({
-            name:
-              user.displayname ||
-              user.displayName ||
-              [user.firstname, user.lastname].filter(Boolean).join(" ").trim() ||
-              "Unknown",
-            email: user.email?.work || user.customattributes?.emails?.[0]?.value || user.username || "Unknown",
-            title: user.title || user.customattributes?.title || "Unknown",
-            department: user.department || user.customattributes?.enterpriseUser?.department || "Unknown",
-            managerEmail: user.managername || user.customattributes?.enterpriseUser?.manager?.value || "",
-            status: user.status || (user.customattributes?.active ? "Active" : "Inactive"),
-            tags: user.employeetype || user.customattributes?.userType || "",
-            managerName: user.managername || user.customattributes?.enterpriseUser?.manager?.value || "",
-            managerStatus: "Active" // Default status for manager
-          }));
-          setRowData(transformedData);
-          setTotalItems(transformedData.length);
-          setTotalPages(Math.ceil(transformedData.length / pageSize));
-          try {
-            const rawByKey: Record<string, any> = {};
-            for (const u of response as any[]) {
-              const key = (u.email?.work || u.customattributes?.emails?.[0]?.value || u.username || u.displayname || u.displayName || "").toString();
-              if (key) rawByKey[key] = u;
-            }
-            localStorage.setItem("usersRawByKey", JSON.stringify(rawByKey));
-          } catch {}
         } else {
           // Fallback to default data if API response is empty
           setRowData(defaultRowData);
           setTotalItems(defaultRowData.length);
-          setTotalPages(Math.ceil(defaultRowData.length / pageSize));
         }
       } catch (err) {
+        if (cancelled) return;
         console.error("Error fetching users:", err);
         
         // Handle authentication errors gracefully
@@ -166,54 +163,23 @@ function UsersTab() {
           console.log("Users: Authentication error, user may have logged out");
           setRowData([]);
           setTotalItems(0);
-          setTotalPages(0);
           setError(null); // Don't show error if user logged out
         } else {
           setError(err instanceof Error ? err.message : "Failed to fetch users");
           // Fallback to default data on error
           setRowData(defaultRowData);
           setTotalItems(defaultRowData.length);
-          setTotalPages(Math.ceil(defaultRowData.length / pageSize));
         }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     fetchUsers();
-  }, [isAuthenticated]);
-
-  // Filter data based on search term
-  const filteredData = useMemo(() => {
-    if (!searchTerm.trim()) {
-      return rowData;
-    }
-    const searchLower = searchTerm.toLowerCase();
-    return rowData.filter((user) => {
-      return (
-        user.name?.toLowerCase().includes(searchLower) ||
-        user.email?.toLowerCase().includes(searchLower) ||
-        user.title?.toLowerCase().includes(searchLower) ||
-        user.department?.toLowerCase().includes(searchLower) ||
-        user.tags?.toLowerCase().includes(searchLower)
-      );
-    });
-  }, [rowData, searchTerm]);
-
-  // Calculate paginated data
-  const paginatedData = useMemo(() => {
-    const startIndex = (pageNumber - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    return filteredData.slice(startIndex, endIndex);
-  }, [filteredData, pageNumber, pageSize]);
-
-  // Update total pages when page size changes or search term changes
-  useEffect(() => {
-    const newTotalItems = filteredData.length;
-    setTotalItems(newTotalItems);
-    setTotalPages(Math.ceil(newTotalItems / pageSize));
-    setPageNumber(1); // Reset to first page when page size or search changes
-  }, [pageSize, filteredData.length]);
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, pageNumber, appliedSearch]);
 
   // Pagination handlers
   const handlePageChange = (newPage: number) => {
@@ -322,17 +288,6 @@ const columnDefs = useMemo<ColDef[]>(
     router.push(`/user/${encodeURIComponent(appId)}`);
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center" style={{ height: 600 }}>
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading users...</p>
-        </div>
-      </div>
-    );
-  }
-
   if (error) {
     return (
       <div className="flex justify-center items-center" style={{ height: 600 }}>
@@ -374,7 +329,7 @@ const columnDefs = useMemo<ColDef[]>(
           </div>
           {searchTerm && (
             <p className="text-sm text-gray-600 mt-1">
-              Showing {filteredData.length} result(s) for "{searchTerm}"
+              Showing {totalItems} result(s) for "{searchTerm}"
             </p>
           )}
         </div>
@@ -396,46 +351,43 @@ const columnDefs = useMemo<ColDef[]>(
       {/* Top pagination */}
       <div className="mb-2">
         <CustomPagination
-          totalItems={filteredData.length}
+          totalItems={totalItems}
           currentPage={pageNumber}
           totalPages={totalPages}
           pageSize={pageSize}
           onPageChange={handlePageChange}
-          onPageSizeChange={(newPageSize) => {
-            if (typeof newPageSize === "number") {
-              setPageSize(newPageSize);
-              setPageNumber(1); // Reset to first page when changing page size
-            }
-          }}
-          pageSizeOptions={pageSizeSelector}
+          pageSizeOptions={[pageSize]}
         />
       </div>
-      
+
       <div style={{ minHeight: '400px' }}>
-        <AgGridReact
-          theme={themeQuartz}
-          columnDefs={columnDefs}
-          rowData={paginatedData}
-          domLayout="autoHeight"
-          onRowClicked={handleRowClick}
-        />
+        {loading ? (
+          <div className="flex justify-center items-center" style={{ height: 400 }}>
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading users...</p>
+            </div>
+          </div>
+        ) : (
+          <AgGridReact
+            theme={themeQuartz}
+            columnDefs={columnDefs}
+            rowData={rowData}
+            domLayout="autoHeight"
+            onRowClicked={handleRowClick}
+          />
+        )}
       </div>
-      
+
       {/* Bottom pagination */}
       <div className="mt-4 mb-4">
         <CustomPagination
-          totalItems={filteredData.length}
+          totalItems={totalItems}
           currentPage={pageNumber}
           totalPages={totalPages}
           pageSize={pageSize}
           onPageChange={handlePageChange}
-          onPageSizeChange={(newPageSize) => {
-            if (typeof newPageSize === "number") {
-              setPageSize(newPageSize);
-              setPageNumber(1); // Reset to first page when changing page size
-            }
-          }}
-          pageSizeOptions={pageSizeSelector}
+          pageSizeOptions={[pageSize]}
         />
       </div>
     </div>
