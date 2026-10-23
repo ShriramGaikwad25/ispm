@@ -7,6 +7,8 @@ import { ChevronDown, Bold, Italic, Underline, Strikethrough, List, ListOrdered,
 import { resolveTenantIdForHeader } from "@/lib/auth";
 import { assuranceAuthHeaders, assuranceFetch } from "@/lib/assurance-auth";
 import { sanitizeHtml } from "@/lib/sanitize-html";
+import NextLink from "next/link";
+import { BTN_LINK, cx } from "@/components/assurance-events/ui";
 
 interface EmailTemplateFormData {
   templateCode: string;
@@ -699,6 +701,7 @@ export default function EditEmailTemplatePage() {
   if (error) {
     return (
       <div className="h-full p-6">
+        <NextLink href="/assurance-events/notifications" className={cx(BTN_LINK, "inline-block mb-3")}>← Notifications</NextLink>
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           <p className="font-medium">Error loading template</p>
           <p className="mt-0.5 text-xs">{error}</p>
@@ -709,6 +712,9 @@ export default function EditEmailTemplatePage() {
 
   return (
     <div className="h-full pt-0 px-6 pb-6" style={{ overflow: 'visible', paddingRight: '360px' }}>
+      <NextLink href={`/assurance-events/notifications/${params.id}`} className={cx(BTN_LINK, "inline-block mt-4 mb-3")}>
+        ← Template details
+      </NextLink>
       <div className="flex gap-6 items-start" style={{ position: 'relative' }}>
         {/* Main Section */}
         <div className="flex-1 bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">

@@ -7,6 +7,10 @@ import { Mail, Calendar, User, FileText, Edit } from "lucide-react";
 import { resolveTenantIdForHeader } from "@/lib/auth";
 import { assuranceAuthHeaders, assuranceFetch } from "@/lib/assurance-auth";
 import { sanitizeHtml } from "@/lib/sanitize-html";
+import Link from "next/link";
+import { BTN_LINK, cx } from "@/components/assurance-events/ui";
+
+const NOTIFICATIONS_HREF = "/assurance-events/notifications";
 
 interface EmailTemplate {
   id: number;
@@ -115,6 +119,7 @@ export default function EmailTemplateDetailPage() {
   return (
     <div className="h-full">
       <div className="w-full px-6 py-6">
+        <Link href={NOTIFICATIONS_HREF} className={cx(BTN_LINK, "inline-block mb-3")}>← Notifications</Link>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-6">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-3">

@@ -7,6 +7,8 @@ import { Mail, Info, FileCode2, FileText, Tag, Code, Check, Hash } from "lucide-
 import { resolveTenantIdForHeader } from "@/lib/auth";
 import { assuranceAuthHeaders, assuranceFetch } from "@/lib/assurance-auth";
 import { sanitizeHtml } from "@/lib/sanitize-html";
+import NextLink from "next/link";
+import { BTN_LINK, cx } from "@/components/assurance-events/ui";
 
 interface EmailTemplateFormData {
   templateCode: string;
@@ -605,6 +607,7 @@ export default function NewEmailTemplatePage() {
       <div className="flex gap-6 items-start" style={{ position: 'relative' }}>
         {/* Main Section */}
         <div className="flex-1 space-y-4">
+            <NextLink href="/assurance-events/notifications" className={cx(BTN_LINK, "inline-block")}>← Notifications</NextLink>
             {/* Header */}
             <div className="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm flex items-center justify-between">
               <div className="flex items-center gap-3">
