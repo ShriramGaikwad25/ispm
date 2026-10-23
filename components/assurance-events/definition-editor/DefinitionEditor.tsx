@@ -28,6 +28,9 @@ import {
 import { LookupsTab } from "./LookupsTab";
 import { EffectiveConfigTab } from "./EffectiveConfigTab";
 import SchedulerManager from "@/components/scheduler/SchedulerManager";
+import {
+  ASSURANCE_SCHEDULER_JOBS_KEY, ASSURANCE_SCHEDULER_ORIGIN, jobMatchesCode, listAssuranceSchedulerJobs,
+} from "@/lib/assurance-scheduler-jobs";
 
 export const DEFINITIONS_BASE = "/assurance-events/event-definitions";
 
@@ -44,13 +47,10 @@ export const TABS: Array<[string, string]> = [
   ["notify", "Notifications"],
 ];
 
-// Definitions whose ACTIVE version gets a Scheduler tab after Notifications,
-// showing the Assurance Events scheduler limited to that definition's jobs.
-const SCHEDULED_CODES = ["REP010", "REP011"];
+// An ACTIVE definition gets a Scheduler tab after Notifications when the
+// Assurance Events scheduler has a job carrying its code (e.g. REP010); the
+// tab shows that scheduler limited to the definition's jobs.
 const SCHEDULER_TAB: [string, string] = ["scheduler", "Scheduler"];
-
-const hasSchedulerTab = (dto: EventDefinition) =>
-  dto.state === "ACTIVE" && SCHEDULED_CODES.includes(dto.code.toUpperCase());
 
 export function DefinitionEditor({ id }: { id: UUID }) {
   const router = useRouter();
@@ -63,6 +63,13 @@ export function DefinitionEditor({ id }: { id: UUID }) {
   };
   // GET {baseUrl}/{tenant}/compliance/definitions/{id}
   const query = useQuery({ queryKey: [...CC_DEFINITIONS_KEY, "detail", id], queryFn: () => CcDefinitions.get(id) });
+  // GET graph.keyforge.ai/kfscheduler/api/v1/{tenant}/jobs, only for ACTIVE definitions.
+  const schedulerJobs = useQuery({
+    queryKey: ASSURANCE_SCHEDULER_JOBS_KEY,
+    queryFn: listAssuranceSchedulerJobs,
+    enabled: query.data?.state === "ACTIVE",
+    staleTime: 60_000,
+  });
   const [dto, setDto] = useState<EventDefinition | null>(null);
   // ?tab=scheduler is kept until the definition loads; it falls back to General if it has no Scheduler tab.
   const [tab, setTab] = useState(() =>
@@ -90,8 +97,12 @@ export function DefinitionEditor({ id }: { id: UUID }) {
   }
 
   const isDraft = dto.state === "DRAFT";
-  const tabs = hasSchedulerTab(dto) ? [...TABS, SCHEDULER_TAB] : TABS;
-  const activeTab = tabs.some(([key]) => key === tab) ? tab : "general";
+  const hasSchedulerTab = dto.state === "ACTIVE" && (schedulerJobs.data ?? []).some((job) =>
+    job.split(":").some((part) => jobMatchesCode(part, dto.code)));
+  const tabs = hasSchedulerTab ? [...TABS, SCHEDULER_TAB] : TABS;
+  // While the job list loads, keep ?tab=scheduler rather than bouncing to General.
+  const activeTab = tabs.some(([key]) => key === tab) || (tab === "scheduler" && schedulerJobs.isLoading)
+    ? tab : "general";
   const dirty = JSON.stringify(dto) !== JSON.stringify(query.data);
   const patch = (p: Partial<EventDefinition>) => setDto({ ...dto, ...p });
   const openDefinition = (defId: string, saved = false) =>
@@ -202,9 +213,9 @@ export function DefinitionEditor({ id }: { id: UUID }) {
           {activeTab === "scope" && <ScopeTab dto={dto} patch={patch} ro={false} id={id} />}
           {activeTab === "effective" && <EffectiveConfigTab dto={dto} patch={patch} ro={false} id={id} />}
           {activeTab === "notify" && <NotificationsTab dto={dto} patch={patch} ro={false} id={id} />}
-          {activeTab === "scheduler" && (
+          {activeTab === "scheduler" && hasSchedulerTab && (
             <div className="h-[calc(100vh-14rem)] min-h-[560px] overflow-hidden rounded-lg border border-gray-200">
-              <SchedulerManager apiOrigin="https://graph.keyforge.ai" useAccessToken jobFilter={dto.code} embedded />
+              <SchedulerManager apiOrigin={ASSURANCE_SCHEDULER_ORIGIN} useAccessToken jobFilter={dto.code} embedded />
             </div>
           )}
         </div>

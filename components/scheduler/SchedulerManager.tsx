@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { apiRequestWithAuth, resolveTenantIdForHeader } from "@/lib/auth";
 import { assuranceRequest } from "@/lib/assurance-auth";
+import { jobMatchesCode } from "@/lib/assurance-scheduler-jobs";
 
 import "./SchedulerManager.css";
 
@@ -101,7 +102,7 @@ const EMPTY_NEW_JOB_DATA = {
  * (preview.keyforge.ai) for Settings → Gateway → Scheduler, graph.keyforge.ai for
  * Assurance Events → Scheduler, which also sends the access token instead of the JWT
  * (`useAccessToken`) and logs out when it has expired. Everything else is the same.
- * `jobFilter` limits the job list to jobs whose name or group contains it (case-insensitive),
+ * `jobFilter` limits the job list to jobs whose name or group carries it as a code (see jobMatchesCode),
  * and `embedded` sizes the scheduler to its container instead of the viewport; the event
  * definition editor's Scheduler tab uses both to show only that definition's jobs.
  */
@@ -243,8 +244,8 @@ export default function SchedulerManager({
         };
       }).filter((job) =>
         !filterTerm ||
-        job.name.toLowerCase().includes(filterTerm) ||
-        (job.groupName || "").toLowerCase().includes(filterTerm)
+        jobMatchesCode(job.name, filterTerm) ||
+        jobMatchesCode(job.groupName || "", filterTerm)
       );
 
       setSchedules(mappedJobs);
