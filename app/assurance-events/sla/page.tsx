@@ -78,8 +78,8 @@ export default function SlaProfilesPage() {
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search code, name, description..."
-                     aria-label="Search SLA profiles" className={cx(FILTER_INPUT, "flex-1 min-w-0")} />
-              <select value={state} onChange={(e) => setState(e.target.value)} aria-label="State" className={FILTER_INPUT}>
+                     aria-label="Search SLA profiles" className={cx(FILTER_INPUT, "w-full min-w-0 sm:w-96")} />
+              <select value={state} onChange={(e) => setState(e.target.value)} aria-label="State" className={cx(FILTER_INPUT, "w-full sm:w-56")}>
                 <option value="">All States</option>
                 <option value="ACTIVE">Active</option>
                 <option value="DRAFT">Draft</option>

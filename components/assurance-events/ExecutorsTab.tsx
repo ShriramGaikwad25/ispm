@@ -69,20 +69,20 @@ export function ExecutorsTab() {
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search code, action, endpoint..."
-                     aria-label="Search executors" className={cx(FILTER_INPUT, "flex-1 min-w-0")} />
-              <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value)} aria-label="Kind" className={FILTER_INPUT}>
+                     aria-label="Search executors" className={cx(FILTER_INPUT, "w-full min-w-0 sm:w-96")} />
+              <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value)} aria-label="Kind" className={cx(FILTER_INPUT, "w-full sm:w-56")}>
                 <option value="">All Kinds</option>
                 <option value="INPROCESS">Built-in</option>
                 <option value="REST">REST adapter</option>
                 <option value="AGENT">AI agent</option>
               </select>
-              <select value={stateFilter} onChange={(e) => setStateFilter(e.target.value)} aria-label="State" className={FILTER_INPUT}>
+              <select value={stateFilter} onChange={(e) => setStateFilter(e.target.value)} aria-label="State" className={cx(FILTER_INPUT, "w-full sm:w-56")}>
                 <option value="">All States</option>
                 <option value="ACTIVE">Active</option>
                 <option value="DRAFT">Draft</option>
                 <option value="DEPRECATED">Deprecated</option>
               </select>
-              <button type="button" className={BTN_SECONDARY} onClick={() => executors.refetch()} disabled={executors.isFetching}>
+              <button type="button" className={cx(BTN_SECONDARY, "sm:ml-auto")} onClick={() => executors.refetch()} disabled={executors.isFetching}>
                 <RefreshCw size={14} className={executors.isFetching ? "animate-spin" : ""} /> Refresh
               </button>
             </div>
