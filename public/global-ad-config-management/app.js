@@ -20,11 +20,11 @@ function badge(value){
 }
 
 function renderOverview(){
-  document.getElementById('overviewDomainRows').innerHTML = domains.map((d,i)=>`<tr onclick="openDomainDrawer(${i})"><td>${d.connectorName}</td><td><strong>${d.domain}</strong><br><span style="color:var(--muted);font-size:10px">${d.forest}</span></td><td>${d.admin}</td><td>${d.country}</td><td>${badge(d.status)}</td><td>${d.vault}</td><td>${d.version}</td></tr>`).join('');
+  document.getElementById('overviewDomainRows').innerHTML = domains.map((d,i)=>`<tr data-action="openDomainDrawer" data-arg="${i}"><td>${d.connectorName}</td><td><strong>${d.domain}</strong><br><span style="color:var(--muted);font-size:10px">${d.forest}</span></td><td>${d.admin}</td><td>${d.country}</td><td>${badge(d.status)}</td><td>${d.vault}</td><td>${d.version}</td></tr>`).join('');
 }
 
 function renderVaults(){
-  document.getElementById('vaultRows').innerHTML=vaults.map(v=>`<tr><td><strong>${v.name}</strong></td><td>${v.provider}</td><td>${v.domains}</td><td>${v.owner}</td><td>${v.path}</td><td>${badge(v.status)}</td><td>${v.validated}</td><td><button class="btn small" onclick="event.stopPropagation();toast('Vault validation started for ${v.name}')">Validate</button></td></tr>`).join('');
+  document.getElementById('vaultRows').innerHTML=vaults.map(v=>`<tr><td><strong>${v.name}</strong></td><td>${v.provider}</td><td>${v.domains}</td><td>${v.owner}</td><td>${v.path}</td><td>${badge(v.status)}</td><td>${v.validated}</td><td><button class="btn small" data-toast="Vault validation started for ${v.name}">Validate</button></td></tr>`).join('');
 }
 
 function openDomainDrawer(i){
@@ -33,11 +33,11 @@ function openDomainDrawer(i){
   document.getElementById('drawerSubtitle').textContent=`${d.country} · ${d.forest}`;
   document.getElementById('drawerBody').innerHTML=`
     <div class="detail-block"><h4>Domain Summary</h4><div class="detail-row"><span>Domain administrator</span><strong>${d.admin}</strong></div><div class="detail-row"><span>Connector status</span>${badge(d.status)}</div><div class="detail-row"><span>Health</span>${badge(d.health)}</div><div class="detail-row"><span>Installed version</span><strong>${d.version}</strong></div></div>
-    <div class="detail-block"><h4>Onboarding</h4><div class="detail-row"><span>Progress</span><strong>${d.progress}%</strong></div><div class="progress" style="width:100%;margin:8px 0 12px"><span style="width:${d.progress}%"></span></div><button class="btn soft" style="width:100%" onclick="toast('Individual connector setup opened')">Open Connector Setup</button></div>
+    <div class="detail-block"><h4>Onboarding</h4><div class="detail-row"><span>Progress</span><strong>${d.progress}%</strong></div><div class="progress" style="width:100%;margin:8px 0 12px"><span style="width:${d.progress}%"></span></div><button class="btn soft" style="width:100%" data-toast="Individual connector setup opened">Open Connector Setup</button></div>
     <div class="detail-block"><h4>Routing & Naming</h4><div class="detail-row"><span>Country routing</span><strong>${d.country}</strong></div><div class="detail-row"><span>Email policy</span><strong>Global · Enforced</strong></div><div class="detail-row"><span>UPN policy</span><strong>Global · Enforced</strong></div><div class="detail-row"><span>SAM policy</span><strong>Global · Enforced</strong></div></div>
-    <div class="detail-block"><h4>Vault</h4><div class="detail-row"><span>Registered vault</span><strong>${d.vault}</strong></div><div class="detail-row"><span>Status</span>${badge(d.vaultStatus)}</div><button class="btn" style="width:100%;margin-top:8px" onclick="toast('Vault validation initiated')">Validate Vault</button></div>
+    <div class="detail-block"><h4>Vault</h4><div class="detail-row"><span>Registered vault</span><strong>${d.vault}</strong></div><div class="detail-row"><span>Status</span>${badge(d.vaultStatus)}</div><button class="btn" style="width:100%;margin-top:8px" data-toast="Vault validation initiated">Validate Vault</button></div>
     <div class="detail-block"><h4>Operations</h4><div class="detail-row"><span>Last heartbeat</span><strong>${d.heartbeat}</strong></div><div class="detail-row"><span>Last reconciliation</span><strong>${d.lastRecon}</strong></div><div class="detail-row"><span>Last provisioning</span><strong>${d.lastProv}</strong></div><div class="detail-row"><span>Pending errors</span><strong>${d.errors}</strong></div></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><button class="btn" onclick="toast('Administrator notification sent')">Notify Admin</button><button class="btn danger" onclick="toast('Connector disabled')">Disable</button></div>`;
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><button class="btn" data-toast="Administrator notification sent">Notify Admin</button><button class="btn danger" data-toast="Connector disabled">Disable</button></div>`;
   document.getElementById('drawer').classList.add('open');
   document.getElementById('drawerBackdrop').classList.add('open');
 }
@@ -107,6 +107,35 @@ function activateView(id){
   document.querySelectorAll('.gadcm .view').forEach(v=>v.classList.toggle('active',v.id===id));
   document.querySelectorAll('.gadcm .nav-item').forEach(n=>n.classList.toggle('active',n.dataset.view===id));
   window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// The Content-Security-Policy blocks inline on* handlers, so elements name what they do instead:
+// data-action (+ data-arg), data-toast (a click shows that message), data-change-toast (a checkbox).
+var actions = {
+  openModal: function(el){ openModal(el.dataset.arg); },
+  closeModal: function(el){ closeModal(el.dataset.arg); },
+  closeDrawer: closeDrawer,
+  openDomainDrawer: function(el){ openDomainDrawer(Number(el.dataset.arg)); },
+  addDomain: addDomain,
+  sendBulkInvites: sendBulkInvites,
+  chooseBulkInviteFile: function(){ document.getElementById('bulkInviteFile').click(); },
+  toggleGlobalSettingsEdit: toggleGlobalSettingsEdit,
+  registerVault: function(){ closeModal('addVaultModal'); toast('Vault registration saved'); }
+};
+var gadcmRoot = document.querySelector('.gadcm');
+if(gadcmRoot){
+  gadcmRoot.addEventListener('click', function(e){
+    // The nearest marked element wins, so a button inside a clickable row acts alone.
+    var el = e.target.closest('[data-action],[data-toast]');
+    if(!el || !gadcmRoot.contains(el)) return;
+    if(el.dataset.toast) toast(el.dataset.toast);
+    else if(actions[el.dataset.action]) actions[el.dataset.action](el);
+  });
+  gadcmRoot.addEventListener('change', function(e){
+    var el = e.target;
+    if(el.id === 'bulkInviteFile') handleBulkInviteFile(el);
+    else if(el.dataset.changeToast) toast(el.dataset.changeToast + ': ' + (el.checked ? 'Yes' : 'No'));
+  });
 }
 
 document.querySelectorAll('.gadcm .nav-item').forEach(n=>n.addEventListener('click',()=>activateView(n.dataset.view)));

@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { InfoIcon, ArrowLeft } from "lucide-react";
+import { sanitizeHtml } from "@/lib/sanitize-html";
 
 interface EmailTemplate {
   id: number;
@@ -415,7 +416,7 @@ const EmailTemplateEditor: React.FC<EmailTemplateEditorProps> = ({
                       <div className="bg-gray-50 p-4 rounded-md border border-gray-200 max-h-[600px] overflow-y-auto">
                         {selectedTemplate.body ? (
                           <div
-                            dangerouslySetInnerHTML={{ __html: selectedTemplate.body }}
+                            dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedTemplate.body) }}
                             className="prose prose-sm max-w-none"
                           />
                         ) : (
