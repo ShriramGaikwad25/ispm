@@ -20,37 +20,42 @@ const TOKEN_COOKIE_MAX_AGE = 7 * 24 * 60 * 60;
 export const ACCESS_TOKEN_ALIASES = [COOKIE_NAMES.ACCESS_TOKEN, "access_token", "AccessToken", "ACCESS_TOKEN"];
 export const JWT_TOKEN_ALIASES = [COOKIE_NAMES.JWT_TOKEN, "jwt_token", "JwtToken", "JWT_TOKEN"];
 
-function tokenCookieOptions(request: NextRequest) {
-  return {
-    httpOnly: true,
-    secure: request.nextUrl.protocol === "https:",
-    sameSite: "lax" as const,
-    path: "/",
-    maxAge: TOKEN_COOKIE_MAX_AGE,
-  };
+// Cookies are written as raw Set-Cookie headers (as in app/api/auth/logout): response.cookies.set
+// keeps one entry per name, so setting jwtToken and then expiring its shared-domain copy would
+// replace the new cookie with the expiry.
+const EXPIRED = "Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0";
+
+function requestHost(request: NextRequest): string {
+  return request.headers.get("x-forwarded-host")?.split(",")[0]?.trim() || request.headers.get("host") || request.nextUrl.host;
 }
 
-/** Writes the session tokens as HttpOnly cookies on the response. */
+function isHttps(request: NextRequest): boolean {
+  return request.nextUrl.protocol === "https:" || request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() === "https";
+}
+
+/** Writes the session tokens as HttpOnly; Secure (on https); SameSite=Lax cookies on the response. */
 export function setTokenCookies(
   response: NextResponse,
   request: NextRequest,
   tokens: { accessToken?: string; jwtToken?: string }
 ): void {
-  const options = tokenCookieOptions(request);
-  if (tokens.accessToken) response.cookies.set(COOKIE_NAMES.ACCESS_TOKEN, tokens.accessToken, options);
+  const attrs = `Path=/; Max-Age=${TOKEN_COOKIE_MAX_AGE}; HttpOnly; SameSite=Lax${isHttps(request) ? "; Secure" : ""}`;
+  const set = (name: string, value: string) =>
+    response.headers.append("Set-Cookie", `${name}=${encodeURIComponent(value)}; ${attrs}`);
+  if (tokens.accessToken) set(COOKIE_NAMES.ACCESS_TOKEN, tokens.accessToken);
   if (tokens.jwtToken) {
-    response.cookies.set(COOKIE_NAMES.JWT_TOKEN, tokens.jwtToken, options);
+    set(COOKIE_NAMES.JWT_TOKEN, tokens.jwtToken);
     // A stale copy KeyForge set on the shared domain would otherwise be sent alongside the new one.
-    const domain = sharedCookieDomain(request.nextUrl.hostname);
-    if (domain) response.cookies.set(COOKIE_NAMES.JWT_TOKEN, "", { path: "/", maxAge: 0, domain });
+    const domain = sharedCookieDomain(requestHost(request));
+    if (domain) response.headers.append("Set-Cookie", `${COOKIE_NAMES.JWT_TOKEN}=; Path=/; ${EXPIRED}; Domain=${domain}`);
   }
 }
 
 /** Expires a cookie both host-only and on the shared domain. */
 export function expireCookie(response: NextResponse, request: NextRequest, name: string): void {
-  response.cookies.set(name, "", { path: "/", maxAge: 0 });
-  const domain = sharedCookieDomain(request.nextUrl.hostname);
-  if (domain) response.cookies.set(name, "", { path: "/", maxAge: 0, domain });
+  response.headers.append("Set-Cookie", `${name}=; Path=/; ${EXPIRED}`);
+  const domain = sharedCookieDomain(requestHost(request));
+  if (domain) response.headers.append("Set-Cookie", `${name}=; Path=/; ${EXPIRED}; Domain=${domain}`);
 }
 
 /** The tenant for token calls: the page's X-Tenant-Id, then the tenant cookies. */

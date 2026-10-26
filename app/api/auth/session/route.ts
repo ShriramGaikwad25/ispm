@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { COOKIE_NAMES, sharedCookieDomain } from '@/lib/auth';
+import { COOKIE_NAMES } from '@/lib/auth';
+import { expireCookie } from '@/lib/authSession';
 import { checkJwt, isAccessTokenExpired } from '@/lib/serverAuth';
 import { REGISTERED_APP_COOKIE } from '@/lib/tenant';
 
@@ -53,9 +54,7 @@ export async function GET(request: NextRequest) {
   if (tampered) {
     for (const name of [COOKIE_NAMES.ACCESS_TOKEN, COOKIE_NAMES.JWT_TOKEN]) {
       // Clears host-only and shared-domain copies alike (see sharedCookieDomain).
-      response.cookies.set(name, '', { path: '/', maxAge: 0 });
-      const domain = sharedCookieDomain(request.nextUrl.hostname);
-      if (domain) response.cookies.set(name, '', { path: '/', maxAge: 0, domain });
+      expireCookie(response, request, name);
     }
   }
   return response;
