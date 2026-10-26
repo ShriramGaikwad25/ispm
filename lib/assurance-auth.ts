@@ -13,11 +13,12 @@
 
 import { COOKIE_NAMES, forceLogout, getCookie, resolveTenantIdForHeader } from "@/lib/auth";
 import { getOriginalFetch } from "@/lib/authFetch";
-import { viaTokenProxy } from "@/lib/kfProxy";
+import { isTokenPlaceholder, viaTokenProxy } from "@/lib/kfProxy";
 
-/** The signed-in user's access token (cookie), or null. */
+/** The signed-in user's access token when JS can read it, or null (an HttpOnly cookie: our proxies add it). */
 export function getAssuranceAccessToken(): string | null {
-  return getCookie(COOKIE_NAMES.ACCESS_TOKEN);
+  const token = getCookie(COOKIE_NAMES.ACCESS_TOKEN);
+  return isTokenPlaceholder(token) ? null : token;
 }
 
 /** Authorization (access token) + X-Tenant-Id headers for Assurance Events calls. */

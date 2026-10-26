@@ -3,10 +3,8 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import {
-  requestToken,
+  signInWithPassword,
   clearAllAuthCookies,
-  getCookie,
-  COOKIE_NAMES,
   fetchApplicationAuthType,
   isLocalApplicationAuth,
   usesExternalAuthFlow,
@@ -18,7 +16,7 @@ import {
   establishAuthenticatedSession,
   restoreSessionFromCookies,
   getPersistedAuthType,
-  normalizeAuthCookiesFromBrowser,
+  secureReadableTokenCookies,
   fetchServerSession,
   shouldRedirectToOAuthProvider,
   markOAuthRedirectAttempt,
@@ -26,7 +24,6 @@ import {
   clearLastAuthTypeOnLocalLogin,
   performUserLogout,
   syncAuthTypeToSession,
-  loadExposedTokens,
   clearLogoutRedirectFlag,
 } from '@/lib/auth';
 import {
@@ -61,6 +58,8 @@ function applySessionToState(
   setUser: (u: { email: string; tenantId?: string } | null) => void,
   serverSession: Awaited<ReturnType<typeof fetchServerSession>>
 ) {
+  // The session's tokens are HttpOnly cookies: calls go via the token proxy (lib/kfProxy.ts).
+  setHttpOnlySession(true);
   const session = restoreSessionFromCookies();
   const email = String(
     serverSession.user?.email ??
@@ -82,9 +81,6 @@ function applySessionToState(
   // A previous SSO logout in this tab leaves this set; with a live session again it is stale,
   // and AuthWrapper would keep sending every page to /logged-out.
   sessionStorage.removeItem(AUTH_SESSION_KEYS.LOGOUT_REDIRECT);
-  // Valid session whose tokens are still unreadable (HttpOnly and /api/auth/tokens failed):
-  // fall back to routing calls via the token proxy.
-  setHttpOnlySession(!(getCookie(COOKIE_NAMES.ACCESS_TOKEN) && getCookie(COOKIE_NAMES.JWT_TOKEN)));
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -144,30 +140,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        normalizeAuthCookiesFromBrowser();
+        // Tokens JS can still read (an older build, some SSO sign-ins) become HttpOnly cookies first.
+        await secureReadableTokenCookies();
         const oauthCallback = getOAuthCallbackParamsFromUrl();
         const serverSession = await fetchServerSession();
-        // Valid session but HttpOnly tokens (external SSO): fetch them so calls can send Bearer themselves.
-        if (serverSession.authenticated && !(getCookie(COOKIE_NAMES.ACCESS_TOKEN) && getCookie(COOKIE_NAMES.JWT_TOKEN))) {
-          await loadExposedTokens();
-        }
-        const hasClientSession = !!(
-          getCookie(COOKIE_NAMES.ACCESS_TOKEN) && getCookie(COOKIE_NAMES.JWT_TOKEN)
-        );
-        const hasSession = serverSession.authenticated || hasClientSession;
+        // The server is the only judge of the session: page code never sees the tokens.
+        const hasSession = serverSession.authenticated;
 
         if (oauthCallback && !hasSession) {
           setIsCompletingOAuth(true);
           try {
-            const tokens = await completeOAuthCallback(
+            const signedIn = await completeOAuthCallback(
               oauthCallback.code,
               oauthCallback.state
             );
-            await establishAuthenticatedSession({
-              ...tokens,
-              skipJwtGeneration: false,
-              tenantId: tenant,
-            });
+            establishAuthenticatedSession({ ...signedIn, tenantId: tenant });
             clearOAuthCallbackParamsFromUrl();
             const afterSession = await fetchServerSession();
             setAuthType('OAUTH');
@@ -250,10 +237,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         console.error('Auth initialization error:', error);
         const serverSession = await fetchServerSession();
-        if (serverSession.authenticated && !(getCookie(COOKIE_NAMES.ACCESS_TOKEN) && getCookie(COOKIE_NAMES.JWT_TOKEN))) {
-          await loadExposedTokens();
-        }
-        if (hasActiveTenant() && (serverSession.authenticated || normalizeAuthCookiesFromBrowser())) {
+        if (hasActiveTenant() && serverSession.authenticated) {
           const fallbackAuth = getPersistedAuthType() ?? 'OAUTH';
           setAuthType(fallbackAuth);
           syncAuthTypeToSession(fallbackAuth);
@@ -291,15 +275,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!loginApp) {
         throw new Error('Open the app at /<your-tenant-id>.');
       }
-      const tokenResponse = await requestToken(userid, password, loginApp);
-      const { accessToken, userUniqueID, userAdminRoles } = tokenResponse.tokenResponse;
-      await establishAuthenticatedSession({
-        accessToken,
-        userUniqueID,
-        userAdminRoles,
-        userid,
-        tenantId: loginApp,
-      });
+      // The server signs in and stores the tokens as HttpOnly cookies; we get the user's ids only.
+      const signedIn = await signInWithPassword(userid, password, loginApp);
+      establishAuthenticatedSession({ ...signedIn, userid, tenantId: loginApp });
       clearLastAuthTypeOnLocalLogin();
       setIsAuthenticated(true);
       setUser({ email: userid, tenantId: loginApp });

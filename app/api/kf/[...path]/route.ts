@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { COOKIE_NAMES } from "@/lib/auth";
 import { getProxyAccessToken } from "@/lib/serverAuth";
 import { getBackendOrigin } from "@/lib/backendOrigin";
-import { isKeyforgeOrigin, KF_AUTH_HEADER, KF_UPSTREAM_HEADER, proxyAuthDiagnostics } from "@/lib/kfProxy";
+import { isKeyforgeOrigin, isTokenPlaceholder, KF_AUTH_HEADER, KF_UPSTREAM_HEADER, proxyAuthDiagnostics } from "@/lib/kfProxy";
 
 // Token proxy for sessions whose tokens are HttpOnly cookies (see lib/kfProxy.ts).
 // The browser calls /api/kf/<service path> with X-KF-Upstream (the service's
@@ -10,8 +10,22 @@ import { isKeyforgeOrigin, KF_AUTH_HEADER, KF_UPSTREAM_HEADER, proxyAuthDiagnost
 // and forwards to <origin>/<service path>. Only the backend origin and
 // https://*.keyforge.ai are allowed upstreams, so this is not an open proxy.
 
-/** Request headers passed through to the upstream service. */
-const FORWARDED_HEADERS = ["authorization", "x-tenant-id", "x-request-id", "idempotency-key", "content-type", "accept"];
+/**
+ * Request headers never passed to the upstream service: the browser's cookies (the token is added
+ * from them here instead), hop-by-hop and browser-set headers, and the proxy's own X-KF-* headers.
+ * Everything else (X-Tenant-Id, loginremote_user, ...) goes through as the caller set it.
+ */
+const DROPPED_HEADERS = new Set([
+  "cookie", "host", "connection", "keep-alive", "transfer-encoding", "content-length", "accept-encoding",
+  "origin", "referer", "x-internal-token-retry",
+]);
+const DROPPED_HEADER_PREFIXES = ["x-kf-", "sec-", "x-forwarded-", "x-vercel-", "x-real-ip"];
+
+/**
+ * Upstream paths that mint or hand out tokens. Never reachable through the proxy: it would sign the
+ * request with the session's token and return a fresh token to page code, defeating HttpOnly.
+ */
+const TOKEN_ISSUING_PATH = /(generateJWTToken|requestJWTToken|requestToken|TokenProvider|oauth\/token)/i;
 /** Response headers passed back to the browser. */
 const RETURNED_HEADERS = ["content-type", "content-disposition", "x-pack-id", "x-pack-hash"];
 
@@ -24,13 +38,18 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
   if (requested !== backendOrigin && !isKeyforgeOrigin(requested)) {
     return NextResponse.json({ error: "bad_upstream", message: `Upstream not allowed: ${requested}` }, { status: 400 });
   }
+  if (TOKEN_ISSUING_PATH.test(path)) {
+    return NextResponse.json({ error: "forbidden_path", message: "Token endpoints are not available through the proxy" }, { status: 403 });
+  }
   const url = `${requested}/${path}${request.nextUrl.search}`;
 
   const headers = new Headers();
-  for (const name of FORWARDED_HEADERS) {
-    const value = request.headers.get(name);
-    if (value) headers.set(name, value);
-  }
+  request.headers.forEach((value, name) => {
+    const n = name.toLowerCase();
+    if (DROPPED_HEADERS.has(n) || DROPPED_HEADER_PREFIXES.some((p) => n.startsWith(p))) return;
+    headers.set(name, value);
+  });
+  if (isTokenPlaceholder(headers.get("authorization")?.replace(/^bearer\s+/i, "").trim())) headers.delete("authorization");
   let authSource = headers.has("authorization") ? "browser" : "none";
   if (!headers.has("authorization")) {
     const jwt = request.cookies.get(COOKIE_NAMES.JWT_TOKEN)?.value;

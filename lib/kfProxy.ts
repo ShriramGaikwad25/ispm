@@ -1,13 +1,13 @@
 // =====================================================================
-// Server-side token proxy for sessions whose tokens are HttpOnly cookies.
+// Server-side token proxy: session tokens are HttpOnly cookies.
 //
-// After an external (e.g. Oracle) SSO sign-in, KeyForge sets accessToken /
-// jwtToken as HttpOnly cookies: the browser holds them but our JS cannot read
-// them, so calls that attach `Authorization` themselves would go out without
-// it. For such sessions those calls are rerouted through /api/kf/...
-// (app/api/kf), which adds the token from the cookie on the server and
-// forwards to the original KeyForge service. Sessions whose tokens JS can read
-// (password sign-in) are left exactly as they were.
+// accessToken / jwtToken are HttpOnly cookies (set by our /api/auth routes, or
+// by KeyForge after an external SSO sign-in): the browser holds them but our JS
+// never sees them, so an XSS cannot steal them. Code that attaches
+// `Authorization` itself gets a placeholder from getCookie() instead of the
+// token; calls to KeyForge services are rerouted through /api/kf/...
+// (app/api/kf), which swaps the placeholder for the token from the cookie on
+// the server and forwards to the original service.
 // =====================================================================
 
 import { getBackendOrigin } from "@/lib/backendOrigin";
@@ -39,9 +39,27 @@ export function isKeyforgeOrigin(origin: string): boolean {
   }
 }
 
+/** What getCookie() returns for a token cookie in a signed-in session: never the token itself. */
+export const TOKEN_PLACEHOLDER: Record<KfProxyAuth, string> = {
+  access: "kf-httponly-access-token",
+  jwt: "kf-httponly-jwt-token",
+};
+
+export function isTokenPlaceholder(value: string | null | undefined): boolean {
+  return value === TOKEN_PLACEHOLDER.access || value === TOKEN_PLACEHOLDER.jwt;
+}
+
+/** The token a request's `Authorization: Bearer <placeholder>` stands for, or null. */
+function placeholderAuth(headers: Headers): KfProxyAuth | null {
+  const value = headers.get("Authorization")?.replace(/^bearer\s+/i, "").trim();
+  if (value === TOKEN_PLACEHOLDER.access) return "access";
+  if (value === TOKEN_PLACEHOLDER.jwt) return "jwt";
+  return null;
+}
+
 let httpOnlySession = false;
 
-/** Set by AuthContext: the session is valid but its tokens are HttpOnly (JS cannot read them). */
+/** Set by AuthContext: the session is valid and its tokens are HttpOnly cookies (JS cannot read them). */
 export function setHttpOnlySession(value: boolean): void {
   httpOnlySession = value;
 }
@@ -51,9 +69,10 @@ export function usesHttpOnlySession(): boolean {
 }
 
 /**
- * For an HttpOnly session, rewrites a direct KeyForge service call to go through the token proxy.
- * Returns null when the call should go out unchanged (normal session, not a KeyForge service,
- * already one of our own routes, or it already carries an Authorization header).
+ * For an HttpOnly session, rewrites a direct KeyForge service call to go through the token proxy,
+ * which adds the token named by the request's placeholder (or `auth` when it has none).
+ * Returns null when the call should go out unchanged (no session, not a KeyForge service,
+ * already one of our own routes, or it carries a real Authorization header).
  */
 export function viaTokenProxy(url: string, init: RequestInit | undefined, auth: KfProxyAuth): { url: string; init: RequestInit } | null {
   if (!httpOnlySession || typeof window === "undefined") return null;
@@ -69,9 +88,33 @@ export function viaTokenProxy(url: string, init: RequestInit | undefined, auth: 
   if (target.origin !== getBackendOrigin() && !isKeyforgeOrigin(target.origin)) return null;
 
   const headers = new Headers(init?.headers);
-  if (headers.get("Authorization")?.trim()) return null;
+  const placeholder = placeholderAuth(headers);
+  if (!placeholder && headers.get("Authorization")?.trim()) return null;
   headers.delete("Authorization");
   headers.set(KF_UPSTREAM_HEADER, target.origin);
-  if (!headers.has(KF_AUTH_HEADER)) headers.set(KF_AUTH_HEADER, auth);
+  if (placeholder) headers.set(KF_AUTH_HEADER, placeholder);
+  else if (!headers.has(KF_AUTH_HEADER)) headers.set(KF_AUTH_HEADER, auth);
   return { url: `${KF_PROXY_PREFIX}${target.pathname}${target.search}`, init: { ...init, headers } };
+}
+
+/** Drops an `Authorization: Bearer <placeholder>` header (our own routes read the token from the cookie). */
+export function withoutTokenPlaceholder(init: RequestInit | undefined): RequestInit | undefined {
+  if (!init?.headers) return init;
+  const headers = new Headers(init.headers);
+  if (!placeholderAuth(headers)) return init;
+  headers.delete("Authorization");
+  return { ...init, headers };
+}
+
+/** Routes a request carrying a token placeholder: KeyForge services via the token proxy, anything else without it. */
+export function routeTokenPlaceholder(
+  input: RequestInfo | URL,
+  init: RequestInit | undefined,
+  auth: KfProxyAuth = "jwt"
+): [RequestInfo | URL, RequestInit | undefined] {
+  if (typeof input === "string" || input instanceof URL) {
+    const proxied = viaTokenProxy(typeof input === "string" ? input : input.href, init, auth);
+    if (proxied) return [proxied.url, proxied.init];
+  }
+  return [input, withoutTokenPlaceholder(init)];
 }
