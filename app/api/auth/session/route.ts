@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { COOKIE_NAMES } from '@/lib/auth';
+import { COOKIE_NAMES, sharedCookieDomain } from '@/lib/auth';
+import { checkJwt, isAccessTokenExpired } from '@/lib/serverAuth';
 import { REGISTERED_APP_COOKIE } from '@/lib/tenant';
 
 /** Cookies that may carry the tenant: ours first, then those KeyForge sets after an external (e.g. Oracle) SSO sign-in. */
@@ -32,10 +33,30 @@ export async function GET(request: NextRequest) {
     user = { ...user, tenantId: tenantId ?? undefined, userid: user?.userid ?? userid ?? undefined };
   }
 
-  return NextResponse.json({
-    authenticated: !!(accessToken && jwtToken),
-    hasAccessToken: !!accessToken,
-    hasJwtToken: !!jwtToken,
-    user,
-  });
+  // Presence alone is not a session: jwtToken must be a well-formed KeyForge token (correctly
+  // signed when KF_JWT_SECRET is set) and accessToken unexpired. An expired jwtToken is fine —
+  // the client refreshes it from accessToken.
+  const jwtCheck = await checkJwt(jwtToken);
+  const tampered = !!jwtToken && jwtCheck === 'invalid';
+  const authenticated =
+    !!accessToken && !isAccessTokenExpired(accessToken) && !!jwtToken && jwtCheck !== 'invalid' && !!user;
+
+  const response = NextResponse.json(
+    {
+      authenticated,
+      hasAccessToken: !!accessToken,
+      hasJwtToken: !!jwtToken,
+      user: authenticated ? user : null,
+    },
+    { headers: { 'Cache-Control': 'no-store, private' } }
+  );
+  if (tampered) {
+    for (const name of [COOKIE_NAMES.ACCESS_TOKEN, COOKIE_NAMES.JWT_TOKEN]) {
+      // Clears host-only and shared-domain copies alike (see sharedCookieDomain).
+      response.cookies.set(name, '', { path: '/', maxAge: 0 });
+      const domain = sharedCookieDomain(request.nextUrl.hostname);
+      if (domain) response.cookies.set(name, '', { path: '/', maxAge: 0, domain });
+    }
+  }
+  return response;
 }

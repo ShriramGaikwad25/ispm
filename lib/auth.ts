@@ -107,7 +107,7 @@ export const COOKIE_NAMES = {
   UID_TENANT: 'uidTenant',      // User information (userid, tenantId)
   JWT_TOKEN: 'jwtToken',        // Short-lived JWT token - used for API calls in Authorization header
   REVIEWER_ID: 'reviewerId',    // User unique ID used as reviewerId throughout the application
-  USER_ADMIN_ROLES: 'userAdminRoles',  // User admin roles from the token response
+  USER_ADMIN_ROLES: 'userAdminRoles',  // Legacy: no longer set; kept so login and logout clear old copies
 } as const;
 
 export function setCookie(name: string, value: string, days: number = 7): void {
@@ -450,7 +450,7 @@ function registeredAppName(): string {
   if (fromUrl) return fromUrl;
   const fromUser = getCurrentUser()?.tenantId?.trim();
   if (fromUser) return fromUser;
-  throw new Error('No tenant configured. Open /YOUR_TENANT_ID (e.g. /ACMECOM).');
+  throw new Error('No tenant configured. Open /<your-tenant-id>.');
 }
 
 /** AuthType from applicationType API (defaults to LOCAL when missing). */
@@ -684,8 +684,7 @@ export async function establishAuthenticatedSession(options: {
   /** When true and jwtToken cookie exists, skip generateJWTToken (SSO redirect already set tokens). */
   skipJwtGeneration?: boolean;
 }): Promise<void> {
-  const { accessToken, userUniqueID, userAdminRoles, userid, tenantId, skipJwtGeneration } =
-    options;
+  const { accessToken, userUniqueID, userid, tenantId, skipJwtGeneration } = options;
   const resolvedUserid = userid ?? userUniqueID ?? '';
   const resolvedTenantId = tenantId?.trim() || registeredAppNameOrNull() || '';
 
@@ -709,18 +708,17 @@ export async function establishAuthenticatedSession(options: {
     setCookie(COOKIE_NAMES.JWT_TOKEN, jwtToken);
   }
 
-  // reviewerId and user role now live in the JWT claims; decode it as the source of
-  // truth, falling back to the login/OAuth response body for older backends.
+  // reviewerId now lives in the JWT claims; decode it as the source of truth,
+  // falling back to the login/OAuth response body for older backends.
   const claims = jwtToken ? extractReviewerIdentityFromJwt(jwtToken) : {};
   const resolvedReviewerId = claims.userUniqueID || userUniqueID;
-  const resolvedUserAdminRoles = claims.userAdminRoles || userAdminRoles;
 
   if (resolvedReviewerId) {
     setCookie(COOKIE_NAMES.REVIEWER_ID, resolvedReviewerId);
   }
-  if (resolvedUserAdminRoles) {
-    setCookie(COOKIE_NAMES.USER_ADMIN_ROLES, resolvedUserAdminRoles);
-  }
+  // The role is never kept in a cookie (a client-set cookie can't be trusted for authorization);
+  // clear one left by an older build. Read roles from the verified JWT instead.
+  deleteCookie(COOKIE_NAMES.USER_ADMIN_ROLES);
 }
 
 /** After SSO redirect: tokens are already in cookies — restore state only, no token APIs. */
@@ -990,7 +988,7 @@ export async function requestToken(
 ): Promise<TokenResponse> {
   const appName = (registeredApp ?? registeredAppNameOrNull())?.trim();
   if (!appName) {
-    throw new Error('Open the app at /YOUR_TENANT_ID (e.g. /ACMECOM or /KFPRODOCI).');
+    throw new Error('Open the app at /<your-tenant-id>.');
   }
 
   try {
@@ -1174,10 +1172,9 @@ export async function refreshJWTToken(): Promise<boolean> {
     // Save the new JWT token to cookie
     setCookie(COOKIE_NAMES.JWT_TOKEN, jwtToken);
 
-    // Keep reviewerId / userAdminRoles in sync with the refreshed token's claims.
+    // Keep reviewerId in sync with the refreshed token's claims.
     const claims = extractReviewerIdentityFromJwt(jwtToken);
     if (claims.userUniqueID) setCookie(COOKIE_NAMES.REVIEWER_ID, claims.userUniqueID);
-    if (claims.userAdminRoles) setCookie(COOKIE_NAMES.USER_ADMIN_ROLES, claims.userAdminRoles);
 
     console.log('JWT token refreshed successfully');
     return true;
@@ -1499,11 +1496,6 @@ export function getCurrentUser(): { email?: string; tenantId?: string } | null {
 // Get reviewerId (userUniqueID) from cookies
 export function getReviewerId(): string | null {
   return getCookie(COOKIE_NAMES.REVIEWER_ID);
-}
-
-// Get userAdminRoles from cookies
-export function getUserAdminRoles(): string | null {
-  return getCookie(COOKIE_NAMES.USER_ADMIN_ROLES);
 }
 
 /** Resolves the current tenant id (path segment / session -> stored user). Use this instead of hardcoding a tenant literal. */
