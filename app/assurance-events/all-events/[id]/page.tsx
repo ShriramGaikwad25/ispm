@@ -267,11 +267,8 @@ function SummaryTab({ d }: { d: CcEventDetail }) {
           <Card title="Subject">
             {subjectIds ? (
               <div className="space-y-4">
+                <Fields o={ev.subject?.humanReadable ?? {}} />
                 <Fields o={subjectIds} nowrap={Object.keys(subjectIds)} />
-                <div>
-                  <h3 className={SUB_HEADING}>humanReadable</h3>
-                  <Fields o={ev.subject?.humanReadable ?? {}} />
-                </div>
                 <ReferencesByName p={ev.detectionPayload} />
               </div>
             ) : <span className="text-sm text-gray-400">—</span>}
