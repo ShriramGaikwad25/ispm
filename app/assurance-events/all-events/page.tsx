@@ -5,7 +5,8 @@
 // (graph.keyforge.ai/console), on the same live API:
 //   Events        the console's Events page (#/events):
 //                 GET /compliance/events?status=…&severity=…&definitionId=…
-//                     &discoveredAfter/Before=…&closedAfter/Before=…&dueBefore=…&page=…&pageSize=…
+//                     &discoveredAfter/Before=…&closedAfter/Before=…&dueBefore=…&slaMet=…&slaBreached=…
+//                     &page=…&pageSize=…
 //   Review Queue  the console's Review queue (#/review):
 //                 GET /compliance/events?status=IN_REVIEW&status=OPEN&pageSize=500,
 //                 events routed to a reviewer, ordered by SLA pressure.
@@ -49,6 +50,9 @@ interface Filters {
   closedBefore: string;
   /** yyyy-mm-dd: due on or before the end of this day. */
   dueOnOrBefore: string;
+  /** "" (any), "true" or "false". */
+  slaMet: string;
+  slaBreached: string;
   pageSize: number;
 }
 
@@ -62,6 +66,8 @@ const DEFAULT_FILTERS: Filters = {
   closedAfter: "",
   closedBefore: "",
   dueOnOrBefore: "",
+  slaMet: "",
+  slaBreached: "",
   pageSize: 50,
 };
 
@@ -69,6 +75,7 @@ const FIELD = "rounded-md border border-gray-300 px-3 py-2 text-sm bg-white w-fu
 const FIELD_LABEL = "block text-sm text-gray-700 mb-1";
 
 const iso = (local: string) => (local ? new Date(local).toISOString() : undefined);
+const tristate = (v: string) => (v === "" ? undefined : v === "true");
 /** End of the chosen day (local time), so "on or before" includes the whole day. */
 const endOfDay = (day: string) => (day ? new Date(`${day}T23:59:59.999`).toISOString() : undefined);
 const fmt = (t?: string | null) =>
@@ -138,6 +145,8 @@ function EventsTab({ defs }: { defs: CcDefinitionRef[] }) {
     closedAfter: iso(filters.closedAfter),
     closedBefore: iso(filters.closedBefore),
     dueBefore: endOfDay(filters.dueOnOrBefore),
+    slaMet: tristate(filters.slaMet),
+    slaBreached: tristate(filters.slaBreached),
     page,
     pageSize: filters.pageSize,
   }), [filters, page]);
@@ -178,7 +187,7 @@ function EventsTab({ defs }: { defs: CcDefinitionRef[] }) {
         <ChipRow label="Status" values={STATUSES} selected={filters.status} onToggle={(v) => toggle("status", v)} />
         <ChipRow label="Severity" values={SEVERITIES} selected={filters.severity} onToggle={(v) => toggle("severity", v)} />
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           <label>
             <span className={FIELD_LABEL}>Definition</span>
             <select className={FIELD} value={filters.definitionId} onChange={(e) => set("definitionId", e.target.value)}>
@@ -207,6 +216,22 @@ function EventsTab({ defs }: { defs: CcDefinitionRef[] }) {
           <label>
             <span className={FIELD_LABEL}>Closed Before</span>
             <input type="datetime-local" className={FIELD} value={filters.closedBefore} onChange={(e) => set("closedBefore", e.target.value)} />
+          </label>
+          <label>
+            <span className={FIELD_LABEL}>SLA Met</span>
+            <select className={FIELD} value={filters.slaMet} onChange={(e) => set("slaMet", e.target.value)}>
+              <option value="">Any</option>
+              <option value="true">True</option>
+              <option value="false">False</option>
+            </select>
+          </label>
+          <label>
+            <span className={FIELD_LABEL}>SLA Breached</span>
+            <select className={FIELD} value={filters.slaBreached} onChange={(e) => set("slaBreached", e.target.value)}>
+              <option value="">Any</option>
+              <option value="true">True</option>
+              <option value="false">False</option>
+            </select>
           </label>
           <label>
             <span className={FIELD_LABEL}>Page Size</span>
@@ -442,7 +467,12 @@ function EventsTable({ rows, defs, loading, tab, from, empty }: {
                 </td>
                 <td className={C}><div className="text-sm text-gray-900">{subjectLabel(e)}</div></td>
                 <td className={C}><SeverityBadge value={e.severity} /></td>
-                <td className={C}><StateBadge value={e.status} /></td>
+                <td className={C}>
+                  <div className="flex flex-col items-start gap-1">
+                    <StateBadge value={e.status} />
+                    {e.slaBreachedAt && <StateBadge value="SLA BREACHED" />}
+                  </div>
+                </td>
                 <td className={cx(C, "min-w-[90px]")}>
                   {pct === null ? "—" : (
                     <>

@@ -24,6 +24,8 @@ export interface CcEvent {
   status: string;
   discoveredAt: string;
   dueAt?: string;
+  /** When the SLA was breached; the event shows "SLA BREACHED" while it is set. */
+  slaBreachedAt?: string | null;
   escalationLevel?: number;
   reopenCount?: number;
   reviewerPrincipalId?: string | null;
@@ -47,6 +49,7 @@ export interface CcEventSearch {
   closedAfter?: string;
   closedBefore?: string;
   slaMet?: boolean;
+  slaBreached?: boolean;
   reviewerPrincipalId?: string;
   /** Due on or before (ISO). */
   dueBefore?: string;
@@ -373,6 +376,7 @@ export const CcEvents = {
         closedAfter: q.closedAfter,
         closedBefore: q.closedBefore,
         slaMet: q.slaMet === undefined ? undefined : String(q.slaMet),
+        slaBreached: q.slaBreached === undefined ? undefined : String(q.slaBreached),
         reviewerPrincipalId: q.reviewerPrincipalId,
         dueBefore: q.dueBefore,
         page: String(q.page),

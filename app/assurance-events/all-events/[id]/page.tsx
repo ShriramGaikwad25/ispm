@@ -212,6 +212,7 @@ function EventDetailPage() {
                   {d.definitionSnapshot ? `${d.definitionSnapshot.code} v${d.definitionSnapshot.version}` : ev.eventTypeCode}
                   <SeverityBadge value={ev.severity} />
                   <StateBadge value={ev.status} />
+                  {ev.slaBreachedAt && <StateBadge value="SLA BREACHED" />}
                 </>
               }
               actions={<button type="button" className={BTN_SECONDARY} onClick={reload}>Refresh</button>}
@@ -241,7 +242,7 @@ const EVENT_HIDDEN = [
   "reviewerPrincipalId", "eventId",
 ];
 const EVENT_ORDER = [
-  "status", "severity", "discoveredAt", "dueAt", "slaRuleId", "slaElapsedPercent", "nextSlaCheckAt",
+  "status", "severity", "discoveredAt", "dueAt", "slaBreachedAt", "slaRuleId", "slaElapsedPercent", "nextSlaCheckAt",
   "escalationLevel", "reopenCount", "detectorSource", "subjectKind", "aiRecommendedDecision",
 ];
 
@@ -481,7 +482,11 @@ function SlaTab({ d }: { d: CcEventDetail }) {
         </div>
       )}
       <KeyValueList rows={[
-        ["Elapsed", <span key="e"><b>{pct === null ? "—" : `${pct}%`}</b>{pct !== null && pct > 100 && <span className="text-red-600"> breached</span>}</span>],
+        ["Elapsed", <span key="e"><b>{pct === null ? "—" : `${pct}%`}</b>
+          {ev.slaBreachedAt
+            ? <span className="text-red-600"> breached since {fmt(ev.slaBreachedAt)}</span>
+            : pct !== null && pct > 100 && <span className="text-red-600"> breached</span>}
+        </span>],
         ["Source", <span key="s">{s.source ?? "—"}{s.ruleId ? <> · rule <b>{s.ruleId}</b> (priority {s.priority ?? "—"})</> : " · definition default"}{s.resolution ? ` · ${s.resolution}` : ""}</span>],
         ["Anchor → due", <span key="a">{fmt(anchor)} → <b>{fmt(due)}</b>{s.duration ? ` (${s.duration})` : ""}</span>],
         ["Steps fired", chain.length ? (
