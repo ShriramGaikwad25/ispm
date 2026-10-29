@@ -22,7 +22,7 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCcConnection } from "@/hooks/useCcConnection";
 import {
-  CcEvents, type CcEventDetail, type CcLedgerRow, type CcReviewFormSubmission, type CcReviewFormTest,
+  CcCatalog, CcEvents, referencedIds, type CcDetectionPayload, type CcEventDetail, type CcRefLabel, type CcLedgerRow, type CcReviewFormSubmission, type CcReviewFormTest,
   type CcReviewFormView, type CcTimeline,
 } from "@/lib/cc-events-api";
 import {
@@ -34,6 +34,8 @@ import { ReviewFormDisplay, ReviewFormFields as FormFields, type FormValues as V
 
 const LIST_HREF = "/assurance-events/all-events";
 const DEFINITION_HREF = (id: string) => `/assurance-events/event-definitions/${id}`;
+const CONTROL_HREF = (code: string, version?: number) =>
+  `/assurance-events/control-library/${encodeURIComponent(code)}${version ? `?version=${version}` : ""}`;
 
 type Tab = "summary" | "sla" | "decisions" | "form" | "insight" | "trail";
 const TABS: Array<[Tab, string]> = [
@@ -247,10 +249,10 @@ function SummaryTab({ d }: { d: CcEventDetail }) {
   const ev = d.event;
   const def = d.definitionSnapshot;
   const controls = ev.detectionPayload?.controls ?? [];
-  const subject = ev.subject
+  const subjectIds = ev.subject
     ? {
         userId: ev.subject.userId, accountId: ev.subject.accountId, applicationId: ev.subject.applicationId,
-        nhiId: ev.subject.nhiId, ...(ev.subject.humanReadable ?? {}),
+        entitlementId: ev.subject.entitlementId, nhiId: ev.subject.nhiId,
       }
     : null;
 
@@ -263,7 +265,16 @@ function SummaryTab({ d }: { d: CcEventDetail }) {
 
         <div className="space-y-6">
           <Card title="Subject">
-            {subject ? <Fields o={subject} valuesOnly /> : <span className="text-sm text-gray-400">—</span>}
+            {subjectIds ? (
+              <div className="space-y-4">
+                <Fields o={subjectIds} nowrap={Object.keys(subjectIds)} />
+                <div>
+                  <h3 className={SUB_HEADING}>humanReadable</h3>
+                  <Fields o={ev.subject?.humanReadable ?? {}} />
+                </div>
+                <ReferencesByName p={ev.detectionPayload} />
+              </div>
+            ) : <span className="text-sm text-gray-400">—</span>}
           </Card>
           {ev.scopeSnapshot && Object.keys(ev.scopeSnapshot).length > 0 && (
             <Card title="Scope Snapshot"><Json v={ev.scopeSnapshot} max={240} /></Card>
@@ -320,39 +331,124 @@ function SummaryTab({ d }: { d: CcEventDetail }) {
         ) : <Empty>No action was run for this event.</Empty>}
       </Card>
 
-      <Card title="Detected By" subtitle="The pinned Control Library controls that held.">
-        {controls.length ? (
-          <div className="space-y-3">
-            <div className="text-xs text-gray-500">
-              Combinator <b>{String(ev.detectionPayload?.combinator ?? "ALL")}</b>
-              {ev.detectionPayload?.criteria && <> · criteria <code>{String(ev.detectionPayload.criteria)}</code></>}
-            </div>
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
-              <table className="w-full">
-                <thead><tr className={THEAD_ROW}><th className={TH}>Control</th><th className={TH}>Matched</th><th className={TH}>Evidence</th></tr></thead>
-                <tbody className={TBODY}>
-                  {controls.map((c, i) => (
+      <DetectedBy p={ev.detectionPayload} controls={controls} />
+    </div>
+  );
+}
+
+const SUB_HEADING = "text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2";
+
+/**
+ * Workgroups and principals the detection refers to by id, with their names: from
+ * detectionPayload.labels when recorded, else looked up live (as the console does).
+ */
+function useReferenceLabels(p?: CcDetectionPayload): { labels: Record<string, CcRefLabel>; recorded: boolean } {
+  const recorded = p?.labels && typeof p.labels === "object" ? p.labels : null;
+  const ids = recorded ? [] : referencedIds(p);
+  const live = useQuery({
+    queryKey: ["continuouscompliance", "reference-labels", ids.join(",")],
+    queryFn: () => CcCatalog.referenceLabels(ids),
+    enabled: ids.length > 0,
+    staleTime: 5 * 60_000,
+  });
+  return { labels: recorded ?? live.data ?? {}, recorded: !!recorded };
+}
+
+/** An evidence value: an id with a known name shows the name (id beside it, click to copy); anything else as JSON. */
+function EvidenceValue({ v, labels }: { v: unknown; labels: Record<string, CcRefLabel> }): ReactNode {
+  if (Array.isArray(v)) {
+    return <>[{v.map((x, i) => <span key={i}>{i > 0 && ", "}<EvidenceValue v={x} labels={labels} /></span>)}]</>;
+  }
+  const r = typeof v === "string" ? labels[v] : undefined;
+  if (!r) return <>{JSON.stringify(v)}</>;
+  return (
+    <>
+      <b className="font-sans text-gray-900">{r.name || "?"}</b>
+      {r.status && r.status !== "ACTIVE" && <span className={cx(PILL, "ml-1 bg-red-100 text-red-700")}>{r.status}</span>}{" "}
+      <span className="cursor-copy text-gray-500" title={`${r.kind} · ${r.displayName || r.email || r.application || ""} — click to copy the id`}
+            onClick={() => navigator.clipboard?.writeText(v as string)}>
+        ({v as string})
+      </span>
+    </>
+  );
+}
+
+function ReferencesByName({ p }: { p?: CcDetectionPayload }) {
+  const { labels, recorded } = useReferenceLabels(p);
+  const entries = Object.entries(labels);
+  if (!entries.length) return null;
+  return (
+    <div>
+      <h3 className={SUB_HEADING}>
+        References by name{" "}
+        <span className="font-normal normal-case tracking-normal">
+          {recorded ? "(detectionPayload.labels)" : "(live lookup; run POST /catalog/labels:backfill to record them)"}
+        </span>
+      </h3>
+      <ul className="list-disc pl-5 space-y-1 text-sm text-gray-800">
+        {entries.map(([id, r]) => (
+          <li key={id}>
+            <span className="text-xs text-gray-500">{r.kind}</span> <b>{r.name}</b>
+            {r.displayName && r.displayName !== r.name && <> · {r.displayName}</>}
+            {r.email && <> · {r.email}</>}
+            {r.application && <> · {r.application}</>}
+            {r.status && r.status !== "ACTIVE" && <span className={cx(PILL, "ml-1 bg-red-100 text-red-700")}>{r.status}</span>}
+            {" "}<span className="font-mono text-xs text-gray-500 [overflow-wrap:anywhere]">({id})</span>
+            {r.path && <span className="text-xs text-gray-500"> · {r.path}</span>}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** detectionPayload.controls — the pinned Control Library controls that held (the console's "Detected by"). */
+function DetectedBy({ p, controls }: { p?: CcDetectionPayload; controls: NonNullable<CcDetectionPayload["controls"]> }) {
+  const { labels } = useReferenceLabels(p);
+  return (
+    <Card title="Detected By" subtitle="The pinned Control Library controls that held.">
+      {controls.length ? (
+        <div className="space-y-3">
+          <div className="text-xs text-gray-500">
+            Combinator <b>{String(p?.combinator || "ALL")}</b> · criteria <code>{String(p?.criteria || "")}</code>
+          </div>
+          <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <table className="w-full">
+              <thead><tr className={THEAD_ROW}>
+                <th className={TH}>Control</th><th className={TH}>Ver</th><th className={TH}>Matched</th><th className={TH}>Evidence</th>
+              </tr></thead>
+              <tbody className={TBODY}>
+                {controls.map((c, i) => {
+                  const evidence = Object.entries(c.evidence ?? {});
+                  return (
                     <tr key={i}>
-                      <td className={TD}><span className="font-semibold text-gray-900">{c.code}</span> <span className="text-xs text-gray-500">v{c.version ?? "—"}</span></td>
                       <td className={TD}>
-                        <span className={cx(PILL, c.matched ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700")}>{c.matched ? "Yes" : "No"}</span>
+                        <Link href={CONTROL_HREF(c.code, c.version)} className="font-semibold text-blue-700 hover:underline">{c.code}</Link>
                       </td>
-                      <td className={cx(TD, "text-xs font-mono break-all")}>
-                        {Object.entries(c.evidence ?? {}).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(" · ") || "—"}
+                      <td className={cx(TD, "text-gray-600")}>v{c.version ?? "—"}</td>
+                      <td className={TD}>
+                        <span className={cx(PILL, c.matched ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700")}>{String(c.matched)}</span>
+                      </td>
+                      <td className={cx(TD, "text-xs font-mono text-gray-600 [overflow-wrap:anywhere]")}>
+                        {evidence.length
+                          ? evidence.map(([k, v], j) => <span key={k}>{j > 0 && " · "}{k}=<EvidenceValue v={v} labels={labels} /></span>)
+                          : "—"}
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        ) : (
-          <span className="text-sm text-gray-500">
-            {ev.detectionPayload?.criteria ? <>criteria <code>{String(ev.detectionPayload.criteria)}</code> (no library controls recorded)</> : "—"}
-          </span>
-        )}
-      </Card>
-    </div>
+        </div>
+      ) : (
+        <span className="text-sm text-gray-500">
+          {p?.criteria
+            ? <>criteria <code>{String(p.criteria)}</code> (no library controls recorded: inline expression or a report without PUSH controls)</>
+            : "—"}
+        </span>
+      )}
+    </Card>
   );
 }
 

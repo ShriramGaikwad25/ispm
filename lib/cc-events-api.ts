@@ -119,6 +119,22 @@ function toListItem(e: CcEvent, defs: Map<string, { code: string; name: string }
   };
 }
 
+/** A workgroup or principal an event refers to by id, with its name. */
+export interface CcRefLabel {
+  kind: string; name: string; displayName?: string; email?: string; application?: string; status?: string; path?: string;
+}
+
+export interface CcDetectionPayload {
+  controls?: Array<{ code: string; version?: number; matched?: boolean; evidence?: Record<string, unknown> }>;
+  combinator?: string;
+  criteria?: string;
+  /** Names of the ids below, recorded at detection (or by POST /catalog/labels:backfill). */
+  labels?: Record<string, CcRefLabel> | null;
+  approvalGroup?: unknown;
+  fallbackGroup?: unknown;
+  owner?: unknown;
+}
+
 /** GET /compliance/events/{id} — EventDetailDto (fields the detail page reads). */
 export interface CcEventDetail {
   event: CcEvent & {
@@ -126,7 +142,7 @@ export interface CcEventDetail {
       userId?: string; accountId?: string; applicationId?: string; entitlementId?: string; nhiId?: string;
       humanReadable?: Record<string, unknown>;
     };
-    detectionPayload?: { controls?: Array<{ code: string; version?: number; matched?: boolean; evidence?: Record<string, unknown> }>; combinator?: string; criteria?: string };
+    detectionPayload?: CcDetectionPayload;
     scopeSnapshot?: Record<string, unknown>;
     slaSnapshot?: CcEvent["slaSnapshot"] & {
       source?: string; priority?: number | null; resolution?: string; duration?: string;
@@ -249,7 +265,58 @@ function principalName(p: Record<string, unknown>): string | null {
   return s(p.displayName) ?? s(p.name) ?? s(p.fullName) ?? (full || null) ?? s(p.userName) ?? s(p.username) ?? s(p.email);
 }
 
+/** The array in a catalog response (bare, or under items/content/data/…). */
+function catalogRows(r: unknown): Array<Record<string, unknown>> {
+  const o = r && typeof r === "object" ? (r as Record<string, unknown>) : {};
+  const list = Array.isArray(r) ? r : [o.items, o.content, o.data, o.principals, o.workgroups, o.results].find(Array.isArray) ?? [];
+  return (list as unknown[]).filter((x): x is Record<string, unknown> => !!x && typeof x === "object");
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Ids a detection payload refers to: in its controls' evidence, and approvalGroup / fallbackGroup / owner. */
+export function referencedIds(p?: CcDetectionPayload | null): string[] {
+  const ids = new Set<string>();
+  const add = (v: unknown) => {
+    if (typeof v === "string") { if (UUID.test(v)) ids.add(v); }
+    else if (Array.isArray(v)) v.forEach(add);
+  };
+  (p?.controls ?? []).forEach((c) => Object.values(c.evidence ?? {}).forEach(add));
+  [p?.approvalGroup, p?.fallbackGroup, p?.owner].forEach(add);
+  return [...ids];
+}
+
 export const CcCatalog = {
+  /**
+   * Names of the given ids, looked up live (the console's "References by name"):
+   * GET /catalog/workgroups once, then GET /catalog/principals?q={id}&limit=1 for up to 8 ids left.
+   */
+  referenceLabels: async (ids: string[]): Promise<Record<string, CcRefLabel>> => {
+    const labels: Record<string, CcRefLabel> = {};
+    try {
+      for (const w of catalogRows(await ccRequest<unknown>("GET", "/catalog/workgroups"))) {
+        const id = String(w.workgroupId ?? "");
+        if (ids.includes(id)) {
+          labels[id] = { kind: "WORKGROUP", name: String(w.workgroupCode || w.displayName || ""), displayName: w.displayName as string | undefined };
+        }
+      }
+    } catch { /* names are a nicety */ }
+    for (const id of ids.filter((x) => !labels[x]).slice(0, 8)) {
+      try {
+        const p = catalogRows(await ccRequest<unknown>("GET", "/catalog/principals", { query: { q: id, limit: "1" } }))
+          .find((x) => x.principalId === id);
+        if (p) {
+          labels[id] = {
+            kind: "PRINCIPAL", name: String(p.displayName || p.email || ""),
+            email: (p.email as string) || undefined, status: (p.status as string) || undefined,
+          };
+        }
+      } catch { /* names are a nicety */ }
+    }
+    return labels;
+  },
+
+
   /** GET /catalog/principals?q={id}&limit=1 — the principal's display name, or null when none is found. */
   principalName: async (id: string): Promise<string | null> => {
     const r = await ccRequest<unknown>("GET", "/catalog/principals", { query: { q: id, limit: "1" } });
