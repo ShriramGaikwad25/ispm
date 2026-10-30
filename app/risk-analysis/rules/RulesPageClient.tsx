@@ -7,7 +7,7 @@ import { useLookup } from "@/hooks/useLookup";
 import type { RmLookupValue } from "@/lib/api/rm";
 import type { RuleListRow } from "@/types/rm-rules";
 import Badge from "@/components/Badge";
-import { Pencil, Eye, Plus } from "lucide-react";
+import { Pencil, Eye, Plus, Power, PowerOff } from "lucide-react";
 import { RuleDetailModal } from "./RuleDetailModal";
 
 export default function RulesPageClient() {
@@ -138,15 +138,15 @@ export default function RulesPageClient() {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[960px] table-fixed border-collapse text-sm text-left">
             <colgroup>
+              <col className="w-[20%]" />
+              <col className="w-[16%]" />
+              <col className="w-[16%]" />
               <col className="w-[9%]" />
-              <col className="w-[22%]" />
-              <col className="w-[13%]" />
+              <col className="w-[5%]" />
               <col className="w-[10%]" />
-              <col className="w-[6%]" />
+              <col className="w-[7%]" />
               <col className="w-[8%]" />
-              <col className="w-[8%]" />
-              <col className="w-[10%]" />
-              <col className="w-[14%]" />
+              <col className="w-[9%]" />
             </colgroup>
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-gray-600">
@@ -167,8 +167,12 @@ export default function RulesPageClient() {
                 const condB = (r.conditions ?? []).filter((c) => c.condition_side === "B").length;
                 return (
                   <tr key={r.rule_id} className="border-b border-gray-100 last:border-0">
-                    <td className="py-2.5 px-3 font-semibold text-gray-900 truncate">{r.rule_code}</td>
-                    <td className="py-2.5 px-3 text-gray-800 truncate">{r.rule_name}</td>
+                    <td className="py-2.5 px-3 font-semibold text-gray-900 truncate" title={r.rule_code}>
+                      {r.rule_code}
+                    </td>
+                    <td className="py-2.5 px-3 text-gray-800 truncate" title={r.rule_name}>
+                      {r.rule_name}
+                    </td>
                     <td className="py-2.5 px-3">
                       <Badge
                         label={lookupName(ruleTypes.data, r.rule_type)}
@@ -220,7 +224,13 @@ export default function RulesPageClient() {
                         </button>
                         <button
                           type="button"
-                          className="shrink-0 rounded border border-gray-200 px-2 py-1 text-xs font-medium text-gray-800 hover:bg-gray-50 whitespace-nowrap"
+                          className={`inline-flex shrink-0 items-center justify-center rounded border bg-white p-1.5 ${
+                            r.status === "ACTIVE"
+                              ? "border-red-200 text-red-600 hover:bg-red-50"
+                              : "border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                          }`}
+                          title={r.status === "ACTIVE" ? "Deactivate" : "Activate"}
+                          aria-label={r.status === "ACTIVE" ? "Deactivate" : "Activate"}
                           onClick={() =>
                             void toggle.mutate({
                               id: r.rule_id,
@@ -228,7 +238,11 @@ export default function RulesPageClient() {
                             })
                           }
                         >
-                          {r.status === "ACTIVE" ? "Deactivate" : "Activate"}
+                          {r.status === "ACTIVE" ? (
+                            <PowerOff className="h-3.5 w-3.5" />
+                          ) : (
+                            <Power className="h-3.5 w-3.5" />
+                          )}
                         </button>
                       </div>
                     </td>
