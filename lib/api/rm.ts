@@ -1,4 +1,5 @@
 import { executeQuery } from "@/lib/api";
+import { getBackendOrigin } from "@/lib/backendOrigin";
 import { coerceRowObject, extractResultRows } from "@/lib/nhi-dashboard";
 import { getKfResultData, mapExecuteQueryToDashboard, mapExecuteQueryToRulesets } from "@/lib/rm-dashboard-data";
 import type { RmDashboardData, RmRuleset, RulesetCsvRow } from "@/types/rm-dashboard";
@@ -27,6 +28,10 @@ import type { ExceptionListRow } from "@/types/rm-exceptions";
 import type { AnalysisRunListRow } from "@/types/rm-analysis-runs";
 import type {
   EntitlementSearchRow,
+  RolePairDetail,
+  ScopedCheckInput,
+  ScopedCheckResult,
+  ScopeValue,
   SimulationApiResult,
   SimulationResult,
   SimulateUserAccessInput,
@@ -35,7 +40,7 @@ import type {
 } from "@/types/rm-simulation";
 import type { ErpInstance, ExtractTemplate, UpsertErpInstanceInput } from "@/types/rm-erp";
 import type { Lookup, LookupType, UpsertLookupValueInput } from "@/types/rm-lookups";
-// SimulationResult / SimulationApiResult used in unwrapSimulationResult
+// SimulationResult / SimulationApiResult used by the simulation calls
 
 const RM_TENANT_ID = "a0000000-0000-0000-0000-000000000001";
 
@@ -608,81 +613,131 @@ export async function approveException(
   return { data: getKfResultData(res) };
 }
 
-// --- Simulation (what-if) — align SQL with your `public.kf_rm_*` definitions ---
-const RM_SEARCH_USERS_SIM =
-  "SELECT public.kf_rm_search_users(?::uuid, ?, ?) AS result";
-const RM_SEARCH_ENTITLEMENTS_SIM =
-  "SELECT public.kf_rm_search_entitlements(?::uuid, ?, ?) AS result";
-const RM_GET_USER_ACCESS_SIM = "SELECT public.kf_rm_get_user_access(?::text) AS result";
-const RM_SIMULATE_USER_ACCESS = "SELECT public.kf_rm_simulate_user_access(?::jsonb) AS result";
-const RM_SIMULATE_ROLE = "SELECT public.kf_rm_simulate_role(?, ?::bigint) AS result";
-
-function unwrapSimulationResult<T>(res: unknown): SimulationApiResult & { data?: T } {
-  const raw = getKfResultData(res);
-  if (raw != null && typeof raw === "object" && !Array.isArray(raw)) {
-    const o = raw as Record<string, unknown>;
-    if ("success" in o) {
-      return {
-        success: Boolean(o.success),
-        error:
-          typeof o.error === "string"
-            ? o.error
-            : o.error != null
-              ? String(o.error)
-              : undefined,
-        data: (o.data ?? undefined) as T | undefined,
-      };
-    }
-  }
-  return { success: true, data: raw as T };
-}
+// --- Simulation (what-if) ---
+// Simulation goes through the RPC gateway (rmOp below), as the Risk Management console does: the
+// public.kf_rm_simulate_* SQL signatures changed (kf_rm_simulate_user_access(jsonb) no longer exists),
+// and the gateway takes the tenant from the session instead of a fixed tenant id.
 
 export async function searchUsers(
   query: string,
   limit: number = 15
 ): Promise<{ data: UserSearchRow[] }> {
-  const res = await executeQuery<unknown>(RM_SEARCH_USERS_SIM, [
-    RM_TENANT_ID,
-    query,
-    limit,
-  ]);
-  return { data: asArray<UserSearchRow>(getKfResultData(res)) };
+  return { data: (await rmOpData<UserSearchRow[]>("rm_search_users", { search: query, limit })) ?? [] };
 }
 
 export async function searchEntitlements(
   query: string,
   limit: number = 15
 ): Promise<{ data: EntitlementSearchRow[] }> {
-  const res = await executeQuery<unknown>(RM_SEARCH_ENTITLEMENTS_SIM, [
-    RM_TENANT_ID,
-    query,
-    limit,
-  ]);
-  return { data: asArray<EntitlementSearchRow>(getKfResultData(res)) };
+  return {
+    data: (await rmOpData<EntitlementSearchRow[]>("rm_search_entitlements", { search: query, limit })) ?? [],
+  };
 }
 
 export async function getUserAccess(userid: string): Promise<{ data: UserAccessPayload | null }> {
-  const res = await executeQuery<unknown>(RM_GET_USER_ACCESS_SIM, [userid]);
-  const data = getKfResultData(res);
-  if (data && typeof data === "object" && !Array.isArray(data)) {
-    return { data: data as UserAccessPayload };
+  // rm_get_user_entitlements is the lighter call; older gateways only have rm_get_user_access.
+  let r = await rmOp<UserAccessPayload>("rm_get_user_entitlements", { user_id: userid });
+  if (!r.success && /unknown operation/i.test(r.error ?? "")) {
+    r = await rmOp<UserAccessPayload>("rm_get_user_access", { user_id: userid });
   }
-  return { data: null };
+  if (!r.success) throw new Error(r.error ?? "Could not load the user's access");
+  return { data: r.data && typeof r.data === "object" ? r.data : null };
 }
 
 export async function simulateUserAccess(
   input: SimulateUserAccessInput
 ): Promise<SimulationApiResult & { data?: SimulationResult }> {
-  const res = await executeQuery<unknown>(RM_SIMULATE_USER_ACCESS, [JSON.stringify(input)]);
-  return unwrapSimulationResult<SimulationResult>(res);
+  return rmOp<SimulationResult>("rm_simulate_user_access", {
+    user_id: input.user_id,
+    ruleset_id: input.ruleset_id,
+    add_entitlement_ids: input.add_entitlement_ids,
+    add_privilege_ids: input.add_privilege_ids.map(String),
+    remove_entitlement_ids: input.remove_entitlement_ids,
+    language: "en",
+  });
 }
 
 export async function simulateRole(
   entitlementId: string,
   rulesetId: number
 ): Promise<SimulationApiResult & { data?: SimulationResult }> {
-  const res = await executeQuery<unknown>(RM_SIMULATE_ROLE, [entitlementId, rulesetId]);
-  return unwrapSimulationResult<SimulationResult>(res);
+  return rmOp<SimulationResult>("rm_simulate_role", {
+    entitlement_id: entitlementId,
+    ruleset_id: rulesetId,
+    language: "en",
+  });
+}
+
+// --- Risk Management RPC gateway (kf-rm-api) ---
+// Sends an operation name + named params, never SQL; the gateway verifies the session JWT and
+// injects the tenant. The patched fetch routes the call through the token proxy.
+type RmOpResult<T> = { success: boolean; data?: T; error?: string };
+
+async function rmOp<T>(op: string, params: Record<string, unknown> = {}): Promise<RmOpResult<T>> {
+  try {
+    const res = await fetch(`${getBackendOrigin()}/rm-api/api/v1/rpc`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ op, params }),
+    });
+    const body = (await res.json().catch(() => ({}))) as {
+      data?: { result?: RmOpResult<T> }[];
+      error?: string;
+      detail?: string;
+    };
+    if (!res.ok) return { success: false, error: body.detail ?? body.error ?? res.statusText };
+    const result = body.data?.[0]?.result;
+    if (!result) return { success: false, error: "Empty response" };
+    return { success: result.success !== false, data: result.data, error: result.error };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+async function rmOpData<T>(op: string, params: Record<string, unknown>): Promise<T> {
+  const r = await rmOp<T>(op, params);
+  if (!r.success) throw new Error(r.error ?? `${op} failed`);
+  return r.data as T;
+}
+
+/** Privilege search across every system (server-side, by code or name). */
+export async function searchPrivilegesByText(
+  search: string,
+  limit: number = 15
+): Promise<{ data: PrivilegeSearchRow[] }> {
+  const data = await rmOpData<PrivilegeSearchRow[]>("rm_search_privileges", {
+    system_type: null,
+    search,
+    limit,
+  });
+  return { data: data ?? [] };
+}
+
+export type RmLookupOption = { value_code: string; value_name: string; color_hex?: string | null };
+
+export async function listLookupOptions(typeCode: string): Promise<RmLookupOption[]> {
+  return (await rmOpData<RmLookupOption[]>("rm_list_lookup_values", { type_code: typeCode, language: "en" })) ?? [];
+}
+
+export async function listScopeValues(): Promise<ScopeValue[]> {
+  return (await rmOpData<ScopeValue[]>("rm_list_scope_values", { scope_type: null })) ?? [];
+}
+
+/** Risk between two roles, from the precomputed role SoD coverage matrix. */
+export async function getRolePairDetail(entitlementA: string, entitlementB: string): Promise<RolePairDetail> {
+  return rmOpData<RolePairDetail>("rm_role_pair_detail", {
+    entitlement_a: entitlementA,
+    entitlement_b: entitlementB,
+  });
+}
+
+/** Checks a request the way analysis will see it once granted, with each role in its requested scopes. */
+export async function checkRequestScoped(input: ScopedCheckInput): Promise<ScopedCheckResult> {
+  return rmOpData<ScopedCheckResult>("rm_check_request_sod_scoped", {
+    user_id: input.user_id,
+    items: input.items,
+    ruleset_codes: input.ruleset_codes?.length ? input.ruleset_codes : null,
+  });
 }
 
 // --- ERP instances & extract templates — align SQL with your `public.kf_rm_*` definitions ---

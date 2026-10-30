@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   searchUsers,
   searchEntitlements,
-  searchPrivileges,
+  searchPrivilegesByText,
   getUserAccess,
   simulateUserAccess,
   simulateRole,
@@ -33,9 +33,13 @@ import {
   Info,
   ChevronDown,
   ChevronRight,
+  GitCompareArrows,
+  LayoutList,
 } from "lucide-react";
+import RolePairBuckets from "./RolePairBuckets";
+import ScopedRequestCheck from "./ScopedRequestCheck";
 
-type Mode = "EXISTING_USER" | "NEW_HIRE" | "ROLE_CHECK";
+type Mode = "EXISTING_USER" | "NEW_HIRE" | "ROLE_CHECK" | "COMPARE_ROLES" | "DATA_SCOPE";
 
 const statusBadgeColor: Record<string, string> = {
   NEW: "#dc2626",
@@ -57,6 +61,11 @@ export default function SimulationPageClient() {
   const [entSearch, setEntSearch] = useState("");
   const [privSearch, setPrivSearch] = useState("");
   const [roleToCheck, setRoleToCheck] = useState<EntitlementSearchRow | null>(null);
+  // Compare roles: two roles, resolved from the role SoD coverage matrix (no simulation run).
+  const [roleA, setRoleA] = useState<EntitlementSearchRow | null>(null);
+  const [roleB, setRoleB] = useState<EntitlementSearchRow | null>(null);
+  const [roleASearch, setRoleASearch] = useState("");
+  const [roleBSearch, setRoleBSearch] = useState("");
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
   const toggleExpanded = (id: number) => setExpanded((s) => ({ ...s, [id]: !s[id] }));
 
@@ -98,24 +107,24 @@ export default function SimulationPageClient() {
   const privResults = useQuery({
     enabled: privSearch.length >= 1,
     queryKey: ["sim-priv-search", privSearch],
-    queryFn: async () => {
-      const { data } = await searchPrivileges("GENERIC", 200);
-      const q = privSearch.trim().toLowerCase();
-      if (!q) return [] as PrivilegeSearchRow[];
-      return (data ?? [])
-        .filter(
-          (p) =>
-            p.privilege_code.toLowerCase().includes(q) ||
-            (p.privilege_name ?? "").toLowerCase().includes(q)
-        )
-        .slice(0, 15);
-    },
+    queryFn: async () => (await searchPrivilegesByText(privSearch.trim(), 15)).data ?? [],
   });
 
   const roleSearchResults = useQuery({
     enabled: mode === "ROLE_CHECK" && entSearch.length >= 1,
     queryKey: ["sim-role-search", entSearch],
     queryFn: async () => (await searchEntitlements(entSearch, 15)).data ?? [],
+  });
+
+  const roleAResults = useQuery({
+    enabled: mode === "COMPARE_ROLES" && roleASearch.length >= 1,
+    queryKey: ["sim-role-a-search", roleASearch],
+    queryFn: async () => (await searchEntitlements(roleASearch, 15)).data ?? [],
+  });
+  const roleBResults = useQuery({
+    enabled: mode === "COMPARE_ROLES" && roleBSearch.length >= 1,
+    queryKey: ["sim-role-b-search", roleBSearch],
+    queryFn: async () => (await searchEntitlements(roleBSearch, 15)).data ?? [],
   });
 
   const simulate = useMutation({
@@ -167,8 +176,13 @@ export default function SimulationPageClient() {
     setAddEnts([]);
     setAddPrivs([]);
     setRemoveEnts([]);
+    setRoleA(null);
+    setRoleB(null);
+    setRoleASearch("");
+    setRoleBSearch("");
     simulate.reset();
   };
+  const selectedRulesetCode = rulesets.data?.find((r) => r.ruleset_id === rulesetId)?.ruleset_code ?? null;
 
   return (
     <div className="w-full min-w-0">
@@ -192,7 +206,7 @@ export default function SimulationPageClient() {
       </div>
 
       <div className="rounded-lg border border-gray-200 bg-white shadow-sm p-4 mb-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-2 mb-4">
           <ModeTab
             active={mode === "EXISTING_USER"}
             onClick={() => {
@@ -224,6 +238,28 @@ export default function SimulationPageClient() {
             icon={<ShieldAlert className="h-4 w-4" />}
             label="Toxic role check"
             hint="Intra-role SOD conflict in a single role"
+          />
+          <ModeTab
+            active={mode === "COMPARE_ROLES"}
+            onClick={() => {
+              setMode("COMPARE_ROLES");
+              reset();
+              setUser(null);
+            }}
+            icon={<GitCompareArrows className="h-4 w-4" />}
+            label="Compare roles"
+            hint="Risk between two roles — intrinsic vs combination-only"
+          />
+          <ModeTab
+            active={mode === "DATA_SCOPE"}
+            onClick={() => {
+              setMode("DATA_SCOPE");
+              reset();
+              setUser(null);
+            }}
+            icon={<LayoutList className="h-4 w-4" />}
+            label="Request with data scope"
+            hint="Roles for a business unit, company code, plant…"
           />
         </div>
 
@@ -439,6 +475,41 @@ export default function SimulationPageClient() {
           </div>
         )}
 
+        {mode === "COMPARE_ROLES" && (
+          <div>
+            <div className="bg-sky-50 border border-sky-100 rounded-lg p-2.5 mb-3 text-sm text-slate-700">
+              <Info className="inline h-3.5 w-3.5 align-[-2px] mr-1" />
+              Resolved from the precomputed coverage matrix — instant even with thousands of roles. Results split
+              into <strong>intrinsic</strong> conflicts (a role is toxic on its own) and{" "}
+              <strong>combination-only</strong> conflicts (appear only when one user holds both roles). If roles or
+              rules changed recently, refresh the role matrix first.
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <RolePicker
+                label="Role A"
+                role={roleA}
+                onPick={setRoleA}
+                search={roleASearch}
+                setSearch={setRoleASearch}
+                results={(roleAResults.data ?? []).filter((e) => e.entitlementid !== roleB?.entitlementid)}
+                loading={roleAResults.isLoading}
+              />
+              <RolePicker
+                label="Role B"
+                role={roleB}
+                onPick={setRoleB}
+                search={roleBSearch}
+                setSearch={setRoleBSearch}
+                results={(roleBResults.data ?? []).filter((e) => e.entitlementid !== roleA?.entitlementid)}
+                loading={roleBResults.isLoading}
+              />
+            </div>
+          </div>
+        )}
+
+        {mode === "DATA_SCOPE" && <ScopedRequestCheck rulesetCode={selectedRulesetCode} />}
+
+        {(mode === "EXISTING_USER" || mode === "NEW_HIRE" || mode === "ROLE_CHECK" || mode === "COMPARE_ROLES") && (
         <div className="flex justify-end gap-2 mt-4">
           <button
             type="button"
@@ -448,6 +519,7 @@ export default function SimulationPageClient() {
           >
             Reset
           </button>
+          {mode !== "COMPARE_ROLES" && (
           <button
             type="button"
             className="inline-flex items-center gap-1.5 rounded-md border border-blue-600 bg-blue-600 px-3 py-2 text-sm text-white disabled:opacity-50"
@@ -463,8 +535,16 @@ export default function SimulationPageClient() {
             <Play className="h-3.5 w-3.5" />
             {simulate.isPending ? "Simulating…" : "Run simulation"}
           </button>
+          )}
         </div>
+        )}
       </div>
+
+      {mode === "COMPARE_ROLES" && roleA && roleB && (
+        <div className="mb-4">
+          <RolePairBuckets entA={roleA.entitlementid} entB={roleB.entitlementid} />
+        </div>
+      )}
 
       {simulate.isError && (
         <div className="rounded-lg border border-red-200 bg-red-50 text-red-900 p-3 text-sm mb-4">
@@ -655,6 +735,83 @@ function ModeTab({
       </div>
       <div className="text-slate-500 text-[11px] mt-0.5">{hint}</div>
     </button>
+  );
+}
+
+function RolePicker({
+  label,
+  role,
+  onPick,
+  search,
+  setSearch,
+  results,
+  loading,
+}: {
+  label: string;
+  role: EntitlementSearchRow | null;
+  onPick: (e: EntitlementSearchRow | null) => void;
+  search: string;
+  setSearch: (s: string) => void;
+  results: EntitlementSearchRow[];
+  loading: boolean;
+}) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-slate-600 mb-1">{label}</label>
+      {role ? (
+        <div className="bg-sky-50 border border-sky-200 rounded-lg p-2.5 flex items-center justify-between">
+          <div>
+            <div className="font-semibold">{role.entitlement_displayname ?? role.entitlementname}</div>
+            <div className="text-slate-500 text-xs">
+              <code>{role.entitlementname}</code>
+              {role.app_name ? ` · ${role.app_name}` : ""} · {role.privilege_count} privileges
+            </div>
+          </div>
+          <button
+            type="button"
+            className="text-sm rounded border border-gray-200 px-2 py-1"
+            onClick={() => {
+              onPick(null);
+              setSearch("");
+            }}
+          >
+            Change
+          </button>
+        </div>
+      ) : (
+        <>
+          <input
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+            placeholder="Search for a role…"
+            aria-label={label}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          {search && (
+            <div className="max-h-52 overflow-y-auto border border-gray-200 rounded-md mt-1">
+              {results.map((e) => (
+                <button
+                  key={e.entitlementid}
+                  type="button"
+                  className="w-full text-left px-2 py-2 border-b border-slate-100 text-sm hover:bg-slate-50"
+                  onClick={() => {
+                    onPick(e);
+                    setSearch("");
+                  }}
+                >
+                  <div className="font-semibold">{e.entitlement_displayname ?? e.entitlementname}</div>
+                  <div className="text-slate-500 text-[11px]">
+                    <code>{e.entitlementname}</code>
+                    {e.app_name ? ` · ${e.app_name}` : ""} · {e.privilege_count} privs
+                  </div>
+                </button>
+              ))}
+              {results.length === 0 && !loading && <div className="p-2 text-slate-500 text-xs">No matches</div>}
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 
