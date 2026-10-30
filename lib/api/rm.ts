@@ -267,11 +267,8 @@ export async function importRulesetCsv(
 // --- Rules ---
 const RM_LIST_RULES_QUERY =
   "SELECT public.kf_rm_list_rules(?::uuid, ?::bigint, NULL, NULL, NULL, NULL, ?, ?) AS result";
-const RM_TOGGLE_RULE_STATUS_QUERY =
-  "SELECT public.kf_rm_set_rule_status(?::uuid, ?::bigint, ?::text) AS result";
 const RM_GET_RULE_QUERY =
   "SELECT public.kf_rm_get_rule_detail(?::uuid, ?::bigint, ?) AS result";
-const RM_UPSERT_RULE_V2_QUERY = "SELECT public.kf_rm_upsert_rule_v2(?::jsonb) AS result";
 const RM_LIST_USER_ATTRIBUTES_QUERY =
   "SELECT public.kf_rm_list_user_attributes(?::uuid) AS result";
 const RM_SEARCH_FUNCTIONS_QUERY =
@@ -353,13 +350,12 @@ export async function listRules(
   return { data: asArray<RuleListRow>(getKfResultData(res)) };
 }
 
+// Rule save and status go through the RPC gateway (rmOp): kf_rm_upsert_rule_v2 now takes the tenant
+// and acting user as separate arguments, and kf_rm_set_rule_status was removed.
 export async function toggleRuleStatus(ruleId: number, status: string): Promise<{ data: unknown }> {
-  const res = await executeQuery<unknown>(RM_TOGGLE_RULE_STATUS_QUERY, [
-    rmTenantId(),
-    ruleId,
-    status,
-  ]);
-  return { data: getKfResultData(res) };
+  const r = await rmOp<unknown>("rm_toggle_rule_status", { rule_id: ruleId, status });
+  if (!r.success) throw new Error(r.error ?? "Status change failed");
+  return { data: r.data };
 }
 
 export async function getRuleDetail(
@@ -375,8 +371,24 @@ export async function getRuleDetail(
 }
 
 export async function upsertRuleV2(input: UpsertRuleV2Input): Promise<{ data: unknown }> {
-  const res = await executeQuery<unknown>(RM_UPSERT_RULE_V2_QUERY, [JSON.stringify(input)]);
-  return { data: getKfResultData(res) };
+  const r = await rmOp<unknown>("rm_upsert_rule_v2", {
+    ruleset_id: input.ruleset_id,
+    rule_code: input.rule_code,
+    rule_type: input.rule_type,
+    severity: input.severity,
+    risk_score: input.risk_score ?? 0,
+    scope_enforcement: input.scope_enforcement ?? "SAME_SCOPE",
+    rule_name: input.rule_name ?? null,
+    description: input.description ?? null,
+    remediation: input.remediation ?? null,
+    side_a_function_ids: input.side_a_function_ids.map(String),
+    side_b_function_ids: input.side_b_function_ids.map(String),
+    user_conditions: input.user_conditions ?? [],
+    status: input.status ?? "ACTIVE",
+  });
+  // A rejected save (e.g. an unknown ruleset) must reach the dialog as an error, not close it.
+  if (!r.success) throw new Error(r.error ?? "Save failed");
+  return { data: r.data };
 }
 
 export async function listUserAttributes(): Promise<{
